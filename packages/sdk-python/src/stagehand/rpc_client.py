@@ -569,7 +569,10 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         operation_timeout_ms = _numeric_property(params, "ms")
 
     if operation_timeout_ms is not None:
-        if method in {"page.pdf", "page.snapshot"} and operation_timeout_ms == 0:
+        if (
+            method in {"page.pdf", "page.snapshot", "page.wait_for_selector"}
+            and operation_timeout_ms == 0
+        ):
             return None
         return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000
 

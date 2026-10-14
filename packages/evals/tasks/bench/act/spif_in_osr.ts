@@ -9,9 +9,7 @@ export default defineBenchTask(
     // OSR (open mode shadow) root
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-open-shadow-dom/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/spif-in-open-shadow-dom/");
       await stagehand.act("click the button");
 
       // v3 used schemaless extract; v4 requires a schema.

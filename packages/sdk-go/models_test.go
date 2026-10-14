@@ -189,10 +189,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 		},
 		{
 			name:  "model",
-			value: ModelConfig{ModelName: ModelName("openai/gpt-5.6")},
+			value: ModelConfig{ModelName: ModelName("openai/future-model-v1")},
 			new:   func() any { return new(ModelConfig) },
 			check: func(t *testing.T, value any) {
-				if value.(*ModelConfig).ModelName != ModelName("openai/gpt-5.6") {
+				if value.(*ModelConfig).ModelName != ModelName("openai/future-model-v1") {
 					t.Fatal("decoded the wrong model configuration")
 				}
 			},

@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "multi_tab" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/five-tab/");
 
       // v3-parity form: activePage() polls until Chrome's active target
       // registers (stagehand#2458), and act resolves its target through it,
@@ -18,8 +18,7 @@ export default defineBenchTask(
       if (!activePage) throw new Error("no active page after opening tabs");
 
       let currentPageUrl = await activePage.url();
-      let expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page5.html";
+      let expectedUrl = "https://stagehand-eval-sites.vercel.app/sites/five-tab/page5.html";
 
       if (currentPageUrl !== expectedUrl) {
         return {
@@ -39,7 +38,7 @@ export default defineBenchTask(
       activePage = await stagehand.browser.context.activePage();
       if (!activePage) throw new Error("no active page after acting on page 1");
       currentPageUrl = await activePage.url();
-      expectedUrl = "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";
+      expectedUrl = "https://stagehand-eval-sites.vercel.app/sites/five-tab/page2.html";
       if (currentPageUrl !== expectedUrl) {
         return {
           _success: false,

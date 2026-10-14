@@ -28,6 +28,7 @@ import type { BenchMatrixRow } from "../../framework/benchTypes.js";
 import type { DiscoveredTask } from "../../framework/types.js";
 import type { EvalInput } from "../../types/evals.js";
 import { EvalLogger } from "../../logger.js";
+import { runInRowContext } from "../../framework/rowContext.js";
 
 describe("bench harness registry", () => {
   it("lists registered harnesses in registration order", () => {
@@ -249,6 +250,11 @@ describe("bench harness registry", () => {
     async (cancel) => {
       const controller = new AbortController();
       let cleanupCalled = false;
+      // The live board's phase contract: `agent` is reported once the adapter
+      // is prepared, before the agent runs.
+      const phases: string[] = [];
+      let phasesAtPrepare: string[] | undefined;
+      let phasesAtAgent: string[] | undefined;
       const adapter = {
         browserSession: {
           provider: "browserbase" as const,
@@ -267,10 +273,12 @@ describe("bench harness registry", () => {
         defaultModels: ["openai/x" as AvailableModel],
         prepareToolAdapter: async (input) => {
           preparedInput = input as unknown as Record<string, unknown>;
+          phasesAtPrepare = [...phases];
           return adapter;
         },
         runAgent: async (input) => {
           receivedAdapter = input.toolAdapter;
+          phasesAtAgent = [...phases];
           expect(input.signal).toBe(controller.signal);
           if (cancel) controller.abort();
           throw new Error("agent failed");
@@ -318,13 +326,15 @@ describe("bench harness registry", () => {
       expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
       expect(harness.supportsApi).toBe(false);
       await expect(
-        harness.execute?.({
-          task,
-          input,
-          row,
-          logger: new EvalLogger(false),
-          signal: controller.signal,
-        }),
+        runInRowContext({ reportPhase: (phase) => phases.push(phase) }, async () =>
+          harness.execute?.({
+            task,
+            input,
+            row,
+            logger: new EvalLogger(false),
+            signal: controller.signal,
+          }),
+        ),
       ).resolves.toMatchObject({
         _success: false,
         error: "agent failed",
@@ -334,6 +344,8 @@ describe("bench harness registry", () => {
         browserbaseSessionId: "session-a",
         sessionUrl: "https://www.browserbase.com/sessions/session-a",
       });
+      expect(phasesAtPrepare).toEqual([]);
+      expect(phasesAtAgent).toEqual(["agent"]);
       expect(preparedInput).toMatchObject({
         toolSurface: "browse_cli",
         startupProfile: "tool_create_browserbase",

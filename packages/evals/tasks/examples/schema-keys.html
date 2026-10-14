@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Extraction schema regression</title>
+  </head>
+  <body>
+    <!-- Reduced reproduction of #2624, not a copy of a reporter's website. -->
+    <h1>Company profile</h1>
+    <button id="load">Load company</button>
+    <section id="profile" hidden>
+      <p>Company name: <span id="company"></span></p>
+      <p>Employee count: <span id="employees"></span></p>
+    </section>
+    <script>
+      document.querySelector("#load").addEventListener("click", () => {
+        document.querySelector("#company").textContent = "Acme Labs";
+        document.querySelector("#employees").textContent = "42";
+        document.querySelector("#profile").hidden = false;
+      });
+    </script>
+  </body>
+</html>
