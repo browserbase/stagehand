@@ -1744,7 +1744,7 @@ export class Page {
       { name: "waitForURL", timeout: options.timeout ?? 30_000 },
       async (progress) => {
         const onClosed = () => progress.abort(new Error("Page closed while waiting for URL"));
-        if (this.disposed) onClosed();
+        if (this.disposed || !this.conn.connected) onClosed();
         this.pageEventDisposers.add(onClosed);
         this.conn.onTransportClosed(onClosed);
         try {
@@ -2729,7 +2729,7 @@ export class Page {
         }
       };
 
-      const finish = () => {
+      const finish = (error?: unknown) => {
         if (done) return;
         done = true;
         if (timer) {
@@ -2738,31 +2738,27 @@ export class Page {
         }
         clearPollTimer();
         off();
-        resolve();
+        if (error === undefined) resolve();
+        else reject(error);
       };
 
       const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
         if (evt.name !== wanted) return;
+        const loaderId = this.registry.frames.get(this.mainFrameId())?.lastSeen?.loaderId;
+        if (loaderId && evt.loaderId !== loaderId) return;
         // Compare against the *current* main frame id when the event arrives.
         if (evt.frameId === this.mainFrameId()) finish();
       };
 
       const onDomContent = () => {
-        if (state === "domcontentloaded") finish();
+        if (state === "domcontentloaded") void pollReadyState();
       };
 
       const onLoad = () => {
-        if (state === "load") finish();
+        if (state === "load") void pollReadyState();
       };
 
-      const onAbort = () => {
-        if (done) return;
-        done = true;
-        if (timer) clearTimeout(timer);
-        clearPollTimer();
-        off();
-        reject(signal?.reason);
-      };
+      const onAbort = () => finish(signal?.reason);
 
       this.mainSession.on("Page.lifecycleEvent", onLifecycle);
       // Backups for sites that don't emit lifecycle consistently
@@ -2798,11 +2794,7 @@ export class Page {
 
       if (timeout !== 0)
         timer = setTimeout(() => {
-          if (done) return;
-          done = true;
-          clearPollTimer();
-          off();
-          reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+          finish(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
         }, timeout);
     });
   }

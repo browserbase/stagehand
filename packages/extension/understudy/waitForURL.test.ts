@@ -123,7 +123,11 @@ describe("Page.waitForURL", () => {
     expect(settled).not.toHaveBeenCalled();
     session.emit("Page.lifecycleEvent", { frameId: "child", name: "DOMContentLoaded" });
     expect(settled).not.toHaveBeenCalled();
-    session.emit("Page.lifecycleEvent", { frameId: "new-root", name: "DOMContentLoaded" });
+    session.emit("Page.lifecycleEvent", {
+      frameId: "new-root",
+      name: "DOMContentLoaded",
+      loaderId: "loader",
+    });
     await pending;
     expect(session.listeners()).toBe(baselineListeners);
     expect(vi.getTimerCount()).toBe(0);
@@ -137,7 +141,7 @@ describe("Page.waitForURL", () => {
     sameDocument("https://example.test/done");
     await vi.advanceTimersByTimeAsync(0);
     sameDocument("https://example.test/elsewhere");
-    session.emit("Page.loadEventFired", {});
+    session.emit("Page.lifecycleEvent", { frameId: "main", name: "load" });
     await vi.advanceTimersByTimeAsync(0);
     expect(settled).not.toHaveBeenCalled();
     ready.mockResolvedValue(true);
@@ -165,6 +169,26 @@ describe("Page.waitForURL", () => {
     session.emit("Page.lifecycleEvent", { frameId: "main", name: "load", loaderId: "reloaded" });
     await pending;
     expect(ready).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores lifecycle events from the previous document", async () => {
+    session.emit("Page.frameNavigated", {
+      frame: {
+        id: "main",
+        loaderId: "current",
+        url: "https://example.test/start",
+      },
+    });
+    ready.mockResolvedValue(false);
+    const settled = vi.fn();
+    const pending = page.waitForURL("**/start").then(settled);
+    await vi.advanceTimersByTimeAsync(0);
+    session.emit("Page.lifecycleEvent", { frameId: "main", loaderId: "old", name: "load" });
+    session.emit("Page.loadEventFired", {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).not.toHaveBeenCalled();
+    session.emit("Page.lifecycleEvent", { frameId: "main", loaderId: "current", name: "load" });
+    await pending;
   });
 
   it.each([false, true])("cleans up at the deadline (loading: %s)", async (loading) => {
@@ -211,5 +235,11 @@ describe("Page.waitForURL", () => {
   it("rejects immediately after page disposal", async () => {
     page.dispose();
     await expect(page.waitForURL("**", { timeout: 0 })).rejects.toThrow("Page closed");
+  });
+
+  it("rejects immediately when the transport was already disconnected", async () => {
+    vi.spyOn(page.conn, "connected", "get").mockReturnValue(false);
+    await expect(page.waitForURL("**/missing", { timeout: 0 })).rejects.toThrow("Page closed");
+    expect(page.conn.transportCloseHandlers.size).toBe(0);
   });
 });
