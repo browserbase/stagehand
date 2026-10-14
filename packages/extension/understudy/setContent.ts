@@ -34,6 +34,8 @@ export async function setContent(
 
         let started = false;
         const lifecycle = Promise.withResolvers<void>();
+        // Closure can race the deadline before the next Progress callback starts.
+        void lifecycle.promise.catch(() => {});
         const wanted = LIFECYCLE_EVENT[options?.waitUntil ?? "load"];
         const onLifecycle = (event: Protocol.Page.LifecycleEventEvent) => {
           if (event.frameId !== frameId) return;
@@ -54,6 +56,10 @@ export async function setContent(
           if (event.sessionId === session.id)
             lifecycle.reject(new Error("setContent page was closed"));
         };
+        const onTargetDestroyed = (event: Protocol.Target.TargetDestroyedEvent) => {
+          if (event.targetId === page.targetId())
+            lifecycle.reject(new Error("setContent page was closed"));
+        };
         const onTransportClosed = (reason: string) => {
           lifecycle.reject(new Error(`setContent connection closed: ${reason}`));
         };
@@ -62,6 +68,7 @@ export async function setContent(
         session.on("Page.frameNavigated", onFrameNavigated);
         session.on("Page.frameDetached", onFrameDetached);
         page.conn.on("Target.detachedFromTarget", onTargetDetached);
+        page.conn.on("Target.targetDestroyed", onTargetDestroyed);
         page.conn.onTransportClosed(onTransportClosed);
         try {
           // Attach the wait before sending: an inline document can finish loading
@@ -78,6 +85,7 @@ export async function setContent(
           session.off("Page.frameNavigated", onFrameNavigated);
           session.off("Page.frameDetached", onFrameDetached);
           page.conn.off("Target.detachedFromTarget", onTargetDetached);
+          page.conn.off("Target.targetDestroyed", onTargetDestroyed);
           page.conn.offTransportClosed(onTransportClosed);
         }
       },
