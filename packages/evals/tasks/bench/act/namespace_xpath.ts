@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "namespace_xpath" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/namespaced-xpath/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/namespaced-xpath/");
 
       await stagehand.act("fill 'nunya' into the 'type here' form");
 

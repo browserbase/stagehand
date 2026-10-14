@@ -9,7 +9,7 @@
  */
 
 import { resolveLocalChromeExecutablePath } from "../../core/targets/localChrome.js";
-import { resolveKey, snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
+import { snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 
 export type Provider = "openai" | "anthropic" | "google";
 export type Browser = "local" | "browserbase";
@@ -39,31 +39,7 @@ export type Machine = {
 
 export const FIRST_BENCH_TARGET = "b:webvoyager";
 
-/**
- * Keys that live only in packages/evals/.env are visible to detection (which
- * reads that file) but not to a run launched from the repo root (which reads
- * process.env). Promote them so the hand-off can actually authenticate.
- */
-const RUNTIME_KEYS = [
-  "OPENAI_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "GOOGLE_GENERATIVE_AI_API_KEY",
-  "GEMINI_API_KEY",
-  "BROWSERBASE_API_KEY",
-  "BROWSERBASE_PROJECT_ID",
-  "BB_API_KEY",
-  "BB_PROJECT_ID",
-];
-function promotePackageEnv(): void {
-  for (const name of RUNTIME_KEYS) {
-    if (process.env[name]) continue;
-    const r = resolveKey(name);
-    if (r.source === "package-dotenv" && r.value) process.env[name] = r.value;
-  }
-}
-
 export function detectMachine(): Machine {
-  promotePackageEnv();
   const keys = snapshotEnv();
   const providers: Provider[] = [];
   if (keys.openai.state === "set") providers.push("openai");

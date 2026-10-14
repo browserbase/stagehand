@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_rockauto" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/rockauto/");
       await new Promise((resolve) => setTimeout(resolve, 5000));
       const { data: result } = await stagehand.extract(
         "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +

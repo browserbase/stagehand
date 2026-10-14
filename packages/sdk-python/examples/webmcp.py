@@ -2,7 +2,7 @@ import asyncio
 
 from stagehand import Stagehand, WebMCPTool, WebMCPToolIdentity, local_browser
 
-WEBMCP_TEST_SITE = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/"
+WEBMCP_TEST_SITE = "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/"
 
 
 def tools_added(tools: list[WebMCPTool]) -> None:
