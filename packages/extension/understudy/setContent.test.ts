@@ -31,6 +31,7 @@ describe("Page.setContent", () => {
     expect(listenerCount()).toBe(baselineListeners);
     expect(connection.transportCloseHandlers.size).toBe(0);
     expect(connection.eventHandlers.get("Target.detachedFromTarget")?.size ?? 0).toBe(0);
+    expect(connection.eventHandlers.get("Target.targetDestroyed")?.size ?? 0).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
   }
 
@@ -195,7 +196,36 @@ describe("Page.setContent", () => {
     await page.setContent("");
   });
 
-  it.each(["navigation", "frame", "target", "transport"])(
+  it("releases the guard when an acknowledged command rejects after timeout", async () => {
+    const acknowledgement = Promise.withResolvers<unknown>();
+    send.mockImplementationOnce(async () => ({})).mockReturnValueOnce(acknowledgement.promise);
+    const pending = page.setContent("", { timeout: 10 });
+    const rejected = expect(pending).rejects.toThrow("setContent timed out");
+    await vi.advanceTimersByTimeAsync(10);
+    await rejected;
+    await expect(page.setContent("overlap")).rejects.toThrow("still in progress");
+    acknowledgement.reject(new Error("target closed"));
+    await vi.advanceTimersByTimeAsync(0);
+    await page.setContent("after rejection");
+    expectClean();
+  });
+
+  it("observes closure when the deadline expires before the mutation callback starts", async () => {
+    const subscribe = connection.onTransportClosed.bind(connection);
+    vi.spyOn(connection, "onTransportClosed").mockImplementation((handler) => {
+      subscribe(handler);
+      queueMicrotask(() => {
+        vi.spyOn(performance, "now").mockReturnValue(11);
+        connection.emitTransportClosed("closed at deadline");
+      });
+    });
+    await expect(page.setContent("", { timeout: 10 })).rejects.toThrow("setContent timed out");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(1);
+    expectClean();
+  });
+
+  it.each(["navigation", "frame", "target", "destroyed", "transport"])(
     "rejects %s interruption even with timeout disabled",
     async (reason) => {
       send.mockResolvedValue({});
@@ -205,10 +235,13 @@ describe("Page.setContent", () => {
       if (reason === "navigation") events.emit("Page.frameNavigated", { frame: { id: "root" } });
       if (reason === "frame")
         events.emit("Page.frameDetached", { frameId: "root", reason: "remove" });
-      if (reason === "target") {
-        for (const handler of connection.eventHandlers.get("Target.detachedFromTarget") ?? []) {
-          handler({ sessionId: "session" });
-        }
+      if (reason === "target" || reason === "destroyed") {
+        await connection.onMessage(
+          JSON.stringify({
+            method: reason === "target" ? "Target.detachedFromTarget" : "Target.targetDestroyed",
+            params: { sessionId: "session", targetId: "page" },
+          }),
+        );
       }
       if (reason === "transport") connection.emitTransportClosed("disconnected");
       await rejected;
