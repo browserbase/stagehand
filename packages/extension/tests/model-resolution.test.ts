@@ -43,7 +43,7 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
     state: { getState: () => ({ status: "initialized", initParams }) },
     resolveUnderstudyPage: vi.fn(() => ({})),
     resolvePage: vi.fn(() => ({})),
-    adapters: { clientLLMGenerate: vi.fn() },
+    adapters: { clientLLMGenerate: vi.fn(), clientBrowserbaseRequest: vi.fn() },
     metrics: { record: vi.fn() },
     runWithTelemetryContext: async (_scope: symbol, _logger: unknown, run: () => unknown) =>
       await run(),
@@ -130,46 +130,55 @@ describe("model configuration", () => {
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it("routes every primitive without a model through the Browserbase gateway", async () => {
-      const act = vi.spyOn(actService, "act").mockResolvedValue({
-        data: { success: true, message: "", actionDescription: "", actions: [] },
-        metadata,
-      });
-      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
-        data: {},
-        metadata,
-      });
-      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
-        data: [],
-        metadata,
-      });
-      const controller = createStagehandController(
-        runtimeWith({
-          apiKey: "bb-api-key",
+    it.each(["legacy", "client"])(
+      "routes every primitive without a model through the %s Gateway",
+      async (source) => {
+        const act = vi.spyOn(actService, "act").mockResolvedValue({
+          data: { success: true, message: "", actionDescription: "", actions: [] },
+          metadata,
+        });
+        const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+          data: {},
+          metadata,
+        });
+        const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+          data: [],
+          metadata,
+        });
+        const runtime = runtimeWith({
+          ...(source === "client" ? { browserbase: "client" } : { apiKey: "bb-api-key" }),
           browser: { sessionId: "session-123", region: "eu-central-1" },
-        } as StagehandInitParams),
-      );
+        } as StagehandInitParams);
+        const controller = createStagehandController(runtime);
 
-      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
-      await controller.extract(
-        { pageId: "page-1", instruction: "Extract", schema: {} },
-        handlerContext,
-      );
-      await controller.observe({ pageId: "page-1" }, handlerContext);
-
-      for (const service of [act, extract, observe]) {
-        expect(service).toHaveBeenCalledWith(
-          expect.objectContaining({
-            model: undefined,
-            gateway: {
-              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-              apiKey: "bb-api-key",
-              sessionId: "session-123",
-            },
-          }),
+        await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+        await controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {} },
+          handlerContext,
         );
-      }
-    });
+        await controller.observe({ pageId: "page-1" }, handlerContext);
+
+        for (const service of [act, extract, observe]) {
+          expect(service).toHaveBeenCalledWith(
+            expect.objectContaining({
+              model: undefined,
+              gateway:
+                source === "client"
+                  ? {
+                      source: "client",
+                      sessionId: "session-123",
+                      request: runtime.adapters.clientBrowserbaseRequest,
+                    }
+                  : {
+                      apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
+                      apiKey: "bb-api-key",
+                      sessionId: "session-123",
+                    },
+            }),
+          );
+        }
+      },
+    );
 
     it("rejects every primitive without a model or Browserbase gateway", async () => {
       const act = vi.spyOn(actService, "act");
@@ -206,6 +215,54 @@ describe("model configuration", () => {
   describe("per-call models", () => {
     it.todo("uses the initialized model when a call does not provide one");
     it.todo("uses the complete per-call model when a call provides one");
-    it.todo("does not inherit initialized credentials into a per-call model");
+    it.each([
+      { modelName: "openai/gpt-5", apiKey: "provider-key", headers: { "x-default": "value" } },
+      { source: "client" },
+    ] as const)(
+      "does not inherit an initialized model into a keyless override: %j",
+      async (model) => {
+        const act = vi.spyOn(actService, "act").mockResolvedValue({
+          data: { success: true, message: "", actionDescription: "", actions: [] },
+          metadata,
+        });
+        const extract = vi
+          .spyOn(extractService, "extract")
+          .mockResolvedValue({ data: {}, metadata });
+        const observe = vi
+          .spyOn(observeService, "observe")
+          .mockResolvedValue({ data: [], metadata });
+        const runtime = runtimeWith({
+          browserbase: "client",
+          browser: { sessionId: "session-123" },
+          model,
+        } as StagehandInitParams);
+        const controller = createStagehandController(runtime);
+        const override = { modelName: "anthropic/future-model" } as const;
+        await controller.act(
+          { pageId: "page-1", instruction: "Click", options: { model: override } },
+          handlerContext,
+        );
+        await controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {}, options: { model: override } },
+          handlerContext,
+        );
+        await controller.observe(
+          { pageId: "page-1", options: { model: override } },
+          handlerContext,
+        );
+        for (const service of [act, extract, observe]) {
+          expect(service).toHaveBeenCalledWith(
+            expect.objectContaining({
+              model: override,
+              gateway: {
+                source: "client",
+                sessionId: "session-123",
+                request: runtime.adapters.clientBrowserbaseRequest,
+              },
+            }),
+          );
+        }
+      },
+    );
   });
 });

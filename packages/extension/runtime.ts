@@ -447,7 +447,9 @@ export class StagehandRuntime {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
     const gateway =
-      state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+      state.status === "initialized"
+        ? buildGatewayContext(state.initParams, this.adapters.clientBrowserbaseRequest)
+        : undefined;
     if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }

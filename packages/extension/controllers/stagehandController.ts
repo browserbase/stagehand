@@ -70,7 +70,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
@@ -101,7 +104,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
@@ -130,7 +136,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }

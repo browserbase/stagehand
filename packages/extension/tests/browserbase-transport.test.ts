@@ -51,7 +51,7 @@ describe("Browserbase service endpoints", () => {
       browser: { sessionId: fixtures.connection.sessionId, region },
     });
 
-    expect(buildGatewayContext(init)?.apiUrl).toBe(expected);
+    expect(buildGatewayContext(init)).toMatchObject({ apiUrl: expected });
     expect(buildCacheContext(init)?.client.apiUrl).toBe(expected);
   });
 });
