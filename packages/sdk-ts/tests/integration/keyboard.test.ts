@@ -159,6 +159,34 @@ describe("v4 keyboard shortcuts and typing", () => {
     ]);
   });
 
+  it("preserves literal line separators and Unicode in textarea input", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(dataUrl('<textarea id="t"></textarea>'));
+    const textarea = page.locator("#t");
+
+    for (const [key, value, caret] of [
+      ["\n", "ab", 1], // Chrome ignores literal LF; CR produces a line break.
+      ["\r", "a\nb", 2],
+      ["\u2028", "a\u2028b", 2],
+      ["\u2029", "a\u2029b", 2],
+      ["😀", "a😀b", 3],
+      ["ArrowLeft", "ab", 0],
+    ] as const) {
+      await textarea.fill("ab");
+      await page.evaluate(() => {
+        const input = document.querySelector("textarea")!;
+        input.focus();
+        input.setSelectionRange(1, 1);
+      });
+      await page.keyDown(key);
+      await page.keyUp(key);
+      expect(await textarea.inputValue()).toBe(value);
+      expect(await page.evaluate(() => document.querySelector("textarea")!.selectionStart)).toBe(
+        caret,
+      );
+    }
+  });
+
   it("typing, select-all + delete clears input (Cmd maps cross-OS)", async () => {
     const html = `<!doctype html>
       <input id="i1" autofocus />`;
