@@ -196,6 +196,23 @@ describe("Page.setContent", () => {
     await page.setContent("");
   });
 
+  it("rejects a disposed page without dispatching a command", async () => {
+    page.dispose();
+    await expect(page.setContent("", { timeout: 0 })).rejects.toThrow("Page is disposed");
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each(["before setup", "before mutation"])(
+    "rejects an already closed connection %s with timeout disabled",
+    async (when) => {
+      const connected = vi.spyOn(connection, "connected", "get").mockReturnValue(false);
+      if (when === "before mutation") connected.mockReturnValueOnce(true);
+      await expect(page.setContent("", { timeout: 0 })).rejects.toThrow("connection is closed");
+      expect(send).toHaveBeenCalledTimes(when === "before setup" ? 0 : 1);
+      expectClean();
+    },
+  );
+
   it("releases the guard when an acknowledged command rejects after timeout", async () => {
     const acknowledgement = Promise.withResolvers<unknown>();
     send.mockImplementationOnce(async () => ({})).mockReturnValueOnce(acknowledgement.promise);

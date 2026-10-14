@@ -28,9 +28,10 @@ export async function setContent(
       async (progress) => {
         const session = page.mainSession;
         const frameId = page.mainFrameId();
-        await progress.run("enabling lifecycle events", () =>
-          session.send("Page.setLifecycleEventsEnabled", { enabled: true }),
-        );
+        await progress.run("enabling lifecycle events", () => {
+          if (!page.conn.connected) throw new Error("setContent connection is closed");
+          return session.send("Page.setLifecycleEventsEnabled", { enabled: true });
+        });
 
         let started = false;
         const lifecycle = Promise.withResolvers<void>();
@@ -76,6 +77,7 @@ export async function setContent(
           await progress.run("waiting for document content", async () => {
             mutation = Promise.resolve().then(() => {
               progress.throwIfStopped();
+              if (!page.conn.connected) throw new Error("setContent connection is closed");
               return session.send("Page.setDocumentContent", { frameId, html });
             });
             await Promise.all([lifecycle.promise, mutation]);

@@ -1258,6 +1258,7 @@ export class Page {
     html: string,
     options?: { waitUntil?: LoadState; timeout?: number },
   ): Promise<void> {
+    if (this.disposed) throw new Error("Page is disposed");
     await setContent(this, html, options);
   }
 
