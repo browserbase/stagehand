@@ -64,7 +64,7 @@ function waitForMatchingURL(
       resolve();
     };
     const onNavigated = (event: Protocol.Page.FrameNavigatedEvent) => {
-      if (!event.frame.parentId) check(event.frame.url);
+      if (!event.frame.parentId) check(event.frame.url + (event.frame.urlFragment ?? ""));
     };
     const onSameDocument = (event: Protocol.Page.NavigatedWithinDocumentEvent) => {
       if (event.frameId === page.mainFrameId()) check(event.url);
