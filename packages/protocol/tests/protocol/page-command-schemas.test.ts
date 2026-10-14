@@ -8,7 +8,9 @@ import {
   PageGoBackParamsSchema,
   PageGoForwardParamsSchema,
   PageHoverParamsSchema,
+  PageKeyDownParamsSchema,
   PageKeyPressParamsSchema,
+  PageKeyUpParamsSchema,
   PagePDFParamsSchema,
   PagePDFResultSchema,
   PageReloadParamsSchema,
@@ -176,6 +178,17 @@ describe("page command schemas", () => {
       PageTypeParamsSchema.parse({ pageId, text: "hello", options: { mistakes: true } }),
     ).toThrow();
   });
+
+  it.each([PageKeyDownParamsSchema, PageKeyUpParamsSchema])(
+    "requires a page and a nonempty key for down/up events",
+    (schema) => {
+      expect(schema.parse({ pageId, key: "Shift" })).toStrictEqual({ pageId, key: "Shift" });
+      expect(() => schema.parse({ pageId, key: "" })).toThrow();
+      expect(() => schema.parse({ pageId })).toThrow();
+      expect(() => schema.parse({ key: "Shift" })).toThrow();
+      expect(() => schema.parse({ pageId, key: "Shift", options: {} })).toThrow();
+    },
+  );
 
   it("defines normalized script params and JSON evaluation results", () => {
     expect(

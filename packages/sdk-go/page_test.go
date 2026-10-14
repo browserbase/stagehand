@@ -103,6 +103,42 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	}
 }
 
+func TestPageKeyboardDownUp(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		method string
+		call   func(*Page, context.Context, string) error
+	}{
+		{"KeyDown", "page.key_down", (*Page).KeyDown},
+		{"KeyUp", "page.key_up", (*Page).KeyUp},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &recordingProtocolClient{responses: map[string]any{
+				test.method: PageVoidResult{Ok: true},
+			}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			if err := test.call(page, context.Background(), "Shift"); err != nil {
+				t.Fatal(err)
+			}
+			if len(rpc.calls) != 1 || rpc.calls[0].method != test.method {
+				t.Fatalf("calls = %#v", rpc.calls)
+			}
+			encoded, err := marshalValidatedJSON(rpc.calls[0].params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertRPCJSON(t, encoded, `{"page_id":"page-1","key":"Shift"}`)
+
+			callErr := errors.New("keyboard dispatch failed")
+			rpc.callErrors = map[string]error{test.method: callErr}
+			if err := test.call(page, context.Background(), "Shift"); !errors.Is(err, callErr) {
+				t.Fatalf("error = %v, want %v", err, callErr)
+			}
+		})
+	}
+}
+
 func TestPageOnRejectsUnsupportedEventsBeforeSubscribing(t *testing.T) {
 	t.Parallel()
 	for _, event := range []PageEventName{"toolsadded", "toolsremoved", "unknown", ""} {

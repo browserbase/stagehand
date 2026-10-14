@@ -74,7 +74,9 @@ import {
   PageGotoParamsSchema,
   PageHoverParamsSchema,
   PageIdParamsSchema,
+  PageKeyDownParamsSchema,
   PageKeyPressParamsSchema,
+  PageKeyUpParamsSchema,
   PageNavigationResultSchema,
   PageOffParamsSchema,
   PageOnParamsSchema,
@@ -314,6 +316,16 @@ export const StagehandMethods = {
   pageKeyPress: {
     name: "page.key_press",
     params: PageKeyPressParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageKeyDown: {
+    name: "page.key_down",
+    params: PageKeyDownParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageKeyUp: {
+    name: "page.key_up",
+    params: PageKeyUpParamsSchema,
     result: PageVoidResultSchema,
   },
   pageEvaluate: {

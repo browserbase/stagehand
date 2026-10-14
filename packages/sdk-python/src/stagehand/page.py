@@ -39,8 +39,10 @@ from ._generated.models import (
     PageGotoParams,
     PageHoverParams,
     PageIdParams,
+    PageKeyDownParams,
     PageKeyPressOptions,
     PageKeyPressParams,
+    PageKeyUpParams,
     PageNavigationOptions,
     PageNavigationResult,
     PageOffParams,
@@ -361,6 +363,14 @@ class Page:
         if delay is not None:
             params.options = PageKeyPressOptions(delay=delay)
         await self._rpc_client.send("page.key_press", params, PageVoidResult)
+
+    async def key_down(self, key: str) -> None:
+        params = PageKeyDownParams(page_id=self.page_id, key=key)
+        await self._rpc_client.send("page.key_down", params, PageVoidResult)
+
+    async def key_up(self, key: str) -> None:
+        params = PageKeyUpParams(page_id=self.page_id, key=key)
+        await self._rpc_client.send("page.key_up", params, PageVoidResult)
 
     @overload
     async def evaluate(self, expression: str) -> JsonValue: ...

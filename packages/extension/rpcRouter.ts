@@ -313,6 +313,16 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageKeyPress, request.params),
           context,
         );
+      case "page.key_down":
+        return this.pageController.keyDown(
+          parseParams(StagehandMethods.pageKeyDown, request.params),
+          context,
+        );
+      case "page.key_up":
+        return this.pageController.keyUp(
+          parseParams(StagehandMethods.pageKeyUp, request.params),
+          context,
+        );
       case "page.evaluate":
         return this.pageController.evaluate(
           parseParams(StagehandMethods.pageEvaluate, request.params),

@@ -213,6 +213,20 @@ func (p *Page) KeyPress(ctx context.Context, key string, options *PageKeyPressOp
 	return p.rpc.call(ctx, "page.key_press", params, &result)
 }
 
+// KeyDown presses and holds a keyboard key until KeyUp releases it.
+func (p *Page) KeyDown(ctx context.Context, key string) error {
+	params := PageKeyDownParams{PageID: p.PageID(), Key: key}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.key_down", params, &result)
+}
+
+// KeyUp releases a previously held keyboard key.
+func (p *Page) KeyUp(ctx context.Context, key string) error {
+	params := PageKeyUpParams{PageID: p.PageID(), Key: key}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.key_up", params, &result)
+}
+
 // Evaluate evaluates JavaScript source and returns its JSON value.
 func (p *Page) Evaluate(ctx context.Context, expression string) (json.RawMessage, error) {
 	params := PageEvaluateParams{PageID: p.PageID(), Expression: expression}

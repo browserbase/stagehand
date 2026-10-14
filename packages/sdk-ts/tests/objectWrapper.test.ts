@@ -976,10 +976,14 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageType, { ok: true });
     client.queueResponse(StagehandMethods.pageKeyPress, { ok: true });
+    client.queueResponse(StagehandMethods.pageKeyDown, { ok: true });
+    client.queueResponse(StagehandMethods.pageKeyUp, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await page.type("hello", { delay: 25, withMistakes: true });
     await page.keyPress("Control+A", { delay: 10 });
+    await expect(page.keyDown("Shift")).resolves.toBeUndefined();
+    await expect(page.keyUp("Shift")).resolves.toBeUndefined();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageType, {
@@ -992,7 +996,21 @@ describe("Stagehand TS object wrapper", () => {
         key: "Control+A",
         options: { delay: 10 },
       }),
+      requestCall(StagehandMethods.pageKeyDown, { pageId: "page-1", key: "Shift" }),
+      requestCall(StagehandMethods.pageKeyUp, { pageId: "page-1", key: "Shift" }),
     ]);
+  });
+
+  it.each([
+    ["keyDown", StagehandMethods.pageKeyDown],
+    ["keyUp", StagehandMethods.pageKeyUp],
+  ] as const)("propagates %s failures", async (action, method) => {
+    const client = new FakeProtocolClient();
+    const error = new Error("keyboard dispatch failed");
+    client.queueResponse(method, error);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page[action]("Shift")).rejects.toBe(error);
   });
 
   it("normalizes page evaluation functions and preserves result keys", async () => {

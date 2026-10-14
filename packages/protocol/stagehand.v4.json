@@ -500,6 +500,32 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.key_down": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageKeyDownParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.key_up": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageKeyUpParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.evaluate": {
           "type": "object",
           "properties": {
@@ -1047,6 +1073,8 @@
         "page.drag_and_drop",
         "page.type",
         "page.key_press",
+        "page.key_down",
+        "page.key_up",
         "page.evaluate",
         "page.add_init_script",
         "page.on",
@@ -3567,6 +3595,34 @@
           "minimum": 0
         }
       },
+      "additionalProperties": false
+    },
+    "PageKeyDownParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "key"],
+      "additionalProperties": false
+    },
+    "PageKeyUpParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "key"],
       "additionalProperties": false
     },
     "PageEvaluateParams": {
@@ -6480,6 +6536,60 @@
             },
             "params": {
               "$ref": "#/$defs/PageKeyPressParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.key_down"
+            },
+            "params": {
+              "$ref": "#/$defs/PageKeyDownParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.key_up"
+            },
+            "params": {
+              "$ref": "#/$defs/PageKeyUpParams"
             },
             "traceparent": {
               "type": "string"
