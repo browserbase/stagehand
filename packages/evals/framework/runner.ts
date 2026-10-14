@@ -48,14 +48,60 @@ export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
+import { resolveVerifierModel } from "./verifierModel.js";
+import { describeCase, rowKey, type CaseLabel } from "./caseIdentity.js";
+import { runInRowContext, type RowLogEntry, type RowPhase } from "./rowContext.js";
+import { RowLogNames, RowLogWriter, resolveRunLogDir, rowLogFileName } from "./rowLog.js";
+import path from "node:path";
+import { classifyRowOutcome, type RowOutcome } from "./runSummary.js";
+import {
+  ProviderConcurrency,
+  interleaveByProvider,
+  runGatedRow,
+  type ConcurrencyQueueSnapshot,
+  type ThrottleRecord,
+} from "./providerConcurrency.js";
 
 export interface RunProgressEvent {
-  type: "planned" | "started" | "passed" | "failed" | "error";
+  type:
+    | "planned"
+    | "started"
+    | "phase"
+    | "passed"
+    | "failed"
+    | "error"
+    | "queue"
+    | "throttled"
+    | "log";
   taskName?: string;
   modelName?: string;
+  /**
+   * Identity of one execution (cell + case + trial). Suite rows share
+   * `taskName` (`agent/hardbenchmark`), so consumers must key by this.
+   */
+  rowKey?: string;
+  /** Which dataset case the row is (suite rows only). */
+  case?: CaseLabel;
+  /** 0-based trial index. */
+  trial?: number;
+  /** Wall-clock time from slot acquisition to result, on passed/failed. */
   durationMs?: number;
+  /** Outcome kind on passed/failed (`max_turns`, `sdk_error`, `gated`, …). */
+  outcome?: RowOutcome;
+  /** What a running row is doing; present on `phase` events. */
+  phase?: RowPhase;
+  /** Browserbase session URL, once known (phase events and results). */
+  sessionUrl?: string;
+  /** One log line from the row; present on `log` events. */
+  log?: RowLogEntry;
+  /** The row's log file, on passed/failed when it logged anything. */
+  logPath?: string;
   error?: string;
   total?: number;
+  /** Live scheduler state; present on `queue` events. */
+  queue?: ConcurrencyQueueSnapshot;
+  /** Which semaphore was halved and why; present on `throttled` events. */
+  throttle?: ThrottleRecord;
 }
 
 export interface RunEvalsOptions {
@@ -73,6 +119,12 @@ export interface RunEvalsOptions {
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;
+  /**
+   * Per-provider widths under the global cap (`{ openai: 3, anthropic: 3 }`,
+   * `browserbase` for session creation). `EVAL_PROVIDER_CONCURRENCY` layers on
+   * top of these; unset providers default to 3.
+   */
+  providerConcurrency?: Record<string, number>;
   /**
    * Cooperative abort. When triggered, the runner short-circuits any
    * unstarted testcases and any in-flight bench task is asked to close
@@ -278,6 +330,14 @@ async function executeCoreTask(
 
 export interface RunEvalsResult {
   experimentName: string;
+  /** Braintrust experiment URL, when Eval() resolved one. */
+  experimentUrl?: string;
+  /** Judge model the verifier used for this run (env or default). */
+  judgeModel?: string;
+  /** Local trajectory group slug under the trajectory root, when persisted. */
+  trajectoryGroup?: string;
+  /** Directory holding one log file per row. */
+  logDir?: string;
   summary: { passed: number; failed: number; total: number };
   results: Array<{
     input: EvalInput;
@@ -356,6 +416,7 @@ export function buildExperimentMetadata(input: {
   harness?: Harness;
   modelOverride?: string;
   useApi?: boolean;
+  campaign?: string;
   testcases: Testcase[];
 }): Record<string, unknown> {
   const distinct = (pick: (tc: Testcase) => unknown): string[] => {
@@ -390,6 +451,7 @@ export function buildExperimentMetadata(input: {
     ...(dataset && { dataset }),
     task_count: input.testcases.length,
     ...(input.useApi && { api: true }),
+    ...(input.campaign && { campaign: input.campaign }),
   };
 }
 
@@ -430,6 +492,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   const traceTransport = resolveTraceTransport();
   const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
   const braintrustProjectName = resolveBraintrustProjectName(hasCoreOnly ? "core" : "bench");
+  let scheduler: ProviderConcurrency | undefined;
 
   try {
     const concurrency = options.concurrency ?? 3;
@@ -441,11 +504,27 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       : undefined;
     if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
 
-    const testcases = generateTestcases(options.tasks, options);
+    // Provider semaphores gate what runs under Braintrust's cap.
+    scheduler = ProviderConcurrency.fromEnv(concurrency, {
+      configWidths: options.providerConcurrency,
+      onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
+    });
+    const activeScheduler = scheduler;
+    // Interleaved in proportion to provider widths so every provider's rows
+    // reach Braintrust's global slots early instead of queueing behind the
+    // first provider's semaphore.
+    const testcases = interleaveByProvider(
+      generateTestcases(options.tasks, options),
+      (testcase) => testcase.input.modelName,
+      (provider) => (provider ? activeScheduler.configuredWidth(provider) : 1),
+    );
+    // Braintrust runs every testcase once per trial; counts are per execution.
+    const plannedExecutions = testcases.length * trials;
     options.onProgress?.({
       type: "planned",
-      total: testcases.length,
+      total: plannedExecutions,
     });
+    scheduler.setTotal(plannedExecutions);
     if (testcases.length === 0) {
       console.log("No testcases to run.");
       return {
@@ -484,6 +563,12 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       model: runModel,
       runToken: generateRunToken(),
     });
+    const logDir = resolveRunLogDir({
+      trajectoryRoot: resolveTrajectoryRoot(),
+      trajectoryGroup,
+      persist: shouldPersistTrajectory(undefined),
+    });
+    const logNames = new RowLogNames();
     process.env.EVAL_EXPERIMENT_NAME = experimentName;
     process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
     if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
@@ -526,20 +611,26 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             modelOverride: options.modelOverride,
             useApi: options.useApi,
             testcases,
+            // campaign.tag / EVAL_CAMPAIGN_TAG groups experiments across cells.
+            campaign: process.env.EVAL_CAMPAIGN_TAG?.trim() || undefined,
           }),
           data: () => testcases,
-          task: async (input: EvalInput): Promise<TaskResult> => {
+          task: async (input: EvalInput, hooks?: { trialIndex?: number }): Promise<TaskResult> => {
+            const trial = hooks?.trialIndex ?? 0;
+            const row = {
+              taskName: input.name,
+              modelName: input.modelName,
+              rowKey: rowKey(input, trial),
+              case: describeCase(input),
+              trial,
+            };
             // Cooperative abort: skip any testcase that hasn't started yet
             // when the signal has flipped. The in-flight task at the moment of
             // abort still finishes its current step; this stops the next one
             // from spinning up.
             if (options.signal?.aborted) {
-              options.onProgress?.({
-                type: "failed",
-                taskName: input.name,
-                modelName: input.modelName,
-                error: "aborted",
-              });
+              activeScheduler.markFinished();
+              options.onProgress?.({ type: "failed", ...row, error: "aborted" });
               return {
                 _success: false,
                 error: "aborted by user",
@@ -554,16 +645,11 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                 : options.registry.byName.get(`agent/${input.name}`));
 
             if (!resolvedTask) {
+              activeScheduler.markFinished();
               throw new EvalsError(`Task "${input.name}" not found in registry.`);
             }
 
-            options.onProgress?.({
-              type: "started",
-              taskName: input.name,
-              modelName: input.modelName,
-            });
-
-            const result =
+            const executeAttempt = async (): Promise<TaskResult> =>
               traceTransport === "otel"
                 ? await tracedSpan(
                     async (span) => {
@@ -596,10 +682,64 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                   )
                 : await executeTask(input, resolvedTask, options);
 
+            // Provider slot + single throttle-aware retry. Each attempt builds
+            // its own session inside executeTask, so a retry is a fresh one.
+            // `started` fires once the provider slot is held, so rows queued
+            // behind a provider limit never show as running.
+            let startedAt: number | undefined;
+            // Each attempt runs in a row context so session / agent / verify
+            // code deep in the harness can report the row's phase, and every
+            // log line lands in this row's own file.
+            const rowLog = new RowLogWriter(
+              path.join(
+                logDir,
+                logNames.claim(
+                  rowLogFileName({
+                    name: row.case.shortId ?? input.name,
+                    domain: row.case.domain,
+                    model: input.modelName,
+                    trial,
+                  }),
+                  row.rowKey,
+                ),
+              ),
+            );
+            const rowContext = {
+              reportPhase: (phase: RowPhase, detail?: { sessionUrl?: string }) =>
+                options.onProgress?.({ type: "phase", ...row, phase, ...detail }),
+              log: (entry: RowLogEntry) => {
+                rowLog.write(entry);
+                options.onProgress?.({ type: "log", ...row, log: entry });
+              },
+            };
+            const rawResult = await runGatedRow({
+              scheduler: activeScheduler,
+              modelName: input.modelName,
+              execute: (attempt) => {
+                rowLog.attempt(attempt);
+                return runInRowContext(rowContext, executeAttempt);
+              },
+              signal: options.signal,
+              onStart: () => {
+                startedAt = Date.now();
+                options.onProgress?.({ type: "started", ...row });
+              },
+              onThrottle: (throttle) =>
+                options.onProgress?.({ type: "throttled", ...row, throttle }),
+            });
+
+            await rowLog.close();
+            const result: TaskResult = rowLog.hasContent
+              ? { ...rawResult, logPath: rowLog.filePath }
+              : rawResult;
+
             options.onProgress?.({
               type: result._success ? "passed" : "failed",
-              taskName: input.name,
-              modelName: input.modelName,
+              ...row,
+              ...(startedAt !== undefined && { durationMs: Date.now() - startedAt }),
+              outcome: classifyRowOutcome(result),
+              ...(typeof result.sessionUrl === "string" && { sessionUrl: result.sessionUrl }),
+              ...(typeof result.logPath === "string" && { logPath: result.logPath }),
               error: result._success ? undefined : formatProgressError(result.error),
             });
 
@@ -654,12 +794,18 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const passed = summaryResults.filter((r) => r.output._success).length;
     const failed = summaryResults.filter((r) => !r.output._success).length;
 
+    const persistedTrajectories = !hasCoreOnly && shouldPersistTrajectory(undefined);
     return {
       experimentName: resolvedExperimentName,
+      ...(resolvedExperimentUrl && { experimentUrl: resolvedExperimentUrl }),
+      ...(!hasCoreOnly && { judgeModel: resolveVerifierModel().modelName }),
+      ...(persistedTrajectories && { trajectoryGroup }),
+      logDir,
       summary: { passed, failed, total: summaryResults.length },
       results: summaryResults,
     };
   } finally {
+    scheduler?.dispose();
     if (traceTransport === "otel") {
       try {
         await shutdownTracing();
