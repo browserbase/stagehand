@@ -4,7 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
-import { type Progress, runWithProgress } from "./progress.js";
+import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
@@ -300,7 +300,7 @@ export class Page {
   cursorEnabled = false;
   async ensureCursorScript(): Promise<void> {
     await this.mainFrameWrapper
-      .evaluateInLocatorWorld("globalThis.__stagehandLocatorScripts.installCursorOverlay()")
+      .evaluateInLocatorWorld(() => "globalThis.__stagehandLocatorScripts.installCursorOverlay()")
       .catch(() => {});
   }
 
@@ -310,14 +310,16 @@ export class Page {
     this.cursorEnabled = true;
   }
 
-  async updateCursor(x: number, y: number): Promise<void> {
+  async updateCursor(x: number, y: number, progress?: Progress): Promise<void> {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
-        `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        () =>
+          `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        progress,
       );
     } catch {
-      //
+      progress?.throwIfStopped();
     }
   }
 
@@ -1754,7 +1756,7 @@ export class Page {
    * @param selector CSS selector to wait for (supports '>>' for iframe hops)
    * @param options
    * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000; zero is unlimited)
    * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
@@ -1766,27 +1768,29 @@ export class Page {
       timeout?: number;
       pierceShadow?: boolean;
     },
+    parentProgress?: Progress,
   ): Promise<boolean> {
-    const timeout = options?.timeout ?? 30000;
-    const state = options?.state ?? "visible";
-    const pierceShadow = options?.pierceShadow ?? true;
-    const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
+    return runWithProgress(
+      parentProgress ?? { name: "waitForSelector", timeout: options?.timeout ?? 30_000 },
+      async (progress) => {
+        const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
+          this,
+          this.mainFrameWrapper,
+          selector,
+          progress,
+        );
+        return targetFrame.waitInLocatorWorld(() => {
+          const remaining = progress.remainingMs();
+          progress.throwIfStopped();
+          return buildLocatorInvocation("createSelectorWait", [
+            JSON.stringify(finalSelector),
+            JSON.stringify(options?.state ?? "visible"),
+            String(remaining === Infinity ? 0 : Math.ceil(remaining)),
+            String(options?.pierceShadow ?? true),
+          ]);
+        }, progress);
+      },
     );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
-
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
@@ -1945,24 +1949,34 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
   }
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    progress?: Progress,
+  ): Promise<void> {
+    await runLocatorStep(progress, "updating cursor", () => this.updateCursor(x, y, progress));
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
     // Synthesize a simple mouse move + press + release sequence
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseWheel",
-      x,
-      y,
-      button: "none",
-      deltaX,
-      deltaY,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x,
+        y,
+        button: "none",
+        deltaX,
+        deltaY,
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
   }
 
   /**
@@ -1980,12 +1994,14 @@ export class Page {
       delay?: number;
       route?: Array<{ x: number; y: number }>;
     },
+    progress?: Progress,
   ): Promise<void> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
 
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     const buttonMask = (b: typeof button): number => {
       switch (b) {
@@ -2001,65 +2017,100 @@ export class Page {
     };
 
     // Move to start
-    await this.updateCursor(fromX, fromY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: fromX,
-      y: fromY,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    // Press
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: fromX,
-      y: fromY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
-      point.x === x && point.y === y;
-    const route = options?.route ?? [];
-    let routeStart = 0;
-    let routeEnd = route.length;
-    while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
-    while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
-
-    const movementPoints =
-      route.length > 0
-        ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
-        : Array.from({ length: steps }, (_, index) => {
-            const t = (index + 1) / steps;
-            return {
-              x: fromX + (toX - fromX) * t,
-              y: fromY + (toY - fromY) * t,
-            };
-          });
-
-    for (const { x, y } of movementPoints) {
-      await this.updateCursor(x, y);
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await runLocatorStep(progress, "updating cursor", () =>
+      this.updateCursor(fromX, fromY, progress),
+    );
+    await runLocatorStep(progress, "dragging mouse", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
+        x: fromX,
+        y: fromY,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
+
+    let pressed = false;
+    let x = fromX;
+    let y = fromY;
+    const release = () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
         x,
         y,
         button,
         buttons: buttonMask(button),
+        clickCount: 1,
       } as Protocol.Input.DispatchMouseEventRequest);
-      if (delay) await sleep(delay);
-    }
+    // Release even when a drag expires after the button was pressed.
+    try {
+      progress?.throwIfStopped();
+      // Press
+      await runLocatorStep(progress, "pressing mouse", () => {
+        pressed = true;
+        return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: fromX,
+          y: fromY,
+          button,
+          buttons: buttonMask(button),
+          clickCount: 1,
+        } as Protocol.Input.DispatchMouseEventRequest);
+      });
 
-    // Release at end
-    await this.updateCursor(toX, toY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: toX,
-      y: toY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
+      const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
+        point.x === x && point.y === y;
+      const route = options?.route ?? [];
+      let routeStart = 0;
+      let routeEnd = route.length;
+      while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
+      while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
+
+      const movementPoints =
+        route.length > 0
+          ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
+          : Array.from({ length: steps }, (_, index) => {
+              const t = (index + 1) / steps;
+              return {
+                x: fromX + (toX - fromX) * t,
+                y: fromY + (toY - fromY) * t,
+              };
+            });
+
+      for (const point of movementPoints) {
+        progress?.throwIfStopped();
+        await runLocatorStep(progress, "updating cursor", () =>
+          this.updateCursor(point.x, point.y, progress),
+        );
+        await runLocatorStep(progress, "dragging mouse", () => {
+          x = point.x;
+          y = point.y;
+          return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x,
+            y,
+            button,
+            buttons: buttonMask(button),
+          } as Protocol.Input.DispatchMouseEventRequest);
+        });
+        if (delay) await sleep(delay);
+      }
+
+      // Release at end
+      await runLocatorStep(progress, "updating cursor", () =>
+        this.updateCursor(toX, toY, progress),
+      );
+      await runLocatorStep(progress, "releasing mouse", () => {
+        // Cleanup must not repeat a release whose response is still pending.
+        pressed = false;
+        return release();
+      });
+    } finally {
+      if (pressed) {
+        if (progress) await progress.cleanup(release);
+        else await release().catch(() => {});
+      }
+    }
+    progress?.throwIfStopped();
   }
 
   /**
@@ -2190,9 +2241,10 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+  async keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
@@ -2221,20 +2273,29 @@ export class Page {
     const mainKey = tokens[tokens.length - 1];
     const modifierKeys = tokens.slice(0, -1);
 
+    const heldKeys = new Set<string>();
     try {
-      for (const modKey of modifierKeys) {
-        await this.keyDown(modKey);
+      for (const key of [...modifierKeys, mainKey]) {
+        await runLocatorStep(progress, "pressing key", () => {
+          heldKeys.add(key);
+          return this.keyDown(key);
+        });
       }
-
-      await this.keyDown(mainKey);
       if (delay) await sleep(delay);
-      await this.keyUp(mainKey);
-
-      for (let i = modifierKeys.length - 1; i >= 0; i--) {
-        await this.keyUp(modifierKeys[i]);
+      for (const key of [mainKey, ...modifierKeys.toReversed()]) {
+        await runLocatorStep(progress, "releasing key", () => {
+          // Cleanup must not repeat a release whose response is still pending.
+          heldKeys.delete(key);
+          return this.keyUp(key);
+        });
       }
     } catch (error) {
-      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      // Release keys already dispatched without allowing more key presses.
+      if (progress) {
+        await progress.cleanup(() =>
+          Promise.allSettled([...heldKeys].reverse().map((key) => this.keyUp(key))),
+        );
+      }
       this._pressedModifiers.clear();
       throw error;
     }

@@ -59,23 +59,27 @@ describe("Stagehand browser factories", () => {
     expect(closeSource).toHaveBeenCalledOnce();
   });
 
-  it("connects to local CDP with a preloaded extension ID", async () => {
-    const cdp = fakeCdpClient();
-    const connectCdp = vi.fn(async (_options: CDPClientOptions) => cdp);
-    const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
+  it.each([undefined, "", "installed-stagehand", "wrong-id"])(
+    "ignores local connect extension ID %s",
+    async (extensionId) => {
+      const cdp = fakeCdpClient();
+      const connectCdp = vi.fn(async (_options: CDPClientOptions) => cdp);
+      const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
 
-    const browser = await localBrowser.connect({
-      cdpUrl: "wss://browser.example/devtools/browser/session",
-      extensionId: "extension-id",
-    });
+      const browser = await localBrowser.connect({
+        cdpUrl: "wss://browser.example/devtools/browser/session",
+        extensionId,
+      });
 
-    expect(connectCdp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extensionId: "extension-id",
-      }),
-    );
-    expect(browser).toMatchObject({ provider: "local", origin: "connected" });
-  });
+      expect(connectCdp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localExtensionDir: expect.stringContaining("dist/extension"),
+        }),
+      );
+      expect(connectCdp.mock.calls[0]?.[0]).not.toHaveProperty("extensionId");
+      expect(browser).toMatchObject({ provider: "local", origin: "connected" });
+    },
+  );
 
   it("explicitly closes a launched source configured to stay alive", async () => {
     const closeSource = vi.fn();
@@ -243,6 +247,7 @@ describe("Stagehand browser factories", () => {
     const browser = await browserbase.launch({
       apiKey: "bb_key",
       baseUrl: "https://api.dev.browserbase.com",
+      clientOptions: { timeout: 5_000, defaultHeaders: { "X-Caller": "app" } },
       projectId: "project_123",
       region: "us-west-2",
     });
@@ -255,6 +260,7 @@ describe("Stagehand browser factories", () => {
     expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
       "bb_key",
       "https://api.dev.browserbase.com",
+      { timeout: 5_000, defaultHeaders: { "X-Caller": "app" } },
     );
     expect(connectCdp).toHaveBeenCalledWith(expect.objectContaining({ preloadedExtension: true }));
     expect(claimed.workerInitMetadata).toStrictEqual({
@@ -267,48 +273,55 @@ describe("Stagehand browser factories", () => {
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
-  it("connects to an existing Browserbase session", async () => {
-    const connectSession = vi.fn(async () => ({
-      sessionId: "session_123",
-      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
-      region: "eu-central-1" as const,
-      close: vi.fn(),
-    }));
-    const cdp = fakeCdpClient();
-    const connectCdp = vi.fn(async () => cdp);
-    const createBrowserbaseSessionClient = vi.fn(() => ({
-      createSession: vi.fn(),
-      connectSession,
-    }));
-    const { browserbase } = createBrowserFactoriesForTest({
-      createBrowserbaseSessionClient,
-      connectCdp,
-    });
-
-    const browser = await browserbase.connect({
-      apiKey: "bb_key",
-      baseUrl: "https://api.dev.browserbase.com",
-      sessionId: "session_123",
-      extensionId: "extension-id",
-    });
-
-    expect(connectSession).toHaveBeenCalledWith("session_123");
-    expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
-      "bb_key",
-      "https://api.dev.browserbase.com",
-    );
-    expect(connectCdp).toHaveBeenCalledWith(
-      expect.objectContaining({ extensionId: "extension-id" }),
-    );
-    expect(browser).toMatchObject({ provider: "browserbase", origin: "connected" });
-    expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
-      apiKey: "bb_key",
-      browser: {
+  it.each([undefined, "", "installed-stagehand", "wrong-id"])(
+    "ignores Browserbase connect extension ID %s",
+    async (extensionId) => {
+      const connectSession = vi.fn(async () => ({
         sessionId: "session_123",
-        region: "eu-central-1",
-      },
-    });
-  });
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+        region: "eu-central-1" as const,
+        close: vi.fn(),
+      }));
+      const cdp = fakeCdpClient();
+      const connectCdp = vi.fn(async (_options: CDPClientOptions) => cdp);
+      const createBrowserbaseSessionClient = vi.fn(() => ({
+        createSession: vi.fn(),
+        connectSession,
+      }));
+      const { browserbase } = createBrowserFactoriesForTest({
+        createBrowserbaseSessionClient,
+        connectCdp,
+      });
+
+      const browser = await browserbase.connect({
+        apiKey: "bb_key",
+        baseUrl: "https://api.dev.browserbase.com",
+        sessionId: "session_123",
+        extensionId,
+        clientOptions: { maxRetries: 0 },
+      });
+
+      expect(connectSession).toHaveBeenCalledWith("session_123");
+      expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
+        "bb_key",
+        "https://api.dev.browserbase.com",
+        { maxRetries: 0 },
+      );
+      expect(connectCdp).toHaveBeenCalledWith(
+        expect.objectContaining({ preloadedExtension: true }),
+      );
+      expect(connectCdp.mock.calls[0]?.[0]).not.toHaveProperty("extensionId");
+      expect(connectCdp.mock.calls[0]?.[0]).not.toHaveProperty("localExtensionDir");
+      expect(browser).toMatchObject({ provider: "browserbase", origin: "connected" });
+      expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
+        apiKey: "bb_key",
+        browser: {
+          sessionId: "session_123",
+          region: "eu-central-1",
+        },
+      });
+    },
+  );
 
   it.each([
     { origin: "launched" as const, keepAlive: false, expectedSessionCloses: 1 },

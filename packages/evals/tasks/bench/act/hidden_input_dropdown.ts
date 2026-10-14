@@ -14,9 +14,7 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/hidden-input-dropdown/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/hidden-input-dropdown/");
 
       await stagehand.act("click to expand the 'Favourite Colour' dropdown");
 
