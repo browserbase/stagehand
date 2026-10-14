@@ -4,6 +4,7 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { handleDoneToolCall } from "../../lib/v3/agent/utils/handleDoneToolCall.js";
 
 const automaticToolChoiceModels = [
+  "claude-fable-5",
   "claude-sonnet-5-5",
   "claude-opus-5-5",
   "claude-fable-5-1",
