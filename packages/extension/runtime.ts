@@ -96,6 +96,8 @@ import type {
   PageVoidResult,
   PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
+  PageWaitForFunctionParams,
+  PageWaitForFunctionResult,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
   PageWebMCPCancelInvocationParams,
@@ -170,6 +172,10 @@ export type UnderstudyRuntimePage = {
     selector: string,
     options?: PageWaitForSelectorParams["options"],
   ): Promise<boolean>;
+  waitForFunction(
+    expression: string,
+    options?: PageWaitForFunctionParams["options"],
+  ): Promise<unknown>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   pdf(options?: PagePDFOptions): Promise<PagePDFResult>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
@@ -700,6 +706,14 @@ export class StagehandRuntime {
       params.options,
     );
     return { matched };
+  }
+
+  async pageWaitForFunction(params: PageWaitForFunctionParams): Promise<PageWaitForFunctionResult> {
+    const value = await this.resolvePage(params.pageId).waitForFunction(
+      params.expression,
+      params.options,
+    );
+    return { value: value as PageWaitForFunctionResult["value"] };
   }
 
   async pageScreenshot(params: PageScreenshotParams): Promise<PageScreenshotResult> {

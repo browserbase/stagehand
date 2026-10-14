@@ -67,6 +67,9 @@ from ._generated.models import (
     PageTypeParams,
     PageUrlResult,
     PageVoidResult,
+    PageWaitForFunctionOptions,
+    PageWaitForFunctionParams,
+    PageWaitForFunctionResult,
     PageWaitForLoadStateParams,
     PageWaitForSelectorOptions,
     PageWaitForSelectorParams,
@@ -538,6 +541,29 @@ class Page:
             PageWaitForTimeoutParams(page_id=self.page_id, ms=ms),
             PageVoidResult,
         )
+
+    async def wait_for_function(
+        self,
+        expression: str,
+        *,
+        polling: Literal["raf"] | float | None = None,
+        timeout: int | None = None,
+    ) -> JsonValue:
+        """Poll JavaScript in the page until it returns a truthy JSON value."""
+        params = PageWaitForFunctionParams(page_id=self.page_id, expression=expression)
+        options = PageWaitForFunctionOptions.model_validate({
+            name: value
+            for name, value in (("polling", polling), ("timeout", timeout))
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        result = await self._rpc_client.send(
+            "page.wait_for_function",
+            params,
+            PageWaitForFunctionResult,
+        )
+        return None if result.value is None else cast(JsonValue, result.value.model_dump())
 
     async def wait_for_selector(
         self,

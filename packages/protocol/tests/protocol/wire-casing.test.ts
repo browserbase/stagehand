@@ -430,6 +430,12 @@ describe("JSON-RPC wire casing", () => {
       evaluation,
     );
 
+    const waitForFunction = StagehandMethods.pageWaitForFunction;
+    expect(encodeWireValue(evaluation, waitForFunction.resultWire)).toStrictEqual(evaluation);
+    expect(
+      wireSchema(waitForFunction.result, waitForFunction.resultWire).parse(evaluation),
+    ).toStrictEqual(evaluation);
+
     const headers = StagehandMethods.pageSetExtraHTTPHeaders;
     const headerParams = {
       pageId: "page_1",
