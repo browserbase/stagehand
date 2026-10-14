@@ -25,9 +25,7 @@ type CommandParams = {
 
 describe("Page.waitForFunction", () => {
   let page: Page;
-  const send = vi.fn(
-    async (_method: string, _params?: CommandParams): Promise<unknown> => ({}),
-  );
+  const send = vi.fn(async (_method: string, _params?: CommandParams): Promise<unknown> => ({}));
   const respond = async (method: string): Promise<unknown> =>
     method === "Runtime.evaluate"
       ? { result: { objectId: "wait-handle" } }
@@ -37,10 +35,7 @@ describe("Page.waitForFunction", () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "performance", "Date"],
     });
-    const logger = new StagehandLogger(
-      { tracer: trace.getTracer("function-wait-test") },
-      () => {},
-    );
+    const logger = new StagehandLogger({ tracer: trace.getTracer("function-wait-test") }, () => {});
     const connection = new CdpConnection(
       {
         connected: true,
@@ -74,8 +69,7 @@ describe("Page.waitForFunction", () => {
     vi.restoreAllMocks();
   });
 
-  const installations = () =>
-    send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
+  const installations = () => send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
   const disposals = () =>
     send.mock.calls.filter(
       ([method, params]) =>
@@ -92,8 +86,7 @@ describe("Page.waitForFunction", () => {
         handle = new Function(`return ${params?.expression}`)();
         return { result: { objectId: "wait-handle" } };
       }
-      if (params?.awaitPromise)
-        return { result: { value: await handle.promise } };
+      if (params?.awaitPromise) return { result: { value: await handle.promise } };
       return respond(method);
     });
     await expect(page.waitForFunction("window.app")).resolves.toEqual({
@@ -114,11 +107,8 @@ describe("Page.waitForFunction", () => {
     const pending = page.waitForFunction("false", { timeout, polling: 10 });
     const settled = vi.fn();
     void pending.then(settled, settled);
-    const checked =
-      timeout === 0 ? undefined : expect(pending).rejects.toThrow(TimeoutError);
-    await vi.advanceTimersByTimeAsync(
-      timeout === 0 ? 60_000 : (timeout ?? 30_000) - 1,
-    );
+    const checked = timeout === 0 ? undefined : expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(timeout === 0 ? 60_000 : (timeout ?? 30_000) - 1);
     expect(settled).not.toHaveBeenCalled();
     if (timeout !== 0) {
       await vi.advanceTimersByTimeAsync(1);
@@ -137,9 +127,7 @@ describe("Page.waitForFunction", () => {
   it.each([0, -1, NaN, Infinity, 2_147_483_648])(
     "rejects invalid polling %s before CDP",
     async (polling) => {
-      await expect(page.waitForFunction("true", { polling })).rejects.toThrow(
-        RangeError,
-      );
+      await expect(page.waitForFunction("true", { polling })).rejects.toThrow(RangeError);
       expect(send).not.toHaveBeenCalled();
     },
   );
@@ -165,9 +153,7 @@ describe("Page.waitForFunction", () => {
     await vi.advanceTimersByTimeAsync(25);
     await expect(pending).resolves.toBe(true);
     expect(contexts).toHaveBeenCalledTimes(2);
-    expect(installations().map(([, params]) => params?.contextId)).toEqual([
-      7, 8,
-    ]);
+    expect(installations().map(([, params]) => params?.contextId)).toEqual([7, 8]);
     expect(disposals()).toHaveLength(1);
   });
 
@@ -177,9 +163,9 @@ describe("Page.waitForFunction", () => {
         ? Promise.reject(new Error("Execution context was destroyed"))
         : respond(method),
     );
-    const checked = expect(
-      page.waitForFunction("true", { timeout: 100 }),
-    ).rejects.toThrow(TimeoutError);
+    const checked = expect(page.waitForFunction("true", { timeout: 100 })).rejects.toThrow(
+      TimeoutError,
+    );
     await vi.advanceTimersByTimeAsync(100);
     await checked;
     expect(installations()).toHaveLength(4);
@@ -189,12 +175,10 @@ describe("Page.waitForFunction", () => {
   it("waits through main-world readiness retries within the original deadline", async () => {
     const readiness = vi
       .spyOn(executionContexts, "waitForMainWorld")
-      .mockImplementationOnce(
-        async (_session, _frameId, _timeout, progress) => {
-          await progress!.delay(1000);
-          throw new Error("main world not ready for frame root");
-        },
-      )
+      .mockImplementationOnce(async (_session, _frameId, _timeout, progress) => {
+        await progress!.delay(1000);
+        throw new Error("main world not ready for frame root");
+      })
       .mockResolvedValueOnce(8);
     const pending = page.waitForFunction("true", { timeout: 1500 });
     await vi.advanceTimersByTimeAsync(1024);
@@ -212,9 +196,9 @@ describe("Page.waitForFunction", () => {
         return 8;
       },
     );
-    const checked = expect(
-      page.waitForFunction("true", { timeout: 100 }),
-    ).rejects.toThrow(TimeoutError);
+    const checked = expect(page.waitForFunction("true", { timeout: 100 })).rejects.toThrow(
+      TimeoutError,
+    );
     await vi.advanceTimersByTimeAsync(100);
     await checked;
     expect(installations()).toHaveLength(0);
@@ -233,11 +217,44 @@ describe("Page.waitForFunction", () => {
           })
         : respond(method),
     );
-    await expect(
-      page.waitForFunction("throwError()", { timeout: 0 }),
-    ).rejects.toThrow("Cannot find context with specified id");
+    await expect(page.waitForFunction("throwError()", { timeout: 0 })).rejects.toThrow(
+      "Cannot find context with specified id",
+    );
     expect(installations()).toHaveLength(1);
     expect(disposals()).toHaveLength(1);
+  });
+
+  it.each(["page", "transport"])(
+    "stops an unlimited wait when %s closes between retries",
+    async (closed) => {
+      send.mockImplementation((method, params) =>
+        params?.awaitPromise
+          ? Promise.reject(new Error("Execution context was destroyed"))
+          : respond(method),
+      );
+      const checked = expect(page.waitForFunction("true", { timeout: 0 })).rejects.toThrow(
+        closed === "page" ? "Page is disposed" : "CDP connection closed",
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      if (closed === "page") page.dispose();
+      else vi.spyOn(page.conn, "connected", "get").mockReturnValue(false);
+      await vi.advanceTimersByTimeAsync(25);
+      await checked;
+      expect(installations()).toHaveLength(1);
+    },
+  );
+
+  it("checks transport closure after main-world readiness before installing", async () => {
+    const ready = deferred<number>();
+    vi.spyOn(executionContexts, "waitForMainWorld").mockReturnValue(ready.promise);
+    const checked = expect(page.waitForFunction("true", { timeout: 0 })).rejects.toThrow(
+      "CDP connection closed",
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    vi.spyOn(page.conn, "connected", "get").mockReturnValue(false);
+    ready.resolve(8);
+    await checked;
+    expect(installations()).toHaveLength(0);
   });
 
   it("preserves session closure for an unlimited wait without retrying", async () => {
@@ -245,9 +262,7 @@ describe("Page.waitForFunction", () => {
     send.mockImplementation((method, params) =>
       params?.awaitPromise ? Promise.reject(closed) : respond(method),
     );
-    await expect(page.waitForFunction("false", { timeout: 0 })).rejects.toBe(
-      closed,
-    );
+    await expect(page.waitForFunction("false", { timeout: 0 })).rejects.toBe(closed);
     expect(installations()).toHaveLength(1);
     expect(disposals()).toHaveLength(1);
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
@@ -262,9 +277,9 @@ describe("Page.waitForFunction", () => {
       send.mockImplementation((method) =>
         method === "Runtime.evaluate" ? installation.promise : respond(method),
       );
-      const checked = expect(
-        page.waitForFunction("true", { timeout: 100 }),
-      ).rejects.toThrow(TimeoutError);
+      const checked = expect(page.waitForFunction("true", { timeout: 100 })).rejects.toThrow(
+        TimeoutError,
+      );
       await vi.advanceTimersByTimeAsync(timerFired ? 100 : 0);
       if (!timerFired) vi.spyOn(performance, "now").mockReturnValue(100);
       installation.resolve({ result: { objectId: "late-handle" } });
@@ -275,66 +290,53 @@ describe("Page.waitForFunction", () => {
       expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
         objectId: "late-handle",
       });
-      expect(send.mock.calls.some(([, params]) => params?.awaitPromise)).toBe(
-        false,
-      );
+      expect(send.mock.calls.some(([, params]) => params?.awaitPromise)).toBe(false);
     },
   );
 
-  it.each(["installation", "waiting"])(
-    "preserves browser exceptions during %s",
-    async (phase) => {
-      send.mockImplementation((method, params) => {
-        if (
-          (phase === "installation" && method === "Runtime.evaluate") ||
-          (phase === "waiting" && params?.awaitPromise)
-        ) {
-          return Promise.resolve({
-            result: {},
-            exceptionDetails: {
-              exception: { description: "Error: predicate failed" },
-            },
-          });
-        }
-        return respond(method);
-      });
-      await expect(page.waitForFunction("throwError()")).rejects.toThrow(
-        "predicate failed",
-      );
-      expect(installations()).toHaveLength(1);
-      expect(disposals()).toHaveLength(phase === "waiting" ? 1 : 0);
-    },
-  );
+  it.each(["installation", "waiting"])("preserves browser exceptions during %s", async (phase) => {
+    send.mockImplementation((method, params) => {
+      if (
+        (phase === "installation" && method === "Runtime.evaluate") ||
+        (phase === "waiting" && params?.awaitPromise)
+      ) {
+        return Promise.resolve({
+          result: {},
+          exceptionDetails: {
+            exception: { description: "Error: predicate failed" },
+          },
+        });
+      }
+      return respond(method);
+    });
+    await expect(page.waitForFunction("throwError()")).rejects.toThrow("predicate failed");
+    expect(installations()).toHaveLength(1);
+    expect(disposals()).toHaveLength(phase === "waiting" ? 1 : 0);
+  });
 
-  it.each(["reject", "stall"])(
-    "preserves timeout if cleanup commands %s",
-    async (failure) => {
-      const result = deferred<unknown>();
-      const cleanup = deferred<unknown>();
-      send.mockImplementation((method, params) => {
-        if (params?.awaitPromise) return result.promise;
-        if (
-          method === "Runtime.callFunctionOn" ||
-          method === "Runtime.releaseObject"
-        ) {
-          return failure === "stall"
-            ? cleanup.promise
-            : Promise.reject(new Error("context destroyed"));
-        }
-        return respond(method);
-      });
-      const checked = expect(
-        page.waitForFunction("false", { timeout: 100 }),
-      ).rejects.toThrow(TimeoutError);
-      await vi.advanceTimersByTimeAsync(100);
-      await checked;
-      expect(disposals()).toHaveLength(1);
-      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
-        objectId: "wait-handle",
-      });
-      await vi.advanceTimersByTimeAsync(1000);
-      result.resolve({ result: { value: true } });
-      cleanup.resolve({});
-    },
-  );
+  it.each(["reject", "stall"])("preserves timeout if cleanup commands %s", async (failure) => {
+    const result = deferred<unknown>();
+    const cleanup = deferred<unknown>();
+    send.mockImplementation((method, params) => {
+      if (params?.awaitPromise) return result.promise;
+      if (method === "Runtime.callFunctionOn" || method === "Runtime.releaseObject") {
+        return failure === "stall"
+          ? cleanup.promise
+          : Promise.reject(new Error("context destroyed"));
+      }
+      return respond(method);
+    });
+    const checked = expect(page.waitForFunction("false", { timeout: 100 })).rejects.toThrow(
+      TimeoutError,
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    await checked;
+    expect(disposals()).toHaveLength(1);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
+      objectId: "wait-handle",
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    result.resolve({ result: { value: true } });
+    cleanup.resolve({});
+  });
 });

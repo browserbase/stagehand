@@ -1750,7 +1750,15 @@ export class Page {
 
   /** Poll an expression in the page's main world until its value is truthy. */
   async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
-    return waitForFunction(() => this.mainFrameWrapper, expression, options);
+    return waitForFunction(
+      () => {
+        if (this.disposed) throw new Error("Page is disposed");
+        if (!this.conn.connected) throw new Error("CDP connection closed: function wait stopped");
+        return this.mainFrameWrapper;
+      },
+      expression,
+      options,
+    );
   }
 
   /**

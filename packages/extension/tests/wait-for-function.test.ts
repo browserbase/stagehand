@@ -34,10 +34,7 @@ describe("injected waitForFunction", () => {
   );
 
   it("checks immediately, then on browser animation frames", async () => {
-    const predicate = vi
-      .fn()
-      .mockReturnValueOnce(false)
-      .mockReturnValue("ready");
+    const predicate = vi.fn().mockReturnValueOnce(false).mockReturnValue("ready");
     const wait = createFunctionWait(predicate, "raf");
     expect(predicate).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(0);
@@ -70,10 +67,7 @@ describe("injected waitForFunction", () => {
     const first = new Promise<boolean>((resolve) => {
       finish = resolve;
     });
-    const predicate = vi
-      .fn()
-      .mockReturnValueOnce(first)
-      .mockResolvedValue("ready");
+    const predicate = vi.fn().mockReturnValueOnce(first).mockResolvedValue("ready");
     const wait = createFunctionWait(predicate, 10);
     await vi.advanceTimersByTimeAsync(100);
     expect(predicate).toHaveBeenCalledOnce();
@@ -85,32 +79,26 @@ describe("injected waitForFunction", () => {
     await expect(wait.promise).resolves.toBe("ready");
   });
 
-  it.each(["synchronous", "asynchronous"])(
-    "preserves %s predicate failures",
-    async (kind) => {
-      const error = new Error("predicate failed");
-      const wait = createFunctionWait(() => {
-        if (kind === "asynchronous") return Promise.reject(error);
-        throw error;
-      }, 10);
-      await expect(wait.promise).rejects.toBe(error);
-      wait.dispose();
-    },
-  );
+  it.each(["synchronous", "asynchronous"])("preserves %s predicate failures", async (kind) => {
+    const error = new Error("predicate failed");
+    const wait = createFunctionWait(() => {
+      if (kind === "asynchronous") return Promise.reject(error);
+      throw error;
+    }, 10);
+    await expect(wait.promise).rejects.toBe(error);
+    wait.dispose();
+  });
 
-  it.each(["raf", 10] as const)(
-    "cancels pending %s polling on disposal",
-    async (polling) => {
-      const predicate = vi.fn(() => false);
-      const wait = createFunctionWait(predicate, polling);
-      await vi.advanceTimersByTimeAsync(0);
-      wait.dispose();
-      await expect(wait.promise).rejects.toThrow("disposed");
-      wait.dispose();
-      await vi.advanceTimersByTimeAsync(100);
-      expect(predicate).toHaveBeenCalledOnce();
-    },
-  );
+  it.each(["raf", 10] as const)("cancels pending %s polling on disposal", async (polling) => {
+    const predicate = vi.fn(() => false);
+    const wait = createFunctionWait(predicate, polling);
+    await vi.advanceTimersByTimeAsync(0);
+    wait.dispose();
+    await expect(wait.promise).rejects.toThrow("disposed");
+    wait.dispose();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(predicate).toHaveBeenCalledOnce();
+  });
 
   it.each([false, true])(
     "does not restart after a disposed predicate resolves to %s",

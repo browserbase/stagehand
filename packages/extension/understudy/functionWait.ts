@@ -80,6 +80,8 @@ export async function waitForFunction(
         const frame = getFrame();
         try {
           const contextId = await frame.getMainWorldExecutionContextId(progress);
+          // Readiness may have outlived the page or its transport.
+          getFrame();
           return await browserWait(
             frame.session,
             progress,
