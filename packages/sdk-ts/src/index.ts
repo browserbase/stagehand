@@ -65,6 +65,7 @@ export {
 export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseFetchOptions,
   BrowserbaseFetchResult,

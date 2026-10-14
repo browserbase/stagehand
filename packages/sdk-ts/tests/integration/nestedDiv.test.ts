@@ -15,7 +15,7 @@ describe("page.snapshot() handles deeply nested DOM trees", () => {
 
   it("does not throw for the nested-div regression page", async () => {
     const page = await firstPage(stagehand);
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-div/");
+    await page.goto("https://stagehand-eval-sites.vercel.app/sites/nested-div/");
 
     await expect(page.snapshot()).resolves.toBeDefined();
   });

@@ -7,6 +7,7 @@
 
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import type { ClientOptions } from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
@@ -57,20 +58,47 @@ export const LocalBrowserLaunchOptionsSchema = z
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    extensionId: z.string().optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
 export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 
+/**
+ * HTTP settings for the Browserbase SDK client that Stagehand creates for session and extension
+ * management. `apiKey` and `baseUrl` stay top-level so one key authenticates both Browserbase and
+ * the Stagehand runtime.
+ */
+export type BrowserbaseClientOptions = Pick<
+  ClientOptions,
+  "timeout" | "maxRetries" | "defaultHeaders" | "defaultQuery" | "fetch"
+>;
+
+const BrowserbaseClientOptionsSchema: z.ZodType<
+  BrowserbaseClientOptions,
+  BrowserbaseClientOptions
+> = z.strictObject({
+  timeout: z.int().nonnegative().optional(),
+  maxRetries: z.int().nonnegative().optional(),
+  defaultHeaders: z.record(z.string(), z.string().nullable().optional()).optional(),
+  defaultQuery: z.record(z.string(), z.string().optional()).optional(),
+  fetch: z
+    .custom<NonNullable<ClientOptions["fetch"]>>((value) => typeof value === "function", {
+      message: "fetch must be a function",
+    })
+    .optional(),
+});
+
 type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
+  clientOptions?: BrowserbaseClientOptions;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl: string;
+  clientOptions?: BrowserbaseClientOptions;
 };
 
 /**
@@ -81,6 +109,7 @@ export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    clientOptions: BrowserbaseClientOptionsSchema.optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })
@@ -93,19 +122,20 @@ export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    clientOptions: BrowserbaseClientOptionsSchema.optional(),
     sessionId: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    extensionId: z.string().optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
 
-const BrowserbaseClientOptionsSchema = {
+const BrowserbaseCredentialsShape = {
   apiKey: z.string().min(1),
   baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
 };
 
 export const BrowserbaseSearchOptionsSchema = z
   .strictObject({
-    ...BrowserbaseClientOptionsSchema,
+    ...BrowserbaseCredentialsShape,
     query: z.string().min(1).max(200),
     numResults: z.int().min(1).max(25).optional(),
   })
@@ -113,7 +143,7 @@ export const BrowserbaseSearchOptionsSchema = z
 
 export const BrowserbaseFetchOptionsSchema = z
   .strictObject({
-    ...BrowserbaseClientOptionsSchema,
+    ...BrowserbaseCredentialsShape,
     url: z.url(),
     allowInsecureSsl: z.boolean().optional(),
     allowRedirects: z.boolean().optional(),
@@ -280,9 +310,17 @@ export type StagehandClientActOptions = z.input<typeof StagehandClientActOptions
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
-export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
+export interface LocalBrowserConnectOptions extends z.infer<
+  typeof LocalBrowserConnectOptionsSchema
+> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string | undefined;
+}
 export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
-export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
+export interface BrowserbaseConnectOptions extends z.input<typeof BrowserbaseConnectOptionsSchema> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string | undefined;
+}
 export type BrowserbaseSearchOptions = z.input<typeof BrowserbaseSearchOptionsSchema>;
 export type BrowserbaseFetchOptions = z.input<typeof BrowserbaseFetchOptionsSchema>;
 export type BrowserbaseSearchResult = z.infer<typeof BrowserbaseSearchResultSchema>;
