@@ -355,7 +355,7 @@ export class Page {
     const page = new Page(conn, session, targetId, mainFrameId, logger, browserIsRemote);
     // Seed current URL from initial frame tree
     try {
-      page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+      page._currentUrl = frameTree.frame.url + (frameTree.frame.urlFragment ?? "");
       if (localBrowserLaunchOptions?.viewport) {
         await page.setViewportSize(
           localBrowserLaunchOptions.viewport.width,
@@ -434,12 +434,7 @@ export class Page {
 
     // Update cached URL if this navigation pertains to the current main frame
     if (frame.id === this.mainFrameId()) {
-      try {
-        // Prefer frame.url; fallback keeps previous value
-        this._currentUrl = String((frame as { url?: string })?.url ?? this._currentUrl);
-      } catch {
-        // ignore
-      }
+      this._currentUrl = frame.url + (frame.urlFragment ?? "");
     }
 
     // Invalidate the cached Frame for this id (session may have changed)
