@@ -3,9 +3,9 @@ import { z } from "zod/v4";
 import type { ClientBrowserbaseRequest } from "./browserbaseClient.js";
 
 /**
- * HTTP client for the Stagehand API's stateless cache routes (POST /cache/get
- * and POST /cache/set). Owns transport concerns only: endpoint resolution,
- * auth headers for legacy requests, timeouts, and response validation.
+ * Client for the Stagehand API's stateless cache routes (POST /cache/get
+ * and POST /cache/set). Sends requests through the connected SDK and owns
+ * request timeouts and response validation.
  * All caching decisions (when to read, what to write,
  * fallback behavior) live in services/cacheService.ts, this client's only
  * consumer. See stagehand-api-v3's lib/cache/statelessCache.ts for the
@@ -110,9 +110,7 @@ export type CacheSetRequest = z.infer<typeof CacheSetRequestSchema>;
 export type CacheGetResponse = z.infer<typeof CacheGetResponseSchema>;
 export type CacheSetResponse = z.infer<typeof CacheSetResponseSchema>;
 
-type CacheTransport =
-  | { source: "client"; request?: ClientBrowserbaseRequest }
-  | { source?: "legacy"; apiUrl: string; apiKey: string };
+type CacheTransport = { source: "client"; request?: ClientBrowserbaseRequest };
 
 export class CacheClient {
   constructor(readonly transport: CacheTransport) {}
@@ -140,29 +138,16 @@ export class CacheClient {
       const remainingTimeoutMs = Math.max(0, deadline - performance.now());
       if (remainingTimeoutMs === 0) timeout();
       controller.signal.throwIfAborted();
-      let response: Response;
-      if (this.transport.source === "client") {
-        if (!this.transport.request) throw new Error("Client Browserbase transport is unavailable");
-        response = await this.transport.request(
-          {
-            operation: path === "/cache/get" ? "cache.get" : "cache.set",
-            headers: { "content-type": "application/json" },
-            body,
-            remainingTimeoutMs,
-          },
-          controller.signal,
-        );
-      } else {
-        response = await fetch(`${this.transport.apiUrl}${path}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-bb-api-key": this.transport.apiKey,
-          },
+      if (!this.transport.request) throw new Error("Client Browserbase transport is unavailable");
+      const response = await this.transport.request(
+        {
+          operation: path === "/cache/get" ? "cache.get" : "cache.set",
+          headers: { "content-type": "application/json" },
           body,
-          signal: controller.signal,
-        });
-      }
+          remainingTimeoutMs,
+        },
+        controller.signal,
+      );
 
       if (!response.ok) {
         throw new Error(`Cache request ${path} failed with status ${response.status}`);

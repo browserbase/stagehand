@@ -130,68 +130,52 @@ describe("model configuration", () => {
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it.each(["legacy", "client"])(
-      "routes every primitive without a model through the %s Gateway",
-      async (source) => {
-        const act = vi.spyOn(actService, "act").mockResolvedValue({
-          data: { success: true, message: "", actionDescription: "", actions: [] },
-          metadata,
-        });
-        const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
-          data: {},
-          metadata,
-        });
-        const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
-          data: [],
-          metadata,
-        });
-        const runtime = runtimeWith({
-          ...(source === "client" ? { browserbase: "client" } : { apiKey: "bb-api-key" }),
-          browser: { sessionId: "session-123", region: "eu-central-1" },
-        } as StagehandInitParams);
-        const controller = createStagehandController(runtime);
+    it("routes every primitive without a model through the client Gateway", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const runtime = runtimeWith({
+        browserbase: "client",
+        browser: { sessionId: "session-123", region: "eu-central-1" },
+      } as StagehandInitParams);
+      const controller = createStagehandController(runtime);
 
-        await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
-        await controller.extract(
-          { pageId: "page-1", instruction: "Extract", schema: {} },
-          handlerContext,
-        );
-        await controller.observe({ pageId: "page-1" }, handlerContext);
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
 
-        for (const service of [act, extract, observe]) {
-          expect(service).toHaveBeenCalledWith(
-            expect.objectContaining({
-              model: undefined,
-              cache: expect.objectContaining({
-                sessionId: "session-123",
-                defaultCaching: true,
-                client: expect.objectContaining({
-                  transport:
-                    source === "client"
-                      ? { source: "client", request: runtime.adapters.clientBrowserbaseRequest }
-                      : {
-                          apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-                          apiKey: "bb-api-key",
-                        },
-                }),
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model: undefined,
+            cache: expect.objectContaining({
+              sessionId: "session-123",
+              defaultCaching: true,
+              client: expect.objectContaining({
+                transport: { source: "client", request: runtime.adapters.clientBrowserbaseRequest },
               }),
-              gateway:
-                source === "client"
-                  ? {
-                      source: "client",
-                      sessionId: "session-123",
-                      request: runtime.adapters.clientBrowserbaseRequest,
-                    }
-                  : {
-                      apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-                      apiKey: "bb-api-key",
-                      sessionId: "session-123",
-                    },
             }),
-          );
-        }
-      },
-    );
+            gateway: {
+              source: "client",
+              sessionId: "session-123",
+              request: runtime.adapters.clientBrowserbaseRequest,
+            },
+          }),
+        );
+      }
+    });
 
     it("rejects every primitive without a model or Browserbase gateway", async () => {
       const act = vi.spyOn(actService, "act");

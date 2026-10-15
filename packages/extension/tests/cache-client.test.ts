@@ -53,25 +53,21 @@ describe("CacheGetResponseSchema", () => {
 
 describe("CacheClient", () => {
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
-    const client = new CacheClient({ apiUrl: "http://cache.test/v1", apiKey: "bb-key" });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
-        headers: { "content-type": "application/json" },
-      })) as typeof fetch;
-
-    try {
-      await expect(
-        client.get({
-          method: "extract",
-          sessionId: "session-1",
-          url: "https://example.com",
-          cdpTree: { rootFrameId: "frame-1", frames: [] },
-          data: {},
+    const client = new CacheClient({
+      source: "client",
+      request: async () =>
+        new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
+          headers: { "content-type": "application/json" },
         }),
-      ).rejects.toThrow(/unexpected payload/);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    });
+    await expect(
+      client.get({
+        method: "extract",
+        sessionId: "session-1",
+        url: "https://example.com",
+        cdpTree: { rootFrameId: "frame-1", frames: [] },
+        data: {},
+      }),
+    ).rejects.toThrow(/unexpected payload/);
   });
 });

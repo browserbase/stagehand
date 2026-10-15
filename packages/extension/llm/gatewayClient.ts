@@ -2,23 +2,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import type { ModelConfig, StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
-import { apiUrlForRegion } from "../clients/stagehandApi.js";
-import { boundFetch } from "./boundFetch.js";
 
-interface LegacyGatewayContext {
-  source?: "legacy";
-  apiUrl: string;
-  apiKey: string;
-  sessionId: string;
-}
-
-interface ClientGatewayContext {
+export interface GatewayContext {
   source: "client";
   sessionId: string;
   request?: ClientBrowserbaseRequest;
 }
-
-export type GatewayContext = LegacyGatewayContext | ClientGatewayContext;
 
 // Used only to construct AI SDK requests; the client selects the HTTP endpoint.
 const CLIENT_GATEWAY_BASE_URL = "https://stagehand.invalid/llm";
@@ -30,14 +19,8 @@ export function buildGatewayContext(
   request?: ClientBrowserbaseRequest,
 ): GatewayContext | undefined {
   const sessionId = initParams.browser?.sessionId;
-  if (!sessionId) return undefined;
-  if (initParams.browserbase === "client") return { source: "client", sessionId, request };
-  if (!initParams.apiKey) return undefined;
-  return {
-    apiUrl: apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
-    apiKey: initParams.apiKey,
-    sessionId,
-  };
+  if (!sessionId || initParams.browserbase !== "client") return undefined;
+  return { source: "client", sessionId, request };
 }
 
 function withoutModel(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
@@ -63,11 +46,8 @@ function withoutModel(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
   };
 }
 
-// Uses the load-time fetch ref (see boundFetch), not the ambient global.
-export const fetchWithoutModel = withoutModel(boundFetch);
-
 function clientGatewayFetch(
-  gateway: ClientGatewayContext,
+  gateway: GatewayContext,
   config: ModelConfig | undefined,
 ): typeof globalThis.fetch {
   const hasAuthorization = Object.keys(config?.headers ?? {}).some(
@@ -97,28 +77,11 @@ export function createGatewayLanguageModel(
   config: ModelConfig | undefined,
   gateway: GatewayContext,
 ): LanguageModel {
-  if (gateway.source === "client") {
-    const fetch = clientGatewayFetch(gateway, config);
-    return createOpenAI({
-      apiKey: CLIENT_GATEWAY_API_KEY,
-      baseURL: CLIENT_GATEWAY_BASE_URL,
-      headers: config?.headers,
-      fetch: config ? fetch : withoutModel(fetch),
-    }).responses(config?.modelName ?? "auto");
-  }
-
-  const provider = createOpenAI({
-    // Satisfies the SDK's required-key check; the server authenticates via
-    // the x-bb-* headers and ignores the Authorization header.
-    apiKey: gateway.apiKey,
-    baseURL: `${gateway.apiUrl}/llm`,
-    headers: {
-      ...config?.headers,
-      "x-bb-api-key": gateway.apiKey,
-      "x-bb-session-id": gateway.sessionId,
-    },
-    // Load-time fetch ref (see boundFetch); fetchWithoutModel also strips `model`.
-    fetch: config ? boundFetch : fetchWithoutModel,
-  });
-  return provider.responses(config?.modelName ?? "auto");
+  const fetch = clientGatewayFetch(gateway, config);
+  return createOpenAI({
+    apiKey: CLIENT_GATEWAY_API_KEY,
+    baseURL: CLIENT_GATEWAY_BASE_URL,
+    headers: config?.headers,
+    fetch: config ? fetch : withoutModel(fetch),
+  }).responses(config?.modelName ?? "auto");
 }

@@ -234,13 +234,19 @@ describe("client cache availability", () => {
     },
   );
 
-  it("requires a session and the client marker or legacy configuration", () => {
+  it("requires a session and the client marker", () => {
     const adapter = vi.fn<(_: BrowserbaseRequestParams) => Promise<Response>>();
     expect(
       buildCacheContext({ browserbase: "client" } as StagehandInitParams, adapter),
     ).toBeUndefined();
     expect(
       buildCacheContext({ browser: init.browser } as StagehandInitParams, adapter),
+    ).toBeUndefined();
+    expect(
+      buildCacheContext(
+        { browser: init.browser, apiKey: "old-key" } as StagehandInitParams,
+        adapter,
+      ),
     ).toBeUndefined();
     expect(adapter).not.toHaveBeenCalled();
   });

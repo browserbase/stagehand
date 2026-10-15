@@ -23,7 +23,7 @@ import type { Frame } from "../understudy/frame.js";
 
 /**
  * End-to-end test of the cache path with nothing mocked between the service
- * and the wire: legacy HTTP and client RPC both reach a local server standing
+ * and the wire: client RPC reaches a local server standing
  * in for stagehand-api-v3's POST /v1/cache/{get,set}. The service tests mock
  * the client, so only this file proves that an actual API payload maps onto
  * `metadata.cache` — the seam where a renamed or dropped field (as `tokensSaved`
@@ -117,7 +117,7 @@ async function extractThroughCache(options?: { caching?: boolean | { threshold: 
   });
 }
 
-describe.each(["legacy", "client"])("cache metadata over %s transport", (source) => {
+describe("cache metadata over client transport", () => {
   beforeEach(() => {
     const transport = new ChromeRuntimeClient(
       {
@@ -145,9 +145,7 @@ describe.each(["legacy", "client"])("cache metadata over %s transport", (source)
     rpc = client;
     context = cacheService.buildCacheContext(
       {
-        ...(source === "client"
-          ? { browserbase: "client" }
-          : { apiUrl: apiUrl.replace(/\/v1$/, ""), apiKey: "bb-api-key" }),
+        browserbase: "client",
         browser: { sessionId: "session-e2e" },
       } as StagehandInitParams,
       (params, signal) => requestBrowserbase(client, params, signal),
@@ -160,14 +158,12 @@ describe.each(["legacy", "client"])("cache metadata over %s transport", (source)
       expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
       expect(request.headers["content-type"]).toBe("application/json");
     }
-    if (source === "client") {
-      expect(rpcRequests).toHaveLength(requests.length);
-      for (const params of rpcRequests) {
-        expect(params.remainingTimeoutMs).toBeGreaterThan(0);
-        expect(params.remainingTimeoutMs).toBeLessThanOrEqual(5000);
-        expect(params.headers).toEqual({ "content-type": "application/json" });
-      }
-    } else expect(rpcRequests).toEqual([]);
+    expect(rpcRequests).toHaveLength(requests.length);
+    for (const params of rpcRequests) {
+      expect(params.remainingTimeoutMs).toBeGreaterThan(0);
+      expect(params.remainingTimeoutMs).toBeLessThanOrEqual(5000);
+      expect(params.headers).toEqual({ "content-type": "application/json" });
+    }
   });
   it("reports a cold miss and writes the computed value with its usage", async () => {
     const result = await extractThroughCache();
