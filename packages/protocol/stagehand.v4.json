@@ -370,6 +370,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.content": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageContentResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.close": {
           "type": "object",
           "properties": {
@@ -1037,6 +1050,7 @@
         "page.goto",
         "page.url",
         "page.title",
+        "page.content",
         "page.close",
         "page.reload",
         "page.go_back",
@@ -3296,6 +3310,9 @@
       "type": "string"
     },
     "PageTitleResult": {
+      "type": "string"
+    },
+    "PageContentResult": {
       "type": "string"
     },
     "PageCloseResult": {
@@ -6207,6 +6224,33 @@
             "method": {
               "type": "string",
               "const": "page.title"
+            },
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.content"
             },
             "params": {
               "$ref": "#/$defs/PageIdParams"

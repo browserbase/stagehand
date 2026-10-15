@@ -1415,6 +1415,18 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("routes page.content", async () => {
+    const client = new FakeProtocolClient();
+    const html = "<!DOCTYPE html><html><head></head><body>Hello</body></html>";
+    client.queueResponse(StagehandMethods.pageContent, html);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.content()).resolves.toBe(html);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageContent, { pageId: "page-1" }),
+    ]);
+  });
+
   it("routes page.close", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageClose, { closed: true });

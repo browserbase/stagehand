@@ -1300,6 +1300,8 @@ type PageCloseResult struct {
 	Closed bool `json:"closed"`
 }
 
+type PageContentResult string
+
 type PageDragAndDropOptions struct {
 	// Button corresponds to the JSON schema field "button".
 	Button *MouseButton `json:"button,omitempty,omitzero"`
@@ -2738,6 +2740,9 @@ type generatedModelCatalog struct {
 
 	// PageCloseResult corresponds to the JSON schema field "PageCloseResult".
 	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty,omitzero"`
+
+	// PageContentResult corresponds to the JSON schema field "PageContentResult".
+	PageContentResult *PageContentResult `json:"PageContentResult,omitempty,omitzero"`
 
 	// PageDragAndDropOptions corresponds to the JSON schema field
 	// "PageDragAndDropOptions".

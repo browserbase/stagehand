@@ -406,6 +406,12 @@ export class Page {
     });
   }
 
+  async content(): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.pageContent, {
+      pageId: this.pageId,
+    });
+  }
+
   async close(): Promise<void> {
     await Promise.allSettled(
       [...this.eventSubscriptions].map((subscription) => subscription.unsubscribe()),

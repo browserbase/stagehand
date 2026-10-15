@@ -59,6 +59,26 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			},
 		},
 		{
+			name:       "page content",
+			method:     "page.content",
+			response:   PageContentResult("<!DOCTYPE html><html><body>Example</body></html>"),
+			want:       "<!DOCTYPE html><html><body>Example</body></html>",
+			wantParams: PageIDParams{PageID: "page-1"},
+			invoke: func(rpc *recordingProtocolClient) (any, error) {
+				return (&Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}).Content(context.Background())
+			},
+		},
+		{
+			name:       "empty page content",
+			method:     "page.content",
+			response:   PageContentResult(""),
+			want:       "",
+			wantParams: PageIDParams{PageID: "page-1"},
+			invoke: func(rpc *recordingProtocolClient) (any, error) {
+				return (&Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}).Content(context.Background())
+			},
+		},
+		{
 			name:       "locator checked state",
 			method:     "locator.is_checked",
 			response:   LocatorIsCheckedResult(true),
