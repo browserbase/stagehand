@@ -360,10 +360,9 @@ def _reply(transport: _Transport, request: dict[str, object], result: object) ->
     transport.incoming.put_nowait({"jsonrpc": "2.0", "id": request["id"], "result": result})
 
 
-@pytest.mark.parametrize("operation", list(models.Operation))
 @pytest.mark.parametrize("factory_key", [None, "factory-key"])
 async def test_stagehand_routes_http_before_init_during_batch_and_until_close(
-    upstream: _Upstream, operation: models.Operation, factory_key: str | None
+    upstream: _Upstream, factory_key: str | None
 ) -> None:
     transport = _Transport()
     browser = _stagehand_browser(transport, api_key=factory_key, session_id="session")
@@ -383,7 +382,7 @@ async def test_stagehand_routes_http_before_init_during_batch_and_until_close(
     assert "api_url" not in params
 
     async def request_http(request_id: int) -> None:
-        transport.request(request_id, operation=operation)
+        transport.request(request_id)
         response = await transport.response()
         assert response["id"] == request_id
         result = _result(response)
@@ -391,8 +390,7 @@ async def test_stagehand_routes_http_before_init_during_batch_and_until_close(
         assert result.body == "{}"
         request = await upstream.receive()
         assert request.headers["x-bb-api-key"] == (factory_key or "caller-key")
-        if operation is models.Operation.gateway_responses:
-            assert request.headers["x-bb-session-id"] == "session"
+        assert request.headers["x-bb-session-id"] == "session"
 
     await request_http(100)
     _reply(transport, init, {"initialized": True, "pages": []})

@@ -1,5 +1,4 @@
-import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import type { IncomingHttpHeaders, Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
@@ -9,6 +8,8 @@ import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../../src/extensionAssets.js";
+
+import { createHttpTestServer, listen, close } from "../helpers/httpServer.js";
 
 import fixture from "../../../../tests/fixtures/browserbase-routing.json" with { type: "json" };
 
@@ -41,7 +42,7 @@ let hit = false;
 let cacheFailure = false;
 
 beforeAll(async () => {
-  server = createServer(async (req, res) => {
+  server = createHttpTestServer((req, res) => {
     if (req.url === "/page") {
       res.writeHead(200, { "content-type": "text/html" });
       res.end("<html><body><h1>Answer: 42</h1></body></html>");
@@ -52,9 +53,7 @@ beforeAll(async () => {
       res.end();
       return;
     }
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>;
+    const body = JSON.parse(req.body) as Record<string, unknown>;
     requests.push({ path: req.url!, body, headers: req.headers });
     if (req.url?.includes("/cache/") && cacheFailure) {
       res.writeHead(503);
@@ -77,8 +76,7 @@ beforeAll(async () => {
       );
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  origin = await listen(server);
   chrome = await launchLocalBrowser({ headless: true }, AbortSignal.timeout(60000));
   // Session acquisition uses a local fixture; CDP, the worker, and SDK HTTP are real.
   const factories = createBrowserFactoriesForTest({
@@ -123,11 +121,7 @@ afterAll(async () => {
   await browser?.close();
   await chrome?.close();
   vi.restoreAllMocks();
-  if (server)
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-      server.closeAllConnections();
-    });
+  if (server) await close(server);
 });
 async function create(
   model?: { generate: typeof customGenerate } | { modelName: "openai/gpt-5"; apiKey: string },

@@ -126,12 +126,10 @@ async def test_browserbase_routing_in_chromium(
         state["failure"] = mode == "cache-failure"
         result = await client.extract("Extract the answer", Answer)
         assert result.data.answer == (7 if mode == "direct" else 42)
-        if mode == "gateway":
+        if mode in ("gateway", "custom"):
             batch = await client.experimental_batch(_FIXTURE["batchSource"])
             assert isinstance(batch, dict) and batch["data"] == {"answer": 42}
-        elif mode == "custom":
-            batch = await client.experimental_batch(_FIXTURE["batchSource"])
-            assert isinstance(batch, dict) and batch["data"] == {"answer": 42}
+        if mode == "custom":
             before = calls
             override = await client.extract(
                 "Extract the answer", Answer, model={"model_name": "anthropic/claude-sonnet-4-6"}
@@ -149,26 +147,18 @@ async def test_browserbase_routing_in_chromium(
 
         requests = state["requests"]
         paths = [path for path, _, _ in requests]
-        assert (
-            paths.count("/services/v1/cache/get")
-            == {
-                "gateway": 2,
-                "custom": 4,
-                "cache-failure": 1,
-                "direct": 1,
-            }[mode]
-        )
         gateway = [body for path, _, body in requests if path.endswith("/responses")]
-        assert len(gateway) == {"gateway": 4, "custom": 4, "cache-failure": 0, "direct": 0}[mode]
+        expected_counts = {
+            "gateway": (2, 4, 2),
+            "custom": (4, 4, 4),
+            "cache-failure": (1, 0, 1),
+            "direct": (1, 0, 0),
+        }[mode]
         assert (
-            paths.count("/services/v1/cache/set")
-            == {
-                "gateway": 2,
-                "custom": 4,
-                "cache-failure": 1,
-                "direct": 0,
-            }[mode]
-        )
+            paths.count("/services/v1/cache/get"),
+            len(gateway),
+            paths.count("/services/v1/cache/set"),
+        ) == expected_counts
         for path, headers, body in requests:
             headers = {key.lower(): value for key, value in headers.items()}
             assert headers["x-bb-api-key"] == "bb-browser-routing"

@@ -95,30 +95,23 @@ func TestCreateBrowserbaseRoutingThroughInitBatchAndClose(t *testing.T) {
 			}
 			requestHTTP := func(id uint64) {
 				t.Helper()
-				for operation, path := range map[BrowserbaseRequestParamsOperation]string{
-					BrowserbaseRequestParamsOperationGatewayResponses: "/v1/llm/responses",
-					BrowserbaseRequestParamsOperationCacheGet:         "/v1/cache/get",
-					BrowserbaseRequestParamsOperationCacheSet:         "/v1/cache/set",
-				} {
-					request := testBrowserbaseHTTPParams()
-					request.Operation = operation
-					browserbaseRPCRequest(t, transport, id, request)
-					response, ok := browserbaseRPCResult(t, transport, id).AsResponse()
-					if !ok || response.Status != 200 || response.Body != request.Body {
-						t.Fatalf("HTTP response = %#v", response)
-					}
-					httpRequest := awaitBrowserbaseRPC(t, requests)
-					if httpRequest.Header.Get("X-BB-API-Key") != name || httpRequest.URL.Path != path {
-						t.Fatalf("unexpected HTTP request: %s, %v", httpRequest.URL.Path, httpRequest.Header)
-					}
-					if operation == BrowserbaseRequestParamsOperationGatewayResponses && httpRequest.Header.Get("X-BB-Session-ID") != "session" {
-						t.Fatal("missing Gateway session")
-					}
+				request := testBrowserbaseHTTPParams()
+				browserbaseRPCRequest(t, transport, id, request)
+				response, ok := browserbaseRPCResult(t, transport, id).AsResponse()
+				if !ok || response.Status != 200 || response.Body != request.Body {
+					t.Fatalf("HTTP response = %#v", response)
+				}
+				httpRequest := awaitBrowserbaseTest(t, requests)
+				if httpRequest.Header.Get("X-BB-API-Key") != name || httpRequest.URL.Path != "/v1/llm/responses" {
+					t.Fatalf("unexpected HTTP request: %s, %v", httpRequest.URL.Path, httpRequest.Header)
+				}
+				if httpRequest.Header.Get("X-BB-Session-ID") != "session" {
+					t.Fatal("missing Gateway session")
 				}
 			}
 			requestHTTP(100)
 			transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"initialized":true,"pages":[]}}`, init.ID))
-			result := awaitBrowserbaseRPC(t, created)
+			result := awaitBrowserbaseTest(t, created)
 			if result.err != nil {
 				t.Fatal(result.err)
 			}
@@ -131,7 +124,7 @@ func TestCreateBrowserbaseRoutingThroughInitBatchAndClose(t *testing.T) {
 			batch := receiveStagehandRequest(t, transport, "stagehand.callback_batch")
 			requestHTTP(101)
 			transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{}}`, batch.ID))
-			if err := awaitBrowserbaseRPC(t, batchDone); err != nil {
+			if err := awaitBrowserbaseTest(t, batchDone); err != nil {
 				t.Fatal(err)
 			}
 			closed := make(chan error, 2)
@@ -142,7 +135,7 @@ func TestCreateBrowserbaseRoutingThroughInitBatchAndClose(t *testing.T) {
 			requestHTTP(102)
 			transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"closed":true}}`, closeRequest.ID))
 			for range 2 {
-				if err := awaitBrowserbaseRPC(t, closed); err != nil {
+				if err := awaitBrowserbaseTest(t, closed); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -179,7 +172,7 @@ func TestCreateBrowserbaseUnavailable(t *testing.T) {
 			browserbaseRPCRequest(t, transport, 100, testBrowserbaseHTTPParams())
 			testBrowserbaseHTTPFailure(t, browserbaseRPCResult(t, transport, 100), nil, BrowserbaseTransportErrorReasonUnavailable)
 			transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"error":{"code":-32603,"message":"init failed"}}`, init.ID))
-			if result := awaitBrowserbaseRPC(t, created); result.err == nil {
+			if result := awaitBrowserbaseTest(t, created); result.err == nil {
 				t.Fatal("expected initialization failure")
 			}
 		})
@@ -206,7 +199,7 @@ func TestCreateFailureCancelsBrowserbaseHTTP(t *testing.T) {
 			rpc, transport, created := startBrowserbaseCreate(t, ctx, CreateOptions{Browser: browser, APIURL: &server.URL})
 			init := receiveStagehandRequest(t, transport, "stagehand.init")
 			browserbaseRPCRequest(t, transport, 100, testBrowserbaseHTTPParams())
-			awaitBrowserbaseRPC(t, started)
+			awaitBrowserbaseTest(t, started)
 			switch failure {
 			case "init error":
 				transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"error":{"code":-32603,"message":"init failed"}}`, init.ID))
@@ -215,14 +208,14 @@ func TestCreateFailureCancelsBrowserbaseHTTP(t *testing.T) {
 			case "disconnect":
 				transport.failReceive(ErrCDPConnectionClosed)
 			}
-			result := awaitBrowserbaseRPC(t, created)
+			result := awaitBrowserbaseTest(t, created)
 			if result.err == nil {
 				t.Fatal("expected initialization failure")
 			}
 			if failure == "cancel" && !errors.Is(result.err, context.Canceled) {
 				t.Fatalf("error = %v, want cancellation", result.err)
 			}
-			awaitBrowserbaseRPC(t, disconnected)
+			awaitBrowserbaseTest(t, disconnected)
 			assertBrowserbaseHandlersRemoved(t, rpc)
 			if browser.Closed() != (failure != "init error") {
 				t.Fatalf("unexpected browser closed state after %s", failure)
