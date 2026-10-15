@@ -6,6 +6,10 @@ icon: "page"
 
 A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods. Navigation methods return the main-document [`Response`](/v4/reference/response), when the navigation produces one.
 
+Role and text locator builders are available in the TypeScript SDK.
+
+Use role and text locators to find elements by their accessible role/name or text, then reuse the returned locator for actions and reads. These builders are synchronous and lazy; they do not contact the browser. See [locator matching rules](/v4/reference/locator#matching-rules) for normalization, shadow DOM, and iframe scope.
+
 <Tabs>
 <Tab title="TypeScript">
 
@@ -846,9 +850,95 @@ await page.close();
   Resolves after the operation completes.
 </ResponseField>
 
+## getByRole()
+
+Create a locator for elements in the main document with an implicit or explicit ARIA role. See the [matching rules](/v4/reference/locator#matching-rules).
+
+```typescript
+const button = page.getByRole("button", { name: "Save", exact: true });
+await button.click();
+```
+
+<ParamField path="role" type="AriaRole">
+  A supported ARIA role, such as "button", "heading", or "checkbox". Use the SDK's AriaRole type for the complete set.
+</ParamField>
+
+<ParamField path="options" type="GetByRoleOptions" optional>
+  Optional name, description, and state filters. Unspecified states are not filtered.
+
+<ParamField path="options.name" type="string | RegExp" optional>
+  Accessible-name filter, not just visible text. Omit it to match any name. Regular expressions use their own flags.
+</ParamField>
+
+<ParamField path="options.description" type="string | RegExp" optional>
+  Accessible-description filter, distinct from the accessible name. String matching follows the same normalization and exact rules as name; regular expressions use their own flags. Omitted by default.
+</ParamField>
+
+<ParamField path="options.exact" type="boolean" optional>
+  For a string name or description, require a case-sensitive match of the whole normalized value. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ParamField path="options.includeHidden" type="boolean" optional>
+  Include elements hidden from the accessibility tree. Defaults to false. This does not make hidden elements actionable.
+</ParamField>
+
+<ParamField path="options.checked" type="boolean" optional>
+  Filter by checked state. Omit to leave this state unrestricted; only supported for roles with a checked state.
+</ParamField>
+
+<ParamField path="options.pressed" type="boolean" optional>
+  Filter by pressed state. Omit to leave this state unrestricted; only supported for roles with a pressed state.
+</ParamField>
+
+<ParamField path="options.disabled" type="boolean" optional>
+  Filter by disabled state, including inherited disabled state. Omit to leave this state unrestricted.
+</ParamField>
+
+<ParamField path="options.expanded" type="boolean" optional>
+  Filter by expanded state. Omit to leave this state unrestricted; only supported for roles with an expanded state.
+</ParamField>
+
+<ParamField path="options.selected" type="boolean" optional>
+  Filter by selected state. Omit to leave this state unrestricted; only supported for roles with a selected state.
+</ParamField>
+
+<ParamField path="options.level" type="number" optional>
+  Filter by a positive integer ARIA level, such as a heading level. Only supported for roles with a level; omitted by default.
+</ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
+## getByText()
+
+Match text in the main document. Strings use normalized text; regular expressions test the full unnormalized text. Text matching does not exclude hidden elements. See [matching rules](/v4/reference/locator#matching-rules).
+
+```typescript
+const message = page.getByText("Order complete", { exact: true });
+console.log(await message.innerText());
+```
+
+<ParamField path="text" type="string | RegExp">
+  A literal string or JavaScript regular expression.
+</ParamField>
+
+<ParamField path="options" type="GetByTextOptions" optional>
+  String-matching options.
+
+<ParamField path="options.exact" type="boolean" optional>
+  For a string, require a case-sensitive match of the whole normalized text. Defaults to false; ignored for a regular expression.
+</ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a lazy locator for an existing CSS, XPath, or text selector on this page.
 
 ```typescript
 const locator = page.locator("button[type=submit]");

@@ -13,8 +13,17 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
+import {
+  appendLocatorStep,
+  roleQueryStep,
+  textQueryStep,
+  type AriaRole,
+  type GetByRoleOptions,
+  type GetByTextOptions,
+} from "./locatorQuery.js";
 
 export type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
+export type { AriaRole, GetByRoleOptions, GetByTextOptions } from "./locatorQuery.js";
 
 export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
 export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
@@ -26,6 +35,27 @@ export class Locator {
     readonly rpcClient: StagehandCommandClient,
     readonly descriptor: LocatorDescriptor,
   ) {}
+
+  locator(selector: string): Locator {
+    return new Locator(
+      this.rpcClient,
+      appendLocatorStep(this.descriptor, { kind: "selector", selector }),
+    );
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return new Locator(
+      this.rpcClient,
+      appendLocatorStep(this.descriptor, roleQueryStep(role, options)),
+    );
+  }
+
+  getByText(text: string | RegExp, options?: GetByTextOptions): Locator {
+    return new Locator(
+      this.rpcClient,
+      appendLocatorStep(this.descriptor, textQueryStep(text, options)),
+    );
+  }
 
   async click(options?: LocatorClickOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorClick, {
