@@ -12,6 +12,9 @@ export {
 } from "./browserClipboard.js";
 export {
   Locator,
+  type AriaRole,
+  type GetByRoleOptions,
+  type GetByTextOptions,
   type LocatorOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,

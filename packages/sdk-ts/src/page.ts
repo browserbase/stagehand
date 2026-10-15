@@ -27,6 +27,14 @@ import {
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
+import {
+  roleQueryStep,
+  textQueryStep,
+  type AriaRole,
+  type GetByRoleOptions,
+  type GetByTextOptions,
+} from "./locatorQuery.js";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
@@ -418,6 +426,14 @@ export class Page {
       pageId: this.pageId,
       selector,
     });
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return this.locator(encodeLocatorQuery([roleQueryStep(role, options)]));
+  }
+
+  getByText(text: string | RegExp, options?: GetByTextOptions): Locator {
+    return this.locator(encodeLocatorQuery([textQueryStep(text, options)]));
   }
 }
 

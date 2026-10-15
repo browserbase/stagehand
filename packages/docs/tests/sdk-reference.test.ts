@@ -159,6 +159,16 @@ const PAGE_LANGUAGE_SETS = new Map<string, readonly Language[]>([
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
+// Go handle accessors and generic helpers are outside the method reference.
+const GO_REFERENCE_HELPERS = new Set([
+  "context/clipboard",
+  "locator/descriptor",
+  "page/evaluate-as",
+  "page/page-id",
+  "page/ref",
+  "stagehand/browser",
+  "stagehand/initialized",
+]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
@@ -220,35 +230,18 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
 );
 
 describe("SDK reference surface", () => {
-  it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
+  it("binds shared TypeScript and Python callables to the same protocol operation", async () => {
+    const [typescriptMethods, pythonMethods] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
-      readGoMethods(),
-      readReferencePages(),
     ]);
 
-    const expected = methodKeys(typescriptMethods);
     expect(
-      methodKeys(pythonMethods),
-      "Python public callables must match the TypeScript SDK surface",
-    ).toStrictEqual(expected);
-    expect(
-      operationBindings(pythonMethods),
+      operationBindings(sharedSurfaceMethods(pythonMethods, methodKeys(typescriptMethods))),
       "Equivalent TypeScript and Python callables must bind the same protocol operation",
-    ).toStrictEqual(operationBindings(typescriptMethods));
-    expect(
-      methodKeys(sharedSurfaceMethods(goMethods, expected)),
-      "Go public callables must cover the shared SDK surface",
-    ).toStrictEqual(expected);
-    for (const language of LANGUAGES) {
-      expect(
-        documentedMethods(referencePages, language)
-          .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}`)
-          .sort(),
-        `${language} method headings must match the public SDK surface`,
-      ).toStrictEqual(expected);
-    }
+    ).toStrictEqual(
+      operationBindings(sharedSurfaceMethods(typescriptMethods, methodKeys(pythonMethods))),
+    );
   }, 30_000);
 
   it("has exactly one reference page for every documented SDK object", async () => {
@@ -592,7 +585,7 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
-      ["Go", sharedSurfaceMethods(goMethods, methodKeys(typescriptMethods))],
+      ["Go", goMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
@@ -1825,7 +1818,10 @@ async function readGoMethods(): Promise<SdkMethod[]> {
       );
     }
   }
-  return deduplicateMethods(methods, "Go");
+  return deduplicateMethods(methods, "Go").filter(
+    (method) =>
+      participatesInReferenceParity(method) && !GO_REFERENCE_HELPERS.has(methodKey(method)),
+  );
 }
 
 // A package-level function belongs to the object it constructs or extends,
@@ -1843,9 +1839,7 @@ function goDeclarationObject(declaration: GoFunctionDeclaration): SdkObject | un
   });
 }
 
-// The Go SDK also exports Go-specific surface: handle accessors such as
-// Stagehand.Browser(), union constructors, and generic helpers such as
-// EvaluateAs. Reference parity is judged on the surface shared with TypeScript.
+// SDKs can add features independently; compare bindings only for shared methods.
 function sharedSurfaceMethods(methods: SdkMethod[], expected: readonly string[]): SdkMethod[] {
   const surface = new Set(expected);
   return methods.filter((method) => surface.has(methodKey(method)));

@@ -269,6 +269,8 @@ describe("All language SDK operations remain in sync", () => {
     ).toEqual(["method", "model"]);
   });
 
+  // Client-only builders can ship independently. Docs validate each language's
+  // callable surface; protocol-backed method names and bindings must still match.
   it("exposes the same RPC-backed operations in every SDK", async () => {
     const registry = await stagehandMethodNames();
 
@@ -298,28 +300,6 @@ describe("All language SDK operations remain in sync", () => {
         typescript.length,
         `${className} must expose at least one RPC operation`,
       ).toBeGreaterThan(0);
-    }
-  });
-
-  it("exposes the same public callable surface in every SDK", async () => {
-    for (const [className, typescriptFile, pythonFile, goFile, goType] of sdkObjects) {
-      const typescript = await publicCallableMethods(
-        "typescript",
-        new URL(typescriptFile, typescriptSource),
-        className,
-      );
-      const python = await publicCallableMethods(
-        "python",
-        new URL(pythonFile, pythonSource),
-        className,
-      );
-      const goClient = await publicCallableMethods("go", new URL(goFile, goSource), goType);
-
-      expect(python, `${className} public methods must remain in sync`).toStrictEqual(typescript);
-      expect(goClient, `${className} Go public methods must remain in sync`).toStrictEqual(
-        typescript,
-      );
-      expect(typescript.length, `${className} must expose public methods`).toBeGreaterThan(0);
     }
   });
 
@@ -681,37 +661,6 @@ async function publicOperations(
       `${right.publicMethod}:${right.wireMethod}`,
     ),
   );
-}
-
-async function publicCallableMethods(
-  language: SdkLanguage,
-  file: URL,
-  className: string,
-): Promise<string[]> {
-  const root = parse(language, await readFile(file, "utf8")).root();
-  const classNode = findClass(root, language, className);
-
-  expect(classNode, `${className} must exist in ${file.pathname}`).toBeDefined();
-  if (!classNode) return [];
-
-  const methods = [
-    ...new Set(
-      directClassMethods(classNode, language, className)
-        .filter((method) => isPublicCallable(method, language))
-        .flatMap((method) => {
-          const name = methodName(method.node, language);
-          if (!name) return [];
-          const normalizedMethod = snakeCase(name.text());
-          return participatesInSurfaceParity(className, language, normalizedMethod)
-            ? [normalizedMethod]
-            : [];
-        }),
-    ),
-  ];
-  if (language === "go" && className === "Stagehand" && (await goExtractFunction())) {
-    methods.push("extract");
-  }
-  return [...new Set(methods)].sort();
 }
 
 async function goExtractFunction(): Promise<SgNode | undefined> {

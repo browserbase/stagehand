@@ -337,6 +337,64 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     await assertParity(steps);
   });
 
+  it("exposes native regex name, description, and text matching through SDK builders", async () => {
+    const options = { name: /^Help$/, description: /^more details$/i, exact: true };
+    expect(await page.getByRole("button", options).count()).toBe(
+      await oracle.getByRole("button", options).count(),
+    );
+    expect(await page.getByRole("button", options).count()).toBe(2);
+    expect(await page.getByText(/Alpha\nBeta/, { exact: true }).textContent()).toBe("Alpha\nBeta");
+    expect(await page.getByText(/nested shadow text/i).count()).toBe(1);
+  });
+
+  it("preserves nth scope while composing public role, text, and CSS/XPath builders", async () => {
+    const card = page.locator("#cards > section").nth(1);
+    expect(await card.getByText("Two", { exact: true }).count()).toBe(1);
+    expect(await card.getByText("One", { exact: true }).count()).toBe(0);
+    expect(
+      await card
+        .getByRole("button", { name: "Add" })
+        .locator("xpath=self::*[@id='two-button']")
+        .count(),
+    ).toBe(1);
+    expect(
+      await page
+        .getByRole("button", { name: /^Save Draft$/ })
+        .locator("span")
+        .getByText("Draft", { exact: true })
+        .count(),
+    ).toBe(1);
+    expect(
+      await page
+        .locator("#cards")
+        .getByRole("heading", { level: 3 })
+        .nth(1)
+        .getByText("Two")
+        .count(),
+    ).toBe(1);
+  });
+
+  it("performs an existing click action through a scoped public role builder", async () => {
+    await oracle.setContent(`
+      <button id="outside" aria-description="Publishes the current draft">Publish draft</button>
+      <section role="dialog" aria-label="Publish editor">
+        <button id="inside" aria-description="Publishes the current draft">Publish draft</button>
+      </section>
+    `);
+    await oracle.evaluate(() => {
+      for (const button of document.querySelectorAll("button")) {
+        button.onclick = () => {
+          document.body.dataset.clicked = button.id;
+        };
+      }
+    });
+    await page
+      .getByRole("dialog", { name: "Publish editor", exact: true })
+      .getByRole("button", { name: /^Publish draft$/, description: /current draft$/ })
+      .click({ timeout: 5_000 });
+    expect(await oracle.evaluate(() => document.body.dataset.clicked)).toBe("inside");
+  });
+
   it("does not retain accessible-name or text caches across queries", async () => {
     const steps: QueryStep[] = [
       { kind: "role", role: "button", options: { name: "Publish report", exact: true } },
