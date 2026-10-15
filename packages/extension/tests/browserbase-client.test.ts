@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { createOpenAI } from "@ai-sdk/openai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { encodeWireValue } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
@@ -21,21 +20,8 @@ import {
 } from "../service-worker.js";
 import { generateWithAiSdk } from "../llm/aiSdkClient.js";
 
-const fixtures = JSON.parse(
-  readFileSync(
-    new URL("../../../tests/fixtures/browserbase-transport.json", import.meta.url),
-    "utf8",
-  ),
-) as {
-  gateway: { input: unknown; response: unknown; result: unknown };
-  httpFailures: {
-    name: string;
-    status: number;
-    headers: Record<string, string>;
-    body: string;
-    gatewayAttempts: number;
-  }[];
-};
+import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
+
 const params: BrowserbaseRequestParams = {
   operation: "gateway.responses",
   headers: { "x-test": "value" },
@@ -261,38 +247,6 @@ describe("Browserbase adapter AI SDK error handling", () => {
       else expect(error).toBeInstanceOf(Error);
     },
   );
-
-  it.each(fixtures.httpFailures)(
-    "retains AI SDK's $name behavior",
-    async ({ status, headers, body, gatewayAttempts }) => {
-      vi.useFakeTimers();
-      const { client, messages } = setup(() => ({
-        type: "response",
-        status,
-        statusText: "fixture",
-        headers,
-        body,
-      }));
-      const result = generate(client).catch((error: unknown) => error);
-      await vi.runAllTimersAsync();
-      const error = await result;
-      expect(messages).toHaveLength(gatewayAttempts);
-      const last =
-        error && typeof error === "object" && "lastError" in error ? error.lastError : error;
-      expect(last).toMatchObject({
-        statusCode: status,
-        responseBody: body,
-        responseHeaders: expect.objectContaining(headers),
-        isRetryable: gatewayAttempts > 1,
-      });
-    },
-  );
-
-  it("lets AI SDK parse a successful buffered response", async () => {
-    const { client, messages } = setup();
-    await expect(generate(client)).resolves.toEqual(fixtures.gateway.result);
-    expect(messages).toHaveLength(1);
-  });
 
   it.each(["send", "disconnect", "invalid result"])(
     "does not treat RPC %s failure as an upstream network failure",

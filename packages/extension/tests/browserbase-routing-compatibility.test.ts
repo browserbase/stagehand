@@ -1,5 +1,4 @@
-import { createServer, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+import type { Server, ServerResponse } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   encodeWireValue,
@@ -11,13 +10,14 @@ import {
   STAGEHAND_PROTOCOL_VERSION,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type { ModelConfig, StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
-import { executeBrowserbaseRequest } from "../../sdk-ts/src/browserbaseTransport.js";
 import type { CallbackBatchFunction } from "../callbackBatch.js";
-import { requestBrowserbase } from "../clients/browserbaseClient.js";
-import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.js";
-import { RPCClient } from "../clients/rpcClient.js";
-import { RPCRouter } from "../rpcRouter.js";
-import { createStagehandRuntime } from "../runtime.js";
+import type { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.js";
+import type { RPCClient } from "../clients/rpcClient.js";
+import type { createStagehandRuntime } from "../runtime.js";
+
+import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
+import { createHttpTestServer, listen, close } from "../../sdk-ts/tests/helpers/httpServer.js";
+import { createBrowserbaseTestBridge, type WireMessage } from "./helpers/browserbaseBridge.js";
 
 const schema = {
   type: "object",
@@ -26,33 +26,14 @@ const schema = {
   additionalProperties: false,
 };
 const params = { pageId: "page-1", instruction: "Extract the answer", schema };
-const dataFor = (name?: string) =>
+const dataFor = (name?: string): Record<string, string | number | boolean> =>
   name === "Metadata" ? { progress: "Complete", completed: true } : { answer: 42 };
-const completion = (name?: string) => ({
-  id: "resp_test",
-  object: "response",
-  created_at: 1700000000,
-  model: "openai/gpt-5",
-  status: "completed",
-  output: [
-    {
-      type: "message",
-      id: "msg_test",
-      status: "completed",
-      role: "assistant",
-      content: [{ type: "output_text", text: JSON.stringify(dataFor(name)), annotations: [] }],
-    },
-  ],
-  usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-});
-type HttpRequest = { path: string; body: Record<string, unknown> };
-type WireMessage = {
-  id?: number;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: { message: string };
+const completion = (name?: string) => {
+  const response = structuredClone(fixtures.gateway.response);
+  response.output[0]!.content[0]!.text = JSON.stringify(dataFor(name));
+  return response;
 };
+type HttpRequest = { path: string; body: Record<string, unknown> };
 let server: Server;
 let apiUrl: string;
 let runtime: ReturnType<typeof createStagehandRuntime>;
@@ -61,8 +42,8 @@ let rpc: RPCClient;
 let init: StagehandInitParams;
 let nextId: number;
 const requests: HttpRequest[] = [];
-const messages: WireMessage[] = [];
-const pendingReplies: Promise<void>[] = [];
+let messages: WireMessage[];
+let pendingReplies: Promise<void>[];
 const captureSnapshot = vi.fn(async () => ({ combinedTree: "Answer: 42", combinedUrlMap: {} }));
 let cacheHit: boolean;
 let failCache: boolean;
@@ -71,12 +52,10 @@ let holdPath: string | undefined;
 let heldResponse: (() => void) | undefined;
 
 beforeAll(async () => {
-  server = createServer(async (request, response) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  server = createHttpTestServer((request, response) => {
     const captured = {
       path: request.url!,
-      body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
+      body: JSON.parse(request.body) as Record<string, unknown>,
     };
     requests.push(captured);
     if (captured.path === holdPath) {
@@ -84,15 +63,9 @@ beforeAll(async () => {
       heldResponse = () => respond(captured, response);
     } else respond(captured, response);
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  apiUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  apiUrl = await listen(server);
 });
-afterAll(async () => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-    server.closeAllConnections();
-  });
-});
+afterAll(() => close(server));
 function respond(request: HttpRequest, response: ServerResponse) {
   const gateway = request.path.endsWith("/llm/responses");
   if ((!gateway && failCache) || (gateway && retryGateway)) {
@@ -126,61 +99,27 @@ function respond(request: HttpRequest, response: ServerResponse) {
   );
 }
 beforeEach(() => {
-  requests.length = messages.length = 0;
+  requests.length = 0;
   captureSnapshot.mockClear();
   cacheHit = failCache = retryGateway = false;
   holdPath = undefined;
   heldResponse = undefined;
   nextId = 100;
-  const channel = new ChromeRuntimeClient(
-    {
-      send(payload: string) {
-        const message = JSON.parse(payload) as WireMessage;
-        messages.push(message);
-        if (message.method === "browserbase.request") {
-          const params = wireSchema(StagehandMethods.browserbaseRequest.params).parse(
-            message.params,
-          );
-          pendingReplies.push(
-            executeBrowserbaseRequest(
-              { apiUrl: `${apiUrl}/v1`, apiKey: "bb-client-key", sessionId: "session-test" },
-              params,
-            ).then((result) =>
-              channel.receive(
-                JSON.stringify({ jsonrpc: "2.0", id: message.id, result: encodeWireValue(result) }),
-              ),
-            ),
-          );
-        } else if (message.method === "llm.generate") {
-          const input = wireSchema(StagehandMethods.llmGenerate.params).parse(message.params);
-          const data = dataFor(
-            input.responseFormat?.type === "json_schema" ? input.responseFormat.name : undefined,
-          );
-          pendingReplies.push(
-            channel.receive(
-              JSON.stringify({
-                jsonrpc: "2.0",
-                id: message.id,
-                result: encodeWireValue({
-                  role: "assistant",
-                  content: { type: "text", text: JSON.stringify(data) },
-                  outputFormat: "json_schema",
-                  structuredContent: data,
-                  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                }),
-              }),
-            ),
-          );
-        }
-      },
+  ({ runtime, transport, rpc, messages, pendingReplies } = createBrowserbaseTestBridge(
+    { apiUrl: `${apiUrl}/v1`, apiKey: "bb-client-key", sessionId: "session-test" },
+    (input) => {
+      const data = dataFor(
+        input.responseFormat?.type === "json_schema" ? input.responseFormat.name : undefined,
+      );
+      return {
+        role: "assistant",
+        content: { type: "text", text: JSON.stringify(data) },
+        outputFormat: "json_schema",
+        structuredContent: data,
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      };
     },
-    "send",
-  );
-  transport = channel;
-  runtime = createStagehandRuntime({
-    clientBrowserbaseRequest: (params, signal) => requestBrowserbase(rpc, params, signal),
-    clientLLMGenerate: (params) => rpc.send(StagehandMethods.llmGenerate, params),
-  });
+  ));
   init = StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: { name: "test", version: "1" },
@@ -199,7 +138,6 @@ beforeEach(() => {
   };
   vi.spyOn(runtime, "resolvePage").mockReturnValue(page as never);
   vi.spyOn(runtime, "contextActivePage").mockResolvedValue({ pageId: "page-1" });
-  rpc = new RPCClient(transport, new RPCRouter(runtime));
 });
 afterEach(async () => {
   heldResponse?.();
