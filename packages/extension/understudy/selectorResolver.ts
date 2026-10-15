@@ -14,6 +14,13 @@ export type SelectorQuery =
   | { kind: "xpath"; value: string }
   | { kind: "semantic"; steps: QueryStep[] };
 
+const elementResolvers = {
+  css: "resolveCssSelector",
+  text: "resolveTextSelector",
+  xpath: "resolveXPathMainWorld",
+  semantic: "resolveSemanticSelector",
+} as const;
+
 export interface ResolvedNode {
   objectId: Protocol.Runtime.RemoteObjectId;
   nodeId: Protocol.DOM.NodeId | null;
@@ -75,18 +82,7 @@ export class FrameSelectorResolver {
     { limit = Infinity }: ResolveManyOptions = {},
     progress?: Progress,
   ): Promise<ResolvedNode[]> {
-    progress?.throwIfStopped();
-    if (limit <= 0) return [];
-    switch (query.kind) {
-      case "css":
-        return this.resolveCss(query.value, limit, progress);
-      case "text":
-        return this.resolveText(query.value, limit, progress);
-      case "xpath":
-        return this.resolveXPath(query.value, limit, progress);
-      case "semantic":
-        return this.resolveElements("resolveSemanticSelector", query.steps, limit, progress);
-    }
+    return this.resolveElements(query, 0, limit, progress);
   }
 
   public async count(query: SelectorQuery, progress?: Progress): Promise<number> {
@@ -109,14 +105,9 @@ export class FrameSelectorResolver {
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
     progress?.throwIfStopped();
-    if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 }, progress);
-    const selected = results[index] ?? null;
+    if (index < 0 || !Number.isInteger(index)) return null;
+    const [selected = null] = await this.resolveElements(query, index, 1, progress);
     if (progress) {
-      await this.releaseNodes(
-        results.filter((node) => node !== selected),
-        progress,
-      );
       try {
         progress.throwIfStopped();
       } catch (error) {
@@ -127,25 +118,9 @@ export class FrameSelectorResolver {
     return selected;
   }
 
-  async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveCssSelector", selector, limit, progress);
-  }
-
-  async resolveText(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveTextSelector", value, limit, progress);
-  }
-
-  async resolveXPath(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveXPathMainWorld", value, limit, progress);
-  }
-
   private async resolveElements(
-    helper:
-      | "resolveCssSelector"
-      | "resolveTextSelector"
-      | "resolveXPathMainWorld"
-      | "resolveSemanticSelector",
-    value: string | QueryStep[],
+    query: SelectorQuery,
+    startIndex: number,
     limit: number,
     progress?: Progress,
   ): Promise<ResolvedNode[]> {
@@ -158,15 +133,17 @@ export class FrameSelectorResolver {
       progress,
       this.readinessOptions,
     );
+    const helper = elementResolvers[query.kind];
+    const value = JSON.stringify(query.kind === "semantic" ? query.steps : query.value);
     const results: ResolvedNode[] = [];
     try {
-      for (let index = 0; index < limit; index += 1) {
-        const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
+      for (let offset = 0; offset < limit; offset += 1) {
+        const expression = buildLocatorInvocation(helper, [value, String(startIndex + offset)]);
         const resolved = await this.evaluateElement(
           expression,
           contextId,
           progress,
-          helper === "resolveSemanticSelector" ? "throw" : "empty",
+          query.kind === "semantic" ? "throw" : "empty",
         );
         if (!resolved) break;
         results.push(resolved);
@@ -399,10 +376,11 @@ export class FrameSelectorResolver {
         throw new SelectorEvaluationError(evalRes.exceptionDetails);
       }
       if (evalRes.exceptionDetails || !objectId) {
-        if (progress && objectId) {
+        if (objectId) {
           const discardedId = objectId;
           objectId = undefined;
-          await progress.cleanup(() => release(discardedId));
+          if (progress) await progress.cleanup(() => release(discardedId));
+          else await release(discardedId).catch(() => {});
         }
         progress?.throwIfStopped();
         return null;

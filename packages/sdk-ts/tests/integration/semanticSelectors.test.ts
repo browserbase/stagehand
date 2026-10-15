@@ -337,6 +337,15 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     await assertParity(steps);
   });
 
+  it("resolves a late semantic index without changing its match order", async () => {
+    await oracle.setContent(
+      Array.from({ length: 300 }, (_, index) => `<button>Button ${index}</button>`).join(""),
+    );
+    const buttons = page.locator(encodeLocatorQuery([{ kind: "role", role: "button" }]));
+    expect(await buttons.nth(299).textContent()).toBe("Button 299");
+    await expect(buttons.nth(300).textContent()).rejects.toThrow("Could not find an element");
+  });
+
   it("does not retain accessible-name or text caches across queries", async () => {
     const steps: QueryStep[] = [
       { kind: "role", role: "button", options: { name: "Publish report", exact: true } },
@@ -381,6 +390,45 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     await page.locator(selector).click({ timeout: 5_000 });
     expect(await oracle.evaluate(() => document.body.dataset.published)).toBe("true");
   });
+
+  it.each([
+    '<button style="display:none">Publish</button>',
+    '<button style="visibility:hidden">Publish</button>',
+    "<div>No matching button</div>",
+  ])("resolves hidden for an initially unmatched role in %s", async (html) => {
+    await oracle.setContent(html);
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Publish", exact: true } },
+    ]);
+
+    expect(await page.waitForSelector(selector, { state: "hidden", timeout: 1_000 })).toBe(true);
+    await expect(
+      page.waitForSelector(selector, { state: "visible", timeout: 150 }),
+    ).rejects.toThrow(/timeout|timed out/i);
+  });
+
+  it.each(["display", "visibility", "remove"])(
+    "resolves a pending role hidden wait after %s changes",
+    async (change) => {
+      await oracle.setContent("<button>Publish</button>");
+      const selector = encodeLocatorQuery([
+        { kind: "role", role: "button", options: { name: "Publish", exact: true } },
+      ]);
+      await expect(
+        page.waitForSelector(selector, { state: "hidden", timeout: 150 }),
+      ).rejects.toThrow(/timeout|timed out/i);
+
+      await oracle.evaluate((change) => {
+        setTimeout(() => {
+          const button = document.querySelector("button")!;
+          if (change === "remove") button.remove();
+          else if (change === "display") button.style.display = "none";
+          else button.style.visibility = "hidden";
+        }, 100);
+      }, change);
+      expect(await page.waitForSelector(selector, { state: "hidden", timeout: 5_000 })).toBe(true);
+    },
+  );
 
   it.each([".legacy-scope", "xpath=//div[@class='legacy-scope']"])(
     "preserves legacy root ordering and closed shadows for %s",

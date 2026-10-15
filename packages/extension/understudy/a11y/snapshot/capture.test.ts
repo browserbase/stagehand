@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FrameContext, FrameDomMaps, SessionDomIndex } from "../../../types/private/index.js";
 import type { StagehandLogger } from "../../../logger.js";
 import { Page } from "../../page.js";
+import { Frame } from "../../frame.js";
+import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { FrameSelectorResolver } from "../../selectorResolver.js";
@@ -425,6 +427,81 @@ describe("snapshot progress ownership", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
+
+  it.each(
+    ["iframe >> section", "xpath=/html/body/iframe/html/body/section"].flatMap((rootSelector) =>
+      [0, 100].flatMap((timeout) =>
+        (["scope", "ignore"] as const).map((operation) => ({ rootSelector, timeout, operation })),
+      ),
+    ),
+  )(
+    "keeps semantic $operation fallback when $rootSelector has no child frame (timeout: $timeout)",
+    async ({ rootSelector, timeout, operation }) => {
+      progress.dispose();
+      progress = new Progress("extract", timeout);
+      const actual = await vi.importActual<typeof focusSelectors>("./focusSelectors.js");
+      vi.mocked(resolveCssFocusFrameAndTail).mockImplementation(actual.resolveCssFocusFrameAndTail);
+      const frame = new Frame(
+        session as unknown as CDPSessionLike,
+        "root",
+        "page",
+        false,
+        page.logger,
+      );
+      Object.assign(page, {
+        getSessionForFrame: () => session,
+        frameForId: () => frame,
+        getFullFrameTree: () => ({ frame: { id: "root" } }),
+      });
+      const ready = vi.spyOn(executionContexts, "waitForLocatorWorld").mockResolvedValue({
+        contextId: 1,
+        kind: "extension",
+        capabilities: { closedShadowRoots: true },
+      });
+      send.mockImplementation(async (method) => {
+        if (method === "Runtime.evaluate") return { result: { objectId: "iframe" } };
+        if (method === "DOM.requestNode") return { nodeId: 5 };
+        if (method === "DOM.describeNode") return { node: { backendNodeId: 5 } };
+        return {};
+      });
+      const selector = encodeLocatorQuery([
+        { kind: "selector", selector: rootSelector },
+        { kind: "role", role: "button" },
+      ]);
+      const context: FrameContext = {
+        rootId: "root",
+        frames: ["root"],
+        parentByFrame: new Map([["root", null]]),
+      };
+      const pending =
+        operation === "scope"
+          ? tryScopedSnapshot(
+              page,
+              { focusLocator: { selector } },
+              context,
+              true,
+              new Map(),
+              new Map(),
+              page.logger,
+              progress,
+            )
+          : resolveIgnoredNodes(page, [{ selector }], context, new Map(), progress);
+      let result: PromiseSettledResult<unknown> | undefined;
+      void Promise.allSettled([pending]).then(([outcome]) => {
+        result = outcome;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(result).toEqual({
+        status: "fulfilled",
+        value: operation === "scope" ? null : new Map(),
+      });
+      expect(ready).toHaveBeenCalledExactlyOnceWith(session, "root", 1000, progress, {
+        readinessRetries: "none",
+      });
+      expect(send).toHaveBeenLastCalledWith("Runtime.releaseObject", { objectId: "iframe" });
+      expect(progress.remainingMs()).toBe(timeout || Infinity);
+    },
+  );
 
   it.each(["transient", "query"] as const)(
     "preserves snapshot fallback policy for %s semantic failures",

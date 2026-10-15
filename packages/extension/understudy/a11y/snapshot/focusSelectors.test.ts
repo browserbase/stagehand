@@ -5,6 +5,7 @@ import { executionContexts } from "../../executionContextRegistry.js";
 import { Progress } from "../../progress.js";
 import {
   resolveCssFocusFrameAndTail,
+  resolveFocusFrameAndTail,
   resolveObjectIdForCss,
   resolveObjectIdForXPath,
 } from "./focusSelectors.js";
@@ -17,6 +18,27 @@ import type { Frame } from "../../frame.js";
 import type { Page } from "../../page.js";
 import { FrameLocator } from "../../frameLocator.js";
 import { resolveLocatorTarget } from "../../deepLocator.js";
+
+function snapshotFrameChain(depth: number) {
+  const parentByFrame = new Map<string, string | null>([["root", null]]);
+  const sessions = Array.from({ length: depth + 1 }, (_, index) => {
+    const frameId = index ? `child-${index}` : "root";
+    if (index) parentByFrame.set(frameId, index === 1 ? "root" : `child-${index - 1}`);
+    const send = vi.fn(async (method: string) => {
+      if (method === "Runtime.evaluate") return { result: { objectId: `iframe-${frameId}` } };
+      if (method === "DOM.requestNode") return { nodeId: 5 };
+      if (method === "DOM.describeNode") return { node: { backendNodeId: 5 } };
+      if (method === "DOM.getFrameOwner") return { backendNodeId: 5 };
+      return {};
+    });
+    return { frameId, send };
+  });
+  const page = {
+    getSessionForFrame: (frameId: string) =>
+      sessions.find((session) => session.frameId === frameId),
+  } as unknown as Page;
+  return { page, parentByFrame, sessions };
+}
 
 describe("snapshot focus resolution", () => {
   let progress: Progress;
@@ -79,36 +101,98 @@ describe("snapshot focus resolution", () => {
   });
 
   it.each([
-    ["/html/body/iframe[1]/html/body/section", "/html/body/iframe[1]"],
+    ["/html/body/iframe[1]/html/body/section", "/html/body/iframe[1]", 1],
     [
       "/html/body/iframe[1]/html/iframe[2]/html/body/section",
       "/html/body/iframe[1]/html/iframe[2]",
+      2,
     ],
-  ])("retains the canonical frame prefix for semantic XPath scope %s", async (xpath, prefix) => {
-    const frame = { frameId: "root" } as Frame;
-    const child = { frameId: "child" } as Frame;
-    const page = { frameForId: () => frame } as unknown as Page;
-    const resolveFrame = vi.spyOn(FrameLocator.prototype, "resolveFrame").mockResolvedValue(child);
-    const steps: QueryStep[] = [
-      { kind: "selector", selector: `xpath=${xpath}` },
-      { kind: "role", role: "button", options: { name: "Save >> publish" } },
-    ];
-    const result = await resolveCssFocusFrameAndTail(
-      page,
-      encodeLocatorQuery(steps),
-      new Map([
-        ["root", null],
-        ["child", "root"],
-      ]),
-      "root",
-      progress,
-    );
-    expect(result).toMatchObject({ targetFrameId: "child", absPrefix: prefix });
-    expect(decodeLocatorQuery(result.tailSelector)).toEqual([
-      { kind: "selector", selector: "xpath=/html/body/section" },
-      steps[1],
+  ] as const)(
+    "retains the canonical frame prefix for semantic XPath scope %s",
+    async (xpath, prefix, depth) => {
+      const { page, parentByFrame, sessions } = snapshotFrameChain(depth);
+      const steps: QueryStep[] = [
+        { kind: "selector", selector: `xpath=${xpath}` },
+        { kind: "role", role: "button", options: { name: "Save >> publish" } },
+      ];
+      const result = await resolveCssFocusFrameAndTail(
+        page,
+        encodeLocatorQuery(steps),
+        parentByFrame,
+        "root",
+        progress,
+      );
+      expect(result).toMatchObject({ targetFrameId: `child-${depth}`, absPrefix: prefix });
+      expect(decodeLocatorQuery(result.tailSelector)).toEqual([
+        { kind: "selector", selector: "xpath=/html/body/section" },
+        steps[1],
+      ]);
+      expect(waitForWorld).toHaveBeenCalledTimes(depth);
+      for (const session of sessions.slice(0, -1)) {
+        expect(waitForWorld).toHaveBeenCalledWith(session, session.frameId, 1000, progress, {
+          readinessRetries: "none",
+        });
+        expect(session.send).toHaveBeenLastCalledWith("Runtime.releaseObject", {
+          objectId: `iframe-${session.frameId}`,
+        });
+      }
+    },
+  );
+
+  it("keeps a legacy terminal XPath iframe scoped to its child document", async () => {
+    const { page, parentByFrame } = snapshotFrameChain(1);
+    await expect(
+      resolveFocusFrameAndTail(page, "//iframe[1]", parentByFrame, "root", progress),
+    ).resolves.toEqual({
+      targetFrameId: "child-1",
+      tailXPath: "/",
+      absPrefix: "//iframe[1]",
+    });
+  });
+
+  it.each([false, true])(
+    "releases failed iframe query objects (progress: %s)",
+    async (withProgress) => {
+      const { page, parentByFrame, sessions } = snapshotFrameChain(1);
+      sessions[0].send.mockImplementation(async (method) =>
+        method === "Runtime.evaluate"
+          ? { result: { objectId: "error" }, exceptionDetails: { text: "Invalid selector" } }
+          : {},
+      );
+      const selector = encodeLocatorQuery([
+        { kind: "selector", selector: "iframe >> section" },
+        { kind: "role", role: "button" },
+      ]);
+      await expect(
+        resolveCssFocusFrameAndTail(
+          page,
+          selector,
+          parentByFrame,
+          "root",
+          withProgress ? progress : undefined,
+        ),
+      ).rejects.toThrow("Failed to resolve iframe element");
+      expect(sessions[0].send).toHaveBeenLastCalledWith("Runtime.releaseObject", {
+        objectId: "error",
+      });
+    },
+  );
+
+  it("does not retry an unavailable iframe locator world", async () => {
+    const { page, parentByFrame, sessions } = snapshotFrameChain(1);
+    const error = new Error("Execution context was destroyed");
+    waitForWorld.mockRejectedValue(error);
+    const selector = encodeLocatorQuery([
+      { kind: "selector", selector: "iframe >> section" },
+      { kind: "role", role: "button" },
     ]);
-    expect(resolveFrame).toHaveBeenCalledExactlyOnceWith(progress);
+    await expect(
+      resolveCssFocusFrameAndTail(page, selector, parentByFrame, "root", progress),
+    ).rejects.toBe(error);
+    expect(waitForWorld).toHaveBeenCalledExactlyOnceWith(sessions[0], "root", 1000, progress, {
+      readinessRetries: "none",
+    });
+    expect(sessions[0].send).not.toHaveBeenCalled();
   });
 
   it("keeps a terminal iframe in its parent frame for both actions and snapshots", async () => {
