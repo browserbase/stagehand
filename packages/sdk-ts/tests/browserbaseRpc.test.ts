@@ -1,10 +1,4 @@
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type Server,
-  type ServerResponse,
-} from "node:http";
-import type { AddressInfo } from "node:net";
+import type { Server, ServerResponse } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
@@ -19,6 +13,7 @@ import fixtures from "../../../tests/fixtures/browserbase-transport.json" with {
 import type { BrowserbaseConnection } from "../src/browserbaseConnection.js";
 import { registerBrowserbaseTransport } from "../src/browserbaseRpc.js";
 import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
+import { createHttpTestServer, listen, close, type CapturedRequest } from "./helpers/httpServer.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -48,12 +43,7 @@ class Transport implements CDPTransport {
   close = vi.fn();
 }
 
-type Received = {
-  headers: IncomingHttpHeaders;
-  body: string;
-  url: string | undefined;
-  response: ServerResponse;
-};
+type Received = CapturedRequest & { response: ServerResponse };
 function hold() {
   return { arrived: deferred<Received>(), closed: deferred<void>() };
 }
@@ -96,36 +86,20 @@ function cancel(id: number, reason: "cancelled" | "timeout" = "cancelled"): JSON
 }
 
 beforeAll(async () => {
-  server = createServer((incoming, response) => {
-    void (async () => {
-      const chunks: Buffer[] = [];
-      for await (const chunk of incoming) chunks.push(Buffer.from(chunk));
-      const received = {
-        headers: incoming.headers,
-        body: Buffer.concat(chunks).toString("utf8"),
-        url: incoming.url,
-        response,
-      };
-      requests.push(received);
-      const gate = holds.get(String(incoming.headers["x-test-request"]));
-      if (gate) {
-        response.once("close", () => gate.closed.resolve());
-        response.writeHead(200, { "content-type": "application/json" });
-        response.write(" ");
-        gate.arrived.resolve(received);
-      } else {
-        response.end(JSON.stringify(fixtures.gateway.response));
-      }
-    })().catch(() => response.destroy());
+  server = createHttpTestServer((request, response) => {
+    const received = { ...request, response };
+    requests.push(received);
+    const gate = holds.get(String(request.headers["x-test-request"]));
+    if (gate) {
+      response.once("close", () => gate.closed.resolve());
+      response.writeHead(200, { "content-type": "application/json" });
+      response.write(" ");
+      gate.arrived.resolve(received);
+    } else {
+      response.end(JSON.stringify(fixtures.gateway.response));
+    }
   });
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  connection = {
-    ...fixtures.connection,
-    apiUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/services/v1`,
-  };
+  connection = { ...fixtures.connection, apiUrl: `${await listen(server)}/services/v1` };
 });
 afterEach(() => {
   clients.splice(0).forEach((client) => client.close());
@@ -133,12 +107,7 @@ afterEach(() => {
   requests.length = 0;
   vi.restoreAllMocks();
 });
-afterAll(async () => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-    server.closeAllConnections();
-  });
-});
+afterAll(() => close(server));
 
 describe("Browserbase reverse RPC lifecycle", () => {
   it("serves a reverse request while an SDK request with the same ID is pending", async () => {

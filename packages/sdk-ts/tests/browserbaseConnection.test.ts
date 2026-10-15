@@ -70,32 +70,16 @@ describe("client Browserbase connection settings", () => {
     expect(resolveBrowserbaseConnection(config, { browser: { sessionId } })).toBeUndefined();
   });
 
-  it("resolves the same connection for direct and custom models with caching disabled", () => {
-    const configs = [
-      StagehandClientCreateConfigSchema.parse({
-        apiKey,
-        cache: false,
-        model: { modelName: "openai/gpt-5", apiKey: "provider-key" },
-      }),
-      StagehandClientCreateConfigSchema.parse({
-        apiKey,
-        cache: false,
-        model: {
-          generate: async () => ({
-            role: "assistant",
-            content: { type: "text", text: "done" },
-            outputFormat: "text",
-          }),
-        },
-      }),
-    ];
-    for (const config of configs) {
-      expect(resolveBrowserbaseConnection(config, { browser: { sessionId } })).toEqual({
-        apiKey,
-        apiUrl: fixtures.endpoints[0].expected,
-        sessionId,
-      });
-    }
+  it.each([
+    { modelName: "openai/gpt-5", apiKey: "provider-key" },
+    { generate: async () => fixtures.gateway.result },
+  ])("resolves the same connection with model %j and caching disabled", (model) => {
+    const config = StagehandClientCreateConfigSchema.parse({ apiKey, cache: false, model });
+    expect(resolveBrowserbaseConnection(config, { browser: { sessionId } })).toEqual({
+      apiKey,
+      apiUrl: fixtures.endpoints[0].expected,
+      sessionId,
+    });
   });
 
   it("takes an immutable snapshot without sharing state between connections", () => {

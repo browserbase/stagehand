@@ -4,7 +4,6 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
-import type { AddressInfo } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -15,57 +14,28 @@ import type { BrowserbaseRequestParams } from "@browserbasehq/stagehand-protocol
 import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
 import type { BrowserbaseConnection } from "../src/browserbaseConnection.js";
 import { executeBrowserbaseRequest } from "../src/browserbaseTransport.js";
+import { createHttpTestServer, listen, close, type CapturedRequest } from "./helpers/httpServer.js";
 
-type ReceivedRequest = {
-  method: string | undefined;
-  url: string | undefined;
-  headers: IncomingHttpHeaders;
-  body: string;
-};
 const params: BrowserbaseRequestParams = {
   operation: "gateway.responses",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ input: fixtures.gateway.requestInput }),
+  body: '{ "input": "héllo 🌎" }',
 };
-
-async function listen(server: Server): Promise<string> {
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-}
-async function close(server: Server): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-    server.closeAllConnections();
-  });
-}
 
 let server: Server;
 let redirectServer: Server;
 let redirectOrigin: string;
 let connection: BrowserbaseConnection;
-let respond: (request: ReceivedRequest, response: ServerResponse) => void;
+let respond: (request: CapturedRequest, response: ServerResponse) => void;
 let onRequest: (() => void) | undefined;
-const requests: ReceivedRequest[] = [];
+const requests: CapturedRequest[] = [];
 const redirectHeaders: IncomingHttpHeaders[] = [];
 
 beforeAll(async () => {
-  server = createServer((request, response) => {
-    void (async () => {
-      const chunks: Buffer[] = [];
-      for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      const received = {
-        method: request.method,
-        url: request.url,
-        headers: request.headers,
-        body: Buffer.concat(chunks).toString("utf8"),
-      };
-      requests.push(received);
-      respond(received, response);
-      onRequest?.();
-    })().catch(() => response.destroy());
+  server = createHttpTestServer((request, response) => {
+    requests.push(request);
+    respond(request, response);
+    onRequest?.();
   });
   connection = { ...fixtures.connection, apiUrl: `${await listen(server)}/services/v1` };
   redirectServer = createServer((request, response) => {
@@ -94,44 +64,29 @@ afterEach(() => {
 
 describe("Browserbase HTTP executor", () => {
   it.each([
-    ["gateway.responses", "/llm/responses", { input: fixtures.gateway.requestInput }],
-    ["cache.get", "/cache/get", fixtures.cache.get.request],
-    [
-      "cache.set",
-      "/cache/set",
-      {
-        ...fixtures.cache.get.request,
-        value: fixtures.cache.set.value,
-        llmUsage: fixtures.cache.set.llmUsage,
-      },
-    ],
-  ])(
-    "sends %s to its fixed POST route without changing body text",
-    async (operation, path, body) => {
-      const input = BrowserbaseRequestParamsSchema.parse({
-        ...params,
-        operation,
-        body: JSON.stringify(body, null, 2),
-      });
-      const result = await executeBrowserbaseRequest(connection, input);
-      expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({
-        method: "POST",
-        url: `/services/v1${path}`,
-        body: input.body,
-        headers: { "content-type": "application/json", "x-bb-api-key": connection.apiKey },
-      });
-      if (operation !== "gateway.responses") {
-        expect(requests[0].headers).not.toHaveProperty("authorization");
-        expect(requests[0].headers).not.toHaveProperty("x-bb-session-id");
-      }
-      expect(BrowserbaseRequestResultSchema.parse(result)).toMatchObject({
-        type: "response",
-        status: 200,
-        body: JSON.stringify(fixtures.gateway.response),
-      });
-    },
-  );
+    ["gateway.responses", "/llm/responses"],
+    ["cache.get", "/cache/get"],
+    ["cache.set", "/cache/set"],
+  ])("sends %s to its fixed POST route without changing body text", async (operation, path) => {
+    const input = BrowserbaseRequestParamsSchema.parse({ ...params, operation });
+    const result = await executeBrowserbaseRequest(connection, input);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      url: `/services/v1${path}`,
+      body: input.body,
+      headers: { "content-type": "application/json", "x-bb-api-key": connection.apiKey },
+    });
+    if (operation !== "gateway.responses") {
+      expect(requests[0].headers).not.toHaveProperty("authorization");
+      expect(requests[0].headers).not.toHaveProperty("x-bb-session-id");
+    }
+    expect(BrowserbaseRequestResultSchema.parse(result)).toMatchObject({
+      type: "response",
+      status: 200,
+      body: JSON.stringify(fixtures.gateway.response),
+    });
+  });
 
   it.each(fixtures.gateway.headers)("preserves Gateway $name", async ({ configured, expected }) => {
     await executeBrowserbaseRequest(
