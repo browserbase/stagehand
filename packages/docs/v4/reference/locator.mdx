@@ -4,7 +4,7 @@ description: "Target elements and perform focused DOM interactions"
 icon: "crosshairs"
 ---
 
-Role and text locator builders are available in the TypeScript SDK.
+Role and text locator builders are available in the TypeScript and Python SDKs.
 
 Create a `Locator` from a page selector, role, or text, then reuse it for element interactions and state queries. Builders are synchronous and lazy: they record a query without contacting the browser. Each later action or read resolves that query against the current DOM.
 
@@ -25,7 +25,7 @@ Role/text builders search the main document by default. To search within an ifra
 - Role locators exclude elements hidden from the accessibility tree unless explicitly included. Text locators do not filter by visibility. Matching filters do not change an action's visibility or readiness checks.
 - Chained searches preserve earlier index selections. Selecting the second container before chaining searches inside that container; selecting the second match after chaining selects from the resulting matches. Indices are zero-based and non-negative.
 
-Python compiled patterns support `IGNORECASE`, `MULTILINE`, and `DOTALL`; the implicit `UNICODE` flag is ignored, and other flags are rejected. Use JavaScript-compatible pattern syntax.
+The Python SDK supports `IGNORECASE`, `MULTILINE`, and `DOTALL` in compiled patterns, ignores the implicit `UNICODE` flag, and rejects other flags. Use JavaScript-compatible pattern syntax.
 
 The 20-second locator-operation budget begins when an action or read runs; configure that operation's timeout as shown below.
 
@@ -1057,7 +1057,7 @@ await input.fill("amel@example.com")
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## get_by_role()
@@ -1114,7 +1114,7 @@ await button.click()
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## get_by_text()
@@ -1127,7 +1127,7 @@ print(await message.inner_text())
 ```
 
 <ParamField path="text" type="str | re.Pattern[str]">
-  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. IGNORECASE, MULTILINE, and DOTALL are supported; the implicit UNICODE flag is ignored, and other flags are rejected.
+  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. The SDK supports IGNORECASE, MULTILINE, and DOTALL, ignores the implicit UNICODE flag, and rejects other flags.
 </ParamField>
 
 <ParamField path="exact" type="bool | None" optional>
@@ -1135,7 +1135,7 @@ print(await message.inner_text())
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## first()
