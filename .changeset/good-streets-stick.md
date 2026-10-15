@@ -4,4 +4,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-add new WebMCP launch flag for local chromium versions newer than 157
+enable WebMCP by default for local chromium versions newer than 157
