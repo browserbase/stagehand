@@ -8,6 +8,16 @@ import type { StagehandWorkerInitMetadata } from "../src/browser/factories.js";
 const { apiKey, sessionId } = fixtures.connection;
 
 describe("client Browserbase connection settings", () => {
+  it.each([
+    ["http://localhost:3000", true],
+    ["https://example.com", true],
+    ["ftp://example.com", false],
+    ["file:///tmp/api", false],
+    ["ws://example.com", false],
+  ])("validates the API URL scheme in %s", (apiUrl, accepted) => {
+    expect(StagehandClientCreateConfigSchema.safeParse({ apiUrl }).success).toBe(accepted);
+  });
+
   it.each(fixtures.endpoints)("resolves the $name endpoint", (fixture) => {
     const config = StagehandClientCreateConfigSchema.parse({
       apiKey,

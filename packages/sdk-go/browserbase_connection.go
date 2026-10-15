@@ -64,8 +64,8 @@ func validateBrowserbaseCreateOptions(options CreateOptions, claimed claimedBrow
 	}
 	value := *options.APIURL
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme == "" || ((parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host == "") {
-		return errors.New("stagehand: APIURL must be a valid URL")
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return errors.New("stagehand: APIURL must be a valid HTTP or HTTPS URL")
 	}
 	if strings.ContainsAny(value, "?#") {
 		return errors.New("stagehand: APIURL must not include a query string or fragment")

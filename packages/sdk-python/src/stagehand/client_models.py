@@ -231,6 +231,8 @@ class StagehandClientCreateConfig(WireModel):
     @classmethod
     def validate_api_url(cls, value: str | None) -> str | None:
         if value is not None:
+            if urlparse(value).scheme not in {"http", "https"}:
+                raise ValueError("Stagehand api_url must use HTTP or HTTPS")
             if "?" in value or "#" in value:
                 raise ValueError("Stagehand api_url must not include a query string or fragment")
             if urlparse(value).path.rstrip("/").endswith("/v1"):

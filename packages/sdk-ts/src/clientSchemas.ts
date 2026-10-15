@@ -288,7 +288,7 @@ export const StagehandClientCreateConfigSchema = z
   .extend({
     apiKey: z.string().min(1).optional(),
     apiUrl: z
-      .url()
+      .url({ protocol: /^https?$/ })
       .refine(
         (value) => !value.includes("?") && !value.includes("#"),
         "Stagehand apiUrl must not include a query string or fragment",
