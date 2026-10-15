@@ -196,7 +196,7 @@ export class StagehandFacadeTools {
     return this.loss;
   }
 
-  /** Closes both the client and its owned browser, including keep-alive sessions. */
+  /** Closes the client and a browser the facade launched, including keep-alive sessions; an attached browser is only detached from. */
   close(): Promise<void> {
     this.closed = true;
     return (this.closePromise ??= (async () => {
@@ -209,7 +209,13 @@ export class StagehandFacadeTools {
         return;
       }
       let failed = false;
-      for (const close of [() => this.stagehand.close(), () => this.stagehand.browser.close()]) {
+      // A browser the facade attached to belongs to someone else: detach only.
+      // Its close sends Browser.close, which ends it for every other client.
+      const closers = [() => this.stagehand.close()];
+      if (this.stagehand.browser.origin !== "connected") {
+        closers.push(() => this.stagehand.browser.close());
+      }
+      for (const close of closers) {
         try {
           await close();
         } catch {

@@ -53,15 +53,8 @@ afterAll(async () => {
   await rm(userDataDir, { recursive: true, force: true });
 });
 
-it("drives a browser it attached to and leaves it running on close", async () => {
-  const client = new Client({ name: "facade-cdp-attach-test", version: "1.0.0" });
-  await client.connect(
-    new StdioClientTransport({
-      command: process.execPath,
-      args: [serverPath],
-      env: { ...getDefaultEnvironment(), STAGEHAND_BROWSER: "cdp", STAGEHAND_CDP_URL: cdpUrl },
-    }),
-  );
+it("drives a browser it attached to and leaves it usable on close", async () => {
+  const client = await attach();
   try {
     const result = await client.callTool({
       name: "run",
@@ -78,8 +71,33 @@ it("drives a browser it attached to and leaves it running on close", async () =>
     await client.close();
   }
 
+  // Closing the facade detaches only: a second facade can attach and still
+  // find the page the first one left behind.
+  const second = await attach();
+  try {
+    const result = await second.callTool({
+      name: "run",
+      arguments: { code: "return await page.title();" },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(JSON.stringify(result.content)).toContain("attached");
+  } finally {
+    await second.close();
+  }
   expect(await browserAlive(cdpUrl)).toBe(true);
-}, 60_000);
+}, 90_000);
+
+async function attach(): Promise<Client> {
+  const client = new Client({ name: "facade-cdp-attach-test", version: "1.0.0" });
+  await client.connect(
+    new StdioClientTransport({
+      command: process.execPath,
+      args: [serverPath],
+      env: { ...getDefaultEnvironment(), STAGEHAND_BROWSER: "cdp", STAGEHAND_CDP_URL: cdpUrl },
+    }),
+  );
+  return client;
+}
 
 async function browserAlive(url: string): Promise<boolean> {
   try {

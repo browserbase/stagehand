@@ -1078,3 +1078,21 @@ describe("host-owned facade cleanup", () => {
     expect(stagehand.browser.close).not.toHaveBeenCalled();
   });
 });
+
+describe("StagehandFacadeTools.close", () => {
+  it("closes a browser it launched", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    await new StagehandFacadeTools(stagehand).close();
+    expect(stagehand.close).toHaveBeenCalledTimes(1);
+    expect(stagehand.browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("detaches from a browser it attached to without closing it", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    Object.assign(stagehand.browser, { origin: "connected" });
+    await new StagehandFacadeTools(stagehand).close();
+    // The browser's owner closes it; Browser.close would end it for everyone.
+    expect(stagehand.close).toHaveBeenCalledTimes(1);
+    expect(stagehand.browser.close).not.toHaveBeenCalled();
+  });
+});
