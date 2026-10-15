@@ -1,6 +1,7 @@
 import {
   StagehandClientCreateConfigSchema,
   type BrowserbaseLaunchOptions,
+  type LocalBrowserConnectOptions,
   type LocalBrowserLaunchOptions,
   type StagehandClientCreateConfig,
 } from "@browserbasehq/stagehand";
@@ -17,7 +18,10 @@ export const MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 21_600;
 export type StagehandFacadeConfig = {
   browser:
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
-    | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions };
+    | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions }
+    // A browser the host already runs (for example a sandbox browser). The
+    // facade attaches and detaches; it never closes that browser.
+    | { type: "cdp"; connectOptions: LocalBrowserConnectOptions };
   stagehand: StagehandClientCreateConfig;
 };
 
@@ -27,9 +31,20 @@ export function stagehandFacadeConfigFromEnv(
   const browserbaseApiKey = nonEmpty(env.BROWSERBASE_API_KEY);
   const browserbaseProjectId = nonEmpty(env.BROWSERBASE_PROJECT_ID);
   const requestedBrowser = nonEmpty(env.STAGEHAND_BROWSER);
-  if (requestedBrowser && requestedBrowser !== "local" && requestedBrowser !== "browserbase") {
+  if (
+    requestedBrowser &&
+    requestedBrowser !== "local" &&
+    requestedBrowser !== "browserbase" &&
+    requestedBrowser !== "cdp"
+  ) {
     throw new StagehandFacadeConfigError(
-      'STAGEHAND_BROWSER must be either "local" or "browserbase".',
+      'STAGEHAND_BROWSER must be "local", "browserbase" or "cdp".',
+    );
+  }
+  const cdpUrl = nonEmpty(env.STAGEHAND_CDP_URL);
+  if (requestedBrowser === "cdp" && !cdpUrl) {
+    throw new StagehandFacadeConfigError(
+      'STAGEHAND_CDP_URL is required when STAGEHAND_BROWSER="cdp".',
     );
   }
 
@@ -90,6 +105,9 @@ export function stagehandFacadeConfigFromEnv(
   }
   const stagehand = parsed.data;
 
+  if (browserType === "cdp") {
+    return { browser: { type: "cdp", connectOptions: { cdpUrl: cdpUrl! } }, stagehand };
+  }
   return {
     browser:
       browserType === "browserbase"

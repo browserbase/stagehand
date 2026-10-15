@@ -16,6 +16,12 @@ import {
 } from "../src/facade/contract.js";
 import { StagehandFacadeConfigError, stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
 
+function launchOptionsOf(env: NodeJS.ProcessEnv) {
+  const { browser } = stagehandFacadeConfigFromEnv(env);
+  if (browser.type === "cdp") throw new Error("expected a launched browser");
+  return browser.launchOptions;
+}
+
 describe("Stagehand facade contract", () => {
   it("defaults local browser launches to headed mode", () => {
     expect(stagehandFacadeConfigFromEnv({}).browser).toStrictEqual({
@@ -42,10 +48,10 @@ describe("Stagehand facade contract", () => {
       launchOptions: { apiKey: "bb-key", projectId: "proj", timeout: 3600, keepAlive: true },
     });
     expect(
-      stagehandFacadeConfigFromEnv({
+      launchOptionsOf({
         ...env,
         STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "21600",
-      }).browser.launchOptions,
+      }),
     ).toMatchObject({ timeout: 21_600 });
     for (const invalid of ["0", "1", "59", "-1", "90.5", "soon", "21601"]) {
       expect(() =>
@@ -59,31 +65,46 @@ describe("Stagehand facade contract", () => {
 
   it("passes proxies/verified through to the Browserbase session when configured", () => {
     const env = { BROWSERBASE_API_KEY: "bb-key" };
-    expect(stagehandFacadeConfigFromEnv(env).browser.launchOptions).not.toHaveProperty("proxies");
+    expect(launchOptionsOf(env)).not.toHaveProperty("proxies");
     expect(
-      stagehandFacadeConfigFromEnv({
+      launchOptionsOf({
         ...env,
         STAGEHAND_BROWSERBASE_PROXIES: "1",
         STAGEHAND_BROWSERBASE_VERIFIED: "true",
-      }).browser.launchOptions,
+      }),
     ).toMatchObject({ proxies: true, browserSettings: { verified: true } });
-    expect(
-      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_PROXIES: "off" }).browser
-        .launchOptions,
-    ).toMatchObject({ proxies: false });
+    expect(launchOptionsOf({ ...env, STAGEHAND_BROWSERBASE_PROXIES: "off" })).toMatchObject({
+      proxies: false,
+    });
     expect(() =>
       stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_VERIFIED: "maybe" }),
     ).toThrow(/STAGEHAND_BROWSERBASE_VERIFIED must be a boolean/);
   });
 
+  it("attaches to a host-provided browser by its CDP URL", () => {
+    expect(
+      stagehandFacadeConfigFromEnv({
+        STAGEHAND_BROWSER: "cdp",
+        STAGEHAND_CDP_URL: " ws://127.0.0.1:9222/devtools/browser/abc ",
+        BROWSERBASE_API_KEY: "bb-key",
+      }).browser,
+    ).toStrictEqual({
+      type: "cdp",
+      connectOptions: { cdpUrl: "ws://127.0.0.1:9222/devtools/browser/abc" },
+    });
+    expect(() => stagehandFacadeConfigFromEnv({ STAGEHAND_BROWSER: "cdp" })).toThrow(
+      'STAGEHAND_CDP_URL is required when STAGEHAND_BROWSER="cdp".',
+    );
+    expect(() => stagehandFacadeConfigFromEnv({ STAGEHAND_BROWSER: "remote" })).toThrow(
+      'STAGEHAND_BROWSER must be "local", "browserbase" or "cdp".',
+    );
+  });
+
   it("uses a host-provided extension id instead of uploading per session", () => {
     const env = { BROWSERBASE_API_KEY: "bb-key" };
-    expect(stagehandFacadeConfigFromEnv(env).browser.launchOptions).not.toHaveProperty(
-      "extensionId",
-    );
+    expect(launchOptionsOf(env)).not.toHaveProperty("extensionId");
     expect(
-      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_EXTENSION_ID: " ext_shared " })
-        .browser.launchOptions,
+      launchOptionsOf({ ...env, STAGEHAND_BROWSERBASE_EXTENSION_ID: " ext_shared " }),
     ).toMatchObject({ extensionId: "ext_shared" });
   });
 

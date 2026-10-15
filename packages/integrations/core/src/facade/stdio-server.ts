@@ -11,7 +11,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { closeCodeModeStdio } from "../codemode/stdio-lifecycle.js";
 import { sanitizeErrorMessage } from "../harness/redact.js";
-import { stagehandFacadeConfigFromEnv } from "./config.js";
+import { stagehandFacadeConfigFromEnv, type StagehandFacadeConfig } from "./config.js";
 import {
   CodeModeRunInputSchema,
   facadeSurfaceFromArgs,
@@ -144,10 +144,7 @@ async function ensureResources(): Promise<FacadeResources> {
 async function createResources(): Promise<FacadeResources> {
   const config = stagehandFacadeConfigFromEnv();
   const launchedAt = Date.now();
-  const browser =
-    config.browser.type === "browserbase"
-      ? await browserbase.launch(config.browser.launchOptions)
-      : await localBrowser.launch(config.browser.launchOptions);
+  const browser = await openBrowser(config.browser);
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     const tools = new StagehandFacadeTools(stagehand, {
@@ -178,6 +175,19 @@ async function createResources(): Promise<FacadeResources> {
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;
+  }
+}
+
+async function openBrowser(browser: StagehandFacadeConfig["browser"]): Promise<StagehandBrowser> {
+  switch (browser.type) {
+    case "browserbase":
+      return await browserbase.launch(browser.launchOptions);
+    case "cdp":
+      // Attached, not owned: closing the facade detaches and leaves the host's
+      // browser running.
+      return await localBrowser.connect(browser.connectOptions);
+    case "local":
+      return await localBrowser.launch(browser.launchOptions);
   }
 }
 
