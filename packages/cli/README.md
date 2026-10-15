@@ -229,7 +229,6 @@ browse cloud sessions uploads create <session-id> ./file.pdf
 # Contexts
 browse cloud contexts create
 browse cloud contexts get <context-id>
-browse cloud contexts update <context-id>        # refresh the upload URL
 browse cloud contexts delete <context-id>
 
 # Extensions
@@ -245,6 +244,8 @@ browse cloud search "browserbase docs" --provider parallel --mode fast
 browse cloud search "browser automation research" --provider parallel --mode advanced
 browse cloud search "browserbase docs" --provider exa
 ```
+
+`browse cloud contexts update` is deprecated because Browserbase no longer supports context uploads. To save browser state, use `browse cloud sessions create --context-id <context-id> --persist`. When finished, close the session with `browse cloud sessions update <session-id> --status REQUEST_RELEASE`.
 
 `browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
 

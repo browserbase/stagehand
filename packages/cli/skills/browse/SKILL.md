@@ -234,7 +234,6 @@ browse cloud contexts create --name github
 browse cloud contexts add github <context-id>
 browse cloud contexts list
 browse cloud contexts get <context-id|name>
-browse cloud contexts update <context-id|name>
 browse cloud contexts delete <context-id|name>
 browse cloud extensions upload ./extension.zip
 browse cloud extensions get <extension-id>
@@ -245,6 +244,8 @@ browse cloud search "browserbase docs" --provider parallel --mode fast
 browse cloud search "browser automation research" --provider parallel --mode advanced
 browse cloud search "browserbase docs" --provider exa
 ```
+
+`browse cloud contexts update` is deprecated: Browserbase no longer supports context uploads. To save browser state, create a session with `--context-id` and `--persist`. When finished, close it with `browse cloud sessions update <session-id> --status REQUEST_RELEASE`.
 
 For remote sessions with context persistence:
 
