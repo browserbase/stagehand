@@ -4,6 +4,9 @@ from ._generated.input_types import (
     Action as ActionInput,
 )
 from ._generated.input_types import (
+    AriaRole as AriaRoleName,
+)
+from ._generated.input_types import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
@@ -26,6 +29,7 @@ from ._generated.models import (
     ActResult,
     ActResultData,
     Animations,
+    AriaRole,
     BrowserbaseRegion,
     CacheMetadata,
     CacheStatus,
@@ -100,6 +104,8 @@ __all__ = [
     "Action",
     "ActionInput",
     "Animations",
+    "AriaRole",
+    "AriaRoleName",
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",

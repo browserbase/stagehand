@@ -6,7 +6,7 @@ icon: "page"
 
 A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods. Navigation methods return the main-document [`Response`](/v4/reference/response), when the navigation produces one.
 
-Role and text locator builders are available in the TypeScript SDK.
+Role and text locator builders are available in the TypeScript and Python SDKs.
 
 Use role and text locators to find elements by their accessible role/name or text, then reuse the returned locator for actions and reads. These builders are synchronous and lazy; they do not contact the browser. See [locator matching rules](/v4/reference/locator#matching-rules) for normalization, shadow DOM, and iframe scope.
 
@@ -1750,9 +1750,87 @@ await page.close()
   Resolves after the operation completes.
 </ResponseField>
 
+## get_by_role()
+
+Create a locator for elements in the main document with an implicit or explicit ARIA role. See the [matching rules](/v4/reference/locator#matching-rules).
+
+```python
+button = page.get_by_role("button", name="Save", exact=True)
+await button.click()
+```
+
+<ParamField path="role" type="AriaRole | AriaRoleName">
+  An AriaRole enum member or a supported AriaRoleName string literal, such as "button", "heading", or "checkbox". Use the SDK's AriaRole type for the complete set.
+</ParamField>
+
+<ParamField path="name" type="str | re.Pattern[str] | None" optional>
+  Accessible-name filter, not just visible text. Omit it to match any name. Regular expressions use their own flags.
+</ParamField>
+
+<ParamField path="description" type="str | re.Pattern[str] | None" optional>
+  Accessible-description filter, distinct from the accessible name. String matching follows the same normalization and exact rules as name; regular expressions use their own flags. Omitted by default.
+</ParamField>
+
+<ParamField path="exact" type="bool | None" optional>
+  For a string name or description, require a case-sensitive match of the whole normalized value. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ParamField path="include_hidden" type="bool | None" optional>
+  Include elements hidden from the accessibility tree. Defaults to false. This does not make hidden elements actionable.
+</ParamField>
+
+<ParamField path="checked" type="bool | None" optional>
+  Filter by checked state. Omit to leave this state unrestricted; only supported for roles with a checked state.
+</ParamField>
+
+<ParamField path="pressed" type="bool | None" optional>
+  Filter by pressed state. Omit to leave this state unrestricted; only supported for roles with a pressed state.
+</ParamField>
+
+<ParamField path="disabled" type="bool | None" optional>
+  Filter by disabled state, including inherited disabled state. Omit to leave this state unrestricted.
+</ParamField>
+
+<ParamField path="expanded" type="bool | None" optional>
+  Filter by expanded state. Omit to leave this state unrestricted; only supported for roles with an expanded state.
+</ParamField>
+
+<ParamField path="selected" type="bool | None" optional>
+  Filter by selected state. Omit to leave this state unrestricted; only supported for roles with a selected state.
+</ParamField>
+
+<ParamField path="level" type="int | None" optional>
+  Filter by a positive integer ARIA level, such as a heading level. Only supported for roles with a level; omitted by default.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
+## get_by_text()
+
+Match text in the main document. Strings use normalized text; regular expressions test the full unnormalized text. Text matching does not exclude hidden elements. See [matching rules](/v4/reference/locator#matching-rules).
+
+```python
+message = page.get_by_text("Order complete", exact=True)
+print(await message.inner_text())
+```
+
+<ParamField path="text" type="str | re.Pattern[str]">
+  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. The SDK supports IGNORECASE, MULTILINE, and DOTALL, ignores the implicit UNICODE flag, and rejects other flags.
+</ParamField>
+
+<ParamField path="exact" type="bool | None" optional>
+  For a string, require a case-sensitive match of the whole normalized text. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a lazy locator for an existing CSS, XPath, or text selector on this page.
 
 ```python
 locator = page.locator("button[type=submit]")

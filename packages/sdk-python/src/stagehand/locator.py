@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Literal, Self
 
+from ._generated.input_types import AriaRole as AriaRoleName
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
+    AriaRole,
     LocatorCentroidResult,
     LocatorClickOptions,
     LocatorClickParams,
@@ -37,9 +40,11 @@ from ._generated.models import (
     LocatorTypeParams,
     LocatorTypeResult,
     MouseButton,
+    QueryStep,
 )
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
+from .semantic_locator import encode_step, role_step, selector_step, text_step
 
 
 class Locator:
@@ -71,6 +76,50 @@ class Locator:
     @property
     def descriptor(self) -> LocatorDescriptor:
         return self._descriptor
+
+    def locator(self, selector: str) -> Self:
+        return self._append(selector_step(selector))
+
+    def get_by_role(
+        self,
+        role: AriaRole | AriaRoleName,
+        *,
+        name: str | re.Pattern[str] | None = None,
+        description: str | re.Pattern[str] | None = None,
+        exact: bool | None = None,
+        include_hidden: bool | None = None,
+        disabled: bool | None = None,
+        expanded: bool | None = None,
+        selected: bool | None = None,
+        checked: bool | None = None,
+        pressed: bool | None = None,
+        level: int | None = None,
+    ) -> Self:
+        return self._append(
+            role_step(
+                role,
+                name=name,
+                description=description,
+                exact=exact,
+                include_hidden=include_hidden,
+                disabled=disabled,
+                expanded=expanded,
+                selected=selected,
+                checked=checked,
+                pressed=pressed,
+                level=level,
+            )
+        )
+
+    def get_by_text(self, text: str | re.Pattern[str], *, exact: bool | None = None) -> Self:
+        return self._append(text_step(text, exact=exact))
+
+    def _append(self, step: QueryStep) -> Self:
+        return type(self)(
+            self._rpc_client,
+            page_id=self.page_id,
+            selector=encode_step(step, self._descriptor),
+        )
 
     async def click(
         self,
