@@ -3,7 +3,11 @@ import { installCursorOverlay, moveCursorOverlay } from "./cursorOverlay.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 import { resolveCssSelector, resolveTextSelector, resolveXPathMainWorld } from "./selectors.js";
 import { createSelectorWait } from "./waitForSelector.js";
-import { countSemanticMatches, resolveSemanticSelector } from "./semanticSelectors.js";
+import {
+  countSemanticMatches,
+  querySemanticSelector,
+  resolveSemanticSelector,
+} from "./semanticSelectors.js";
 
 export const locatorScripts = Object.freeze({
   countCssMatchesPrimary,
@@ -17,6 +21,7 @@ export const locatorScripts = Object.freeze({
   resolveXPathMainWorld,
   createSelectorWait,
   countSemanticMatches,
+  querySemanticSelector,
   resolveSemanticSelector,
 });
 

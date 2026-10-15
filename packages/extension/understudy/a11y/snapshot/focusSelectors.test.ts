@@ -24,11 +24,13 @@ function snapshotFrameChain(depth: number) {
   const sessions = Array.from({ length: depth + 1 }, (_, index) => {
     const frameId = index ? `child-${index}` : "root";
     if (index) parentByFrame.set(frameId, index === 1 ? "root" : `child-${index - 1}`);
-    const send = vi.fn(async (method: string) => {
+    const send = vi.fn(async (method: string): Promise<unknown> => {
       if (method === "Runtime.evaluate") return { result: { objectId: `iframe-${frameId}` } };
       if (method === "DOM.requestNode") return { nodeId: 5 };
       if (method === "DOM.describeNode") return { node: { backendNodeId: 5 } };
       if (method === "DOM.getFrameOwner") return { backendNodeId: 5 };
+      if (method === "Runtime.callFunctionOn")
+        return { result: { value: index ? "/html[1]/iframe[2]" : "/html[1]/body[1]/iframe[1]" } };
       return {};
     });
     return { frameId, send };
@@ -101,10 +103,10 @@ describe("snapshot focus resolution", () => {
   });
 
   it.each([
-    ["/html/body/iframe[1]/html/body/section", "/html/body/iframe[1]", 1],
+    ["/html/body/iframe[1]/html/body/section", "/html[1]/body[1]/iframe[1]", 1],
     [
       "/html/body/iframe[1]/html/iframe[2]/html/body/section",
-      "/html/body/iframe[1]/html/iframe[2]",
+      "/html[1]/body[1]/iframe[1]/html[1]/iframe[2]",
       2,
     ],
   ] as const)(
@@ -146,7 +148,7 @@ describe("snapshot focus resolution", () => {
     ).resolves.toEqual({
       targetFrameId: "child-1",
       tailXPath: "/",
-      absPrefix: "//iframe[1]",
+      absPrefix: "/html[1]/body[1]/iframe[1]",
     });
   });
 
@@ -193,6 +195,69 @@ describe("snapshot focus resolution", () => {
       readinessRetries: "none",
     });
     expect(sessions[0].send).not.toHaveBeenCalled();
+  });
+
+  it.each(["same", "distinct"])("releases %s failed XPath response handles", async (kind) => {
+    const { page, parentByFrame, sessions } = snapshotFrameChain(1);
+    const send = sessions[0].send.getMockImplementation()!;
+    const exceptionId = kind === "same" ? "error-result" : "error-exception";
+    sessions[0].send.mockImplementation(async (method) =>
+      method === "Runtime.callFunctionOn"
+        ? {
+            result: { objectId: "error-result" },
+            exceptionDetails: { text: "Uncaught", exception: { objectId: exceptionId } },
+          }
+        : send(method),
+    );
+    await expect(
+      resolveCssFocusFrameAndTail(page, "iframe >> section", parentByFrame, "root", progress),
+    ).rejects.toThrow("Could not determine iframe XPath");
+    const released = sessions[0].send.mock.calls.filter(
+      ([method]) => method === "Runtime.releaseObject",
+    );
+    expect(released).toEqual([
+      ["Runtime.releaseObject", { objectId: "error-result" }],
+      ...(kind === "distinct" ? [["Runtime.releaseObject", { objectId: "error-exception" }]] : []),
+      ["Runtime.releaseObject", { objectId: "iframe-root" }],
+    ]);
+  });
+
+  it("releases iframe and late XPath handles when the snapshot deadline expires", async () => {
+    const { page, parentByFrame, sessions } = snapshotFrameChain(1);
+    const send = sessions[0].send.getMockImplementation()!;
+    let respond!: (response: unknown) => void;
+    const pending = new Promise((done) => {
+      respond = done;
+    });
+    sessions[0].send.mockImplementation(async (method) =>
+      method === "Runtime.callFunctionOn" ? pending : send(method),
+    );
+    const read = resolveCssFocusFrameAndTail(
+      page,
+      "iframe >> section",
+      parentByFrame,
+      "root",
+      progress,
+    );
+    const checked = expect(read).rejects.toThrow(
+      /snapshot timed out.*reading snapshot iframe XPath/,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    await checked;
+    expect(sessions[0].send).toHaveBeenLastCalledWith("Runtime.releaseObject", {
+      objectId: "iframe-root",
+    });
+    const callsAtExpiry = sessions[0].send.mock.calls.length;
+    respond({
+      result: { objectId: "late-result" },
+      exceptionDetails: { exception: { objectId: "late-exception" } },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessions[0].send.mock.calls.slice(callsAtExpiry)).toEqual([
+      ["Runtime.releaseObject", { objectId: "late-result" }],
+      ["Runtime.releaseObject", { objectId: "late-exception" }],
+    ]);
+    expect(sessions[1].send).not.toHaveBeenCalled();
   });
 
   it("keeps a terminal iframe in its parent frame for both actions and snapshots", async () => {
