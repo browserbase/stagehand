@@ -215,7 +215,7 @@ class StagehandClientCreateConfig(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     api_key: Annotated[str | None, Field(min_length=1)] = None
-    api_url: Annotated[str | None, Field(min_length=1)] = None
+    api_url: Annotated[WireUrl | None, Field(min_length=1)] = None
     model: ModelConfig | ClientLLM | None = None
     telemetry: TelemetryConfig | None = None
     system_prompt: str | None = None

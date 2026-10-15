@@ -8,15 +8,20 @@ from typing import cast
 
 import pytest
 
+from stagehand import Stagehand
 from stagehand._generated import models
+from stagehand.browser import _BROWSER_TOKEN, StagehandBrowser, _ClaimedBrowser, _WorkerInitMetadata
 from stagehand.browserbase_connection import BrowserbaseConnection
 from stagehand.browserbase_rpc import register_browserbase_transport
-from stagehand.rpc_client import RPCClient
+from stagehand.cdp_client import CDPClient
+from stagehand.rpc_client import RPCClient, RPCError
 
 from ._http_server import HTTPRequest, http_server
 
 
 class _Transport:
+    web_socket_debugger_url = "ws://browser"
+
     def __init__(self) -> None:
         self.incoming: asyncio.Queue[object] = asyncio.Queue()
         self.outgoing: asyncio.Queue[dict[str, object]] = asyncio.Queue()
@@ -327,3 +332,130 @@ async def test_browserbase_cancel_leaves_custom_llm_callback_unchanged(upstream:
             "type": "text",
             "text": "done",
         }
+
+
+def _stagehand_browser(
+    transport: _Transport, *, api_key: str | None, session_id: str | None
+) -> StagehandBrowser:
+    return StagehandBrowser(
+        "local",
+        "connected",
+        _ClaimedBrowser(
+            cdp_client=cast(CDPClient, transport),
+            worker_init_metadata=_WorkerInitMetadata(
+                api_key=api_key,
+                browser=(
+                    models.BrowserSessionMetadata(session_id=session_id)
+                    if session_id is not None
+                    else None
+                ),
+            ),
+        ),
+        transport.close,
+        _token=_BROWSER_TOKEN,
+    )
+
+
+def _reply(transport: _Transport, request: dict[str, object], result: object) -> None:
+    transport.incoming.put_nowait({"jsonrpc": "2.0", "id": request["id"], "result": result})
+
+
+@pytest.mark.parametrize("operation", list(models.Operation))
+@pytest.mark.parametrize("factory_key", [None, "factory-key"])
+async def test_stagehand_routes_http_before_init_during_batch_and_until_close(
+    upstream: _Upstream, operation: models.Operation, factory_key: str | None
+) -> None:
+    transport = _Transport()
+    browser = _stagehand_browser(transport, api_key=factory_key, session_id="session")
+    creating = asyncio.create_task(
+        Stagehand.create(
+            browser=browser,
+            api_key="caller-key",
+            api_url=upstream.connection.api_url.removesuffix("/v1"),
+        )
+    )
+    init = await transport.response()
+    assert init["method"] == "stagehand.init"
+    params = cast(dict[str, object], init["params"])
+    assert params["browserbase"] == "client"
+    assert params["browser"] == {"session_id": "session"}
+    assert "api_key" not in params
+    assert "api_url" not in params
+
+    async def request_http(request_id: int) -> None:
+        transport.request(request_id, operation=operation)
+        response = await transport.response()
+        assert response["id"] == request_id
+        result = _result(response)
+        assert isinstance(result, models.BrowserbaseHttpResponse)
+        assert result.body == "{}"
+        request = await upstream.receive()
+        assert request.headers["x-bb-api-key"] == (factory_key or "caller-key")
+        if operation is models.Operation.gateway_responses:
+            assert request.headers["x-bb-session-id"] == "session"
+
+    await request_http(100)
+    _reply(transport, init, {"initialized": True, "pages": []})
+    stagehand = await asyncio.wait_for(creating, 2)
+    batch = asyncio.create_task(stagehand.experimental_batch("async () => undefined"))
+    outer = await transport.response()
+    assert outer["method"] == "stagehand.callback_batch"
+    await request_http(101)
+    _reply(transport, outer, {})
+    await asyncio.wait_for(batch, 2)
+
+    closing = asyncio.create_task(stagehand.close())
+    close = await transport.response()
+    assert close["method"] == "stagehand.close"
+    await request_http(102)
+    _reply(transport, close, {"closed": True})
+    await asyncio.wait_for(closing, 2)
+    assert not transport.closed.is_set()
+    await browser.close()
+
+
+@pytest.mark.parametrize(
+    ("api_key", "session_id"), [(None, None), ("key", None), (None, "session")]
+)
+async def test_stagehand_without_complete_connection_returns_unavailable(
+    api_key: str | None, session_id: str | None
+) -> None:
+    transport = _Transport()
+    browser = _stagehand_browser(transport, api_key=api_key, session_id=session_id)
+    creating = asyncio.create_task(Stagehand.create(browser=browser))
+    init = await transport.response()
+    params = cast(dict[str, object], init["params"])
+    assert "browserbase" not in params
+    assert "api_key" not in params
+    transport.request(100)
+    result = _result(await transport.response())
+    assert isinstance(result, models.BrowserbaseTransportError)
+    assert result.reason is models.Reason.unavailable
+    _reply(transport, init, {"initialized": True, "pages": []})
+    stagehand = await asyncio.wait_for(creating, 2)
+    closing = asyncio.create_task(stagehand.close())
+    _reply(transport, await transport.response(), {"closed": True})
+    await asyncio.wait_for(closing, 2)
+    await browser.close()
+
+
+async def test_failed_stagehand_init_cancels_pending_http(upstream: _Upstream) -> None:
+    transport = _Transport()
+    browser = _stagehand_browser(transport, api_key="key", session_id="session")
+    creating = asyncio.create_task(
+        Stagehand.create(browser=browser, api_url=upstream.connection.api_url.removesuffix("/v1"))
+    )
+    init = await transport.response()
+    transport.request(100, body="hold")
+    held = await upstream.receive()
+    transport.incoming.put_nowait({
+        "jsonrpc": "2.0",
+        "id": init["id"],
+        "error": {"code": -32603, "message": "init failed"},
+    })
+    with pytest.raises(RPCError, match="init failed"):
+        await asyncio.wait_for(creating, 2)
+    await asyncio.wait_for(held.disconnected.wait(), 2)
+    assert not browser.closed
+    assert not transport.closed.is_set()
+    await browser.close()
