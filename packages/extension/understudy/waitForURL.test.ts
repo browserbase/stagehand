@@ -124,9 +124,15 @@ describe("Page.waitForURL", () => {
   });
 
   it("follows a new root frame and waits for its lifecycle state", async () => {
+    session.emit("Page.frameNavigated", {
+      frame: { id: "main", loaderId: "old-loader", url: "https://example.test/start" },
+    });
     ready.mockResolvedValue(false);
     const settled = vi.fn();
-    const pending = page.waitForURL("**/done", { waitUntil: "domcontentloaded" }).then(settled);
+    const pending = page
+      .waitForURL("**/done", { waitUntil: "domcontentloaded", timeout: 80 })
+      .then(settled);
+    const completed = Promise.allSettled([pending]);
     await vi.advanceTimersByTimeAsync(0);
     session.emit("Page.frameNavigated", {
       frame: {
@@ -144,7 +150,13 @@ describe("Page.waitForURL", () => {
       name: "DOMContentLoaded",
       loaderId: "loader",
     });
-    await pending;
+    await vi.advanceTimersByTimeAsync(80);
+    expect(await completed).toEqual([{ status: "fulfilled", value: undefined }]);
+    expect(page.registry.frames.get("new-root")?.lastSeen).toMatchObject({
+      id: "new-root",
+      loaderId: "loader",
+      url: "https://example.test/done",
+    });
     expect(session.listeners()).toBe(baselineListeners);
     expect(vi.getTimerCount()).toBe(0);
   });
