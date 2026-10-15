@@ -28,7 +28,7 @@ import { buildSessionDomIndex, domMapsForSession, relativizeXPath } from "./domT
 import { injectSubtrees } from "./treeFormatUtils.js";
 import { ownerSession, parentSession } from "./sessions.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
-import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { decodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 
 type IgnoredNodeMap = Map<string, Set<number>>;

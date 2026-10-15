@@ -3,7 +3,7 @@ import type { Protocol } from "devtools-protocol";
 import type { Page } from "../../page.js";
 import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
-import { encodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { captureHybridSnapshot } from "./capture.js";
 
 const hostXPath = "/html[1]/body[1]/iframe[1]";

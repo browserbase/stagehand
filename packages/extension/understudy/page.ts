@@ -7,7 +7,7 @@ import { Frame } from "./frame.js";
 import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
-import { decodeLocatorQuery } from "../types/private/semanticLocator.js";
+import { decodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";

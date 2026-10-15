@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func TestReachableDefinitionsIncludesLocatorBuilderModels(t *testing.T) {
+	t.Parallel()
+	protocol := map[string]any{
+		"properties": map[string]any{
+			"methods":                map[string]any{},
+			"notifications":          map[string]any{},
+			"legacy_client_models":   map[string]any{},
+			"locator_builder_models": map[string]any{"$ref": "#/$defs/GetByRoleOptions"},
+		},
+	}
+	definitions := map[string]any{
+		"GetByRoleOptions": map[string]any{
+			"properties": map[string]any{"name": map[string]any{"$ref": "#/$defs/TextPattern"}},
+		},
+		"TextPattern": map[string]any{"type": "string"},
+	}
+	reachable, err := reachableDefinitions(protocol, definitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"GetByRoleOptions", "TextPattern"} {
+		if _, ok := reachable[name]; !ok {
+			t.Errorf("locator builder model %q is unreachable", name)
+		}
+	}
+}
+
 func TestGenerateProtocolVersionSourceUsesPackageVersion(t *testing.T) {
 	t.Parallel()
 

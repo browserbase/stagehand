@@ -8,7 +8,7 @@ import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
 import { RPCClient } from "../clients/rpcClient.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
-import { decodeLocatorQuery } from "../types/private/semanticLocator.js";
+import { decodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 
 const [protocolMajor, protocolMinor, protocolPatch] =
   STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);

@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { encodeLocatorQuery } from "../../../extension/types/private/semanticLocator.js";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import type { ScreenshotOptions, Stagehand } from "../../src/index.js";
 import { closeStagehand, createStagehand, firstPage } from "./_support.js";
 

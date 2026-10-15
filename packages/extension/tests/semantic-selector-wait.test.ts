@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { querySemanticSelector } from "../dom/locatorScripts/semanticSelectors.js";
 import { createSelectorWait } from "../dom/locatorScripts/waitForSelector.js";
-import type { QueryStep } from "../types/private/semanticLocator.js";
+import type { QueryStep } from "@browserbasehq/stagehand-protocol/locator-query";
 
 vi.mock("../dom/locatorScripts/semanticSelectors.js", () => ({
   querySemanticSelector: vi.fn(),

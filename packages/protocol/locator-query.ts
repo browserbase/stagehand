@@ -1,8 +1,5 @@
 import { z } from "zod/v4";
-import {
-  encodeWireValue,
-  wireSchema,
-} from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
+import { encodeWireValue, wireSchema } from "./json-rpc/wire-casing.ts";
 
 const SEMANTIC_SELECTOR_PREFIX = "internal:locator=";
 

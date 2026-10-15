@@ -1,4 +1,7 @@
-import { decodeLocatorQuery, encodeLocatorQuery } from "../types/private/semanticLocator.js";
+import {
+  decodeLocatorQuery,
+  encodeLocatorQuery,
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import { splitSelectorHops, splitXPathFrameHops } from "./selectorParser.js";
 import { normalizeXPath } from "./a11y/snapshot/xpathUtils.js";
 

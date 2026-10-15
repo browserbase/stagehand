@@ -5,7 +5,7 @@ import {
   encodeLocatorQuery,
   type AriaRole,
   type QueryStep,
-} from "../types/private/semanticLocator.js";
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import type * as Playwright from "../dom/locatorScripts/vendor/playwright/types.js";
 import { resolveLocatorTarget } from "./deepLocator.js";
 import { executionContexts } from "./executionContextRegistry.js";

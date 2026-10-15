@@ -4,7 +4,7 @@ import {
   encodeLocatorQuery,
   type QueryStep,
   type TextPattern,
-} from "../../../extension/types/private/semanticLocator.js";
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import type { Stagehand } from "../../src/index.js";
 import {
   closeStagehand,

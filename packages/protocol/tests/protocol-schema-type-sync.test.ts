@@ -13,6 +13,10 @@ const schemaTypePairs = [
     schemaFiles: ["json-rpc/schemas.ts"],
     typesFile: "json-rpc/types.ts",
   },
+  {
+    schemaFiles: ["locator-query.ts"],
+    typesFile: "locator-query.ts",
+  },
 ] as const;
 
 function typeNameForSchema(schemaName: string): string {

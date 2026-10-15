@@ -148,6 +148,91 @@ class AnthropicModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^anthropic\\/\\S+$")]
 
 
+class AriaRole(StrEnum):
+    alert = "alert"
+    alertdialog = "alertdialog"
+    application = "application"
+    article = "article"
+    banner = "banner"
+    blockquote = "blockquote"
+    button = "button"
+    caption = "caption"
+    cell = "cell"
+    checkbox = "checkbox"
+    code = "code"
+    columnheader = "columnheader"
+    combobox = "combobox"
+    complementary = "complementary"
+    contentinfo = "contentinfo"
+    definition = "definition"
+    deletion = "deletion"
+    dialog = "dialog"
+    directory = "directory"
+    document = "document"
+    emphasis = "emphasis"
+    feed = "feed"
+    figure = "figure"
+    form = "form"
+    generic = "generic"
+    grid = "grid"
+    gridcell = "gridcell"
+    group = "group"
+    heading = "heading"
+    img = "img"
+    insertion = "insertion"
+    link = "link"
+    list = "list"
+    listbox = "listbox"
+    listitem = "listitem"
+    log = "log"
+    main = "main"
+    marquee = "marquee"
+    math = "math"
+    meter = "meter"
+    menu = "menu"
+    menubar = "menubar"
+    menuitem = "menuitem"
+    menuitemcheckbox = "menuitemcheckbox"
+    menuitemradio = "menuitemradio"
+    navigation = "navigation"
+    none = "none"
+    note = "note"
+    option = "option"
+    paragraph = "paragraph"
+    presentation = "presentation"
+    progressbar = "progressbar"
+    radio = "radio"
+    radiogroup = "radiogroup"
+    region = "region"
+    row = "row"
+    rowgroup = "rowgroup"
+    rowheader = "rowheader"
+    scrollbar = "scrollbar"
+    search = "search"
+    searchbox = "searchbox"
+    separator = "separator"
+    slider = "slider"
+    spinbutton = "spinbutton"
+    status = "status"
+    strong = "strong"
+    subscript = "subscript"
+    superscript = "superscript"
+    switch = "switch"
+    tab = "tab"
+    table = "table"
+    tablist = "tablist"
+    tabpanel = "tabpanel"
+    term = "term"
+    textbox = "textbox"
+    time = "time"
+    timer = "timer"
+    toolbar = "toolbar"
+    tooltip = "tooltip"
+    tree = "tree"
+    treegrid = "treegrid"
+    treeitem = "treeitem"
+
+
 class Browser(StrEnum):
     chrome = "chrome"
     edge = "edge"
@@ -696,6 +781,31 @@ class FieldSchema9(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]
+
+
+class GetByRoleOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Optional[TextPattern] = None
+    description: Optional[TextPattern] = None
+    exact: Optional[StrictBool] = None
+    include_hidden: Optional[StrictBool] = None
+    disabled: Optional[StrictBool] = None
+    expanded: Optional[StrictBool] = None
+    selected: Optional[StrictBool] = None
+    checked: Optional[StrictBool] = None
+    pressed: Optional[StrictBool] = None
+    level: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+
+
+class GetByTextOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    exact: Optional[StrictBool] = None
 
 
 class GoogleModelName(RootModel[StrictStr]):
@@ -1391,6 +1501,15 @@ class NavigationServerAddr(WireModel):
     port: Annotated[StrictInt, Field(ge=0, le=65535)]
 
 
+class NthQueryStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["nth"]
+    index: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+
+
 class ObserveOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2061,6 +2180,15 @@ class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]])
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
 
+class RegExpPattern(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    source: StrictStr
+    flags: Optional[StrictStr] = None
+
+
 class ResponseAllHeadersResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2129,6 +2257,16 @@ class RgbaColor(WireModel):
     a: Optional[StrictFloat] = None
 
 
+class RoleQueryStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["role"]
+    role: AriaRole
+    options: Optional[GetByRoleOptions] = None
+
+
 class SameSite(StrEnum):
     strict = "Strict"
     lax = "Lax"
@@ -2138,6 +2276,15 @@ class SameSite(StrEnum):
 class Scale(StrEnum):
     css = "css"
     device = "device"
+
+
+class SelectorQueryStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["selector"]
+    selector: Annotated[StrictStr, Field(min_length=1)]
 
 
 class Shortcut(StrEnum):
@@ -2354,6 +2501,30 @@ class TelemetryTraces(WireModel):
     )
     endpoint: WireUrl
     headers: dict[StrictStr, StrictStr] = {}
+
+
+class TextPattern(RootModel[Union[StrictStr, RegExpPattern]]):
+    root: Union[StrictStr, RegExpPattern]
+
+
+class TextQueryStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["text"]
+    text: TextPattern
+    exact: Optional[StrictBool] = None
+
+
+class QueryStep(
+    RootModel[Union[SelectorQueryStep, RoleQueryStep, TextQueryStep, NthQueryStep]]
+):
+    root: Union[SelectorQueryStep, RoleQueryStep, TextQueryStep, NthQueryStep]
+
+
+class SemanticLocatorQuery(RootModel[list[QueryStep]]):
+    root: Annotated[list[QueryStep], Field(min_length=1)]
 
 
 class Theme(StrEnum):

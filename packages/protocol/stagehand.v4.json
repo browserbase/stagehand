@@ -1139,6 +1139,22 @@
       "required": ["browserbase_session_create_params", "page_event_name"],
       "additionalProperties": false
     },
+    "locator_builder_models": {
+      "type": "object",
+      "properties": {
+        "role_options": {
+          "$ref": "#/$defs/GetByRoleOptions"
+        },
+        "text_options": {
+          "$ref": "#/$defs/GetByTextOptions"
+        },
+        "query": {
+          "$ref": "#/$defs/SemanticLocatorQuery"
+        }
+      },
+      "required": ["role_options", "text_options", "query"],
+      "additionalProperties": false
+    },
     "jsonrpc": {
       "type": "object",
       "properties": {
@@ -5462,6 +5478,251 @@
     "PageEventName": {
       "type": "string",
       "enum": ["console"]
+    },
+    "GetByRoleOptions": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/TextPattern"
+        },
+        "description": {
+          "$ref": "#/$defs/TextPattern"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "include_hidden": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "expanded": {
+          "type": "boolean"
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "checked": {
+          "type": "boolean"
+        },
+        "pressed": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "TextPattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/RegExpPattern"
+        }
+      ]
+    },
+    "RegExpPattern": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "flags": {
+          "type": "string"
+        }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    "GetByTextOptions": {
+      "type": "object",
+      "properties": {
+        "exact": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SemanticLocatorQuery": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/QueryStep"
+      }
+    },
+    "QueryStep": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SelectorQueryStep"
+        },
+        {
+          "$ref": "#/$defs/RoleQueryStep"
+        },
+        {
+          "$ref": "#/$defs/TextQueryStep"
+        },
+        {
+          "$ref": "#/$defs/NthQueryStep"
+        }
+      ]
+    },
+    "SelectorQueryStep": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "selector"
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["kind", "selector"],
+      "additionalProperties": false
+    },
+    "RoleQueryStep": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "role"
+        },
+        "role": {
+          "$ref": "#/$defs/AriaRole"
+        },
+        "options": {
+          "$ref": "#/$defs/GetByRoleOptions"
+        }
+      },
+      "required": ["kind", "role"],
+      "additionalProperties": false
+    },
+    "AriaRole": {
+      "type": "string",
+      "enum": [
+        "alert",
+        "alertdialog",
+        "application",
+        "article",
+        "banner",
+        "blockquote",
+        "button",
+        "caption",
+        "cell",
+        "checkbox",
+        "code",
+        "columnheader",
+        "combobox",
+        "complementary",
+        "contentinfo",
+        "definition",
+        "deletion",
+        "dialog",
+        "directory",
+        "document",
+        "emphasis",
+        "feed",
+        "figure",
+        "form",
+        "generic",
+        "grid",
+        "gridcell",
+        "group",
+        "heading",
+        "img",
+        "insertion",
+        "link",
+        "list",
+        "listbox",
+        "listitem",
+        "log",
+        "main",
+        "marquee",
+        "math",
+        "meter",
+        "menu",
+        "menubar",
+        "menuitem",
+        "menuitemcheckbox",
+        "menuitemradio",
+        "navigation",
+        "none",
+        "note",
+        "option",
+        "paragraph",
+        "presentation",
+        "progressbar",
+        "radio",
+        "radiogroup",
+        "region",
+        "row",
+        "rowgroup",
+        "rowheader",
+        "scrollbar",
+        "search",
+        "searchbox",
+        "separator",
+        "slider",
+        "spinbutton",
+        "status",
+        "strong",
+        "subscript",
+        "superscript",
+        "switch",
+        "tab",
+        "table",
+        "tablist",
+        "tabpanel",
+        "term",
+        "textbox",
+        "time",
+        "timer",
+        "toolbar",
+        "tooltip",
+        "tree",
+        "treegrid",
+        "treeitem"
+      ]
+    },
+    "TextQueryStep": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "text"
+        },
+        "text": {
+          "$ref": "#/$defs/TextPattern"
+        },
+        "exact": {
+          "type": "boolean"
+        }
+      },
+      "required": ["kind", "text"],
+      "additionalProperties": false
+    },
+    "NthQueryStep": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "nth"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["kind", "index"],
+      "additionalProperties": false
     },
     "StagehandRpcRequest": {
       "anyOf": [

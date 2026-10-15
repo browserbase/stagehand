@@ -13,7 +13,7 @@ import type {
 } from "../../../types/private/snapshot.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
 import { nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
-import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { decodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 import { planLocatorTarget, planXPathSnapshotTarget } from "../../locatorTarget.js";
 
