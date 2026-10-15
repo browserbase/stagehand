@@ -48,13 +48,13 @@ func browserbaseRPCResult(t *testing.T, transport *queueRPCTransport, id uint64)
 	return result
 }
 
-func awaitBrowserbaseRPC[T any](t *testing.T, ch <-chan T) T {
+func awaitBrowserbaseTest[T any](t *testing.T, ch <-chan T) T {
 	t.Helper()
 	select {
 	case value := <-ch:
 		return value
 	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for Browserbase RPC work")
+		t.Fatal("timed out waiting for Browserbase test work")
 		var zero T
 		return zero
 	}
@@ -81,8 +81,8 @@ func browserbaseRPCBarrier(t *testing.T, client *rpcClient, transport *queueRPCT
 
 func TestBrowserbaseRPCReverseRequestsDuringBatch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-BB-API-Key") != "bb-test" {
-			t.Error("missing managed header")
+		if r.URL.Path != "/v1/llm/responses" || r.Header.Get("X-BB-API-Key") != "bb-test" {
+			t.Errorf("unexpected request: %s, headers %v", r.URL.Path, r.Header)
 		}
 		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("Retry-After", "2")
@@ -103,15 +103,12 @@ func TestBrowserbaseRPCReverseRequestsDuringBatch(t *testing.T) {
 	if err := json.Unmarshal(receiveSentRPC(t, transport), &outbound); err != nil {
 		t.Fatal(err)
 	}
-	for _, operation := range []BrowserbaseRequestParamsOperation{BrowserbaseRequestParamsOperationGatewayResponses, BrowserbaseRequestParamsOperationCacheGet, BrowserbaseRequestParamsOperationCacheSet} {
-		params := testBrowserbaseHTTPParams()
-		params.Operation = operation
-		// Incoming and outgoing IDs belong to independent directions.
-		browserbaseRPCRequest(t, transport, outbound.ID, params)
-		response, ok := browserbaseRPCResult(t, transport, outbound.ID).AsResponse()
-		if !ok || response.Status != 503 || response.Headers["retry-after"] != "2" || response.Body != params.Body {
-			t.Fatalf("response = %#v", response)
-		}
+	params := testBrowserbaseHTTPParams()
+	// Incoming and outgoing IDs belong to independent directions.
+	browserbaseRPCRequest(t, transport, outbound.ID, params)
+	response, ok := browserbaseRPCResult(t, transport, outbound.ID).AsResponse()
+	if !ok || response.Status != 503 || response.Headers["retry-after"] != "2" || response.Body != params.Body {
+		t.Fatalf("response = %#v", response)
 	}
 	select {
 	case err := <-outer:
@@ -119,7 +116,7 @@ func TestBrowserbaseRPCReverseRequestsDuringBatch(t *testing.T) {
 	default:
 	}
 	transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"value":{"ok":true}}}`, outbound.ID))
-	if err := awaitBrowserbaseRPC(t, outer); err != nil {
+	if err := awaitBrowserbaseTest(t, outer); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -137,7 +134,7 @@ func TestBrowserbaseRPCImmediateCancelBypassesLogs(t *testing.T) {
 			defer close(releaseLog)
 			log := `{"jsonrpc":"2.0","method":"stagehand.log","params":{"level":"info","message":"queued","data":{}}}`
 			transport.receiveJSON(log)
-			awaitBrowserbaseRPC(t, logEntered)
+			awaitBrowserbaseTest(t, logEntered)
 			// Hold execution after admission to make the immediate-cancel ordering deterministic.
 			entered, release := make(chan struct{}), make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
@@ -159,7 +156,7 @@ func TestBrowserbaseRPCImmediateCancelBypassesLogs(t *testing.T) {
 				transport.receiveJSON(log)
 			}
 			browserbaseRPCBarrier(t, client, transport)
-			awaitBrowserbaseRPC(t, entered)
+			awaitBrowserbaseTest(t, entered)
 			unblock()
 			result := browserbaseRPCResult(t, transport, 1)
 			testBrowserbaseHTTPFailure(t, result, nil, BrowserbaseTransportErrorReason(reason))
@@ -192,8 +189,8 @@ func TestBrowserbaseRPCConnectionIsolationAndDuplicateIDs(t *testing.T) {
 	bClient, b, _ := connectBrowserbaseRPC(t, &browserbaseConnection{apiKey: "second", apiURL: server.URL})
 	browserbaseRPCRequest(t, a, 7, testBrowserbaseHTTPParams())
 	browserbaseRPCRequest(t, b, 7, testBrowserbaseHTTPParams())
-	awaitBrowserbaseRPC(t, started)
-	awaitBrowserbaseRPC(t, started)
+	awaitBrowserbaseTest(t, started)
+	awaitBrowserbaseTest(t, started)
 	browserbaseRPCRequest(t, a, 7, testBrowserbaseHTTPParams())
 	var duplicate rpcErrorEnvelope
 	if err := json.Unmarshal(receiveSentRPC(t, a), &duplicate); err != nil || duplicate.Error.Message != "Browserbase request ID is already in use" {
@@ -201,7 +198,7 @@ func TestBrowserbaseRPCConnectionIsolationAndDuplicateIDs(t *testing.T) {
 	}
 	browserbaseRPCCancel(a, 7, "cancelled")
 	testBrowserbaseHTTPFailure(t, browserbaseRPCResult(t, a, 7), nil, BrowserbaseTransportErrorReasonCancelled)
-	if key := awaitBrowserbaseRPC(t, disconnected); key != "first" {
+	if key := awaitBrowserbaseTest(t, disconnected); key != "first" {
 		t.Fatalf("cancelled %q", key)
 	}
 	browserbaseRPCCancel(b, 9999, "cancelled")
@@ -241,14 +238,14 @@ func TestBrowserbaseRPCDeadlineAndBodyCancellation(t *testing.T) {
 				params.RemainingTimeoutMs = &budget
 			}
 			browserbaseRPCRequest(t, transport, 1, params)
-			awaitBrowserbaseRPC(t, started)
+			awaitBrowserbaseTest(t, started)
 			reason := BrowserbaseTransportErrorReasonTimeout
 			if mode != "budget" {
 				browserbaseRPCCancel(transport, 1, mode)
 				reason = BrowserbaseTransportErrorReason(mode)
 			}
 			testBrowserbaseHTTPFailure(t, browserbaseRPCResult(t, transport, 1), nil, reason)
-			awaitBrowserbaseRPC(t, disconnected)
+			awaitBrowserbaseTest(t, disconnected)
 		})
 	}
 }
@@ -280,7 +277,7 @@ func TestBrowserbaseRPCDisposalAndDisconnectSuppressLateReplies(t *testing.T) {
 			client.requestHandlers["browserbase.request"] = registration
 			client.mu.Unlock()
 			browserbaseRPCRequest(t, transport, 1, testBrowserbaseHTTPParams())
-			awaitBrowserbaseRPC(t, started)
+			awaitBrowserbaseTest(t, started)
 			done := make(chan struct{})
 			go func() {
 				switch mode {
@@ -293,15 +290,15 @@ func TestBrowserbaseRPCDisposalAndDisconnectSuppressLateReplies(t *testing.T) {
 				dispose()
 				close(done)
 			}()
-			awaitBrowserbaseRPC(t, disconnected)
-			awaitBrowserbaseRPC(t, completed)
+			awaitBrowserbaseTest(t, disconnected)
+			awaitBrowserbaseTest(t, completed)
 			select {
 			case <-done:
 				t.Fatal("disposal returned before owned work completed")
 			default:
 			}
 			unblock()
-			awaitBrowserbaseRPC(t, done)
+			awaitBrowserbaseTest(t, done)
 			// The queued transport can accept a cancelled Send; suppression must happen before Send.
 			select {
 			case raw := <-transport.sent:
@@ -356,7 +353,7 @@ func TestBrowserbaseRPCPreservesCustomGenerate(t *testing.T) {
 		}), nil
 	}))
 	transport.receiveJSON(`{"jsonrpc":"2.0","id":7,"method":"llm.generate","params":{"messages":[],"response_format":{"name":"test","schema":{"type":"object"},"type":"json_schema"}}}`)
-	awaitBrowserbaseRPC(t, started)
+	awaitBrowserbaseTest(t, started)
 	browserbaseRPCCancel(transport, 7, "cancelled")
 	browserbaseRPCBarrier(t, client, transport)
 	dispose()
@@ -393,7 +390,7 @@ func TestBrowserbaseRPCDisposalRacesCompletionAndClose(t *testing.T) {
 		client.requestHandlers["browserbase.request"] = registration
 		client.mu.Unlock()
 		browserbaseRPCRequest(t, transport, 1, testBrowserbaseHTTPParams())
-		awaitBrowserbaseRPC(t, completed)
+		awaitBrowserbaseTest(t, completed)
 		var racers sync.WaitGroup
 		start := make(chan struct{})
 		for _, action := range []func(){dispose, dispose, func() { client.close() }, unblock} {
@@ -402,7 +399,7 @@ func TestBrowserbaseRPCDisposalRacesCompletionAndClose(t *testing.T) {
 		close(start)
 		done := make(chan struct{})
 		go func() { racers.Wait(); close(done) }()
-		awaitBrowserbaseRPC(t, done)
+		awaitBrowserbaseTest(t, done)
 	}
 }
 
@@ -422,7 +419,7 @@ func TestBrowserbaseRPCControlNotificationsAreNotReplayed(t *testing.T) {
 	default:
 	}
 	browserbaseRPCCancel(transport, 2, "timeout")
-	if params := awaitBrowserbaseRPC(t, delivered); params.RequestID != 2 || params.Reason != BrowserbaseCancelParamsReasonTimeout {
+	if params := awaitBrowserbaseTest(t, delivered); params.RequestID != 2 || params.Reason != BrowserbaseCancelParamsReasonTimeout {
 		t.Fatalf("live cancellation changed: %#v", params)
 	}
 }

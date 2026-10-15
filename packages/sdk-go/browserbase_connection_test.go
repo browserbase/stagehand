@@ -7,11 +7,18 @@ import (
 	"testing"
 )
 
-func TestBrowserbaseConnectionSharedEndpoints(t *testing.T) {
+func loadBrowserbaseTransportFixture(t *testing.T, target any) {
+	t.Helper()
 	data, err := os.ReadFile("../../tests/fixtures/browserbase-transport.json")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := json.Unmarshal(data, target); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBrowserbaseConnectionSharedEndpoints(t *testing.T) {
 	var fixtures struct {
 		Connection struct {
 			APIKey    string `json:"apiKey"`
@@ -24,9 +31,7 @@ func TestBrowserbaseConnectionSharedEndpoints(t *testing.T) {
 			Expected string             `json:"expected"`
 		} `json:"endpoints"`
 	}
-	if err := json.Unmarshal(data, &fixtures); err != nil {
-		t.Fatal(err)
-	}
+	loadBrowserbaseTransportFixture(t, &fixtures)
 	if len(fixtures.Endpoints) == 0 {
 		t.Fatal("missing endpoint fixtures")
 	}

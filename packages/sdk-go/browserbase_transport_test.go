@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"maps"
@@ -12,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -90,10 +88,6 @@ func TestBrowserbaseHTTPRoutesAndBody(t *testing.T) {
 }
 
 func TestBrowserbaseHTTPSharedFixtures(t *testing.T) {
-	data, err := os.ReadFile("../../tests/fixtures/browserbase-transport.json")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var fixtures struct {
 		Gateway struct {
 			Headers []struct {
@@ -101,7 +95,6 @@ func TestBrowserbaseHTTPSharedFixtures(t *testing.T) {
 				Configured map[string]string `json:"configured"`
 				Expected   map[string]string `json:"expected"`
 			} `json:"headers"`
-			Response json.RawMessage `json:"response"`
 		} `json:"gateway"`
 		HTTPFailures []struct {
 			Name    string            `json:"name"`
@@ -110,9 +103,7 @@ func TestBrowserbaseHTTPSharedFixtures(t *testing.T) {
 			Body    string            `json:"body"`
 		} `json:"httpFailures"`
 	}
-	if err := json.Unmarshal(data, &fixtures); err != nil {
-		t.Fatal(err)
-	}
+	loadBrowserbaseTransportFixture(t, &fixtures)
 	for _, fixture := range fixtures.Gateway.Headers {
 		t.Run(fixture.Name, func(t *testing.T) {
 			executor := testBrowserbaseHTTPExecutor(t, func(w http.ResponseWriter, r *http.Request) {
@@ -121,12 +112,12 @@ func TestBrowserbaseHTTPSharedFixtures(t *testing.T) {
 						t.Errorf("header %s = %q, want %q", key, got, want)
 					}
 				}
-				w.Write(fixtures.Gateway.Response)
+				io.WriteString(w, "  opaque héllo 🌎\n")
 			})
 			params := testBrowserbaseHTTPParams()
 			params.Headers = maps.Clone(fixture.Configured)
 			response := testBrowserbaseHTTPResponse(t, executor, params)
-			if response.Body != string(fixtures.Gateway.Response) || !reflect.DeepEqual(params.Headers, BrowserbaseRequestParamsHeaders(fixture.Configured)) {
+			if response.Body != "  opaque héllo 🌎\n" || !reflect.DeepEqual(params.Headers, BrowserbaseRequestParamsHeaders(fixture.Configured)) {
 				t.Fatal("request headers or response body changed")
 			}
 		})
@@ -306,11 +297,7 @@ func TestBrowserbaseHTTPCancellationAndDeadlines(t *testing.T) {
 				}
 				done := make(chan outcome, 1)
 				go func() { result, err := executor.execute(ctx, params); done <- outcome{result, err} }()
-				select {
-				case <-received:
-				case <-time.After(2 * time.Second):
-					t.Fatal("request did not arrive")
-				}
+				awaitBrowserbaseTest(t, received)
 				if mode == "cancel" {
 					cancel(context.Canceled)
 				}
@@ -318,17 +305,9 @@ func TestBrowserbaseHTTPCancellationAndDeadlines(t *testing.T) {
 					cancel(context.DeadlineExceeded)
 					reason = BrowserbaseTransportErrorReasonTimeout
 				}
-				select {
-				case got := <-done:
-					testBrowserbaseHTTPFailure(t, got.result, got.err, reason)
-				case <-time.After(2 * time.Second):
-					t.Fatal("request did not settle")
-				}
-				select {
-				case <-disconnected:
-				case <-time.After(2 * time.Second):
-					t.Fatal("HTTP connection remained open")
-				}
+				got := awaitBrowserbaseTest(t, done)
+				testBrowserbaseHTTPFailure(t, got.result, got.err, reason)
+				awaitBrowserbaseTest(t, disconnected)
 			})
 		}
 	}
