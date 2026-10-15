@@ -1,12 +1,10 @@
 import { decodeLocatorQuery, encodeLocatorQuery } from "../types/private/semanticLocator.js";
 import { splitSelectorHops, splitXPathFrameHops } from "./selectorParser.js";
-import { normalizeXPath, prefixXPath } from "./a11y/snapshot/xpathUtils.js";
+import { normalizeXPath } from "./a11y/snapshot/xpathUtils.js";
 
 export type LocatorTargetPlan = {
   frameHopSelectors: string[];
   finalSelector: string;
-  /** XPath of the crossed iframe chain, when the input provides it. */
-  xpathPrefix?: string;
 };
 
 /** Interpret selectors without choosing how long frame resolution may wait. */
@@ -49,11 +47,8 @@ export function planXPathSnapshotTarget(xpath: string): LocatorTargetPlan {
 }
 
 function planXPathFragments(parts: string[]): LocatorTargetPlan {
-  const framePaths = parts.slice(0, -1);
-  const xpathPrefix = framePaths.reduce(prefixXPath, "");
   return {
-    frameHopSelectors: framePaths.map((path) => `xpath=${path}`),
+    frameHopSelectors: parts.slice(0, -1).map((path) => `xpath=${path}`),
     finalSelector: `xpath=${parts.at(-1)!}`,
-    ...(xpathPrefix ? { xpathPrefix } : {}),
   };
 }

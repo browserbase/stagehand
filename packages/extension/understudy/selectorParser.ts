@@ -45,6 +45,15 @@ export function splitSelectorHops(selector: string): string[] {
       if (character === quote) quote = undefined;
       continue;
     }
+    if (
+      selector.startsWith("/*", index) &&
+      !/^\s*(?:xpath=|text=|\/|\(|\.\/)/i.test(selector.slice(start))
+    ) {
+      const end = selector.indexOf("*/", index + 2);
+      if (end === -1) break;
+      index = end + 1;
+      continue;
+    }
     if (character === '"' || character === "'") quote = character;
     else if (character === "[") brackets += 1;
     else if (character === "]") brackets = Math.max(0, brackets - 1);

@@ -11,7 +11,8 @@ import type {
   ResolvedCssFocus,
   ResolvedFocusFrame,
 } from "../../../types/private/snapshot.js";
-import { normalizeXPath } from "./xpathUtils.js";
+import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
+import { nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
 import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 import { planLocatorTarget, planXPathSnapshotTarget } from "../../locatorTarget.js";
@@ -31,7 +32,7 @@ export async function resolveFocusFrameAndTail(
 ): Promise<ResolvedFocusFrame> {
   progress?.throwIfStopped();
   const plan = planXPathSnapshotTarget(absoluteXPath);
-  const targetFrameId = await resolveSnapshotFrameHops(
+  const { targetFrameId, absPrefix } = await resolveSnapshotFrameHops(
     page,
     plan.frameHopSelectors,
     parentByFrame,
@@ -41,7 +42,7 @@ export async function resolveFocusFrameAndTail(
   return {
     targetFrameId,
     tailXPath: normalizeXPath(plan.finalSelector),
-    absPrefix: plan.xpathPrefix ?? "",
+    absPrefix,
   };
 }
 
@@ -55,7 +56,7 @@ export async function resolveCssFocusFrameAndTail(
 ): Promise<ResolvedCssFocus> {
   progress?.throwIfStopped();
   const plan = planLocatorTarget(rawSelector.trim() || "*");
-  const targetFrameId = await resolveSnapshotFrameHops(
+  const { targetFrameId, absPrefix } = await resolveSnapshotFrameHops(
     page,
     plan.frameHopSelectors,
     parentByFrame,
@@ -65,7 +66,7 @@ export async function resolveCssFocusFrameAndTail(
   return {
     targetFrameId,
     tailSelector: plan.finalSelector,
-    absPrefix: plan.xpathPrefix ?? "",
+    absPrefix,
   };
 }
 
@@ -76,8 +77,9 @@ async function resolveSnapshotFrameHops(
   parentByFrame: FrameParentIndex,
   rootId: string,
   progress?: Progress,
-): Promise<string> {
+): Promise<{ targetFrameId: string; absPrefix: string }> {
   let ctxFrameId = rootId;
+  let absPrefix = "";
   for (const selector of frameHopSelectors) {
     progress?.throwIfStopped();
     const parentSess = page.getSessionForFrame(ctxFrameId);
@@ -119,6 +121,34 @@ async function resolveSnapshotFrameHops(
       if (!childFrameId) {
         throw iframeResolutionError(selector, "Could not map iframe to child frameId");
       }
+      const releaseResult = (response: Protocol.Runtime.CallFunctionOnResponse) =>
+        Promise.all(
+          [
+            ...new Set([response.result.objectId, response.exceptionDetails?.exception?.objectId]),
+          ].map((id) => releaseSnapshotObject(parentSess, id, progress)),
+        );
+      const response = await runLocatorStep(
+        progress,
+        "reading snapshot iframe XPath",
+        () =>
+          parentSess.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: nodeToAbsoluteXPath.toString(),
+            returnByValue: true,
+          }),
+        releaseResult,
+      );
+      await releaseResult(response);
+      const iframeXPath: unknown = response.result.value;
+      if (
+        response.exceptionDetails ||
+        typeof iframeXPath !== "string" ||
+        !iframeXPath.startsWith("/") ||
+        iframeXPath === "/"
+      ) {
+        throw iframeResolutionError(selector, "Could not determine iframe XPath");
+      }
+      absPrefix = prefixXPath(absPrefix, iframeXPath);
       ctxFrameId = childFrameId;
     } finally {
       await releaseSnapshotObject(parentSess, objectId, progress);
@@ -126,7 +156,7 @@ async function resolveSnapshotFrameHops(
   }
 
   progress?.throwIfStopped();
-  return ctxFrameId;
+  return { targetFrameId: ctxFrameId, absPrefix };
 }
 
 function iframeResolutionError(frameUrl: string, message: string): Error {

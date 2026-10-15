@@ -30,6 +30,15 @@ export interface ResolveManyOptions {
   limit?: number;
 }
 
+function propertyObjectIds(response: Protocol.Runtime.GetPropertiesResponse): string[] {
+  return [
+    ...response.result.flatMap(({ value, get, set, symbol }) => [value, get, set, symbol]),
+    ...(response.internalProperties ?? []).map(({ value }) => value),
+    ...(response.privateProperties ?? []).flatMap(({ value, get, set }) => [value, get, set]),
+    response.exceptionDetails?.exception,
+  ].flatMap((object) => (object?.objectId ? [object.objectId] : []));
+}
+
 export class FrameSelectorResolver {
   constructor(
     readonly frame: Frame,
@@ -82,7 +91,99 @@ export class FrameSelectorResolver {
     { limit = Infinity }: ResolveManyOptions = {},
     progress?: Progress,
   ): Promise<ResolvedNode[]> {
+    if (query.kind === "semantic")
+      return this.resolveSemanticElements(query.steps, limit, progress);
     return this.resolveElements(query, 0, limit, progress);
+  }
+
+  private async resolveSemanticElements(
+    steps: QueryStep[],
+    limit: number,
+    progress?: Progress,
+  ): Promise<ResolvedNode[]> {
+    progress?.throwIfStopped();
+    if (!(limit > 0)) return [];
+    const session = this.frame.session;
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+      progress,
+      this.readinessOptions,
+    );
+    const owned = new Set<string>();
+    const release = (ids: Iterable<string>) => {
+      const handles = [...new Set(ids)];
+      for (const id of handles) owned.delete(id);
+      const work = () =>
+        Promise.all(
+          handles.map((objectId) =>
+            session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
+          ),
+        );
+      return progress ? progress.cleanup(work) : work();
+    };
+    const evaluationIds = (response: Protocol.Runtime.EvaluateResponse) =>
+      [response.result.objectId, response.exceptionDetails?.exception?.objectId].filter(
+        (id): id is string => !!id,
+      );
+
+    try {
+      const expression = `${buildLocatorInvocation("querySemanticSelector", [JSON.stringify(steps)])}.slice(0, ${Math.ceil(limit)})`;
+      const evaluation = await runLocatorStep(
+        progress,
+        "evaluating semantic selector",
+        () =>
+          session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression,
+            contextId,
+            returnByValue: false,
+            awaitPromise: true,
+          }),
+        (late) => release(evaluationIds(late)),
+      );
+      for (const id of evaluationIds(evaluation)) owned.add(id);
+      if (evaluation.exceptionDetails) {
+        throw new SelectorEvaluationError(evaluation.exceptionDetails);
+      }
+      const arrayId = evaluation.result.objectId;
+      if (!arrayId || evaluation.result.subtype !== "array") {
+        throw new Error("Semantic selector query did not return an array");
+      }
+      const properties = await runLocatorStep(
+        progress,
+        "reading semantic selector matches",
+        () =>
+          session.send<Protocol.Runtime.GetPropertiesResponse>("Runtime.getProperties", {
+            objectId: arrayId,
+            ownProperties: true,
+          }),
+        (late) => release(propertyObjectIds(late)),
+      );
+      for (const id of propertyObjectIds(properties)) owned.add(id);
+      if (properties.exceptionDetails) {
+        throw new SelectorEvaluationError(properties.exceptionDetails);
+      }
+      const matches = properties.result
+        .filter(({ name }) => /^(0|[1-9]\d*)$/.test(name))
+        .sort((a, b) => Number(a.name) - Number(b.name));
+      const nodes: ResolvedNode[] = [];
+      for (const { value } of matches) {
+        if (!value?.objectId) throw new Error("Semantic selector match has no object handle");
+        const node = await this.resolveFromObjectId(value.objectId, progress);
+        if (node) nodes.push(node);
+      }
+      const retained = new Set(nodes.map(({ objectId }) => objectId));
+      await release([...owned].filter((id) => !retained.has(id)));
+      progress?.throwIfStopped();
+      // Only successfully delivered nodes transfer to the caller.
+      for (const id of retained) owned.delete(id);
+      return nodes;
+    } catch (error) {
+      await release(owned);
+      progress?.throwIfStopped();
+      throw error;
+    }
   }
 
   public async count(query: SelectorQuery, progress?: Progress): Promise<number> {

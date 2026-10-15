@@ -117,6 +117,14 @@ describe("legacy selector hop parsing", () => {
       ["iframe", "xpath=//button[contains(., 'Save >> now')]"],
     ],
     ['[data-name="a\\\" >> b"]', ['[data-name="a\\\" >> b"]']],
+    ["button/* >> */", ["button/* >> */"]],
+    ["iframe/* [ ( ' >> */ >> button", ["iframe/* [ ( ' >> */", "button"]],
+    ['iframe[data-name="/* >> */"] >> button', ['iframe[data-name="/* >> */"]', "button"]],
+    ["css=/* >> */ iframe >> button", ["css=/* >> */ iframe", "button"]],
+    ["button/* >>", ["button/* >>"]],
+    ["xpath=//iframe/*/* >> button", ["xpath=//iframe/*/*", "button"]],
+    ["//iframe/*/* >> button", ["//iframe/*/*", "button"]],
+    ["text=/* >> */", ["text=/*", "*/"]],
   ])("keeps literals intact in %s", (selector, expected) => {
     expect(splitSelectorHops(selector)).toEqual(expected);
   });
@@ -163,7 +171,7 @@ describe("semantic locator frame resolution", () => {
         ...steps.slice(1),
       ]);
       expect(resolveFrame).toHaveBeenCalledExactlyOnceWith(progress);
-      expect(resolveFrame.mock.instances[0]).toMatchObject({
+      expect(resolveFrame.mock.contexts[0]).toMatchObject({
         selector: 'iframe[data-name="outer >> inner"]',
       });
     });
