@@ -155,6 +155,8 @@ describe("counting progress forwarding", () => {
 
     await runWithProgress({ name: "count", timeout: 1000 }, async (progress) => {
       await expect(locator.count(progress)).resolves.toBe(2);
+      expect(locator.selectorQuery.kind).not.toBe("semantic");
+      if (locator.selectorQuery.kind === "semantic") throw new Error("Expected a legacy selector");
       expect(count).toHaveBeenCalledExactlyOnceWith(locator.selectorQuery.value, progress);
       expect(readiness).toHaveBeenCalledExactlyOnceWith(
         frame.session,
@@ -164,7 +166,7 @@ describe("counting progress forwarding", () => {
         {},
       );
       if (method === "countCss")
-        expect(evaluate).toHaveBeenCalledExactlyOnceWith(expect.any(String), 1, progress);
+        expect(evaluate).toHaveBeenCalledExactlyOnceWith(expect.any(String), 1, progress, "empty");
     });
   });
 });

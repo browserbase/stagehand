@@ -4,6 +4,7 @@ import { type Progress, runLocatorStep } from "../../progress.js";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { buildLocatorInvocation } from "../../locatorInvocation.js";
+import { IFRAME_STEP_RE } from "../../selectorParser.js";
 import type {
   Axis,
   FrameParentIndex,
@@ -50,8 +51,6 @@ export function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
   }
   return out || "/";
 }
-
-export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
 
 /**
  * Given a cross-frame XPath, walk iframe steps to resolve:

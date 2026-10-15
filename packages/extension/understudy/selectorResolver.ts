@@ -4,11 +4,14 @@ import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { decodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
+import { splitSelectorHops } from "./selectorParser.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
   | { kind: "text"; value: string }
-  | { kind: "xpath"; value: string };
+  | { kind: "xpath"; value: string }
+  | { kind: "semantic"; steps: QueryStep[] };
 
 export interface ResolvedNode {
   objectId: Protocol.Runtime.RemoteObjectId;
@@ -27,6 +30,8 @@ export class FrameSelectorResolver {
 
   public static parseSelector(raw: string): SelectorQuery {
     const trimmed = raw.trim();
+    const steps = decodeLocatorQuery(trimmed);
+    if (steps) return { kind: "semantic", steps };
 
     const isText = /^text=/i.test(trimmed);
     const looksLikeXPath =
@@ -51,11 +56,7 @@ export class FrameSelectorResolver {
 
     let selector = isCssPrefixed ? trimmed.replace(/^css=/i, "") : trimmed;
     if (selector.includes(">>")) {
-      selector = selector
-        .split(">>")
-        .map((piece) => piece.trim())
-        .filter(Boolean)
-        .join(" ");
+      selector = splitSelectorHops(selector).join(" ");
     }
 
     return { kind: "css", value: selector };
@@ -82,8 +83,8 @@ export class FrameSelectorResolver {
         return this.resolveText(query.value, limit, progress);
       case "xpath":
         return this.resolveXPath(query.value, limit, progress);
-      default:
-        return [];
+      case "semantic":
+        return this.resolveElements("resolveSemanticSelector", query.steps, limit, progress);
     }
   }
 
@@ -96,8 +97,8 @@ export class FrameSelectorResolver {
         return this.countText(query.value, progress);
       case "xpath":
         return this.countXPath(query.value, progress);
-      default:
-        return 0;
+      case "semantic":
+        return this.countElements("countSemanticMatches", query.steps, progress, "throw");
     }
   }
 
@@ -138,8 +139,12 @@ export class FrameSelectorResolver {
   }
 
   private async resolveElements(
-    helper: "resolveCssSelector" | "resolveTextSelector" | "resolveXPathMainWorld",
-    value: string,
+    helper:
+      | "resolveCssSelector"
+      | "resolveTextSelector"
+      | "resolveXPathMainWorld"
+      | "resolveSemanticSelector",
+    value: string | QueryStep[],
     limit: number,
     progress?: Progress,
   ): Promise<ResolvedNode[]> {
@@ -156,7 +161,12 @@ export class FrameSelectorResolver {
     try {
       for (let index = 0; index < limit; index += 1) {
         const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
-        const resolved = await this.evaluateElement(expression, contextId, progress);
+        const resolved = await this.evaluateElement(
+          expression,
+          contextId,
+          progress,
+          helper === "resolveSemanticSelector" ? "throw" : "empty",
+        );
         if (!resolved) break;
         results.push(resolved);
       }
@@ -181,6 +191,15 @@ export class FrameSelectorResolver {
   }
 
   async countCss(selector: string, progress?: Progress): Promise<number> {
+    return this.countElements("countCssMatchesPrimary", selector, progress);
+  }
+
+  private async countElements(
+    helper: "countCssMatchesPrimary" | "countSemanticMatches",
+    value: string | QueryStep[],
+    progress?: Progress,
+    errorHandling: "empty" | "throw" = "empty",
+  ): Promise<number> {
     const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
       session,
@@ -190,10 +209,8 @@ export class FrameSelectorResolver {
       this.readinessOptions,
     );
 
-    const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
-      JSON.stringify(selector),
-    ]);
-    return this.evaluateCount(primaryExpr, contextId, progress);
+    const expression = buildLocatorInvocation(helper, [JSON.stringify(value)]);
+    return this.evaluateCount(expression, contextId, progress, errorHandling);
   }
 
   async countText(value: string, progress?: Progress): Promise<number> {
@@ -309,20 +326,37 @@ export class FrameSelectorResolver {
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
     progress?: Progress,
+    errorHandling: "empty" | "throw" = "empty",
   ): Promise<number> {
     const session = this.frame.session;
+    const release = (response: Protocol.Runtime.EvaluateResponse) =>
+      response.result.objectId
+        ? session
+            .send("Runtime.releaseObject", { objectId: response.result.objectId })
+            .catch(() => {})
+        : undefined;
 
     try {
-      const evalRes = await runLocatorStep(progress, "counting elements", () =>
-        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression,
-          contextId,
-          returnByValue: true,
-          awaitPromise: true,
-        }),
+      const evalRes = await runLocatorStep(
+        progress,
+        "counting elements",
+        () =>
+          session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression,
+            contextId,
+            returnByValue: true,
+            awaitPromise: true,
+          }),
+        release,
       );
 
       if (evalRes.exceptionDetails) {
+        if (errorHandling === "throw") {
+          if (progress) await progress.cleanup(() => release(evalRes));
+          else await release(evalRes);
+          const details = evalRes.exceptionDetails;
+          throw new Error(details.exception?.description ?? details.text, { cause: details });
+        }
         return 0;
       }
 
@@ -332,6 +366,7 @@ export class FrameSelectorResolver {
       return Math.max(0, Math.floor(num));
     } catch (error) {
       progress?.throwIfStopped();
+      if (errorHandling === "throw") throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
@@ -341,6 +376,7 @@ export class FrameSelectorResolver {
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
     progress?: Progress,
+    errorHandling: "empty" | "throw" = "empty",
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
     let objectId: Protocol.Runtime.RemoteObjectId | undefined;
@@ -359,6 +395,10 @@ export class FrameSelectorResolver {
         (late) => (late.result.objectId ? release(late.result.objectId) : undefined),
       );
       objectId = evalRes.result.objectId;
+      if (evalRes.exceptionDetails && errorHandling === "throw") {
+        const details = evalRes.exceptionDetails;
+        throw new Error(details.exception?.description ?? details.text, { cause: details });
+      }
       if (evalRes.exceptionDetails || !objectId) {
         if (progress && objectId) {
           const discardedId = objectId;
@@ -372,8 +412,12 @@ export class FrameSelectorResolver {
       progress?.throwIfStopped();
       return resolved;
     } catch (error) {
-      if (progress && objectId) await progress.cleanup(() => release(objectId!));
+      if (objectId) {
+        if (progress) await progress.cleanup(() => release(objectId!));
+        else await release(objectId).catch(() => {});
+      }
       progress?.throwIfStopped();
+      if (errorHandling === "throw") throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return null;
     }

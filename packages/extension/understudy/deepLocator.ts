@@ -3,9 +3,10 @@ import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
-import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
+import { decodeLocatorQuery, encodeLocatorQuery } from "../types/private/semanticLocator.js";
+import { IFRAME_STEP_RE, splitSelectorHops } from "./selectorParser.js";
 
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
@@ -73,10 +74,20 @@ export async function resolveLocatorTarget(
 ): Promise<ResolvedLocatorTarget> {
   progress?.throwIfStopped();
   const sel = selectorRaw.trim();
-  const parts = sel
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const steps = decodeLocatorQuery(sel);
+  if (steps) {
+    const first = steps[0];
+    if (first?.kind !== "selector") return { frame: root, selector: sel };
+    const target = await resolveLocatorTarget(page, root, first.selector, progress);
+    return {
+      frame: target.frame,
+      selector: encodeLocatorQuery([
+        { kind: "selector", selector: target.selector },
+        ...steps.slice(1),
+      ]),
+    };
+  }
+  const parts = splitSelectorHops(sel);
 
   if (parts.length > 1) {
     // Build a FrameLocator chain for all but the last segment
@@ -269,5 +280,8 @@ async function resolveDeepXPathTarget(
     fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
   }
   const targetFrame = fl ? await fl.resolveFrame(progress) : root;
-  return { frame: targetFrame, selector: plan.finalSelector };
+  return {
+    frame: targetFrame,
+    selector: plan.finalSelector,
+  };
 }

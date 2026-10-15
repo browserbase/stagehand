@@ -1,5 +1,6 @@
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Script } from "node:vm";
 import { zipSync, type Zippable } from "fflate";
 import { defineConfig } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
@@ -24,6 +25,16 @@ function buildExtensionArtifacts() {
         `${JSON.stringify({ ...manifest, version: chromeManifestVersion(packageJson.version) }, null, 2)}\n`,
       );
       await cp(path.join(root, "blank.html"), path.join(outDir, "blank.html"));
+      const playwrightNotices = path.join(outDir, "third-party/playwright");
+      await mkdir(playwrightNotices, { recursive: true });
+      await Promise.all(
+        ["LICENSE", "NOTICE", "README.md", "provenance.json"].map((name) =>
+          cp(
+            path.join(root, "dom/locatorScripts/vendor/playwright", name),
+            path.join(playwrightNotices, name),
+          ),
+        ),
+      );
       await cp(
         path.join(root, "service-worker-lifecycle/wake.html"),
         path.join(outDir, "wake-service-worker.html"),
@@ -35,7 +46,15 @@ function buildExtensionArtifacts() {
       );
 
       await validateExtension(outDir);
-      const archive = zipSync(await readExtensionFiles(outDir), { level: 9 });
+      const files = await readExtensionFiles(outDir);
+      const archive = zipSync(
+        Object.fromEntries(
+          Object.keys(files)
+            .toSorted()
+            .map((name) => [name, files[name]]),
+        ),
+        { level: 9 },
+      );
       await mkdir(artifactsDir, { recursive: true });
       const temporaryArchivePath = `${extensionArchivePath}.${process.pid}.tmp`;
       try {
@@ -78,6 +97,10 @@ async function validateExtension(directory: string): Promise<void> {
     }
     await readFile(path.join(directory, relativePath));
   }
+  // Chrome content scripts and the CDP fallback both require classic JavaScript.
+  new Script(await readFile(path.join(directory, "content-script.js"), "utf8"), {
+    filename: "content-script.js",
+  });
 }
 
 async function readExtensionFiles(directory: string, relativeDirectory = ""): Promise<Zippable> {
@@ -85,7 +108,7 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
   const entries = await readdir(absoluteDirectory, { withFileTypes: true });
   const files: Zippable = {};
 
-  for (const entry of entries.toSorted((left, right) => left.name.localeCompare(right.name))) {
+  for (const entry of entries) {
     const relativePath = path.join(relativeDirectory, entry.name);
     if (entry.isSymbolicLink()) {
       throw new Error(`Stagehand extension cannot contain symbolic links: ${relativePath}`);

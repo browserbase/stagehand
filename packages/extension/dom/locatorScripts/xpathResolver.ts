@@ -29,52 +29,31 @@ export function resolveXPathAtIndex(
   options?: XPathResolveOptions,
 ): Element | null {
   if (!Number.isFinite(index) || index < 0) return null;
-  const xp = normalizeXPath(rawXp);
-  if (!xp) return null;
-
-  const targetIndex = Math.floor(index);
-  const pierceShadow = options?.pierceShadow !== false;
-  const shadowCtx = pierceShadow ? getShadowContext() : null;
-
-  if (!pierceShadow) {
-    return resolveNativeAtIndexWithError(xp, targetIndex).value;
-  }
-
-  if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeAtIndexWithError(xp, targetIndex);
-    if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
-    return composed[targetIndex] ?? null;
-  }
-
-  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
-  if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
-
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return composed[targetIndex] ?? null;
+  return queryXPathMatches(rawXp, options)[Math.floor(index)] ?? null;
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
+  return queryXPathMatches(rawXp, options).length;
+}
+
+/** The canonical legacy match order, shared by single matches, counts, and scoped builders. */
+export function queryXPathMatches(rawXp: string, options?: XPathResolveOptions): Element[] {
   const xp = normalizeXPath(rawXp);
-  if (!xp) return 0;
+  if (!xp) return [];
 
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
-  if (!pierceShadow) {
-    return resolveNativeCountWithError(xp).count;
-  }
-
   if (!shadowCtx?.hasShadow) {
-    const count = resolveNativeCountWithError(xp);
-    if (!count.error) return count.count;
-    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot).length;
+    const native = resolveNativeMatchesWithError(xp);
+    if (!pierceShadow || !native.error) return native.value;
+    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
   }
 
-  const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
-  if (shadowHopCount > 0) return shadowHopCount;
+  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
+  if (shadowHopMatches.length > 0) return shadowHopMatches;
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
+  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
 }
 
 export function resolveXPathComposedMatches(
@@ -256,10 +235,7 @@ function composedDescendants(
   return out;
 }
 
-function resolveNativeAtIndexWithError(
-  xp: string,
-  index: number,
-): { value: Element | null; error: boolean } {
+function resolveNativeMatchesWithError(xp: string): { value: Element[]; error: boolean } {
   try {
     const snapshot = document.evaluate(
       xp,
@@ -269,28 +245,13 @@ function resolveNativeAtIndexWithError(
       null,
     );
     return {
-      value: snapshot.snapshotItem(index) as Element | null,
+      value: Array.from(
+        { length: snapshot.snapshotLength },
+        (_, index) => snapshot.snapshotItem(index) as Element,
+      ),
       error: false,
     };
   } catch {
-    return { value: null, error: true };
-  }
-}
-
-function resolveNativeCountWithError(xp: string): {
-  count: number;
-  error: boolean;
-} {
-  try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return { count: snapshot.snapshotLength, error: false };
-  } catch {
-    return { count: 0, error: true };
+    return { value: [], error: true };
   }
 }
