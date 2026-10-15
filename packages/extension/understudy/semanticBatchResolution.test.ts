@@ -176,6 +176,7 @@ describe("semantic batch resolution", () => {
       };
       (phase === "evaluation" ? evaluation : properties).exceptionDetails = details;
       await expect(resolver.resolveAll(query, {}, createProgress())).rejects.toMatchObject({
+        name: "SelectorEvaluationError",
         message: "Unsupported role state",
         cause: details,
       });

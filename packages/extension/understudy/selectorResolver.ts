@@ -6,6 +6,7 @@ import { executionContexts, type ReadinessOptions } from "./executionContextRegi
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import { decodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
 import { splitSelectorHops } from "./selectorParser.js";
+import { SelectorEvaluationError } from "./selectorEvaluationError.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
@@ -143,8 +144,7 @@ export class FrameSelectorResolver {
       );
       for (const id of evaluationIds(evaluation)) owned.add(id);
       if (evaluation.exceptionDetails) {
-        const details = evaluation.exceptionDetails;
-        throw new Error(details.exception?.description ?? details.text, { cause: details });
+        throw new SelectorEvaluationError(evaluation.exceptionDetails);
       }
       const arrayId = evaluation.result.objectId;
       if (!arrayId || evaluation.result.subtype !== "array") {
@@ -162,8 +162,7 @@ export class FrameSelectorResolver {
       );
       for (const id of propertyObjectIds(properties)) owned.add(id);
       if (properties.exceptionDetails) {
-        const details = properties.exceptionDetails;
-        throw new Error(details.exception?.description ?? details.text, { cause: details });
+        throw new SelectorEvaluationError(properties.exceptionDetails);
       }
       const matches = properties.result
         .filter(({ name }) => /^(0|[1-9]\d*)$/.test(name))
@@ -434,8 +433,7 @@ export class FrameSelectorResolver {
         if (errorHandling === "throw") {
           if (progress) await progress.cleanup(() => release(evalRes));
           else await release(evalRes);
-          const details = evalRes.exceptionDetails;
-          throw new Error(details.exception?.description ?? details.text, { cause: details });
+          throw new SelectorEvaluationError(evalRes.exceptionDetails);
         }
         return 0;
       }
@@ -476,14 +474,14 @@ export class FrameSelectorResolver {
       );
       objectId = evalRes.result.objectId;
       if (evalRes.exceptionDetails && errorHandling === "throw") {
-        const details = evalRes.exceptionDetails;
-        throw new Error(details.exception?.description ?? details.text, { cause: details });
+        throw new SelectorEvaluationError(evalRes.exceptionDetails);
       }
       if (evalRes.exceptionDetails || !objectId) {
-        if (progress && objectId) {
+        if (objectId) {
           const discardedId = objectId;
           objectId = undefined;
-          await progress.cleanup(() => release(discardedId));
+          if (progress) await progress.cleanup(() => release(discardedId));
+          else await release(discardedId).catch(() => {});
         }
         progress?.throwIfStopped();
         return null;

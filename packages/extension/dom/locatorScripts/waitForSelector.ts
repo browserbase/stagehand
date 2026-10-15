@@ -9,6 +9,8 @@
 
 import { resolveXPathFirst } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import type { QueryStep } from "../../types/private/semanticLocator.js";
+import { querySemanticSelector } from "./semanticSelectors.js";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
@@ -100,7 +102,7 @@ const findElement = (selector: string, pierceShadow: boolean): Element | null =>
 const checkState = (el: Element | null, state: WaitForSelectorState): boolean => {
   if (state === "detached") return el === null;
   if (state === "attached") return el !== null;
-  if (el === null) return false;
+  if (el === null) return state === "hidden";
 
   if (state === "hidden") {
     try {
@@ -141,6 +143,7 @@ const setupShadowObservers = (
   callback: () => void,
   observers: MutationObserver[],
   isSettled: () => boolean,
+  options: MutationObserverInit,
 ): (() => void) => {
   const seenRoots = new WeakSet<Node>();
 
@@ -153,12 +156,7 @@ const setupShadowObservers = (
         scan();
       });
       observers.push(shadowObserver);
-      shadowObserver.observe(shadowRoot, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["style", "class", "hidden", "disabled"],
-      });
+      shadowObserver.observe(shadowRoot, options);
 
       // Recurse into shadow root children
       for (const child of Array.from(shadowRoot.children)) {
@@ -191,21 +189,34 @@ const setupShadowObservers = (
  * @returns A disposable handle whose promise resolves when the condition is met
  */
 export function createSelectorWait(
-  selectorRaw: string,
+  selectorRaw: string | readonly QueryStep[],
   stateRaw?: string,
   timeoutRaw?: number,
   pierceShadowRaw?: boolean,
 ): { promise: Promise<boolean>; dispose: () => void } {
-  const selector = String(selectorRaw ?? "").trim();
+  const selector =
+    typeof selectorRaw === "string" ? selectorRaw.trim() : JSON.stringify(selectorRaw);
   const state = (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
   const timeout = typeof timeoutRaw === "number" && timeoutRaw >= 0 ? timeoutRaw : 30000;
   const pierceShadow = pierceShadowRaw !== false;
+  const steps = typeof selectorRaw === "string" ? undefined : selectorRaw;
+  const query = steps
+    ? () => querySemanticSelector(steps, document, { pierceShadow })[0] ?? null
+    : () => findElement(selector, pierceShadow);
+  const observationOptions: MutationObserverInit = {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    ...(steps
+      ? { characterData: true }
+      : { attributeFilter: ["style", "class", "hidden", "disabled"] }),
+  };
   let dispose = () => {};
 
   const promise = new Promise<boolean>((resolve, reject) => {
     let settled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let shadowScanInterval: ReturnType<typeof setInterval> | undefined;
+    let pollInterval: ReturnType<typeof setInterval> | undefined;
     let domReadyHandler: (() => void) | undefined;
     let rescanShadowRoots: (() => void) | undefined;
     const observers: MutationObserver[] = [];
@@ -214,7 +225,7 @@ export function createSelectorWait(
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
-      clearInterval(shadowScanInterval);
+      clearInterval(pollInterval);
       for (const observer of observers) observer.disconnect();
       observers.length = 0;
       rescanShadowRoots = undefined;
@@ -230,7 +241,7 @@ export function createSelectorWait(
     const check = (): void => {
       if (settled) return;
       try {
-        if (checkState(findElement(selector, pierceShadow), state)) settle();
+        if (checkState(query(), state)) settle();
       } catch (error) {
         settle(error instanceof Error ? error : new Error(String(error)));
       }
@@ -246,15 +257,18 @@ export function createSelectorWait(
           rescanShadowRoots?.();
         });
         observers.push(mainObserver);
-        mainObserver.observe(root, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ["style", "class", "hidden", "disabled"],
-        });
+        mainObserver.observe(root, observationOptions);
         if (pierceShadow) {
-          rescanShadowRoots = setupShadowObservers(check, observers, () => settled);
-          shadowScanInterval = setInterval(() => {
+          rescanShadowRoots = setupShadowObservers(
+            check,
+            observers,
+            () => settled,
+            observationOptions,
+          );
+        }
+        // ARIA state can change through properties without a corresponding DOM mutation.
+        if (pierceShadow || steps) {
+          pollInterval = setInterval(() => {
             rescanShadowRoots?.();
             check();
           }, 100);

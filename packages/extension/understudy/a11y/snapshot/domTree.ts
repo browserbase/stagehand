@@ -168,7 +168,8 @@ export async function domMapsForSession(
   scrollableMap: Record<string, boolean>;
 }> {
   await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable").catch(() => {}));
-  const root = await getDomTreeWithFallback(session, pierce, progress);
+  // Iframe documents must remain available even when shadow roots are excluded.
+  const root = await getDomTreeWithFallback(session, true, progress);
 
   let startNode: Protocol.DOM.Node = root;
   if (attemptOwnerLookup) {
@@ -221,7 +222,7 @@ export async function domMapsForSession(
       }
     }
 
-    for (const sr of node.shadowRoots ?? []) {
+    for (const sr of pierce ? (node.shadowRoots ?? []) : []) {
       stack.push({
         node: sr,
         xpath: joinXPath(xpath, "//"),
@@ -383,8 +384,7 @@ export function findNodeByBackendId(
   while (stack.length) {
     const n = stack.pop()!;
     if (n.backendNodeId === backendNodeId) return n;
-    if (n.children) for (const c of n.children) stack.push(c);
-    if (n.shadowRoots) for (const s of n.shadowRoots) stack.push(s);
+    for (const child of collectDomTraversalTargets(n)) stack.push(child);
   }
   return undefined;
 }

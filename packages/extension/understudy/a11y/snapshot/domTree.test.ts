@@ -2,7 +2,12 @@ import type { Protocol } from "devtools-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
-import { buildSessionDomIndex, getDomTreeWithFallback, hydrateDomTree } from "./domTree.js";
+import {
+  buildSessionDomIndex,
+  domMapsForSession,
+  getDomTreeWithFallback,
+  hydrateDomTree,
+} from "./domTree.js";
 
 describe("DOM tree adaptive retries", () => {
   afterEach(() => {
@@ -122,5 +127,13 @@ describe("session DOM index frame and shadow traversal", () => {
     expect(index.contentDocRootByIframe.get(4)).toBe(5);
     expect(index.docRootOf.get(7)).toBe(5);
     expect(index.absByBe.has(10)).toBe(pierce);
+    const maps = await domMapsForSession(
+      { send } as unknown as CDPSessionLike,
+      "root",
+      pierce,
+      (_frameId, backendNodeId) => String(backendNodeId),
+      false,
+    );
+    expect(Object.hasOwn(maps.xpathMap, "10")).toBe(pierce);
   });
 });

@@ -283,7 +283,32 @@ describe("semantic selectors match Playwright 1.64.1", () => {
       "/": fixture,
       "/child": '<button aria-label="Frame publish">Child action</button>',
     });
-    stagehand = await createStagehand();
+    stagehand = await createStagehand({
+      model: {
+        generate: async ({ messages }) => {
+          const text = messages
+            .flatMap(({ content }) => (Array.isArray(content) ? content : [content]))
+            .filter((content) => content.type === "text")
+            .map((content) => content.text)
+            .join("\n");
+          const target = text
+            .split("\n")
+            .find((line) => line.includes("Frame publish") && /\[\d+-\d+\]/.test(line));
+          const elementId = target?.match(/\[(\d+-\d+)\]/)?.[1];
+          if (!elementId) throw new Error("Scoped snapshot did not contain the child button");
+          return {
+            role: "assistant",
+            content: { type: "text", text: "fixture observation" },
+            outputFormat: "json_schema",
+            structuredContent: {
+              elements: [
+                { elementId, description: "Child button", method: "click", arguments: [] },
+              ],
+            },
+          };
+        },
+      },
+    });
     page = await firstPage(stagehand);
     await page.goto(server.url);
     const cdpUrl = stagehand.rpcClient?.browserWebSocketDebuggerUrl;
@@ -396,6 +421,64 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     );
   });
 
+  it("waits for a late semantic match before invoking the existing click action", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Delayed publish", exact: true } },
+    ]);
+    await oracle.evaluate(() => {
+      setTimeout(() => {
+        const button = document.createElement("button");
+        button.textContent = "Delayed publish";
+        button.onclick = () => {
+          document.body.dataset.published = "true";
+        };
+        document.body.append(button);
+      }, 100);
+    });
+    expect(await page.waitForSelector(selector, { timeout: 5_000 })).toBe(true);
+    await page.locator(selector).click({ timeout: 5_000 });
+    expect(await oracle.evaluate(() => document.body.dataset.published)).toBe("true");
+  });
+
+  it.each([
+    '<button style="display:none">Publish</button>',
+    '<button style="visibility:hidden">Publish</button>',
+    "<div>No matching button</div>",
+  ])("resolves hidden for an initially unmatched role in %s", async (html) => {
+    await oracle.setContent(html);
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Publish", exact: true } },
+    ]);
+
+    expect(await page.waitForSelector(selector, { state: "hidden", timeout: 1_000 })).toBe(true);
+    await expect(
+      page.waitForSelector(selector, { state: "visible", timeout: 150 }),
+    ).rejects.toThrow(/timeout|timed out/i);
+  });
+
+  it.each(["display", "visibility", "remove"])(
+    "resolves a pending role hidden wait after %s changes",
+    async (change) => {
+      await oracle.setContent("<button>Publish</button>");
+      const selector = encodeLocatorQuery([
+        { kind: "role", role: "button", options: { name: "Publish", exact: true } },
+      ]);
+      await expect(
+        page.waitForSelector(selector, { state: "hidden", timeout: 150 }),
+      ).rejects.toThrow(/timeout|timed out/i);
+
+      await oracle.evaluate((change) => {
+        setTimeout(() => {
+          const button = document.querySelector("button")!;
+          if (change === "remove") button.remove();
+          else if (change === "display") button.style.display = "none";
+          else button.style.visibility = "hidden";
+        }, 100);
+      }, change);
+      expect(await page.waitForSelector(selector, { state: "hidden", timeout: 5_000 })).toBe(true);
+    },
+  );
+
   it.each([".legacy-scope", "xpath=//div[@class='legacy-scope']"])(
     "preserves legacy root ordering and closed shadows for %s",
     async (selector) => {
@@ -451,6 +534,44 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     },
   );
 
+  it("polls property-only checked changes with shadow piercing disabled", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "checkbox", options: { name: "Native off", checked: true } },
+    ]);
+    await oracle.evaluate(() => {
+      setTimeout(() => {
+        (document.getElementById("unchecked") as HTMLInputElement).checked = true;
+      }, 100);
+    });
+    expect(
+      await page.waitForSelector(selector, {
+        state: "attached",
+        pierceShadow: false,
+        timeout: 5_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("honors the semantic wait's shadow-piercing option", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Shadow save" } },
+    ]);
+    expect(
+      await page.waitForSelector(selector, {
+        state: "detached",
+        pierceShadow: false,
+        timeout: 1_000,
+      }),
+    ).toBe(true);
+    expect(
+      await page.waitForSelector(selector, {
+        state: "attached",
+        pierceShadow: true,
+        timeout: 1_000,
+      }),
+    ).toBe(true);
+  });
+
   it("does not treat an iframe-hop delimiter inside a CSS comment as a hop", async () => {
     await oracle.setContent("<button>One</button><button>Two</button>");
     expect(await page.locator("button/* >> */").count()).toBe(
@@ -473,6 +594,29 @@ describe("semantic selectors match Playwright 1.64.1", () => {
       );
       expect(await scoped.count()).toBe(1);
       expect(await scoped.textContent()).toBe("Child action");
+    },
+  );
+
+  it.each([
+    "#child >> button",
+    encodeLocatorQuery([
+      { kind: "selector", selector: "#child >> body" },
+      { kind: "role", role: "button" },
+    ]),
+  ])(
+    "returns an actionable absolute XPath for a scoped iframe observation: %s",
+    async (selector) => {
+      await oracle.setContent(
+        '<button>Main action</button><iframe id="child" src="/child"></iframe>',
+      );
+      const locator = page.locator(selector);
+      await expect.poll(() => locator.count()).toBe(1);
+      const result = await stagehand.observe("Find the child button", { page, locator });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]!.selector).toBe(
+        "xpath=/html[1]/body[1]/iframe[1]/html[1]/body[1]/button[1]",
+      );
+      expect(await page.locator(result.data[0]!.selector).textContent()).toBe("Child action");
     },
   );
 });
