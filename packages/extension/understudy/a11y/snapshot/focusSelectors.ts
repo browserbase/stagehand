@@ -12,6 +12,10 @@ import type {
   Step,
 } from "../../../types/private/snapshot.js";
 import { prefixXPath } from "./xpathUtils.js";
+import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { IFRAME_STEP_RE, splitSelectorHops } from "../../selectorParser.js";
+import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
+import { resolveLocatorTarget } from "../../deepLocator.js";
 
 /**
  * Parse a cross-frame XPath into discrete steps. Each step tracks whether it
@@ -50,8 +54,6 @@ export function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
   }
   return out || "/";
 }
-
-export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
 
 /**
  * Given a cross-frame XPath, walk iframe steps to resolve:
@@ -148,10 +150,15 @@ export async function resolveCssFocusFrameAndTail(
   progress?: Progress,
 ): Promise<ResolvedCssFocus> {
   progress?.throwIfStopped();
-  const parts = rawSelector
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  if (decodeLocatorQuery(rawSelector)) {
+    const target = await resolveLocatorTarget(page, page.frameForId(rootId), rawSelector, progress);
+    return {
+      targetFrameId: target.frame.frameId,
+      tailSelector: target.selector,
+      absPrefix: target.xpathPrefix ?? "",
+    };
+  }
+  const parts = splitSelectorHops(rawSelector);
   let ctxFrameId = rootId;
   const absPrefix = "";
 
@@ -221,7 +228,7 @@ export async function resolveObjectIdForXPath(
   return resolveObjectId(session, expression, frameId, progress);
 }
 
-/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
+/** Resolve a CSS selector or semantic query within one frame to a Runtime objectId. */
 export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
@@ -229,11 +236,12 @@ export async function resolveObjectIdForCss(
   index = 0,
   progress?: Progress,
 ): Promise<string | null> {
-  const expression = buildLocatorInvocation("resolveCssSelector", [
-    JSON.stringify(selector),
-    JSON.stringify(index),
-  ]);
-  return resolveObjectId(session, expression, frameId, progress);
+  const steps = decodeLocatorQuery(selector);
+  const expression = buildLocatorInvocation(
+    steps ? "resolveSemanticSelector" : "resolveCssSelector",
+    [JSON.stringify(steps ?? selector), JSON.stringify(index)],
+  );
+  return resolveObjectId(session, expression, frameId, progress, steps ? "throw" : "empty");
 }
 
 async function resolveObjectId(
@@ -241,6 +249,7 @@ async function resolveObjectId(
   expression: string,
   frameId: string | undefined,
   progress?: Progress,
+  errorHandling: "empty" | "throw" = "empty",
 ): Promise<string | null> {
   progress?.throwIfStopped();
   // Scope can fall back to the full tree; unresolved exclusions can be skipped.
@@ -269,6 +278,10 @@ async function resolveObjectId(
   if (response.exceptionDetails) {
     await release(response);
     progress?.throwIfStopped();
+    if (errorHandling === "throw") {
+      const details = response.exceptionDetails;
+      throw new SelectorEvaluationError(details);
+    }
     return null;
   }
   return response.result?.objectId ?? null;

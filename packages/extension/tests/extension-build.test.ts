@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Script } from "node:vm";
 import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
@@ -117,6 +118,7 @@ describe("extension build", () => {
     expect(contentScript).not.toContain("fillElementValue");
     expect(contentScript).not.toContain("__v3Cursor");
     expect(contentScript).not.toMatch(/^import\s/m);
+    expect(() => new Script(contentScript)).not.toThrow();
     expect(contentScript).not.toContain("__vite-browser-external");
     expect(blankPage).toContain('src="content-script.js"');
     expect(wakeServiceWorkerHtml).toContain("wake-service-worker.js");
@@ -145,6 +147,12 @@ describe("extension build", () => {
       manifest_version: 3,
       version: expectedManifestVersion,
     });
+    for (const name of ["LICENSE", "NOTICE", "README.md", "provenance.json"]) {
+      const source = await readFile(
+        new URL(`../dom/locatorScripts/vendor/playwright/${name}`, import.meta.url),
+      );
+      expect(archive[`third-party/playwright/${name}`], name).toEqual(Uint8Array.from(source));
+    }
 
     const deterministicEntries: Zippable = {};
     for (const relativePath of Object.keys(builtFiles).toSorted()) {

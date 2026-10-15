@@ -7,6 +7,7 @@ import { Frame } from "./frame.js";
 import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
+import { decodeLocatorQuery } from "../types/private/semanticLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -1783,7 +1784,7 @@ export class Page {
           const remaining = progress.remainingMs();
           progress.throwIfStopped();
           return buildLocatorInvocation("createSelectorWait", [
-            JSON.stringify(finalSelector),
+            JSON.stringify(decodeLocatorQuery(finalSelector) ?? finalSelector),
             JSON.stringify(options?.state ?? "visible"),
             String(remaining === Infinity ? 0 : Math.ceil(remaining)),
             String(options?.pierceShadow ?? true),

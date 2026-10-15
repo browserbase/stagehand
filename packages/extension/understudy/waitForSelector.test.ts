@@ -7,6 +7,7 @@ import * as deepLocator from "./deepLocator.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { Page } from "./page.js";
 import { Progress } from "./progress.js";
+import { encodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -74,6 +75,29 @@ describe("waitForSelector deadline", () => {
   it.each([undefined, 100, 0])("dispatches the timeout %s", async (timeout) => {
     await expect(page.waitForSelector("button", { timeout })).resolves.toBe(true);
     expectWait(timeout ?? 30_000);
+  });
+
+  it("validates and decodes semantic wire queries before installing the browser wait", async () => {
+    const steps: QueryStep[] = [
+      { kind: "role", role: "button", options: { name: "Save >> publish", includeHidden: true } },
+    ];
+    await expect(
+      page.waitForSelector(encodeLocatorQuery(steps), { timeout: 100, pierceShadow: false }),
+    ).resolves.toBe(true);
+    expect(waits()[0]?.[1]).toMatchObject({
+      expression: expect.stringContaining(
+        `scripts["createSelectorWait"](${JSON.stringify(steps)}, "visible", 100, false)`,
+      ),
+    });
+  });
+
+  it("rejects malformed semantic queries before creating browser-side resources", async () => {
+    await expect(
+      page.waitForSelector(
+        'internal:locator=[{"kind":"role","role":"heading","options":{"level":0}}]',
+      ),
+    ).rejects.toThrow('"level"');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 100, 0])("bounds a pending evaluation with timeout %s", async (timeout) => {

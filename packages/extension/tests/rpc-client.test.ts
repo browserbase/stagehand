@@ -8,6 +8,7 @@ import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
 import { RPCClient } from "../clients/rpcClient.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
+import { decodeLocatorQuery } from "../types/private/semanticLocator.js";
 
 const [protocolMajor, protocolMinor, protocolPatch] =
   STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);
@@ -28,6 +29,50 @@ describe("worker RPCClient", () => {
       },
     );
   }
+
+  it.each([
+    ['[{"kind":"text","text":{"source":"["}}]', "Invalid regular expression"],
+    ['[{"kind":"role","role":"heading","options":{"level":0}}]', '"level"'],
+  ])("preserves semantic locator validation details in the wire error", async (query, reason) => {
+    const responses: Array<Record<string, unknown>> = [];
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string) {
+          responses.push(JSON.parse(payload));
+        },
+      },
+      "sendToHost",
+    );
+    const router = new RPCRouter(createRuntime());
+    const count = vi.spyOn(router.locatorController, "count").mockImplementation(async (params) => {
+      decodeLocatorQuery(StagehandMethods.locatorCount.params.parse(params).selector);
+      return 0;
+    });
+    const client = new RPCClient(runtimeClient, router);
+    try {
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 11,
+          method: "locator.count",
+          params: { page_id: "page-1", selector: `internal:locator=${query}` },
+        }),
+      );
+      expect(responses).toMatchObject([
+        {
+          id: 11,
+          error: {
+            message: expect.stringContaining(reason),
+            data: { name: "Error" },
+          },
+        },
+      ]);
+      expect(count).toHaveBeenCalledOnce();
+    } finally {
+      count.mockRestore();
+      client.close();
+    }
+  });
 
   it("registers a reverse request before Chrome can return its response", async () => {
     let runtimeClient: ChromeRuntimeClient | undefined;

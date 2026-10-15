@@ -12,6 +12,8 @@ import {
   resolveObjectIdForXPath,
 } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
+import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
@@ -59,6 +61,7 @@ export async function a11yForFrame(
     if (!locator) return nodes;
     const sel = locator.selector.trim();
     if (!sel) return nodes;
+    decodeLocatorQuery(sel);
     let objectId: string | null = null;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
@@ -89,8 +92,9 @@ export async function a11yForFrame(
       return nodes
         .filter((n) => keep.has(n.nodeId))
         .map((n) => (n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n));
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof SelectorEvaluationError) throw error;
       return nodes;
     } finally {
       await releaseSnapshotObject(session, objectId ?? undefined, progress);

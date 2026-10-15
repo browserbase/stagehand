@@ -7,7 +7,10 @@ const parseTargetIndex = (value: unknown): number => {
   return Math.floor(num);
 };
 
-const collectCssMatches = (selector: string, limit: number): Element[] => {
+export const queryLegacyCssSelector = (
+  selector: string,
+  { limit = Infinity, pierceShadow = true }: { limit?: number; pierceShadow?: boolean } = {},
+): Element[] => {
   if (!selector) return [];
   const seenRoots = new WeakSet<Node>();
   const seenElements = new Set<Element>();
@@ -30,6 +33,7 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
       // ignore querySelectorAll issues
     }
 
+    if (!pierceShadow) return;
     try {
       const ownerDocument =
         root instanceof Document ? root : (root.host?.ownerDocument ?? document);
@@ -58,15 +62,22 @@ export function resolveCssSelector(selectorRaw: string, targetIndexRaw?: number)
   if (!selector) return null;
 
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  const matches = collectCssMatches(selector, targetIndex + 1);
+  const matches = queryLegacyCssSelector(selector, { limit: targetIndex + 1 });
   return matches[targetIndex] ?? null;
 }
 
 export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number): Element | null {
+  return queryLegacyTextSelector(rawNeedle)[parseTargetIndex(targetIndexRaw)] ?? null;
+}
+
+/** Legacy text= matching, retained for existing selectors used as a builder's root. */
+export function queryLegacyTextSelector(
+  rawNeedle: string,
+  { pierceShadow = true }: { pierceShadow?: boolean } = {},
+): Element[] {
   const needle = String(rawNeedle ?? "");
-  if (!needle) return null;
+  if (!needle) return [];
   const needleLc = needle.toLowerCase();
-  const targetIndex = parseTargetIndex(targetIndexRaw);
 
   const skipTags = new Set([
     "SCRIPT",
@@ -167,7 +178,7 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
         });
       }
 
-      const shadowRoot = getOpenOrClosedShadowRoot(node);
+      const shadowRoot = pierceShadow ? getOpenOrClosedShadowRoot(node) : null;
       if (shadowRoot) enqueue(shadowRoot);
     }
   }
@@ -192,8 +203,7 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
     }
   }
 
-  const target = innermost[targetIndex];
-  return target?.element ?? null;
+  return innermost.map((item) => item.element);
 }
 
 export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): Element | null {
