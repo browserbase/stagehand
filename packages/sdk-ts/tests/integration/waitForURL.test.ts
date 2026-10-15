@@ -76,8 +76,25 @@ describe("Page.waitForURL", () => {
   });
 
   it("does not match a child-frame URL", async () => {
-    await page.evaluate("document.body.innerHTML = '<iframe src=\"/frame\"></iframe>'");
-    await expect(page.waitForURL("**/frame", { timeout: 150 })).rejects.toThrow(/timed out/);
+    const pending = page.waitForURL("**/frame", { timeout: 1_000 });
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    const framePath = await page.evaluate(`new Promise(resolve => {
+      const frame = document.createElement('iframe');
+      frame.onload = () => resolve(frame.contentWindow.location.pathname);
+      frame.src = '/frame';
+      document.body.append(frame);
+    })`);
+    expect(framePath).toBe("/frame");
+    expect(settled).toBe(false);
+    await expect(pending).rejects.toThrow(/timed out/);
   });
 
   it("rejects a nonmatching URL at its deadline", async () => {

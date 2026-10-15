@@ -520,7 +520,7 @@ await page.waitForLoadState("networkidle", 10_000);
 
 ## waitForURL()
 
-Wait for the current or a future main-frame URL to match a full-URL glob, then wait for its load state. History and hash changes are supported. `*` matches any characters except `/`; `**` also matches `/`. All other characters are literal. Regular expressions, predicates, brace expansion, and `networkidle` are not supported.
+`waitForURL` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `waitForURL` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
 
 ```typescript
 await page.waitForURL("**/checkout/success", { timeout: 10_000 });
@@ -1376,7 +1376,7 @@ await page.wait_for_load_state("networkidle", timeout=10_000)
 
 ## wait_for_url()
 
-Wait for the current or a future main-frame URL to match a full-URL glob, then reach its load state. History and hash changes are supported. `*` matches any characters except `/`; `**` also matches `/`. All other characters are literal. Regular expressions, predicates, brace expansion, and `networkidle` are not supported.
+`wait_for_url` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `wait_for_url` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
 
 ```python
 await page.wait_for_url("**/checkout/success", timeout=10_000)
@@ -2300,7 +2300,7 @@ if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); 
 
 ## WaitForURL()
 
-Wait for the current or a future main-frame URL to match a full-URL glob, then reach its load state. History and hash changes are supported. `*` matches any characters except `/`; `**` also matches `/`. All other characters are literal. Regular expressions, predicates, brace expansion, and `networkidle` are not supported.
+`WaitForURL` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `WaitForURL` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
 
 ```go
 if err := page.WaitForURL(ctx, "**/checkout/success", nil); err != nil {
