@@ -29,43 +29,35 @@ function roundTripResult(result: unknown) {
 }
 
 describe("Browserbase transport protocol", () => {
-  it.each([
-    ["gateway.responses", { input: fixtures.gateway.requestInput }],
-    ["cache.get", fixtures.cache.get.request],
-    [
-      "cache.set",
-      {
-        ...fixtures.cache.get.request,
-        value: fixtures.cache.set.value,
-        llmUsage: fixtures.cache.set.llmUsage,
-      },
-    ],
-  ])("preserves the serialized body and headers of %s", (operation, payload) => {
-    const params = {
-      operation,
-      headers: { "Content-Type": "application/json", "X-Custom_Header": "custom-value" },
-      body: JSON.stringify(payload),
-      remainingTimeoutMs: 1234.5,
-    };
-    const encoded = encodeWireValue(params);
-    expect(encoded).toEqual({
-      operation,
-      headers: params.headers,
-      body: params.body,
-      remaining_timeout_ms: 1234.5,
-    });
-    const parsed = StagehandRpcRequestSchema.parse(
-      JSON.parse(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: 7,
-          method: "browserbase.request",
-          params: encoded,
-        }),
-      ),
-    );
-    expect(parsed.params).toEqual(params);
-  });
+  it.each(["gateway.responses", "cache.get", "cache.set"])(
+    "preserves opaque body text and header casing for %s",
+    (operation) => {
+      const params = {
+        operation,
+        headers: { "Content-Type": "application/json", "X-Custom_Header": "custom-value" },
+        body: '{ "Mixed_Case": "héllo 🌎" }',
+        remainingTimeoutMs: 1234.5,
+      };
+      const encoded = encodeWireValue(params);
+      expect(encoded).toEqual({
+        operation,
+        headers: params.headers,
+        body: params.body,
+        remaining_timeout_ms: 1234.5,
+      });
+      const parsed = StagehandRpcRequestSchema.parse(
+        JSON.parse(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 7,
+            method: "browserbase.request",
+            params: encoded,
+          }),
+        ),
+      );
+      expect(parsed.params).toEqual(params);
+    },
+  );
 
   it.each([
     { operation: "other" },
@@ -90,26 +82,12 @@ describe("Browserbase transport protocol", () => {
     ).toHaveProperty("remainingTimeoutMs", 0);
   });
 
-  it.each(fixtures.httpFailures)("preserves $name as an HTTP response", (fixture) => {
-    const result = {
-      ...response,
-      status: fixture.status,
-      headers: fixture.headers,
-      body: fixture.body,
-    };
-    expect(roundTripResult(result)).toEqual(result);
-  });
-
-  it.each([fixtures.gateway.response, fixtures.cache.get.response, fixtures.cache.set.response])(
-    "preserves buffered response text without interpreting its envelope",
-    (body) => {
-      const result = { ...response, body: JSON.stringify(body) };
-      expect(roundTripResult(result)).toEqual(result);
-    },
-  );
-
-  it("supports empty bodies and status text", () => {
-    const result = { ...response, status: 204, statusText: "" };
+  it.each([
+    { status: 200, body: '{ "Mixed_Case": "héllo 🌎" }' },
+    { status: 429, body: "upstream error" },
+    { status: 204, body: "" },
+  ])("preserves opaque response text for status $status", ({ status, body }) => {
+    const result = { ...response, status, body, statusText: "", headers: { "Retry-After": "2" } };
     expect(roundTripResult(result)).toEqual(result);
   });
 

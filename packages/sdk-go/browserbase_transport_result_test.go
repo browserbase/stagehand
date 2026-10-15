@@ -2,57 +2,32 @@ package stagehand
 
 import (
 	"encoding/json"
-	"os"
+	"reflect"
 	"testing"
 )
 
-func TestBrowserbaseRequestResultPreservesHTTPFailures(t *testing.T) {
-	data, err := os.ReadFile("../../tests/fixtures/browserbase-transport.json")
+func TestBrowserbaseRequestResultPreservesHTTPResponse(t *testing.T) {
+	want := BrowserbaseHTTPResponse{
+		Type: "response", Status: 429, StatusText: "Too Many Requests",
+		Headers: BrowserbaseHTTPResponseHeaders{"Retry-After": "2"}, Body: "upstream error: héllo 🌎",
+	}
+	encoded, err := json.Marshal(NewBrowserbaseHTTPResponse(want))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fixtures struct {
-		HTTPFailures []struct {
-			Name    string            `json:"name"`
-			Status  int               `json:"status"`
-			Headers map[string]string `json:"headers"`
-			Body    string            `json:"body"`
-		} `json:"httpFailures"`
-	}
-	if err := json.Unmarshal(data, &fixtures); err != nil {
+	var decoded BrowserbaseRequestResult
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixtures.HTTPFailures) == 0 {
-		t.Fatal("missing HTTP failure fixtures")
+	if response, ok := decoded.AsResponse(); !ok || !reflect.DeepEqual(response, want) {
+		t.Fatalf("unexpected HTTP response: %#v", response)
 	}
-	for _, fixture := range fixtures.HTTPFailures {
-		t.Run(fixture.Name, func(t *testing.T) {
-			result := NewBrowserbaseHTTPResponse(BrowserbaseHTTPResponse{
-				Status: fixture.Status, StatusText: "", Headers: fixture.Headers, Body: fixture.Body,
-			})
-			encoded, err := json.Marshal(result)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var decoded BrowserbaseRequestResult
-			if err := json.Unmarshal(encoded, &decoded); err != nil {
-				t.Fatal(err)
-			}
-			response, ok := decoded.AsResponse()
-			if !ok || response.Type != "response" || response.Status != fixture.Status || response.Body != fixture.Body {
-				t.Fatalf("unexpected HTTP response: %#v", response)
-			}
-			if _, ok := decoded.AsError(); ok {
-				t.Fatal("HTTP failure decoded as a transport error")
-			}
-			roundTrip, err := json.Marshal(decoded)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !jsonEqual(encoded, roundTrip) {
-				t.Fatalf("HTTP response changed: %s", roundTrip)
-			}
-		})
+	if _, ok := decoded.AsError(); ok {
+		t.Fatal("HTTP failure decoded as a transport error")
+	}
+	roundTrip, err := json.Marshal(decoded)
+	if err != nil || !jsonEqual(encoded, roundTrip) {
+		t.Fatalf("HTTP response changed: %s, %v", roundTrip, err)
 	}
 }
 
