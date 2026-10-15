@@ -23,7 +23,7 @@ Role/text builders search the main document by default. To search within an ifra
 - Role locators exclude elements hidden from the accessibility tree unless explicitly included. Text locators do not filter by visibility. Matching filters do not change an action's visibility or readiness checks.
 - Chained searches preserve earlier index selections. Selecting the second container before chaining searches inside that container; selecting the second match after chaining selects from the resulting matches. Indices are zero-based and non-negative.
 
-Python compiled patterns support `IGNORECASE`, `MULTILINE`, and `DOTALL`; the implicit `UNICODE` flag is ignored, and other flags are rejected. Use JavaScript-compatible pattern syntax. In Go, use `LiteralText(value)` or `RegexText(source, flags)`, not a Go `regexp` object.
+The Python SDK supports `IGNORECASE`, `MULTILINE`, and `DOTALL` in compiled patterns, ignores the implicit `UNICODE` flag, and rejects other flags. Use JavaScript-compatible pattern syntax. In Go, use `LiteralText(value)` or `RegexText(source, flags)`, not a Go `regexp` object.
 
 The 20-second locator-operation budget begins when an action or read runs; configure that operation's timeout as shown below.
 
@@ -517,7 +517,7 @@ await input.fill("amel@example.com");
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByRole()
@@ -578,7 +578,7 @@ await button.click();
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByText()
@@ -603,7 +603,7 @@ console.log(await message.innerText());
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## first()
@@ -1055,7 +1055,7 @@ await input.fill("amel@example.com")
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## get_by_role()
@@ -1112,7 +1112,7 @@ await button.click()
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## get_by_text()
@@ -1125,7 +1125,7 @@ print(await message.inner_text())
 ```
 
 <ParamField path="text" type="str | re.Pattern[str]">
-  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. IGNORECASE, MULTILINE, and DOTALL are supported; the implicit UNICODE flag is ignored, and other flags are rejected.
+  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. The SDK supports IGNORECASE, MULTILINE, and DOTALL, ignores the implicit UNICODE flag, and rejects other flags.
 </ParamField>
 
 <ParamField path="exact" type="bool | None" optional>
@@ -1133,7 +1133,7 @@ print(await message.inner_text())
 </ParamField>
 
 <ResponseField name="result" type="Self">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## first()
@@ -1739,7 +1739,7 @@ if err := input.Fill(ctx, "amel@example.com"); err != nil {
 </ParamField>
 
 <ResponseField name="result" type="(*PageLocator, error)">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## GetByRole()
@@ -1806,7 +1806,7 @@ if err := button.Click(ctx, nil); err != nil {
 </ParamField>
 
 <ResponseField name="result" type="(*PageLocator, error)">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## GetByText()
@@ -1838,7 +1838,7 @@ fmt.Println(text)
 </ParamField>
 
 <ResponseField name="result" type="(*PageLocator, error)">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## First()

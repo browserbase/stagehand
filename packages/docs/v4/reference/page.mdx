@@ -906,7 +906,7 @@ await button.click();
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByText()
@@ -931,7 +931,7 @@ console.log(await message.innerText());
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## locator()
@@ -1802,7 +1802,7 @@ await button.click()
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## get_by_text()
@@ -1815,7 +1815,7 @@ print(await message.inner_text())
 ```
 
 <ParamField path="text" type="str | re.Pattern[str]">
-  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. IGNORECASE, MULTILINE, and DOTALL are supported; the implicit UNICODE flag is ignored, and other flags are rejected.
+  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. The SDK supports IGNORECASE, MULTILINE, and DOTALL, ignores the implicit UNICODE flag, and rejects other flags.
 </ParamField>
 
 <ParamField path="exact" type="bool | None" optional>
@@ -1823,7 +1823,7 @@ print(await message.inner_text())
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## locator()
@@ -2837,7 +2837,7 @@ if err := button.Click(ctx, nil); err != nil {
 </ParamField>
 
 <ResponseField name="result" type="(*PageLocator, error)">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## GetByText()
@@ -2869,7 +2869,7 @@ fmt.Println(text)
 </ParamField>
 
 <ResponseField name="result" type="(*PageLocator, error)">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## Locator()

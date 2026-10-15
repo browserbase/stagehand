@@ -138,6 +138,69 @@ func TestSemanticLocatorCanExtendButNotNestEncodedQueries(t *testing.T) {
 	}
 }
 
+func TestSemanticLocatorRejectsInvalidImportedComposition(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, query, message string
+	}{
+		{
+			name: "leading nth", query: `[{"kind":"nth","index":0},{"kind":"role","role":"button"}]`,
+			message: "cannot start with nth",
+		},
+		{
+			name: "nested query", query: `[{"kind":"role","role":"group"},{"kind":"selector","selector":"internal:locator=[]"}]`,
+			message: "cannot contain another semantic locator query",
+		},
+		{
+			name: "nested query with whitespace", query: `[{"kind":"selector","selector":" \t\ninternal:locator=[] "}]`,
+			message: "cannot contain another semantic locator query",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &recordingProtocolClient{}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			base := page.Locator(semanticLocatorPrefix + test.query).First()
+			original := base.Descriptor()
+			locator, err := base.GetByText(LiteralText("Save"), nil)
+			if err == nil || locator != nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("GetByText() = %#v, %v", locator, err)
+			}
+			if len(rpc.calls) != 0 {
+				t.Fatalf("rejecting composition made %d RPC calls", len(rpc.calls))
+			}
+			if got := base.Descriptor(); !reflect.DeepEqual(got, original) || got.Nth == nil || *got.Nth != 0 {
+				t.Fatal("rejecting composition mutated the original descriptor")
+			}
+		})
+	}
+}
+
+func TestSemanticLocatorPreservesValidImportedComposition(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{
+		`[{"kind":"role","role":"group"},{"kind":"nth","index":2}]`,
+		`[{"kind":"text","text":"internal:locator=[]"}]`,
+	} {
+		t.Run(query, func(t *testing.T) {
+			rpc := &recordingProtocolClient{}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			base := page.Locator(semanticLocatorPrefix + query)
+			original := base.Descriptor()
+			locator, err := base.GetByRole(AriaRoleButton, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSemanticQuery(t, locator, strings.TrimSuffix(query, "]")+`,{"kind":"role","role":"button"}]`)
+			if len(rpc.calls) != 0 {
+				t.Fatalf("building a locator made %d RPC calls", len(rpc.calls))
+			}
+			if !reflect.DeepEqual(base.Descriptor(), original) {
+				t.Fatal("extending composition mutated the original descriptor")
+			}
+		})
+	}
+}
+
 func assertSemanticQuery(t *testing.T, locator *PageLocator, want string) {
 	t.Helper()
 	query, ok := strings.CutPrefix(locator.Descriptor().Selector, semanticLocatorPrefix)

@@ -65,6 +65,9 @@ func extendSemanticLocator[Step semanticLocatorStep](l *PageLocator, step Step) 
 		if len(steps) == 0 {
 			return nil, fmt.Errorf("decode semantic locator query: expected a non-empty array")
 		}
+		if err := checkLocatorComposition(steps); err != nil {
+			return nil, fmt.Errorf("decode semantic locator query: %w", err)
+		}
 	} else {
 		selector, err := json.Marshal(SelectorQueryStep{Kind: "selector", Selector: l.descriptor.Selector})
 		if err != nil {
@@ -80,6 +83,26 @@ func extendSemanticLocator[Step semanticLocatorStep](l *PageLocator, step Step) 
 		steps = append(steps, selection)
 	}
 	return newSemanticLocator(l.rpc, l.descriptor.PageID, steps, step)
+}
+
+// Check composition rules without duplicating the extension's schema validation.
+func checkLocatorComposition(steps []json.RawMessage) error {
+	for index, raw := range steps {
+		var step struct {
+			Kind     string `json:"kind"`
+			Selector string `json:"selector"`
+		}
+		if err := json.Unmarshal(raw, &step); err != nil {
+			return fmt.Errorf("decode locator step %d: %w", index, err)
+		}
+		if index == 0 && step.Kind == "nth" {
+			return fmt.Errorf("a semantic locator query cannot start with nth")
+		}
+		if step.Kind == "selector" && strings.HasPrefix(strings.TrimSpace(step.Selector), semanticLocatorPrefix) {
+			return fmt.Errorf("selector steps cannot contain another semantic locator query")
+		}
+	}
+	return nil
 }
 
 func newSemanticLocator[Step semanticLocatorStep](rpc protocolClient, pageID string, steps []json.RawMessage, step Step) (*PageLocator, error) {
