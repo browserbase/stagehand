@@ -28,6 +28,8 @@ import { buildSessionDomIndex, domMapsForSession, relativizeXPath } from "./domT
 import { injectSubtrees } from "./treeFormatUtils.js";
 import { ownerSession, parentSession } from "./sessions.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
+import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 
 type IgnoredNodeMap = Map<string, Set<number>>;
 type Interval = { start: number; end: number };
@@ -187,6 +189,7 @@ export async function tryScopedSnapshot(
   if (!focusLocator) return null;
   const requestedFocus = focusLocator.selector.trim();
   if (!requestedFocus) return null;
+  decodeLocatorQuery(requestedFocus);
   const focusNth = focusLocator.nth;
 
   const logScopeFallback = () => {
@@ -310,8 +313,9 @@ export async function tryScopedSnapshot(
     }
 
     logScopeFallback();
-  } catch {
+  } catch (error) {
     progress?.throwIfStopped();
+    if (error instanceof SelectorEvaluationError) throw error;
     logScopeFallback();
   }
   return null;
@@ -445,6 +449,7 @@ export async function resolveIgnoredNodes(
     progress?.throwIfStopped();
     const selector = locator.selector.trim();
     if (!selector) continue;
+    decodeLocatorQuery(selector);
 
     try {
       const resolved = await resolveIgnoredNodesForLocator(
@@ -459,8 +464,9 @@ export async function resolveIgnoredNodes(
         nodes.add(match.backendNodeId);
         ignoredNodesByFrame.set(match.frameId, nodes);
       }
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof SelectorEvaluationError) throw error;
       continue;
     }
   }
@@ -527,10 +533,7 @@ async function resolveIgnoredNodesForLocator(
   return resolveIgnoredNodesInFrame(
     page,
     targetFrameId,
-    {
-      kind: "css",
-      value: hit.tailSelector || selector,
-    },
+    FrameSelectorResolver.parseSelector(hit.tailSelector || selector),
     locator.nth,
     progress,
   );

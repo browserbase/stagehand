@@ -252,7 +252,6 @@ describe("semantic selector resolution", () => {
             ? resolver.count(query, progress)
             : resolver.resolveAtIndex(query, 0, progress);
         await expect(pending).rejects.toMatchObject({
-          name: "Error",
           message: "Unsupported role state",
           cause: details,
         });

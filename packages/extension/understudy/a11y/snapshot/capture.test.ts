@@ -17,6 +17,9 @@ import { domMapsForSession } from "./domTree.js";
 import * as focusSelectors from "./focusSelectors.js";
 import { resolveCssFocusFrameAndTail } from "./focusSelectors.js";
 import { ownerSession, parentSession } from "./sessions.js";
+import { encodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
+import type { Protocol } from "devtools-protocol";
 
 vi.mock("./a11yTree.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./a11yTree.js")>()),
@@ -325,49 +328,64 @@ describe("snapshot Unicode repair", () => {
     );
   });
 
-  it("resolves only the indexed ignored locator match", async () => {
-    const session = {
-      id: "root-session",
-      send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
-        if (method === "DOM.describeNode" && params?.objectId === "object-second") {
-          return { node: { backendNodeId: 20 } };
-        }
-        if (method === "Runtime.releaseObject") return {};
-        throw new Error(`Unexpected method: ${method}`);
-      }),
-    };
-    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
-      targetFrameId: "root",
-      tailSelector: ".card",
-      absPrefix: "",
-    });
-    vi.mocked(ownerSession).mockReturnValue(session as never);
-    const resolveAtIndex = vi
-      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
-      .mockResolvedValue({ objectId: "object-second", nodeId: null });
-    const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll");
+  it.each(["css", "semantic"])(
+    "resolves only the indexed %s ignored locator match",
+    async (kind) => {
+      const selector =
+        kind === "css"
+          ? ".card"
+          : encodeLocatorQuery([
+              { kind: "role", role: "region", options: { name: "Save >> publish" } },
+            ]);
+      const session = {
+        id: "root-session",
+        send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
+          if (method === "DOM.describeNode" && params?.objectId === "object-second") {
+            return { node: { backendNodeId: 20 } };
+          }
+          if (method === "Runtime.releaseObject") return {};
+          throw new Error(`Unexpected method: ${method}`);
+        }),
+      };
+      vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
+        targetFrameId: "root",
+        tailSelector: selector,
+        absPrefix: "",
+      });
+      vi.mocked(ownerSession).mockReturnValue(session as never);
+      const resolveAtIndex = vi
+        .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
+        .mockResolvedValue({ objectId: "object-second", nodeId: null });
+      const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll");
 
-    try {
-      const ignoredNodes = await resolveIgnoredNodes(
-        { logger: {} } as Page,
-        [{ selector: ".card", nth: 1 }],
-        {
-          rootId: "root",
-          frames: ["root"],
-          parentByFrame: new Map([["root", null]]),
-        },
-        new Map(),
-      );
+      try {
+        const ignoredNodes = await resolveIgnoredNodes(
+          { logger: {} } as Page,
+          [{ selector, nth: 1 }],
+          {
+            rootId: "root",
+            frames: ["root"],
+            parentByFrame: new Map([["root", null]]),
+          },
+          new Map(),
+        );
 
-      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1, undefined);
-      expect(resolveAll).not.toHaveBeenCalled();
-      expect(ignoredNodes.get("root")).toEqual(new Set([20]));
-      expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
-    } finally {
-      resolveAtIndex.mockRestore();
-      resolveAll.mockRestore();
-    }
-  });
+        expect(resolveAtIndex).toHaveBeenCalledWith(
+          FrameSelectorResolver.parseSelector(selector),
+          1,
+          undefined,
+        );
+        expect(resolveAll).not.toHaveBeenCalled();
+        expect(ignoredNodes.get("root")).toEqual(new Set([20]));
+        expect(session.send).toHaveBeenCalledWith("DOM.describeNode", {
+          objectId: "object-second",
+        });
+      } finally {
+        resolveAtIndex.mockRestore();
+        resolveAll.mockRestore();
+      }
+    },
+  );
 });
 
 describe("snapshot progress ownership", () => {
@@ -407,6 +425,45 @@ describe("snapshot progress ownership", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
+
+  it.each(["transient", "query"] as const)(
+    "preserves snapshot fallback policy for %s semantic failures",
+    async (kind) => {
+      const error =
+        kind === "query"
+          ? new SelectorEvaluationError({
+              text: "Unsupported role state",
+            } as Protocol.Runtime.ExceptionDetails)
+          : new Error("Execution context was destroyed");
+      vi.mocked(resolveCssFocusFrameAndTail).mockRejectedValue(error);
+      const selector = encodeLocatorQuery([{ kind: "role", role: "button" }]);
+      const context = {
+        rootId: "root",
+        frames: ["root"],
+        parentByFrame: new Map([["root", null]]),
+      };
+      const scope = tryScopedSnapshot(
+        page,
+        { focusLocator: { selector } },
+        context,
+        true,
+        new Map(),
+        new Map(),
+        page.logger,
+        progress,
+      );
+      const ignored = resolveIgnoredNodes(page, [{ selector }], context, new Map(), progress);
+      if (kind === "query") {
+        await expect(scope).rejects.toBe(error);
+        await expect(ignored).rejects.toBe(error);
+        expect(warn).not.toHaveBeenCalled();
+      } else {
+        await expect(scope).resolves.toBeNull();
+        await expect(ignored).resolves.toEqual(new Map());
+        expect(warn).toHaveBeenCalledOnce();
+      }
+    },
+  );
 
   it.each(["public snapshot", "default snapshot", "nested snapshot", "nested capture"] as const)(
     "%s stops at its deadline without continuing after a late response",

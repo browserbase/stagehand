@@ -7,6 +7,7 @@ import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import { decodeLocatorQuery, encodeLocatorQuery } from "../types/private/semanticLocator.js";
 import { IFRAME_STEP_RE, splitSelectorHops } from "./selectorParser.js";
+import { normalizeXPath, prefixXPath } from "./a11y/snapshot/xpathUtils.js";
 
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
@@ -14,6 +15,8 @@ type Step = { axis: Axis; raw: string; name: string };
 export type ResolvedLocatorTarget = {
   frame: Frame;
   selector: string;
+  /** XPath of the crossed iframe chain, when the input provides it. */
+  xpathPrefix?: string;
 };
 
 /** Parse XPath into steps preserving '/' vs '//' and the raw token (with [n]) */
@@ -80,7 +83,7 @@ export async function resolveLocatorTarget(
     if (first?.kind !== "selector") return { frame: root, selector: sel };
     const target = await resolveLocatorTarget(page, root, first.selector, progress);
     return {
-      frame: target.frame,
+      ...target,
       selector: encodeLocatorQuery([
         { kind: "selector", selector: target.selector },
         ...steps.slice(1),
@@ -276,12 +279,15 @@ async function resolveDeepXPathTarget(
   progress?.throwIfStopped();
   const plan = planDeepXPathTarget(xpathOrSelector);
   let fl: FrameLocator | undefined;
+  let xpathPrefix: string | undefined;
   for (const hop of plan.frameHopSelectors) {
     fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
+    xpathPrefix = prefixXPath(xpathPrefix ?? "/", normalizeXPath(hop));
   }
   const targetFrame = fl ? await fl.resolveFrame(progress) : root;
   return {
     frame: targetFrame,
     selector: plan.finalSelector,
+    ...(xpathPrefix ? { xpathPrefix } : {}),
   };
 }

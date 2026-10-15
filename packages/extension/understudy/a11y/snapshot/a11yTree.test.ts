@@ -5,6 +5,8 @@ import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { a11yForFrame } from "./a11yTree.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
+import { encodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 
 vi.mock("./focusSelectors.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./focusSelectors.js")>()),
@@ -114,6 +116,13 @@ describe("a11yForFrame focused locators", () => {
       selector: "xpath=//article",
       resolver: resolveObjectIdForXPath,
     },
+    {
+      name: "semantic",
+      selector: encodeLocatorQuery([
+        { kind: "role", role: "group", options: { name: "Second match" } },
+      ]),
+      resolver: resolveObjectIdForCss,
+    },
   ])(
     "keeps the indexed $name focus subtree and excludes earlier matches",
     async ({ selector, resolver }) => {
@@ -139,6 +148,36 @@ describe("a11yForFrame focused locators", () => {
       });
     },
   );
+
+  it("does not silently broaden scope when a semantic matcher fails", async () => {
+    const error = new SelectorEvaluationError({
+      text: "Unsupported role state",
+    } as Protocol.Runtime.ExceptionDetails);
+    vi.mocked(resolveObjectIdForCss).mockRejectedValue(error);
+    await expect(
+      a11yForFrame(fakeSession(20), "root-frame", {
+        focusLocator: { selector: encodeLocatorQuery([{ kind: "role", role: "button" }]) },
+        tagNameMap: {},
+        scrollableMap: {},
+        encode: String,
+      }),
+    ).rejects.toBe(error);
+  });
+
+  it("retains snapshot fallback for a transient semantic scope lookup failure", async () => {
+    vi.mocked(resolveObjectIdForCss).mockRejectedValue(
+      new Error("Execution context was destroyed"),
+    );
+    const result = await a11yForFrame(fakeSession(20), "root-frame", {
+      focusLocator: { selector: encodeLocatorQuery([{ kind: "role", role: "button" }]) },
+      tagNameMap: {},
+      scrollableMap: {},
+      encode: String,
+    });
+    expect(result.scopeApplied).toBe(false);
+    expect(result.outline).toContain("First match");
+    expect(result.outline).toContain("Second match");
+  });
 });
 
 function fakeSession(

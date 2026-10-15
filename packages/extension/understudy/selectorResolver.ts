@@ -6,6 +6,7 @@ import { executionContexts, type ReadinessOptions } from "./executionContextRegi
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import { decodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
 import { splitSelectorHops } from "./selectorParser.js";
+import { SelectorEvaluationError } from "./selectorEvaluationError.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
@@ -354,8 +355,7 @@ export class FrameSelectorResolver {
         if (errorHandling === "throw") {
           if (progress) await progress.cleanup(() => release(evalRes));
           else await release(evalRes);
-          const details = evalRes.exceptionDetails;
-          throw new Error(details.exception?.description ?? details.text, { cause: details });
+          throw new SelectorEvaluationError(evalRes.exceptionDetails);
         }
         return 0;
       }
@@ -396,8 +396,7 @@ export class FrameSelectorResolver {
       );
       objectId = evalRes.result.objectId;
       if (evalRes.exceptionDetails && errorHandling === "throw") {
-        const details = evalRes.exceptionDetails;
-        throw new Error(details.exception?.description ?? details.text, { cause: details });
+        throw new SelectorEvaluationError(evalRes.exceptionDetails);
       }
       if (evalRes.exceptionDetails || !objectId) {
         if (progress && objectId) {

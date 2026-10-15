@@ -363,6 +363,25 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     );
   });
 
+  it("waits for a late semantic match before invoking the existing click action", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Delayed publish", exact: true } },
+    ]);
+    await oracle.evaluate(() => {
+      setTimeout(() => {
+        const button = document.createElement("button");
+        button.textContent = "Delayed publish";
+        button.onclick = () => {
+          document.body.dataset.published = "true";
+        };
+        document.body.append(button);
+      }, 100);
+    });
+    expect(await page.waitForSelector(selector, { timeout: 5_000 })).toBe(true);
+    await page.locator(selector).click({ timeout: 5_000 });
+    expect(await oracle.evaluate(() => document.body.dataset.published)).toBe("true");
+  });
+
   it.each([".legacy-scope", "xpath=//div[@class='legacy-scope']"])(
     "preserves legacy root ordering and closed shadows for %s",
     async (selector) => {
@@ -417,6 +436,44 @@ describe("semantic selectors match Playwright 1.64.1", () => {
       expect(await scoped.nth(1).textContent()).toBe("Add");
     },
   );
+
+  it("polls property-only checked changes with shadow piercing disabled", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "checkbox", options: { name: "Native off", checked: true } },
+    ]);
+    await oracle.evaluate(() => {
+      setTimeout(() => {
+        (document.getElementById("unchecked") as HTMLInputElement).checked = true;
+      }, 100);
+    });
+    expect(
+      await page.waitForSelector(selector, {
+        state: "attached",
+        pierceShadow: false,
+        timeout: 5_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("honors the semantic wait's shadow-piercing option", async () => {
+    const selector = encodeLocatorQuery([
+      { kind: "role", role: "button", options: { name: "Shadow save" } },
+    ]);
+    expect(
+      await page.waitForSelector(selector, {
+        state: "detached",
+        pierceShadow: false,
+        timeout: 1_000,
+      }),
+    ).toBe(true);
+    expect(
+      await page.waitForSelector(selector, {
+        state: "attached",
+        pierceShadow: true,
+        timeout: 1_000,
+      }),
+    ).toBe(true);
+  });
 
   it("retains an existing iframe hop when applying a semantic scope", async () => {
     await oracle.setContent(
