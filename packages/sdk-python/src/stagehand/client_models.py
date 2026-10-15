@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
+from urllib.parse import urlparse
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -225,6 +226,16 @@ class StagehandClientCreateConfig(WireModel):
     ] = None
     cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
+
+    @field_validator("api_url")
+    @classmethod
+    def validate_api_url(cls, value: str | None) -> str | None:
+        if value is not None:
+            if "?" in value or "#" in value:
+                raise ValueError("Stagehand api_url must not include a query string or fragment")
+            if urlparse(value).path.rstrip("/").endswith("/v1"):
+                raise ValueError("Stagehand api_url must be a service origin without /v1")
+        return value
 
 
 StagehandClientCreateConfig.model_rebuild(_types_namespace={**vars(_models), **globals()})

@@ -1158,7 +1158,17 @@ def test_semantic_arguments_stay_positional(method: str, positional: list[str]) 
     )
 
 
-@pytest.mark.parametrize("api_url", ["", "not a URL"])
+@pytest.mark.parametrize(
+    "api_url",
+    [
+        "",
+        "not a URL",
+        "https://example.com?",
+        "https://example.com#",
+        "https://example.com/path?query=value",
+        "https://example.com/services/v1///",
+    ],
+)
 async def test_create_validates_api_url_before_claiming_browser(
     monkeypatch: pytest.MonkeyPatch, api_url: str
 ) -> None:

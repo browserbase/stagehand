@@ -10,6 +10,8 @@ import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../../src/extensionAssets.js";
 
+import fixture from "../../../../tests/fixtures/browserbase-routing.json" with { type: "json" };
+
 const answerSchema = z.object({ answer: z.number() });
 const usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
 const valueFor = (name?: string): Record<string, string | number | boolean> =>
@@ -62,44 +64,18 @@ beforeAll(async () => {
     res.writeHead(200, { "content-type": "application/json" });
     if (req.url?.endsWith("/responses")) {
       const text = body.text as { format: { name: string } };
+      res.end(JSON.stringify(text.format.name === "Metadata" ? fixture.metadata : fixture.gateway));
+    } else {
       res.end(
-        JSON.stringify({
-          id: "resp_test",
-          object: "response",
-          created_at: 1700000000,
-          model: "openai/gpt-5",
-          status: "completed",
-          output: [
-            {
-              type: "message",
-              id: "msg_test",
-              status: "completed",
-              role: "assistant",
-              content: [
-                {
-                  type: "output_text",
-                  text: JSON.stringify(valueFor(text.format.name)),
-                  annotations: [],
-                },
-              ],
-            },
-          ],
-          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-        }),
+        JSON.stringify(
+          req.url?.endsWith("/cache/get")
+            ? hit
+              ? fixture.cacheHit
+              : fixture.cacheMiss
+            : fixture.cacheSet,
+        ),
       );
-    } else
-      res.end(
-        JSON.stringify({
-          success: true,
-          data: req.url?.endsWith("/cache/get")
-            ? {
-                cacheKey: "key",
-                hit,
-                ...(hit ? { value: { answer: 7 } } : { missReason: "not_found" }),
-              }
-            : { cacheKey: "key", written: true },
-        }),
-      );
+    }
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -237,8 +213,21 @@ describe("TypeScript Browserbase routing in Chromium", () => {
       model: { modelName: "anthropic/claude-sonnet-4-6" },
     });
     expect(customGenerate).toHaveBeenCalledTimes(2);
+    await client.experimentalBatch(async (batch) =>
+      batch.extract(
+        "Extract the answer",
+        {
+          type: "object",
+          properties: { answer: { type: "number" } },
+          required: ["answer"],
+          additionalProperties: false,
+        },
+        { model: { modelName: "anthropic/claude-sonnet-4-6" } },
+      ),
+    );
+    expect(customGenerate).toHaveBeenCalledTimes(2);
     const gateway = requests.filter((request) => request.path.endsWith("/responses"));
-    expect(gateway).toHaveLength(2);
+    expect(gateway).toHaveLength(4);
     expect(gateway.every((request) => request.body.model === "anthropic/claude-sonnet-4-6")).toBe(
       true,
     );
