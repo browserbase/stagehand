@@ -337,6 +337,15 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     await assertParity(steps);
   });
 
+  it("resolves a late semantic index without changing its match order", async () => {
+    await oracle.setContent(
+      Array.from({ length: 300 }, (_, index) => `<button>Button ${index}</button>`).join(""),
+    );
+    const buttons = page.locator(encodeLocatorQuery([{ kind: "role", role: "button" }]));
+    expect(await buttons.nth(299).textContent()).toBe("Button 299");
+    await expect(buttons.nth(300).textContent()).rejects.toThrow("Could not find an element");
+  });
+
   it("does not retain accessible-name or text caches across queries", async () => {
     const steps: QueryStep[] = [
       { kind: "role", role: "button", options: { name: "Publish report", exact: true } },

@@ -214,7 +214,7 @@ describe("semantic selector resolution", () => {
     return { resolver: new FrameSelectorResolver(frame), readiness, send };
   }
 
-  it("uses the same semantic plan for count and nth and releases discarded handles", async () => {
+  it("uses the same semantic plan for count and nth without resolving discarded matches", async () => {
     const { resolver, readiness, send } = createResolver();
     await runWithProgress({ name: "resolve", timeout: 1_000 }, async (progress) => {
       await expect(resolver.count(query, progress)).resolves.toBe(2);
@@ -223,18 +223,58 @@ describe("semantic selector resolution", () => {
         nodeId: 1,
       });
       expect(readiness.mock.calls.every(([, , , context]) => context === progress)).toBe(true);
-      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "first" });
+      expect(send.mock.calls.some(([method]) => method === "Runtime.releaseObject")).toBe(false);
       const expressions = send.mock.calls
         .filter(([method]) => method === "Runtime.evaluate")
         .map(([, params]) => (params as { expression: string }).expression);
-      expect(expressions).toHaveLength(3);
+      expect(expressions).toHaveLength(2);
       expect(expressions.every((expression) => expression.includes(JSON.stringify(steps)))).toBe(
         true,
       );
       expect(expressions[0]).toContain('scripts["countSemanticMatches"]');
       expect(expressions[1]).toContain('scripts["resolveSemanticSelector"]');
+      expect(expressions[1]).toContain(`${JSON.stringify(steps)}, 1)`);
     });
   });
+
+  it.each([
+    ["button", "resolveCssSelector"],
+    ["text=Save", "resolveTextSelector"],
+    ["xpath=//button", "resolveXPathMainWorld"],
+    [encodeLocatorQuery(steps), "resolveSemanticSelector"],
+  ])("resolves a high index in %s with one browser lookup", async (selector, helper) => {
+    const { resolver, send } = createResolver();
+    await runWithProgress({ name: "resolve", timeout: 1_000 }, async (progress) => {
+      await expect(
+        resolver.resolveAtIndex(FrameSelectorResolver.parseSelector(selector), 299, progress),
+      ).resolves.toEqual({ objectId: "second", nodeId: 1 });
+    });
+    const lookups = send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]?.[1]).toMatchObject({
+      expression: expect.stringContaining(`scripts["${helper}"]`),
+    });
+    expect(lookups[0]?.[1]).toMatchObject({ expression: expect.stringContaining(", 299)") });
+    expect(send.mock.calls.filter(([method]) => method === "DOM.requestNode")).toHaveLength(1);
+    expect(send.mock.calls.some(([method]) => method === "Runtime.releaseObject")).toBe(false);
+  });
+
+  it.each(["button", "text=Save", "xpath=//button", encodeLocatorQuery(steps)])(
+    "returns null for an out-of-range index in %s without allocating a node",
+    async (selector) => {
+      const { resolver, send } = createResolver();
+      send.mockResolvedValue({ result: { type: "object", subtype: "null", value: null } });
+      await runWithProgress({ name: "resolve", timeout: 1_000 }, async (progress) => {
+        await expect(
+          resolver.resolveAtIndex(FrameSelectorResolver.parseSelector(selector), 299, progress),
+        ).resolves.toBeNull();
+      });
+      expect(send).toHaveBeenCalledExactlyOnceWith(
+        "Runtime.evaluate",
+        expect.objectContaining({ expression: expect.stringContaining(", 299)") }),
+      );
+    },
+  );
 
   it.each(["count", "resolve"] as const)(
     "propagates semantic evaluation errors during %s",
