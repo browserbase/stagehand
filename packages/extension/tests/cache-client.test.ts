@@ -54,7 +54,6 @@ describe("CacheGetResponseSchema", () => {
 describe("CacheClient", () => {
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
     const client = new CacheClient({
-      source: "client",
       request: async () =>
         new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
           headers: { "content-type": "application/json" },

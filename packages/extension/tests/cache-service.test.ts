@@ -16,7 +16,7 @@ describe("cache service", () => {
       } as StagehandInitParams,
       request,
     );
-    expect(context?.client.transport).toEqual({ source: "client", request });
+    expect(context?.client.transport).toEqual({ request });
   });
 
   it("marks a cache hit without executing the live request", async () => {

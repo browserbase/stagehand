@@ -60,7 +60,7 @@ export function buildCacheContext(
 ): CacheContext | undefined {
   const sessionId = initParams.browser?.sessionId;
   if (!sessionId || initParams.browserbase !== "client") return undefined;
-  const client = new CacheClient({ source: "client", request });
+  const client = new CacheClient({ request });
   return {
     sessionId,
     client,

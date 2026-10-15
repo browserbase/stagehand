@@ -164,12 +164,10 @@ describe("model configuration", () => {
               sessionId: "session-123",
               defaultCaching: true,
               client: expect.objectContaining({
-                transport: { source: "client", request: runtime.adapters.clientBrowserbaseRequest },
+                transport: { request: runtime.adapters.clientBrowserbaseRequest },
               }),
             }),
             gateway: {
-              source: "client",
-              sessionId: "session-123",
               request: runtime.adapters.clientBrowserbaseRequest,
             },
           }),
@@ -252,8 +250,6 @@ describe("model configuration", () => {
             expect.objectContaining({
               model: override,
               gateway: {
-                source: "client",
-                sessionId: "session-123",
                 request: runtime.adapters.clientBrowserbaseRequest,
               },
             }),

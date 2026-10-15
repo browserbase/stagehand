@@ -4,8 +4,6 @@ import type { ModelConfig, StagehandInitParams } from "@browserbasehq/stagehand-
 import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
 
 export interface GatewayContext {
-  source: "client";
-  sessionId: string;
   request?: ClientBrowserbaseRequest;
 }
 
@@ -20,7 +18,7 @@ export function buildGatewayContext(
 ): GatewayContext | undefined {
   const sessionId = initParams.browser?.sessionId;
   if (!sessionId || initParams.browserbase !== "client") return undefined;
-  return { source: "client", sessionId, request };
+  return { request };
 }
 
 function withoutModel(fetch: typeof globalThis.fetch): typeof globalThis.fetch {

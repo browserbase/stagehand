@@ -2,21 +2,11 @@ import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { trace } from "@opentelemetry/api";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import {
-  encodeWireValue,
-  wireSchema,
-} from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
-import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   BrowserbaseRequestParams,
   StagehandInitParams,
 } from "@browserbasehq/stagehand-protocol/types";
-import { executeBrowserbaseRequest } from "../../sdk-ts/src/browserbaseTransport.js";
-import { requestBrowserbase } from "../clients/browserbaseClient.js";
-import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.js";
-import { RPCClient } from "../clients/rpcClient.js";
-import { RPCRouter } from "../rpcRouter.js";
-import { createStagehandRuntime } from "../runtime.js";
+import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";
@@ -41,9 +31,9 @@ interface CapturedRequest {
 let server: Server;
 let context: cacheService.CacheContext;
 let apiUrl: string;
-let rpc: RPCClient | undefined;
+let bridge: ReturnType<typeof createBrowserbaseTestBridge>;
 let liveCalls = 0;
-const rpcRequests: BrowserbaseRequestParams[] = [];
+let rpcRequests: BrowserbaseRequestParams[];
 const requests: CapturedRequest[] = [];
 
 /** Per-scenario response bodies; each test sets what the API should answer. */
@@ -88,7 +78,6 @@ afterAll(async () => {
 
 beforeEach(() => {
   requests.length = 0;
-  rpcRequests.length = 0;
   liveCalls = 0;
   getResponse = () => ok({ cacheKey: "key", hit: false, missReason: "not_found" });
   setResponse = () => ok({ cacheKey: "key", written: true });
@@ -119,41 +108,24 @@ async function extractThroughCache(options?: { caching?: boolean | { threshold: 
 
 describe("cache metadata over client transport", () => {
   beforeEach(() => {
-    const transport = new ChromeRuntimeClient(
-      {
-        send(payload: string) {
-          const message = JSON.parse(payload) as { id: number; method: string; params: unknown };
-          if (message.method !== "browserbase.request")
-            throw new Error("Unexpected reverse RPC method");
-          const params = wireSchema(StagehandMethods.browserbaseRequest.params).parse(
-            message.params,
-          );
-          rpcRequests.push(params);
-          void executeBrowserbaseRequest(
-            { apiUrl, apiKey: "bb-api-key", sessionId: "session-e2e" },
-            params,
-          ).then((result) =>
-            transport.receive(
-              JSON.stringify({ jsonrpc: "2.0", id: message.id, result: encodeWireValue(result) }),
-            ),
-          );
-        },
-      },
-      "send",
-    );
-    const client = new RPCClient(transport, new RPCRouter(createStagehandRuntime()));
-    rpc = client;
+    bridge = createBrowserbaseTestBridge({
+      apiUrl,
+      apiKey: "bb-api-key",
+      sessionId: "session-e2e",
+    });
+    rpcRequests = bridge.requests;
     context = cacheService.buildCacheContext(
       {
         browserbase: "client",
         browser: { sessionId: "session-e2e" },
       } as StagehandInitParams,
-      (params, signal) => requestBrowserbase(client, params, signal),
+      bridge.runtime.adapters.clientBrowserbaseRequest,
     )!;
   });
 
-  afterEach(() => {
-    rpc?.close();
+  afterEach(async () => {
+    bridge.rpc.close();
+    await Promise.all(bridge.pendingReplies);
     for (const request of requests) {
       expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
       expect(request.headers["content-type"]).toBe("application/json");

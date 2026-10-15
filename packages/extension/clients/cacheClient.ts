@@ -110,7 +110,7 @@ export type CacheSetRequest = z.infer<typeof CacheSetRequestSchema>;
 export type CacheGetResponse = z.infer<typeof CacheGetResponseSchema>;
 export type CacheSetResponse = z.infer<typeof CacheSetResponseSchema>;
 
-type CacheTransport = { source: "client"; request?: ClientBrowserbaseRequest };
+type CacheTransport = { request?: ClientBrowserbaseRequest };
 
 export class CacheClient {
   constructor(readonly transport: CacheTransport) {}

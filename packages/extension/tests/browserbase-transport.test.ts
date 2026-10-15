@@ -90,7 +90,6 @@ describe("Browserbase client HTTP behavior", () => {
     runtime.state.setState({ status: "initialized", initParams });
     gateway = buildGatewayContext(initParams, runtime.adapters.clientBrowserbaseRequest)!;
     cache = new CacheClient({
-      source: "client",
       request: runtime.adapters.clientBrowserbaseRequest,
     });
   });
@@ -342,8 +341,6 @@ describe("Browserbase client HTTP behavior", () => {
         });
       });
       const model = createGatewayLanguageModel(undefined, {
-        source: "client",
-        sessionId: "session",
         request,
       });
       const pending = generateText({ model, prompt: "Hi", abortSignal: controller.signal });
@@ -362,8 +359,6 @@ describe("Browserbase client HTTP behavior", () => {
       ).toBeUndefined();
       expect(buildGatewayContext({ ...initParams, browser: undefined }, request)).toBeUndefined();
       expect(buildGatewayContext(initParams, request)).toEqual({
-        source: "client",
-        sessionId: fixtures.connection.sessionId,
         request,
       });
     });

@@ -34,8 +34,6 @@ describe("buildGatewayContext", () => {
   it("builds a context from the client marker, session, and request adapter", () => {
     const request = vi.fn();
     expect(buildGatewayContext(initParams, request)).toEqual({
-      source: "client",
-      sessionId: "session-123",
       request,
     });
   });
@@ -48,13 +46,7 @@ describe("buildGatewayContext", () => {
 
 describe("createGatewayLanguageModel", () => {
   it("creates a Responses API model against the gateway endpoint with the full model slug", () => {
-    const model = createGatewayLanguageModel(
-      { modelName: "openai/gpt-5" },
-      {
-        source: "client",
-        sessionId: "session-123",
-      },
-    );
+    const model = createGatewayLanguageModel({ modelName: "openai/gpt-5" }, {});
 
     expect(model).toMatchObject({
       provider: "openai.responses",
@@ -63,10 +55,7 @@ describe("createGatewayLanguageModel", () => {
   });
 
   it("uses an internal placeholder when Browserbase will select the model", () => {
-    const model = createGatewayLanguageModel(undefined, {
-      source: "client",
-      sessionId: "session-123",
-    });
+    const model = createGatewayLanguageModel(undefined, {});
 
     expect(model).toMatchObject({
       provider: "openai.responses",
@@ -88,10 +77,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {
-      source: "client",
-      sessionId: "session-123",
-    });
+    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {});
 
     expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -111,10 +97,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate(undefined, input, vi.fn(), {
-      source: "client",
-      sessionId: "session-123",
-    });
+    await llmService.generate(undefined, input, vi.fn(), {});
 
     expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -146,10 +129,7 @@ describe("llmService.generate gateway routing", () => {
         { modelName: "openai/gpt-5" },
         { ...input, stopSequences: ["STOP"] },
         vi.fn(),
-        {
-          source: "client",
-          sessionId: "session-123",
-        },
+        {},
       ),
     ).rejects.toThrow(/does not support stop sequences/);
     expect(generateText).not.toHaveBeenCalled();
