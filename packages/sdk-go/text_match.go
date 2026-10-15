@@ -64,26 +64,26 @@ func (value *TextMatch) UnmarshalJSON(data []byte) error {
 		*value = LiteralText(literal)
 		return nil
 	case '{':
-		var pattern struct {
-			Source *string         `json:"source"`
-			Flags  json.RawMessage `json:"flags,omitempty"`
-		}
-		if err := decodeStrictVariantJSON(data, &pattern); err != nil {
+		var pattern map[string]*string
+		if err := json.Unmarshal(data, &pattern); err != nil {
 			return fmt.Errorf("decode regular-expression text: %w", err)
 		}
-		if pattern.Source == nil {
+		for key := range pattern {
+			if key != "source" && key != "flags" {
+				return fmt.Errorf("decode regular-expression text: unknown field %q", key)
+			}
+		}
+		if pattern["source"] == nil {
 			return errors.New("decode regular-expression text: source is required")
 		}
 		var flags string
-		if len(pattern.Flags) != 0 {
-			if firstJSONByte(pattern.Flags) != '"' {
+		if flag, present := pattern["flags"]; present {
+			if flag == nil {
 				return errors.New("decode regular-expression text: flags must be a string")
 			}
-			if err := json.Unmarshal(pattern.Flags, &flags); err != nil {
-				return fmt.Errorf("decode regular-expression flags: %w", err)
-			}
+			flags = *flag
 		}
-		*value = RegexText(*pattern.Source, flags)
+		*value = RegexText(*pattern["source"], flags)
 		return nil
 	default:
 		return errors.New("decode text matcher: expected string or object")

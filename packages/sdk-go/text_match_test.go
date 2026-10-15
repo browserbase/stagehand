@@ -48,7 +48,13 @@ func TestTextMatchRoundTrip(t *testing.T) {
 
 func TestTextMatchRejectsInvalidShapesWithoutMutation(t *testing.T) {
 	t.Parallel()
-	for _, input := range []string{"null", "1", "true", "[]", `{}`, `{"source":null}`, `{"source":1}`, `{"source":"Save","unexpected":true}`, `{"source":"Save","flags":1}`, `{"source":"Save","flags":null}`} {
+	for _, input := range []string{
+		"null", "1", "true", "[]", `{}`, `{"source":null}`, `{"source":1}`,
+		`{"source":"Save","unexpected":true}`, `{"source":"Save","flags":1}`, `{"source":"Save","flags":null}`,
+		`{"Source":"Save"}`, `{"SOURCE":"Save"}`, `{"source":"Save","Flags":"i"}`,
+		`{"source":"Save","FLAGS":"i"}`, `{"source":"Save","Source":"Delete"}`,
+		`{"Source":"Delete","source":"Save"}`, `{"source":"Save","flags":"i","Flags":"m"}`,
+	} {
 		t.Run(input, func(t *testing.T) {
 			value := LiteralText("original")
 			if err := json.Unmarshal([]byte(input), &value); err == nil {
