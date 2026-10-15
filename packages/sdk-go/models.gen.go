@@ -1402,6 +1402,14 @@ type PageIDParams struct {
 	PageID string `json:"page_id"`
 }
 
+type PageKeyDownParams struct {
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
 type PageKeyPressOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
@@ -1413,6 +1421,14 @@ type PageKeyPressParams struct {
 
 	// Options corresponds to the JSON schema field "options".
 	Options *PageKeyPressOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PageKeyUpParams struct {
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -2779,11 +2795,17 @@ type generatedModelCatalog struct {
 	// PageIDParams corresponds to the JSON schema field "PageIdParams".
 	PageIDParams *PageIDParams `json:"PageIdParams,omitempty,omitzero"`
 
+	// PageKeyDownParams corresponds to the JSON schema field "PageKeyDownParams".
+	PageKeyDownParams *PageKeyDownParams `json:"PageKeyDownParams,omitempty,omitzero"`
+
 	// PageKeyPressOptions corresponds to the JSON schema field "PageKeyPressOptions".
 	PageKeyPressOptions *PageKeyPressOptions `json:"PageKeyPressOptions,omitempty,omitzero"`
 
 	// PageKeyPressParams corresponds to the JSON schema field "PageKeyPressParams".
 	PageKeyPressParams *PageKeyPressParams `json:"PageKeyPressParams,omitempty,omitzero"`
+
+	// PageKeyUpParams corresponds to the JSON schema field "PageKeyUpParams".
+	PageKeyUpParams *PageKeyUpParams `json:"PageKeyUpParams,omitempty,omitzero"`
 
 	// PageNavigationOptions corresponds to the JSON schema field
 	// "PageNavigationOptions".

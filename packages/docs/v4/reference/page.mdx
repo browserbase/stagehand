@@ -314,6 +314,48 @@ await page.keyPress("Enter");
   Resolves after the operation completes.
 </ResponseField>
 
+## keyDown()
+
+Press and hold one key. Modifiers stay held across subsequent keyboard calls until
+released with `keyUp()`. Repeating `keyDown()` for a held key sends a repeated keydown.
+Key identities use a US keyboard layout. Use `keyPress()` for a complete key chord.
+Modifiers affect keyboard and mouse actions, including page and locator clicks.
+`type()` inserts literal text.
+
+```typescript
+await page.keyDown("Shift");
+try {
+  await page.keyPress("a"); // Types "A".
+} finally {
+  await page.keyUp("Shift");
+}
+```
+
+<ParamField path="key" type="string">
+  A single character or named key, such as `Shift`, `Control`, `Alt`, `Meta`, or `Enter`.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after Stagehand sends the keydown event.
+</ResponseField>
+
+## keyUp()
+
+Release one key previously held with `keyDown()`. Releasing a modifier removes it
+from subsequent keyboard events. `keyPress()` preserves modifiers held by `keyDown()`.
+
+```typescript
+await page.keyUp("Shift");
+```
+
+<ParamField path="key" type="string">
+  The single character or named key to release.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after Stagehand sends the keyup event.
+</ResponseField>
+
 ## evaluate()
 
 Evaluate JavaScript in the page and return its result.
@@ -1152,6 +1194,47 @@ await page.key_press("Enter")
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## key_down()
+
+Press and hold one key. Modifiers stay held across subsequent keyboard calls until
+released with `key_up()`. Repeating `key_down()` for a held key sends a repeated keydown.
+Key identities use a US keyboard layout. Use `key_press()` for a complete key chord.
+Modifiers affect keyboard and mouse actions, including page and locator clicks.
+`type()` inserts literal text.
+
+```python
+await page.key_down("Shift")
+try:
+    await page.key_press("a")  # Types "A".
+finally:
+    await page.key_up("Shift")
+```
+
+<ParamField path="key" type="str">
+  A single character or named key, such as `Shift`, `Control`, `Alt`, `Meta`, or `Enter`.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after Stagehand sends the keydown event.
+</ResponseField>
+
+## key_up()
+
+Release one key previously held with `key_down()`. Releasing a modifier removes it
+from subsequent keyboard events. `key_press()` preserves modifiers held by `key_down()`.
+
+```python
+await page.key_up("Shift")
+```
+
+<ParamField path="key" type="str">
+  The single character or named key to release.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after Stagehand sends the keyup event.
 </ResponseField>
 
 ## evaluate()
@@ -2014,6 +2097,55 @@ if err := page.KeyPress(ctx, "Enter", nil); err != nil {
 
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
+</ResponseField>
+
+## KeyDown()
+
+Press and hold one key. Modifiers stay held across subsequent keyboard calls until
+released with `KeyUp()`. Repeating `KeyDown()` for a held key sends a repeated keydown.
+Key identities use a US keyboard layout. Use `KeyPress()` for a complete key chord.
+Modifiers affect keyboard and mouse actions, including page and locator clicks.
+`Type()` inserts literal text.
+
+```go
+if err := page.KeyDown(ctx, "Shift"); err != nil {
+    return err
+}
+pressErr := page.KeyPress(ctx, "a", nil) // Types "A".
+releaseErr := page.KeyUp(ctx, "Shift")
+if pressErr != nil {
+    return pressErr
+}
+if releaseErr != nil {
+    return releaseErr
+}
+```
+
+<ParamField path="key" type="string">
+  A single character or named key, such as `Shift`, `Control`, `Alt`, `Meta`, or `Enter`.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after Stagehand sends the keydown event.
+</ResponseField>
+
+## KeyUp()
+
+Release one key previously held with `KeyDown()`. Releasing a modifier removes it
+from subsequent keyboard events. `KeyPress()` preserves modifiers held by `KeyDown()`.
+
+```go
+if err := page.KeyUp(ctx, "Shift"); err != nil {
+    return err
+}
+```
+
+<ParamField path="key" type="string">
+  The single character or named key to release.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after Stagehand sends the keyup event.
 </ResponseField>
 
 ## Evaluate()
