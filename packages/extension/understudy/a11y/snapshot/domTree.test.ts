@@ -2,7 +2,12 @@ import type { Protocol } from "devtools-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
-import { buildSessionDomIndex, getDomTreeWithFallback, hydrateDomTree } from "./domTree.js";
+import {
+  buildSessionDomIndex,
+  domMapsForSession,
+  getDomTreeWithFallback,
+  hydrateDomTree,
+} from "./domTree.js";
 
 describe("DOM tree adaptive retries", () => {
   afterEach(() => {
@@ -94,21 +99,27 @@ describe("DOM tree adaptive retries", () => {
 });
 
 describe("session DOM index frame and shadow traversal", () => {
+  const node = (
+    id: number,
+    name: string,
+    children: Protocol.DOM.Node[] = [],
+  ): Protocol.DOM.Node => ({
+    nodeId: id,
+    backendNodeId: id,
+    nodeType: name === "#document" ? 9 : 1,
+    nodeName: name,
+    localName: name.toLowerCase(),
+    nodeValue: "",
+    childNodeCount: children.length,
+    children,
+  });
+  const shadowRoot = (
+    id: number,
+    shadowRootType: Protocol.DOM.ShadowRootType,
+    children: Protocol.DOM.Node[],
+  ): Protocol.DOM.Node => ({ ...node(id, "#document-fragment", children), shadowRootType });
+
   it.each([false, true])("keeps iframe documents with pierceShadow=%s", async (pierce) => {
-    const node = (
-      id: number,
-      name: string,
-      children: Protocol.DOM.Node[] = [],
-    ): Protocol.DOM.Node => ({
-      nodeId: id,
-      backendNodeId: id,
-      nodeType: name === "#document" ? 9 : 1,
-      nodeName: name,
-      localName: name.toLowerCase(),
-      nodeValue: "",
-      childNodeCount: children.length,
-      children,
-    });
     const child = node(5, "#document", [node(6, "HTML", [node(7, "INPUT")])]);
     const frame = { ...node(4, "IFRAME"), contentDocument: child };
     const host = {
@@ -122,5 +133,39 @@ describe("session DOM index frame and shadow traversal", () => {
     expect(index.contentDocRootByIframe.get(4)).toBe(5);
     expect(index.docRootOf.get(7)).toBe(5);
     expect(index.absByBe.has(10)).toBe(pierce);
+  });
+
+  it.each([
+    [
+      "buildSessionDomIndex",
+      async (session: CDPSessionLike) =>
+        Object.fromEntries((await buildSessionDomIndex(session, true)).absByBe),
+    ],
+    [
+      "domMapsForSession",
+      async (session: CDPSessionLike) =>
+        (await domMapsForSession(session, "frame", true, (_, id) => `${id}`, false)).xpathMap,
+    ],
+  ])("%s addresses user-agent shadow nodes through their host", async (_, readXPaths) => {
+    const dateInput = {
+      ...node(4, "INPUT"),
+      shadowRoots: [shadowRoot(5, "user-agent", [node(6, "DIV", [node(7, "SPAN")])])],
+    };
+    const nestedInput = {
+      ...node(11, "INPUT"),
+      shadowRoots: [shadowRoot(12, "user-agent", [node(13, "DIV")])],
+    };
+    const host = {
+      ...node(8, "DIV"),
+      shadowRoots: [shadowRoot(9, "closed", [node(10, "BUTTON"), nestedInput])],
+    };
+    const root = node(1, "#document", [node(2, "HTML", [node(3, "BODY", [dateInput, host])])]);
+    const send = vi.fn(async (method: string) => (method === "DOM.getDocument" ? { root } : {}));
+
+    expect(await readXPaths({ send } as unknown as CDPSessionLike)).toMatchObject({
+      7: "/html[1]/body[1]/input[1]",
+      10: "/html[1]/body[1]/div[1]//button[1]",
+      13: "/html[1]/body[1]/div[1]//input[1]",
+    });
   });
 });
