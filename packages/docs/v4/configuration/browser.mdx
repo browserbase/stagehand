@@ -814,7 +814,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
   "--window-size=1280,800",
-  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+  "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -825,7 +825,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
     "--window-size=1280,800",
-    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -836,14 +836,14 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-unsafe-extension-debugging",
 	"--remote-allow-origins=*",
 	"--window-size=1280,800",
-	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+	"--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
 </Tab>
 </Tabs>
 
 <Note>
-`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
+`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp) across supported Chrome versions. `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
