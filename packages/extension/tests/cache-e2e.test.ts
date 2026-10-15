@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { gunzipSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import { trace } from "@opentelemetry/api";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -35,12 +36,14 @@ const ok = (data: unknown) => ({ status: 200, body: { success: true, data } });
 
 beforeAll(async () => {
   server = createServer((req, res) => {
-    let body = "";
-    req.on("data", (chunk: Buffer) => (body += chunk.toString()));
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
+      const raw = Buffer.concat(chunks);
+      const body = req.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw;
       requests.push({
         url: req.url ?? "",
-        body: JSON.parse(body) as Record<string, unknown>,
+        body: JSON.parse(body.toString()) as Record<string, unknown>,
       });
       const { status, body: payload } = req.url?.endsWith("/cache/get")
         ? getResponse()

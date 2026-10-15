@@ -109,6 +109,18 @@ export type CacheSetRequest = z.infer<typeof CacheSetRequestSchema>;
 export type CacheGetResponse = z.infer<typeof CacheGetResponseSchema>;
 export type CacheSetResponse = z.infer<typeof CacheSetResponseSchema>;
 
+/**
+ * Request bodies carry the raw accessibility tree of every frame, which on
+ * large pages exceeds the API's request size limit uncompressed. gzip shrinks
+ * them roughly tenfold for a few milliseconds of work.
+ */
+async function gzipJson(value: unknown): Promise<Blob> {
+  const compressed = new Blob([JSON.stringify(value)])
+    .stream()
+    .pipeThrough(new CompressionStream("gzip"));
+  return await new Response(compressed).blob();
+}
+
 export class CacheClient {
   constructor(
     readonly apiUrl: string,
@@ -132,9 +144,10 @@ export class CacheClient {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "content-encoding": "gzip",
         "x-bb-api-key": this.apiKey,
       },
-      body: JSON.stringify(request),
+      body: await gzipJson(request),
       signal: AbortSignal.timeout(CACHE_REQUEST_TIMEOUT_MS),
     });
 

@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { CacheClient, CacheGetResponseSchema } from "../clients/cacheClient.js";
 
@@ -52,6 +53,38 @@ describe("CacheGetResponseSchema", () => {
 });
 
 describe("CacheClient", () => {
+  it("sends the request body gzipped", async () => {
+    const client = new CacheClient("http://cache.test/v1", "bb-key");
+    const request = {
+      method: "extract" as const,
+      sessionId: "session-1",
+      url: "https://example.com",
+      cdpTree: { rootFrameId: "frame-1", frames: [] },
+      data: {},
+    };
+    let sent: RequestInit | undefined;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      sent = init;
+      return new Response(
+        JSON.stringify({ success: true, data: { cacheKey: "key", hit: false } }),
+        {
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }) as typeof fetch;
+
+    try {
+      await client.get(request);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(new Headers(sent?.headers).get("content-encoding")).toBe("gzip");
+    const body = gunzipSync(Buffer.from(await (sent!.body as Blob).arrayBuffer())).toString();
+    expect(JSON.parse(body)).toStrictEqual(request);
+  });
+
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
     const client = new CacheClient("http://cache.test/v1", "bb-key");
     const originalFetch = globalThis.fetch;
