@@ -242,21 +242,11 @@ describe("client cache availability", () => {
     expect(
       buildCacheContext({ browser: init.browser } as StagehandInitParams, adapter),
     ).toBeUndefined();
-    expect(
-      buildCacheContext(
-        { browser: init.browser, apiKey: "old-key" } as StagehandInitParams,
-        adapter,
-      ),
-    ).toBeUndefined();
     expect(adapter).not.toHaveBeenCalled();
   });
 
   it("fails an unavailable client request without selecting legacy HTTP", async () => {
-    const context = buildCacheContext({
-      ...init,
-      apiKey: "legacy-key",
-      apiUrl: "https://legacy.test",
-    });
+    const context = buildCacheContext(init);
     await expect(context!.client.get(request)).rejects.toThrow(
       "Client Browserbase transport is unavailable",
     );

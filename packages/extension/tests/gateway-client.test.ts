@@ -43,9 +43,6 @@ describe("buildGatewayContext", () => {
   it("requires the client marker and a session", () => {
     expect(buildGatewayContext({ ...initParams, browserbase: undefined })).toBeUndefined();
     expect(buildGatewayContext({ ...initParams, browser: undefined })).toBeUndefined();
-    expect(
-      buildGatewayContext({ ...initParams, browserbase: undefined, apiKey: "old-key" }),
-    ).toBeUndefined();
   });
 });
 

@@ -49,7 +49,7 @@ describe("Stagehand object-model protocol", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
-      apiKey: "bb_key",
+      browserbase: "client" as const,
       browser: {
         sessionId: "session_123",
         region: "eu-central-1",
@@ -61,7 +61,7 @@ describe("Stagehand object-model protocol", () => {
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       logLevel: "info",
-      apiKey: "bb_key",
+      browserbase: "client" as const,
       browser: {
         sessionId: "session_123",
         region: "eu-central-1",

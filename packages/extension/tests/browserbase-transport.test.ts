@@ -322,10 +322,7 @@ describe("Browserbase client HTTP behavior", () => {
     });
 
     it("never falls back when the client adapter is missing or disconnected", async () => {
-      const context = buildGatewayContext(
-        { ...initParams, apiKey: "legacy-key", apiUrl },
-        undefined,
-      );
+      const context = buildGatewayContext(initParams, undefined);
       await expect(llmService.generate(undefined, input, vi.fn(), context)).rejects.toThrow(
         "transport is unavailable",
       );
@@ -364,9 +361,6 @@ describe("Browserbase client HTTP behavior", () => {
         buildGatewayContext({ ...initParams, browserbase: undefined }, request),
       ).toBeUndefined();
       expect(buildGatewayContext({ ...initParams, browser: undefined }, request)).toBeUndefined();
-      expect(
-        buildGatewayContext({ ...initParams, browserbase: undefined, apiKey: "legacy" }, request),
-      ).toBeUndefined();
       expect(buildGatewayContext(initParams, request)).toEqual({
         source: "client",
         sessionId: fixtures.connection.sessionId,
