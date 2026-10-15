@@ -537,8 +537,8 @@ await page.waitForTimeout(500);
 ## waitForFunction()
 
 Poll a JavaScript expression in the page's main world until it returns a truthy value.
-Polling happens inside the browser and resumes after navigation. Async predicates are
-awaited before the next poll; thrown errors reject the wait. The result is a detached
+Polling happens inside the browser and resumes after navigation. The browser awaits
+async predicates before the next poll; thrown errors reject the wait. The result is a detached
 JSON value, not a browser handle. Functions cannot capture variables from your SDK process.
 
 ```typescript
@@ -554,7 +554,7 @@ const text = await page.waitForFunction(
 </ParamField>
 
 <ParamField path="arg" type="Arg" optional>
-  JSON-serializable argument for a function, following `evaluate()` conventions. Ignored for strings.
+  JSON-serializable argument for a function, following `evaluate()` conventions. The method ignores this argument for strings.
 </ParamField>
 
 <ParamField path="options" type="PageWaitForFunctionOptions" optional>
@@ -562,7 +562,7 @@ const text = await page.waitForFunction(
 
   <ParamField path="options.polling" type="PageWaitForFunctionOptions['polling']" optional>
     Defaults to `"raf"` (animation frames). A positive interval up to `2147483647`
-    polls in milliseconds. Use an interval when animation frames may be paused.
+    polls in milliseconds. Use an interval if the browser pauses animation frames.
   </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
@@ -571,7 +571,7 @@ const text = await page.waitForFunction(
 </ParamField>
 
 <ResponseField name="result" type="Promise<R>">
-  The truthy result converted to JSON. Non-serializable results such as cyclic values and BigInt reject.
+  The browser converts the truthy result to JSON. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## waitForSelector()
@@ -1408,7 +1408,7 @@ await page.wait_for_timeout(500)
 ## wait_for_function()
 
 Poll a JavaScript expression in the page's main world until it returns a truthy value.
-The browser runs each poll and resumes after navigation. Promises are awaited before
+The browser runs each poll and resumes after navigation. It awaits promises before
 the next poll; thrown errors reject the wait. Embed any arguments in the JavaScript
 expression, as with `evaluate()`.
 
@@ -1419,7 +1419,7 @@ value = await page.wait_for_function(
 ```
 
 <ParamField path="expression" type="str">
-  JavaScript expression evaluated in the page, not a Python callable.
+  JavaScript expression to run in the page, not a Python callable.
 </ParamField>
 
 <ParamField path="polling" type="Literal['raf'] | float | None" optional>
@@ -1431,7 +1431,7 @@ value = await page.wait_for_function(
 </ParamField>
 
 <ResponseField name="result" type="JsonValue">
-  The truthy result converted to JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
+  The browser converts the truthy result to JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## wait_for_selector()
@@ -2339,8 +2339,8 @@ if err := page.WaitForTimeout(ctx, 500); err != nil {
 ## WaitForFunction()
 
 Poll a JavaScript expression in the page's main world until it returns a truthy value.
-Polling happens in the browser and resumes after navigation. Promises are awaited before
-the next poll; thrown errors reject the wait. Embed any arguments in the JavaScript
+Polling happens in the browser and resumes after navigation. The browser awaits promises
+before the next poll; thrown errors reject the wait. Embed any arguments in the JavaScript
 expression, as with `Evaluate`.
 
 ```go
@@ -2352,7 +2352,7 @@ fmt.Println(string(value))
 ```
 
 <ParamField path="expression" type="string">
-  JavaScript expression evaluated in the page.
+  JavaScript expression to run in the page.
 </ParamField>
 
 <ParamField path="options" type="*PageWaitForFunctionOptions" optional>
