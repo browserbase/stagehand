@@ -17,6 +17,7 @@ describe("Browserbase session settings", () => {
         BROWSERBASE_API_KEY: "test",
         STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: raw,
       });
+      if (facade.browser.type !== "browserbase") throw new Error("expected a Browserbase session");
       expect(facade.browser.launchOptions).toMatchObject({
         timeout: evalBrowserbaseSessionTimeoutSeconds(raw),
       });
