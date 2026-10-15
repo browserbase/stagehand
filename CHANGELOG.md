@@ -3,6 +3,31 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.2.2
+
+### Patch Changes
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+## Python SDK 4.2.2
+
+### Patch Changes
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+## Go SDK 4.2.2
+
+### Patch Changes
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+## Eve Extension 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a)]:
+  - @browserbasehq/stagehand@4.2.2
+
 ## TypeScript SDK 4.2.1
 
 ### Patch Changes
