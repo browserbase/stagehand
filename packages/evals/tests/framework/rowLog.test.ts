@@ -96,6 +96,18 @@ describe("rowLog", () => {
     expect(text).not.toContain("attempt 1");
   });
 
+  it("drops lines written after close instead of reopening the file", async () => {
+    const file = path.join(tmp(), "row.log");
+    const writer = new RowLogWriter(file);
+    writer.write({ category: "codex", message: "during the row" });
+    await writer.close();
+    writer.write({ category: "codex", message: "after the row" });
+    await writer.close();
+    const text = fs.readFileSync(file, "utf8");
+    expect(text).toContain("during the row");
+    expect(text).not.toContain("after the row");
+  });
+
   it("EvalLogger routes into the row instead of echoing to the console", async () => {
     const entries: RowLogEntry[] = [];
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
