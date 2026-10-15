@@ -45,6 +45,7 @@ import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
+import { setContent } from "./setContent.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
@@ -1251,6 +1252,15 @@ export class Page {
   }
 
   // -------- Convenience APIs delegated to the current main frame --------
+
+  /** Replace this page's HTML without navigating or changing its URL. */
+  async setContent(
+    html: string,
+    options?: { waitUntil?: LoadState; timeout?: number },
+  ): Promise<void> {
+    if (this.disposed) throw new Error("Page is disposed");
+    await setContent(this, html, options);
+  }
 
   /**
    * Navigate the page; optionally wait for a lifecycle state.
