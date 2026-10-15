@@ -5,7 +5,10 @@ import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
-import { decodeLocatorQuery, encodeLocatorQuery } from "../types/private/semanticLocator.js";
+import {
+  decodeLocatorQuery,
+  encodeLocatorQuery,
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import { IFRAME_STEP_RE, splitSelectorHops } from "./selectorParser.js";
 import { normalizeXPath, prefixXPath } from "./a11y/snapshot/xpathUtils.js";
 

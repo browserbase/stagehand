@@ -44,6 +44,8 @@ var customDefinitions = map[string]string{
 	"LoadState":                    "LoadState",
 	"ModelName":                    "ModelName",
 	"ProxyConfig":                  "ProxyConfig",
+	"QueryStep":                    "json.RawMessage",
+	"TextPattern":                  "TextMatch",
 	"VariablePrimitive":            "VariablePrimitive",
 	"VariableValue":                "VariableValue",
 	"WebMCPJsonValue":              "json.RawMessage",
@@ -382,7 +384,7 @@ func reachableDefinitions(protocol, definitions map[string]any) (map[string]stru
 		}
 		return nil
 	}
-	for _, key := range []string{"methods", "notifications", "legacy_client_models"} {
+	for _, key := range []string{"methods", "notifications", "legacy_client_models", "locator_builder_models"} {
 		entry, ok := properties[key]
 		if !ok {
 			return nil, fmt.Errorf("protocol properties missing %q", key)

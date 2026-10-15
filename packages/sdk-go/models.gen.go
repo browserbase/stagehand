@@ -68,6 +68,91 @@ type Action struct {
 
 type AnthropicModelName string
 
+type AriaRole string
+
+const AriaRoleAlert AriaRole = "alert"
+const AriaRoleAlertdialog AriaRole = "alertdialog"
+const AriaRoleApplication AriaRole = "application"
+const AriaRoleArticle AriaRole = "article"
+const AriaRoleBanner AriaRole = "banner"
+const AriaRoleBlockquote AriaRole = "blockquote"
+const AriaRoleButton AriaRole = "button"
+const AriaRoleCaption AriaRole = "caption"
+const AriaRoleCell AriaRole = "cell"
+const AriaRoleCheckbox AriaRole = "checkbox"
+const AriaRoleCode AriaRole = "code"
+const AriaRoleColumnheader AriaRole = "columnheader"
+const AriaRoleCombobox AriaRole = "combobox"
+const AriaRoleComplementary AriaRole = "complementary"
+const AriaRoleContentinfo AriaRole = "contentinfo"
+const AriaRoleDefinition AriaRole = "definition"
+const AriaRoleDeletion AriaRole = "deletion"
+const AriaRoleDialog AriaRole = "dialog"
+const AriaRoleDirectory AriaRole = "directory"
+const AriaRoleDocument AriaRole = "document"
+const AriaRoleEmphasis AriaRole = "emphasis"
+const AriaRoleFeed AriaRole = "feed"
+const AriaRoleFigure AriaRole = "figure"
+const AriaRoleForm AriaRole = "form"
+const AriaRoleGeneric AriaRole = "generic"
+const AriaRoleGrid AriaRole = "grid"
+const AriaRoleGridcell AriaRole = "gridcell"
+const AriaRoleGroup AriaRole = "group"
+const AriaRoleHeading AriaRole = "heading"
+const AriaRoleImg AriaRole = "img"
+const AriaRoleInsertion AriaRole = "insertion"
+const AriaRoleLink AriaRole = "link"
+const AriaRoleList AriaRole = "list"
+const AriaRoleListbox AriaRole = "listbox"
+const AriaRoleListitem AriaRole = "listitem"
+const AriaRoleLog AriaRole = "log"
+const AriaRoleMain AriaRole = "main"
+const AriaRoleMarquee AriaRole = "marquee"
+const AriaRoleMath AriaRole = "math"
+const AriaRoleMenu AriaRole = "menu"
+const AriaRoleMenubar AriaRole = "menubar"
+const AriaRoleMenuitem AriaRole = "menuitem"
+const AriaRoleMenuitemcheckbox AriaRole = "menuitemcheckbox"
+const AriaRoleMenuitemradio AriaRole = "menuitemradio"
+const AriaRoleMeter AriaRole = "meter"
+const AriaRoleNavigation AriaRole = "navigation"
+const AriaRoleNone AriaRole = "none"
+const AriaRoleNote AriaRole = "note"
+const AriaRoleOption AriaRole = "option"
+const AriaRoleParagraph AriaRole = "paragraph"
+const AriaRolePresentation AriaRole = "presentation"
+const AriaRoleProgressbar AriaRole = "progressbar"
+const AriaRoleRadio AriaRole = "radio"
+const AriaRoleRadiogroup AriaRole = "radiogroup"
+const AriaRoleRegion AriaRole = "region"
+const AriaRoleRow AriaRole = "row"
+const AriaRoleRowgroup AriaRole = "rowgroup"
+const AriaRoleRowheader AriaRole = "rowheader"
+const AriaRoleScrollbar AriaRole = "scrollbar"
+const AriaRoleSearch AriaRole = "search"
+const AriaRoleSearchbox AriaRole = "searchbox"
+const AriaRoleSeparator AriaRole = "separator"
+const AriaRoleSlider AriaRole = "slider"
+const AriaRoleSpinbutton AriaRole = "spinbutton"
+const AriaRoleStatus AriaRole = "status"
+const AriaRoleStrong AriaRole = "strong"
+const AriaRoleSubscript AriaRole = "subscript"
+const AriaRoleSuperscript AriaRole = "superscript"
+const AriaRoleSwitch AriaRole = "switch"
+const AriaRoleTab AriaRole = "tab"
+const AriaRoleTable AriaRole = "table"
+const AriaRoleTablist AriaRole = "tablist"
+const AriaRoleTabpanel AriaRole = "tabpanel"
+const AriaRoleTerm AriaRole = "term"
+const AriaRoleTextbox AriaRole = "textbox"
+const AriaRoleTime AriaRole = "time"
+const AriaRoleTimer AriaRole = "timer"
+const AriaRoleToolbar AriaRole = "toolbar"
+const AriaRoleTooltip AriaRole = "tooltip"
+const AriaRoleTree AriaRole = "tree"
+const AriaRoleTreegrid AriaRole = "treegrid"
+const AriaRoleTreeitem AriaRole = "treeitem"
+
 type BrowserSessionMetadata struct {
 	// Region corresponds to the JSON schema field "region".
 	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
@@ -553,6 +638,43 @@ type ExtractResult struct {
 
 	// Metadata corresponds to the JSON schema field "metadata".
 	Metadata StagehandResultMetadata `json:"metadata"`
+}
+
+type GetByRoleOptions struct {
+	// Checked corresponds to the JSON schema field "checked".
+	Checked *bool `json:"checked,omitempty,omitzero"`
+
+	// Description corresponds to the JSON schema field "description".
+	Description *TextMatch `json:"description,omitempty,omitzero"`
+
+	// Disabled corresponds to the JSON schema field "disabled".
+	Disabled *bool `json:"disabled,omitempty,omitzero"`
+
+	// Exact corresponds to the JSON schema field "exact".
+	Exact *bool `json:"exact,omitempty,omitzero"`
+
+	// Expanded corresponds to the JSON schema field "expanded".
+	Expanded *bool `json:"expanded,omitempty,omitzero"`
+
+	// IncludeHidden corresponds to the JSON schema field "include_hidden".
+	IncludeHidden *bool `json:"include_hidden,omitempty,omitzero"`
+
+	// Level corresponds to the JSON schema field "level".
+	Level *int `json:"level,omitempty,omitzero"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name *TextMatch `json:"name,omitempty,omitzero"`
+
+	// Pressed corresponds to the JSON schema field "pressed".
+	Pressed *bool `json:"pressed,omitempty,omitzero"`
+
+	// Selected corresponds to the JSON schema field "selected".
+	Selected *bool `json:"selected,omitempty,omitzero"`
+}
+
+type GetByTextOptions struct {
+	// Exact corresponds to the JSON schema field "exact".
+	Exact *bool `json:"exact,omitempty,omitzero"`
 }
 
 type GoogleModelName string
@@ -1198,6 +1320,14 @@ type NavigationServerAddr struct {
 
 	// Port corresponds to the JSON schema field "port".
 	Port int `json:"port"`
+}
+
+type NthQueryStep struct {
+	// Index corresponds to the JSON schema field "index".
+	Index int `json:"index"`
+
+	// Kind corresponds to the JSON schema field "kind".
+	Kind string `json:"kind"`
 }
 
 type ObserveOptions struct {
@@ -1875,6 +2005,14 @@ type PageWebMCPToolsResult struct {
 	Tools []WebMCPToolDescriptor `json:"tools"`
 }
 
+type RegExpPattern struct {
+	// Flags corresponds to the JSON schema field "flags".
+	Flags *string `json:"flags,omitempty,omitzero"`
+
+	// Source corresponds to the JSON schema field "source".
+	Source string `json:"source"`
+}
+
 type ResponseAllHeadersResult struct {
 	// Headers corresponds to the JSON schema field "headers".
 	Headers ResponseAllHeadersResultHeaders `json:"headers"`
@@ -1928,6 +2066,27 @@ type RgbaColor struct {
 	// R corresponds to the JSON schema field "r".
 	R float64 `json:"r"`
 }
+
+type RoleQueryStep struct {
+	// Kind corresponds to the JSON schema field "kind".
+	Kind string `json:"kind"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *GetByRoleOptions `json:"options,omitempty,omitzero"`
+
+	// Role corresponds to the JSON schema field "role".
+	Role AriaRole `json:"role"`
+}
+
+type SelectorQueryStep struct {
+	// Kind corresponds to the JSON schema field "kind".
+	Kind string `json:"kind"`
+
+	// Selector corresponds to the JSON schema field "selector".
+	Selector string `json:"selector"`
+}
+
+type SemanticLocatorQuery []json.RawMessage
 
 type SnapshotResult struct {
 	// FormattedTree corresponds to the JSON schema field "formatted_tree".
@@ -2189,6 +2348,17 @@ type TelemetryTraces struct {
 
 type TelemetryTracesHeaders map[string]string
 
+type TextQueryStep struct {
+	// Exact corresponds to the JSON schema field "exact".
+	Exact *bool `json:"exact,omitempty,omitzero"`
+
+	// Kind corresponds to the JSON schema field "kind".
+	Kind string `json:"kind"`
+
+	// Text corresponds to the JSON schema field "text".
+	Text TextMatch `json:"text"`
+}
+
 type Variables map[string]VariableValue
 
 type WebMCPAnnotation struct {
@@ -2298,6 +2468,9 @@ type generatedModelCatalog struct {
 
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
+
+	// AriaRole corresponds to the JSON schema field "AriaRole".
+	AriaRole *AriaRole `json:"AriaRole,omitempty,omitzero"`
 
 	// BrowserSessionMetadata corresponds to the JSON schema field
 	// "BrowserSessionMetadata".
@@ -2464,6 +2637,12 @@ type generatedModelCatalog struct {
 
 	// ExtractResult corresponds to the JSON schema field "ExtractResult".
 	ExtractResult *ExtractResult `json:"ExtractResult,omitempty,omitzero"`
+
+	// GetByRoleOptions corresponds to the JSON schema field "GetByRoleOptions".
+	GetByRoleOptions *GetByRoleOptions `json:"GetByRoleOptions,omitempty,omitzero"`
+
+	// GetByTextOptions corresponds to the JSON schema field "GetByTextOptions".
+	GetByTextOptions *GetByTextOptions `json:"GetByTextOptions,omitempty,omitzero"`
 
 	// GoogleModelName corresponds to the JSON schema field "GoogleModelName".
 	GoogleModelName *GoogleModelName `json:"GoogleModelName,omitempty,omitzero"`
@@ -2707,6 +2886,9 @@ type generatedModelCatalog struct {
 	// "NavigationServerAddr".
 	NavigationServerAddr *NavigationServerAddr `json:"NavigationServerAddr,omitempty,omitzero"`
 
+	// NthQueryStep corresponds to the JSON schema field "NthQueryStep".
+	NthQueryStep *NthQueryStep `json:"NthQueryStep,omitempty,omitzero"`
+
 	// ObserveOptions corresponds to the JSON schema field "ObserveOptions".
 	ObserveOptions *ObserveOptions `json:"ObserveOptions,omitempty,omitzero"`
 
@@ -2926,6 +3108,12 @@ type generatedModelCatalog struct {
 	// ProxyConfig corresponds to the JSON schema field "ProxyConfig".
 	ProxyConfig *ProxyConfig `json:"ProxyConfig,omitempty,omitzero"`
 
+	// QueryStep corresponds to the JSON schema field "QueryStep".
+	QueryStep json.RawMessage `json:"QueryStep,omitempty,omitzero"`
+
+	// RegExpPattern corresponds to the JSON schema field "RegExpPattern".
+	RegExpPattern *RegExpPattern `json:"RegExpPattern,omitempty,omitzero"`
+
 	// ResponseAllHeadersResult corresponds to the JSON schema field
 	// "ResponseAllHeadersResult".
 	ResponseAllHeadersResult *ResponseAllHeadersResult `json:"ResponseAllHeadersResult,omitempty,omitzero"`
@@ -2954,6 +3142,16 @@ type generatedModelCatalog struct {
 
 	// RgbaColor corresponds to the JSON schema field "RgbaColor".
 	RgbaColor *RgbaColor `json:"RgbaColor,omitempty,omitzero"`
+
+	// RoleQueryStep corresponds to the JSON schema field "RoleQueryStep".
+	RoleQueryStep *RoleQueryStep `json:"RoleQueryStep,omitempty,omitzero"`
+
+	// SelectorQueryStep corresponds to the JSON schema field "SelectorQueryStep".
+	SelectorQueryStep *SelectorQueryStep `json:"SelectorQueryStep,omitempty,omitzero"`
+
+	// SemanticLocatorQuery corresponds to the JSON schema field
+	// "SemanticLocatorQuery".
+	SemanticLocatorQuery SemanticLocatorQuery `json:"SemanticLocatorQuery,omitempty,omitzero"`
 
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
 	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
@@ -3004,6 +3202,12 @@ type generatedModelCatalog struct {
 
 	// TelemetryTraces corresponds to the JSON schema field "TelemetryTraces".
 	TelemetryTraces *TelemetryTraces `json:"TelemetryTraces,omitempty,omitzero"`
+
+	// TextPattern corresponds to the JSON schema field "TextPattern".
+	TextPattern *TextMatch `json:"TextPattern,omitempty,omitzero"`
+
+	// TextQueryStep corresponds to the JSON schema field "TextQueryStep".
+	TextQueryStep *TextQueryStep `json:"TextQueryStep,omitempty,omitzero"`
 
 	// VariablePrimitive corresponds to the JSON schema field "VariablePrimitive".
 	VariablePrimitive *VariablePrimitive `json:"VariablePrimitive,omitempty,omitzero"`

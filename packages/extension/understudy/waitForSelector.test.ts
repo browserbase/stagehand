@@ -7,7 +7,10 @@ import * as deepLocator from "./deepLocator.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { Page } from "./page.js";
 import { Progress } from "./progress.js";
-import { encodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
+import {
+  encodeLocatorQuery,
+  type QueryStep,
+} from "@browserbasehq/stagehand-protocol/locator-query";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

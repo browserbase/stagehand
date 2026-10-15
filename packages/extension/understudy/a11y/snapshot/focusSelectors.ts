@@ -12,7 +12,7 @@ import type {
   Step,
 } from "../../../types/private/snapshot.js";
 import { prefixXPath } from "./xpathUtils.js";
-import { decodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { decodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { IFRAME_STEP_RE, splitSelectorHops } from "../../selectorParser.js";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 import { resolveLocatorTarget } from "../../deepLocator.js";

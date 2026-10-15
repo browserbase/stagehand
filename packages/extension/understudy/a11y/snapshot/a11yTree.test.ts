@@ -5,7 +5,7 @@ import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { a11yForFrame } from "./a11yTree.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
-import { encodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 
 vi.mock("./focusSelectors.js", async (importOriginal) => ({

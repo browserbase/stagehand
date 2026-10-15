@@ -12,7 +12,7 @@ import {
   decodeLocatorQuery,
   encodeLocatorQuery,
   type QueryStep,
-} from "../../../types/private/semanticLocator.js";
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import type { Frame } from "../../frame.js";
 import type { Page } from "../../page.js";
 import { FrameLocator } from "../../frameLocator.js";

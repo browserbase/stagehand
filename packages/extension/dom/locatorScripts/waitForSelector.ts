@@ -9,7 +9,7 @@
 
 import { resolveXPathFirst } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
-import type { QueryStep } from "../../types/private/semanticLocator.js";
+import type { QueryStep } from "@browserbasehq/stagehand-protocol/locator-query";
 import { querySemanticSelector } from "./semanticSelectors.js";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";

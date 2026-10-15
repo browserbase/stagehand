@@ -21,6 +21,9 @@ class ActResultData(TypedDict):
 AnthropicModelName: TypeAlias = str
 
 
+AriaRole: TypeAlias = Literal["alert", "alertdialog", "application", "article", "banner", "blockquote", "button", "caption", "cell", "checkbox", "code", "columnheader", "combobox", "complementary", "contentinfo", "definition", "deletion", "dialog", "directory", "document", "emphasis", "feed", "figure", "form", "generic", "grid", "gridcell", "group", "heading", "img", "insertion", "link", "list", "listbox", "listitem", "log", "main", "marquee", "math", "meter", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio", "navigation", "none", "note", "option", "paragraph", "presentation", "progressbar", "radio", "radiogroup", "region", "row", "rowgroup", "rowheader", "scrollbar", "search", "searchbox", "separator", "slider", "spinbutton", "status", "strong", "subscript", "superscript", "switch", "tab", "table", "tablist", "tabpanel", "term", "textbox", "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem"]
+
+
 class BrowserbaseContext(TypedDict):
     id: str
     persist: NotRequired[bool]
@@ -285,6 +288,10 @@ FieldSchema8: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema8"],
 
 
 FieldSchema9: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema9"], dict[str, "FieldSchema9"]]]
+
+
+class GetByTextOptions(TypedDict):
+    exact: NotRequired[bool]
 
 
 GoogleModelName: TypeAlias = str
@@ -663,6 +670,11 @@ class NavigationServerAddr(TypedDict):
     port: int
 
 
+class NthQueryStep(TypedDict):
+    kind: Literal["nth"]
+    index: int
+
+
 OpenAIModelName: TypeAlias = str
 
 
@@ -1000,6 +1012,11 @@ class BrowserbaseSessionCreateParams(TypedDict):
     user_metadata: NotRequired[dict[str, Any]]
 
 
+class RegExpPattern(TypedDict):
+    source: str
+    flags: NotRequired[str]
+
+
 class ResponseAllHeadersResult(TypedDict):
     headers: dict[str, str]
 
@@ -1048,6 +1065,11 @@ class LocatorHighlightParams(TypedDict):
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorHighlightOptions]
+
+
+class SelectorQueryStep(TypedDict):
+    kind: Literal["selector"]
+    selector: str
 
 
 class SnapshotResult(TypedDict):
@@ -1159,6 +1181,40 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
+
+
+TextPattern: TypeAlias = str | RegExpPattern
+
+
+class GetByRoleOptions(TypedDict):
+    name: NotRequired[TextPattern]
+    description: NotRequired[TextPattern]
+    exact: NotRequired[bool]
+    include_hidden: NotRequired[bool]
+    disabled: NotRequired[bool]
+    expanded: NotRequired[bool]
+    selected: NotRequired[bool]
+    checked: NotRequired[bool]
+    pressed: NotRequired[bool]
+    level: NotRequired[int]
+
+
+class RoleQueryStep(TypedDict):
+    kind: Literal["role"]
+    role: AriaRole
+    options: NotRequired[GetByRoleOptions]
+
+
+class TextQueryStep(TypedDict):
+    kind: Literal["text"]
+    text: TextPattern
+    exact: NotRequired[bool]
+
+
+QueryStep: TypeAlias = SelectorQueryStep | RoleQueryStep | TextQueryStep | NthQueryStep
+
+
+SemanticLocatorQuery: TypeAlias = list[QueryStep]
 
 
 VariablePrimitive: TypeAlias = str | float | bool

@@ -3,6 +3,11 @@ import { z } from "zod/v4";
 import { StagehandMethods, StagehandNotifications } from "../schema-registry.ts";
 import { BrowserbaseSessionCreateParamsSchema, PageEventNameSchema } from "../schemas.ts";
 import {
+  GetByRoleOptionsSchema,
+  GetByTextOptionsSchema,
+  SemanticLocatorQuerySchema,
+} from "../locator-query.ts";
+import {
   JSONRPCErrorResponseSchema,
   JSONRPCNotificationSchema,
   JSONRPCRequestSchema,
@@ -50,6 +55,13 @@ const StagehandProtocolDocumentSchema = z
       .strictObject({
         browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema,
         pageEventName: PageEventNameSchema,
+      })
+      .optional(),
+    locatorBuilderModels: z
+      .strictObject({
+        roleOptions: GetByRoleOptionsSchema,
+        textOptions: GetByTextOptionsSchema,
+        query: SemanticLocatorQuerySchema,
       })
       .optional(),
     jsonrpc: z.strictObject({

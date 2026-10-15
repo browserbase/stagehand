@@ -17,7 +17,7 @@ import { domMapsForSession } from "./domTree.js";
 import * as focusSelectors from "./focusSelectors.js";
 import { resolveCssFocusFrameAndTail } from "./focusSelectors.js";
 import { ownerSession, parentSession } from "./sessions.js";
-import { encodeLocatorQuery } from "../../../types/private/semanticLocator.js";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import { SelectorEvaluationError } from "../../selectorEvaluationError.js";
 import type { Protocol } from "devtools-protocol";
 

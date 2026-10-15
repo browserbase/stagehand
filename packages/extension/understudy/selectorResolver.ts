@@ -4,7 +4,10 @@ import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
-import { decodeLocatorQuery, type QueryStep } from "../types/private/semanticLocator.js";
+import {
+  decodeLocatorQuery,
+  type QueryStep,
+} from "@browserbasehq/stagehand-protocol/locator-query";
 import { splitSelectorHops } from "./selectorParser.js";
 import { SelectorEvaluationError } from "./selectorEvaluationError.js";
 

@@ -1,4 +1,4 @@
-import type { QueryStep, TextPattern } from "../../types/private/semanticLocator.js";
+import type { QueryStep, TextPattern } from "@browserbasehq/stagehand-protocol/locator-query";
 import {
   beginAriaCaches,
   endAriaCaches,
