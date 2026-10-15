@@ -14,13 +14,13 @@ export type CapturedRequest = {
 };
 
 export function createHttpTestServer(
-  handle: (request: CapturedRequest, response: ServerResponse) => void,
+  handle: (request: CapturedRequest, response: ServerResponse) => void | Promise<void>,
 ): Server {
   return createServer((request, response) => {
     void (async () => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      handle(
+      await handle(
         {
           method: request.method,
           url: request.url,
