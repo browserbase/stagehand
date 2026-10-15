@@ -19,6 +19,7 @@ import type {
   SnapshotResult,
   PageTypeParams,
   PageWaitForSelectorParams,
+  PageWaitForFunctionParams,
   PageWaitForTimeoutParams,
 } from "@browserbasehq/stagehand-protocol/types";
 import {
@@ -53,6 +54,7 @@ export type PageReloadOptions = NonNullable<PageReloadParams["options"]>;
 export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
+export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["options"]>;
 
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
@@ -354,6 +356,20 @@ export class Page {
       ...(options ? { options } : {}),
     });
     return result.matched;
+  }
+
+  /** Poll in the page's main world until the expression returns a truthy JSON value. */
+  async waitForFunction<R = unknown, Arg = unknown>(
+    expression: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+    options?: PageWaitForFunctionOptions,
+  ): Promise<R> {
+    const result = await this.rpcClient.send(StagehandMethods.pageWaitForFunction, {
+      pageId: this.pageId,
+      expression: normalizeEvaluationExpression(expression, arg, "page.waitForFunction"),
+      ...(options ? { options } : {}),
+    });
+    return result.value as R;
   }
 
   async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {

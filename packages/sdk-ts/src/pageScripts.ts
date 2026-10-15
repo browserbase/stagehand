@@ -8,10 +8,11 @@ export type InitScriptSource<Arg> =
 export function normalizeEvaluationExpression<R, Arg>(
   expression: string | ((arg: Arg) => R | Promise<R>),
   arg?: Arg,
+  caller = "page.evaluate",
 ): string {
   if (typeof expression === "string") return expression;
 
-  return `(${expression.toString()})(${serializeArgument(arg, "page.evaluate")})`;
+  return `(${expression.toString()})(${serializeArgument(arg, caller)})`;
 }
 
 export async function normalizeInitScriptSource<Arg>(

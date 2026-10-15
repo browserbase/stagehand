@@ -40,6 +40,7 @@ var (
 		"page.go_back":             15 * time.Second,
 		"page.go_forward":          15 * time.Second,
 		"page.wait_for_load_state": 15 * time.Second,
+		"page.wait_for_function":   30 * time.Second,
 		"page.wait_for_selector":   30 * time.Second,
 		"page.pdf":                 30 * time.Second,
 		"page.snapshot":            20 * time.Second,
@@ -302,6 +303,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		"page.screenshot",
 		"page.pdf",
 		"page.snapshot",
+		"page.wait_for_function",
 		"page.wait_for_selector",
 		"page.webmcp_tools",
 		"page.webmcp_invocation_result":
@@ -313,8 +315,11 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 
 	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
-		if (method == "page.pdf" || method == "page.snapshot" || method == "page.wait_for_selector") && durationMilliseconds == 0 {
-			return 0, false
+		if durationMilliseconds == 0 {
+			switch method {
+			case "page.pdf", "page.snapshot", "page.wait_for_function", "page.wait_for_selector":
+				return 0, false
+			}
 		}
 		return rpcResponseTimeoutForDuration(durationMilliseconds), true
 	}

@@ -170,6 +170,7 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.cookies:TypeScript:result.sameSite", "Cookie['sameSite']"],
   ["context.cookies:Python:result.same_site", "Literal['Strict', 'Lax', 'None']"],
   ["page.wait_for_selector:TypeScript:options.state", "PageWaitForSelectorOptions['state']"],
+  ["page.wait_for_function:TypeScript:options.polling", "PageWaitForFunctionOptions['polling']"],
   ["page.screenshot:TypeScript:options.animations", "ScreenshotOptions['animations']"],
   ["page.screenshot:TypeScript:options.caret", "ScreenshotOptions['caret']"],
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],

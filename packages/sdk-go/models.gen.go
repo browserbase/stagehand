@@ -1774,6 +1774,30 @@ type PageVoidResult struct {
 	Ok bool `json:"ok"`
 }
 
+type PageWaitForFunctionOptions struct {
+	// Polling corresponds to the JSON schema field "polling".
+	Polling *FunctionPolling `json:"polling,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *int `json:"timeout,omitempty,omitzero"`
+}
+
+type PageWaitForFunctionParams struct {
+	// Expression corresponds to the JSON schema field "expression".
+	Expression string `json:"expression"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *PageWaitForFunctionOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PageWaitForFunctionResult struct {
+	// Value corresponds to the JSON schema field "value".
+	Value json.RawMessage `json:"value"`
+}
+
 type PageWaitForLoadStateParams struct {
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -2883,6 +2907,18 @@ type generatedModelCatalog struct {
 	// PageVoidResult corresponds to the JSON schema field "PageVoidResult".
 	PageVoidResult *PageVoidResult `json:"PageVoidResult,omitempty,omitzero"`
 
+	// PageWaitForFunctionOptions corresponds to the JSON schema field
+	// "PageWaitForFunctionOptions".
+	PageWaitForFunctionOptions *PageWaitForFunctionOptions `json:"PageWaitForFunctionOptions,omitempty,omitzero"`
+
+	// PageWaitForFunctionParams corresponds to the JSON schema field
+	// "PageWaitForFunctionParams".
+	PageWaitForFunctionParams *PageWaitForFunctionParams `json:"PageWaitForFunctionParams,omitempty,omitzero"`
+
+	// PageWaitForFunctionResult corresponds to the JSON schema field
+	// "PageWaitForFunctionResult".
+	PageWaitForFunctionResult *PageWaitForFunctionResult `json:"PageWaitForFunctionResult,omitempty,omitzero"`
+
 	// PageWaitForLoadStateParams corresponds to the JSON schema field
 	// "PageWaitForLoadStateParams".
 	PageWaitForLoadStateParams *PageWaitForLoadStateParams `json:"PageWaitForLoadStateParams,omitempty,omitzero"`
@@ -3061,6 +3097,9 @@ type generatedModelCatalog struct {
 
 	// Schema12 corresponds to the JSON schema field "__schema12".
 	Schema12 json.RawMessage `json:"__schema12,omitempty,omitzero"`
+
+	// Schema13 corresponds to the JSON schema field "__schema13".
+	Schema13 json.RawMessage `json:"__schema13,omitempty,omitzero"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
 	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`

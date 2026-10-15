@@ -195,6 +195,8 @@ import type {
   PageWaitForLoadStateParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
+  PageWaitForFunctionParamsSchema,
+  PageWaitForFunctionResultSchema,
   PageWaitForTimeoutParamsSchema,
   PageWebMCPCancelInvocationParamsSchema,
   PageWebMCPInvocationResultParamsSchema,
@@ -398,6 +400,7 @@ export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParams
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
 export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
 export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;
+export type PageWaitForFunctionParams = z.infer<typeof PageWaitForFunctionParamsSchema>;
 export type PageWebMCPToolsParams = z.infer<typeof PageWebMCPToolsParamsSchema>;
 export type PageWebMCPToolsResult = z.infer<typeof PageWebMCPToolsResultSchema>;
 export type PageWebMCPInvokeToolParams = z.infer<typeof PageWebMCPInvokeToolParamsSchema>;
@@ -438,6 +441,7 @@ export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
 export type PagePDFResult = z.infer<typeof PagePDFResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
+export type PageWaitForFunctionResult = z.infer<typeof PageWaitForFunctionResultSchema>;
 export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
 export type LocatorHoverResult = z.infer<typeof LocatorHoverResultSchema>;

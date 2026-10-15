@@ -656,6 +656,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.wait_for_function": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWaitForFunctionParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageWaitForFunctionResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.webmcp_tools": {
           "type": "object",
           "properties": {
@@ -1059,6 +1072,7 @@
         "page.wait_for_load_state",
         "page.wait_for_timeout",
         "page.wait_for_selector",
+        "page.wait_for_function",
         "page.webmcp_tools",
         "page.webmcp_invoke_tool",
         "page.webmcp_invocation_result",
@@ -4073,6 +4087,87 @@
       "required": ["matched"],
       "additionalProperties": false
     },
+    "PageWaitForFunctionParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PageWaitForFunctionOptions"
+        }
+      },
+      "required": ["page_id", "expression"],
+      "additionalProperties": false
+    },
+    "PageWaitForFunctionOptions": {
+      "type": "object",
+      "properties": {
+        "polling": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "raf"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647
+            }
+          ]
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWaitForFunctionResult": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/__schema10"
+        }
+      },
+      "required": ["value"],
+      "additionalProperties": false
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema10"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema10"
+          }
+        }
+      ]
+    },
     "PageWebMCPToolsParams": {
       "type": "object",
       "properties": {
@@ -4146,9 +4241,9 @@
       "additionalProperties": false
     },
     "WebMCPJsonValue": {
-      "$ref": "#/$defs/__schema10"
+      "$ref": "#/$defs/__schema11"
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -4165,7 +4260,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -4174,7 +4269,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]
@@ -5018,10 +5113,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema11"
+        "$ref": "#/$defs/__schema12"
       }
     },
-    "__schema11": {
+    "__schema12": {
       "anyOf": [
         {
           "type": "string"
@@ -5038,7 +5133,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         },
         {
@@ -5047,7 +5142,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         }
       ]
@@ -5098,10 +5193,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema12"
+        "$ref": "#/$defs/__schema13"
       }
     },
-    "__schema12": {
+    "__schema13": {
       "anyOf": [
         {
           "type": "string"
@@ -5118,7 +5213,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         },
         {
@@ -5127,7 +5222,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         }
       ]
@@ -6827,6 +6922,33 @@
             },
             "method": {
               "type": "string",
+              "const": "page.wait_for_function"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWaitForFunctionParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.webmcp_tools"
             },
             "params": {
@@ -7617,7 +7739,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema14"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -7626,7 +7748,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema13": {
+    "__schema14": {
       "anyOf": [
         {
           "type": "string"
@@ -7643,7 +7765,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         },
         {
@@ -7652,7 +7774,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         }
       ]
@@ -7686,13 +7808,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema15"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema15": {
       "anyOf": [
         {
           "type": "string"
@@ -7709,7 +7831,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         },
         {
@@ -7718,7 +7840,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         }
       ]

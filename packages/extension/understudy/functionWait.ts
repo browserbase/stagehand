@@ -1,14 +1,10 @@
 import type { Protocol } from "devtools-protocol";
+import type { PageWaitForFunctionParams } from "@browserbasehq/stagehand-protocol/types";
 import { browserWait, BrowserWaitError } from "./browserWait.js";
 import type { Frame } from "./frame.js";
 import { runWithProgress } from "./progress.js";
 
-export type FunctionWaitOptions = {
-  /** Browser animation frames by default, or a positive interval in milliseconds. */
-  polling?: "raf" | number;
-  /** Milliseconds for the whole wait. Zero disables the deadline. */
-  timeout?: number;
-};
+export type FunctionWaitOptions = NonNullable<PageWaitForFunctionParams["options"]>;
 
 /** Runs in the page's main world; keep this function self-contained. */
 export function createFunctionWait(predicate: () => unknown, polling: "raf" | number) {

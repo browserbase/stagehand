@@ -1094,6 +1094,34 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("normalizes function waits and preserves JSON result keys", async () => {
+    const client = new FakeProtocolClient();
+    const value = { snake_key: { camelKey: true } };
+    client.queueResponse(StagehandMethods.pageWaitForFunction, { value });
+    client.queueResponse(StagehandMethods.pageWaitForFunction, { value: "ready" });
+    const page = new Page(client, { pageId: "page-1" });
+    const predicate = (arg: { value: number }) => arg.value;
+    await expect(
+      page.waitForFunction(predicate, { value: 3 }, { polling: 25, timeout: 0 }),
+    ).resolves.toEqual(value);
+    await expect(page.waitForFunction("window.ready")).resolves.toBe("ready");
+    expect(client.calls).toEqual([
+      requestCall(StagehandMethods.pageWaitForFunction, {
+        pageId: "page-1",
+        expression: `(${predicate.toString()})({"value":3})`,
+        options: { polling: 25, timeout: 0 },
+      }),
+      requestCall(StagehandMethods.pageWaitForFunction, {
+        pageId: "page-1",
+        expression: "window.ready",
+      }),
+    ]);
+    await expect(page.waitForFunction((arg) => arg, 1n)).rejects.toThrow(
+      "page.waitForFunction: 'arg' must be JSON-serializable",
+    );
+    expect(client.calls).toHaveLength(2);
+  });
+
   it("returns screenshot bytes, writes paths locally, and serializes masks", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
