@@ -4,6 +4,7 @@ import asyncio
 import base64
 import builtins
 import inspect
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, TypeVar, cast, overload
@@ -11,6 +12,7 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
+from ._generated.input_types import AriaRole as AriaRoleName
 from ._generated.input_types import (
     PageDragAndDropRoutePoint,
     PageEventName,
@@ -20,6 +22,7 @@ from ._generated.input_types import (
 )
 from ._generated.models import (
     Animations,
+    AriaRole,
     Caret,
     LoadState,
     MouseButton,
@@ -86,6 +89,7 @@ from ._generated.models import (
 from .locator import Locator
 from .response import Response
 from .rpc_client import RPCClient
+from .semantic_locator import encode_step, role_step, text_step
 from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
@@ -717,3 +721,39 @@ class Page:
 
     def locator(self, selector: str) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)
+
+    def get_by_role(
+        self,
+        role: AriaRole | AriaRoleName,
+        *,
+        name: str | re.Pattern[str] | None = None,
+        description: str | re.Pattern[str] | None = None,
+        exact: bool | None = None,
+        include_hidden: bool | None = None,
+        disabled: bool | None = None,
+        expanded: bool | None = None,
+        selected: bool | None = None,
+        checked: bool | None = None,
+        pressed: bool | None = None,
+        level: int | None = None,
+    ) -> Locator:
+        return self.locator(
+            encode_step(
+                role_step(
+                    role,
+                    name=name,
+                    description=description,
+                    exact=exact,
+                    include_hidden=include_hidden,
+                    disabled=disabled,
+                    expanded=expanded,
+                    selected=selected,
+                    checked=checked,
+                    pressed=pressed,
+                    level=level,
+                )
+            )
+        )
+
+    def get_by_text(self, text: str | re.Pattern[str], *, exact: bool | None = None) -> Locator:
+        return self.locator(encode_step(text_step(text, exact=exact)))

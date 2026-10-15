@@ -23,6 +23,8 @@ Role/text builders search the main document by default. To search within an ifra
 - Role locators exclude elements hidden from the accessibility tree unless explicitly included. Text locators do not filter by visibility. Matching filters do not change an action's visibility or readiness checks.
 - Chained searches preserve earlier index selections. Selecting the second container before chaining searches inside that container; selecting the second match after chaining selects from the resulting matches. Indices are zero-based and non-negative.
 
+Python compiled patterns support `IGNORECASE`, `MULTILINE`, and `DOTALL`; the implicit `UNICODE` flag is ignored, and other flags are rejected. Use JavaScript-compatible pattern syntax.
+
 The 20-second locator-operation budget begins when an action or read runs; configure that operation's timeout as shown below.
 
 <Tabs>
@@ -1037,6 +1039,101 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
 
 <ResponseField name="result" type="None">
   Resolves after the files are attached.
+</ResponseField>
+
+## locator()
+
+Append a CSS or XPath search to this locator. Earlier first/nth selections stay in place; a later selection applies to the results of this search. For text matching, use get_by_text instead of a nested text= selector. Put iframe hops in the initial page selector, as described above.
+
+```python
+input = locator.locator("input[name=email]")
+await input.fill("amel@example.com")
+```
+
+<ParamField path="selector" type="str">
+  The CSS or XPath selector to evaluate within the current scope.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A lazy locator; no browser request is sent until an action or query uses it.
+</ResponseField>
+
+## get_by_role()
+
+Create a locator for descendants with an implicit or explicit ARIA role. The current locator and any earlier index selection define the search scope. See the [matching rules](/v4/reference/locator#matching-rules).
+
+```python
+button = locator.get_by_role("button", name="Save", exact=True)
+await button.click()
+```
+
+<ParamField path="role" type="AriaRole | AriaRoleName">
+  An AriaRole enum member or a supported AriaRoleName string literal, such as "button", "heading", or "checkbox". Use the SDK's AriaRole type for the complete set.
+</ParamField>
+
+<ParamField path="name" type="str | re.Pattern[str] | None" optional>
+  Accessible-name filter, not just visible text. Omit it to match any name. Regular expressions use their own flags.
+</ParamField>
+
+<ParamField path="description" type="str | re.Pattern[str] | None" optional>
+  Accessible-description filter, distinct from the accessible name. String matching follows the same normalization and exact rules as name; regular expressions use their own flags. Omitted by default.
+</ParamField>
+
+<ParamField path="exact" type="bool | None" optional>
+  For a string name or description, require a case-sensitive match of the whole normalized value. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ParamField path="include_hidden" type="bool | None" optional>
+  Include elements hidden from the accessibility tree. Defaults to false. This does not make hidden elements actionable.
+</ParamField>
+
+<ParamField path="checked" type="bool | None" optional>
+  Filter by checked state. Omit to leave this state unrestricted; only supported for roles with a checked state.
+</ParamField>
+
+<ParamField path="pressed" type="bool | None" optional>
+  Filter by pressed state. Omit to leave this state unrestricted; only supported for roles with a pressed state.
+</ParamField>
+
+<ParamField path="disabled" type="bool | None" optional>
+  Filter by disabled state, including inherited disabled state. Omit to leave this state unrestricted.
+</ParamField>
+
+<ParamField path="expanded" type="bool | None" optional>
+  Filter by expanded state. Omit to leave this state unrestricted; only supported for roles with an expanded state.
+</ParamField>
+
+<ParamField path="selected" type="bool | None" optional>
+  Filter by selected state. Omit to leave this state unrestricted; only supported for roles with a selected state.
+</ParamField>
+
+<ParamField path="level" type="int | None" optional>
+  Filter by a positive integer ARIA level, such as a heading level. Only supported for roles with a level; omitted by default.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A lazy locator; no browser request is sent until an action or query uses it.
+</ResponseField>
+
+## get_by_text()
+
+Match text within the current locator's scope. The scope element itself may also match. Strings use normalized text; regular expressions test the full unnormalized text. Text matching does not exclude hidden elements. See [matching rules](/v4/reference/locator#matching-rules).
+
+```python
+message = locator.get_by_text("Order complete", exact=True)
+print(await message.inner_text())
+```
+
+<ParamField path="text" type="str | re.Pattern[str]">
+  A literal string or compiled pattern. Patterns run in the browser's JavaScript engine: use JavaScript-compatible syntax. IGNORECASE, MULTILINE, and DOTALL are supported; the implicit UNICODE flag is ignored, and other flags are rejected.
+</ParamField>
+
+<ParamField path="exact" type="bool | None" optional>
+  For a string, require a case-sensitive match of the whole normalized text. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A lazy locator; no browser request is sent until an action or query uses it.
 </ResponseField>
 
 ## first()
