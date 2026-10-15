@@ -25,6 +25,7 @@ type requestHandler struct {
 // protocolClient is deliberately private. The public SDK exposes generated
 // protocol values and domain wrappers, not its JSON-RPC transport.
 type protocolClient interface {
+	registerBrowserbaseTransport(*browserbaseConnection) func()
 	call(ctx context.Context, method string, params any, result any) error
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()
