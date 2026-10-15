@@ -336,7 +336,7 @@ try {
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
-  Resolves after the keydown is sent.
+  Resolves after Stagehand sends the keydown event.
 </ResponseField>
 
 ## keyUp()
@@ -353,7 +353,7 @@ await page.keyUp("Shift");
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
-  Resolves after the keyup is sent.
+  Resolves after Stagehand sends the keyup event.
 </ResponseField>
 
 ## evaluate()
@@ -1217,7 +1217,7 @@ finally:
 </ParamField>
 
 <ResponseField name="result" type="None">
-  Resolves after the keydown is sent.
+  Resolves after Stagehand sends the keydown event.
 </ResponseField>
 
 ## key_up()
@@ -1234,7 +1234,7 @@ await page.key_up("Shift")
 </ParamField>
 
 <ResponseField name="result" type="None">
-  Resolves after the keyup is sent.
+  Resolves after Stagehand sends the keyup event.
 </ResponseField>
 
 ## evaluate()
@@ -2126,7 +2126,7 @@ if releaseErr != nil {
 </ParamField>
 
 <ResponseField name="result" type="error">
-  Returns `nil` after the keydown is sent.
+  Returns `nil` after Stagehand sends the keydown event.
 </ResponseField>
 
 ## KeyUp()
@@ -2145,7 +2145,7 @@ if err := page.KeyUp(ctx, "Shift"); err != nil {
 </ParamField>
 
 <ResponseField name="result" type="error">
-  Returns `nil` after the keyup is sent.
+  Returns `nil` after Stagehand sends the keyup event.
 </ResponseField>
 
 ## Evaluate()

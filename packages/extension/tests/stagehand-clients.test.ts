@@ -1949,10 +1949,12 @@ describe("Stagehand worker clients", () => {
   it.each([
     ["page.key_down", "keyDownCalls"],
     ["page.key_up", "keyUpCalls"],
-  ] as const)("routes %s to the requested page", async (method, calls) => {
-    const firstPage = new FakeUnderstudyRuntimePage("page-a", "https://example.test/first");
+  ] as const)("routes %s to the requested non-active page", async (method, calls) => {
+    const activePage = new FakeUnderstudyRuntimePage("page-a", "https://example.test/first");
     const targetPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/second");
-    const handle = await createConfiguredHandler(new FakeBrowserSession([firstPage, targetPage]));
+    const context = new FakeBrowserSession([targetPage, activePage]);
+    const handle = await createConfiguredHandler(context);
+    expect(await context.activePage()).toBe(activePage);
 
     await expect(
       handle({
@@ -1964,7 +1966,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
 
     expect(targetPage[calls]).toStrictEqual(["Shift"]);
-    expect(firstPage[calls]).toStrictEqual([]);
+    expect(activePage[calls]).toStrictEqual([]);
   });
 
   it("routes page evaluation and init scripts with JSON-safe results", async () => {
