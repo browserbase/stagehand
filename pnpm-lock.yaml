@@ -472,6 +472,9 @@ importers:
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 0.24.0
+      playwright-semantic-oracle:
+        specifier: npm:playwright-core@1.64.1
+        version: playwright-core@1.64.1
       smol-toml:
         specifier: 'catalog:'
         version: 1.7.1
@@ -7742,6 +7745,11 @@ packages:
 
   playwright-core@1.64.0-alpha-1789764292000:
     resolution: {integrity: sha512-ZgRaybFv4rRy7QMGnYprEGFdNJnvapNqcaER2w96bDQA+40BWIle1el1Yh9KHD3E6XYmieMB+r+UxFTCauTGGQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -16825,6 +16833,8 @@ snapshots:
   playwright-core@1.56.1: {}
 
   playwright-core@1.64.0-alpha-1789764292000: {}
+
+  playwright-core@1.64.1: {}
 
   playwright@1.56.1:
     dependencies:

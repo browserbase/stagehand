@@ -51,6 +51,7 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
+    "playwright-semantic-oracle": "npm:playwright-core@1.64.1",
     "smol-toml": "catalog:",
     "tsx": "catalog:",
     "turbo": "^2.8.10",
