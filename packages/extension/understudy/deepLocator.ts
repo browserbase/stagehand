@@ -10,8 +10,6 @@ import { planDeepXPathTarget, planLocatorTarget, type LocatorTargetPlan } from "
 export type ResolvedLocatorTarget = {
   frame: Frame;
   selector: string;
-  /** XPath of the crossed iframe chain, when the input provides it. */
-  xpathPrefix?: string;
 };
 
 /** Build a Locator scoped to the correct frame for a deep XPath crossing iframes. */
@@ -187,6 +185,5 @@ async function resolveTargetPlan(
   return {
     frame: targetFrame,
     selector: plan.finalSelector,
-    ...(plan.xpathPrefix ? { xpathPrefix: plan.xpathPrefix } : {}),
   };
 }
