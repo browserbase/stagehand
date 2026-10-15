@@ -237,9 +237,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	}) {
 		t.Fatalf("client info = %#v", initParams.ClientInfo)
 	}
-	if initParams.APIURL != nil {
-		t.Fatalf("worker API URL = %#v, want nil", initParams.APIURL)
-	}
+	assertInitOmitsBrowserbaseOptions(t, initParams)
 	if initParams.Telemetry != nil {
 		t.Fatalf("telemetry = %#v, want nil", initParams.Telemetry)
 	}
@@ -486,7 +484,8 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
 	}
-	if params.APIKey != nil || params.APIURL != nil || params.Browserbase == nil || *params.Browserbase != "client" {
+	assertInitOmitsBrowserbaseOptions(t, params)
+	if params.Browserbase == nil || *params.Browserbase != "client" {
 		t.Fatalf("worker connection fields = %#v", params)
 	}
 	if params.Browser == nil || params.Browser.SessionID != "session-1" || params.Browser.Region == nil || *params.Browser.Region != region {
@@ -528,8 +527,9 @@ func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	params := rpc.calls[0].params.(StagehandInitParams)
-	if params.Browser != nil || params.APIKey != nil || params.APIURL != nil || params.Browserbase != nil {
-		t.Fatalf("worker metadata = %#v %#v", params.Browser, params.APIKey)
+	assertInitOmitsBrowserbaseOptions(t, params)
+	if params.Browser != nil || params.Browserbase != nil {
+		t.Fatalf("worker metadata = %#v", params)
 	}
 }
 
@@ -780,4 +780,21 @@ func TestCreateBoundsInitializationAndFailsClosedOnCancellation(t *testing.T) {
 			t.Fatal("malformed success response left Browser reusable")
 		}
 	})
+}
+
+func assertInitOmitsBrowserbaseOptions(t *testing.T, params StagehandInitParams) {
+	t.Helper()
+	data, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(data, &wire); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"api_key", "api_url", "apiKey", "apiUrl"} {
+		if _, exists := wire[field]; exists {
+			t.Fatalf("unexpected init option %s: %s", field, data)
+		}
+	}
 }
