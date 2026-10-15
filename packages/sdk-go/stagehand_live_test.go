@@ -48,6 +48,7 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	assertNavigationResponse(t, ctx, client, fixture.URL, fixtureBody)
+	t.Run("semantic locators", func(t *testing.T) { assertSemanticLocators(t, ctx, client) })
 	assertLocatorTimeouts(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with local browser error = %v", err)
@@ -59,6 +60,75 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 		t.Fatalf("Browser.Close() with local browser error = %v", err)
 	}
 	assertExtensionDirectoryRemoved(t, extensionDir)
+}
+
+func assertSemanticLocators(t *testing.T, ctx context.Context, client *Stagehand) {
+	t.Helper()
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(`<!doctype html>
+<section role="group">
+  <button aria-label="Publish draft" aria-describedby="preview" onclick="this.parentElement.querySelector('.status').textContent='Published >> ✓'">Publish</button>
+  <p id="preview" hidden>Publish to preview</p><p class="status">Not published</p>
+</section>
+<section role="group">
+  <button aria-label="Publish draft" aria-describedby="production" onclick="this.parentElement.querySelector('.status').textContent='Published >> ✓'">Publish</button>
+  <p id="production" hidden>Publish to production</p><p class="status">Not published</p>
+</section>`))
+	}))
+	defer fixture.Close()
+	browserContext, err := client.Browser().Context()
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil || page == nil {
+		t.Fatalf("ActivePage() = %v, %v", page, err)
+	}
+	if _, err := page.Goto(ctx, fixture.URL, nil); err != nil {
+		t.Fatal(err)
+	}
+	groups, err := page.GetByRole(AriaRoleGroup, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := groups.Nth(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := RegexText(`^publish\s+draft$`, "i")
+	// Lookbehind deliberately exercises ECMAScript rather than Go RE2 syntax.
+	description := RegexText(`(?<=to )production$`, "")
+	button, err := group.GetByRole(AriaRoleButton, &GetByRoleOptions{Name: &name, Description: &description})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := button.Click(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	status, err := group.Locator(".status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, err := status.InnerText(ctx); err != nil || text != "Published >> ✓" {
+		t.Fatalf("selected group's status = %q, %v", text, err)
+	}
+	for _, pattern := range []TextMatch{LiteralText("Published >> ✓"), RegexText(`^Published\s+>>\s+✓$`, "")} {
+		text, err := page.GetByText(pattern, &GetByTextOptions{Exact: new(true)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count, err := text.Count(ctx); err != nil || count != 1 {
+			t.Fatalf("published text count = %d, %v", count, err)
+		}
+	}
+	unchanged, err := groups.First().GetByText(LiteralText("Not published"), &GetByTextOptions{Exact: new(true)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count, err := unchanged.Count(ctx); err != nil || count != 1 {
+		t.Fatalf("first group was affected by second group's click: count = %d, %v", count, err)
+	}
 }
 
 func assertLocatorTimeouts(t *testing.T, ctx context.Context, client *Stagehand) {

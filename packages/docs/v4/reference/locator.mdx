@@ -4,8 +4,6 @@ description: "Target elements and perform focused DOM interactions"
 icon: "crosshairs"
 ---
 
-Role and text locator builders are available in the TypeScript and Python SDKs.
-
 Create a `Locator` from a page selector, role, or text, then reuse it for element interactions and state queries. Builders are synchronous and lazy: they record a query without contacting the browser. Each later action or read resolves that query against the current DOM.
 
 Existing CSS, XPath, and `text=` selector entry points keep their existing behavior, including closed-shadow-root support. Role and text searches cross open shadow boundaries only.
@@ -25,7 +23,7 @@ Role/text builders search the main document by default. To search within an ifra
 - Role locators exclude elements hidden from the accessibility tree unless explicitly included. Text locators do not filter by visibility. Matching filters do not change an action's visibility or readiness checks.
 - Chained searches preserve earlier index selections. Selecting the second container before chaining searches inside that container; selecting the second match after chaining selects from the resulting matches. Indices are zero-based and non-negative.
 
-The Python SDK supports `IGNORECASE`, `MULTILINE`, and `DOTALL` in compiled patterns, ignores the implicit `UNICODE` flag, and rejects other flags. Use JavaScript-compatible pattern syntax.
+The Python SDK supports `IGNORECASE`, `MULTILINE`, and `DOTALL` in compiled patterns, ignores the implicit `UNICODE` flag, and rejects other flags. Use JavaScript-compatible pattern syntax. In Go, use `LiteralText(value)` or `RegexText(source, flags)`, not a Go `regexp` object.
 
 The 20-second locator-operation budget begins when an action or read runs; configure that operation's timeout as shown below.
 
@@ -1720,6 +1718,127 @@ if err != nil {
 
 <ResponseField name="result" type="error">
   Returns `nil` after the files are attached.
+</ResponseField>
+
+## Locator()
+
+Append a CSS or XPath search to this locator. Earlier first/nth selections stay in place; a later selection applies to the results of this search. For text matching, use GetByText instead of a nested text= selector. Put iframe hops in the initial page selector, as described above.
+
+```go
+input, err := locator.Locator("input[name=email]")
+if err != nil {
+    return err
+}
+if err := input.Fill(ctx, "amel@example.com"); err != nil {
+    return err
+}
+```
+
+<ParamField path="selector" type="string">
+  The CSS or XPath selector to evaluate within the current scope.
+</ParamField>
+
+<ResponseField name="result" type="(*PageLocator, error)">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
+## GetByRole()
+
+Create a locator for descendants with an implicit or explicit ARIA role. The current locator and any earlier index selection define the search scope. See the [matching rules](/v4/reference/locator#matching-rules).
+
+```go
+name := stagehand.LiteralText("Save")
+button, err := locator.GetByRole(stagehand.AriaRoleButton, &stagehand.GetByRoleOptions{Name: &name})
+if err != nil {
+    return err
+}
+if err := button.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="role" type="AriaRole">
+  A supported ARIA role, such as "button", "heading", or "checkbox". Use the SDK's AriaRole type for the complete set.
+</ParamField>
+
+<ParamField path="options" type="*GetByRoleOptions" optional>
+  Optional name, description, and state filters. Unspecified states are not filtered.
+
+<ParamField path="options.Name" type="*TextMatch" optional>
+  Accessible-name filter, not just visible text. Omit it to match any name. Regular expressions use their own flags.
+</ParamField>
+
+<ParamField path="options.Description" type="*TextMatch" optional>
+  Accessible-description filter, distinct from the accessible name. String matching follows the same normalization and exact rules as name; regular expressions use their own flags. Omitted by default.
+</ParamField>
+
+<ParamField path="options.Exact" type="*bool" optional>
+  For a string name or description, require a case-sensitive match of the whole normalized value. Defaults to false; ignored for a regular expression.
+</ParamField>
+
+<ParamField path="options.IncludeHidden" type="*bool" optional>
+  Include elements hidden from the accessibility tree. Defaults to false. This does not make hidden elements actionable.
+</ParamField>
+
+<ParamField path="options.Checked" type="*bool" optional>
+  Filter by checked state. Omit to leave this state unrestricted; only supported for roles with a checked state.
+</ParamField>
+
+<ParamField path="options.Pressed" type="*bool" optional>
+  Filter by pressed state. Omit to leave this state unrestricted; only supported for roles with a pressed state.
+</ParamField>
+
+<ParamField path="options.Disabled" type="*bool" optional>
+  Filter by disabled state, including inherited disabled state. Omit to leave this state unrestricted.
+</ParamField>
+
+<ParamField path="options.Expanded" type="*bool" optional>
+  Filter by expanded state. Omit to leave this state unrestricted; only supported for roles with an expanded state.
+</ParamField>
+
+<ParamField path="options.Selected" type="*bool" optional>
+  Filter by selected state. Omit to leave this state unrestricted; only supported for roles with a selected state.
+</ParamField>
+
+<ParamField path="options.Level" type="*int" optional>
+  Filter by a positive integer ARIA level, such as a heading level. Only supported for roles with a level; omitted by default.
+</ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*PageLocator, error)">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
+</ResponseField>
+
+## GetByText()
+
+Match text within the current locator's scope. The scope element itself may also match. Strings use normalized text; regular expressions test the full unnormalized text. Text matching does not exclude hidden elements. See [matching rules](/v4/reference/locator#matching-rules).
+
+```go
+message, err := locator.GetByText(stagehand.LiteralText("Order complete"), nil)
+if err != nil {
+    return err
+}
+text, err := message.InnerText(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(text)
+```
+
+<ParamField path="text" type="TextMatch">
+  Use stagehand.LiteralText(value) for a string, or stagehand.RegexText(source, flags) for a JavaScript regular expression. This does not use Go's regexp syntax.
+</ParamField>
+
+<ParamField path="options" type="*GetByTextOptions" optional>
+  String-matching options.
+
+<ParamField path="options.Exact" type="*bool" optional>
+  For a string, require a case-sensitive match of the whole normalized text. Defaults to false; ignored for a regular expression.
+</ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*PageLocator, error)">
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## First()
