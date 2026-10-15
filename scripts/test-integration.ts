@@ -44,6 +44,7 @@ export const integrationTestGroups = {
     "locatorCount",
     "locatorNth",
     "locatorXPathTextPredicates",
+    "semanticSelectors",
     "textSelectorInnermost",
   ],
   "local/locators-write": [

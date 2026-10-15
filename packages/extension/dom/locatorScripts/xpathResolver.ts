@@ -29,52 +29,52 @@ export function resolveXPathAtIndex(
   options?: XPathResolveOptions,
 ): Element | null {
   if (!Number.isFinite(index) || index < 0) return null;
-  const xp = normalizeXPath(rawXp);
-  if (!xp) return null;
-
+  const matches = evaluateXPathMatches(rawXp, options);
   const targetIndex = Math.floor(index);
-  const pierceShadow = options?.pierceShadow !== false;
-  const shadowCtx = pierceShadow ? getShadowContext() : null;
-
-  if (!pierceShadow) {
-    return resolveNativeAtIndexWithError(xp, targetIndex).value;
-  }
-
-  if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeAtIndexWithError(xp, targetIndex);
-    if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
-    return composed[targetIndex] ?? null;
-  }
-
-  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
-  if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
-
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return composed[targetIndex] ?? null;
+  if (Array.isArray(matches)) return matches[targetIndex] ?? null;
+  return targetIndex < matches.snapshotLength
+    ? (matches.snapshotItem(targetIndex) as Element | null)
+    : null;
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
+  const matches = evaluateXPathMatches(rawXp, options);
+  return Array.isArray(matches) ? matches.length : matches.snapshotLength;
+}
+
+export function queryXPathMatches(rawXp: string, options?: XPathResolveOptions): Element[] {
+  const matches = evaluateXPathMatches(rawXp, options);
+  if (Array.isArray(matches)) return matches;
+
+  const elements: Element[] = [];
+  for (let index = 0; index < matches.snapshotLength; index++) {
+    const node = matches.snapshotItem(index);
+    if (node instanceof Element) elements.push(node);
+  }
+  return elements;
+}
+
+/** Preserve the canonical match order without materializing native snapshots for index/count. */
+function evaluateXPathMatches(
+  rawXp: string,
+  options?: XPathResolveOptions,
+): XPathResult | Element[] {
   const xp = normalizeXPath(rawXp);
-  if (!xp) return 0;
+  if (!xp) return [];
 
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
-  if (!pierceShadow) {
-    return resolveNativeCountWithError(xp).count;
-  }
-
   if (!shadowCtx?.hasShadow) {
-    const count = resolveNativeCountWithError(xp);
-    if (!count.error) return count.count;
-    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot).length;
+    const native = evaluateNativeXPath(xp);
+    if (!pierceShadow || native) return native ?? [];
+    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
   }
 
-  const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
-  if (shadowHopCount > 0) return shadowHopCount;
+  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
+  if (shadowHopMatches.length > 0) return shadowHopMatches;
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
+  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
 }
 
 export function resolveXPathComposedMatches(
@@ -256,41 +256,10 @@ function composedDescendants(
   return out;
 }
 
-function resolveNativeAtIndexWithError(
-  xp: string,
-  index: number,
-): { value: Element | null; error: boolean } {
+function evaluateNativeXPath(xp: string): XPathResult | null {
   try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return {
-      value: snapshot.snapshotItem(index) as Element | null,
-      error: false,
-    };
+    return document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
   } catch {
-    return { value: null, error: true };
-  }
-}
-
-function resolveNativeCountWithError(xp: string): {
-  count: number;
-  error: boolean;
-} {
-  try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return { count: snapshot.snapshotLength, error: false };
-  } catch {
-    return { count: 0, error: true };
+    return null;
   }
 }
