@@ -518,6 +518,31 @@ await page.waitForLoadState("networkidle", 10_000);
   Resolves after the operation completes.
 </ResponseField>
 
+## waitForURL()
+
+`waitForURL` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `waitForURL` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
+
+```typescript
+await page.waitForURL("**/checkout/success", { timeout: 10_000 });
+```
+
+<ParamField path="url" type="string">
+  An exact full URL or a full-URL glob.
+</ParamField>
+
+<ParamField path="options" type="PageWaitForURLOptions" optional>
+  <ParamField path="options.waitUntil" type="string" optional>
+    Lifecycle state to reach after matching the URL: `"load"` (default) or `"domcontentloaded"`.
+  </ParamField>
+  <ParamField path="options.timeout" type="number" optional>
+    Total wait budget in milliseconds. Defaults to 30,000; `0` disables the deadline. Closing the page still rejects the wait.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves when both the URL and requested load state match.
+</ResponseField>
+
 ## waitForTimeout()
 
 Wait for a fixed number of milliseconds.
@@ -1347,6 +1372,30 @@ await page.wait_for_load_state("networkidle", timeout=10_000)
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_url()
+
+`wait_for_url` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `wait_for_url` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
+
+```python
+await page.wait_for_url("**/checkout/success", timeout=10_000)
+```
+
+<ParamField path="url" type="str">
+  An exact full URL or a full-URL glob.
+</ParamField>
+
+<ParamField path="wait_until" type="Literal['load', 'domcontentloaded'] | None" optional>
+  Lifecycle state to reach after matching the URL. Defaults to `"load"`.
+</ParamField>
+
+<ParamField path="timeout" type="int | None" optional>
+  Total wait budget in milliseconds. Defaults to 30,000; `0` disables the deadline. Closing the page still rejects the wait.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Returns when both the URL and requested load state match.
 </ResponseField>
 
 ## wait_for_timeout()
@@ -2247,6 +2296,33 @@ if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); 
 
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForURL()
+
+`WaitForURL` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `WaitForURL` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
+
+```go
+if err := page.WaitForURL(ctx, "**/checkout/success", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="url" type="string">
+  An exact full URL or a full-URL glob.
+</ParamField>
+
+<ParamField path="options" type="*PageWaitForURLOptions" optional>
+  <ParamField path="options.WaitUntil" type="*PageWaitForURLOptionsWaitUntil" optional>
+    Lifecycle state to reach: `"load"` (default) or `"domcontentloaded"`.
+  </ParamField>
+  <ParamField path="options.Timeout" type="*int" optional>
+    Total wait budget in milliseconds. Defaults to 30,000; a pointer to `0` disables the deadline. Closing the page or canceling the context still ends the wait.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` when both the URL and requested load state match.
 </ResponseField>
 
 ## WaitForTimeout()

@@ -1827,6 +1827,30 @@ type PageWaitForTimeoutParams struct {
 	PageID string `json:"page_id"`
 }
 
+type PageWaitForURLOptions struct {
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *int `json:"timeout,omitempty,omitzero"`
+
+	// WaitUntil corresponds to the JSON schema field "wait_until".
+	WaitUntil *PageWaitForURLOptionsWaitUntil `json:"wait_until,omitempty,omitzero"`
+}
+
+type PageWaitForURLOptionsWaitUntil string
+
+const PageWaitForURLOptionsWaitUntilDomcontentloaded PageWaitForURLOptionsWaitUntil = "domcontentloaded"
+const PageWaitForURLOptionsWaitUntilLoad PageWaitForURLOptionsWaitUntil = "load"
+
+type PageWaitForURLParams struct {
+	// Options corresponds to the JSON schema field "options".
+	Options *PageWaitForURLOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// URL corresponds to the JSON schema field "url".
+	URL string `json:"url"`
+}
+
 type PageWebMCPCancelInvocationParams struct {
 	// InvocationID corresponds to the JSON schema field "invocation_id".
 	InvocationID string `json:"invocation_id"`
@@ -2902,6 +2926,14 @@ type generatedModelCatalog struct {
 	// PageWaitForTimeoutParams corresponds to the JSON schema field
 	// "PageWaitForTimeoutParams".
 	PageWaitForTimeoutParams *PageWaitForTimeoutParams `json:"PageWaitForTimeoutParams,omitempty,omitzero"`
+
+	// PageWaitForURLOptions corresponds to the JSON schema field
+	// "PageWaitForURLOptions".
+	PageWaitForURLOptions *PageWaitForURLOptions `json:"PageWaitForURLOptions,omitempty,omitzero"`
+
+	// PageWaitForURLParams corresponds to the JSON schema field
+	// "PageWaitForURLParams".
+	PageWaitForURLParams *PageWaitForURLParams `json:"PageWaitForURLParams,omitempty,omitzero"`
 
 	// PageWebMCPCancelInvocationParams corresponds to the JSON schema field
 	// "PageWebMCPCancelInvocationParams".

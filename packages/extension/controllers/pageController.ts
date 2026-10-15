@@ -20,6 +20,7 @@ import type {
   PageSnapshotParams,
   PageTypeParams,
   PageWaitForLoadStateParams,
+  PageWaitForURLParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
   PageWebMCPCancelInvocationParams,
@@ -114,6 +115,11 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageWaitForTimeout(params);
   }
 
+  async function waitForURL(params: PageWaitForURLParams, { logger }: HandlerContext) {
+    logger.debug("page.wait_for_url", {});
+    return runtime.pageWaitForURL(params);
+  }
+
   async function waitForSelector(params: PageWaitForSelectorParams, { logger }: HandlerContext) {
     logger.debug("page.wait_for_selector", {});
     return runtime.pageWaitForSelector(params);
@@ -201,6 +207,7 @@ export function createPageController(runtime: StagehandRuntime) {
     setExtraHTTPHeaders,
     setViewportSize,
     waitForLoadState,
+    waitForURL,
     waitForTimeout,
     waitForSelector,
     screenshot,

@@ -248,7 +248,9 @@ A single wait isn't the same as Playwright's per-action retry. When a step races
 
 There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
 
-Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, `waitForEvent()`, or `waitForURL()`. `page.on()` supports `"console"` only. Poll `page.url()` for navigation, or wait for something that only exists on the destination page.
+`page.waitForURL()` waits for an exact full URL or a full-URL glob. `*` matches any characters except `/`; `**` also matches `/`. It supports history and hash changes, with `waitUntil: "load"` (default) or `"domcontentloaded"`. It doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
+
+There are no equivalents for `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.on()` supports `"console"` only.
 
 Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
 
@@ -592,7 +594,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.url()`, `page.title()` | Same names, both async |
 | `page.goto()` default `waitUntil` | `"domcontentloaded"`, not Playwright's `"load"` |
 | `waitUntil: "commit"` | Not supported. `load`, `domcontentloaded`, and `networkidle` only |
-| `page.waitForURL()` | Poll `page.url()`, or wait for a destination selector |
+| `page.waitForURL()` | Same name for exact full URLs or `*`/`**` globs. `waitUntil` accepts `load` (default) or `domcontentloaded` |
 | `page.setContent()` | No equivalent. Navigate, or build the DOM in `page.evaluate()` |
 | `page.evaluate()`, `addInitScript()` | Same names |
 | `page.$eval()`, `$$eval()` | `page.evaluate()` |
@@ -910,8 +912,9 @@ NAVIGATION AND WAITING
   detached; count() plus isVisible() for visible and hidden.
 - page.waitForFunction(fn) -> poll page.evaluate(fn) on that loop.
 - page.waitForNavigation() -> poll page.url() until it changes.
-- page.waitForURL() -> poll page.url(), or wait for a selector that exists
-  only on the destination.
+- page.waitForURL(pattern, options) -> wait for an exact full URL or a glob.
+  * excludes /; ** includes /. waitUntil accepts load (default) or
+  domcontentloaded. No regex, predicates, brace expansion, or networkidle.
 - No waitForResponse, waitForRequest, or waitForEvent. page.on() supports
   "console" only: no request, response, requestfailed, download, dialog,
   popup, or pageerror events, and no CDP escape hatch.

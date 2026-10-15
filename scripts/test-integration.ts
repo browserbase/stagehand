@@ -62,7 +62,7 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
+  "local/waits-timeouts": ["waitForSelector", "waitForTimeout", "waitForURL"],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 

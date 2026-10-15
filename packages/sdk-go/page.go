@@ -365,6 +365,13 @@ func (p *Page) WaitForLoadState(
 	return p.rpc.call(ctx, "page.wait_for_load_state", params, &result)
 }
 
+// WaitForURL waits for the main frame URL to match and reach the requested load state.
+func (p *Page) WaitForURL(ctx context.Context, url string, options *PageWaitForURLOptions) error {
+	params := PageWaitForURLParams{PageID: p.PageID(), URL: url, Options: options}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.wait_for_url", params, &result)
+}
+
 // WaitForTimeout waits for the requested number of milliseconds.
 func (p *Page) WaitForTimeout(ctx context.Context, ms int) error {
 	params := PageWaitForTimeoutParams{PageID: p.PageID(), Ms: ms}

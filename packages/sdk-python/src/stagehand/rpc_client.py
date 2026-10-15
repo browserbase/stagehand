@@ -30,6 +30,7 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.go_forward": 15_000,
     "page.wait_for_load_state": 15_000,
     "page.wait_for_selector": 30_000,
+    "page.wait_for_url": 30_000,
     "page.pdf": 30_000,
     "page.snapshot": 20_000,
     "page.webmcp_tools": 1_000,
@@ -559,6 +560,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.pdf",
         "page.snapshot",
         "page.wait_for_selector",
+        "page.wait_for_url",
         "page.webmcp_tools",
         "page.webmcp_invocation_result",
     }:
@@ -570,7 +572,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
 
     if operation_timeout_ms is not None:
         if (
-            method in {"page.pdf", "page.snapshot", "page.wait_for_selector"}
+            method in {"page.pdf", "page.snapshot", "page.wait_for_selector", "page.wait_for_url"}
             and operation_timeout_ms == 0
         ):
             return None
