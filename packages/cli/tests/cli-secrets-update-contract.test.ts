@@ -110,7 +110,7 @@ describe("secret update CLI HTTP contracts", () => {
         "cloud",
         "secrets",
         "update",
-        "TOKEN",
+        secretId,
         "--stdin",
         "--base-url",
         server.baseUrl,
@@ -132,7 +132,7 @@ describe("secret update CLI HTTP contracts", () => {
         "cloud",
         "secrets",
         "update",
-        "TOKEN",
+        secretId,
         "--stdin",
         "--base-url",
         server.baseUrl,
@@ -146,7 +146,7 @@ describe("secret update CLI HTTP contracts", () => {
   });
 
   it("requires --stdin for noninteractive input", async () => {
-    const result = await runCli(["cloud", "secrets", "update", "TOKEN"], {
+    const result = await runCli(["cloud", "secrets", "update", secretId], {
       env,
       stdin: "private-value",
     });
@@ -169,7 +169,7 @@ describe("secret update CLI HTTP contracts", () => {
         "cloud",
         "secrets",
         "update",
-        "TOKEN",
+        secretId,
         "--stdin",
         "--base-url",
         server.baseUrl,
@@ -197,7 +197,7 @@ describe("environment secret input validation", () => {
         "cloud",
         "secrets",
         "update",
-        "TOKEN",
+        secretId,
         "--base-url",
         server.baseUrl,
         ...flags,

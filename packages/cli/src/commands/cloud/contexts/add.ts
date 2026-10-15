@@ -6,6 +6,7 @@ import {
   isValidContextName,
   saveContextAlias,
 } from "../../../lib/cloud/contexts-store.js";
+import { parseUuid } from "../../../lib/cloud/ids.js";
 import { fail } from "../../../lib/errors.js";
 import { outputJson } from "../../../lib/output.js";
 import { BrowseCommand } from "../../../base.js";
@@ -40,10 +41,7 @@ export default class ContextsAdd extends BrowseCommand {
     }
     // Normalize before storing so whitespace-padded input isn't saved and later
     // resolved as a bogus context id.
-    const id = args.id.trim();
-    if (id.length === 0) {
-      fail("Context ID cannot be empty.");
-    }
+    const id = parseUuid(args.id.trim(), "Context ID");
     if (!flags.force && (await getContextAlias(args.name))) {
       fail(
         `A context named "${args.name}" already exists locally. Pass --force to overwrite, ` +

@@ -7,6 +7,7 @@ import {
   resolveBody,
   withBrowserbaseApi,
 } from "../../../lib/cloud/api.js";
+import { parseUuid } from "../../../lib/cloud/ids.js";
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
@@ -142,7 +143,7 @@ export default class SessionsCreate extends BrowseCommand {
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
-    "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
+    "browse cloud sessions create --solve-captchas --context-id 45ed525f-63a5-490d-b4c4-853f50643b90 --persist",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
   ];
@@ -207,6 +208,7 @@ export default class SessionsCreate extends BrowseCommand {
       helpValue: "<WxH>",
     }),
     "extension-id": Flags.string({
+      parse: async (value) => parseUuid(value, "Extension ID"),
       description: "Chrome extension ID to load.",
       helpValue: "<id>",
     }),
@@ -216,7 +218,7 @@ export default class SessionsCreate extends BrowseCommand {
     const { flags } = await this.parse(SessionsCreate);
     // Allow --context-id to be a locally-saved name; resolve it to a real id.
     // A context id passes through; an unknown name fails with a helpful message.
-    if (flags["context-id"]) {
+    if (flags["context-id"] !== undefined) {
       flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }
     await withBrowserbaseApi("sessions", async () => {

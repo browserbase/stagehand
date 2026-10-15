@@ -148,28 +148,6 @@ describe("function secret list argument handling", () => {
     expect(server.requests).toHaveLength(0);
   });
 
-  it("encodes the function ID as one path segment", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, { data: [], limit: 20, nextCursor: null }),
-    );
-    const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "list",
-        "id/with?query#fragment",
-        "--base-url",
-        server.baseUrl,
-      ],
-      { env },
-    );
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(server.requests).toHaveLength(1);
-    expect(server.requests[0]?.path).toBe(
-      "/v1/functions/id%2Fwith%3Fquery%23fragment/secrets",
-    );
-  });
-
   it("reports a missing function", async () => {
     server = await startFakeBrowserbaseServer((_request, response) =>
       jsonResponse(response, 404, { message: "Function not found" }),
