@@ -102,7 +102,10 @@ export default function stagehandExtension(pi: ExtensionAPI) {
     resources = undefined;
     if (!current) return;
     await current.stagehand.close().catch(() => undefined);
-    await current.browser.close().catch(() => undefined);
+    // An attached browser belongs to its host; detaching is enough.
+    if (current.browser.origin !== "connected") {
+      await current.browser.close().catch(() => undefined);
+    }
   }
 
   pi.on("session_shutdown", closeResources);
