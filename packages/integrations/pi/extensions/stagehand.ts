@@ -74,7 +74,9 @@ export default function stagehandExtension(pi: ExtensionAPI) {
       const browser =
         config.browser.type === "browserbase"
           ? await browserbase.launch(config.browser.launchOptions)
-          : await localBrowser.launch(config.browser.launchOptions);
+          : config.browser.type === "cdp"
+            ? await localBrowser.connect(config.browser.connectOptions)
+            : await localBrowser.launch(config.browser.launchOptions);
       try {
         const stagehand = await Stagehand.create({ browser, ...config.stagehand });
         return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
