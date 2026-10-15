@@ -52,6 +52,8 @@ func TestArchiveContainsLoadableStagehandExtension(t *testing.T) {
 		"offscreen/service-worker-heartbeat.html",
 		"offscreen/service-worker-heartbeat.js",
 		"service-worker.js",
+		"third-party/playwright/LICENSE",
+		"third-party/playwright/NOTICE",
 		"wake-service-worker.html",
 		"wake-service-worker.js",
 	}

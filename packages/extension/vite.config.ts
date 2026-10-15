@@ -28,7 +28,7 @@ function buildExtensionArtifacts() {
       const playwrightNotices = path.join(outDir, "third-party/playwright");
       await mkdir(playwrightNotices, { recursive: true });
       await Promise.all(
-        ["LICENSE", "NOTICE", "README.md", "provenance.json"].map((name) =>
+        ["LICENSE", "NOTICE"].map((name) =>
           cp(
             path.join(root, "dom/locatorScripts/vendor/playwright", name),
             path.join(playwrightNotices, name),

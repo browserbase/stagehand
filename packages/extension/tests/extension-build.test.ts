@@ -147,7 +147,7 @@ describe("extension build", () => {
       manifest_version: 3,
       version: expectedManifestVersion,
     });
-    for (const name of ["LICENSE", "NOTICE", "README.md", "provenance.json"]) {
+    for (const name of ["LICENSE", "NOTICE"]) {
       const source = await readFile(
         new URL(`../dom/locatorScripts/vendor/playwright/${name}`, import.meta.url),
       );
