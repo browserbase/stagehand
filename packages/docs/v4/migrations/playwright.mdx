@@ -542,7 +542,6 @@ Each of these is a direct substitution:
 | `locator.allTextContents()` | `page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => el.textContent), selector)` |
 | `locator.selectOption({ index })` | Read `select.options[index].value` with `evaluate()`, then pass that value |
 | `locator.focus()`, `blur()` | `page.evaluate((s) => document.querySelector(s).focus(), selector)` |
-| `page.content()` | `page.evaluate(() => document.documentElement.outerHTML)` |
 | `page.$eval(selector, fn)` | `page.evaluate()` with the selector as its argument |
 | `page.getByTestId(x)` | `page.locator('[data-testid="x"]')` |
 | `page.getByPlaceholder(x)` | `page.locator('[placeholder*="x"]')`, substring like Playwright's default |
@@ -657,6 +656,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 
 | Playwright | Stagehand v4 |
 | --- | --- |
+| `page.content()` | Same name. Returns the main document's current HTML, including its doctype when present |
 | `locator.textContent()`, `innerText()`, `inputValue()`, `isChecked()`, `isVisible()`, `count()` | Same names |
 | `locator.innerHTML()` | `locator.innerHtml()` |
 | `locator.getAttribute()`, `isEnabled()`, `isEditable()` | [`page.evaluate()`](#element-reads-through-evaluate) |
@@ -924,11 +924,12 @@ ASSERTIONS AND READING STATE
   assert with the runner already in the project (Vitest, Jest).
 - Available directly: textContent, innerText, innerHtml (note the casing),
   inputValue, isChecked, isVisible, count.
+- page.content() returns the main document's current HTML, including its
+  doctype when present.
 - Via page.evaluate(): getAttribute, isEnabled and isDisabled
   (element.matches(":disabled")), isEditable, allTextContents
   ([...document.querySelectorAll(s)].map((el) => el.textContent)),
-  focus, blur, page.content() (document.documentElement.outerHTML),
-  and $eval / $$eval.
+  focus, blur, and $eval / $$eval.
 - locator.boundingBox() -> locator.centroid() for the center point, or
   getBoundingClientRect() inside evaluate() for the full box.
 - When the assertion is about page content rather than DOM structure, prefer
