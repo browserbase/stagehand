@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { encodeLocatorQuery } from "@browserbasehq/stagehand-protocol/locator-query";
 import type { ScreenshotOptions, Stagehand } from "../../src/index.js";
 import { closeStagehand, createStagehand, firstPage } from "./_support.js";
 
@@ -193,14 +194,20 @@ describe("Page.screenshot options", () => {
     });
   });
 
-  it("masks every deep-locator match and respects nth() across an iframe hop", async () => {
+  it.each([
+    "iframe#child >> .secret",
+    encodeLocatorQuery([
+      { kind: "selector", selector: "iframe#child >> body" },
+      { kind: "role", role: "button" },
+    ]),
+  ])("masks every match and respects nth() across an iframe hop: %s", async (selector) => {
     const page = await firstPage(stagehand);
-    const child = `<style>body{margin:0}.secret{position:absolute;width:40px;height:40px;background:#00aa00}.first{left:10px;top:10px}.second{left:70px;top:10px}</style><div class="secret first"></div><div class="secret second"></div>`;
+    const child = `<style>body{margin:0}.secret{position:absolute;width:40px;height:40px;background:#00aa00}.first{left:10px;top:10px}.second{left:70px;top:10px}</style><div role="button" class="secret first"></div><div role="button" class="secret second"></div>`;
     await page.goto(
       `data:text/html,${encodeURIComponent(`<iframe id="child" style="position:absolute;left:20px;top:20px;width:180px;height:80px;border:0" srcdoc="${child.replaceAll('"', "&quot;")}"></iframe>`)}`,
     );
 
-    const secrets = page.locator("iframe#child >> .secret");
+    const secrets = page.locator(selector);
     await expect.poll(() => secrets.count()).toBe(2);
     const centers = await page.evaluate(() => {
       const iframe = document.querySelector<HTMLIFrameElement>("#child")!;

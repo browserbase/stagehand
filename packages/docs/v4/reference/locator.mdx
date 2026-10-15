@@ -4,6 +4,8 @@ description: "Target elements and perform focused DOM interactions"
 icon: "crosshairs"
 ---
 
+Role and text locator builders are available in the TypeScript SDK.
+
 Create a `Locator` from a page selector, role, or text, then reuse it for element interactions and state queries. Builders are synchronous and lazy: they record a query without contacting the browser. Each later action or read resolves that query against the current DOM.
 
 Existing CSS, XPath, and `text=` selector entry points keep their existing behavior, including closed-shadow-root support. Role and text searches cross open shadow boundaries only.
@@ -517,7 +519,7 @@ await input.fill("amel@example.com");
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByRole()
@@ -578,7 +580,7 @@ await button.click();
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByText()
@@ -603,7 +605,7 @@ console.log(await message.innerText());
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## first()

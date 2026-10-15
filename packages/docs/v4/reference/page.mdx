@@ -6,6 +6,8 @@ icon: "page"
 
 A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods. Navigation methods return the main-document [`Response`](/v4/reference/response), when the navigation produces one.
 
+Role and text locator builders are available in the TypeScript SDK.
+
 Use role and text locators to find elements by their accessible role/name or text, then reuse the returned locator for actions and reads. These builders are synchronous and lazy; they do not contact the browser. See [locator matching rules](/v4/reference/locator#matching-rules) for normalization, shadow DOM, and iframe scope.
 
 <Tabs>
@@ -906,7 +908,7 @@ await button.click();
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## getByText()
@@ -931,7 +933,7 @@ console.log(await message.innerText());
 </ParamField>
 
 <ResponseField name="result" type="Locator">
-  A lazy locator; no browser request is sent until an action or query uses it.
+  A lazy locator; the SDK sends no browser request until an action or query uses it.
 </ResponseField>
 
 ## locator()

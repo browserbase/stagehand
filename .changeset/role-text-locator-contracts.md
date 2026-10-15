@@ -6,4 +6,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Share the role and text locator query contract across the extension and SDKs, generate typed language models, and refresh the embedded extension.
+Add role and text query definitions to the protocol, plus Go's `AriaRole`, `GetByRoleOptions`, `GetByTextOptions`, and `TextMatch` types and `LiteralText`/`RegexText` constructors. This release does not add locator builder methods.
