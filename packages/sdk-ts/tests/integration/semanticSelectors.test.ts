@@ -337,6 +337,30 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     await assertParity(steps);
   });
 
+  it.each(["xpath=//button/@id", "xpath=//button/text()"])(
+    "treats non-element XPath results from %s as empty semantic scopes",
+    async (selector) => {
+      await oracle.setContent('<button id="first">Run</button>');
+      await assertParity([
+        { kind: "selector", selector },
+        { kind: "role", role: "button" },
+      ]);
+      await assertParity([
+        { kind: "selector", selector },
+        { kind: "text", text: "Run" },
+      ]);
+    },
+  );
+
+  it("indexes only elements when an initial XPath also matches attributes and text", async () => {
+    await oracle.setContent('<button id="first">Run</button><button id="second">Stop</button>');
+    await assertParity([
+      { kind: "selector", selector: "xpath=//button | //button/@id | //button/text()" },
+      { kind: "nth", index: 1 },
+      { kind: "text", text: "Stop", exact: true },
+    ]);
+  });
+
   it("resolves a late semantic index without changing its match order", async () => {
     await oracle.setContent(
       Array.from({ length: 300 }, (_, index) => `<button>Button ${index}</button>`).join(""),
@@ -427,20 +451,30 @@ describe("semantic selectors match Playwright 1.64.1", () => {
     },
   );
 
-  it("retains an existing iframe hop when applying a semantic scope", async () => {
-    await oracle.setContent(
-      '<button aria-label="Frame publish">Main action</button><iframe id="child" src="/child"></iframe>',
+  it("does not treat an iframe-hop delimiter inside a CSS comment as a hop", async () => {
+    await oracle.setContent("<button>One</button><button>Two</button>");
+    expect(await page.locator("button/* >> */").count()).toBe(
+      await oracle.locator("button").count(),
     );
-    await oracle.frameLocator("#child").getByRole("button", { name: "Frame publish" }).waitFor();
-    const scoped = page.locator(
-      encodeLocatorQuery([
-        { kind: "selector", selector: "#child >> body" },
-        { kind: "role", role: "button", options: { name: "Frame publish" } },
-      ]),
-    );
-    expect(await scoped.count()).toBe(1);
-    expect(await scoped.textContent()).toBe("Child action");
   });
+
+  it.each(["#child >> body", "#child/* [ ( ' >> */ >> body"])(
+    "retains the iframe hop in %s when applying a semantic scope",
+    async (selector) => {
+      await oracle.setContent(
+        '<button aria-label="Frame publish">Main action</button><iframe id="child" src="/child"></iframe>',
+      );
+      await oracle.frameLocator("#child").getByRole("button", { name: "Frame publish" }).waitFor();
+      const scoped = page.locator(
+        encodeLocatorQuery([
+          { kind: "selector", selector },
+          { kind: "role", role: "button", options: { name: "Frame publish" } },
+        ]),
+      );
+      expect(await scoped.count()).toBe(1);
+      expect(await scoped.textContent()).toBe("Child action");
+    },
+  );
 });
 
 function pattern(value: TextPattern): string | RegExp {

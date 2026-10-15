@@ -44,12 +44,14 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
 
 export function queryXPathMatches(rawXp: string, options?: XPathResolveOptions): Element[] {
   const matches = evaluateXPathMatches(rawXp, options);
-  return Array.isArray(matches)
-    ? matches
-    : Array.from(
-        { length: matches.snapshotLength },
-        (_, index) => matches.snapshotItem(index) as Element,
-      );
+  if (Array.isArray(matches)) return matches;
+
+  const elements: Element[] = [];
+  for (let index = 0; index < matches.snapshotLength; index++) {
+    const node = matches.snapshotItem(index);
+    if (node instanceof Element) elements.push(node);
+  }
+  return elements;
 }
 
 /** Preserve the canonical match order without materializing native snapshots for index/count. */

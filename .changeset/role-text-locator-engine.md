@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Add the extension-side role and text locator engine using pinned Playwright accessibility semantics, preserving existing locator actions, scope, deadlines, and cleanup.
+Prepare internal support for role and text locators. Public SDK locator methods are unchanged.
