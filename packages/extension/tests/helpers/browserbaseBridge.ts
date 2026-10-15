@@ -2,7 +2,11 @@ import {
   encodeWireValue,
   wireSchema,
 } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
-import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { JSONRPCErrorCodes } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import {
+  StagehandMethods,
+  StagehandNotifications,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   BrowserbaseRequestParams,
   LLMGenerateParams,
@@ -31,6 +35,7 @@ export function createBrowserbaseTestBridge(
   const messages: WireMessage[] = [];
   const requests: BrowserbaseRequestParams[] = [];
   const pendingReplies: Promise<void>[] = [];
+  const controllers = new Map<number, AbortController>();
   const reply = (id: number | undefined, result: unknown) =>
     transport.receive(JSON.stringify({ jsonrpc: "2.0", id, result: encodeWireValue(result) }));
   const transport = new ChromeRuntimeClient(
@@ -38,16 +43,46 @@ export function createBrowserbaseTestBridge(
       send(payload: string) {
         const message = JSON.parse(payload) as WireMessage;
         messages.push(message);
-        if (message.method === "browserbase.request") {
+        if (message.method === "browserbase.request" && message.id !== undefined) {
           const params = wireSchema(StagehandMethods.browserbaseRequest.params).parse(
             message.params,
           );
           requests.push(params);
+          const id = message.id;
+          const controller = new AbortController();
+          controllers.set(id, controller);
           pendingReplies.push(
-            executeBrowserbaseRequest(connection, params).then((result) =>
-              reply(message.id, result),
-            ),
+            executeBrowserbaseRequest(connection, params, controller.signal)
+              .then(
+                (result) => reply(id, result),
+                (error: unknown) =>
+                  transport.receive(
+                    JSON.stringify({
+                      jsonrpc: "2.0",
+                      id,
+                      error: {
+                        code: JSONRPCErrorCodes.internalError,
+                        message: error instanceof Error ? error.message : String(error),
+                      },
+                    }),
+                  ),
+              )
+              .finally(() => controllers.delete(id)),
           );
+        } else if (message.method === "browserbase.cancel") {
+          const { requestId, reason } = wireSchema(
+            StagehandNotifications.browserbaseCancel.params,
+          ).parse(message.params);
+          controllers
+            .get(requestId)
+            ?.abort(
+              new DOMException(
+                reason === "timeout"
+                  ? "Browserbase request timed out"
+                  : "Browserbase request cancelled",
+                reason === "timeout" ? "TimeoutError" : "AbortError",
+              ),
+            );
         } else if (message.method === "llm.generate" && generate) {
           const params = wireSchema(StagehandMethods.llmGenerate.params).parse(message.params);
           pendingReplies.push(reply(message.id, generate(params)));
