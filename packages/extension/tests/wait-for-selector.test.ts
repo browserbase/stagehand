@@ -66,6 +66,36 @@ describe("injected waitForSelector", () => {
     expect(observers[0].disconnect).toHaveBeenCalledOnce();
   });
 
+  it("resolves hidden immediately when no element matches", async () => {
+    const wait = createSelectorWait("button", "hidden", 100, false);
+    const result = wait.promise.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(await result).toBe(true);
+    expect(observers).toHaveLength(0);
+  });
+
+  it("resolves hidden and cleans up when the matching element is removed", async () => {
+    querySelector.mockReturnValue(element());
+    const wait = createSelectorWait("button", "hidden", 100, false);
+    const result = wait.promise.catch((error: unknown) => error);
+    querySelector.mockReturnValue(null);
+    observers[0].callback();
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(await result).toBe(true);
+    expect(observers[0].disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("does not consider a missing element visible", async () => {
+    const wait = createSelectorWait("button", "visible", 100, false);
+    const rejected = expect(wait.promise).rejects.toThrow("Timeout 100ms exceeded");
+    await vi.advanceTimersByTimeAsync(100);
+
+    await rejected;
+    expect(observers[0].disconnect).toHaveBeenCalledOnce();
+  });
+
   it("keeps zero unlimited and can still settle on a later mutation", async () => {
     const settled = vi.fn();
     const pending = createSelectorWait("button", "attached", 0, false).promise;
