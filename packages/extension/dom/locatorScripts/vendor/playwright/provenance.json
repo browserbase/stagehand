@@ -1,0 +1,75 @@
+{
+  "version": "1.64.1",
+  "commit": "cfe490d941f992655948eee8fd4fd94e1c4234bf",
+  "files": [
+    {
+      "name": "roleUtils.ts",
+      "path": "packages/injected/src/roleUtils.ts",
+      "sha256": "534e7dd5469e60ae74ced37264589676c574fa812b4809f6e9e7f135bbb1cd7e",
+      "importRewrites": {
+        "@isomorphic/cssTokenizer": "./cssTokenizer.js",
+        "./domUtils": "./domUtils.js",
+        "@isomorphic/ariaSnapshot": "./types.js"
+      },
+      "adaptationNotice": "// Stagehand: import paths adapted; upstream behavior is unchanged. See README.md.\n"
+    },
+    {
+      "name": "domUtils.ts",
+      "path": "packages/injected/src/domUtils.ts",
+      "sha256": "2b7b241f47b760284951821eace269f385cb8bddf1a26188fd10bcf9c201a5fb",
+      "importRewrites": {}
+    },
+    {
+      "name": "selectorUtils.ts",
+      "path": "packages/injected/src/selectorUtils.ts",
+      "sha256": "1d3718153d2eacd340c5a7ab66dc0ad8f94ae1eabb5dc190f8514fae7b1513c1",
+      "importRewrites": {
+        "@isomorphic/stringUtils": "./stringUtils.js",
+        "./roleUtils": "./roleUtils.js",
+        "@isomorphic/selectorParser": "./types.js"
+      },
+      "adaptationNotice": "// Stagehand: import paths adapted; upstream behavior is unchanged. See README.md.\n"
+    },
+    {
+      "name": "cssTokenizer.ts",
+      "path": "packages/isomorphic/cssTokenizer.ts",
+      "sha256": "beffbe943b63c10af3cfa325e163e7593f91f0824e18a5f7f77062b119e386bc",
+      "importRewrites": {},
+      "typeAnnotations": {
+        "const codepoints = [];": "const codepoints: number[] = [];"
+      },
+      "adaptationNotice": "// Stagehand: added one number[] type annotation; runtime behavior is unchanged. See README.md.\n"
+    },
+    {
+      "name": "stringUtils.ts",
+      "path": "packages/isomorphic/stringUtils.ts",
+      "sha256": "4ef81deedff640b6b12d55ae496252fb8b5825fc0925738096bd164c787e75f9",
+      "importRewrites": {}
+    },
+    {
+      "name": "LICENSE",
+      "path": "LICENSE",
+      "sha256": "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb",
+      "normalizedCRLF": true,
+      "importRewrites": {}
+    },
+    {
+      "name": "NOTICE",
+      "path": "NOTICE",
+      "sha256": "6d602191187b35b9b01d2cffa01c8469c2c8d9de8a96f1bf868e0f264f51c81d",
+      "importRewrites": {}
+    }
+  ],
+  "typeExcerpts": [
+    {
+      "path": "packages/isomorphic/ariaSnapshot.ts",
+      "sha256": "8a6d5d90933b786bcbf6407359702257ca8d499eec568215830afc9fd25e1fec",
+      "declarations": ["AriaRole"]
+    },
+    {
+      "path": "packages/isomorphic/selectorParser.ts",
+      "sha256": "f8f7f8b97d0c4d40c54cf2101f273490171a05a569d292196e56e02d11a0acc1",
+      "declarations": ["AttributeSelectorOperator", "AttributeSelectorPart"]
+    }
+  ]
+}

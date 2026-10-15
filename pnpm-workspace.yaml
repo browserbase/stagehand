@@ -108,3 +108,4 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
   - eve@0.71.2
+  - playwright-core@1.64.1
