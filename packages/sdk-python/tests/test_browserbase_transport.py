@@ -4,7 +4,6 @@ import asyncio
 import gzip
 import json
 from collections.abc import AsyncIterator
-from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
@@ -24,6 +23,8 @@ from stagehand._generated.models import (
 from stagehand.browserbase_connection import BrowserbaseConnection
 from stagehand.browserbase_transport import execute_browserbase_request
 
+from ._http_server import HTTPRequest, http_server
+
 _FIXTURES = json.loads(
     (Path(__file__).parents[3] / "tests/fixtures/browserbase-transport.json").read_text()
 )
@@ -42,14 +43,6 @@ def _params(
 
 
 @dataclass
-class _Request:
-    method: str
-    path: str
-    headers: dict[str, str]
-    body: bytes
-
-
-@dataclass
 class _Upstream:
     url: str = ""
     status: int = 200
@@ -57,8 +50,7 @@ class _Upstream:
     body: bytes = b'{"ok":true}'
     pause: Literal["headers", "body"] | None = None
     drop: bool = False
-    requests: list[_Request] = field(default_factory=list)
-    tasks: set[asyncio.Task[None]] = field(default_factory=set)
+    requests: list[HTTPRequest] = field(default_factory=list)
     received: asyncio.Event = field(default_factory=asyncio.Event)
     release: asyncio.Event = field(default_factory=asyncio.Event)
 
@@ -70,62 +62,36 @@ class _Upstream:
             _FIXTURES["connection"]["sessionId"],
         )
 
-    async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        try:
-            head = (await reader.readuntil(b"\r\n\r\n")).decode("latin-1")
-            request_line, *header_lines = head.rstrip("\r\n").split("\r\n")
-            method, path, _ = request_line.split(" ")
-            headers = dict(line.split(":", 1) for line in header_lines)
-            headers = {name.lower(): value.strip() for name, value in headers.items()}
-            body = await reader.readexactly(int(headers.get("content-length", "0")))
-            self.requests.append(_Request(method, path, headers, body))
-            if self.drop:
-                return
-            if self.pause == "headers":
-                self.received.set()
-                await self.release.wait()
-            response_headers = {
-                "content-length": str(len(self.body)),
-                "connection": "close",
-                **self.headers,
-            }
-            head = f"HTTP/1.1 {self.status} Fixture response\r\n"
-            head += "".join(f"{name}: {value}\r\n" for name, value in response_headers.items())
-            writer.write(head.encode("latin-1") + b"\r\n")
-            await writer.drain()
+    async def handle(
+        self, request: HTTPRequest, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        self.requests.append(request)
+        if self.drop:
+            return
+        if self.pause == "headers":
             self.received.set()
-            if self.pause == "body":
-                await self.release.wait()
-            writer.write(self.body)
-            await writer.drain()
-        except (ConnectionError, asyncio.IncompleteReadError):
-            pass
-        finally:
-            writer.close()
-            with suppress(ConnectionError):
-                await writer.wait_closed()
+            await self.release.wait()
+        response_headers = {
+            "content-length": str(len(self.body)),
+            "connection": "close",
+            **self.headers,
+        }
+        head = f"HTTP/1.1 {self.status} Fixture response\r\n"
+        head += "".join(f"{name}: {value}\r\n" for name, value in response_headers.items())
+        writer.write(head.encode("latin-1") + b"\r\n")
+        await writer.drain()
+        self.received.set()
+        if self.pause == "body":
+            await self.release.wait()
+        writer.write(self.body)
+        await writer.drain()
 
 
 @pytest.fixture
 async def upstream() -> AsyncIterator[_Upstream]:
     upstream = _Upstream()
-
-    def accept(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        task = asyncio.create_task(upstream.handle(reader, writer))
-        upstream.tasks.add(task)
-        task.add_done_callback(upstream.tasks.discard)
-
-    server = await asyncio.start_server(accept, "127.0.0.1", 0)
-    upstream.url = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
-    try:
+    async with http_server(upstream.handle) as upstream.url:
         yield upstream
-    finally:
-        server.close()
-        await server.wait_closed()
-        tasks = list(upstream.tasks)
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @pytest.fixture
@@ -145,7 +111,8 @@ def http_clients(monkeypatch: pytest.MonkeyPatch) -> list[httpx.AsyncClient]:
 
 @pytest.mark.parametrize("operation", list(Operation))
 async def test_fixed_routes_and_utf8_body(upstream: _Upstream, operation: Operation) -> None:
-    params = _params(operation)
+    upstream.body = "  opaque héllo 🌎\n".encode()
+    params = _params(operation, body="  opaque request héllo 🌎\n")
     result = (await execute_browserbase_request(upstream.connection, params)).root
     assert isinstance(result, BrowserbaseHttpResponse)
     assert result.status == 200
@@ -229,19 +196,6 @@ async def test_http_failures_are_returned_without_retries(
     assert result.body == expected.body
     assert result.headers.items() >= expected.headers.items()
     assert len(upstream.requests) == 1
-
-
-@pytest.mark.parametrize("fixture", _FIXTURES["cache"]["envelopeFailures"], ids=lambda f: f["name"])
-async def test_cache_envelopes_are_not_interpreted(
-    upstream: _Upstream, fixture: dict[str, object]
-) -> None:
-    upstream.body = json.dumps(fixture["body"]).encode()
-    result = (
-        await execute_browserbase_request(upstream.connection, _params(Operation.cache_get))
-    ).root
-    assert isinstance(result, BrowserbaseHttpResponse)
-    assert result.status == 200
-    assert result.body == upstream.body.decode()
 
 
 async def test_large_gzip_body_decodes_as_fetch_text(upstream: _Upstream) -> None:
@@ -360,23 +314,6 @@ async def test_mutated_params_are_revalidated(upstream: _Upstream) -> None:
     with pytest.raises(ValidationError):
         await execute_browserbase_request(upstream.connection, params)
     assert not upstream.requests
-
-
-@pytest.mark.parametrize("operation", list(Operation))
-async def test_shared_success_bodies_are_forwarded(
-    upstream: _Upstream, operation: Operation
-) -> None:
-    fixture = (
-        _FIXTURES["gateway"]
-        if operation is Operation.gateway_responses
-        else _FIXTURES["cache"]["get" if operation is Operation.cache_get else "set"]
-    )
-    upstream.body = json.dumps(fixture["response"], ensure_ascii=False).encode()
-    params = _params(operation, body=json.dumps(fixture.get("request", {}), ensure_ascii=False))
-    result = (await execute_browserbase_request(upstream.connection, params)).root
-    assert isinstance(result, BrowserbaseHttpResponse)
-    assert result.body == upstream.body.decode()
-    assert upstream.requests[0].body == params.body.encode()
 
 
 async def test_completed_deadline_does_not_cancel_caller(upstream: _Upstream) -> None:

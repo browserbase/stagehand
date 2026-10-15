@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, field
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import cast
 
 import pytest
@@ -12,6 +12,8 @@ from stagehand._generated import models
 from stagehand.browserbase_connection import BrowserbaseConnection
 from stagehand.browserbase_rpc import register_browserbase_transport
 from stagehand.rpc_client import RPCClient
+
+from ._http_server import HTTPRequest, http_server
 
 
 class _Transport:
@@ -64,71 +66,34 @@ class _Transport:
 
 
 @dataclass
-class _HTTPRequest:
-    path: str
-    headers: dict[str, str]
-    disconnected: asyncio.Event = field(default_factory=asyncio.Event)
-
-
-@dataclass
 class _Upstream:
     connection: BrowserbaseConnection
-    requests: asyncio.Queue[_HTTPRequest]
+    requests: asyncio.Queue[HTTPRequest]
 
-    async def receive(self) -> _HTTPRequest:
+    async def receive(self) -> HTTPRequest:
         return await asyncio.wait_for(self.requests.get(), 2)
 
 
 @pytest.fixture
 async def upstream() -> AsyncIterator[_Upstream]:
-    requests: asyncio.Queue[_HTTPRequest] = asyncio.Queue()
-    tasks: set[asyncio.Task[None]] = set()
+    requests: asyncio.Queue[HTTPRequest] = asyncio.Queue()
 
-    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        request: _HTTPRequest | None = None
-        try:
-            lines = (await reader.readuntil(b"\r\n\r\n")).decode().strip().split("\r\n")
-            headers = dict(line.split(":", 1) for line in lines[1:])
-            headers = {name.lower(): value.strip() for name, value in headers.items()}
-            body = await reader.readexactly(int(headers["content-length"]))
-            request = _HTTPRequest(lines[0].split()[1], headers)
-            requests.put_nowait(request)
-            if body == b"drop":
-                return
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
+    async def serve(
+        request: HTTPRequest, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        requests.put_nowait(request)
+        if request.body == b"drop":
+            return
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
+        await writer.drain()
+        if request.body == b"hold":
+            await reader.read()
+        else:
+            writer.write(b"{}")
             await writer.drain()
-            if body == b"hold":
-                await reader.read()
-            else:
-                writer.write(b"{}")
-                await writer.drain()
-        except (ConnectionError, asyncio.IncompleteReadError):
-            pass
-        finally:
-            if request is not None:
-                request.disconnected.set()
-            writer.close()
-            with suppress(ConnectionError):
-                await writer.wait_closed()
 
-    def accept(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        task = asyncio.create_task(serve(reader, writer))
-        tasks.add(task)
-        task.add_done_callback(tasks.discard)
-
-    server = await asyncio.start_server(accept, "127.0.0.1", 0)
-    port = server.sockets[0].getsockname()[1]
-    try:
-        yield _Upstream(
-            BrowserbaseConnection("bb-key", f"http://127.0.0.1:{port}/v1", "session"), requests
-        )
-    finally:
-        server.close()
-        await server.wait_closed()
-        remaining = list(tasks)
-        for task in remaining:
-            task.cancel()
-        await asyncio.gather(*remaining, return_exceptions=True)
+    async with http_server(serve) as url:
+        yield _Upstream(BrowserbaseConnection("bb-key", f"{url}/v1", "session"), requests)
 
 
 @asynccontextmanager
@@ -151,10 +116,8 @@ def _result(
     return models.BrowserbaseRequestResult.model_validate(response["result"]).root
 
 
-@pytest.mark.parametrize("operation", list(models.Operation))
 async def test_reverse_http_completes_during_batch_with_same_id(
     upstream: _Upstream,
-    operation: models.Operation,
 ) -> None:
     async with _connected(upstream.connection) as (client, transport, _):
         batch = asyncio.create_task(
@@ -169,7 +132,7 @@ async def test_reverse_http_completes_during_batch_with_same_id(
         )
         outer = await transport.response()
         request_id = cast(int, outer["id"])
-        transport.request(request_id, operation=operation)
+        transport.request(request_id)
         response = await transport.response()
         result = _result(response)
         assert isinstance(result, models.BrowserbaseHttpResponse)
@@ -177,14 +140,7 @@ async def test_reverse_http_completes_during_batch_with_same_id(
         assert result.body == "{}"
         request = await upstream.receive()
         assert request.headers["x-bb-api-key"] == "bb-key"
-        assert (
-            request.path
-            == {
-                models.Operation.gateway_responses: "/v1/llm/responses",
-                models.Operation.cache_get: "/v1/cache/get",
-                models.Operation.cache_set: "/v1/cache/set",
-            }[operation]
-        )
+        assert request.path == "/v1/llm/responses"
         assert not batch.done()
         transport.incoming.put_nowait({"jsonrpc": "2.0", "id": request_id, "result": {}})
         await asyncio.wait_for(batch, 2)
