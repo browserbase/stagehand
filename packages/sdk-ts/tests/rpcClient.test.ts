@@ -437,6 +437,7 @@ describe("RPCClient", () => {
   it.each([
     [StagehandMethods.pageGoto.name, 25_000],
     [StagehandMethods.pageReload.name, 25_000],
+    [StagehandMethods.pageSetContent.name, 40_000],
     [StagehandMethods.pageGoBack.name, 25_000],
     [StagehandMethods.pageGoForward.name, 25_000],
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
@@ -448,7 +449,7 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector"])(
+  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector", "page.set_content"])(
     "honors explicit %s deadlines and allows disabling them",
     (method) => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);

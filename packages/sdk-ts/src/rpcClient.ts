@@ -67,6 +67,7 @@ const RPC_RESPONSE_GRACE_MS = 10_000;
 const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageGoto.name, 15_000],
   [StagehandMethods.pageReload.name, 15_000],
+  [StagehandMethods.pageSetContent.name, 30_000],
   [StagehandMethods.pageGoBack.name, 15_000],
   [StagehandMethods.pageGoForward.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
@@ -537,6 +538,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.stagehandCallbackBatch.name:
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:
+    case StagehandMethods.pageSetContent.name:
     case StagehandMethods.pageGoBack.name:
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
@@ -558,6 +560,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
   if (operationTimeoutMs !== undefined) {
     if (
       (method === StagehandMethods.pagePDF.name ||
+        method === StagehandMethods.pageSetContent.name ||
         method === StagehandMethods.pageSnapshot.name ||
         method === StagehandMethods.pageWaitForSelector.name) &&
       operationTimeoutMs === 0

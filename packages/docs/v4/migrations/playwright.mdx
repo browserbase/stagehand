@@ -593,7 +593,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.goto()` default `waitUntil` | `"domcontentloaded"`, not Playwright's `"load"` |
 | `waitUntil: "commit"` | Not supported. `load`, `domcontentloaded`, and `networkidle` only |
 | `page.waitForURL()` | Poll `page.url()`, or wait for a destination selector |
-| `page.setContent()` | No equivalent. Navigate, or build the DOM in `page.evaluate()` |
+| `page.setContent()` | Same name, with `waitUntil` and `timeout` options. Defaults to `waitUntil: "load"` |
 | `page.evaluate()`, `addInitScript()` | Same names |
 | `page.$eval()`, `$$eval()` | `page.evaluate()` |
 | `page.setViewportSize()` | Same name, two arguments instead of an object |
@@ -951,8 +951,10 @@ NETWORK, STORAGE, AND FILES
   animations, caret, path, and timeout are all supported.
 - page.accessibility.snapshot() -> page.snapshot(), which returns
   formattedTree, xpathMap, and urlMap.
-- No page.pdf(), page.setContent(), page.pause(), tracing, or video. For
-  page.setContent(), navigate to a real URL or build the DOM in evaluate().
+- page.setContent(html, options?) replaces the document without changing its
+  URL. Options are waitUntil (defaults to "load") and timeout (defaults to
+  30000 ms; 0 disables the timeout).
+- No page.pdf(), page.pause(), tracing, or video.
 
 WHAT TO USE INSTEAD OF SELECTORS
 - Prefer page.locator() wherever a selector is stable. A model call per step

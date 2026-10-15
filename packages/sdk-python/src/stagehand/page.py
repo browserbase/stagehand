@@ -55,6 +55,7 @@ from ._generated.models import (
     PageScreenshotParams,
     PageScreenshotResult,
     PageScrollParams,
+    PageSetContentParams,
     PageSetExtraHTTPHeadersParams,
     PageSetViewportSizeOptions,
     PageSetViewportSizeParams,
@@ -197,6 +198,25 @@ class Page:
         result = await self._rpc_client.send("page.goto", params, PageNavigationResult)
         self._ref = result.page
         return Response(self._rpc_client, result.response) if result.response is not None else None
+
+    async def set_content(
+        self,
+        html: str,
+        *,
+        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        options = {
+            name: value
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
+            if value is not None
+        }
+        params = PageSetContentParams.model_validate({
+            "page_id": self.page_id,
+            "html": html,
+            **({"options": options} if options else {}),
+        })
+        await self._rpc_client.send("page.set_content", params, PageVoidResult)
 
     async def reload(
         self,

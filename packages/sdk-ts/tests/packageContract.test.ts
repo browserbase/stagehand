@@ -112,6 +112,7 @@ describe("published TypeScript SDK", () => {
             PageKeyPressOptions,
             PageNavigationOptions,
             PageReloadOptions,
+            PageSetContentOptions,
             PageScreenshotClip,
             PageSetViewportSizeOptions,
             PageSnapshotOptions,
@@ -160,6 +161,7 @@ describe("published TypeScript SDK", () => {
           const pageDrag: PageDragAndDropOptions = { route: [routePoint] };
           const pageKeyPress: PageKeyPressOptions = { delay: 0 };
           const pageReload: PageReloadOptions = navigation;
+          const pageContent: PageSetContentOptions = { waitUntil: "load", timeout: 0 };
           const pageViewport: PageSetViewportSizeOptions = { deviceScaleFactor: 2 };
           const pageSnapshot: PageSnapshotOptions = { includeIframes: true, timeout: 5_000 };
           const pageType: PageTypeOptions = { delay: 0, withMistakes: false };
@@ -185,6 +187,7 @@ describe("published TypeScript SDK", () => {
             pageDrag,
             pageKeyPress,
             pageReload,
+            pageContent,
             pageViewport,
             pageSnapshot,
             pageType,

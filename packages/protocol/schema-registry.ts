@@ -86,6 +86,7 @@ import {
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
+  PageSetContentParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
   PageTitleResultSchema,
@@ -270,6 +271,11 @@ export const StagehandMethods = {
     resultWire: { opaqueKeys: ["headers"] },
   },
   pageUrl: { name: "page.url", params: PageIdParamsSchema, result: PageUrlResultSchema },
+  pageSetContent: {
+    name: "page.set_content",
+    params: PageSetContentParamsSchema,
+    result: PageVoidResultSchema,
+  },
   pageTitle: { name: "page.title", params: PageIdParamsSchema, result: PageTitleResultSchema },
   pageClose: { name: "page.close", params: PageIdParamsSchema, result: PageCloseResultSchema },
   pageReload: {

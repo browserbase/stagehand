@@ -354,6 +354,15 @@ func (p *Page) SetViewportSize(
 	return p.rpc.call(ctx, "page.set_viewport_size", params, &result)
 }
 
+// SetContent replaces the document HTML and waits for the requested load state.
+// By default it waits for load for up to 30 seconds. A zero timeout disables this
+// limit; the caller's context can still cancel the request.
+func (p *Page) SetContent(ctx context.Context, html string, options *PageSetContentOptions) error {
+	params := PageSetContentParams{PageID: p.PageID(), HTML: html, Options: options}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.set_content", params, &result)
+}
+
 // WaitForLoadState waits for a generated LoadState value.
 func (p *Page) WaitForLoadState(
 	ctx context.Context,

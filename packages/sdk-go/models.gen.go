@@ -1654,6 +1654,25 @@ type PageScrollParams struct {
 	Y float64 `json:"y"`
 }
 
+type PageSetContentOptions struct {
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// WaitUntil corresponds to the JSON schema field "wait_until".
+	WaitUntil *LoadState `json:"wait_until,omitempty,omitzero"`
+}
+
+type PageSetContentParams struct {
+	// HTML corresponds to the JSON schema field "html".
+	HTML string `json:"html"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *PageSetContentOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
 type PageSetExtraHTTPHeadersParams struct {
 	// Headers corresponds to the JSON schema field "headers".
 	Headers PageSetExtraHTTPHeadersParamsHeaders `json:"headers"`
@@ -2837,6 +2856,14 @@ type generatedModelCatalog struct {
 
 	// PageScrollParams corresponds to the JSON schema field "PageScrollParams".
 	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty,omitzero"`
+
+	// PageSetContentOptions corresponds to the JSON schema field
+	// "PageSetContentOptions".
+	PageSetContentOptions *PageSetContentOptions `json:"PageSetContentOptions,omitempty,omitzero"`
+
+	// PageSetContentParams corresponds to the JSON schema field
+	// "PageSetContentParams".
+	PageSetContentParams *PageSetContentParams `json:"PageSetContentParams,omitempty,omitzero"`
 
 	// PageSetExtraHTTPHeadersParams corresponds to the JSON schema field
 	// "PageSetExtraHTTPHeadersParams".
