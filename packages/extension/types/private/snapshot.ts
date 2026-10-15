@@ -86,14 +86,6 @@ export type ResolvedCssFocus = {
   absPrefix: string;
 };
 
-export type Axis = "child" | "desc";
-
-export type Step = {
-  axis: Axis;
-  raw: string;
-  name: string;
-};
-
 export type A11yNode = {
   role: string;
   name?: string;

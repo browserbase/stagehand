@@ -102,7 +102,7 @@ const findElement = (selector: string, pierceShadow: boolean): Element | null =>
 const checkState = (el: Element | null, state: WaitForSelectorState): boolean => {
   if (state === "detached") return el === null;
   if (state === "attached") return el !== null;
-  if (el === null) return false;
+  if (el === null) return state === "hidden";
 
   if (state === "hidden") {
     try {

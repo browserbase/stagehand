@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planDeepXPathTarget } from "../understudy/deepLocator.js";
+import { planDeepXPathTarget } from "../understudy/locatorTarget.js";
 
 describe("planDeepXPathTarget", () => {
   it("keeps a trailing iframe as the parent-frame selector (no hop)", () => {
@@ -13,6 +13,7 @@ describe("planDeepXPathTarget", () => {
     expect(planDeepXPathTarget("xpath=/html/iframe[1]/html/body/button")).toEqual({
       frameHopSelectors: ["xpath=/html/iframe[1]"],
       finalSelector: "xpath=/html/body/button",
+      xpathPrefix: "/html/iframe[1]",
     });
   });
 
@@ -20,6 +21,7 @@ describe("planDeepXPathTarget", () => {
     expect(planDeepXPathTarget("xpath=/html/iframe[1]/html/iframe[2]")).toEqual({
       frameHopSelectors: ["xpath=/html/iframe[1]"],
       finalSelector: "xpath=/html/iframe[2]",
+      xpathPrefix: "/html/iframe[1]",
     });
   });
 
@@ -27,6 +29,7 @@ describe("planDeepXPathTarget", () => {
     expect(planDeepXPathTarget("xpath=/html/iframe[1]/html/iframe[2]/html/body/button")).toEqual({
       frameHopSelectors: ["xpath=/html/iframe[1]", "xpath=/html/iframe[2]"],
       finalSelector: "xpath=/html/body/button",
+      xpathPrefix: "/html/iframe[1]/html/iframe[2]",
     });
   });
 
@@ -34,6 +37,15 @@ describe("planDeepXPathTarget", () => {
     expect(planDeepXPathTarget("/html/body/frame[1]/html/body/div")).toEqual({
       frameHopSelectors: ["xpath=/html/body/frame[1]"],
       finalSelector: "xpath=/html/body/div",
+      xpathPrefix: "/html/body/frame[1]",
+    });
+  });
+
+  it("retains iframe hops with successive numeric predicates", () => {
+    expect(planDeepXPathTarget("/html/iframe[2][1]/html/body/button")).toEqual({
+      frameHopSelectors: ["xpath=/html/iframe[2][1]"],
+      finalSelector: "xpath=/html/body/button",
+      xpathPrefix: "/html/iframe[2][1]",
     });
   });
 });
