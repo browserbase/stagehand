@@ -224,7 +224,7 @@ describe("locator resolution deadlines", () => {
       expect(root.send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
   });
 
-  it("releases earlier matches when a later selector lookup times out", async () => {
+  it("releases earlier matches when an all-match lookup times out", async () => {
     const { frame, send, respond } = createFrame("root");
     const gate = deferred();
     let matches = 0;
@@ -235,7 +235,9 @@ describe("locator resolution deadlines", () => {
           : Promise.resolve({ result: { objectId: "first" } })
         : respond(method, params),
     );
-    const pending = frame.locator("button").nth(1).resolveNode(createProgress());
+    const pending = frame
+      .locator("button")
+      .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -245,13 +247,13 @@ describe("locator resolution deadlines", () => {
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "second" });
   });
 
-  it("reports expiry without waiting for a second stalled cleanup", async () => {
+  it("bounds cleanup of an indexed result delivered after expiry", async () => {
     const { frame, send, respond } = createFrame("root");
     const resolver = frame.locator("button").selectorResolver;
-    vi.spyOn(resolver, "resolveAll").mockResolvedValue([
-      { objectId: "unselected", nodeId: 1 },
-      { objectId: "selected", nodeId: 2 },
-    ]);
+    vi.spyOn(resolver, "evaluateElement").mockImplementation(async () => {
+      vi.spyOn(performance, "now").mockReturnValue(101);
+      return { objectId: "selected", nodeId: 2 };
+    });
     const gate = deferred();
     send.mockImplementation((method, params) =>
       method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
@@ -264,7 +266,38 @@ describe("locator resolution deadlines", () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
       expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
-        ["Runtime.releaseObject", { objectId: "unselected" }],
+        ["Runtime.releaseObject", { objectId: "selected" }],
+      ]);
+    } finally {
+      gate.resolve({});
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  });
+
+  it("rejects an indexed result when the deadline expires before delivery", async () => {
+    const { frame, send, respond } = createFrame("root");
+    const resolver = frame.locator("button").selectorResolver;
+    vi.spyOn(resolver, "evaluateElement").mockImplementation(async () => {
+      // Expire after the range lookup returns, before resolveAtIndex resumes.
+      queueMicrotask(() => {
+        queueMicrotask(() => {
+          vi.spyOn(performance, "now").mockReturnValue(101);
+        });
+      });
+      return { objectId: "selected", nodeId: 2 };
+    });
+    const gate = deferred();
+    send.mockImplementation((method, params) =>
+      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
+    );
+    const settled = vi.fn();
+    const pending = resolver.resolveAtIndex({ kind: "css", value: "button" }, 1, createProgress());
+    void pending.then(settled, settled);
+
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
         ["Runtime.releaseObject", { objectId: "selected" }],
       ]);
     } finally {

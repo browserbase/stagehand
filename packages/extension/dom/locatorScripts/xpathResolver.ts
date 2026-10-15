@@ -29,15 +29,34 @@ export function resolveXPathAtIndex(
   options?: XPathResolveOptions,
 ): Element | null {
   if (!Number.isFinite(index) || index < 0) return null;
-  return queryXPathMatches(rawXp, options)[Math.floor(index)] ?? null;
+  const matches = evaluateXPathMatches(rawXp, options);
+  const targetIndex = Math.floor(index);
+  if (Array.isArray(matches)) return matches[targetIndex] ?? null;
+  return targetIndex < matches.snapshotLength
+    ? (matches.snapshotItem(targetIndex) as Element | null)
+    : null;
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
-  return queryXPathMatches(rawXp, options).length;
+  const matches = evaluateXPathMatches(rawXp, options);
+  return Array.isArray(matches) ? matches.length : matches.snapshotLength;
 }
 
-/** The canonical legacy match order, shared by single matches, counts, and scoped builders. */
 export function queryXPathMatches(rawXp: string, options?: XPathResolveOptions): Element[] {
+  const matches = evaluateXPathMatches(rawXp, options);
+  return Array.isArray(matches)
+    ? matches
+    : Array.from(
+        { length: matches.snapshotLength },
+        (_, index) => matches.snapshotItem(index) as Element,
+      );
+}
+
+/** Preserve the canonical match order without materializing native snapshots for index/count. */
+function evaluateXPathMatches(
+  rawXp: string,
+  options?: XPathResolveOptions,
+): XPathResult | Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
 
@@ -45,8 +64,8 @@ export function queryXPathMatches(rawXp: string, options?: XPathResolveOptions):
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
   if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeMatchesWithError(xp);
-    if (!pierceShadow || !native.error) return native.value;
+    const native = evaluateNativeXPath(xp);
+    if (!pierceShadow || native) return native ?? [];
     return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
   }
 
@@ -235,23 +254,10 @@ function composedDescendants(
   return out;
 }
 
-function resolveNativeMatchesWithError(xp: string): { value: Element[]; error: boolean } {
+function evaluateNativeXPath(xp: string): XPathResult | null {
   try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return {
-      value: Array.from(
-        { length: snapshot.snapshotLength },
-        (_, index) => snapshot.snapshotItem(index) as Element,
-      ),
-      error: false,
-    };
+    return document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
   } catch {
-    return { value: [], error: true };
+    return null;
   }
 }
