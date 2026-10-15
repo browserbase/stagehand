@@ -128,6 +128,7 @@
     },
     "//#fmt:check": {},
     "//#lint": {},
+    "//#lint:cli": {},
     "//#typecheck": {
       "dependsOn": ["@browserbasehq/stagehand#typecheck"],
       "inputs": ["tsconfig.tooling.json", "rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
