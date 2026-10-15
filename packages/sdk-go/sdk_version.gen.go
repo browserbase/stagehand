@@ -2,4 +2,4 @@
 
 package stagehand
 
-const stagehandSDKVersion = "4.2.1"
+const stagehandSDKVersion = "4.2.2"
