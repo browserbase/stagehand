@@ -331,6 +331,80 @@ describe("a11yForFrame folded nodes", () => {
   });
 });
 
+describe("a11yForFrame media state", () => {
+  const mediaNodes = [
+    axNode({
+      nodeId: "root",
+      backendDOMNodeId: 1,
+      role: "RootWebArea",
+      name: "Media",
+      childIds: ["video", "audio"],
+    }),
+    axNode({ nodeId: "video", backendDOMNodeId: 10, role: "Video", name: "", parentId: "root" }),
+    axNode({ nodeId: "audio", backendDOMNodeId: 20, role: "Audio", name: "", parentId: "root" }),
+  ];
+  const tagNameMap = { "0-10": "video", "0-20": "audio" };
+
+  function mediaSession(readState: (objectId: string) => unknown) {
+    const send = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "Accessibility.getFullAXTree") return { nodes: mediaNodes };
+      if (method === "DOM.resolveNode") {
+        return { object: { type: "object", objectId: `media-${String(params?.backendNodeId)}` } };
+      }
+      if (method === "Runtime.callFunctionOn") {
+        return { result: { type: "object", value: readState(String(params?.objectId)) } };
+      }
+      return {};
+    });
+    const session = { send } as unknown as CDPSessionLike;
+    executionContexts.registerExtensionWorld(session, "frame", 7);
+    return { session, send };
+  }
+
+  it("shows whether each video and audio element is playing and muted", async () => {
+    const { session, send } = mediaSession((objectId) =>
+      objectId === "media-10" ? { paused: true, muted: false } : { paused: false, muted: true },
+    );
+
+    const { outline } = await a11yForFrame(session, "frame", {
+      tagNameMap,
+      scrollableMap: {},
+      encode: (backendNodeId) => `0-${backendNodeId}`,
+    });
+
+    expect(outline).toBe(
+      [
+        "[0-1] RootWebArea: Media",
+        "  [0-10] Video [paused]",
+        "  [0-20] Audio [playing] [muted]",
+      ].join("\n"),
+    );
+    expect(send).toHaveBeenCalledWith("DOM.resolveNode", {
+      backendNodeId: 10,
+      executionContextId: 7,
+    });
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "media-10" });
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "media-20" });
+  });
+
+  it("leaves a media element without state when it can't be read", async () => {
+    const { session, send } = mediaSession(() => {
+      throw new Error("Node is detached from document");
+    });
+
+    const { outline } = await a11yForFrame(session, "frame", {
+      tagNameMap,
+      scrollableMap: {},
+      encode: (backendNodeId) => `0-${backendNodeId}`,
+    });
+
+    expect(outline).toBe(
+      ["[0-1] RootWebArea: Media", "  [0-10] Video", "  [0-20] Audio"].join("\n"),
+    );
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "media-10" });
+  });
+});
+
 async function outlineFor(
   nodes: Protocol.Accessibility.AXNode[],
   tagNameMap: Record<string, string>,

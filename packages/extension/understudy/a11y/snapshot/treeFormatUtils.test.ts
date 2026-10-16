@@ -39,6 +39,15 @@ describe("formatTreeLine values", () => {
     ).toBe('[0-12] DateTime: Meeting = "2025-07-23T10:00" [format: YYYY-MM-DDThh:mm]');
   });
 
+  it("prints a media element's playback state", () => {
+    expect(line({ role: "Video", media: { paused: true, muted: false } })).toBe(
+      "[0-12] Video [paused]",
+    );
+    expect(line({ role: "Audio", media: { paused: false, muted: true } })).toBe(
+      "[0-12] Audio [playing] [muted]",
+    );
+  });
+
   it("leaves out empty values, values that repeat the name, and booleans", () => {
     expect(line({ name: "Search", value: "  " })).toBe("[0-12] textbox: Search");
     expect(line({ role: "button", name: "Send", value: "Send" })).toBe("[0-12] button: Send");

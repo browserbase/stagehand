@@ -40,6 +40,7 @@ export const integrationTestGroups = {
   "local/frames-shadow": [
     "coordinateClick",
     "iframeLocatorReadiness",
+    "nativeMediaControls",
     "nestedDiv",
     "userAgentShadowXPaths",
   ],

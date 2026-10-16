@@ -34,6 +34,8 @@ function formatValue(node: A11yNode, name: string): string {
 function formatStateFlags(node: A11yNode): string {
   let flags = "";
   if (node.format) flags += ` [format: ${node.format}]`;
+  if (node.media) flags += node.media.paused ? " [paused]" : " [playing]";
+  if (node.media?.muted) flags += " [muted]";
   if (node.selected) flags += " [selected]";
   if (node.checked) flags += " [checked]";
   return flags;
