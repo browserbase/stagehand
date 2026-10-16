@@ -16,6 +16,16 @@ def _validate_url(value: str) -> str:
 WireUrl = Annotated[str, AfterValidator(_validate_url)]
 
 
+def _validate_websocket_url(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme not in ("ws", "wss") or not parsed.hostname:
+        raise ValueError("must be a ws:// or wss:// URL with a host")
+    return value
+
+
+WireWebSocketUrl = Annotated[str, AfterValidator(_validate_websocket_url)]
+
+
 class WireModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True, allow_inf_nan=False)
 

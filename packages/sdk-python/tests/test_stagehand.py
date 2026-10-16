@@ -89,6 +89,7 @@ def _browser_handle(
     api_key: str | None = None,
     browser_metadata: BrowserSessionMetadata | None = None,
     web_socket_debugger_url: str | None = "ws://browser",
+    extension_cdp_url: str | None = None,
 ) -> tuple[StagehandBrowser, _Transport]:
     transport = _Transport(web_socket_debugger_url)
     return (
@@ -100,6 +101,7 @@ def _browser_handle(
                 worker_init_metadata=_WorkerInitMetadata(
                     api_key=api_key,
                     browser=browser_metadata,
+                    browser_cdp_url=extension_cdp_url,
                 ),
             ),
             transport.close,
@@ -353,6 +355,23 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert str(params.api_url) == "https://api.stagehand.dev.browserbase.com"
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
+
+
+@pytest.mark.asyncio
+async def test_create_sends_the_extension_its_own_cdp_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle(
+        web_socket_debugger_url="wss://gateway/cdp?api_key=secret",
+        extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/abc",
+    )
+
+    await Stagehand.create(browser=browser)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.browser_cdp_url == "ws://127.0.0.1:9300/devtools/browser/abc"
 
 
 @pytest.mark.asyncio
