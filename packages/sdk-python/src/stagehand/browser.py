@@ -310,12 +310,14 @@ async def _connect_browser(
     preloaded_extension: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
     worker_init_metadata: _WorkerInitMetadata,
+    headers: Mapping[str, str] | None = None,
 ) -> StagehandBrowser:
     owns_source = origin == "launched" and not source.keep_alive
     cdp_client: CDPClient | None = None
     try:
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
+            **({"headers": headers} if headers else {}),
             extension_dir=extension_dir,
             local_extension_dir=local_extension_dir,
             extension_id=extension_id,
@@ -533,18 +535,24 @@ class LocalBrowser:
         *,
         cdp_url: str,
         extension_id: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> StagehandBrowser:
         """Connect to an existing browser.
 
         Args:
             extension_id: Deprecated and ignored. Omit this argument; Stagehand
                 discovers the installed extension automatically.
+            headers: HTTP headers to send with the CDP connection, such as a
+                gateway's credentials, so they need not ride in `cdp_url`. They
+                go to `cdp_url` and to the WebSocket it advertises when that is
+                on the same host, never elsewhere, and never to the extension.
         """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("cdp_url", cdp_url),
                 ("extension_id", extension_id),
+                ("headers", dict(headers) if headers is not None else None),
             )
             if value is not None
         })
@@ -554,6 +562,7 @@ class LocalBrowser:
             source=_ConnectedBrowserSource(options.cdp_url),
             local_extension_dir=lambda: str(extension_directory()),
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
+            headers=options.headers,
         )
 
 
