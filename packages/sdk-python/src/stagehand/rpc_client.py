@@ -5,6 +5,7 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -67,7 +68,7 @@ SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 _RequestId = Annotated[int, Field(ge=0, le=_MAX_REQUEST_ID, strict=True)]
 _Params = dict[str, JsonValue] | list[JsonValue] | None
-_RequestHandler = Callable[[BaseModel], Awaitable[BaseModel]]
+_RequestHandler = Callable[[BaseModel, "RPCRequestContext"], Awaitable[BaseModel]]
 _NotificationListener = Callable[[BaseModel], Coroutine[object, object, None]]
 
 
@@ -125,6 +126,11 @@ class RPCError(RuntimeError):
         self.code = error.code
         self.data = error.data
         super().__init__(error.message)
+
+
+@dataclass(frozen=True)
+class RPCRequestContext:
+    request_id: int
 
 
 class RPCClient:
@@ -239,11 +245,22 @@ class RPCClient:
         result_model: type[ResultT],
         handler: Callable[[ParamsT], ResultT | Awaitable[ResultT]],
     ) -> Callable[[], None]:
+        return self.on_request_with_context(
+            method, params_model, result_model, lambda params, _context: handler(params)
+        )
+
+    def on_request_with_context(
+        self,
+        method: str,
+        params_model: type[ParamsT],
+        result_model: type[ResultT],
+        handler: Callable[[ParamsT, RPCRequestContext], ResultT | Awaitable[ResultT]],
+    ) -> Callable[[], None]:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
 
-        async def handle(params: BaseModel) -> BaseModel:
-            result = handler(cast(ParamsT, params))
+        async def handle(params: BaseModel, context: RPCRequestContext) -> BaseModel:
+            result = handler(cast(ParamsT, params), context)
             if inspect.isawaitable(result):
                 return cast(BaseModel, await result)
             return result
@@ -460,7 +477,7 @@ class RPCClient:
             return
 
         try:
-            result = await handler(params)
+            result = await handler(params, RPCRequestContext(request_id=request.id))
         except Exception as error:
             await self._send_error(
                 request.id,
@@ -470,6 +487,8 @@ class RPCClient:
             )
             return
 
+        if self._closed:
+            return
         try:
             validated_result = result_model.model_validate(result, strict=True)
             encoded_result = validated_result.model_dump_json(
@@ -502,6 +521,8 @@ class RPCClient:
         message: str,
         data: JsonValue | None = None,
     ) -> None:
+        if self._closed:
+            return
         response = _JSONRPCErrorResponse(
             jsonrpc="2.0",
             id=request_id,

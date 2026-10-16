@@ -974,3 +974,56 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
         assert client._pending == {}
     finally:
         await client.close()
+
+
+async def test_request_context_exposes_incoming_id() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+
+    def handle(params: models.EmptyParams, context: rpc_client.RPCRequestContext) -> RPCResult:
+        assert params == models.EmptyParams()
+        assert context.request_id == 91
+        return RPCResult(ok=True)
+
+    client.on_request_with_context("test.context", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "test.context",
+            "params": {},
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert response == {"jsonrpc": "2.0", "id": 91, "result": {"ok": True}}
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_close_suppresses_late_handler_result_or_error(fail: bool) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+
+    async def handle(_params: models.EmptyParams) -> RPCResult:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            if fail:
+                raise RuntimeError("late handler error") from None
+            return RPCResult(ok=True)
+        raise AssertionError("Handler must be cancelled")
+
+    client.on_request("test.late", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "test.late",
+            "params": {},
+        })
+        await asyncio.wait_for(started.wait(), 1)
+    finally:
+        await client.close()
+    assert not transport.sent
