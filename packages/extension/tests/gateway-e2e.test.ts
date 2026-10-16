@@ -1,17 +1,10 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as llmService from "../services/llmService.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 
-/**
- * End-to-end test of the gateway inference path with nothing mocked: the real
- * AI SDK stack (generateText → @ai-sdk/openai responses model → fetch) runs
- * against a local HTTP server standing in for stagehand-api-v3's
- * POST /v1/llm/responses. Verifies the exact wire contract the server
- * expects — endpoint path, auth headers, Responses-format body — and that
- * Responses payloads map back into the Stagehand LLM result schema.
- */
+import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
 
 interface CapturedRequest {
   url: string;
@@ -21,6 +14,8 @@ interface CapturedRequest {
 
 let server: Server;
 let gateway: GatewayContext;
+let bridge: ReturnType<typeof createBrowserbaseTestBridge>;
+let apiUrl: string;
 const requests: CapturedRequest[] = [];
 let respondWith: () => Record<string, unknown>;
 
@@ -58,18 +53,27 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   const { port } = server.address() as AddressInfo;
-  gateway = {
-    apiUrl: `http://127.0.0.1:${port}/v1`,
-    apiKey: "bb-api-key",
-    sessionId: "session-123",
-  };
+  apiUrl = `http://127.0.0.1:${port}/v1`;
 });
 
 afterAll(() => {
   server.close();
 });
 
+afterEach(async () => {
+  expect(bridge.requests).toHaveLength(requests.length);
+  expect(bridge.requests.every(({ operation }) => operation === "gateway.responses")).toBe(true);
+  bridge.rpc.close();
+  await Promise.all(bridge.pendingReplies);
+});
+
 beforeEach(() => {
+  bridge = createBrowserbaseTestBridge({ apiUrl, apiKey: "bb-api-key", sessionId: "session-123" });
+  gateway = {
+    source: "client",
+    sessionId: "session-123",
+    request: bridge.runtime.adapters.clientBrowserbaseRequest,
+  };
   requests.length = 0;
   respondWith = () => completion("Hello from the gateway");
 });
@@ -165,8 +169,7 @@ describe("gateway inference end to end", () => {
     );
 
     const request = requests[0]!;
-    const text = request.body.text as { format?: { type: string } } | undefined;
-    expect(text?.format?.type).toBe("json_schema");
+    expect(request.body.text).toMatchObject({ format: { type: "json_schema", name: "greeting" } });
 
     expect(result.outputFormat).toBe("json_schema");
     expect(result).toMatchObject({ structuredContent: { greeting: "hi" } });

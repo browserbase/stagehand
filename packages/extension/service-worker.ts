@@ -1,3 +1,4 @@
+import { requestBrowserbase } from "./clients/browserbaseClient.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
@@ -74,6 +75,10 @@ export function startStagehandServiceWorker(
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page event notification", error);
           });
+      },
+      clientBrowserbaseRequest: async (params, signal) => {
+        if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
+        return await requestBrowserbase(rpcClient, params, signal);
       },
       clientLLMGenerate: async (params) => {
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");

@@ -14,7 +14,10 @@ describe("cache service", () => {
       browser: { sessionId: "session-id", region: "eu-central-1" },
     } as StagehandInitParams);
 
-    expect(context?.client.apiUrl).toBe("https://api.stagehand.dev.browserbase.com/v1");
+    expect(context?.client.transport).toEqual({
+      apiUrl: "https://api.stagehand.dev.browserbase.com/v1",
+      apiKey: "bb-key",
+    });
   });
 
   it("marks a cache hit without executing the live request", async () => {

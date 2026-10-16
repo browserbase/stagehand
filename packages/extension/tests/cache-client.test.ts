@@ -53,7 +53,7 @@ describe("CacheGetResponseSchema", () => {
 
 describe("CacheClient", () => {
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
-    const client = new CacheClient("http://cache.test/v1", "bb-key");
+    const client = new CacheClient({ apiUrl: "http://cache.test/v1", apiKey: "bb-key" });
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
