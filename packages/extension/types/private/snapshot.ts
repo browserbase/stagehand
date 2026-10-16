@@ -59,6 +59,8 @@ export type SessionDomIndex = {
   contentDocRootByIframe: Map<number, number>;
   enterByBe: Map<number, number>;
   exitByBe: Map<number, number>;
+  /** Nodes inside a user-agent shadow root, mapped to their host's tag. */
+  uaHostTagByBe: Map<number, string>;
 };
 
 export type FrameDomMaps = {
@@ -101,6 +103,8 @@ export type A11yNode = {
   value?: string | number | boolean;
   selected?: boolean;
   checked?: boolean;
+  /** The value format a date or time input accepts, e.g. "YYYY-MM-DD". */
+  format?: string;
   nodeId: string;
   backendDOMNodeId?: number;
   parentId?: string;
@@ -112,6 +116,8 @@ export type A11yNode = {
 export type A11yOptions = {
   focusLocator?: Locator;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
+  /** Nodes left out of the outline while their children move up to the parent. */
+  isFoldedBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;

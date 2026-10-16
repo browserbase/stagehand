@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
-import { a11yForFrame } from "./a11yTree.js";
+import { a11yForFrame, foldIntoHosts } from "./a11yTree.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
 
 vi.mock("./focusSelectors.js", async (importOriginal) => ({
@@ -217,9 +217,124 @@ describe("a11yForFrame values", () => {
   });
 });
 
+describe("a11yForFrame folded nodes", () => {
+  it("folds a host's internals into its line and keeps content slotted through them", async () => {
+    const outline = await outlineFor(
+      [
+        axNode({
+          nodeId: "root",
+          backendDOMNodeId: 1,
+          role: "RootWebArea",
+          name: "Form",
+          childIds: ["date", "box"],
+        }),
+        axNode({
+          nodeId: "date",
+          backendDOMNodeId: 10,
+          role: "Date",
+          name: "Birthday",
+          value: "2025-07-23",
+          parentId: "root",
+          childIds: ["fields"],
+        }),
+        axNode({
+          nodeId: "fields",
+          backendDOMNodeId: 11,
+          role: "generic",
+          name: "",
+          parentId: "date",
+          childIds: ["month", "picker"],
+        }),
+        axNode({
+          nodeId: "month",
+          backendDOMNodeId: 12,
+          role: "spinbutton",
+          name: "Month Month",
+          parentId: "fields",
+        }),
+        axNode({
+          nodeId: "picker",
+          backendDOMNodeId: 13,
+          role: "button",
+          name: "Show date picker",
+          parentId: "fields",
+        }),
+        axNode({
+          nodeId: "box",
+          backendDOMNodeId: 20,
+          role: "group",
+          name: "Shipping",
+          parentId: "root",
+          childIds: ["slot"],
+        }),
+        axNode({
+          nodeId: "slot",
+          backendDOMNodeId: 21,
+          role: "generic",
+          name: "",
+          parentId: "box",
+          childIds: ["slotted"],
+        }),
+        axNode({
+          nodeId: "slotted",
+          backendDOMNodeId: 22,
+          role: "StaticText",
+          name: "Ships in 2 days",
+          parentId: "slot",
+        }),
+      ],
+      { "0-10": "input, date", "0-20": "fieldset" },
+      [11, 12, 13, 21],
+    );
+
+    expect(outline).toBe(
+      [
+        "[0-1] RootWebArea: Form",
+        '  [0-10] Date: Birthday = "2025-07-23" [format: YYYY-MM-DD]',
+        "  [0-20] group: Shipping",
+        "    [0-22] StaticText: Ships in 2 days",
+      ].join("\n"),
+    );
+  });
+
+  it("moves folded nodes' children up to the nearest kept ancestor", () => {
+    const nodes = [
+      axNode({ nodeId: "a", backendDOMNodeId: 1, role: "group", name: "A", childIds: ["b"] }),
+      axNode({
+        nodeId: "b",
+        backendDOMNodeId: 2,
+        role: "generic",
+        name: "",
+        parentId: "a",
+        childIds: ["c", "d"],
+      }),
+      axNode({
+        nodeId: "c",
+        backendDOMNodeId: 3,
+        role: "generic",
+        name: "",
+        parentId: "b",
+        childIds: ["e"],
+      }),
+      axNode({ nodeId: "d", backendDOMNodeId: 4, role: "StaticText", name: "D", parentId: "b" }),
+      axNode({ nodeId: "e", backendDOMNodeId: 5, role: "StaticText", name: "E", parentId: "c" }),
+    ];
+
+    const folded = foldIntoHosts(nodes, (be) => be === 2 || be === 3);
+
+    expect(folded.map((n) => [n.nodeId, n.parentId, n.childIds])).toEqual([
+      ["a", undefined, ["e", "d"]],
+      ["d", "a", undefined],
+      ["e", "a", undefined],
+    ]);
+    expect(foldIntoHosts(nodes, undefined)).toBe(nodes);
+  });
+});
+
 async function outlineFor(
   nodes: Protocol.Accessibility.AXNode[],
   tagNameMap: Record<string, string>,
+  foldedBackendNodeIds: number[] = [],
 ): Promise<string> {
   const session = {
     send: vi.fn(async (method: string) =>
@@ -227,6 +342,7 @@ async function outlineFor(
     ),
   } as unknown as CDPSessionLike;
   const { outline } = await a11yForFrame(session, "frame", {
+    isFoldedBackendNode: (backendNodeId) => foldedBackendNodeIds.includes(backendNodeId),
     tagNameMap,
     scrollableMap: {},
     encode: (backendNodeId) => `0-${backendNodeId}`,

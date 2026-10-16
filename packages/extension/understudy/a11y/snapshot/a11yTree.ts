@@ -98,10 +98,13 @@ export async function a11yForFrame(
   })();
 
   progress?.throwIfStopped();
-  const filteredNodes = nodesForOutline.filter((node) => {
-    const be = node.backendDOMNodeId;
-    return typeof be !== "number" || !opts.isIgnoredBackendNode?.(be);
-  });
+  const filteredNodes = foldIntoHosts(
+    nodesForOutline.filter((node) => {
+      const be = node.backendDOMNodeId;
+      return typeof be !== "number" || !opts.isIgnoredBackendNode?.(be);
+    }),
+    opts.isFoldedBackendNode,
+  );
 
   const urlMap: Record<string, string> = {};
   for (const n of filteredNodes) {
@@ -119,6 +122,42 @@ export async function a11yForFrame(
   progress?.throwIfStopped();
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
+}
+
+/**
+ * Remove folded nodes (the internals of a user-agent shadow root, such as a
+ * date field's segments or a text field's inner editor) and move their
+ * children up to the nearest kept ancestor. Slotted page content, such as a
+ * `<details>` body, therefore stays in the outline under its host.
+ */
+export function foldIntoHosts(
+  nodes: Protocol.Accessibility.AXNode[],
+  isFolded: ((backendNodeId: number) => boolean) | undefined,
+): Protocol.Accessibility.AXNode[] {
+  if (!isFolded) return nodes;
+  const folded = new Map<string, Protocol.Accessibility.AXNode>();
+  for (const n of nodes) {
+    if (typeof n.backendDOMNodeId === "number" && isFolded(n.backendDOMNodeId)) {
+      folded.set(n.nodeId, n);
+    }
+  }
+  if (!folded.size) return nodes;
+
+  const keptParent = (id: string | undefined): string | undefined => {
+    let cur = id;
+    while (cur !== undefined && folded.has(cur)) cur = folded.get(cur)!.parentId;
+    return cur;
+  };
+  const keptChildren = (ids: string[]): string[] =>
+    ids.flatMap((id) => (folded.has(id) ? keptChildren(folded.get(id)!.childIds ?? []) : [id]));
+
+  return nodes
+    .filter((n) => !folded.has(n.nodeId))
+    .map((n) => ({
+      ...n,
+      parentId: keptParent(n.parentId),
+      ...(n.childIds ? { childIds: keptChildren(n.childIds) } : {}),
+    }));
 }
 
 export function decorateRoles(
@@ -160,6 +199,7 @@ export function decorateRoles(
       value: outlineValue(n.value?.value, tag),
       selected: extractBooleanProperty(n, "selected"),
       checked: extractBooleanProperty(n, "checked"),
+      format: tag ? DATE_TIME_FORMATS[tag] : undefined,
       nodeId: n.nodeId,
       backendDOMNodeId: n.backendDOMNodeId,
       parentId: n.parentId,
@@ -168,6 +208,19 @@ export function decorateRoles(
     };
   });
 }
+
+/**
+ * The value formats of date and time inputs. Their segments live in a folded
+ * user-agent shadow root and inserted text doesn't reach them, so the outline
+ * tells the model the format that filling the input accepts.
+ */
+const DATE_TIME_FORMATS: Record<string, string> = {
+  "input, date": "YYYY-MM-DD",
+  "input, datetime-local": "YYYY-MM-DDThh:mm",
+  "input, time": "hh:mm",
+  "input, month": "YYYY-MM",
+  "input, week": "YYYY-Www",
+};
 
 /**
  * The value the outline prints on a node's line: a native form control's

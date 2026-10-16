@@ -33,6 +33,7 @@ function formatValue(node: A11yNode, name: string): string {
 
 function formatStateFlags(node: A11yNode): string {
   let flags = "";
+  if (node.format) flags += ` [format: ${node.format}]`;
   if (node.selected) flags += " [selected]";
   if (node.checked) flags += " [checked]";
   return flags;

@@ -25,6 +25,20 @@ describe("formatTreeLine values", () => {
     );
   });
 
+  it("prints a date or time input's format with the state flags", () => {
+    expect(line({ role: "Date", name: "Birthday", format: "YYYY-MM-DD" })).toBe(
+      "[0-12] Date: Birthday [format: YYYY-MM-DD]",
+    );
+    expect(
+      line({
+        role: "DateTime",
+        name: "Meeting",
+        value: "2025-07-23T10:00",
+        format: "YYYY-MM-DDThh:mm",
+      }),
+    ).toBe('[0-12] DateTime: Meeting = "2025-07-23T10:00" [format: YYYY-MM-DDThh:mm]');
+  });
+
   it("leaves out empty values, values that repeat the name, and booleans", () => {
     expect(line({ name: "Search", value: "  " })).toBe("[0-12] textbox: Search");
     expect(line({ role: "button", name: "Send", value: "Send" })).toBe("[0-12] button: Send");

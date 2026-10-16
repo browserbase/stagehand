@@ -230,7 +230,7 @@ export async function tryScopedSnapshot(
     const parentId = context.parentByFrame.get(targetFrameId);
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
+    const { tagNameMap, xpathMap, scrollableMap, uaHostTagMap } = await domMapsForSession(
       owningSess,
       targetFrameId,
       pierce,
@@ -238,6 +238,8 @@ export async function tryScopedSnapshot(
       sameSessionAsParent,
       progress,
     );
+    const encodeTarget = (backendNodeId: number) =>
+      `${page.getOrdinal(targetFrameId)}-${backendNodeId}`;
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(
       owningSess,
@@ -254,9 +256,10 @@ export async function tryScopedSnapshot(
           ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
           exclusionIntervalsByFrame,
         ),
+        isFoldedBackendNode: makeIsFoldedBackendNode((be) => uaHostTagMap[encodeTarget(be)]),
         tagNameMap,
         scrollableMap,
-        encode: (backendNodeId) => `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        encode: encodeTarget,
       },
       progress,
     );
@@ -418,6 +421,7 @@ export async function collectPerFrameMaps(
       frameId,
       {
         isIgnoredBackendNode,
+        isFoldedBackendNode: makeIsFoldedBackendNode((be) => idx.uaHostTagByBe.get(be)),
         tagNameMap,
         scrollableMap,
         encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
@@ -718,6 +722,26 @@ async function resolveChildFramesByParent(
   }
 
   return childFramesByParent;
+}
+
+/**
+ * Hosts whose user-agent shadow internals stay in the outline: native media
+ * controls, and the default summary of a `<details>` that has none.
+ */
+const UNFOLDED_USER_AGENT_HOSTS = new Set(["video", "audio", "details"]);
+
+/**
+ * Fold the internals of user-agent shadow roots (a text field's inner editor,
+ * a date field's segments, a select's button) into their host element, whose
+ * own line carries the value.
+ */
+function makeIsFoldedBackendNode(
+  userAgentHostTag: (backendNodeId: number) => string | undefined,
+): (backendNodeId: number) => boolean {
+  return (backendNodeId: number): boolean => {
+    const hostTag = userAgentHostTag(backendNodeId);
+    return hostTag !== undefined && !UNFOLDED_USER_AGENT_HOSTS.has(hostTag);
+  };
 }
 
 function makeIsIgnoredBackendNode(

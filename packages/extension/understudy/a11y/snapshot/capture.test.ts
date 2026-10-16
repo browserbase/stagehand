@@ -61,6 +61,7 @@ describe("snapshot frame document slicing", () => {
     contentDocRootByIframe: new Map(),
     enterByBe: new Map(),
     exitByBe: new Map(),
+    uaHostTagByBe: new Map(),
   });
 
   beforeEach(() => {
@@ -121,6 +122,38 @@ describe("snapshot frame document slicing", () => {
       expect(a11yForFrame).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("folds user-agent shadow internals into their host, except media and details", async () => {
+    const session = { id: "root-session", send: vi.fn(async () => ({})) };
+    vi.mocked(ownerSession).mockReturnValue(session as never);
+    const context: FrameContext = {
+      rootId: "root",
+      frames: ["root"],
+      parentByFrame: new Map([["root", null]]),
+    };
+    const page = { getOrdinal: () => 0 } as unknown as Page;
+    const index = documentIndex();
+    index.uaHostTagByBe = new Map([
+      [10, "input, date"],
+      [11, "select"],
+      [12, "video"],
+      [13, "audio"],
+      [14, "details"],
+    ]);
+
+    await collectPerFrameMaps(
+      page,
+      context,
+      new Map([[session.id, index]]),
+      undefined,
+      true,
+      context.frames,
+      new Map(),
+    );
+
+    const isFolded = vi.mocked(a11yForFrame).mock.calls[0]![2].isFoldedBackendNode!;
+    expect([10, 11, 12, 13, 14, 3].map(isFolded)).toEqual([true, true, false, false, false, false]);
+  });
 
   it("does not resolve an ignored child document to the parent document", async () => {
     const session = { id: "root-session", send: vi.fn().mockResolvedValue({ backendNodeId: 4 }) };
@@ -284,7 +317,7 @@ describe("snapshot Unicode repair", () => {
       absPrefix: "",
     });
     vi.mocked(ownerSession).mockReturnValue({ id: "root" } as never);
-    vi.mocked(domMapsForSession).mockResolvedValue(emptyMaps());
+    vi.mocked(domMapsForSession).mockResolvedValue({ ...emptyMaps(), uaHostTagMap: {} });
     vi.mocked(a11yForFrame).mockResolvedValue({
       outline: malformedOutline,
       urlMap: {},
