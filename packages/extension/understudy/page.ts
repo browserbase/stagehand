@@ -28,6 +28,7 @@ import type {
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
   PageSnapshotOptions,
+  PageEmulateMediaOptions,
   PagePDFOptions,
   PagePDFResult,
   SnapshotResult,
@@ -208,6 +209,8 @@ export class Page {
   /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
+  private emulatedMedia: PageEmulateMediaOptions = {};
+  private userAgent: string | undefined;
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
@@ -475,6 +478,10 @@ export class Page {
     this.networkManager.trackSession(childSession);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
+    if (Object.keys(this.emulatedMedia).length > 0)
+      void this.applyEmulatedMediaToSession(childSession).catch(() => {});
+    if (this.userAgent !== undefined)
+      void this.applyUserAgentToSession(childSession, this.userAgent).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -1233,6 +1240,20 @@ export class Page {
     });
   }
 
+  private async applyEmulatedMediaToSession(session: CDPSessionLike): Promise<void> {
+    const { colorScheme, reducedMotion } = this.emulatedMedia;
+    const features: Protocol.Emulation.MediaFeature[] = [];
+    if (colorScheme && colorScheme !== "no-override")
+      features.push({ name: "prefers-color-scheme", value: colorScheme });
+    if (reducedMotion && reducedMotion !== "no-override")
+      features.push({ name: "prefers-reduced-motion", value: reducedMotion });
+    await session.send("Emulation.setEmulatedMedia", { features });
+  }
+
+  private async applyUserAgentToSession(session: CDPSessionLike, userAgent: string): Promise<void> {
+    await session.send("Emulation.setUserAgentOverride", { userAgent });
+  }
+
   ensureOrdinal(frameId: string): number {
     const hit = this.frameOrdinals.get(frameId);
     if (hit !== undefined) return hit;
@@ -1653,42 +1674,59 @@ export class Page {
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
     const headersToSet = { ...headers };
     this.extraHTTPHeaders = headersToSet;
+    await this.applyToAllSessions("setExtraHTTPHeaders", (session) =>
+      this.applyExtraHTTPHeadersToSession(session, headersToSet),
+    );
+  }
 
-    // get the session(s) for this page:
+  /**
+   * Emulate CSS media features on the root CDP session of the page and all of
+   * its child CDP sessions. Omitted options keep their current value, and
+   * "no-override" clears one.
+   */
+  async emulateMedia(options: PageEmulateMediaOptions = {}): Promise<void> {
+    this.emulatedMedia = { ...this.emulatedMedia, ...options };
+    await this.applyToAllSessions("emulateMedia", (session) =>
+      this.applyEmulatedMediaToSession(session),
+    );
+  }
+
+  /**
+   * Override the user agent on the root CDP session of the page and all of its
+   * child CDP sessions. An empty string restores the browser default.
+   */
+  async setUserAgent(userAgent: string): Promise<void> {
+    this.userAgent = userAgent;
+    await this.applyToAllSessions("setUserAgent", (session) =>
+      this.applyUserAgentToSession(session, userAgent),
+    );
+  }
+
+  /** Throws the first original CDP error after logging every failed session. */
+  private async applyToAllSessions(
+    operation: string,
+    apply: (session: CDPSessionLike) => Promise<void>,
+  ): Promise<void> {
     const sessions: CDPSessionLike[] = [this.mainSession];
     for (const session of this.sessions.values()) {
       if (session === this.mainSession) continue;
       sessions.push(session);
     }
 
-    const results = await Promise.allSettled(
-      sessions.map(async (session) => {
-        await this.applyExtraHTTPHeadersToSession(session, headersToSet);
-      }),
+    const results = await Promise.allSettled(sessions.map(apply));
+    const failures = results.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{ reason: result.reason as unknown, sessionId: sessions[index].id ?? "root" }]
+        : [],
     );
-
-    // get list of objects containing results & corresponding session IDs
-    const pairs = results.map((result, index) => ({
-      result,
-      id: sessions[index].id,
-    }));
-
-    const filtered = pairs.filter(
-      (pair): pair is { result: PromiseRejectedResult; id: string | null } =>
-        pair.result.status === "rejected",
-    );
-
-    const failures = filtered.map((pair) => {
-      const reason: unknown = pair.result.reason;
-      const sessId = pair.id ?? "root";
-      const message = reason instanceof Error ? reason.message : String(reason);
-      return { reason, sessionId: sessId, message };
-    });
 
     if (failures.length > 0) {
-      this.logger.error("setExtraHTTPHeaders failed for one or more sessions", {
+      this.logger.error(`${operation} failed for one or more sessions`, {
         category: "page",
-        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
+        failures: failures.map(({ reason, sessionId }) => ({
+          sessionId,
+          message: reason instanceof Error ? reason.message : String(reason),
+        })),
       });
       throw failures[0]!.reason;
     }

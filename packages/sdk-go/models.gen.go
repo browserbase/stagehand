@@ -1342,6 +1342,34 @@ type PageDragAndDropRoutePoint struct {
 	Y float64 `json:"y"`
 }
 
+type PageEmulateMediaOptions struct {
+	// ColorScheme corresponds to the JSON schema field "color_scheme".
+	ColorScheme *PageEmulateMediaOptionsColorScheme `json:"color_scheme,omitempty,omitzero"`
+
+	// ReducedMotion corresponds to the JSON schema field "reduced_motion".
+	ReducedMotion *PageEmulateMediaOptionsReducedMotion `json:"reduced_motion,omitempty,omitzero"`
+}
+
+type PageEmulateMediaOptionsColorScheme string
+
+const PageEmulateMediaOptionsColorSchemeDark PageEmulateMediaOptionsColorScheme = "dark"
+const PageEmulateMediaOptionsColorSchemeLight PageEmulateMediaOptionsColorScheme = "light"
+const PageEmulateMediaOptionsColorSchemeNoOverride PageEmulateMediaOptionsColorScheme = "no-override"
+
+type PageEmulateMediaOptionsReducedMotion string
+
+const PageEmulateMediaOptionsReducedMotionNoOverride PageEmulateMediaOptionsReducedMotion = "no-override"
+const PageEmulateMediaOptionsReducedMotionNoPreference PageEmulateMediaOptionsReducedMotion = "no-preference"
+const PageEmulateMediaOptionsReducedMotionReduce PageEmulateMediaOptionsReducedMotion = "reduce"
+
+type PageEmulateMediaParams struct {
+	// Options corresponds to the JSON schema field "options".
+	Options *PageEmulateMediaOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
 type PageEvaluateParams struct {
 	// Expression corresponds to the JSON schema field "expression".
 	Expression string `json:"expression"`
@@ -1663,6 +1691,14 @@ type PageSetExtraHTTPHeadersParams struct {
 }
 
 type PageSetExtraHTTPHeadersParamsHeaders map[string]string
+
+type PageSetUserAgentParams struct {
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// UserAgent corresponds to the JSON schema field "user_agent".
+	UserAgent string `json:"user_agent"`
+}
 
 type PageSetViewportSizeOptions struct {
 	// DeviceScaleFactor corresponds to the JSON schema field "device_scale_factor".
@@ -2751,6 +2787,14 @@ type generatedModelCatalog struct {
 	// "PageDragAndDropRoutePoint".
 	PageDragAndDropRoutePoint *PageDragAndDropRoutePoint `json:"PageDragAndDropRoutePoint,omitempty,omitzero"`
 
+	// PageEmulateMediaOptions corresponds to the JSON schema field
+	// "PageEmulateMediaOptions".
+	PageEmulateMediaOptions *PageEmulateMediaOptions `json:"PageEmulateMediaOptions,omitempty,omitzero"`
+
+	// PageEmulateMediaParams corresponds to the JSON schema field
+	// "PageEmulateMediaParams".
+	PageEmulateMediaParams *PageEmulateMediaParams `json:"PageEmulateMediaParams,omitempty,omitzero"`
+
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
 	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
 
@@ -2841,6 +2885,10 @@ type generatedModelCatalog struct {
 	// PageSetExtraHTTPHeadersParams corresponds to the JSON schema field
 	// "PageSetExtraHTTPHeadersParams".
 	PageSetExtraHTTPHeadersParams *PageSetExtraHTTPHeadersParams `json:"PageSetExtraHTTPHeadersParams,omitempty,omitzero"`
+
+	// PageSetUserAgentParams corresponds to the JSON schema field
+	// "PageSetUserAgentParams".
+	PageSetUserAgentParams *PageSetUserAgentParams `json:"PageSetUserAgentParams,omitempty,omitzero"`
 
 	// PageSetViewportSizeOptions corresponds to the JSON schema field
 	// "PageSetViewportSizeOptions".

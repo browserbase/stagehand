@@ -7,6 +7,7 @@ import type {
   WebMCPToolIdentity,
   PageClickParams,
   PageDragAndDropParams,
+  PageEmulateMediaParams,
   PageKeyPressParams,
   PageNavigationOptions,
   PagePDFOptions,
@@ -48,6 +49,7 @@ export type PDFOptions = PagePDFOptions & {
 
 export type PageClickOptions = NonNullable<PageClickParams["options"]>;
 export type PageDragAndDropOptions = NonNullable<PageDragAndDropParams["options"]>;
+export type PageEmulateMediaOptions = NonNullable<PageEmulateMediaParams["options"]>;
 export type PageKeyPressOptions = NonNullable<PageKeyPressParams["options"]>;
 export type PageReloadOptions = NonNullable<PageReloadParams["options"]>;
 export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
@@ -329,6 +331,20 @@ export class Page {
       width,
       height,
       ...(options ? { options } : {}),
+    });
+  }
+
+  async emulateMedia(options?: PageEmulateMediaOptions): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageEmulateMedia, {
+      pageId: this.pageId,
+      ...(options ? { options } : {}),
+    });
+  }
+
+  async setUserAgent(userAgent: string): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageSetUserAgent, {
+      pageId: this.pageId,
+      userAgent,
     });
   }
 

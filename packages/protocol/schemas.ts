@@ -1824,6 +1824,21 @@ export const PageSetViewportSizeParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageSetViewportSizeParams" });
 
+export const PageEmulateMediaOptionsSchema = z
+  .strictObject({
+    colorScheme: z.enum(["light", "dark", "no-override"]).optional(),
+    reducedMotion: z.enum(["reduce", "no-preference", "no-override"]).optional(),
+  })
+  .meta({ id: "PageEmulateMediaOptions" });
+
+export const PageEmulateMediaParamsSchema = PageIdParamsSchema.extend({
+  options: PageEmulateMediaOptionsSchema.optional(),
+}).meta({ id: "PageEmulateMediaParams" });
+
+export const PageSetUserAgentParamsSchema = PageIdParamsSchema.extend({
+  userAgent: z.string(),
+}).meta({ id: "PageSetUserAgentParams" });
+
 export const PageWaitForLoadStateParamsSchema = PageIdParamsSchema.extend({
   state: LoadStateSchema,
   timeout: z.number().int().nonnegative().optional(),

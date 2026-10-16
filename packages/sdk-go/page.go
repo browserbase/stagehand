@@ -354,6 +354,20 @@ func (p *Page) SetViewportSize(
 	return p.rpc.call(ctx, "page.set_viewport_size", params, &result)
 }
 
+// EmulateMedia emulates CSS media features. Nil fields keep their current value.
+func (p *Page) EmulateMedia(ctx context.Context, options *PageEmulateMediaOptions) error {
+	params := PageEmulateMediaParams{PageID: p.PageID(), Options: options}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.emulate_media", params, &result)
+}
+
+// SetUserAgent overrides the user agent. An empty string restores the default.
+func (p *Page) SetUserAgent(ctx context.Context, userAgent string) error {
+	params := PageSetUserAgentParams{PageID: p.PageID(), UserAgent: userAgent}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.set_user_agent", params, &result)
+}
+
 // WaitForLoadState waits for a generated LoadState value.
 func (p *Page) WaitForLoadState(
 	ctx context.Context,

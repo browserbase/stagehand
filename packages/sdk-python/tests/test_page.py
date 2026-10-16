@@ -10,7 +10,14 @@ import pytest
 from pydantic import BaseModel, RootModel, ValidationError
 from typing_extensions import override
 
-from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import (
+    PagePDFMargin,
+    ReducedMotion,
+    Response,
+    WebMCPInvocation,
+    WebMCPTool,
+    WebMCPToolResponse,
+)
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
     PageCDPEventNotification,
@@ -244,6 +251,39 @@ async def test_page_pdf_preserves_omitted_and_empty_options(
     if expected_options is not None:
         expected["options"] = expected_options
     assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == expected
+
+
+@pytest.mark.asyncio
+async def test_page_emulate_media_and_set_user_agent_serialize_params() -> None:
+    recording = RecordingRPCClient({
+        "page.emulate_media": PageVoidResult(ok=True),
+        "page.set_user_agent": PageVoidResult(ok=True),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.emulate_media(color_scheme="dark", reduced_motion=ReducedMotion.no_override)
+    await page.emulate_media()
+    await page.set_user_agent("StagehandTest/1.0")
+
+    assert [
+        (method, params.model_dump(mode="json", exclude_unset=True), result_model)
+        for method, params, result_model in recording.calls
+    ] == [
+        (
+            "page.emulate_media",
+            {
+                "page_id": "page-1",
+                "options": {"color_scheme": "dark", "reduced_motion": "no-override"},
+            },
+            PageVoidResult,
+        ),
+        ("page.emulate_media", {"page_id": "page-1"}, PageVoidResult),
+        (
+            "page.set_user_agent",
+            {"page_id": "page-1", "user_agent": "StagehandTest/1.0"},
+            PageVoidResult,
+        ),
+    ]
 
 
 @pytest.mark.asyncio

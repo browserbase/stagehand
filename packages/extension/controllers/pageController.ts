@@ -2,6 +2,7 @@ import type {
   PageAddInitScriptParams,
   PageClickParams,
   PageDragAndDropParams,
+  PageEmulateMediaParams,
   PageEvaluateParams,
   PageGoBackParams,
   PageGoForwardParams,
@@ -16,6 +17,7 @@ import type {
   PageScrollParams,
   PageScreenshotParams,
   PageSetExtraHTTPHeadersParams,
+  PageSetUserAgentParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
   PageTypeParams,
@@ -102,6 +104,16 @@ export function createPageController(runtime: StagehandRuntime) {
   async function setViewportSize(params: PageSetViewportSizeParams, { logger }: HandlerContext) {
     logger.debug("page.set_viewport_size", {});
     return runtime.pageSetViewportSize(params);
+  }
+
+  async function emulateMedia(params: PageEmulateMediaParams, { logger }: HandlerContext) {
+    logger.debug("page.emulate_media", {});
+    return runtime.pageEmulateMedia(params);
+  }
+
+  async function setUserAgent(params: PageSetUserAgentParams, { logger }: HandlerContext) {
+    logger.debug("page.set_user_agent", {});
+    return runtime.pageSetUserAgent(params);
   }
 
   async function waitForLoadState(params: PageWaitForLoadStateParams, { logger }: HandlerContext) {
@@ -200,6 +212,8 @@ export function createPageController(runtime: StagehandRuntime) {
     addInitScript,
     setExtraHTTPHeaders,
     setViewportSize,
+    emulateMedia,
+    setUserAgent,
     waitForLoadState,
     waitForTimeout,
     waitForSelector,

@@ -154,6 +154,8 @@ import type {
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
   PageDragAndDropRoutePointSchema,
+  PageEmulateMediaOptionsSchema,
+  PageEmulateMediaParamsSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -185,6 +187,7 @@ import type {
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
+  PageSetUserAgentParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
   PageSnapshotOptionsSchema,
@@ -395,6 +398,9 @@ export type PagePDFOptions = z.infer<typeof PagePDFOptionsSchema>;
 export type PagePDFParams = z.infer<typeof PagePDFParamsSchema>;
 export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
 export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParamsSchema>;
+export type PageEmulateMediaOptions = z.infer<typeof PageEmulateMediaOptionsSchema>;
+export type PageEmulateMediaParams = z.infer<typeof PageEmulateMediaParamsSchema>;
+export type PageSetUserAgentParams = z.infer<typeof PageSetUserAgentParamsSchema>;
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
 export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
 export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;

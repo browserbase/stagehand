@@ -621,6 +621,50 @@ func TestPagePDFPreservesOmittedAndEmptyOptions(t *testing.T) {
 	}
 }
 
+func TestPageEmulateMediaAndSetUserAgentSerializeParams(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.emulate_media":  PageVoidResult{Ok: true},
+		"page.set_user_agent": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	colorScheme := PageEmulateMediaOptionsColorSchemeDark
+	reducedMotion := PageEmulateMediaOptionsReducedMotionNoOverride
+
+	if err := page.EmulateMedia(context.Background(), &PageEmulateMediaOptions{
+		ColorScheme:   &colorScheme,
+		ReducedMotion: &reducedMotion,
+	}); err != nil {
+		t.Fatalf("EmulateMedia() error = %v", err)
+	}
+	if err := page.EmulateMedia(context.Background(), nil); err != nil {
+		t.Fatalf("EmulateMedia(nil) error = %v", err)
+	}
+	if err := page.SetUserAgent(context.Background(), "StagehandTest/1.0"); err != nil {
+		t.Fatalf("SetUserAgent() error = %v", err)
+	}
+
+	for index, want := range []struct {
+		method string
+		params string
+	}{
+		{"page.emulate_media", `{"page_id":"page-1","options":{"color_scheme":"dark","reduced_motion":"no-override"}}`},
+		{"page.emulate_media", `{"page_id":"page-1"}`},
+		{"page.set_user_agent", `{"page_id":"page-1","user_agent":"StagehandTest/1.0"}`},
+	} {
+		call := rpc.calls[index]
+		if call.method != want.method {
+			t.Fatalf("call %d method = %q, want %q", index, call.method, want.method)
+		}
+		encoded, err := marshalValidatedJSON(call.params)
+		if err != nil {
+			t.Fatalf("encode call %d params: %v", index, err)
+		}
+		assertRPCJSON(t, encoded, want.params)
+	}
+}
+
 func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	t.Parallel()
 

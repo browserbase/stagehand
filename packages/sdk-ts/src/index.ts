@@ -24,6 +24,7 @@ export {
   Page,
   type PageClickOptions,
   type PageDragAndDropOptions,
+  type PageEmulateMediaOptions,
   type PageEventListener,
   type ToolsAddedListener,
   type ToolsRemovedListener,
