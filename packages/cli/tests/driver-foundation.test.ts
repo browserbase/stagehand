@@ -1051,6 +1051,53 @@ describe("driver foundation", () => {
     }
   });
 
+  it("passes BROWSE_CHROME_ARGS to managed local Stagehand launches", async () => {
+    const previousChromeArgs = process.env.BROWSE_CHROME_ARGS;
+    process.env.BROWSE_CHROME_ARGS = JSON.stringify([
+      "--no-startup-window",
+      "--disable-features=CalculateNativeWinOcclusion",
+    ]);
+    const init = vi.fn().mockResolvedValue(undefined);
+    const Stagehand = vi.fn(function () {
+      return {
+        close: vi.fn().mockResolvedValue(undefined),
+        context: {},
+        init,
+      };
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({ Stagehand }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("env-chrome-args", {
+        headless: false,
+        kind: "managed-local",
+      });
+
+      await manager.stagehandInstance();
+
+      expect(Stagehand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localBrowserLaunchOptions: {
+            args: [
+              "--no-startup-window",
+              "--disable-features=CalculateNativeWinOcclusion",
+            ],
+            headless: false,
+          },
+        }),
+      );
+    } finally {
+      restoreEnv("BROWSE_CHROME_ARGS", previousChromeArgs);
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
   it("passes ignored default Chrome args to managed local Stagehand launches", async () => {
     const init = vi.fn().mockResolvedValue(undefined);
     const Stagehand = vi.fn(function () {
