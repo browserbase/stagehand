@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
+import { executionContexts } from "../../executionContextRegistry.js";
 import { type Progress, runLocatorStep } from "../../progress.js";
 import type {
   A11yNode,
@@ -117,11 +118,85 @@ export async function a11yForFrame(
   }
 
   const decorated = decorateRoles(filteredNodes, opts);
+  await readMediaStates(session, frameId, decorated, opts, progress);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   progress?.throwIfStopped();
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
+}
+
+const MEDIA_TAGS = new Set(["video", "audio"]);
+
+/**
+ * Read whether each `<video>` and `<audio>` element is paused and muted. Their
+ * accessibility nodes carry no state, and their native controls (which do)
+ * live in a user-agent shadow root. Only the host element is resolved, in the
+ * locator world; a node that can't be read is left without state.
+ */
+async function readMediaStates(
+  session: CDPSessionLike,
+  frameId: string | undefined,
+  nodes: A11yNode[],
+  opts: A11yOptions,
+  progress?: Progress,
+): Promise<void> {
+  const media = nodes.filter(
+    (n) =>
+      typeof n.backendDOMNodeId === "number" &&
+      !!n.encodedId &&
+      MEDIA_TAGS.has(opts.tagNameMap[n.encodedId] ?? ""),
+  );
+  if (!media.length) return;
+
+  let executionContextId: number | undefined;
+  if (frameId) {
+    try {
+      ({ contextId: executionContextId } = await executionContexts.waitForLocatorWorld(
+        session,
+        frameId,
+        800,
+        progress,
+        { readinessRetries: "none" },
+      ));
+    } catch {
+      progress?.throwIfStopped();
+      return;
+    }
+  }
+
+  for (const node of media) {
+    let objectId: string | undefined;
+    try {
+      ({
+        object: { objectId },
+      } = await runLocatorStep(
+        progress,
+        "reading media state",
+        () =>
+          session.send<Protocol.DOM.ResolveNodeResponse>("DOM.resolveNode", {
+            backendNodeId: node.backendDOMNodeId,
+            executionContextId,
+          }),
+        (late) => releaseSnapshotObject(session, late.object.objectId),
+      ));
+      const { result } = await runLocatorStep(progress, "reading media state", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function () { return { paused: this.paused, muted: this.muted }; }",
+          returnByValue: true,
+        }),
+      );
+      const state = result?.value as { paused?: unknown; muted?: unknown } | undefined;
+      if (typeof state?.paused === "boolean" && typeof state.muted === "boolean") {
+        node.media = { paused: state.paused, muted: state.muted };
+      }
+    } catch {
+      progress?.throwIfStopped();
+    } finally {
+      await releaseSnapshotObject(session, objectId, progress);
+    }
+  }
 }
 
 /**

@@ -105,6 +105,8 @@ export type A11yNode = {
   checked?: boolean;
   /** The value format a date or time input accepts, e.g. "YYYY-MM-DD". */
   format?: string;
+  /** Playback state of a `<video>` or `<audio>` element. */
+  media?: { paused: boolean; muted: boolean };
   nodeId: string;
   backendDOMNodeId?: number;
   parentId?: string;
