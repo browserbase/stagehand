@@ -641,6 +641,32 @@ async def test_local_connect_rejects_an_invalid_extension_cdp_url(
         await local_browser.connect(cdp_url="http://browser", extension_cdp_url=extension_cdp_url)
 
 
+async def test_local_connect_sends_headers_only_when_given(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="https://gw/cdp", headers={"X-Api-Key": "k"})
+    assert fake_cdp.connect_arguments[-1]["headers"] == {"X-Api-Key": "k"}
+    await handle.close()
+
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert "headers" not in fake_cdp.connect_arguments[-1]
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{"Bad Name": "secret-value"}, {"X-Api-Key": "secret-value\r\nInjected: 1"}, {"": "v"}],
+)
+async def test_local_connect_rejects_unsafe_headers_without_echoing_them(
+    fake_cdp: type[FakeCDPClient],
+    headers: dict[str, str],
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        await local_browser.connect(cdp_url="http://browser", headers=headers)
+    assert "secret-value" not in str(error.value)
+    assert fake_cdp.connect_arguments == []
+
+
 async def test_browser_factory_bounds_the_complete_connection_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
