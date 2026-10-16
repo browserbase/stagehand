@@ -49,9 +49,15 @@ type PendingRequest = {
   removeAbortListener?: () => void;
 };
 
+export type RPCRequestContext = {
+  readonly requestId: number;
+  /** Aborted when the RPC connection closes. */
+  readonly signal: AbortSignal;
+};
+
 type RegisteredRequestHandler = {
   method: RPCMethod;
-  handle(params: unknown): Promise<unknown>;
+  handle(params: unknown, context: RPCRequestContext): Promise<unknown>;
 };
 
 type RPCSendOptions = {
@@ -148,6 +154,7 @@ export class RPCClient {
   notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
   pendingNotifications: StagehandRpcNotification[] = [];
   closed = false;
+  private readonly closeController = new AbortController();
   readonly cdp: CDPTransport;
 
   constructor(cdp: CDPTransport) {
@@ -249,13 +256,15 @@ export class RPCClient {
     method: Method,
     handler: (
       params: z.output<Method["params"]>,
+      context: RPCRequestContext,
     ) => z.input<Method["result"]> | Promise<z.input<Method["result"]>>,
   ): () => void {
     if (this.closed) throw new Error("RPC client is closed");
 
     const registeredHandler: RegisteredRequestHandler = {
       method,
-      handle: async (params) => await handler(params as z.output<Method["params"]>),
+      handle: async (params, context) =>
+        await handler(params as z.output<Method["params"]>, context),
     };
     this.requestHandlers.set(method.name, registeredHandler);
 
@@ -281,6 +290,7 @@ export class RPCClient {
   ): void {
     if (this.closed) return;
     this.closed = true;
+    this.closeController.abort(reason);
     this.requestHandlers.clear();
     this.notificationListeners.clear();
     this.pendingNotifications = [];
@@ -393,8 +403,12 @@ export class RPCClient {
 
     try {
       const result = await context.with(requestContext, () =>
-        registeredHandler.handle(params.data),
+        registeredHandler.handle(params.data, {
+          requestId: request.id,
+          signal: this.closeController.signal,
+        }),
       );
+      if (this.closed) return;
       const parsedResult = registeredHandler.method.result.safeParse(result);
       if (!parsedResult.success) {
         span.setAttribute("rpc.response.status_code", String(JSONRPCErrorCodes.internalError));
@@ -413,6 +427,7 @@ export class RPCClient {
       );
     } catch (error) {
       markSpanError(span, error);
+      if (this.closed) return;
       await this.sendError(
         request.id,
         JSONRPCErrorCodes.internalError,
