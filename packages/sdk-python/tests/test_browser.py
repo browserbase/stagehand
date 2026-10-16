@@ -599,6 +599,38 @@ async def test_local_connect_ignores_id_and_defers_packaged_extension(
     await handle.close()
 
 
+async def test_local_connect_carries_the_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(
+        cdp_url="wss://gateway/cdp?api_key=secret",
+        extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/abc",
+    )
+    metadata = handle._attachment.worker_init_metadata
+    assert metadata.browser_cdp_url == "ws://127.0.0.1:9300/devtools/browser/abc"
+    assert fake_cdp.connect_arguments[-1]["cdp_url"] == "wss://gateway/cdp?api_key=secret"
+    await handle.close()
+
+
+async def test_local_connect_defaults_the_extension_to_the_client_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert handle._attachment.worker_init_metadata.browser_cdp_url is None
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "extension_cdp_url", ["", "http://127.0.0.1:9300", "ws://", "/devtools/browser/abc"]
+)
+async def test_local_connect_rejects_a_non_websocket_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+    extension_cdp_url: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        await local_browser.connect(cdp_url="http://browser", extension_cdp_url=extension_cdp_url)
+
+
 async def test_browser_factory_bounds_the_complete_connection_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
