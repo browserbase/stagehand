@@ -192,6 +192,53 @@ describe("observe service", () => {
     );
   });
 
+  it("leaves native media controls out, since their XPath is the media element's", async () => {
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-40] Video: Intro [paused]\n  [0-42] button: mute",
+      combinedXpathMap: { "0-40": "/html/body/video", "0-42": "/html/body/video" },
+      combinedUrlMap: {},
+      combinedMediaControls: { "0-42": "frame-1" },
+    }));
+    const clientLLMGenerate = vi.fn(
+      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+        observationResult({
+          elements: [
+            { elementId: "0-42", description: "Mute button", method: "click", arguments: [] },
+            { elementId: "0-40", description: "Intro video", method: "press", arguments: ["k"] },
+          ],
+        }),
+    );
+    const logs: unknown[] = [];
+    const logger = new StagehandLogger({ tracer: trace.getTracer("observe-service-test") }, (log) =>
+      logs.push(log),
+    );
+
+    const result = await observeService.observe({
+      params: { pageId: "page-1", instruction: "Find the video controls" },
+      page: { captureSnapshot },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger,
+    });
+
+    expect(result.data).toStrictEqual([
+      {
+        selector: "xpath=/html/body/video",
+        description: "Intro video",
+        method: "press",
+        arguments: ["k"],
+      },
+    ]);
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "warn",
+          message: "Observed element is a native media control, which has no selector",
+        }),
+      ]),
+    );
+  });
+
   it("zeroes usage when a cached result avoids inference", async () => {
     const frame = {
       frameId: "frame-1",

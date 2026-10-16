@@ -10,6 +10,8 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import { TimeoutError } from "../errors.js";
 import {
+  MEDIA_CONTROL_METHODS,
+  performMediaControlMethod,
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
@@ -120,6 +122,10 @@ async function actWithProgress(
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   progress.throwIfStopped();
 
+  // An action on a native media control carries its media element's selector,
+  // which can't repeat the click, so such results are not cached.
+  let replayable = true;
+
   return await cacheService.withCache<ActResult>({
     method: "act",
     page,
@@ -139,7 +145,9 @@ async function actWithProgress(
       return {
         result,
         cacheValue:
-          result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
+          replayable && result.data.success && result.data.actions.length > 0
+            ? result.data.actions
+            : undefined,
         llmUsage: {
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
@@ -149,8 +157,33 @@ async function actWithProgress(
     },
   });
 
+  /**
+   * Perform an inferred action. A native media control is clicked or hovered
+   * by its backend node id (see HybridSnapshot.combinedMediaControls).
+   */
+  async function takeInferredAction(
+    action: Action,
+    elementId: string | undefined,
+    mediaControls: Record<string, string> | undefined,
+  ): Promise<ActResultData> {
+    const frameId = elementId === undefined ? undefined : mediaControls?.[elementId];
+    const method = action.method?.trim();
+    if (frameId === undefined || !method || !MEDIA_CONTROL_METHODS.has(method)) {
+      return takeDeterministicAction({ action, variables, context });
+    }
+    replayable = false;
+    return takeMediaControlAction({
+      action,
+      method,
+      frameId,
+      backendNodeId: Number(elementId!.split("-")[1]),
+      variables,
+      context,
+    });
+  }
+
   async function runActPipeline(): Promise<ActResult> {
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+    const { combinedTree, combinedXpathMap, combinedMediaControls } = await page.captureSnapshot(
       snapshotOptions,
       progress,
     );
@@ -185,21 +218,22 @@ async function actWithProgress(
     }
 
     progress.throwIfStopped();
-    const firstResult = await takeDeterministicAction({
-      action: firstInference.action,
-      variables,
-      context,
-    });
+    const firstResult = await takeInferredAction(
+      firstInference.action,
+      firstInference.response.element?.elementId,
+      combinedMediaControls,
+    );
 
     if (!firstInference.response.twoStep) {
       return actResult(firstResult, operationUsage);
     }
 
     progress.throwIfStopped();
-    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
-      snapshotOptions,
-      progress,
-    );
+    const {
+      combinedTree: nextTree,
+      combinedXpathMap: nextXpathMap,
+      combinedMediaControls: nextMediaControls,
+    } = await page.captureSnapshot(snapshotOptions, progress);
     const changedTree = diffCombinedTrees(combinedTree, nextTree);
     const secondInstruction = buildStepTwoPrompt(
       instruction,
@@ -228,11 +262,11 @@ async function actWithProgress(
     }
 
     progress.throwIfStopped();
-    const secondResult = await takeDeterministicAction({
-      action: secondInference.action,
-      variables,
-      context,
-    });
+    const secondResult = await takeInferredAction(
+      secondInference.action,
+      secondInference.response.element?.elementId,
+      nextMediaControls,
+    );
 
     return actResult(
       {
@@ -393,6 +427,52 @@ async function takeDeterministicAction({
       placeholderArgs,
       context,
     });
+  }
+}
+
+/**
+ * Click or hover a native media control by its backend node id. There is no
+ * self-heal: the control has no selector of its own to re-resolve.
+ */
+async function takeMediaControlAction({
+  action,
+  method,
+  frameId,
+  backendNodeId,
+  variables,
+  context,
+}: {
+  action: Action;
+  method: string;
+  frameId: string;
+  backendNodeId: number;
+  variables?: Variables;
+  context: ActContext;
+}): Promise<ActResultData> {
+  const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
+  const resolvedArgs = substituteVariablesInArguments(action.arguments, variables) ?? [];
+  try {
+    context.progress.throwIfStopped();
+    await performMediaControlMethod(
+      context.page,
+      frameId,
+      backendNodeId,
+      method,
+      resolvedArgs,
+      context.logger,
+      context.progress,
+    );
+    return successfulActionResult(action, method, action.selector, placeholderArgs);
+  } catch (error) {
+    context.progress.throwIfStopped();
+    if (error instanceof TimeoutError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: `Failed to perform act on a native media control: ${message}`,
+      actionDescription: action.description || `action (${method})`,
+      actions: [],
+    };
   }
 }
 

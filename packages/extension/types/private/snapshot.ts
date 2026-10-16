@@ -35,6 +35,13 @@ export type HybridSnapshot = {
   combinedXpathMap: Record<string, string>;
   /** EncodedId -> URL extracted from AX properties. */
   combinedUrlMap: Record<string, string>;
+  /**
+   * EncodedId -> owning frame id for native media controls (play, mute, a time
+   * slider): nodes inside a `<video>` or `<audio>` element's user-agent shadow
+   * root. Their XPath is the media element's, so act clicks them by backend
+   * node id instead.
+   */
+  combinedMediaControls?: Record<string, string>;
   /** Per-frame payloads expose the original relative data for debugging. */
   perFrame?: PerFrameSnapshot[];
 };
@@ -68,6 +75,8 @@ export type FrameDomMaps = {
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
+  /** Encoded ids of this frame's native media controls. */
+  mediaControlIds?: string[];
 };
 
 export type ResolvedLocation = {

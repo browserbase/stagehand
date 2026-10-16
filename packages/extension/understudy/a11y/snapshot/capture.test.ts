@@ -155,6 +155,48 @@ describe("snapshot frame document slicing", () => {
     expect([10, 11, 12, 13, 14, 3].map(isFolded)).toEqual([true, true, false, false, false, false]);
   });
 
+  it("lists native media controls with the frame that owns them", async () => {
+    const session = { id: "root-session", send: vi.fn(async () => ({})) };
+    vi.mocked(ownerSession).mockReturnValue(session as never);
+    const context: FrameContext = {
+      rootId: "root",
+      frames: ["root"],
+      parentByFrame: new Map([["root", null]]),
+    };
+    const page = { getOrdinal: () => 0 } as unknown as Page;
+    const index = documentIndex();
+    for (const [be, hostTag] of [
+      [10, "video"],
+      [11, "audio"],
+      [12, "input, date"],
+    ] as const) {
+      index.absByBe.set(be, "/html[1]/body[1]/video[1]");
+      index.docRootOf.set(be, 1);
+      index.uaHostTagByBe.set(be, hostTag);
+    }
+
+    const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
+      page,
+      context,
+      new Map([[session.id, index]]),
+      undefined,
+      true,
+      context.frames,
+      new Map(),
+    );
+    const snapshot = mergeFramesIntoSnapshot(
+      context,
+      perFrameMaps,
+      perFrameOutlines,
+      new Map([["root", ""]]),
+      new Map(),
+      context.frames,
+    );
+
+    expect(snapshot.combinedMediaControls).toEqual({ "0-10": "root", "0-11": "root" });
+    expect(snapshot.combinedXpathMap["0-10"]).toBe("/html[1]/body[1]/video[1]");
+  });
+
   it("does not resolve an ignored child document to the parent document", async () => {
     const session = { id: "root-session", send: vi.fn().mockResolvedValue({ backendNodeId: 4 }) };
     vi.mocked(ownerSession).mockReturnValue(session as never);

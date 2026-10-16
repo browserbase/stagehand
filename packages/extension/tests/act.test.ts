@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
 import {
+  performMediaControlMethod,
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
@@ -13,12 +14,17 @@ import * as actService from "../services/actService.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
 
-vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
+vi.mock("../handlers/handlerUtils/actHandlerUtils.js", async (importOriginal) => ({
+  MEDIA_CONTROL_METHODS: (
+    await importOriginal<typeof import("../handlers/handlerUtils/actHandlerUtils.js")>()
+  ).MEDIA_CONTROL_METHODS,
+  performMediaControlMethod: vi.fn(),
   performUnderstudyMethod: vi.fn(),
   waitForDomNetworkQuiet: vi.fn(),
 }));
 
 const performAction = vi.mocked(performUnderstudyMethod);
+const performMediaAction = vi.mocked(performMediaControlMethod);
 const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
 
 describe("act inference", () => {
@@ -93,6 +99,7 @@ describe("act inference", () => {
 describe("act service", () => {
   beforeEach(() => {
     performAction.mockReset().mockResolvedValue();
+    performMediaAction.mockReset().mockResolvedValue();
     waitForQuiet.mockReset().mockResolvedValue();
   });
 
@@ -631,6 +638,137 @@ describe("act service", () => {
     expect(get).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+  });
+
+  describe("on a native media control", () => {
+    function mediaPage() {
+      const frame = { frameId: "frame-1", getAccessibilityTree: vi.fn(async () => []) };
+      const captureSnapshot = vi.fn(async () => ({
+        ...snapshot("0-42", "/html/body/video"),
+        combinedMediaControls: { "0-42": "frame-1" },
+      }));
+      return {
+        ...actPage(frame, captureSnapshot),
+        url: () => "https://example.com",
+        frames: () => [frame],
+      } as unknown as Page;
+    }
+
+    function mediaCache() {
+      const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key" });
+      const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
+      return {
+        set,
+        cache: {
+          sessionId: "session-1",
+          client: { get, set } as unknown as CacheClient,
+          defaultCaching: true as const,
+        },
+      };
+    }
+
+    it("clicks the control by its backend node id and does not cache the action", async () => {
+      const page = mediaPage();
+      const { set, cache } = mediaCache();
+      const logger = testLogger();
+
+      const result = await actService.act({
+        params: { pageId: "page-1", instruction: "Mute the video" },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate: vi.fn(async () =>
+          actGeneration({
+            elementId: "0-42",
+            description: "Mute button",
+            method: "click",
+            arguments: [],
+          }),
+        ),
+        logger,
+        cache,
+      });
+
+      expect(performMediaAction).toHaveBeenCalledWith(
+        page,
+        "frame-1",
+        42,
+        "click",
+        [],
+        logger,
+        expect.any(Progress),
+      );
+      expect(performAction).not.toHaveBeenCalled();
+      expect(result.data).toMatchObject({
+        success: true,
+        actions: [{ selector: "xpath=/html/body/video", method: "click" }],
+      });
+      expect(result.metadata.cache.status).toBe("MISS");
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it("sends other methods to the media element through its selector", async () => {
+      const page = mediaPage();
+      const { set, cache } = mediaCache();
+
+      await actService.act({
+        params: { pageId: "page-1", instruction: "Pause the video" },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate: vi.fn(async () =>
+          actGeneration({
+            elementId: "0-42",
+            description: "Video",
+            method: "press",
+            arguments: ["Space"],
+          }),
+        ),
+        logger: testLogger(),
+        cache,
+      });
+
+      expect(performMediaAction).not.toHaveBeenCalled();
+      expect(performAction).toHaveBeenCalledWith(
+        page,
+        expect.anything(),
+        "press",
+        "xpath=/html/body/video",
+        ["Space"],
+        expect.anything(),
+        expect.any(Progress),
+        undefined,
+      );
+      expect(set).toHaveBeenCalled();
+    });
+
+    it("reports a failed control action without self-healing", async () => {
+      performMediaAction.mockRejectedValueOnce(new Error("Native media control is not visible"));
+      const { cache } = mediaCache();
+
+      const result = await actService.act({
+        params: { pageId: "page-1", instruction: "Mute the video" },
+        page: mediaPage(),
+        model: { source: "client" },
+        clientLLMGenerate: vi.fn(async () =>
+          actGeneration({
+            elementId: "0-42",
+            description: "Mute button",
+            method: "click",
+            arguments: [],
+          }),
+        ),
+        logger: testLogger(),
+        selfHeal: true,
+        cache,
+      });
+
+      expect(result.data).toMatchObject({
+        success: false,
+        message:
+          "Failed to perform act on a native media control: Native media control is not visible",
+        actions: [],
+      });
+      expect(performAction).not.toHaveBeenCalled();
+    });
   });
 });
 
