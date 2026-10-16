@@ -14,6 +14,8 @@ import {
   parseEvalResult,
   runExternalHarnessTask,
   type ParsedEvalResult,
+  readResultContract,
+  requestedResult,
 } from "./harnesses/externalRunner.js";
 import { piAdapter } from "./harnesses/piAdapter.js";
 import type { PreparedPiToolAdapter } from "./piToolAdapter.js";
@@ -42,7 +44,11 @@ export interface PiRunnerInput {
 export interface ParsedPiResult extends ParsedEvalResult {}
 
 export function buildPiPrompt(plan: ExternalHarnessTaskPlan, toolInstructions?: string): string {
-  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
+  return buildExternalHarnessPrompt({
+    plan,
+    toolInstructions,
+    resultContract: readResultContract("marker"),
+  });
 }
 
 export function parsePiResult(raw: string): ParsedPiResult {
@@ -57,6 +63,7 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
     dataset: plan.dataset,
     harnessDefault: 50,
   });
+  const resultContract = readResultContract("marker");
   return runExternalHarnessTask({
     harness: "pi",
     plan,
@@ -64,7 +71,7 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
     logger,
     toolAdapter,
     verifier,
-    resultContract: "marker",
+    resultContract,
     fallbackErrorMessage: "pi did not report success",
     stepBudget: maxTurns,
     stepBudgetUnit: "turns",
@@ -83,7 +90,7 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           // Appended to pi's stock prompt (same shape as claude_code's
           // preset+append); replacing the stock prompt made the agent quit early.
-          appendSystemPrompt: `${systemPrompt}\n\nYou are being evaluated. Do not edit repository files. Complete the browser task with the provided browser tools and emit the requested EVAL_RESULT line.`,
+          appendSystemPrompt: `${systemPrompt}\n\nYou are being evaluated. Do not edit repository files. Complete the browser task with the provided browser tools and emit ${requestedResult(resultContract)}.`,
           maxTurns,
           ...(process.env.EVAL_PI_THINKING && {
             thinkingLevel: process.env.EVAL_PI_THINKING,

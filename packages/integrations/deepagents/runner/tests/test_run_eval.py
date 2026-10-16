@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import asyncio
+import json
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -577,3 +578,61 @@ def test_usage_presence_preserves_observed_zero() -> None:
     assert result["reported"] is True
     assert result["input_tokens"] == 0
     assert result["output_tokens"] == 0
+
+
+EVAL_RESULT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+        "summary": {"type": "string"},
+        "finalAnswer": {"type": "string"},
+    },
+    "required": ["success", "summary", "finalAnswer"],
+    "additionalProperties": False,
+}
+
+
+@pytest.mark.asyncio
+async def test_structured_result_becomes_the_final_text() -> None:
+    answer = {"success": True, "summary": "found it", "finalAnswer": "42"}
+    model = ToolFakeChatModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "EvalResult", "args": answer, "id": "call-1", "type": "tool_call"}
+                    ],
+                )
+            ]
+        )
+    )
+    structured = RunnerConfig(**{**config().__dict__, "result_schema": EVAL_RESULT_SCHEMA})
+    events: list[dict[str, Any]] = []
+
+    exit_code = await run(
+        structured,
+        build_agent=lambda cfg, tools: _default_build_agent(cfg, tools, model=model),
+        emit=events.append,
+    )
+
+    assert exit_code == 0
+    final = next(event for event in events if event["type"] == "final")
+    assert json.loads(final["text"]) == answer
+
+
+def test_result_schema_is_an_object_or_null() -> None:
+    raw = {
+        "prompt": "task",
+        "system_prompt": None,
+        "model": "anthropic:claude-opus-5-5",
+        "mcp_servers": {},
+        "recursion_limit": 10,
+        "max_tool_steps": 5,
+    }
+    assert parse_config(raw).result_schema is None
+    assert parse_config({**raw, "result_schema": EVAL_RESULT_SCHEMA}).result_schema == (
+        EVAL_RESULT_SCHEMA
+    )
+    with pytest.raises(ValueError, match="result_schema"):
+        parse_config({**raw, "result_schema": "json"})
