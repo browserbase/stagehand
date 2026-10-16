@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping
 from typing import Annotated
 from urllib.parse import urlparse
@@ -14,6 +15,23 @@ def _validate_url(value: str) -> str:
 
 
 WireUrl = Annotated[str, AfterValidator(_validate_url)]
+
+# RFC 9110 field names are tokens; values are visible characters, spaces and tabs.
+_HEADER_NAME = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+_HEADER_VALUE = re.compile(r"[\t\x20-\x7e\x80-\xff]*")
+
+
+def _validate_headers(value: Mapping[str, str]) -> Mapping[str, str]:
+    for name, header_value in value.items():
+        if not _HEADER_NAME.fullmatch(name):
+            raise ValueError(f"invalid header name {name!r}")
+        if not _HEADER_VALUE.fullmatch(header_value):
+            # The value may be a credential, so it is not echoed.
+            raise ValueError(f"invalid value for header {name!r}")
+    return value
+
+
+WireHeaders = Annotated[dict[str, str], AfterValidator(_validate_headers)]
 
 
 class WireModel(BaseModel):

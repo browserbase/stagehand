@@ -8,7 +8,8 @@ from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
-from urllib.request import urlopen
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
@@ -257,6 +258,7 @@ class CDPClient:
         extension_id: str | None = None,
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -278,8 +280,12 @@ class CDPClient:
                 "or preloaded_extension is required"
             )
 
-        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
-        socket = await _connect_web_socket(web_socket_debugger_url)
+        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url, headers=headers)
+        socket = await _connect_web_socket(
+            web_socket_debugger_url,
+            # Never hand a gateway's headers to another host it advertises.
+            headers=headers if _same_host(cdp_url, web_socket_debugger_url) else None,
+        )
         client = cls(socket, web_socket_debugger_url)
 
         try:
@@ -659,23 +665,39 @@ class CDPClient:
         task.add_done_callback(finish)
 
 
-async def _connect_web_socket(url: str) -> _WebSocket:
+async def _connect_web_socket(url: str, *, headers: Mapping[str, str] | None = None) -> _WebSocket:
     from websockets.asyncio.client import connect
 
     return cast(
         _WebSocket,
-        await connect(url, open_timeout=None, max_size=None),
+        await connect(url, open_timeout=None, max_size=None, additional_headers=headers),
     )
 
 
-async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
+_DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+
+
+def _same_host(a: str, b: str) -> bool:
+    """Whether two URLs name the same host and port, counting ws/http and wss/https alike."""
+    first, second = urlsplit(a), urlsplit(b)
+    return (
+        first.hostname is not None
+        and first.hostname == second.hostname
+        and (first.port or _DEFAULT_PORTS.get(first.scheme))
+        == (second.port or _DEFAULT_PORTS.get(second.scheme))
+    )
+
+
+async def _resolve_browser_web_socket_url(
+    cdp_url: str, *, headers: Mapping[str, str] | None = None
+) -> str:
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
 
     base_url = cdp_url.rstrip("/")
     while True:
         try:
-            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version")
+            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version", headers)
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
@@ -684,8 +706,9 @@ async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
         await asyncio.sleep(0.25)
 
 
-def _read_json(url: str) -> dict[str, object]:
-    with urlopen(url, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
+def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    request = Request(url, headers=dict(headers or {}))
+    with urlopen(request, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
         value: Any = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")
