@@ -1,5 +1,6 @@
 import type { Cookie, CookieParam } from "@browserbasehq/stagehand-protocol/types";
 import { CookieParamSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 
 export type UnderstudyClearCookieOptions = {
@@ -101,11 +102,35 @@ export function toCdpCookieParam(c: Cookie | CookieParam): Record<string, unknow
 }
 
 /**
+ * Map a cookie read with `Storage.getCookies` back to the param that
+ * `Storage.setCookies` needs to recreate it exactly. Unlike
+ * `toCdpCookieParam`, this keeps the attributes the public `Cookie` type does
+ * not carry: the partition key of a partitioned (CHIPS) cookie, its priority,
+ * source scheme and port, and an unset SameSite.
+ */
+export function cdpCookieToParam(c: Protocol.Network.Cookie): Protocol.Network.CookieParam {
+  return {
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path,
+    expires: c.session ? undefined : c.expires,
+    httpOnly: c.httpOnly,
+    secure: c.secure,
+    sameSite: c.sameSite,
+    priority: c.priority,
+    sourceScheme: c.sourceScheme,
+    sourcePort: c.sourcePort,
+    partitionKey: c.partitionKey,
+  };
+}
+
+/**
  * Returns true if a cookie matches all supplied filter criteria.
  * Undefined filters are treated as "match anything".
  */
 export function cookieMatchesFilter(
-  cookie: Cookie,
+  cookie: Pick<Cookie, "name" | "domain" | "path">,
   options: UnderstudyClearCookieOptions,
 ): boolean {
   const check = (prop: "name" | "domain" | "path", value: string | RegExp | undefined): boolean => {
