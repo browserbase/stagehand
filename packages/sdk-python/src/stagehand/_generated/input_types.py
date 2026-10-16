@@ -742,6 +742,16 @@ class PageDragAndDropParams(TypedDict):
     options: NotRequired[PageDragAndDropOptions]
 
 
+class PageEmulateMediaOptions(TypedDict):
+    color_scheme: NotRequired[Literal["light", "dark", "no-override"]]
+    reduced_motion: NotRequired[Literal["reduce", "no-preference", "no-override"]]
+
+
+class PageEmulateMediaParams(TypedDict):
+    page_id: str
+    options: NotRequired[PageEmulateMediaOptions]
+
+
 class PageEvaluateParams(TypedDict):
     page_id: str
     expression: str
@@ -902,6 +912,11 @@ class PageScrollParams(TypedDict):
 class PageSetExtraHTTPHeadersParams(TypedDict):
     page_id: str
     headers: dict[str, str]
+
+
+class PageSetUserAgentParams(TypedDict):
+    page_id: str
+    user_agent: str
 
 
 class PageSetViewportSizeOptions(TypedDict):

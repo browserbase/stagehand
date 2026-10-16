@@ -366,6 +366,12 @@ class ClientModelReference(WireModel):
     source: Literal["client"]
 
 
+class ColorScheme(StrEnum):
+    light = "light"
+    dark = "dark"
+    no_override = "no-override"
+
+
 class ContextAddCookiesParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1563,6 +1569,24 @@ class PageDragAndDropRoutePoint(WireModel):
     y: StrictFloat
 
 
+class PageEmulateMediaOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    color_scheme: Optional[ColorScheme] = None
+    reduced_motion: Optional[ReducedMotion] = None
+
+
+class PageEmulateMediaParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PageEmulateMediaOptions] = None
+
+
 class PageEvaluateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1850,6 +1874,15 @@ class PageSetExtraHTTPHeadersParams(WireModel):
     headers: dict[StrictStr, StrictStr]
 
 
+class PageSetUserAgentParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    user_agent: StrictStr
+
+
 class PageSetViewportSizeOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2059,6 +2092,12 @@ class PageWebMCPToolsResult(WireModel):
 
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
+
+
+class ReducedMotion(StrEnum):
+    reduce = "reduce"
+    no_preference = "no-preference"
+    no_override = "no-override"
 
 
 class ResponseAllHeadersResult(WireModel):

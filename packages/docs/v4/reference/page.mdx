@@ -498,6 +498,50 @@ await page.setViewportSize(1440, 900);
   Resolves after the operation completes.
 </ResponseField>
 
+## emulateMedia()
+
+Emulate CSS media features on this page. Options you omit keep their current value.
+The override applies to this page and its iframes, not to pages it opens.
+
+```typescript
+await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+```
+
+<ParamField path="options" type="PageEmulateMediaOptions" optional>
+  Media features to emulate.
+
+  <ParamField path="options.colorScheme" type="PageEmulateMediaOptions['colorScheme']" optional>
+    Value for `prefers-color-scheme`: `"light"` or `"dark"`. Pass `"no-override"` to clear the
+    override.
+  </ParamField>
+
+  <ParamField path="options.reducedMotion" type="PageEmulateMediaOptions['reducedMotion']" optional>
+    Value for `prefers-reduced-motion`: `"reduce"` or `"no-preference"`. Pass `"no-override"` to
+    clear the override.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## setUserAgent()
+
+Override the user agent that this page sends in the `User-Agent` request header and exposes to
+page scripts. The override applies to this page and its iframes, not to pages it opens.
+
+```typescript
+await page.setUserAgent("Mozilla/5.0 (compatible; ExampleBot/1.0)");
+```
+
+<ParamField path="userAgent" type="string">
+  The user agent string. Pass an empty string to restore the browser default.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
 ## waitForLoadState()
 
 Wait until the page reaches a load state.
@@ -1323,6 +1367,46 @@ await page.set_viewport_size(1440, 900)
 
 <ParamField path="device_scale_factor" type="float | None" optional>
   The device scale factor.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## emulate_media()
+
+Emulate CSS media features on this page. Options you omit keep their current value.
+The override applies to this page and its iframes, not to pages it opens.
+
+```python
+await page.emulate_media(color_scheme="dark", reduced_motion="reduce")
+```
+
+<ParamField path="color_scheme" type="ColorScheme | Literal['light', 'dark', 'no-override']" optional>
+  Value for `prefers-color-scheme`: `"light"` or `"dark"`. Pass `"no-override"` to clear the
+  override.
+</ParamField>
+
+<ParamField path="reduced_motion" type="ReducedMotion | Literal['reduce', 'no-preference', 'no-override']" optional>
+  Value for `prefers-reduced-motion`: `"reduce"` or `"no-preference"`. Pass `"no-override"` to
+  clear the override.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## set_user_agent()
+
+Override the user agent that this page sends in the `User-Agent` request header and exposes to
+page scripts. The override applies to this page and its iframes, not to pages it opens.
+
+```python
+await page.set_user_agent("Mozilla/5.0 (compatible; ExampleBot/1.0)")
+```
+
+<ParamField path="user_agent" type="str">
+  The user agent string. Pass an empty string to restore the browser default.
 </ParamField>
 
 <ResponseField name="result" type="None">
@@ -2220,6 +2304,59 @@ if err := page.SetViewportSize(ctx, 1440, 900, nil); err != nil {
   <ParamField path="options.DeviceScaleFactor" type="*float64" optional>
     The device scale factor.
   </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## EmulateMedia()
+
+Emulate CSS media features on this page. Fields you leave `nil` keep their current value.
+The override applies to this page and its iframes, not to pages it opens.
+
+```go
+colorScheme := stagehand.PageEmulateMediaOptionsColorSchemeDark
+if err := page.EmulateMedia(ctx, &stagehand.PageEmulateMediaOptions{
+    ColorScheme: &colorScheme,
+}); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PageEmulateMediaOptions" optional>
+  Media features to emulate. Pass `nil` to keep the current values.
+
+  <ParamField path="options.ColorScheme" type="*PageEmulateMediaOptionsColorScheme" optional>
+    Value for `prefers-color-scheme`: `PageEmulateMediaOptionsColorSchemeLight` or
+    `PageEmulateMediaOptionsColorSchemeDark`. Pass `PageEmulateMediaOptionsColorSchemeNoOverride`
+    to clear the override.
+  </ParamField>
+
+  <ParamField path="options.ReducedMotion" type="*PageEmulateMediaOptionsReducedMotion" optional>
+    Value for `prefers-reduced-motion`: `PageEmulateMediaOptionsReducedMotionReduce` or
+    `PageEmulateMediaOptionsReducedMotionNoPreference`. Pass
+    `PageEmulateMediaOptionsReducedMotionNoOverride` to clear the override.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## SetUserAgent()
+
+Override the user agent that this page sends in the `User-Agent` request header and exposes to
+page scripts. The override applies to this page and its iframes, not to pages it opens.
+
+```go
+if err := page.SetUserAgent(ctx, "Mozilla/5.0 (compatible; ExampleBot/1.0)"); err != nil {
+    return err
+}
+```
+
+<ParamField path="userAgent" type="string">
+  The user agent string. Pass an empty string to restore the browser default.
 </ParamField>
 
 <ResponseField name="result" type="error">

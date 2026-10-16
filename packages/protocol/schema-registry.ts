@@ -67,6 +67,7 @@ import {
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
+  PageEmulateMediaParamsSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -86,6 +87,7 @@ import {
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
+  PageSetUserAgentParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
   PageTitleResultSchema,
@@ -362,6 +364,16 @@ export const StagehandMethods = {
   pageSetViewportSize: {
     name: "page.set_viewport_size",
     params: PageSetViewportSizeParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageEmulateMedia: {
+    name: "page.emulate_media",
+    params: PageEmulateMediaParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageSetUserAgent: {
+    name: "page.set_user_agent",
+    params: PageSetUserAgentParamsSchema,
     result: PageVoidResultSchema,
   },
   pageWaitForLoadState: {

@@ -598,6 +598,8 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.$eval()`, `$$eval()` | `page.evaluate()` |
 | `page.setViewportSize()` | Same name, two arguments instead of an object |
 | `page.setExtraHTTPHeaders()` | Same name, also on the context |
+| `page.emulateMedia()` | Same name. `colorScheme` and `reducedMotion` only. Pass `"no-override"` instead of `null` |
+| `browser.newContext({ userAgent })` | `page.setUserAgent()`, per page |
 | `page.screenshot()` | Same, returns bytes and honors `path` |
 | `page.pdf()` | No equivalent |
 | `page.accessibility.snapshot()` | `page.snapshot()`, returns a tree plus an XPath map |

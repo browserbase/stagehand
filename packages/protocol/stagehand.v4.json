@@ -617,6 +617,32 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.emulate_media": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageEmulateMediaParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.set_user_agent": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageSetUserAgentParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.wait_for_load_state": {
           "type": "object",
           "properties": {
@@ -1056,6 +1082,8 @@
         "page.pdf",
         "page.snapshot",
         "page.set_viewport_size",
+        "page.emulate_media",
+        "page.set_user_agent",
         "page.wait_for_load_state",
         "page.wait_for_timeout",
         "page.wait_for_selector",
@@ -3995,6 +4023,46 @@
       },
       "additionalProperties": false
     },
+    "PageEmulateMediaParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PageEmulateMediaOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PageEmulateMediaOptions": {
+      "type": "object",
+      "properties": {
+        "color_scheme": {
+          "type": "string",
+          "enum": ["light", "dark", "no-override"]
+        },
+        "reduced_motion": {
+          "type": "string",
+          "enum": ["reduce", "no-preference", "no-override"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageSetUserAgentParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "user_agent": {
+          "type": "string"
+        }
+      },
+      "required": ["page_id", "user_agent"],
+      "additionalProperties": false
+    },
     "PageWaitForLoadStateParams": {
       "type": "object",
       "properties": {
@@ -6723,6 +6791,60 @@
             },
             "params": {
               "$ref": "#/$defs/PageSetViewportSizeParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.emulate_media"
+            },
+            "params": {
+              "$ref": "#/$defs/PageEmulateMediaParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.set_user_agent"
+            },
+            "params": {
+              "$ref": "#/$defs/PageSetUserAgentParams"
             },
             "traceparent": {
               "type": "string"

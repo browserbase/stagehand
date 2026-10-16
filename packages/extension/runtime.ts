@@ -65,6 +65,7 @@ import type {
   PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
+  PageEmulateMediaParams,
   PageEvaluateParams,
   PageEvaluateResult,
   PageGoBackParams,
@@ -87,6 +88,7 @@ import type {
   PageScreenshotParams,
   PageScreenshotResult,
   PageSetExtraHTTPHeadersParams,
+  PageSetUserAgentParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
   PageSnapshotOptions,
@@ -164,6 +166,8 @@ export type UnderstudyRuntimePage = {
     height: number,
     options?: PageSetViewportSizeParams["options"],
   ): Promise<void>;
+  emulateMedia(options?: PageEmulateMediaParams["options"]): Promise<void>;
+  setUserAgent(userAgent: PageSetUserAgentParams["userAgent"]): Promise<void>;
   waitForLoadState(state: LoadState, timeout?: number): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   waitForSelector(
@@ -681,6 +685,16 @@ export class StagehandRuntime {
       params.height,
       params.options,
     );
+    return { ok: true };
+  }
+
+  async pageEmulateMedia(params: PageEmulateMediaParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).emulateMedia(params.options);
+    return { ok: true };
+  }
+
+  async pageSetUserAgent(params: PageSetUserAgentParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setUserAgent(params.userAgent);
     return { ok: true };
   }
 

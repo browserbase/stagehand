@@ -3,6 +3,7 @@ import {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageDragAndDropParamsSchema,
+  PageEmulateMediaParamsSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -16,6 +17,7 @@ import {
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
+  PageSetUserAgentParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
   PageTypeParamsSchema,
@@ -238,6 +240,33 @@ describe("page command schemas", () => {
     expect(() =>
       PageSetViewportSizeParamsSchema.parse({ pageId, width: 0, height: 720 }),
     ).toThrow();
+  });
+
+  it("defines media emulation and user agent params", () => {
+    expect(
+      PageEmulateMediaParamsSchema.parse({
+        pageId,
+        options: { colorScheme: "dark", reducedMotion: "no-override" },
+      }),
+    ).toStrictEqual({ pageId, options: { colorScheme: "dark", reducedMotion: "no-override" } });
+    expect(PageEmulateMediaParamsSchema.parse({ pageId })).toStrictEqual({ pageId });
+    expect(() =>
+      PageEmulateMediaParamsSchema.parse({ pageId, options: { colorScheme: null } }),
+    ).toThrow();
+    expect(() =>
+      PageEmulateMediaParamsSchema.parse({ pageId, options: { colorScheme: "no-preference" } }),
+    ).toThrow();
+    expect(() =>
+      PageEmulateMediaParamsSchema.parse({ pageId, options: { reducedMotion: "dark" } }),
+    ).toThrow();
+    expect(() =>
+      PageEmulateMediaParamsSchema.parse({ pageId, options: { media: "print" } }),
+    ).toThrow();
+    expect(PageSetUserAgentParamsSchema.parse({ pageId, userAgent: "" })).toStrictEqual({
+      pageId,
+      userAgent: "",
+    });
+    expect(() => PageSetUserAgentParamsSchema.parse({ pageId })).toThrow();
   });
 
   it("defines wire-safe screenshot, PDF, and snapshot params", () => {

@@ -343,6 +343,16 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageSetViewportSize, request.params),
           context,
         );
+      case "page.emulate_media":
+        return this.pageController.emulateMedia(
+          parseParams(StagehandMethods.pageEmulateMedia, request.params),
+          context,
+        );
+      case "page.set_user_agent":
+        return this.pageController.setUserAgent(
+          parseParams(StagehandMethods.pageSetUserAgent, request.params),
+          context,
+        );
       case "page.wait_for_load_state":
         return this.pageController.waitForLoadState(
           parseParams(StagehandMethods.pageWaitForLoadState, request.params),

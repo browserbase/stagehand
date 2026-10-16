@@ -21,6 +21,7 @@ from ._generated.input_types import (
 from ._generated.models import (
     Animations,
     Caret,
+    ColorScheme,
     LoadState,
     MouseButton,
     PageAddInitScriptParams,
@@ -31,6 +32,8 @@ from ._generated.models import (
     PageCloseResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
+    PageEmulateMediaOptions,
+    PageEmulateMediaParams,
     PageEvaluateParams,
     PageEvaluateResult,
     PageEventNotification,
@@ -56,6 +59,7 @@ from ._generated.models import (
     PageScreenshotResult,
     PageScrollParams,
     PageSetExtraHTTPHeadersParams,
+    PageSetUserAgentParams,
     PageSetViewportSizeOptions,
     PageSetViewportSizeParams,
     PageSnapshotOptions,
@@ -74,6 +78,7 @@ from ._generated.models import (
     PageWaitForTimeoutParams,
     PageWebMCPToolsParams,
     PageWebMCPToolsResult,
+    ReducedMotion,
     Scale,
     SnapshotResult,
     State,
@@ -517,6 +522,34 @@ class Page:
                 device_scale_factor=device_scale_factor,
             )
         await self._rpc_client.send("page.set_viewport_size", params, PageVoidResult)
+
+    async def emulate_media(
+        self,
+        *,
+        color_scheme: ColorScheme | Literal["light", "dark", "no-override"] | None = None,
+        reduced_motion: ReducedMotion
+        | Literal["reduce", "no-preference", "no-override"]
+        | None = None,
+    ) -> None:
+        params = PageEmulateMediaParams(page_id=self.page_id)
+        options = PageEmulateMediaOptions.model_validate({
+            key: value
+            for key, value in {
+                "color_scheme": color_scheme,
+                "reduced_motion": reduced_motion,
+            }.items()
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        await self._rpc_client.send("page.emulate_media", params, PageVoidResult)
+
+    async def set_user_agent(self, user_agent: str) -> None:
+        await self._rpc_client.send(
+            "page.set_user_agent",
+            PageSetUserAgentParams(page_id=self.page_id, user_agent=user_agent),
+            PageVoidResult,
+        )
 
     async def wait_for_load_state(
         self,

@@ -1062,6 +1062,30 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("routes page media emulation and user agent overrides", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageEmulateMedia, { ok: true });
+    client.queueResponse(StagehandMethods.pageEmulateMedia, { ok: true });
+    client.queueResponse(StagehandMethods.pageSetUserAgent, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "no-override" });
+    await page.emulateMedia();
+    await page.setUserAgent("StagehandTest/1.0");
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageEmulateMedia, {
+        pageId: "page-1",
+        options: { colorScheme: "dark", reducedMotion: "no-override" },
+      }),
+      requestCall(StagehandMethods.pageEmulateMedia, { pageId: "page-1" }),
+      requestCall(StagehandMethods.pageSetUserAgent, {
+        pageId: "page-1",
+        userAgent: "StagehandTest/1.0",
+      }),
+    ]);
+  });
+
   it("routes page wait methods and unwraps selector results", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageWaitForLoadState, { ok: true });

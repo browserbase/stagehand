@@ -47,6 +47,7 @@ import type {
   PageCDPEventNotification,
   PageEventNotification,
   PageDragAndDropParams,
+  PageEmulateMediaParams,
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
@@ -230,6 +231,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     height: number;
     options?: PageSetViewportSizeParams["options"];
   }> = [];
+  readonly emulateMediaCalls: Array<PageEmulateMediaParams["options"]> = [];
+  readonly setUserAgentCalls: string[] = [];
   readonly waitForLoadStateCalls: Array<{
     state: LoadState;
     timeout?: number;
@@ -368,6 +371,14 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageSetViewportSizeParams["options"],
   ): Promise<void> {
     this.setViewportSizeCalls.push({ width, height, options });
+  }
+
+  async emulateMedia(options?: PageEmulateMediaParams["options"]): Promise<void> {
+    this.emulateMediaCalls.push(options);
+  }
+
+  async setUserAgent(userAgent: string): Promise<void> {
+    this.setUserAgentCalls.push(userAgent);
   }
 
   async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
@@ -2017,6 +2028,37 @@ describe("Stagehand worker clients", () => {
     expect(page.setViewportSizeCalls).toStrictEqual([
       { width: 1280, height: 720, options: { deviceScaleFactor: 2 } },
     ]);
+  });
+
+  it("routes page media emulation and user agent overrides", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "page.emulate_media",
+        params: {
+          page_id: "page-a",
+          options: { color_scheme: "dark", reduced_motion: "no-override" },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "page.set_user_agent",
+        params: { page_id: "page-a", user_agent: "StagehandTest/1.0" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 2, result: { ok: true } });
+
+    expect(page.emulateMediaCalls).toStrictEqual([
+      { colorScheme: "dark", reducedMotion: "no-override" },
+    ]);
+    expect(page.setUserAgentCalls).toStrictEqual(["StagehandTest/1.0"]);
   });
 
   it("routes page wait methods and adapts selector results", async () => {
