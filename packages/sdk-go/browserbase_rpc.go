@@ -77,3 +77,7 @@ func registerBrowserbaseTransport(client *rpcClient, connection *browserbaseConn
 		dispose()
 	}
 }
+
+func (client *rpcClient) registerBrowserbaseTransport(connection *browserbaseConnection) func() {
+	return registerBrowserbaseTransport(client, connection)
+}

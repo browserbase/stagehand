@@ -29,12 +29,14 @@ class FakeCDPClient {
   sendCommand = vi.fn(async () => ({}));
   initError: Error | undefined;
   respondToInit = true;
+  beforeInit?: () => Promise<void>;
   readonly requests: JSONRPCMessage[] = [];
   readonly responses = new Map<string, unknown>();
 
   async send(message: JSONRPCMessage): Promise<void> {
     this.requests.push(message);
     if (!("id" in message) || !("method" in message)) return;
+    if (message.method === "stagehand.init") await this.beforeInit?.();
     if (message.method === "stagehand.init" && this.initError) {
       await this.onmessage?.({
         jsonrpc: "2.0",
@@ -119,13 +121,15 @@ describe("Stagehand.create", () => {
       params: {
         browser_cdp_url: cdp.webSocketDebuggerUrl,
         log_level: "info",
-        api_key: "bb_worker_key",
-        api_url: "https://api.stagehand.dev.browserbase.com",
       },
     });
     expect((cdp.requestsFor("stagehand.init")[0] as { params: object }).params).not.toHaveProperty(
       "telemetry",
     );
+    const params = (cdp.requestsFor("stagehand.init")[0] as { params: object }).params;
+    expect(params).not.toHaveProperty("api_key");
+    expect(params).not.toHaveProperty("api_url");
+    expect(params).not.toHaveProperty("browserbase");
 
     await stagehand.close();
     expect(cdp.close).not.toHaveBeenCalled();
@@ -135,7 +139,17 @@ describe("Stagehand.create", () => {
   });
 
   it("uses the claimed Browserbase key before the Stagehand key", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
     const cdp = new FakeCDPClient();
+    cdp.beforeInit = () =>
+      cdp.emit({
+        jsonrpc: "2.0",
+        id: 99,
+        method: "browserbase.request",
+        params: { operation: "cache.get", headers: {}, body: "{}" },
+      });
     const { browserbase } = createBrowserFactoriesForTest({
       connectCdp: async () => cdp as unknown as CDPClient,
       createBrowserbaseSessionClient: () => ({
@@ -162,12 +176,24 @@ describe("Stagehand.create", () => {
     try {
       expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
         params: {
-          api_key: "bb-browser-key",
-          api_url: "https://fixture.example/services",
+          browserbase: "client",
           browser: { session_id: "session-precedence", region: "eu-central-1" },
           model: { model_name: "openai/gpt-5", api_key: "provider-key" },
         },
       });
+      const params = (cdp.requestsFor("stagehand.init")[0] as { params: object }).params;
+      expect(params).not.toHaveProperty("api_key");
+      expect(params).not.toHaveProperty("api_url");
+      expect(fetch).toHaveBeenCalledOnce();
+      const request = fetch.mock.calls[0]?.[0] as Request;
+      expect(request.url).toBe("https://fixture.example/services/v1/cache/get");
+      expect(request.headers.get("x-bb-api-key")).toBe("bb-browser-key");
+      expect(cdp.requests).toContainEqual(
+        expect.objectContaining({
+          id: 99,
+          result: expect.objectContaining({ type: "response", status: 200 }),
+        }),
+      );
     } finally {
       await stagehand.close();
       await browser.close();
@@ -438,6 +464,37 @@ describe("Stagehand.create", () => {
 
     await stagehand.close();
     await browser.close();
+  });
+
+  it("reports unavailable Browserbase transport for a local browser without a session", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({ browser, apiKey: "bb-key" });
+    try {
+      await cdp.emit({
+        jsonrpc: "2.0",
+        id: 99,
+        method: "browserbase.request",
+        params: { operation: "cache.get", headers: {}, body: "{}" },
+      });
+      expect(cdp.requests).toContainEqual(
+        expect.objectContaining({
+          id: 99,
+          result: expect.objectContaining({ type: "error", reason: "unavailable" }),
+        }),
+      );
+      expect(fetch).not.toHaveBeenCalled();
+      const rpc = stagehand.rpcClient!;
+      await stagehand.close();
+      expect(rpc.requestHandlers.has("browserbase.request")).toBe(false);
+    } finally {
+      await stagehand.close();
+      await browser.close();
+    }
   });
 
   it("filters and renders notifications, then removes its listener on close", async () => {

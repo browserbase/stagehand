@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from stagehand._generated.models import (
     BrowserbaseRegion,
@@ -27,6 +28,24 @@ _FIXTURES = json.loads(
 _API_KEY = _FIXTURES["connection"]["apiKey"]
 _SESSION_ID = _FIXTURES["connection"]["sessionId"]
 _DEFAULT_API_URL = _FIXTURES["endpoints"][0]["expected"]
+
+
+@pytest.mark.parametrize(
+    ("api_url", "accepted"),
+    [
+        ("http://localhost:3000", True),
+        ("https://example.com", True),
+        ("ftp://example.com", False),
+        ("file:///tmp/api", False),
+        ("ws://example.com", False),
+    ],
+)
+def test_api_url_scheme(api_url: str, accepted: bool) -> None:
+    if accepted:
+        assert StagehandClientCreateConfig(api_url=api_url).api_url == api_url
+    else:
+        with pytest.raises(ValidationError, match="must use HTTP or HTTPS"):
+            StagehandClientCreateConfig(api_url=api_url)
 
 
 @pytest.mark.parametrize("fixture", _FIXTURES["endpoints"], ids=lambda fixture: fixture["name"])

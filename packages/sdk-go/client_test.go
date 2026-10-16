@@ -34,14 +34,15 @@ type recordedCall struct {
 }
 
 type recordingProtocolClient struct {
-	calls            []recordedCall
-	responses        map[string]any
-	callErrors       map[string]error
-	callHook         func(context.Context, string) error
-	handlers         map[string]requestHandler
-	pageEventHandler func(PageCDPEventNotification)
-	toolEventHandler func(PageEventNotification)
-	closed           bool
+	calls                 []recordedCall
+	responses             map[string]any
+	callErrors            map[string]error
+	callHook              func(context.Context, string) error
+	handlers              map[string]requestHandler
+	pageEventHandler      func(PageCDPEventNotification)
+	toolEventHandler      func(PageEventNotification)
+	closed                bool
+	browserbaseRegistered bool
 }
 
 func (c *recordingProtocolClient) call(
@@ -68,6 +69,11 @@ func (c *recordingProtocolClient) call(
 		return err
 	}
 	return json.Unmarshal(data, result)
+}
+
+func (c *recordingProtocolClient) registerBrowserbaseTransport(*browserbaseConnection) func() {
+	c.browserbaseRegistered = true
+	return func() { c.browserbaseRegistered = false }
 }
 
 func (c *recordingProtocolClient) onRequest(method string, handler requestHandler) func() {
@@ -231,8 +237,8 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	}) {
 		t.Fatalf("client info = %#v", initParams.ClientInfo)
 	}
-	if initParams.APIURL == nil || *initParams.APIURL != apiURL {
-		t.Fatalf("API URL = %#v, want %q", initParams.APIURL, apiURL)
+	if initParams.APIURL != nil {
+		t.Fatalf("worker API URL = %#v, want nil", initParams.APIURL)
 	}
 	if initParams.Telemetry != nil {
 		t.Fatalf("telemetry = %#v, want nil", initParams.Telemetry)
@@ -480,8 +486,8 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
 	}
-	if params.APIKey == nil || *params.APIKey != handleAPIKey {
-		t.Fatalf("APIKey = %#v", params.APIKey)
+	if params.APIKey != nil || params.APIURL != nil || params.Browserbase == nil || *params.Browserbase != "client" {
+		t.Fatalf("worker connection fields = %#v", params)
 	}
 	if params.Browser == nil || params.Browser.SessionID != "session-1" || params.Browser.Region == nil || *params.Browser.Region != region {
 		t.Fatalf("Browser = %#v", params.Browser)
@@ -522,7 +528,7 @@ func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	params := rpc.calls[0].params.(StagehandInitParams)
-	if params.Browser != nil || params.APIKey == nil || *params.APIKey != apiKey {
+	if params.Browser != nil || params.APIKey != nil || params.APIURL != nil || params.Browserbase != nil {
 		t.Fatalf("worker metadata = %#v %#v", params.Browser, params.APIKey)
 	}
 }
@@ -555,7 +561,7 @@ func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	if _, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters); !errors.Is(err, initErr) {
 		t.Fatalf("first Create() error = %v", err)
 	}
-	if !failedRPC.closed {
+	if !failedRPC.closed || failedRPC.browserbaseRegistered {
 		t.Fatal("failed Create did not close its RPC client")
 	}
 	client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters)
@@ -564,6 +570,9 @@ func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	}
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatalf("Close() error = %v", err)
+	}
+	if successRPC.browserbaseRegistered {
+		t.Fatal("Stagehand.Close left Browserbase handlers registered")
 	}
 	if browser.Closed() {
 		t.Fatal("Stagehand.Close closed the Browser handle")
