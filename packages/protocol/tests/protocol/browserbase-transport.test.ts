@@ -136,16 +136,29 @@ describe("Browserbase transport protocol", () => {
 });
 
 describe("Browserbase transport initialization", () => {
-  it("keeps legacy initialization and client model references valid", () => {
+  it("allows client transport alongside client model references", () => {
     const params = {
       ...init,
-      apiKey: fixtures.connection.apiKey,
-      apiUrl: "https://example.com/services",
+      browserbase: "client",
       browser,
       model: { source: "client" },
     };
     expect(StagehandInitParamsSchema.parse(params)).toMatchObject(params);
     expect(StagehandInitParamsSchema.parse(init)).not.toHaveProperty("browserbase");
+  });
+
+  it.each([
+    { apiKey: fixtures.connection.apiKey },
+    { apiUrl: "https://example.com/services" },
+    { apiKey: fixtures.connection.apiKey, apiUrl: "https://example.com/services" },
+  ])("rejects removed init options with or without client transport: %j", (options) => {
+    for (const routing of [{}, { browserbase: "client", browser }]) {
+      const params = { ...init, ...routing, ...options };
+      expect(StagehandInitParamsSchema.safeParse(params).success).toBe(false);
+      expect(wireSchema(StagehandInitParamsSchema).safeParse(encodeWireValue(params)).success).toBe(
+        false,
+      );
+    }
   });
 
   it("allows client transport alongside direct model configuration", () => {

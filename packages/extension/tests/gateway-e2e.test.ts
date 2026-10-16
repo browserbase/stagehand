@@ -70,8 +70,6 @@ afterEach(async () => {
 beforeEach(() => {
   bridge = createBrowserbaseTestBridge({ apiUrl, apiKey: "bb-api-key", sessionId: "session-123" });
   gateway = {
-    source: "client",
-    sessionId: "session-123",
     request: bridge.runtime.adapters.clientBrowserbaseRequest,
   };
   requests.length = 0;

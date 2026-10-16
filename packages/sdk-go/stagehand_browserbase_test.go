@@ -162,11 +162,11 @@ func TestCreateBrowserbaseUnavailable(t *testing.T) {
 				Browser: &Browser{workerBrowser: test.session}, APIKey: test.key,
 			})
 			init := receiveStagehandRequest(t, transport, "stagehand.init")
-			var params StagehandInitParams
-			if err := json.Unmarshal(init.Params, &params); err != nil {
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(init.Params, &wire); err != nil {
 				t.Fatal(err)
 			}
-			if params.Browserbase != nil || params.APIKey != nil || params.APIURL != nil {
+			if wire["browserbase"] != nil || wire["api_key"] != nil || wire["api_url"] != nil {
 				t.Fatalf("unexpected connection fields: %s", init.Params)
 			}
 			browserbaseRPCRequest(t, transport, 100, testBrowserbaseHTTPParams())

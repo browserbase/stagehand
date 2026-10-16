@@ -276,8 +276,6 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
 export const StagehandClientCreateConfigSchema = z
   .strictObject(StagehandInitParamsSchema.shape)
   .omit({
-    apiKey: true,
-    apiUrl: true,
     browserbase: true,
     protocolVersion: true,
     clientInfo: true,

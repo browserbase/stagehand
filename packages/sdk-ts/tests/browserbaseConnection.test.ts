@@ -18,6 +18,17 @@ describe("client Browserbase connection settings", () => {
     expect(StagehandClientCreateConfigSchema.safeParse({ apiUrl }).success).toBe(accepted);
   });
 
+  it.each([
+    "https://example.com?",
+    "https://example.com?tenant=test",
+    "https://example.com#",
+    "https://example.com#gateway",
+    "https://example.com/v1/",
+    "https://example.com/services/v1///",
+  ])("rejects unsupported public API URL %s", (apiUrl) => {
+    expect(StagehandClientCreateConfigSchema.safeParse({ apiKey, apiUrl }).success).toBe(false);
+  });
+
   it.each(fixtures.endpoints)("resolves the $name endpoint", (fixture) => {
     const config = StagehandClientCreateConfigSchema.parse({
       apiKey,

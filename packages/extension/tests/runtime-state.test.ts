@@ -4,6 +4,7 @@ import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/sc
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
+import { StagehandRuntimeStateSchema } from "../runtimeState.js";
 
 const runtimeIdentity = {
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
@@ -43,6 +44,38 @@ function createBrowserSession(
 }
 
 describe("Stagehand runtime state", () => {
+  it.each([{ apiKey: "old-key" }, { apiUrl: "https://example.com" }])(
+    "rejects removed init options in runtime state: %j",
+    (options) => {
+      expect(
+        StagehandRuntimeStateSchema.safeParse({
+          status: "initialized",
+          initParams: { ...runtimeIdentity, ...options },
+        }).success,
+      ).toBe(false);
+    },
+  );
+
+  it("retains provider settings alongside client Browserbase metadata", async () => {
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+    });
+    const params: StagehandInitParams = {
+      ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
+      browserbase: "client" as const,
+      browser: { sessionId: "session-123" },
+      model: {
+        modelName: "openai/gpt-5",
+        apiKey: "provider-key",
+        headers: { "x-provider": "value" },
+      },
+    };
+    await runtime.initialize(params);
+    expect(runtime.state.getState()).toStrictEqual({ status: "initialized", initParams: params });
+    await runtime.disposeStagehandInstance();
+  });
+
   it("keeps the persistent browser session on the neutral runtime logger", async () => {
     const browserSessionFactory = vi.fn(async () => createBrowserSession());
     const runtime = createStagehandRuntime({ browserSessionFactory });

@@ -733,6 +733,9 @@ class TestNegotiateRuntime:
 
         assert reason("2.2.0", "2.1.99") == "protocol-server-too-old"
         assert reason("2.2.0", "2.2.0") is None
+        assert reason("3.0.0", "3.0.0") is None
+        assert reason("2.2.0", "3.0.0") == "protocol-major-mismatch"
+        assert reason("3.0.0", "2.2.0") == "protocol-major-mismatch"
         assert reason("2.1.1", "2.2.0") is None
         assert reason("1.2.4", "1.2.0") is None
         assert reason("1.2.4", "1.9.0") is None
