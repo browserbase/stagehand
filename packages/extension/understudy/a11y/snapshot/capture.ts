@@ -292,12 +292,19 @@ export async function tryScopedSnapshot(
     }
 
     const scopedUrlMap: Record<string, string> = { ...urlMap };
+    const scopedMediaControls: Record<string, string> = {};
+    for (const [encId, hostTag] of Object.entries(uaHostTagMap)) {
+      if (MEDIA_HOSTS.has(hostTag) && encId in scopedXpathMap) {
+        scopedMediaControls[encId] = targetFrameId;
+      }
+    }
 
     const wellFormedOutline = toWellFormed(outline);
     const snapshot: HybridSnapshot = {
       combinedTree: wellFormedOutline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
+      combinedMediaControls: scopedMediaControls,
       perFrame: [
         {
           frameId: targetFrameId,
@@ -396,6 +403,7 @@ export async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const mediaControlIds: string[] = [];
     const isExcluded = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
     const isIgnoredBackendNode = (backendId: number): boolean =>
       isExcluded?.(backendId) === true || (!pierce && idx.docRootOf.get(backendId) !== docRootBe);
@@ -414,6 +422,7 @@ export async function collectPerFrameMaps(
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      if (MEDIA_HOSTS.has(idx.uaHostTagByBe.get(be) ?? "")) mediaControlIds.push(key);
     }
 
     const { outline, urlMap } = await a11yForFrame(
@@ -430,7 +439,7 @@ export async function collectPerFrameMaps(
     );
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap, mediaControlIds });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -724,11 +733,14 @@ async function resolveChildFramesByParent(
   return childFramesByParent;
 }
 
+/** Hosts whose user-agent shadow internals are native media controls. */
+const MEDIA_HOSTS = new Set(["video", "audio"]);
+
 /**
  * Hosts whose user-agent shadow internals stay in the outline: native media
  * controls, and the default summary of a `<details>` that has none.
  */
-const UNFOLDED_USER_AGENT_HOSTS = new Set(["video", "audio", "details"]);
+const UNFOLDED_USER_AGENT_HOSTS = new Set([...MEDIA_HOSTS, "details"]);
 
 /**
  * Fold the internals of user-agent shadow roots (a text field's inner editor,
@@ -908,10 +920,12 @@ export function mergeFramesIntoSnapshot(
 ): HybridSnapshot {
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
+  const combinedMediaControls: Record<string, string> = {};
 
   for (const frameId of frameIds) {
     const maps = perFrameMaps.get(frameId);
     if (!maps) continue;
+    for (const encId of maps.mediaControlIds ?? []) combinedMediaControls[encId] = frameId;
 
     const abs = absPrefix.get(frameId) ?? "";
     const isRoot = abs === "" || abs === "/";
@@ -945,6 +959,7 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
+    combinedMediaControls,
     perFrame: perFrameOutlines.map(({ frameId, outline }) => {
       const maps = perFrameMaps.get(frameId);
       return {

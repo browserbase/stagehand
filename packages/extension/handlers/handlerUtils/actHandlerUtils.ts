@@ -115,6 +115,75 @@ export async function performUnderstudyMethod(
   }
 }
 
+/** Methods that act on a native media control's own box. */
+export const MEDIA_CONTROL_METHODS: ReadonlySet<string> = new Set([
+  "click",
+  "doubleClick",
+  "hover",
+]);
+
+/**
+ * Click, double-click or hover a native media control (play, mute, full
+ * screen, a time or volume slider) at the center of its own box. The controls
+ * live in a `<video>` or `<audio>` element's user-agent shadow root, which no
+ * selector or page script can reach, and their snapshot XPath is the media
+ * element's, so the locator path would act on the middle of the video instead.
+ * Only CDP DOM and Input commands touch the node.
+ */
+export async function performMediaControlMethod(
+  page: Page,
+  frameId: string,
+  backendNodeId: number,
+  method: string,
+  args: ReadonlyArray<string>,
+  logger: StagehandLogger,
+  progress: Progress,
+): Promise<void> {
+  if (!MEDIA_CONTROL_METHODS.has(method)) {
+    throw new Error(`Method ${method} is not supported on a native media control`);
+  }
+  const session = page.getSessionForFrame(frameId);
+
+  await logger.span(
+    `Understudy${toTitleCase(method)}`,
+    { target: `media control ${backendNodeId}` },
+    async () => {
+      await progress.run("scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { backendNodeId }),
+      );
+      const { model } = await progress.run("reading element geometry", () =>
+        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", { backendNodeId }),
+      );
+      if (!model) throw new Error("Native media control is not visible (no box model)");
+      const { x, y } = quadCenter(model.content);
+      const mouse = (event: Omit<Protocol.Input.DispatchMouseEventRequest, "x" | "y">) =>
+        progress.run("dispatching mouse events", () =>
+          session.send("Input.dispatchMouseEvent", { ...event, x, y }),
+        );
+
+      await mouse({ type: "mouseMoved", button: "none" });
+      if (method === "hover") return;
+      const button = method === "click" && args[0] ? (args[0] as MouseButton) : "left";
+      const clicks = method === "doubleClick" ? 2 : 1;
+      for (let clickCount = 1; clickCount <= clicks; clickCount++) {
+        await mouse({ type: "mousePressed", button, clickCount });
+        await mouse({ type: "mouseReleased", button, clickCount });
+      }
+    },
+  );
+}
+
+function quadCenter(quad: number[]): { x: number; y: number } {
+  if (quad.length < 8) throw new Error("Invalid box model content quad");
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < 8; i += 2) {
+    x += quad[i]!;
+    y += quad[i + 1]!;
+  }
+  return { x: x / 4, y: y / 4 };
+}
+
 /* ===================== Handlers & Map ===================== */
 
 const METHOD_HANDLER_MAP: Record<string, (ctx: UnderstudyMethodHandlerContext) => Promise<void>> = {

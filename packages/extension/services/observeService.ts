@@ -84,7 +84,7 @@ async function observeWithProgress(
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
     progress.throwIfStopped();
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+    const { combinedTree, combinedXpathMap, combinedMediaControls } = await page.captureSnapshot(
       {
         focusLocator: options?.locator,
         ignoreLocators: options?.ignoreLocators,
@@ -114,6 +114,15 @@ async function observeWithProgress(
     const actions: Action[] = [];
 
     for (const element of observation.elements) {
+      if (combinedMediaControls?.[element.elementId] !== undefined) {
+        // Its XPath is the media element's: acting on the result would click the
+        // middle of the video, not this control.
+        logger.warn("Observed element is a native media control, which has no selector", {
+          category: "observation",
+          elementId: element.elementId,
+        });
+        continue;
+      }
       const sourceXpath = trimTrailingTextNode(xpathMap[element.elementId as EncodedId]);
       if (!sourceXpath) {
         logger.warn("Observed element could not be resolved to an XPath", {

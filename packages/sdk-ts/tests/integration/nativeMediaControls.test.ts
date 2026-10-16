@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Stagehand } from "../../src/index.js";
+import type { LLMGenerateParams } from "@browserbasehq/stagehand-protocol/types";
+import type { ClientLLM, Stagehand } from "../../src/index.js";
 import {
   closeStagehand,
   createStagehand,
@@ -61,5 +62,64 @@ describe("page.snapshot() with native media elements", () => {
 
     const { formattedTree: after } = await page.snapshot();
     expect(after).toMatch(/\] Audio \[playing\] \[muted\]$/m);
+  });
+});
+
+function promptText(params: LLMGenerateParams): string {
+  return params.messages
+    .flatMap((message) => (Array.isArray(message.content) ? message.content : [message.content]))
+    .filter((content) => content.type === "text")
+    .map((content) => content.text)
+    .join("\n");
+}
+
+describe("act() on a native media control", () => {
+  let fixture: FixtureServer;
+  let stagehand: Stagehand | undefined;
+
+  beforeAll(async () => {
+    fixture = await startFixtureServer(
+      `<!doctype html><body><audio controls src="${silentWav()}"></audio></body>`,
+    );
+  });
+
+  afterAll(async () => {
+    await closeStagehand(stagehand);
+    await fixture.close();
+  });
+
+  it("clicks the control itself, not the middle of its media element", async () => {
+    let muteId: string | undefined;
+    const model: ClientLLM = {
+      generate: async (params) => {
+        muteId = /\[(\d+-\d+)\] button: mute$/m.exec(promptText(params))?.[1];
+        return {
+          role: "assistant",
+          content: { type: "text", text: "structured action" },
+          outputFormat: "json_schema",
+          structuredContent: {
+            action: muteId
+              ? { elementId: muteId, description: "Mute button", method: "click", arguments: [] }
+              : null,
+            twoStep: false,
+          },
+        };
+      },
+    };
+    stagehand = await createStagehand({ model });
+    const page = await firstPage(stagehand);
+    await page.goto(fixture.url);
+
+    const acted = await stagehand.act("Mute the audio");
+
+    expect(muteId).toMatch(/^0-\d+$/);
+    expect(acted.data.success).toBe(true);
+    // A click at the middle of the <audio> would seek its timeline instead.
+    expect(
+      await page.evaluate(() => {
+        const audio = document.querySelector("audio")!;
+        return { muted: audio.muted, paused: audio.paused, time: audio.currentTime };
+      }),
+    ).toEqual({ muted: true, paused: true, time: 0 });
   });
 });
