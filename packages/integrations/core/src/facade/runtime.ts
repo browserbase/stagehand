@@ -224,6 +224,8 @@ export async function createPlaywrightCompatRuntime(
       let rest = line[2] ?? "";
       // Trailing state flags rendered by formatStateFlags.
       rest = rest.replace(/(?:\s\[(?:selected|checked)\])+$/u, "");
+      // Trailing ` = "value"` or ` = 3` rendered by formatValue.
+      rest = rest.replace(/ = (?:"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)$/u, "");
       const separator = rest.indexOf(": ");
       const roleToken = separator === -1 ? rest : rest.slice(0, separator);
       const name = separator === -1 ? "" : rest.slice(separator + 2);

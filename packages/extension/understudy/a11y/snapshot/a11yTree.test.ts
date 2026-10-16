@@ -141,6 +141,99 @@ describe("a11yForFrame focused locators", () => {
   );
 });
 
+describe("a11yForFrame values", () => {
+  it("prints form control and numeric values, and drops text that repeats the value", async () => {
+    const outline = await outlineFor(
+      [
+        axNode({
+          nodeId: "root",
+          backendDOMNodeId: 1,
+          role: "RootWebArea",
+          name: "Form",
+          childIds: ["email", "editor", "volume"],
+        }),
+        axNode({
+          nodeId: "email",
+          backendDOMNodeId: 10,
+          role: "textbox",
+          name: "Email",
+          value: "a@b.co",
+          parentId: "root",
+          childIds: ["email-inner"],
+        }),
+        axNode({
+          nodeId: "email-inner",
+          backendDOMNodeId: 11,
+          role: "generic",
+          name: "",
+          parentId: "email",
+          childIds: ["email-text"],
+        }),
+        axNode({
+          nodeId: "email-text",
+          backendDOMNodeId: 12,
+          role: "StaticText",
+          name: "a@b.co",
+          parentId: "email-inner",
+        }),
+        axNode({
+          nodeId: "editor",
+          backendDOMNodeId: 20,
+          role: "textbox",
+          name: "Body",
+          value: "Dear team",
+          parentId: "root",
+          childIds: ["editor-text"],
+        }),
+        axNode({
+          nodeId: "editor-text",
+          backendDOMNodeId: 21,
+          role: "StaticText",
+          name: "Dear team",
+          parentId: "editor",
+        }),
+        axNode({
+          nodeId: "volume",
+          backendDOMNodeId: 30,
+          role: "slider",
+          name: "Volume",
+          value: 3,
+          parentId: "root",
+        }),
+      ],
+      // The editor is a contenteditable div: its value repeats its text children.
+      { "0-10": "input, email", "0-11": "div", "0-20": "div", "0-30": "div" },
+    );
+
+    expect(outline).toBe(
+      [
+        "[0-1] RootWebArea: Form",
+        '  [0-10] textbox: Email = "a@b.co"',
+        "  [0-20] textbox: Body",
+        "    [0-21] StaticText: Dear team",
+        "  [0-30] slider: Volume = 3",
+      ].join("\n"),
+    );
+  });
+});
+
+async function outlineFor(
+  nodes: Protocol.Accessibility.AXNode[],
+  tagNameMap: Record<string, string>,
+): Promise<string> {
+  const session = {
+    send: vi.fn(async (method: string) =>
+      method === "Accessibility.getFullAXTree" ? { nodes } : {},
+    ),
+  } as unknown as CDPSessionLike;
+  const { outline } = await a11yForFrame(session, "frame", {
+    tagNameMap,
+    scrollableMap: {},
+    encode: (backendNodeId) => `0-${backendNodeId}`,
+  });
+  return outline;
+}
+
 function fakeSession(
   focusedBackendNodeId: number,
   beforeSend?: (method: string) => void | Promise<void>,
@@ -217,6 +310,7 @@ function axNode({
   backendDOMNodeId,
   role,
   name,
+  value,
   parentId,
   childIds,
 }: {
@@ -224,6 +318,7 @@ function axNode({
   backendDOMNodeId: number;
   role: string;
   name: string;
+  value?: string | number;
   parentId?: string;
   childIds?: string[];
 }): Protocol.Accessibility.AXNode {
@@ -232,6 +327,9 @@ function axNode({
     backendDOMNodeId,
     role: { type: "role", value: role },
     name: { type: "computedString", value: name },
+    ...(value !== undefined
+      ? { value: { type: typeof value === "number" ? "number" : "string", value } }
+      : {}),
     ...(parentId ? { parentId } : {}),
     ...(childIds ? { childIds } : {}),
   } as Protocol.Accessibility.AXNode;

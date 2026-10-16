@@ -942,6 +942,34 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     ).resolves.toBe(1);
   });
 
+  it("matches exact names on snapshot lines that carry a value", async () => {
+    const world = createFakeWorld();
+    const prefix = world.iframeXPath!;
+    world.snapshot = {
+      formattedTree: [
+        '[1-4] textbox: Email = "a@b.co"',
+        '[1-5] textbox: Notes = "say \\"hi\\" = \\"bye\\""',
+        "[1-6] slider: Volume = 3",
+      ].join("\n"),
+      xpathMap: {
+        "1-4": `${prefix}/html[1]/body[1]/input[1]`,
+        "1-5": `${prefix}/html[1]/body[1]/textarea[1]`,
+        "1-6": `${prefix}/html[1]/body[1]/input[2]`,
+      },
+    };
+    const { tools } = setup(world);
+    await expect(
+      tools.run(`
+        const frame = page.frameLocator("iframe");
+        return [
+          await frame.getByRole("textbox", { name: "Email", exact: true }).count(),
+          await frame.getByRole("textbox", { name: "Notes", exact: true }).count(),
+          await frame.getByRole("slider", { name: "Volume", exact: true }).count(),
+        ];
+      `),
+    ).resolves.toStrictEqual([1, 1, 1]);
+  });
+
   it.each(["getByPlaceholder", "getByAltText", "getByTitle", "getByTestId"])(
     "rejects unsupported frame %s regex matching explicitly",
     async (method) => {

@@ -8,10 +8,27 @@ import type { A11yNode } from "../../../types/private/snapshot.js";
 export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
+  const name = node.name ? cleanText(node.name) : "";
+  const value = formatValue(node, name);
   const stateFlags = formatStateFlags(node);
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${stateFlags}`;
+  const label = `[${labelId}] ${node.role}${name ? `: ${name}` : ""}${value}${stateFlags}`;
   const kids = node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
+}
+
+/**
+ * Render the node's current value (a field's text, a select's choice, a
+ * slider's position) as ` = "…"`, or ` = 3` for numbers. Strings are
+ * JSON-quoted so a multi-line value stays on one outline line. Empty values
+ * and values that repeat the name are left out.
+ */
+function formatValue(node: A11yNode, name: string): string {
+  const { value } = node;
+  if (typeof value === "number") return Number.isFinite(value) ? ` = ${value}` : "";
+  if (typeof value !== "string") return "";
+  const text = cleanText(value);
+  if (!text || text === name) return "";
+  return ` = ${JSON.stringify(text)}`;
 }
 
 function formatStateFlags(node: A11yNode): string {
