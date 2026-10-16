@@ -51,3 +51,23 @@ it("attaches to the host's browser instead of launching one", async () => {
   expect(stagehand.close).toHaveBeenCalledTimes(1);
   expect(browser.close).not.toHaveBeenCalled();
 });
+
+it("leaves the host's browser running when Stagehand fails to start on it", async () => {
+  vi.stubEnv("STAGEHAND_BROWSER", "cdp");
+  vi.stubEnv("STAGEHAND_CDP_URL", "ws://127.0.0.1:9222/devtools/browser/x");
+  const browser = { closed: false, origin: "connected", close: vi.fn(async () => undefined) };
+  mocks.connect.mockResolvedValue(browser);
+  mocks.create.mockRejectedValue(new Error("extension refused"));
+  const tools: Array<{ name: string; execute: (id: string, params: object) => Promise<unknown> }> =
+    [];
+  const { default: stagehandExtension } = await import("../extensions/stagehand.js");
+  stagehandExtension({
+    registerTool: (tool: never) => tools.push(tool),
+    on: () => undefined,
+  } as never);
+
+  await expect(
+    tools.find((tool) => tool.name === "snapshot")!.execute("call-1", {}),
+  ).rejects.toThrow("extension refused");
+  expect(browser.close).not.toHaveBeenCalled();
+});

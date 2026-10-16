@@ -173,7 +173,10 @@ async function createResources(): Promise<FacadeResources> {
     toolLogger.emit("browser.ready", { provider: browser.provider, sessionId: browser.sessionId });
     return { browser, stagehand, tools };
   } catch (error) {
-    await browser.close().catch(() => undefined);
+    // A failed start must not end a browser the host still owns.
+    if (browser.origin !== "connected") {
+      await browser.close().catch(() => undefined);
+    }
     throw error;
   }
 }

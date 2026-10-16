@@ -81,7 +81,10 @@ export default function stagehandExtension(pi: ExtensionAPI) {
         const stagehand = await Stagehand.create({ browser, ...config.stagehand });
         return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
       } catch (error) {
-        await browser.close().catch(() => undefined);
+        // A failed start must not end a browser the host still owns.
+        if (browser.origin !== "connected") {
+          await browser.close().catch(() => undefined);
+        }
         throw error;
       }
     })();
