@@ -157,7 +157,7 @@ export function decorateRoles(
       role,
       name: n.name?.value,
       description: n.description?.value,
-      value: n.value?.value,
+      value: outlineValue(n.value?.value, tag),
       selected: extractBooleanProperty(n, "selected"),
       checked: extractBooleanProperty(n, "checked"),
       nodeId: n.nodeId,
@@ -167,6 +167,21 @@ export function decorateRoles(
       encodedId,
     };
   });
+}
+
+/**
+ * The value the outline prints on a node's line: a native form control's
+ * current value (`input`, `textarea`, `select`), or any numeric value (sliders,
+ * spinbuttons, progress bars). Other string values are dropped: a
+ * contenteditable textbox's value repeats its whole text, which the outline
+ * already shows as its children.
+ */
+function outlineValue(value: unknown, tag: string | undefined): A11yNode["value"] {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || !tag) return undefined;
+  const isFormControl =
+    tag === "input" || tag.startsWith("input, ") || tag === "textarea" || tag === "select";
+  return isFormControl ? value : undefined;
 }
 
 export async function buildHierarchicalTree(
@@ -264,19 +279,25 @@ function extractBooleanProperty(
   return toBooleanValue(value);
 }
 
+/**
+ * Drop StaticText children that only repeat the parent's name, or its value
+ * (the outline prints the value on the parent's line, e.g. a text field's
+ * contents).
+ */
 export function removeRedundantStaticTextChildren(
   parent: A11yNode,
   children: A11yNode[],
 ): A11yNode[] {
-  if (!parent.name) return children;
-  const parentNorm = normaliseSpaces(parent.name).trim();
+  const value = typeof parent.value === "string" ? parent.value : undefined;
+  if (!parent.name && !value) return children;
   let combined = "";
   for (const c of children) {
     if (c.role === "StaticText" && c.name) {
       combined += normaliseSpaces(c.name).trim();
     }
   }
-  if (combined === parentNorm) {
+  const repeats = (text: string | undefined) => !!text && combined === normaliseSpaces(text).trim();
+  if (repeats(parent.name) || repeats(value)) {
     return children.filter((c) => c.role !== "StaticText");
   }
   return children;
