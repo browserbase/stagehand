@@ -24,16 +24,24 @@ describe("page.snapshot() with user-agent shadow DOM", () => {
     await fixture.close();
   });
 
-  it("maps native date fields to their host input", async () => {
+  it("folds native date fields into their host input", async () => {
     const page = await firstPage(stagehand);
     await page.goto(fixture.url);
 
     const { formattedTree, xpathMap } = await page.snapshot();
-    const fieldId = /\[([^\]]+)\] spinbutton/.exec(formattedTree)?.[1] ?? "";
+    expect(formattedTree).not.toMatch(/\] spinbutton/);
+    const line = /\[([^\]]+)\] DateTime: Meeting(.*)$/m.exec(formattedTree);
+    expect(line?.[2]).toBe(" [format: YYYY-MM-DDThh:mm]");
+    const fieldId = line?.[1] ?? "";
     expect(xpathMap[fieldId]).toBe("/html[1]/body[1]/label[1]/input[1]");
 
     const input = page.locator(`xpath=${xpathMap[fieldId]}`);
     await input.fill("2025-07-23T10:00");
     expect(await input.inputValue()).toBe("2025-07-23T10:00");
+
+    const { formattedTree: filled } = await page.snapshot();
+    expect(filled).toContain(
+      `[${fieldId}] DateTime: Meeting = "2025-07-23T10:00" [format: YYYY-MM-DDThh:mm]`,
+    );
   });
 });

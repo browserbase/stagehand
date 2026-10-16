@@ -166,6 +166,8 @@ export async function domMapsForSession(
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  /** Nodes inside a user-agent shadow root, mapped to their host's tag. */
+  uaHostTagMap: Record<string, string>;
 }> {
   await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable").catch(() => {}));
   const root = await getDomTreeWithFallback(session, pierce, progress);
@@ -192,13 +194,15 @@ export async function domMapsForSession(
   const tagNameMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
+  const uaHostTagMap: Record<string, string> = {};
 
-  type StackEntry = { node: Protocol.DOM.Node; xpath: string; inUserAgentShadow?: boolean };
+  // uaHostTag is set inside a user-agent shadow root: the tag of its host.
+  type StackEntry = { node: Protocol.DOM.Node; xpath: string; uaHostTag?: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
 
   while (stack.length) {
     progress?.throwIfStopped();
-    const { node, xpath, inUserAgentShadow } = stack.pop()!;
+    const { node, xpath, uaHostTag } = stack.pop()!;
 
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
@@ -206,6 +210,7 @@ export async function domMapsForSession(
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
+      if (uaHostTag !== undefined) uaHostTagMap[encId] = uaHostTag;
     }
 
     const kids = node.children ?? [];
@@ -216,25 +221,39 @@ export async function domMapsForSession(
         const step = segs[i]!;
         stack.push({
           node: child,
-          xpath: inUserAgentShadow ? xpath : joinXPath(xpath, step),
-          inUserAgentShadow,
+          xpath: uaHostTag !== undefined ? xpath : joinXPath(xpath, step),
+          uaHostTag,
         });
       }
     }
 
     // Page scripts cannot enter user-agent shadow roots, so address their nodes through the host.
     for (const sr of node.shadowRoots ?? []) {
-      const isUserAgent = inUserAgentShadow || sr.shadowRootType === "user-agent";
+      const hostTag = userAgentHostTag(node, sr, uaHostTag);
       stack.push({
         node: sr,
-        xpath: isUserAgent ? xpath : joinXPath(xpath, "//"),
-        inUserAgentShadow: isUserAgent,
+        xpath: hostTag !== undefined ? xpath : joinXPath(xpath, "//"),
+        uaHostTag: hostTag,
       });
     }
   }
 
   progress?.throwIfStopped();
-  return { tagNameMap, xpathMap, scrollableMap };
+  return { tagNameMap, xpathMap, scrollableMap, uaHostTagMap };
+}
+
+/**
+ * The host tag to carry into a shadow root: the enclosing user-agent host's tag
+ * when already inside one, this node's tag when it opens a user-agent root, and
+ * undefined for author roots.
+ */
+function userAgentHostTag(
+  host: Protocol.DOM.Node,
+  shadowRoot: Protocol.DOM.Node,
+  enclosingHostTag: string | undefined,
+): string | undefined {
+  if (enclosingHostTag !== undefined) return enclosingHostTag;
+  return shadowRoot.shadowRootType === "user-agent" ? enrichedTagName(host) : undefined;
 }
 
 /**
@@ -259,13 +278,15 @@ export async function buildSessionDomIndex(
   const contentDocRootByIframe = new Map<number, number>();
   const enterByBe = new Map<number, number>();
   const exitByBe = new Map<number, number>();
+  const uaHostTagByBe = new Map<number, string>();
 
   type Entry = {
     node: Protocol.DOM.Node;
     xp: string;
     docRootBe: number;
     phase: "enter" | "exit";
-    inUserAgentShadow?: boolean;
+    // Set inside a user-agent shadow root: the tag of its host.
+    uaHostTag?: string;
   };
   const rootBe = root.backendNodeId!;
   const stack: Entry[] = [{ node: root, xp: "/", docRootBe: rootBe, phase: "enter" }];
@@ -273,7 +294,7 @@ export async function buildSessionDomIndex(
 
   while (stack.length) {
     progress?.throwIfStopped();
-    const { node, xp, docRootBe, phase, inUserAgentShadow } = stack.pop()!;
+    const { node, xp, docRootBe, phase, uaHostTag } = stack.pop()!;
     if (phase === "exit") {
       if (node.backendNodeId) {
         exitByBe.set(node.backendNodeId, dfsIndex++);
@@ -287,6 +308,7 @@ export async function buildSessionDomIndex(
       tagByBe.set(node.backendNodeId, enrichedTagName(node));
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
+      if (uaHostTag !== undefined) uaHostTagByBe.set(node.backendNodeId, uaHostTag);
     }
 
     stack.push({ node, xp, docRootBe, phase: "exit" });
@@ -299,22 +321,22 @@ export async function buildSessionDomIndex(
         const step = segs[i]!;
         stack.push({
           node: child,
-          xp: inUserAgentShadow ? xp : joinXPath(xp, step),
+          xp: uaHostTag !== undefined ? xp : joinXPath(xp, step),
           docRootBe,
           phase: "enter",
-          inUserAgentShadow,
+          uaHostTag,
         });
       }
     }
 
     for (const sr of pierce ? (node.shadowRoots ?? []) : []) {
-      const isUserAgent = inUserAgentShadow || sr.shadowRootType === "user-agent";
+      const hostTag = userAgentHostTag(node, sr, uaHostTag);
       stack.push({
         node: sr,
-        xp: isUserAgent ? xp : joinXPath(xp, "//"),
+        xp: hostTag !== undefined ? xp : joinXPath(xp, "//"),
         docRootBe,
         phase: "enter",
-        inUserAgentShadow: isUserAgent,
+        uaHostTag: hostTag,
       });
     }
 
@@ -340,6 +362,7 @@ export async function buildSessionDomIndex(
     contentDocRootByIframe,
     enterByBe,
     exitByBe,
+    uaHostTagByBe,
   };
 }
 

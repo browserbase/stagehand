@@ -168,4 +168,38 @@ describe("session DOM index frame and shadow traversal", () => {
       13: "/html[1]/body[1]/div[1]//input[1]",
     });
   });
+
+  it.each([
+    [
+      "buildSessionDomIndex",
+      async (session: CDPSessionLike) =>
+        Object.fromEntries((await buildSessionDomIndex(session, true)).uaHostTagByBe),
+    ],
+    [
+      "domMapsForSession",
+      async (session: CDPSessionLike) =>
+        (await domMapsForSession(session, "frame", true, (_, id) => `${id}`, false)).uaHostTagMap,
+    ],
+  ])("%s records the host tag of every user-agent shadow node", async (_, readHostTags) => {
+    const dateInput = {
+      ...node(4, "INPUT"),
+      attributes: ["type", "date"],
+      shadowRoots: [shadowRoot(5, "user-agent", [node(6, "DIV", [node(7, "SPAN")])])],
+    };
+    const video = {
+      ...node(10, "VIDEO"),
+      shadowRoots: [shadowRoot(11, "user-agent", [node(12, "BUTTON")])],
+    };
+    const host = { ...node(8, "DIV"), shadowRoots: [shadowRoot(9, "closed", [video])] };
+    const root = node(1, "#document", [node(2, "HTML", [node(3, "BODY", [dateInput, host])])]);
+    const send = vi.fn(async (method: string) => (method === "DOM.getDocument" ? { root } : {}));
+
+    expect(await readHostTags({ send } as unknown as CDPSessionLike)).toEqual({
+      5: "input, date",
+      6: "input, date",
+      7: "input, date",
+      11: "video",
+      12: "video",
+    });
+  });
 });

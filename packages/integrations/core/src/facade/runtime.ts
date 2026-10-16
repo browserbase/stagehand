@@ -223,7 +223,7 @@ export async function createPlaywrightCompatRuntime(
       if (!line) continue;
       let rest = line[2] ?? "";
       // Trailing state flags rendered by formatStateFlags.
-      rest = rest.replace(/(?:\s\[(?:selected|checked)\])+$/u, "");
+      rest = rest.replace(/(?:\s\[(?:selected|checked|format: [^\]]*)\])+$/u, "");
       // Trailing ` = "value"` or ` = 3` rendered by formatValue.
       rest = rest.replace(/ = (?:"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)$/u, "");
       const separator = rest.indexOf(": ");
