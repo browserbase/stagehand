@@ -18,6 +18,7 @@ import { TimeoutError } from "../errors.js";
 import {
   filterCookies,
   normalizeCookieParams,
+  cdpCookieToParam,
   cookieMatchesFilter,
   toCdpCookieParam,
 } from "./cookies.js";
@@ -1268,17 +1269,20 @@ export class BrowserContext {
       return;
     }
 
-    const current = await this.cookies();
+    const { cookies: current } = await this.conn.send<{
+      cookies: Protocol.Network.Cookie[];
+    }>("Storage.getCookies");
     const toKeep = current.filter((c) => !cookieMatchesFilter(c, options!));
 
     if (toKeep.length === current.length) return;
 
     // Storage domain doesn't support targeted deletes on the browser endpoint.
-    // Clear everything, then re-add only the cookies we're keeping.
+    // Clear everything, then re-add only the cookies we're keeping, with every
+    // attribute the browser reported (partition key, priority, ...).
     await this.conn.send("Storage.clearCookies");
     if (toKeep.length) {
       await this.conn.send("Storage.setCookies", {
-        cookies: toKeep.map(toCdpCookieParam),
+        cookies: toKeep.map(cdpCookieToParam),
       });
     }
   }
