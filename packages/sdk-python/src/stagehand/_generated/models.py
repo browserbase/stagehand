@@ -184,6 +184,17 @@ class BrowserbaseBrowserSettings(WireModel):
     viewport: Optional[BrowserbaseViewport] = None
 
 
+class BrowserbaseCancelParams(WireModel):
+    """Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: JSONRPCRequestId
+    reason: Reason1
+
+
 class BrowserbaseContext(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -217,6 +228,18 @@ class BrowserbaseFingerprintScreen(WireModel):
     min_width: Optional[StrictFloat] = None
 
 
+class BrowserbaseHttpResponse(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["response"]
+    status: Annotated[StrictInt, Field(ge=200, le=599)]
+    status_text: StrictStr
+    headers: dict[StrictStr, StrictStr]
+    body: StrictStr
+
+
 class BrowserbaseProxyConfig(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -244,6 +267,18 @@ class BrowserbaseRegion(StrEnum):
     ap_southeast_1 = "ap-southeast-1"
 
 
+class BrowserbaseRequestParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    operation: Operation
+    headers: dict[StrictStr, StrictStr]
+    body: StrictStr
+    remaining_timeout_ms: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Remaining caller budget in milliseconds; omission adds no transport deadline"""
+
+
 class BrowserbaseSessionCreateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -256,6 +291,24 @@ class BrowserbaseSessionCreateParams(WireModel):
     region: Optional[BrowserbaseRegion] = None
     timeout: Optional[StrictFloat] = None
     user_metadata: Optional[dict[StrictStr, Any]] = None
+
+
+class BrowserbaseTransportError(WireModel):
+    """Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["error"]
+    reason: Reason
+    message: StrictStr
+
+
+class BrowserbaseRequestResult(
+    RootModel[Union[BrowserbaseHttpResponse, BrowserbaseTransportError]]
+):
+    root: Union[BrowserbaseHttpResponse, BrowserbaseTransportError]
 
 
 class BrowserbaseViewport(WireModel):
@@ -1460,6 +1513,12 @@ class OperatingSystem(StrEnum):
     windows = "windows"
 
 
+class Operation(StrEnum):
+    gateway_responses = "gateway.responses"
+    cache_get = "cache.get"
+    cache_set = "cache.set"
+
+
 class Os(StrEnum):
     windows = "windows"
     mac = "mac"
@@ -2061,6 +2120,19 @@ class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]])
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
 
+class Reason(StrEnum):
+    network = "network"
+    cancelled = "cancelled"
+    timeout = "timeout"
+    unavailable = "unavailable"
+    disconnected = "disconnected"
+
+
+class Reason1(StrEnum):
+    cancelled = "cancelled"
+    timeout = "timeout"
+
+
 class ResponseAllHeadersResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2210,6 +2282,7 @@ class StagehandInitParams(WireModel):
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    browserbase: Optional[Literal["client"]] = None
     api_url: Optional[WireUrl] = None
     """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
     browser: Optional[BrowserSessionMetadata] = None

@@ -198,3 +198,33 @@ def test_unknown_model_ids_round_trip(provider: str) -> None:
 def test_invalid_model_names_are_rejected(model_name: str) -> None:
     with pytest.raises(ValidationError):
         models.ModelConfig.model_validate({"model_name": model_name})
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    json.loads(
+        (Path(__file__).parents[3] / "tests/fixtures/browserbase-transport.json").read_text()
+    )["httpFailures"],
+    ids=lambda fixture: fixture["name"],
+)
+def test_browserbase_result_preserves_http_failures(fixture: dict[str, object]) -> None:
+    wire = {
+        "type": "response",
+        "status": fixture["status"],
+        "status_text": "",
+        "headers": fixture["headers"],
+        "body": fixture["body"],
+    }
+    result = models.BrowserbaseRequestResult.model_validate_json(json.dumps(wire))
+    assert isinstance(result.root, models.BrowserbaseHttpResponse)
+    assert result.model_dump(mode="json") == wire
+
+
+@pytest.mark.parametrize(
+    "reason", ["network", "cancelled", "timeout", "unavailable", "disconnected"]
+)
+def test_browserbase_result_preserves_transport_errors(reason: str) -> None:
+    wire = {"type": "error", "reason": reason, "message": "Request did not complete"}
+    result = models.BrowserbaseRequestResult.model_validate_json(json.dumps(wire))
+    assert isinstance(result.root, models.BrowserbaseTransportError)
+    assert result.model_dump(mode="json") == wire

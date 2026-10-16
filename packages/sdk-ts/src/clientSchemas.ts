@@ -273,13 +273,16 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
 
-export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
-  protocolVersion: true,
-  clientInfo: true,
-  browserCdpUrl: true,
-  logLevel: true,
-  browser: true,
-})
+export const StagehandClientCreateConfigSchema = z
+  .strictObject(StagehandInitParamsSchema.shape)
+  .omit({
+    browserbase: true,
+    protocolVersion: true,
+    clientInfo: true,
+    browserCdpUrl: true,
+    logLevel: true,
+    browser: true,
+  })
   .extend({
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
     logging: StagehandClientLoggingConfigSchema.default({
