@@ -12,6 +12,9 @@ import type { BrowserbaseRequestParams } from "@browserbasehq/stagehand-protocol
 import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
 import type { BrowserbaseConnection } from "../src/browserbaseConnection.js";
 import { registerBrowserbaseTransport } from "../src/browserbaseRpc.js";
+import { CDPClient } from "../src/cdpClient.js";
+import { Stagehand } from "../src/stagehand.js";
+import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
 import { createHttpTestServer, listen, close, type CapturedRequest } from "./helpers/httpServer.js";
 
@@ -229,6 +232,70 @@ describe("Browserbase reverse RPC lifecycle", () => {
       await client.receive({ jsonrpc: "2.0", id: 1, result: [] });
       await client.receive(cancel(55));
       expect(transport.sent).toHaveLength(1);
+    },
+  );
+
+  it.each(["browser", "context"] as const)(
+    "aborts HTTP when %s closes without a socket-close event",
+    async (mode) => {
+      const socket = Object.assign(new EventTarget(), { close: vi.fn() });
+      const cdp = new CDPClient(socket as unknown as WebSocket, "ws://localhost/test");
+      cdp.attachedServiceWorker = new Transport().serviceWorker;
+      const sent = vi.spyOn(cdp, "send").mockImplementation(async (message) => {
+        if ("method" in message && message.method === "stagehand.init" && "id" in message) {
+          await cdp.onmessage?.({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: { initialized: true, pages: [] },
+          });
+        }
+      });
+      const { browserbase } = createBrowserFactoriesForTest({
+        connectCdp: async () => cdp,
+        createBrowserbaseSessionClient: () => ({
+          createSession: vi.fn(),
+          connectSession: async () => ({
+            sessionId: connection.sessionId,
+            cdpUrl: cdp.webSocketDebuggerUrl,
+            close: vi.fn(),
+          }),
+        }),
+      });
+      const browser = await browserbase.connect({
+        apiKey: connection.apiKey,
+        sessionId: connection.sessionId,
+      });
+      try {
+        const stagehand = await Stagehand.create({
+          browser,
+          apiUrl: new URL(connection.apiUrl).origin,
+        });
+        const client = stagehand.rpcClient!;
+        clients.push(client);
+        const context = browser.context;
+        const gate = hold();
+        holds.set("browser-close", gate);
+        const original = client.send(StagehandMethods.contextPages, {});
+        const rejected = expect(original).rejects.toThrow("CDP client closed");
+        const incoming = cdp.onmessage?.(request(55, "browser-close"));
+        const received = await gate.arrived.promise;
+        await (mode === "browser" ? browser.close() : context.close());
+        expect(client.closed).toBe(true);
+        await Promise.all([incoming, rejected, gate.closed.promise]);
+        expect(client.pending.size).toBe(0);
+        expect(client.requestHandlers.size).toBe(0);
+        expect(client.notificationListeners.size).toBe(0);
+        received.response.end("{}");
+        await client.receive({ jsonrpc: "2.0", id: 2, result: [] });
+        await Promise.all([browser.close(), context.close()]);
+        expect(socket.close).toHaveBeenCalledOnce();
+        expect(sent.mock.calls.map(([message]) => message)).toEqual([
+          expect.objectContaining({ method: "stagehand.init" }),
+          expect.objectContaining({ method: "context.pages" }),
+        ]);
+      } finally {
+        await browser.close();
+      }
     },
   );
 
