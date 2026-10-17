@@ -107,6 +107,8 @@ class RunnerConfig:
     recursion_limit: int
     max_tool_steps: int
     reasoning_summary: str | None = None
+    # JSON schema the final answer must match (`response_format`); None keeps free text.
+    result_schema: dict[str, Any] | None = None
 
 
 _REASONING_SUMMARY_MODES = frozenset({"auto", "concise", "detailed"})
@@ -168,6 +170,9 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
     )
     if reasoning_summary is not None and reasoning_summary not in _REASONING_SUMMARY_MODES:
         raise ValueError("reasoning_summary must be one of auto, concise, detailed or null")
+    result_schema = raw.get("result_schema")
+    if result_schema is not None and not isinstance(result_schema, dict):
+        raise ValueError("result_schema must be an object or null")
     return RunnerConfig(
         prompt=str(_require_string(raw.get("prompt"), "prompt")),
         system_prompt=_require_string(raw.get("system_prompt"), "system_prompt", nullable=True),
@@ -176,6 +181,7 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
         recursion_limit=_require_positive_int(raw.get("recursion_limit"), "recursion_limit"),
         max_tool_steps=_require_positive_int(raw.get("max_tool_steps"), "max_tool_steps"),
         reasoning_summary=reasoning_summary,
+        result_schema=result_schema,
     )
 
 
@@ -506,7 +512,20 @@ def _default_build_agent(
         model=resolved_model,
         tools=tools,
         system_prompt=config.system_prompt,
+        response_format=_response_format(config.result_schema),
     )
+
+
+def _response_format(schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The answer schema with a fixed title, so its output tool has the same name every run."""
+    if schema is None:
+        return None
+    return {"title": "EvalResult", **schema}
+
+
+def _final_text(last_text: str, structured: object) -> str:
+    """The structured answer when the agent produced one, else its last message."""
+    return json.dumps(structured) if structured is not None else last_text
 
 
 async def run(
@@ -516,6 +535,7 @@ async def run(
     emit: Emitter = print_line,
 ) -> int:
     last_text = ""
+    structured: object = None
     usages: list[Mapping[str, object] | None] = []
     tool_result_count = 0
     emitted_message_ids: set[tuple[str, str]] = set()
@@ -630,7 +650,11 @@ async def run(
                 continue
             budget_reached = False
             for update in chunk.values():
-                if not isinstance(update, dict) or not isinstance(update.get("messages"), list):
+                if not isinstance(update, dict):
+                    continue
+                if update.get("structured_response") is not None:
+                    structured = update["structured_response"]
+                if not isinstance(update.get("messages"), list):
                     continue
                 for message in update["messages"]:
                     message_key: tuple[str, str] | None = None
@@ -694,7 +718,7 @@ async def run(
         except Exception:  # noqa: BLE001
             pass
 
-    emit_event({"type": "final", "text": last_text})
+    emit_event({"type": "final", "text": _final_text(last_text, structured)})
     emit_event({"type": "usage", **aggregate_usage(usages)})
     return 0
 
