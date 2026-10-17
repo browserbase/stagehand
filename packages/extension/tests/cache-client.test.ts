@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CacheClient, CacheGetResponseSchema } from "../clients/cacheClient.js";
 
 /**
@@ -52,6 +52,78 @@ describe("CacheGetResponseSchema", () => {
 });
 
 describe("CacheClient", () => {
+  const maxBodyBytes = 25_000_000;
+  const baseRequest = {
+    method: "extract" as const,
+    sessionId: "session-1",
+    url: "https://example.com",
+    cdpTree: { rootFrameId: "frame-1", frames: [] },
+    data: {},
+  };
+
+  it.each([
+    ["get", -1],
+    ["get", 0],
+    ["get", 1],
+    ["set", -1],
+    ["set", 0],
+    ["set", 1],
+  ] as const)(
+    "checks the %s body at a %s-byte offset from the limit",
+    async (operation, offset) => {
+      const success =
+        operation === "get" ? { cacheKey: "key", hit: false } : { cacheKey: "key", written: true };
+      const send = vi.fn(
+        async () => new Response(JSON.stringify({ success: true, data: success })),
+      );
+      const client = new CacheClient({ request: send });
+      const getRequest = { ...baseRequest, data: { padding: "" } };
+      const setRequest = { ...getRequest, value: { answer: 42 } };
+      const input = operation === "get" ? getRequest : setRequest;
+      input.data.padding = "x".repeat(
+        maxBodyBytes + offset - Buffer.byteLength(JSON.stringify(input)),
+      );
+      expect(Buffer.byteLength(JSON.stringify(input))).toBe(maxBodyBytes + offset);
+      const result =
+        operation === "get" ? await client.get(getRequest) : await client.set(setRequest);
+      expect(result).toEqual(
+        offset > 0
+          ? {
+              cacheKey: null,
+              ...(operation === "get"
+                ? { hit: false, missReason: "payload_too_large" }
+                : { written: false, skippedReason: "payload_too_large" }),
+            }
+          : success,
+      );
+      expect(send).toHaveBeenCalledTimes(offset > 0 ? 0 : 1);
+    },
+  );
+
+  it("counts UTF-8 bytes rather than string length", async () => {
+    const send = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { cacheKey: "key", hit: false },
+          }),
+        ),
+    );
+    const client = new CacheClient({ request: send });
+    const input = { ...baseRequest, data: { padding: "" } };
+    const paddingBytes = maxBodyBytes + 1 - Buffer.byteLength(JSON.stringify(input));
+    input.data.padding = "é".repeat(Math.floor(paddingBytes / 2)) + "x".repeat(paddingBytes % 2);
+    const body = JSON.stringify(input);
+    expect(body.length).toBeLessThan(maxBodyBytes);
+    expect(Buffer.byteLength(body)).toBe(maxBodyBytes + 1);
+    await expect(client.get(input)).resolves.toMatchObject({
+      hit: false,
+      missReason: "payload_too_large",
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
     const client = new CacheClient({
       request: async () =>

@@ -1,7 +1,7 @@
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { trace } from "@opentelemetry/api";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   BrowserbaseRequestParams,
   StagehandInitParams,
@@ -83,10 +83,14 @@ beforeEach(() => {
   setResponse = () => ok({ cacheKey: "key", written: true });
 });
 
-async function extractThroughCache(options?: { caching?: boolean | { threshold: number } }) {
+async function extractThroughCache(options?: {
+  caching?: boolean | { threshold: number };
+  treeText?: string;
+  cacheValue?: unknown;
+}) {
   return await cacheService.withCache({
     method: "extract",
-    page: cachePage(),
+    page: cachePage(options?.treeText),
     data: { instruction: "Extract the answer" },
     caching: options?.caching ?? true,
     context,
@@ -99,7 +103,7 @@ async function extractThroughCache(options?: { caching?: boolean | { threshold: 
       liveCalls++;
       return {
         result: { data: { answer: 42 }, metadata: { cache: { status: "DISABLED" as const } } },
-        cacheValue: { answer: 42 },
+        cacheValue: options?.cacheValue ?? { answer: 42 },
         llmUsage: { inputTokens: 900, outputTokens: 40, llmDurationMs: 2200 },
       };
     },
@@ -124,6 +128,7 @@ describe("cache metadata over client transport", () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     bridge.rpc.close();
     await Promise.all(bridge.pendingReplies);
     for (const request of requests) {
@@ -137,6 +142,37 @@ describe("cache metadata over client transport", () => {
       expect(params.headers).toEqual({ "content-type": "application/json" });
     }
   });
+  it("executes without cache RPC or a write attempt when the read body is oversized", async () => {
+    const write = vi.spyOn(context.client, "set");
+    const result = await extractThroughCache({ treeText: "x".repeat(25_000_000) });
+    expect(result).toMatchObject({
+      data: { answer: 42 },
+      metadata: { cache: { status: "MISS", missReason: "payload_too_large" } },
+    });
+    expect(liveCalls).toBe(1);
+    expect(write).not.toHaveBeenCalled();
+    expect(rpcRequests).toEqual([]);
+    expect(requests).toEqual([]);
+  });
+
+  it("skips an independently oversized write and preserves the read metadata", async () => {
+    const log = vi.spyOn(StagehandLogger.prototype, "debug");
+    const result = await extractThroughCache({ cacheValue: { text: "x".repeat(25_000_000) } });
+    expect(result).toMatchObject({
+      data: { answer: 42 },
+      metadata: { cache: { status: "MISS", missReason: "not_found" } },
+    });
+    expect(liveCalls).toBe(1);
+    expect(rpcRequests.map((request) => request.operation)).toEqual(["cache.get"]);
+    expect(requests.map((request) => request.url)).toEqual(["/v1/cache/get"]);
+    expect(log).toHaveBeenCalledWith(
+      "Cache write skipped",
+      expect.objectContaining({
+        skippedReason: "payload_too_large",
+      }),
+    );
+  });
+
   it("reports a cold miss and writes the computed value with its usage", async () => {
     const result = await extractThroughCache();
 
@@ -284,10 +320,20 @@ describe("cache metadata over client transport", () => {
   });
 });
 
-function cachePage() {
+function cachePage(treeText?: string) {
   const frame = {
     frameId: "frame-1",
-    getAccessibilityTree: async () => [],
+    getAccessibilityTree: async () =>
+      treeText === undefined
+        ? []
+        : [
+            {
+              nodeId: "1",
+              ignored: false,
+              role: { type: "role", value: "RootWebArea" },
+              name: { type: "computedString", value: treeText },
+            },
+          ],
   } as unknown as Frame;
   return {
     url: () => "https://example.com",

@@ -300,7 +300,11 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   progress?.throwIfStopped();
   outcome.result.metadata.cache = cacheMetadata;
 
-  if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
+  if (
+    getResponse?.missReason !== "payload_too_large" &&
+    outcome.cacheValue !== undefined &&
+    outcome.cacheValue !== null
+  ) {
     try {
       const setResponse = await runLocatorStep(progress, "writing cache", () =>
         context.client.set({

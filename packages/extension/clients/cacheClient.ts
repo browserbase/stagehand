@@ -5,7 +5,7 @@ import type { ClientBrowserbaseRequest } from "./browserbaseClient.js";
 /**
  * Client for the Stagehand API's stateless cache routes (POST /cache/get
  * and POST /cache/set). Sends requests through the connected SDK and owns
- * request timeouts and response validation.
+ * request size limits, timeouts, and response validation.
  * All caching decisions (when to read, what to write,
  * fallback behavior) live in services/cacheService.ts, this client's only
  * consumer. See stagehand-api-v3's lib/cache/statelessCache.ts for the
@@ -15,6 +15,9 @@ import type { ClientBrowserbaseRequest } from "./browserbaseClient.js";
 /** Ceiling for a single cache HTTP round-trip so a slow cache can only ever
  * add a bounded delay to the action it fronts. */
 const CACHE_REQUEST_TIMEOUT_MS = 5_000;
+
+/** Maximum UTF-8 JSON body size for a cache read or write. */
+const CACHE_REQUEST_MAX_BYTES = 25_000_000;
 
 // One raw CDP accessibility node from Accessibility.getFullAXTree, passed
 // through verbatim — the server reproduces the v3 tree shaping over the raw
@@ -64,7 +67,7 @@ export const CacheSetRequestSchema = CacheRequestBaseSchema.extend({
 });
 
 export const CacheGetResponseSchema = z.object({
-  /** Null only when the server could not build a key (empty tree / bad URL). */
+  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
   hit: z.boolean(),
   /** Present only on a hit. */
@@ -89,7 +92,7 @@ export const CacheGetResponseSchema = z.object({
 });
 
 export const CacheSetResponseSchema = z.object({
-  /** Null only when the server could not build a key. */
+  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
   /** True when the write was issued to Redis. */
   written: z.boolean(),
@@ -135,6 +138,13 @@ export class CacheClient {
     const timer = setTimeout(timeout, CACHE_REQUEST_TIMEOUT_MS);
     try {
       const body = JSON.stringify(request);
+      if (new TextEncoder().encode(body).byteLength > CACHE_REQUEST_MAX_BYTES) {
+        return responseSchema.parse(
+          path === "/cache/get"
+            ? { cacheKey: null, hit: false, missReason: "payload_too_large" }
+            : { cacheKey: null, written: false, skippedReason: "payload_too_large" },
+        );
+      }
       const remainingTimeoutMs = Math.max(0, deadline - performance.now());
       if (remainingTimeoutMs === 0) timeout();
       controller.signal.throwIfAborted();
