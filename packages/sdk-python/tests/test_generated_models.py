@@ -228,3 +228,38 @@ def test_browserbase_result_preserves_transport_errors(reason: str) -> None:
     result = models.BrowserbaseRequestResult.model_validate_json(json.dumps(wire))
     assert isinstance(result.root, models.BrowserbaseTransportError)
     assert result.model_dump(mode="json") == wire
+
+
+@pytest.mark.parametrize(
+    ("options", "valid"),
+    [
+        ({}, True),
+        ({"browser": {"session_id": "session-1"}}, True),
+        ({"browserbase": "client", "browser": {"session_id": "session-1"}}, True),
+        ({"browserbase": "client"}, False),
+        ({"browserbase": "client", "browser": None}, False),
+        (
+            {"browserbase": "client", "browser": {"session_id": "session-1"}, "api_key": "key"},
+            False,
+        ),
+        (
+            {
+                "browserbase": "client",
+                "browser": {"session_id": "session-1"},
+                "api_url": "https://example.com",
+            },
+            False,
+        ),
+    ],
+)
+def test_init_browserbase_metadata_dependency(options: dict[str, object], valid: bool) -> None:
+    params = {
+        "protocol_version": "4.1.0",
+        "client_info": {"name": "test", "version": "1"},
+        **options,
+    }
+    if valid:
+        models.StagehandInitParams.model_validate(params)
+    else:
+        with pytest.raises(ValidationError):
+            models.StagehandInitParams.model_validate(params)

@@ -1536,7 +1536,7 @@ export const StagehandInitParamsSchema = z
     message: "Client Browserbase transport requires browser metadata",
     path: ["browserbase"],
   })
-  .meta({ id: "StagehandInitParams" });
+  .meta({ id: "StagehandInitParams", dependentRequired: { browserbase: ["browser"] } });
 
 export const StagehandActParamsSchema = z
   .strictObject({

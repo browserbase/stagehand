@@ -55,3 +55,13 @@ class TelemetryConfigValidation(WireModel):
         if isinstance(endpoint, str) and not urlparse(endpoint).path.endswith("/v1/traces"):
             raise ValueError("OTLP trace endpoint must end with /v1/traces")
         return value
+
+
+class StagehandInitParamsValidation(WireModel):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_browserbase_metadata(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            if value.get("browserbase") is not None and value.get("browser") is None:
+                raise ValueError("Client Browserbase transport requires browser metadata")
+        return value

@@ -1244,7 +1244,10 @@
         }
       },
       "required": ["protocol_version", "client_info"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "browserbase": ["browser"]
+      }
     },
     "ImplementationInfo": {
       "type": "object",
@@ -1733,7 +1736,7 @@
           "maximum": 9007199254740991
         },
         "miss_reason": {
-          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"read_failed\" (the cache request itself failed) and \"replay_failed\" (a cached value was found but could not be applied)",
+          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"timeout\" (the cache read exceeded its budget), \"read_failed\" (another cache read failure), \"payload_too_large\" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and \"replay_failed\" (a cached value was found but could not be applied)",
           "type": "string"
         },
         "tokens_saved": {
@@ -2231,13 +2234,15 @@
           },
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "description": "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "description": "JSON request body sent as UTF-8 text"
         },
         "remaining_timeout_ms": {
-          "description": "Remaining caller budget in milliseconds; omission adds no transport deadline",
+          "description": "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
           "type": "number",
           "minimum": 0
         }
@@ -2277,14 +2282,17 @@
           },
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "description": "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "description": "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"
         }
       },
       "required": ["type", "status", "status_text", "headers", "body"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."
     },
     "BrowserbaseTransportError": {
       "type": "object",
