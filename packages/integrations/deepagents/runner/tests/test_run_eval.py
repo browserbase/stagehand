@@ -636,3 +636,40 @@ def test_result_schema_is_an_object_or_null() -> None:
     )
     with pytest.raises(ValueError, match="result_schema"):
         parse_config({**raw, "result_schema": "json"})
+
+
+@pytest.mark.asyncio
+async def test_structured_answer_does_not_spend_a_tool_step() -> None:
+    answer = {"success": True, "summary": "done", "finalAnswer": "42"}
+    model = ToolFakeChatModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "EvalResult", "args": answer, "id": "call-1", "type": "tool_call"}
+                    ],
+                )
+            ]
+        )
+    )
+    structured = RunnerConfig(
+        **{**config(max_tool_steps=1).__dict__, "result_schema": EVAL_RESULT_SCHEMA}
+    )
+    events: list[dict[str, Any]] = []
+
+    exit_code = await run(
+        structured,
+        build_agent=lambda cfg, tools: _default_build_agent(cfg, tools, model=model),
+        emit=events.append,
+    )
+
+    assert exit_code == 0
+    assert not any(event["type"] == "error" for event in events)
+    assert not any(
+        event.get("name") == "EvalResult"
+        for event in events
+        if event["type"] in ("tool_call", "tool_result")
+    )
+    final = next(event for event in events if event["type"] == "final")
+    assert json.loads(final["text"]) == answer

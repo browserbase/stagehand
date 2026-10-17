@@ -516,11 +516,26 @@ def _default_build_agent(
     )
 
 
+RESULT_TOOL_NAME = "EvalResult"
+
+
 def _response_format(schema: dict[str, Any] | None) -> dict[str, Any] | None:
     """The answer schema with a fixed title, so its output tool has the same name every run."""
     if schema is None:
         return None
-    return {"title": "EvalResult", **schema}
+    return {"title": RESULT_TOOL_NAME, **schema}
+
+
+def _is_answer_event(
+    event: Event, config: RunnerConfig, tool_servers: Mapping[str, str]
+) -> bool:
+    """The structured-output answer call and its result are not browser steps."""
+    return (
+        config.result_schema is not None
+        and event.get("type") in ("tool_call", "tool_result")
+        and event.get("name") == RESULT_TOOL_NAME
+        and RESULT_TOOL_NAME not in tool_servers
+    )
 
 
 def _final_text(last_text: str, structured: object) -> str:
@@ -672,6 +687,8 @@ async def run(
                         last_text = flatten_text(message.content)
                         usages.append(message.usage_metadata)
                     for event in message_events(message, tool_servers):
+                        if _is_answer_event(event, config, tool_servers):
+                            continue
                         emit_event(event)
                         if event["type"] == "tool_result":
                             tool_result_count += 1
