@@ -138,7 +138,7 @@ export class CacheClient {
     const timer = setTimeout(timeout, CACHE_REQUEST_TIMEOUT_MS);
     try {
       const body = JSON.stringify(request);
-      if (new TextEncoder().encode(body).byteLength > CACHE_REQUEST_MAX_BYTES) {
+      if (utf8ByteLengthExceeds(body, CACHE_REQUEST_MAX_BYTES)) {
         return responseSchema.parse(
           path === "/cache/get"
             ? { cacheKey: null, hit: false, missReason: "payload_too_large" }
@@ -184,4 +184,31 @@ export class CacheClient {
       clearTimeout(timer);
     }
   }
+}
+
+function utf8ByteLengthExceeds(value: string, limit: number): boolean {
+  if (value.length > limit) return true;
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit <= 0x7f) {
+      byteLength += 1;
+    } else if (codeUnit <= 0x7ff) {
+      byteLength += 2;
+    } else if (
+      codeUnit >= 0xd800 &&
+      codeUnit <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      byteLength += 4;
+      index += 1;
+    } else {
+      // BMP characters and lone surrogates both encode to three bytes.
+      byteLength += 3;
+    }
+    if (byteLength > limit) return true;
+  }
+  return false;
 }

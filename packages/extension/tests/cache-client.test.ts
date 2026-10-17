@@ -100,29 +100,28 @@ describe("CacheClient", () => {
     },
   );
 
-  it("counts UTF-8 bytes rather than string length", async () => {
-    const send = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            success: true,
-            data: { cacheKey: "key", hit: false },
-          }),
-        ),
-    );
-    const client = new CacheClient({ request: send });
-    const input = { ...baseRequest, data: { padding: "" } };
-    const paddingBytes = maxBodyBytes + 1 - Buffer.byteLength(JSON.stringify(input));
-    input.data.padding = "é".repeat(Math.floor(paddingBytes / 2)) + "x".repeat(paddingBytes % 2);
-    const body = JSON.stringify(input);
-    expect(body.length).toBeLessThan(maxBodyBytes);
-    expect(Buffer.byteLength(body)).toBe(maxBodyBytes + 1);
-    await expect(client.get(input)).resolves.toMatchObject({
-      hit: false,
-      missReason: "payload_too_large",
-    });
-    expect(send).not.toHaveBeenCalled();
-  });
+  it.each(
+    ["é", "界", "😀"].flatMap((character) => [0, 1].map((offset) => ({ character, offset }))),
+  )(
+    "counts UTF-8 bytes for $character at a $offset-byte offset from the limit",
+    async ({ character, offset }) => {
+      const miss = { cacheKey: "key", hit: false };
+      const send = vi.fn(async () => new Response(JSON.stringify({ success: true, data: miss })));
+      const client = new CacheClient({ request: send });
+      const input = { ...baseRequest, data: { padding: "" } };
+      const paddingBytes = maxBodyBytes + offset - Buffer.byteLength(JSON.stringify(input));
+      const width = Buffer.byteLength(character);
+      input.data.padding =
+        character.repeat(Math.floor(paddingBytes / width)) + "x".repeat(paddingBytes % width);
+      const body = JSON.stringify(input);
+      expect(body.length).toBeLessThan(maxBodyBytes);
+      expect(Buffer.byteLength(body)).toBe(maxBodyBytes + offset);
+      await expect(client.get(input)).resolves.toEqual(
+        offset > 0 ? { cacheKey: null, hit: false, missReason: "payload_too_large" } : miss,
+      );
+      expect(send).toHaveBeenCalledTimes(offset > 0 ? 0 : 1);
+    },
+  );
 
   it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
     const client = new CacheClient({

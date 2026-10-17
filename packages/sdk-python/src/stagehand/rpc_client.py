@@ -374,7 +374,12 @@ class RPCClient:
         listeners = list(self._close_listeners.values())
         self._close_listeners.clear()
         try:
-            await asyncio.gather(*(listener() for listener in listeners))
+            results = await asyncio.gather(
+                *(listener() for listener in listeners), return_exceptions=True
+            )
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
         finally:
             if close_transport:
                 await self._transport.close()
