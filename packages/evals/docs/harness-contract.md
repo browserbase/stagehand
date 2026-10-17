@@ -22,13 +22,18 @@ mean equal work:
 
 | Harness                                 | Counted unit          |
 | --------------------------------------- | --------------------- |
-| Codex, Cursor, DeepAgents               | Tool calls            |
+| Codex, Cursor, DeepAgents, Antigravity  | Tool calls            |
 | Eve                                     | Successful tool calls |
 | Mastra                                  | Model steps           |
 | fx                                      | Agent steps           |
 | Claude Code, Pi, Claude CUA, Gemini CUA | Turns                 |
 
 These are execution limits, not comparable measures of model efficiency.
+
+Antigravity is the one facade harness with a builtin tool left on. Its runtime saves any
+tool output over about 4 KB to a file and shows the model only the path, so `view_file`
+stays enabled, limited by a pre-tool hook to those saved outputs. `view_file` reads are
+not counted against the budget.
 
 ## Session and result records
 
