@@ -932,7 +932,7 @@ export const CacheMetadataSchema = z
     }),
     missReason: z.string().optional().meta({
       description:
-        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)',
     }),
     tokensSaved: CacheTokenSavingsSchema.optional().meta({
       description: "LLM tokens avoided by serving this request from cache; hits only",
@@ -1423,10 +1423,14 @@ export const LocatorDescriptorSchema = z
 export const BrowserbaseRequestParamsSchema = z
   .strictObject({
     operation: z.enum(["gateway.responses", "cache.get", "cache.set"]),
-    headers: z.record(z.string(), z.string()),
-    body: z.string(),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id.",
+    }),
+    body: z.string().meta({ description: "JSON request body sent as UTF-8 text" }),
     remainingTimeoutMs: z.number().nonnegative().optional().meta({
-      description: "Remaining caller budget in milliseconds; omission adds no transport deadline",
+      description:
+        "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
     }),
   })
   .meta({ id: "BrowserbaseRequestParams" });
@@ -1436,10 +1440,20 @@ export const BrowserbaseHttpResponseSchema = z
     type: z.literal("response"),
     status: z.int().min(200).max(599),
     statusText: z.string(),
-    headers: z.record(z.string(), z.string()),
-    body: z.string(),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted.",
+    }),
+    body: z.string().meta({
+      description:
+        "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced",
+    }),
   })
-  .meta({ id: "BrowserbaseHttpResponse" });
+  .meta({
+    id: "BrowserbaseHttpResponse",
+    description:
+      "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them.",
+  });
 
 export const BrowserbaseTransportErrorSchema = z
   .strictObject({
@@ -1522,7 +1536,7 @@ export const StagehandInitParamsSchema = z
     message: "Client Browserbase transport requires browser metadata",
     path: ["browserbase"],
   })
-  .meta({ id: "StagehandInitParams" });
+  .meta({ id: "StagehandInitParams", dependentRequired: { browserbase: ["browser"] } });
 
 export const StagehandActParamsSchema = z
   .strictObject({

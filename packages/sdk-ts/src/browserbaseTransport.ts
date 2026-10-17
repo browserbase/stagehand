@@ -1,3 +1,4 @@
+import { validateHeaderName, validateHeaderValue } from "node:http";
 import { BrowserbaseRequestParamsSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   BrowserbaseRequestParams,
@@ -10,6 +11,41 @@ const OPERATION_PATHS: Record<BrowserbaseRequestParams["operation"], string> = {
   "cache.get": "/cache/get",
   "cache.set": "/cache/set",
 };
+
+// These headers are supplied by the HTTP client or the SDK connection.
+const OMITTED_REQUEST_HEADERS = [
+  "host",
+  "content-length",
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "forwarded",
+  "x-bb-api-key",
+  "x-bb-session-id",
+];
+
+function requestHeaders(input: Record<string, string>): Headers {
+  for (const [name, value] of Object.entries(input)) {
+    validateHeaderName(name);
+    validateHeaderValue(name, value);
+  }
+  const headers = new Headers(input);
+  const omitted = new Set([
+    ...OMITTED_REQUEST_HEADERS,
+    ...(headers.get("connection") ?? "").split(",").map((name) => name.trim().toLowerCase()),
+  ]);
+  const namesToRemove = [...headers.keys()].filter(
+    (name) => omitted.has(name) || name.startsWith("x-forwarded-"),
+  );
+  for (const name of namesToRemove) headers.delete(name);
+  return headers;
+}
 
 /** Executes one Browserbase HTTP attempt; the worker interprets the response. */
 export async function executeBrowserbaseRequest(
@@ -33,7 +69,7 @@ export async function executeBrowserbaseRequest(
   // Construction errors are validation failures, separate from fetch failures.
   let request: Request;
   try {
-    const headers = new Headers(params.headers);
+    const headers = requestHeaders(params.headers);
     if (!headers.has("content-type")) headers.set("content-type", "application/json");
     headers.set("x-bb-api-key", connection.apiKey);
     if (params.operation === "gateway.responses") {
@@ -41,6 +77,7 @@ export async function executeBrowserbaseRequest(
       if (!headers.has("authorization"))
         headers.set("authorization", `Bearer ${connection.apiKey}`);
     }
+    for (const [name, value] of headers) validateHeaderValue(name, value);
     request = new Request(`${connection.apiUrl}${OPERATION_PATHS[params.operation]}`, {
       method: "POST",
       headers,

@@ -17,6 +17,7 @@ from pydantic import (
 )
 from stagehand._validation import (
     PageScreenshotOptionsValidation,
+    StagehandInitParamsValidation,
     TelemetryConfigValidation,
     WireModel,
     WireUrl,
@@ -229,6 +230,8 @@ class BrowserbaseFingerprintScreen(WireModel):
 
 
 class BrowserbaseHttpResponse(WireModel):
+    """Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."""
+
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -237,7 +240,9 @@ class BrowserbaseHttpResponse(WireModel):
     status: Annotated[StrictInt, Field(ge=200, le=599)]
     status_text: StrictStr
     headers: dict[StrictStr, StrictStr]
+    """Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."""
     body: StrictStr
+    """Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"""
 
 
 class BrowserbaseProxyConfig(WireModel):
@@ -274,9 +279,11 @@ class BrowserbaseRequestParams(WireModel):
     )
     operation: Operation
     headers: dict[StrictStr, StrictStr]
+    """Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."""
     body: StrictStr
+    """JSON request body sent as UTF-8 text"""
     remaining_timeout_ms: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    """Remaining caller budget in milliseconds; omission adds no transport deadline"""
+    """Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline"""
 
 
 class BrowserbaseSessionCreateParams(WireModel):
@@ -332,7 +339,7 @@ class CacheMetadata(WireModel):
     threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     """Hit-count threshold in effect for this key"""
     miss_reason: Optional[StrictStr] = None
-    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)"""
     tokens_saved: Optional[CacheTokenSavings] = None
     """LLM tokens avoided by serving this request from cache; hits only"""
 
@@ -2267,7 +2274,7 @@ class StagehandExtractParams(WireModel):
     options: Optional[ExtractOptions] = None
 
 
-class StagehandInitParams(WireModel):
+class StagehandInitParams(StagehandInitParamsValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,

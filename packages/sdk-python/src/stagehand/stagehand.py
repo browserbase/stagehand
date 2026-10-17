@@ -133,6 +133,11 @@ class Stagehand:
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> Stagehand:
+        """Attach Stagehand to a factory-created browser.
+
+        For a Browserbase browser, api_key does not override the key supplied
+        to browserbase.launch() or browserbase.connect().
+        """
         if not isinstance(browser, StagehandBrowser):
             raise TypeError("browser must be created by local_browser or browserbase")
         model_connection_options = (model_api_key, model_headers)

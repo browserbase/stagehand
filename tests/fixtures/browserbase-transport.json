@@ -295,5 +295,130 @@
         "message": "unexpected payload"
       }
     ]
+  },
+  "requestHeaders": [
+    {
+      "name": "transport headers and mixed-case connection fields",
+      "configured": {
+        "hOsT": "other.example",
+        "Content-Length": "9999",
+        "Connection": "X-Remove",
+        "connection": "X-Other",
+        "X-Remove": "discard",
+        "X-Other": "discard",
+        "Keep-Alive": "timeout=60",
+        "Proxy-Authenticate": "Basic",
+        "Proxy-Authorization": "Basic proxy-value",
+        "Proxy-Connection": "keep-alive",
+        "TE": "trailers",
+        "Trailer": "X-Trailer",
+        "Transfer-Encoding": "chunked",
+        "Upgrade": "websocket",
+        "Forwarded": "host=other.example",
+        "X-Forwarded-Host": "other.example",
+        "x-forwarded-proto": "http",
+        "X-BB-API-KEY": "custom-key",
+        "x-bb-api-key": "another-key",
+        "X-BB-Session-ID": "custom-session",
+        "Authorization": "Bearer custom-value",
+        "Content-Type": "application/custom+json",
+        "X-Custom": "  keep\tvalue  ",
+        "X-Note": "café",
+        "X-BB-Project-ID": "project-fixture"
+      },
+      "expected": {
+        "authorization": "Bearer custom-value",
+        "content-type": "application/custom+json",
+        "x-custom": "keep\tvalue",
+        "x-note": "café",
+        "x-bb-project-id": "project-fixture"
+      },
+      "absent": [
+        "x-remove",
+        "x-other",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "forwarded",
+        "x-forwarded-host",
+        "x-forwarded-proto"
+      ]
+    },
+    {
+      "name": "connection nominations cannot remove SDK defaults",
+      "configured": {
+        "Connection": " Content-Type, AUTHORIZATION, x-bb-api-key, X-BB-Session-ID ",
+        "Content-Type": "application/custom+json",
+        "Authorization": "discard",
+        "X-BB-API-KEY": "discard",
+        "X-BB-SESSION-ID": "discard"
+      },
+      "expected": {
+        "content-type": "application/json"
+      },
+      "absent": []
+    },
+    {
+      "name": "empty custom authorization",
+      "configured": {
+        "Authorization": ""
+      },
+      "expected": {
+        "authorization": "",
+        "content-type": "application/json"
+      },
+      "absent": []
+    }
+  ],
+  "invalidRequestHeaders": [
+    {
+      "bad name": "value"
+    },
+    {
+      "": "value"
+    },
+    {
+      "x-tést": "value"
+    },
+    {
+      "x-test": "bad\r\nvalue"
+    },
+    {
+      "x-test": "\nleading"
+    },
+    {
+      "x-test": "bad\u0000value"
+    },
+    {
+      "x-test": "bad\u000bvalue"
+    },
+    {
+      "x-test": "badvalue"
+    },
+    {
+      "x-test": "Ā"
+    },
+    {
+      "Host": "bad\nhost"
+    }
+  ],
+  "responseHeaders": {
+    "raw": {
+      "X-Bytes": "\u00c4\u0080",
+      "X-Repeated": "first",
+      "x-repeated": "second",
+      "Content-Type": "text/plain; charset=utf-8"
+    },
+    "normalized": {
+      "x-bytes": "\u00c4\u0080",
+      "x-repeated": "first, second",
+      "content-type": "text/plain; charset=utf-8"
+    },
+    "body": "héllo 🌎"
   }
 }
