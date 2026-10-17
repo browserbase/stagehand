@@ -174,9 +174,14 @@ describe("client cache request budget", () => {
     expect(messages).toHaveLength(2);
   });
 
-  it.each(["get", "set"] as const)(
-    "keeps live execution successful when %s times out",
-    async (operation) => {
+  it.each([
+    { operation: "get", failure: "deadline", missReason: "timeout" },
+    { operation: "set", failure: "deadline", missReason: "unknown" },
+    { operation: "get", failure: "timeout", missReason: "timeout" },
+    { operation: "get", failure: "network", missReason: "read_failed" },
+  ] as const)(
+    "keeps execution successful after cache $operation $failure",
+    async ({ operation, failure, missReason }) => {
       const frame = {
         frameId: "frame-1",
         getAccessibilityTree: async () => [],
@@ -199,18 +204,32 @@ describe("client cache request budget", () => {
         await reply(1, "get");
         await vi.advanceTimersByTimeAsync(0);
       }
-      await vi.advanceTimersByTimeAsync(5000);
+      if (failure === "deadline") {
+        await vi.advanceTimersByTimeAsync(5000);
+      } else {
+        await transport.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            result: { type: "error", reason: failure, message: "Cache transport failed" },
+          }),
+        );
+      }
       expect(await result).toEqual({
         data: { answer: 42 },
         metadata: {
-          cache: { status: "MISS", missReason: operation === "get" ? "read_failed" : "unknown" },
+          cache: { status: "MISS", missReason },
         },
       });
       expect(execute).toHaveBeenCalledOnce();
-      expect(messages.at(-1)).toMatchObject({
-        method: "browserbase.cancel",
-        params: { request_id: operation === "get" ? 1 : 2, reason: "timeout" },
-      });
+      if (failure === "deadline") {
+        expect(messages.at(-1)).toMatchObject({
+          method: "browserbase.cancel",
+          params: { request_id: operation === "get" ? 1 : 2, reason: "timeout" },
+        });
+      } else {
+        expect(messages).toHaveLength(1);
+      }
       expect(vi.getTimerCount()).toBe(0);
     },
   );

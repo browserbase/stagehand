@@ -245,12 +245,15 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   };
 
   let getResponse: CacheGetResponse | null = null;
+  let readFailureReason = "read_failed";
   try {
     getResponse = await runLocatorStep(progress, "reading cache", () =>
       context.client.get(baseRequest),
     );
   } catch (error) {
     progress?.throwIfStopped();
+    readFailureReason =
+      error instanceof Error && error.name === "TimeoutError" ? "timeout" : "read_failed";
     logger.warn("Cache read failed; executing without cache", {
       category: "cache",
       method,
@@ -292,7 +295,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
       missReason: cacheMetadata.missReason ?? "unknown",
     });
   } else {
-    cacheMetadata = missMetadata(null, "read_failed");
+    cacheMetadata = missMetadata(null, readFailureReason);
   }
 
   progress?.throwIfStopped();
