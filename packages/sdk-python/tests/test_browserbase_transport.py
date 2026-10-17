@@ -234,6 +234,17 @@ async def test_http_failures_are_returned_without_retries(
     assert len(upstream.requests) == 1
 
 
+async def test_response_header_bytes_and_duplicates(upstream: _Upstream) -> None:
+    fixture = _FIXTURES["responseHeaders"]
+    upstream.headers = fixture["raw"]
+    upstream.body = fixture["body"].encode("utf-8")
+    result = (await execute_browserbase_request(upstream.connection, _params())).root
+    assert isinstance(result, BrowserbaseHttpResponse)
+    assert result.headers.items() >= fixture["normalized"].items()
+    assert "content-length" not in result.headers
+    assert result.body == fixture["body"]
+
+
 async def test_large_gzip_body_decodes_as_fetch_text(upstream: _Upstream) -> None:
     body = "héllo 🌎" * 100_000
     upstream.body = gzip.compress(b"\xef\xbb\xbf" + body.encode() + b"\xff")

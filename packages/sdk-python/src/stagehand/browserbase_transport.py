@@ -113,7 +113,8 @@ async def execute_browserbase_request(
         async with budget:
             async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
                 response = await client.send(request)
-                response_headers = dict(response.headers)
+                # Preserve header bytes for the worker's Response instead of guessing UTF-8.
+                response_headers = dict(httpx.Headers(response.headers.raw, encoding="latin-1"))
                 # httpx decodes transfer bytes; these headers no longer describe the body.
                 response_headers.pop("content-encoding", None)
                 response_headers.pop("content-length", None)

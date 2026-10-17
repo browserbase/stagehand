@@ -406,5 +406,19 @@
     {
       "Host": "bad\nhost"
     }
-  ]
+  ],
+  "responseHeaders": {
+    "raw": {
+      "X-Bytes": "\u00c4\u0080",
+      "X-Repeated": "first",
+      "x-repeated": "second",
+      "Content-Type": "text/plain; charset=utf-8"
+    },
+    "normalized": {
+      "x-bytes": "\u00c4\u0080",
+      "x-repeated": "first, second",
+      "content-type": "text/plain; charset=utf-8"
+    },
+    "body": "héllo 🌎"
+  }
 }
