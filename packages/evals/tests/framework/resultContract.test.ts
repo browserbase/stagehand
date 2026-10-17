@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
@@ -186,6 +186,11 @@ const oneLineHarnessRuns: Record<string, () => Promise<string>> = {
     return JSON.stringify(sent);
   },
 };
+
+// Default-path assertions must not inherit a contract from the shell running the tests.
+beforeEach(() => {
+  vi.stubEnv("EVAL_RESULT_CONTRACT", "");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

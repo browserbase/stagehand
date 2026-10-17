@@ -673,3 +673,9 @@ async def test_structured_answer_does_not_spend_a_tool_step() -> None:
     )
     final = next(event for event in events if event["type"] == "final")
     assert json.loads(final["text"]) == answer
+
+
+def test_answer_tool_keeps_its_fixed_name() -> None:
+    from run_eval import _response_format
+
+    assert _response_format({**EVAL_RESULT_SCHEMA, "title": "Other"})["title"] == "EvalResult"

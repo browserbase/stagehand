@@ -523,7 +523,7 @@ def _response_format(schema: dict[str, Any] | None) -> dict[str, Any] | None:
     """The answer schema with a fixed title, so its output tool has the same name every run."""
     if schema is None:
         return None
-    return {"title": RESULT_TOOL_NAME, **schema}
+    return {**schema, "title": RESULT_TOOL_NAME}
 
 
 def _is_answer_event(
