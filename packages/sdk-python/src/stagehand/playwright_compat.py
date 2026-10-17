@@ -6,8 +6,8 @@ Playwright's page, context and browser objects, and adds Playwright's guardrails
 on top of Stagehand's own page: strict-mode errors that list the matching
 elements, retries until exactly one element matches, and full error text.
 
-Run code with it by passing `playwright_batch_source(code)` to
-`Stagehand.experimental_batch`.
+`Stagehand.run(code)` runs code with it. `playwright_batch_source(code)` is the
+callback source it passes to `Stagehand.experimental_batch`.
 """
 
 from __future__ import annotations

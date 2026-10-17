@@ -62,6 +62,7 @@ from .client_models import (
 from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
 from .locator import Locator
 from .page import Page
+from .playwright_compat import playwright_batch_source
 from .rpc_client import RPCClient, RPCError
 from .timeouts import with_stagehand_init_deadline
 
@@ -249,6 +250,26 @@ class Stagehand:
             result.value.model_dump(mode="json")
             if isinstance(result.value, BaseModel)
             else result.value
+        )
+
+    async def run(
+        self,
+        code: str,
+        *,
+        timeout: int = 30_000,
+        page: Page | None = None,
+    ) -> object:
+        """Run trusted Playwright-style JavaScript, as the facade's ``run`` tool does.
+
+        ``code`` is the body of an async function with Playwright-shaped ``page``,
+        ``context`` and ``browser`` in scope; ``return`` a JSON-serializable value.
+        It runs through ``experimental_batch`` with the facade's Playwright-compatible
+        runtime, so it keeps Playwright's strict-mode errors and full error text.
+        """
+        if not isinstance(code, str) or not code.strip():
+            raise TypeError("code must be a non-empty JavaScript string")
+        return await self.experimental_batch(
+            playwright_batch_source(code), timeout=timeout, page=page
         )
 
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:
