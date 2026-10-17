@@ -152,6 +152,42 @@ async def test_shared_gateway_headers(upstream: _Upstream, fixture: dict[str, ob
     assert params.headers == fixture["configured"]
 
 
+@pytest.mark.parametrize("fixture", _FIXTURES["requestHeaders"], ids=lambda f: f["name"])
+@pytest.mark.parametrize("operation", list(Operation))
+async def test_shared_request_header_rules(
+    upstream: _Upstream, fixture: dict[str, object], operation: Operation
+) -> None:
+    params = BrowserbaseRequestParams.model_validate({
+        "operation": operation,
+        "headers": fixture["configured"],
+        "body": "héllo",
+    })
+    result = (await execute_browserbase_request(upstream.connection, params)).root
+    assert isinstance(result, BrowserbaseHttpResponse)
+    (request,) = upstream.requests
+    expected = cast(dict[str, str], fixture["expected"])
+    assert request.headers.items() >= expected.items()
+    assert request.headers["host"] == upstream.url.removeprefix("http://")
+    assert request.headers["content-length"] == str(len(params.body.encode()))
+    assert request.body == params.body.encode()
+    assert not set(cast(list[str], fixture["absent"])) & request.headers.keys()
+    assert not any(
+        name in request.headers.get("connection", "").lower()
+        for name in ("x-remove", "x-other", "authorization")
+    )
+    assert request.headers["x-bb-api-key"] == upstream.connection.api_key
+    assert request.headers.get("x-bb-session-id") == (
+        upstream.connection.session_id if operation is Operation.gateway_responses else None
+    )
+    if "authorization" not in expected:
+        assert request.headers.get("authorization") == (
+            f"Bearer {upstream.connection.api_key}"
+            if operation is Operation.gateway_responses
+            else None
+        )
+    assert params.headers == fixture["configured"]
+
+
 @pytest.mark.parametrize("operation", list(Operation))
 async def test_custom_headers_and_reserved_precedence(
     upstream: _Upstream, operation: Operation
@@ -300,12 +336,14 @@ async def test_task_cancellation_closes_http_client(
         await asyncio.gather(task, return_exceptions=True)
 
 
-@pytest.mark.parametrize("headers", [{"x-test": "bad\r\nvalue"}, {"bad name": "value"}])
+@pytest.mark.parametrize("headers", _FIXTURES["invalidRequestHeaders"])
 async def test_invalid_headers_are_validation_errors(
-    upstream: _Upstream, headers: dict[str, str]
+    upstream: _Upstream, headers: dict[str, str], http_clients: list[httpx.AsyncClient]
 ) -> None:
     with pytest.raises(TypeError, match="^Invalid Browserbase HTTP request$"):
         await execute_browserbase_request(upstream.connection, _params(headers=headers))
+    assert not upstream.requests
+    assert not http_clients
 
 
 async def test_mutated_params_are_revalidated(upstream: _Upstream) -> None:

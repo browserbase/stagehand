@@ -337,6 +337,17 @@ func TestBrowserbaseRPCInvalidParamsAndUnavailable(t *testing.T) {
 	testBrowserbaseHTTPFailure(t, browserbaseRPCResult(t, transport, 1), nil, BrowserbaseTransportErrorReasonUnavailable)
 }
 
+func TestBrowserbaseRPCInvalidHeaders(t *testing.T) {
+	_, transport, _ := connectBrowserbaseRPC(t, &browserbaseConnection{"key", "https://fixture.example/v1", "session"})
+	params := testBrowserbaseHTTPParams()
+	params.Headers["bad name"] = "value"
+	browserbaseRPCRequest(t, transport, 1, params)
+	var response rpcErrorEnvelope
+	if err := decodeStrictJSON(receiveSentRPC(t, transport), &response); err != nil || response.Error.Code != jsonRPCInternalError {
+		t.Fatalf("invalid header reply = %#v, error = %v", response, err)
+	}
+}
+
 func TestBrowserbaseRPCPreservesCustomGenerate(t *testing.T) {
 	client, transport, dispose := connectBrowserbaseRPC(t, nil)
 	started, release := make(chan struct{}), make(chan struct{})
