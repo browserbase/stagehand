@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from contextlib import nullcontext
 
 import httpx
 
@@ -73,6 +74,8 @@ def _error(reason: Reason, message: str) -> BrowserbaseRequestResult:
 async def execute_browserbase_request(
     connection: BrowserbaseConnection | None,
     params: BrowserbaseRequestParams,
+    *,
+    http_client: httpx.AsyncClient | None = None,
 ) -> BrowserbaseRequestResult:
     """Execute one HTTP attempt; task cancellation propagates to the RPC owner."""
     # Revalidate mutable header dictionaries at the boundary.
@@ -111,7 +114,11 @@ async def execute_browserbase_request(
     budget = asyncio.timeout_at(deadline)
     try:
         async with budget:
-            async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
+            async with (
+                httpx.AsyncClient(timeout=None, follow_redirects=False)
+                if http_client is None
+                else nullcontext(http_client)
+            ) as client:
                 response = await client.send(request)
                 # Preserve header bytes for the worker's Response instead of guessing UTF-8.
                 response_headers = dict(httpx.Headers(response.headers.raw, encoding="latin-1"))

@@ -74,6 +74,7 @@ class _Transport:
 class _Upstream:
     connection: BrowserbaseConnection
     requests: asyncio.Queue[HTTPRequest]
+    connections: asyncio.Queue[asyncio.StreamWriter]
 
     async def receive(self) -> HTTPRequest:
         return await asyncio.wait_for(self.requests.get(), 2)
@@ -82,14 +83,17 @@ class _Upstream:
 @pytest.fixture
 async def upstream() -> AsyncIterator[_Upstream]:
     requests: asyncio.Queue[HTTPRequest] = asyncio.Queue()
+    connections: asyncio.Queue[asyncio.StreamWriter] = asyncio.Queue()
 
     async def serve(
         request: HTTPRequest, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         requests.put_nowait(request)
+        connections.put_nowait(writer)
         if request.body == b"drop":
+            writer.close()
             return
-        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n")
         await writer.drain()
         if request.body == b"hold":
             await reader.read()
@@ -97,8 +101,10 @@ async def upstream() -> AsyncIterator[_Upstream]:
             writer.write(b"{}")
             await writer.drain()
 
-    async with http_server(serve) as url:
-        yield _Upstream(BrowserbaseConnection("bb-key", f"{url}/v1", "session"), requests)
+    async with http_server(serve, keep_alive=True) as url:
+        yield _Upstream(
+            BrowserbaseConnection("bb-key", f"{url}/v1", "session"), requests, connections
+        )
 
 
 @asynccontextmanager
@@ -158,6 +164,10 @@ async def test_cancel_affects_only_matching_http_request(upstream: _Upstream, re
         held = await upstream.receive()
         transport.request(11, operation=models.Operation.cache_get)
         assert (await transport.response())["id"] == 11
+        await upstream.receive()
+        held_connection = upstream.connections.get_nowait()
+        idle_connection = upstream.connections.get_nowait()
+        assert held_connection is not idle_connection
         transport.cancel(99)
         transport.cancel(10, reason)
         transport.cancel(10, "timeout" if reason == "cancelled" else "cancelled")
@@ -170,6 +180,8 @@ async def test_cancel_affects_only_matching_http_request(upstream: _Upstream, re
         transport.cancel(10)
         transport.request(12, operation=models.Operation.cache_set)
         assert isinstance(_result(await transport.response()), models.BrowserbaseHttpResponse)
+        await upstream.receive()
+        assert upstream.connections.get_nowait() is idle_connection
         assert not transport.closed.is_set()
 
 
@@ -203,6 +215,31 @@ async def test_deadline_covers_buffering_over_rpc(upstream: _Upstream) -> None:
         assert isinstance(result, models.BrowserbaseTransportError)
         assert result.reason is models.Reason.timeout
         await asyncio.wait_for(request.disconnected.wait(), 2)
+
+
+@pytest.mark.parametrize("mode", ["dispose", "close", "disconnect", "detach"])
+async def test_reuses_connection_and_closes_idle_pool(upstream: _Upstream, mode: str) -> None:
+    async with _connected(upstream.connection) as (client, transport, dispose):
+        transport.request(1)
+        assert isinstance(_result(await transport.response()), models.BrowserbaseHttpResponse)
+        first = await upstream.receive()
+        first_connection = upstream.connections.get_nowait()
+        transport.request(2, operation=models.Operation.cache_get)
+        assert isinstance(_result(await transport.response()), models.BrowserbaseHttpResponse)
+        second = await upstream.receive()
+        assert upstream.connections.get_nowait() is first_connection
+        assert not first.disconnected.is_set()
+        if mode == "disconnect":
+            transport.incoming.put_nowait(ConnectionError("connection ended"))
+            await asyncio.wait_for(transport.closed.wait(), 2)
+        elif mode == "dispose":
+            await asyncio.gather(dispose(), dispose())
+        else:
+            await client.close(close_transport=mode != "detach")
+        await asyncio.wait_for(second.disconnected.wait(), 2)
+        assert first.disconnected.is_set()
+        await dispose()
+        assert not client._close_listeners
 
 
 @pytest.mark.parametrize("mode", ["close", "disconnect", "detach"])

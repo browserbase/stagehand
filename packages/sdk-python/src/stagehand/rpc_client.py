@@ -151,6 +151,7 @@ class RPCClient:
         ] = {}
         self._pending_notifications: list[_JSONRPCNotification] = []
         self._inbound_tasks: set[asyncio.Task[None]] = set()
+        self._close_listeners: dict[object, Callable[[], Awaitable[None]]] = {}
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
@@ -326,6 +327,18 @@ class RPCClient:
 
         return remove
 
+    def on_close(self, listener: Callable[[], Awaitable[None]]) -> Callable[[], None]:
+        """Register cleanup to run after incoming request tasks have stopped."""
+        if self._closed:
+            raise RuntimeError("RPC client is closed") from self._close_reason
+        token = object()
+        self._close_listeners[token] = listener
+
+        def remove() -> None:
+            self._close_listeners.pop(token, None)
+
+        return remove
+
     async def close(
         self,
         reason: BaseException | None = None,
@@ -358,8 +371,13 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        if close_transport:
-            await self._transport.close()
+        listeners = list(self._close_listeners.values())
+        self._close_listeners.clear()
+        try:
+            await asyncio.gather(*(listener() for listener in listeners))
+        finally:
+            if close_transport:
+                await self._transport.close()
 
     async def _read(self) -> None:
         try:
