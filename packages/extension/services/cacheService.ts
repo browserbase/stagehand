@@ -14,6 +14,7 @@ import {
   type CacheMethod,
   type CdpTree,
 } from "../clients/cacheClient.js";
+import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
 import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
@@ -53,21 +54,26 @@ export interface CacheContext {
   defaultCaching: Caching;
 }
 
-/**
- * Builds the per-instance cache context from init params. Returns undefined
- * when caching is impossible: the stateless routes authenticate with the
- * Browserbase API key and resolve the project from the session id, so both
- * are required.
- */
-export function buildCacheContext(initParams: StagehandInitParams): CacheContext | undefined {
+/** Builds a cache context for the client marker or transitional legacy settings. */
+export function buildCacheContext(
+  initParams: StagehandInitParams,
+  request?: ClientBrowserbaseRequest,
+): CacheContext | undefined {
   const sessionId = initParams.browser?.sessionId;
-  if (!initParams.apiKey || !sessionId) return undefined;
+  if (!sessionId) return undefined;
+  let client: CacheClient;
+  if (initParams.browserbase === "client") {
+    client = new CacheClient({ source: "client", request });
+  } else {
+    if (!initParams.apiKey) return undefined;
+    client = new CacheClient({
+      apiUrl: apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
+      apiKey: initParams.apiKey,
+    });
+  }
   return {
     sessionId,
-    client: new CacheClient(
-      apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
-      initParams.apiKey,
-    ),
+    client,
     defaultCaching: initParams.cache ?? true,
   };
 }
