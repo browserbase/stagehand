@@ -146,6 +146,74 @@ func TestBrowserbaseHTTPSharedFixtures(t *testing.T) {
 	}
 }
 
+func TestBrowserbaseHTTPRequestHeaderRules(t *testing.T) {
+	var fixtures struct {
+		RequestHeaders []struct {
+			Name       string
+			Configured BrowserbaseRequestParamsHeaders
+			Expected   map[string]string
+			Absent     []string
+		}
+	}
+	loadBrowserbaseTransportFixture(t, &fixtures)
+	for _, fixture := range fixtures.RequestHeaders {
+		for _, operation := range []BrowserbaseRequestParamsOperation{BrowserbaseRequestParamsOperationGatewayResponses, BrowserbaseRequestParamsOperationCacheGet, BrowserbaseRequestParamsOperationCacheSet} {
+			t.Run(fixture.Name+"/"+string(operation), func(t *testing.T) {
+				params := testBrowserbaseHTTPParams()
+				params.Operation, params.Headers = operation, maps.Clone(fixture.Configured)
+				executor := testBrowserbaseHTTPExecutor(t, func(w http.ResponseWriter, r *http.Request) {
+					for name, want := range fixture.Expected {
+						var expectedBytes []byte
+						for _, character := range want {
+							expectedBytes = append(expectedBytes, byte(character))
+						}
+						if got := r.Header.Get(name); got != string(expectedBytes) {
+							t.Errorf("header %s = %q, want %q", name, got, string(expectedBytes))
+						}
+					}
+					if r.Host != r.Context().Value(http.LocalAddrContextKey).(net.Addr).String() {
+						t.Errorf("unexpected Host %q", r.Host)
+					}
+					body, _ := io.ReadAll(r.Body)
+					if string(body) != params.Body || r.ContentLength != int64(len(params.Body)) {
+						t.Error("body or length changed")
+					}
+					for _, name := range fixture.Absent {
+						if len(r.Header.Values(name)) != 0 {
+							t.Errorf("unexpected header %s", name)
+						}
+					}
+					for _, name := range []string{"x-remove", "x-other", "authorization"} {
+						if strings.Contains(strings.ToLower(r.Header.Get("Connection")), name) {
+							t.Error("supplied Connection forwarded")
+						}
+					}
+					wantSession := ""
+					if operation == BrowserbaseRequestParamsOperationGatewayResponses {
+						wantSession = "session-fixture"
+					}
+					if r.Header.Get("X-BB-API-Key") != "bb-fixture-key" || r.Header.Get("X-BB-Session-ID") != wantSession {
+						t.Error("incorrect connection headers")
+					}
+					if _, custom := fixture.Expected["authorization"]; !custom {
+						want := ""
+						if operation == BrowserbaseRequestParamsOperationGatewayResponses {
+							want = "Bearer bb-fixture-key"
+						}
+						if r.Header.Get("Authorization") != want {
+							t.Error("incorrect default Authorization")
+						}
+					}
+				})
+				testBrowserbaseHTTPResponse(t, executor, params)
+				if !reflect.DeepEqual(params.Headers, fixture.Configured) {
+					t.Fatal("input headers changed")
+				}
+			})
+		}
+	}
+}
+
 func TestBrowserbaseHTTPHeaderPrecedence(t *testing.T) {
 	executor := testBrowserbaseHTTPExecutor(t, func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Values("X-BB-API-Key"); !reflect.DeepEqual(got, []string{"bb-fixture-key"}) {
@@ -474,23 +542,23 @@ func TestBrowserbaseHTTPValidation(t *testing.T) {
 	}
 }
 
-func TestBrowserbaseHTTPNativeHeaderErrors(t *testing.T) {
-	var attempts atomic.Int32
-	executor := testBrowserbaseHTTPExecutor(t, func(http.ResponseWriter, *http.Request) { attempts.Add(1) })
-	for _, headers := range []BrowserbaseRequestParamsHeaders{
-		{"bad name": "value"}, {"X-Custom": "bad\r\nvalue"},
-	} {
+func TestBrowserbaseHTTPInvalidHeaders(t *testing.T) {
+	var fixtures struct {
+		InvalidRequestHeaders []BrowserbaseRequestParamsHeaders
+	}
+	loadBrowserbaseTransportFixture(t, &fixtures)
+	executor := newBrowserbaseHTTPExecutor(&browserbaseConnection{"key", "https://fixture.example/v1", "session"})
+	defer executor.close()
+	executor.client.Transport = browserbaseTestRoundTripper(func(*http.Request) (*http.Response, error) {
+		t.Error("invalid headers reached HTTP transport")
+		return nil, errors.New("unexpected request")
+	})
+	for _, headers := range fixtures.InvalidRequestHeaders {
 		params := testBrowserbaseHTTPParams()
 		params.Headers = headers
-		result, err := executor.execute(context.Background(), params)
-		testBrowserbaseHTTPFailure(t, result, err, BrowserbaseTransportErrorReasonNetwork)
-		failure, _ := result.AsError()
-		if failure.Message != "Browserbase HTTP request failed" {
-			t.Fatalf("message = %q", failure.Message)
+		if _, err := executor.execute(context.Background(), params); err == nil {
+			t.Errorf("invalid headers accepted: %v", headers)
 		}
-	}
-	if attempts.Load() != 0 {
-		t.Fatal("invalid headers reached upstream")
 	}
 }
 

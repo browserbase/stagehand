@@ -105,6 +105,35 @@ describe("cache service", () => {
     });
   });
 
+  it("preserves a read timeout when the later write also fails", async () => {
+    const logger = testLogger();
+    const warn = vi.spyOn(logger, "warn");
+    const execute = executesTo({ answer: 42 });
+    const result = await cacheService.withCache({
+      ...baseArgs(),
+      logger,
+      context: cacheContext(
+        vi.fn().mockRejectedValue(new DOMException("Cache request timed out", "TimeoutError")),
+        vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+      ),
+      onHit: (): TestResult => {
+        throw new Error("Unexpected cache hit");
+      },
+      execute,
+    });
+    expect(result).toStrictEqual({
+      data: { answer: 42 },
+      metadata: { cache: { status: "MISS", missReason: "timeout" } },
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      "Cache write failed",
+      expect.objectContaining({
+        error: "fetch failed",
+      }),
+    );
+  });
+
   it("distinguishes an unusable cached value from a cold cache", async () => {
     const execute = executesTo({ answer: 42 });
     const result = await cacheService.withCache({

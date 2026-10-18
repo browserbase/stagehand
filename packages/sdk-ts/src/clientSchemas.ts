@@ -284,7 +284,10 @@ export const StagehandClientCreateConfigSchema = z
     browser: true,
   })
   .extend({
-    apiKey: z.string().min(1).optional(),
+    apiKey: z.string().min(1).optional().meta({
+      description:
+        "Browserbase API key. A Browserbase browser uses the key supplied to its launch/connect factory; this option does not override that key.",
+    }),
     apiUrl: z
       .url({ protocol: /^https?$/ })
       .refine(

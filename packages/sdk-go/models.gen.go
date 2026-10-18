@@ -209,11 +209,16 @@ type BrowserbaseFingerprintScreen struct {
 	MinWidth *float64 `json:"min_width,omitempty,omitzero"`
 }
 
+// Buffered HTTP response with SDK-normalized headers and text. Redirect responses
+// are returned without following them.
 type BrowserbaseHTTPResponse struct {
-	// Body corresponds to the JSON schema field "body".
+	// Fully buffered response body decoded as UTF-8 text, with a leading BOM removed
+	// and invalid byte sequences replaced
 	Body string `json:"body"`
 
-	// Headers corresponds to the JSON schema field "headers".
+	// Lowercase names with one value per name after SDK HTTP normalization; repeated
+	// fields are collapsed. Header bytes use Latin-1 code points. content-encoding
+	// and content-length are omitted.
 	Headers BrowserbaseHTTPResponseHeaders `json:"headers"`
 
 	// Status corresponds to the JSON schema field "status".
@@ -226,6 +231,9 @@ type BrowserbaseHTTPResponse struct {
 	Type string `json:"type"`
 }
 
+// Lowercase names with one value per name after SDK HTTP normalization; repeated
+// fields are collapsed. Header bytes use Latin-1 code points. content-encoding and
+// content-length are omitted.
 type BrowserbaseHTTPResponseHeaders map[string]string
 
 type BrowserbaseProxyConfig struct {
@@ -258,19 +266,25 @@ const BrowserbaseRegionUSEast1 BrowserbaseRegion = "us-east-1"
 const BrowserbaseRegionUSWest2 BrowserbaseRegion = "us-west-2"
 
 type BrowserbaseRequestParams struct {
-	// Body corresponds to the JSON schema field "body".
+	// JSON request body sent as UTF-8 text
 	Body string `json:"body"`
 
-	// Headers corresponds to the JSON schema field "headers".
+	// Application headers. SDKs validate names and values, omit caller-supplied Host,
+	// Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and,
+	// for gateway.responses, x-bb-session-id.
 	Headers BrowserbaseRequestParamsHeaders `json:"headers"`
 
 	// Operation corresponds to the JSON schema field "operation".
 	Operation BrowserbaseRequestParamsOperation `json:"operation"`
 
-	// Remaining caller budget in milliseconds; omission adds no transport deadline
+	// Remaining caller budget in milliseconds, including response-body buffering;
+	// omission adds no transport deadline
 	RemainingTimeoutMs *float64 `json:"remaining_timeout_ms,omitempty,omitzero"`
 }
 
+// Application headers. SDKs validate names and values, omit caller-supplied Host,
+// Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and,
+// for gateway.responses, x-bb-session-id.
 type BrowserbaseRequestParamsHeaders map[string]string
 
 type BrowserbaseRequestParamsOperation string
@@ -338,9 +352,10 @@ type CacheMetadata struct {
 
 	// Why the cache did not serve this request; misses only. Reported by the server:
 	// "not_found", "threshold", "empty_array", "timeout", "error", "bypass",
-	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed"
-	// (the cache request itself failed) and "replay_failed" (a cached value was found
-	// but could not be applied)
+	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the
+	// cache read exceeded its budget), "read_failed" (another cache read failure),
+	// "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8
+	// bytes), and "replay_failed" (a cached value was found but could not be applied)
 	MissReason *string `json:"miss_reason,omitempty,omitzero"`
 
 	// Whether server-side caching served this result, computed it, or was not

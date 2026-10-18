@@ -14,6 +14,27 @@ import (
 	"unicode/utf8"
 )
 
+// These headers are supplied by the HTTP client or the SDK connection.
+func filterBrowserbaseRequestHeaders(headers http.Header) {
+	omitted := map[string]bool{
+		"host": true, "content-length": true, "connection": true, "keep-alive": true,
+		"proxy-authenticate": true, "proxy-authorization": true, "proxy-connection": true,
+		"te": true, "trailer": true, "transfer-encoding": true, "upgrade": true,
+		"forwarded": true, "x-bb-api-key": true, "x-bb-session-id": true,
+	}
+	for _, value := range headers.Values("Connection") {
+		for _, name := range strings.Split(value, ",") {
+			omitted[strings.ToLower(strings.TrimSpace(name))] = true
+		}
+	}
+	for name := range headers {
+		lower := strings.ToLower(name)
+		if omitted[lower] || strings.HasPrefix(lower, "x-forwarded-") {
+			headers.Del(name)
+		}
+	}
+}
+
 type browserbaseHTTPExecutor struct {
 	connection *browserbaseConnection
 	client     *http.Client
@@ -81,8 +102,14 @@ func (executor *browserbaseHTTPExecutor) execute(ctx context.Context, params Bro
 	}
 	slices.Sort(keys)
 	for _, key := range keys {
-		request.Header.Add(key, params.Headers[key])
+		value := params.Headers[key]
+		if !validBrowserbaseHeaderName(key) || !validBrowserbaseHeaderValue(value) ||
+			strings.IndexFunc(value, func(r rune) bool { return r > 255 }) >= 0 {
+			return BrowserbaseRequestResult{}, errors.New("invalid Browserbase HTTP header")
+		}
+		request.Header.Add(key, strings.Trim(value, " \t"))
 	}
+	filterBrowserbaseRequestHeaders(request.Header)
 	if _, present := request.Header["Content-Type"]; !present {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -96,6 +123,9 @@ func (executor *browserbaseHTTPExecutor) execute(ctx context.Context, params Bro
 	// Fetch headers use single-byte values; Go strings otherwise write UTF-8 bytes.
 	for key, values := range request.Header {
 		for i, value := range values {
+			if !validBrowserbaseHeaderValue(value) {
+				return BrowserbaseRequestResult{}, errors.New("invalid Browserbase HTTP header value")
+			}
 			var encoded strings.Builder
 			for _, r := range value {
 				if r > 255 {

@@ -96,6 +96,41 @@ describe("Browserbase HTTP executor", () => {
     expect(requests[0].headers).toMatchObject({ ...expected, "content-type": "application/json" });
   });
 
+  it.each(fixtures.requestHeaders)(
+    "applies shared request header rules: $name",
+    async (fixture) => {
+      for (const operation of ["gateway.responses", "cache.get", "cache.set"] as const) {
+        const input = BrowserbaseRequestParamsSchema.parse({
+          ...params,
+          operation,
+          headers: fixture.configured,
+        });
+        expect(await executeBrowserbaseRequest(connection, input)).toMatchObject({
+          type: "response",
+        });
+        const received = requests.at(-1)!;
+        expect(received.headers).toMatchObject({
+          ...fixture.expected,
+          "x-bb-api-key": connection.apiKey,
+        });
+        expect(received.headers.host).toBe(new URL(connection.apiUrl).host);
+        expect(received.headers["content-length"]).toBe(String(Buffer.byteLength(input.body)));
+        expect(received.body).toBe(input.body);
+        for (const name of fixture.absent) expect(received.headers).not.toHaveProperty(name);
+        expect(received.headers.connection ?? "").not.toMatch(/x-remove|x-other|authorization/i);
+        expect(received.headers["x-bb-session-id"]).toBe(
+          operation === "gateway.responses" ? connection.sessionId : undefined,
+        );
+        if (!("authorization" in fixture.expected)) {
+          expect(received.headers.authorization).toBe(
+            operation === "gateway.responses" ? `Bearer ${connection.apiKey}` : undefined,
+          );
+        }
+        expect(input.headers).toEqual(fixture.configured);
+      }
+    },
+  );
+
   it("preserves custom header values while replacing the cache key case-insensitively", async () => {
     await executeBrowserbaseRequest(connection, {
       ...params,
@@ -203,12 +238,18 @@ describe("Browserbase HTTP executor", () => {
     expect(requests).toHaveLength(0);
   });
 
-  it("does not treat invalid headers as network failures", async () => {
-    await expect(
-      executeBrowserbaseRequest(connection, { ...params, headers: { "x-invalid": "line\nbreak" } }),
-    ).rejects.toThrow();
-    expect(requests).toHaveLength(0);
-  });
+  it.each(fixtures.invalidRequestHeaders)(
+    "rejects invalid request headers: %j",
+    async (headers) => {
+      const input = BrowserbaseRequestParamsSchema.parse({ ...params, headers });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      await expect(executeBrowserbaseRequest(connection, input)).rejects.toEqual(
+        new TypeError("Invalid Browserbase HTTP request"),
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(requests).toHaveLength(0);
+    },
+  );
 
   it("uses a stable validation error for invalid connection headers", async () => {
     await expect(

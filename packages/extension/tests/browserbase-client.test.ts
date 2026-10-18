@@ -146,6 +146,14 @@ describe("worker Browserbase response adapter", () => {
     expect([...response.headers]).toEqual([]);
   });
 
+  it("reconstructs byte-preserving response headers after the RPC round trip", async () => {
+    const { normalized: headers, body } = fixtures.responseHeaders;
+    const { client } = setup(() => ({ ...ok, headers, body }));
+    const response = await requestBrowserbase(client, params);
+    expect(Object.fromEntries(response.headers)).toEqual(headers);
+    expect(await response.text()).toBe(body);
+  });
+
   it("preserves a large Unicode response as text", async () => {
     const body = "héllo 🌎".repeat(100_000);
     const { client } = setup(() => ({
