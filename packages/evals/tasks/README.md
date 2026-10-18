@@ -151,6 +151,19 @@ and parameter-order matching, POST bodies in the key, gzip bodies stored decoded
 ordered repeats, the in-flight `stop()`, misses for unrecorded requests, existing
 output protection, and the `--network` CLI.
 
+### Validated with a real `act()`
+
+`tests/integration/taskNetworkAct.test.ts` records a session that loads plans
+with a fetch and chooses one with a POST, then replays it under a real
+`Stagehand` instance. The plans exist only if the replayed response reached the
+page's script, and the deterministic model reads the target's element ID from
+Stagehand's own observation of the replayed page. `stagehand.act()` clicks it and
+the page shows the recorded POST response, with the original server receiving no
+requests. A second run chooses a plan the recording never saw: its POST body has
+no recorded match, so it fails and appears in `misses` instead of reaching the
+network. Model generation is the only substituted component; no API keys are
+needed.
+
 ## Validated Stagehand regression: extraction schema keys (#2624)
 
 `tests/integration/taskExtraction.test.ts` exercises the real Stagehand SDK,
