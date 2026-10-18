@@ -29,6 +29,7 @@ const (
 )
 
 var customDefinitions = map[string]string{
+	"BrowserbaseRequestResult":     "BrowserbaseRequestResult",
 	"PageEventNotification":        "PageEventNotification",
 	"Caching":                      "Caching",
 	"CookieFilter":                 "CookieFilter",

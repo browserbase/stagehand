@@ -75,23 +75,27 @@ beforeEach(() => {
 });
 
 describe("gateway inference end to end", () => {
-  it("omits the model when Browserbase should select it automatically", async () => {
-    await llmService.generate(
-      undefined,
-      {
-        messages: [{ role: "user", content: { type: "text", text: "Say hello" } }],
-      },
-      () => {
-        throw new Error("client LLM must not be used on the gateway path");
-      },
-      gateway,
-    );
+  it("omits only the model when Browserbase should select it automatically", async () => {
+    for (const model of [{ modelName: "openai/gpt-5" } as const, undefined]) {
+      await llmService.generate(
+        model,
+        { messages: [{ role: "user", content: { type: "text", text: "Say hello" } }] },
+        () => {
+          throw new Error("client LLM must not be used on the gateway path");
+        },
+        gateway,
+      );
+    }
 
-    const request = requests[0]!;
-    expect(request.url).toBe("/v1/llm/responses");
-    expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
-    expect(request.headers["x-bb-session-id"]).toBe("session-123");
-    expect(request.body).not.toHaveProperty("model");
+    const { model, ...body } = requests[0]!.body;
+    expect(model).toBe("openai/gpt-5");
+    expect(requests[1]!.body).toEqual(body);
+    expect(requests[1]!.url).toBe("/v1/llm/responses");
+    expect(requests[1]!.headers).toMatchObject({
+      "x-bb-api-key": "bb-api-key",
+      "x-bb-session-id": "session-123",
+      authorization: "Bearer bb-api-key",
+    });
   });
 
   it("sends an OpenAI-format request to the gateway endpoint and maps the response back", async () => {

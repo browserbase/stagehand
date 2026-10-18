@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { JSONRPCRequestIdSchema } from "./json-rpc/schemas.ts";
 import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
 
 export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
@@ -1418,6 +1419,55 @@ export const LocatorDescriptorSchema = z
   })
   .meta({ id: "LocatorDescriptor" });
 
+/** One HTTP attempt; the caller owns retries and response interpretation. */
+export const BrowserbaseRequestParamsSchema = z
+  .strictObject({
+    operation: z.enum(["gateway.responses", "cache.get", "cache.set"]),
+    headers: z.record(z.string(), z.string()),
+    body: z.string(),
+    remainingTimeoutMs: z.number().nonnegative().optional().meta({
+      description: "Remaining caller budget in milliseconds; omission adds no transport deadline",
+    }),
+  })
+  .meta({ id: "BrowserbaseRequestParams" });
+
+export const BrowserbaseHttpResponseSchema = z
+  .strictObject({
+    type: z.literal("response"),
+    status: z.int().min(200).max(599),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()),
+    body: z.string(),
+  })
+  .meta({ id: "BrowserbaseHttpResponse" });
+
+export const BrowserbaseTransportErrorSchema = z
+  .strictObject({
+    type: z.literal("error"),
+    reason: z.enum(["network", "cancelled", "timeout", "unavailable", "disconnected"]),
+    message: z.string(),
+  })
+  .meta({
+    id: "BrowserbaseTransportError",
+    description:
+      "Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes",
+  });
+
+export const BrowserbaseRequestResultSchema = z
+  .discriminatedUnion("type", [BrowserbaseHttpResponseSchema, BrowserbaseTransportErrorSchema])
+  .meta({ id: "BrowserbaseRequestResult" });
+
+export const BrowserbaseCancelParamsSchema = z
+  .strictObject({
+    requestId: JSONRPCRequestIdSchema,
+    reason: z.enum(["cancelled", "timeout"]),
+  })
+  .meta({
+    id: "BrowserbaseCancelParams",
+    description:
+      "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs",
+  });
+
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1453,6 +1503,7 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
+    browserbase: z.literal("client").optional(),
     apiUrl: z
       .url()
       .refine(
@@ -1482,6 +1533,16 @@ export const StagehandInitParamsSchema = z
         "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
     }),
   })
+  .refine(
+    (params) =>
+      params.browserbase === undefined ||
+      (params.apiKey === undefined && params.apiUrl === undefined && params.browser !== undefined),
+    {
+      message:
+        "Client Browserbase transport requires browser metadata and omits worker apiKey/apiUrl",
+      path: ["browserbase"],
+    },
+  )
   .meta({ id: "StagehandInitParams" });
 
 export const StagehandActParamsSchema = z

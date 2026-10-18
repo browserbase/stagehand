@@ -134,6 +134,46 @@ describe("Stagehand.create", () => {
     expect(cdp.close).toHaveBeenCalledOnce();
   });
 
+  it("uses the claimed Browserbase key before the Stagehand key", async () => {
+    const cdp = new FakeCDPClient();
+    const { browserbase } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+      createBrowserbaseSessionClient: () => ({
+        createSession: vi.fn(),
+        connectSession: async () => ({
+          sessionId: "session-precedence",
+          cdpUrl: cdp.webSocketDebuggerUrl,
+          region: "eu-central-1",
+          close: vi.fn(),
+        }),
+      }),
+    });
+    const browser = await browserbase.connect({
+      apiKey: "bb-browser-key",
+      sessionId: "session-precedence",
+    });
+    const stagehand = await Stagehand.create({
+      browser,
+      apiKey: "bb-stagehand-key",
+      apiUrl: "https://fixture.example/services",
+      model: { modelName: "openai/gpt-5", apiKey: "provider-key" },
+    });
+
+    try {
+      expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+        params: {
+          api_key: "bb-browser-key",
+          api_url: "https://fixture.example/services",
+          browser: { session_id: "session-precedence", region: "eu-central-1" },
+          model: { model_name: "openai/gpt-5", api_key: "provider-key" },
+        },
+      });
+    } finally {
+      await stagehand.close();
+      await browser.close();
+    }
+  });
+
   it("releases the browser claim after a fully settled initialization error", async () => {
     const cdp = new FakeCDPClient();
     cdp.initError = new Error("worker initialization failed");
@@ -289,6 +329,9 @@ describe("Stagehand.create", () => {
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
+    expect(() => StagehandCreateOptionsSchema.parse({ browser, browserbase: "client" })).toThrow(
+      /Unrecognized key/,
+    );
     expect(() => StagehandCreateOptionsSchema.parse({ browser, unexpected: true })).toThrow(
       "Unrecognized key",
     );
