@@ -18,8 +18,8 @@ distinguishes observation snapshots from network recordings needed for dynamic
 This is an observation task on-ramp, not an arbitrary application recorder.
 It supports manually authored `extract()` / `observe()` regressions against a
 frozen observation. It does not generate assertions or replay click handlers,
-fetches, navigation, authentication, or state transitions. Network response
-recording and bug-report automation are future work. The issue's old
+fetches, navigation, authentication, or state transitions; the network tier
+below covers those. Bug-report automation is future work. The issue's old
 `tasks/extract` and `tasks/observe` live-site tasks are absent from current v4
 `main`, so migrating those tasks is not part of this change.
 
@@ -90,6 +90,66 @@ Tests use a local server and Chromium to cover edited form state, accessible
 content, hidden content, resolved links, offline replay, existing-output
 protection, and rejection of frames and open shadow DOM. No cloud browser or
 model calls are required.
+
+## Network tier: recorded responses for `act()` regressions
+
+An observation has nothing to run, so an `act()` bug that lives in what happens
+after the click (the handler fetches, the page re-renders) cannot reproduce from
+it. The network tier records the responses the page received and replays them to
+the page's own scripts, following the approach in the
+[issue discussion](https://github.com/browserbase/stagehand/issues/2841#issuecomment-5870055043).
+
+```sh
+pnpm --filter @browserbasehq/stagehand-evals task:record \
+  --url https://example.com --out /tmp/example-network --network [--setup setup.ts]
+```
+
+This writes `responses.json` and a `manifest.json` with `kind: "network"`. In a
+test, attach replay to the page before navigating, then check that nothing missed:
+
+```ts
+import { readNetworkTask, replayNetwork } from "../../tasks/network.js";
+
+const network = await replayNetwork(page, await readNetworkTask(taskDirectory));
+await page.goto(manifest.sourceUrl);
+// ... drive the page, call stagehand.act(), assert the outcome ...
+expect(network.misses).toEqual([]);
+```
+
+How it behaves:
+
+- **Recording** pauses each response at the CDP Fetch response stage and reads it
+  with `Fetch.getResponseBody`. There is no second fetch, so the task holds the
+  bytes the original session received. `stop()` waits until the page's network
+  has been quiet for 500 ms (10 s at most), so requests still in flight are kept.
+- **Replay** answers every request with `Fetch.fulfillRequest`. A request the
+  recording does not contain fails with `BlockedByClient` and is listed in
+  `misses`; it never falls through to the network, where the test would quietly
+  become a live-site test. The one exception is an unrecorded `/favicon.ico`,
+  which browsers request on their own: it gets a 404.
+- **Matching** uses the method, the URL without its fragment, and a hash of the
+  request body, so single-endpoint JSON or GraphQL POSTs do not collide. Common
+  cache-buster parameters (`_`, `t`, `ts`, `timestamp`, `cb`, ...) are dropped
+  from the key and the remaining parameters are sorted. Pass `ignoredParams` to
+  `recordNetwork` for site-specific ones. Repeated requests with the same key get
+  their responses in recorded order; after the last one, the last response repeats.
+- **Isolation**: service workers and the HTTP cache are bypassed while recording
+  and replaying, because either would answer requests outside the Fetch domain.
+
+Limitations: only the page's own target is covered (no popups, out-of-process
+frames or workers); WebSockets and streamed responses are not recorded;
+`Set-Cookie` is not stored and requests are matched without cookies, so a flow
+whose responses depend on server-side session state replays as recorded rather
+than re-evaluated. Bodies are stored decoded, so `Content-Encoding` and
+`Content-Length` are dropped. Review `responses.json` before committing: response
+bodies can contain personal data.
+
+The tests in `tests/integration/taskNetwork.test.ts` record a page whose
+handlers fetch on load and on click, then replay it with the original server
+still running and assert that it receives no requests. They cover cache-buster
+and parameter-order matching, POST bodies in the key, gzip bodies stored decoded,
+ordered repeats, the in-flight `stop()`, misses for unrecorded requests, existing
+output protection, and the `--network` CLI.
 
 ## Validated Stagehand regression: extraction schema keys (#2624)
 
