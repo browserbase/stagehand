@@ -18,6 +18,26 @@ func loadBrowserbaseTransportFixture(t *testing.T, target any) {
 	}
 }
 
+func TestBrowserbaseAPIURLScheme(t *testing.T) {
+	for _, test := range []struct {
+		url      string
+		accepted bool
+	}{
+		{"http://localhost:3000", true},
+		{"https://example.com", true},
+		{"ftp://example.com", false},
+		{"file:///tmp/api", false},
+		{"ws://example.com", false},
+	} {
+		t.Run(test.url, func(t *testing.T) {
+			err := validateBrowserbaseCreateOptions(CreateOptions{APIURL: &test.url}, claimedBrowser{})
+			if (err == nil) != test.accepted {
+				t.Fatalf("validation error = %v, want accepted = %t", err, test.accepted)
+			}
+		})
+	}
+}
+
 func TestBrowserbaseConnectionSharedEndpoints(t *testing.T) {
 	var fixtures struct {
 		Connection struct {

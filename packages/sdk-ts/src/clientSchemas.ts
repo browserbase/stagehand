@@ -276,6 +276,8 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
 export const StagehandClientCreateConfigSchema = z
   .strictObject(StagehandInitParamsSchema.shape)
   .omit({
+    apiKey: true,
+    apiUrl: true,
     browserbase: true,
     protocolVersion: true,
     clientInfo: true,
@@ -284,6 +286,21 @@ export const StagehandClientCreateConfigSchema = z
     browser: true,
   })
   .extend({
+    apiKey: z.string().min(1).optional(),
+    apiUrl: z
+      .url({ protocol: /^https?$/ })
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
     logging: StagehandClientLoggingConfigSchema.default({
       level: "info",

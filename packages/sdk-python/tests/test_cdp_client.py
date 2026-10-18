@@ -731,6 +731,9 @@ class TestNegotiateRuntime:
             result = cdp_client._protocol_compatibility(client, server)
             return None if result is None else result[0]
 
+        assert reason("2.2.0", "2.1.99") == "protocol-server-too-old"
+        assert reason("2.2.0", "2.2.0") is None
+        assert reason("2.1.1", "2.2.0") is None
         assert reason("1.2.4", "1.2.0") is None
         assert reason("1.2.4", "1.9.0") is None
         assert reason("1.2.4", "1.1.99") == "protocol-server-too-old"

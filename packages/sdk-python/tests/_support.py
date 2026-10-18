@@ -5,6 +5,8 @@ from typing import TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
+from stagehand.rpc_client import RPCRequestContext
+
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
 RootResultT = TypeVar("RootResultT")
@@ -56,6 +58,20 @@ class RecordingRPCClient:
         params_model: type[ParamsT],
         result_model: type[ResultT],
         handler: Callable[[ParamsT], ResultT | Awaitable[ResultT]],
+    ) -> Callable[[], None]:
+        self.requests[method] = (params_model, result_model, handler)
+
+        def remove() -> None:
+            self.requests.pop(method, None)
+
+        return remove
+
+    def on_request_with_context(
+        self,
+        method: str,
+        params_model: type[ParamsT],
+        result_model: type[ResultT],
+        handler: Callable[[ParamsT, RPCRequestContext], ResultT | Awaitable[ResultT]],
     ) -> Callable[[], None]:
         self.requests[method] = (params_model, result_model, handler)
 

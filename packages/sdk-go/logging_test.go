@@ -31,6 +31,10 @@ func (client *loggingProtocolClient) call(
 	return nil
 }
 
+func (*loggingProtocolClient) registerBrowserbaseTransport(*browserbaseConnection) func() {
+	return func() {}
+}
+
 func (*loggingProtocolClient) onRequest(string, requestHandler) func() {
 	return func() {}
 }

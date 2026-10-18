@@ -20,14 +20,15 @@ const (
 
 // Stagehand is the root SDK client.
 type Stagehand struct {
-	mu                        sync.RWMutex
-	rpc                       protocolClient
-	browser                   *Browser
-	initialized               bool
-	closed                    bool
-	closeResult               error
-	removeLLMHandler          func()
-	removeNotificationHandler func()
+	mu                         sync.RWMutex
+	rpc                        protocolClient
+	browser                    *Browser
+	initialized                bool
+	closed                     bool
+	closeResult                error
+	removeLLMHandler           func()
+	removeBrowserbaseTransport func()
+	removeNotificationHandler  func()
 }
 
 // Create attaches Stagehand to a factory-created Browser handle.
@@ -59,12 +60,22 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if err != nil {
 		return nil, err
 	}
+	if err := validateBrowserbaseCreateOptions(options, claimed); err != nil {
+		releaseBrowserClaim(options.Browser)
+		return nil, err
+	}
+	connection, err := resolveBrowserbaseConnection(options, claimed)
+	if err != nil {
+		releaseBrowserClaim(options.Browser)
+		return nil, err
+	}
 	rpc, err := adapters.connectClaimedBrowser(claimed)
 	if err != nil {
 		releaseBrowserClaim(options.Browser)
 		return nil, fmt.Errorf("connect claimed browser: %w", err)
 	}
 	client := &Stagehand{rpc: rpc, browser: options.Browser}
+	client.removeBrowserbaseTransport = rpc.registerBrowserbaseTransport(connection)
 	notificationContext, cancelNotificationHandler := context.WithCancel(context.Background())
 	removeNotificationHandler := rpc.onNotification("stagehand.log", func(log StagehandLog) {
 		if notificationContext.Err() == nil {
@@ -78,12 +89,8 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if options.Generate != nil {
 		client.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(options.Generate))
 	}
-	apiKey := options.APIKey
-	if claimed.workerAPIKey != nil {
-		apiKey = claimed.workerAPIKey
-	}
 	initParams := workerInitParams(workerInitOptions{
-		apiKey: apiKey, apiURL: options.APIURL, browser: claimed.workerBrowser, cache: options.Cache,
+		browserbase: connection != nil, browser: claimed.workerBrowser, cache: options.Cache,
 		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
@@ -95,6 +102,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 			client.removeLLMHandler()
 		}
 		client.removeNotificationHandler()
+		client.removeBrowserbaseTransport()
 		closeErr := rpc.close()
 		var rpcError *RPCError
 		if errors.As(err, &rpcError) {
@@ -126,6 +134,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 			client.removeLLMHandler()
 		}
 		client.removeNotificationHandler()
+		client.removeBrowserbaseTransport()
 		rpcErr := rpc.close()
 		releaseBrowserClaim(options.Browser)
 		return nil, errors.Join(err, rpcErr)
@@ -312,6 +321,10 @@ func (s *Stagehand) Close(ctx context.Context) error {
 			shouldReleaseBrowserClaim = true
 		}
 	}
+	if s.removeBrowserbaseTransport != nil {
+		s.removeBrowserbaseTransport()
+		s.removeBrowserbaseTransport = nil
+	}
 	if s.removeLLMHandler != nil {
 		s.removeLLMHandler()
 		s.removeLLMHandler = nil
@@ -345,8 +358,7 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 }
 
 type workerInitOptions struct {
-	apiKey             *string
-	apiURL             *string
+	browserbase        bool
 	browser            *BrowserSessionMetadata
 	cache              *Caching
 	domSettleTimeoutMs *int
@@ -368,8 +380,6 @@ func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
 
 func workerInitParams(options workerInitOptions) StagehandInitParams {
 	params := StagehandInitParams{
-		APIKey:        options.apiKey,
-		APIURL:        options.apiURL,
 		Browser:       options.browser,
 		BrowserCDPURL: &options.browserCDPURL,
 		Cache:         options.cache,
@@ -383,6 +393,10 @@ func workerInitParams(options workerInitOptions) StagehandInitParams {
 		SelfHeal:           options.selfHeal,
 		SystemPrompt:       options.systemPrompt,
 		Telemetry:          options.telemetry,
+	}
+	if options.browserbase {
+		mode := "client"
+		params.Browserbase = &mode
 	}
 	if options.generate != nil {
 		model := ClientModel()
