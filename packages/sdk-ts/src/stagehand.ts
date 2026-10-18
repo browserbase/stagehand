@@ -198,9 +198,9 @@ export class Stagehand {
         handleStagehandNotification(notification, createConfig.logging),
       );
       if (createConfig.model && "generate" in createConfig.model) {
-        this.removeClientLLMHandler = rpcClient.onRequest(
-          StagehandMethods.llmGenerate,
-          createConfig.model.generate,
+        const { generate } = createConfig.model;
+        this.removeClientLLMHandler = rpcClient.onRequest(StagehandMethods.llmGenerate, (params) =>
+          generate(params),
         );
       }
 
