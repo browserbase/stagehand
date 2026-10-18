@@ -57,9 +57,27 @@ Use snapshot actions for simple interactions and run code for multi-step workflo
 valid only for the latest snapshot of the active page. Snapshot again after navigation or stale IDs.
 `;
 
+const DEEPAGENTS_BROWSE_CLI_SYSTEM_PROMPT = `You control the browser through the browse tool, which runs one browse CLI command per call.
+Pass the full command line in the command field, including the leading \`browse\`, and never pass
+--local, --remote, or --session: the harness pins the environment and session. The browse CLI
+reference is included in the task prompt; follow it rather than guessing flags.
+`;
+
+const DEEPAGENTS_CODE_SYSTEM_PROMPT = `You control the browser through the run tool, which executes a JavaScript snippet against the
+already-initialized surface described in the task prompt. You have no shell: ignore any instruction
+to use Bash, and do inspection inside a run snippet instead. Batch related steps into one snippet and
+return a JSON-serializable value so you can see what happened.
+`;
+
 export function buildDeepagentsSystemPrompt(toolSurface?: ToolSurface): string {
   if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
     return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_FACADE_SYSTEM_PROMPT}`;
+  }
+  if (toolSurface === "browse_cli") {
+    return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_BROWSE_CLI_SYSTEM_PROMPT}`;
+  }
+  if (toolSurface === "stagehand_code") {
+    return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_CODE_SYSTEM_PROMPT}`;
   }
   const toolGuidance =
     toolSurface === "playwright_mcp" || toolSurface === "chrome_devtools_mcp"

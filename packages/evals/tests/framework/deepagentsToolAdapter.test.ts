@@ -17,9 +17,14 @@ describe("Deep Agents tool adapter helpers", () => {
     expect(resolveToolSurface(definition)).toBe("stagehand_facade");
     expect(resolveToolSurface(definition, "playwright_mcp")).toBe("playwright_mcp");
     expect(resolveToolSurface(definition, "chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
-    expect(() => resolveToolSurface(definition, "browse_cli")).toThrow(
-      /Harness "deepagents" supports --tool stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp; received "browse_cli"/,
+    expect(resolveToolSurface(definition, "browse_cli")).toBe("browse_cli");
+    expect(resolveToolSurface(definition, "stagehand_code")).toBe("stagehand_code");
+    expect(() => resolveToolSurface(definition, "playwright_code")).toThrow(
+      /Harness "deepagents" supports --tool browse_cli, stagehand_code, stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp; received "playwright_code"/,
     );
+    expect(resolveStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
+    expect(resolveStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
       "tool_create_browserbase",

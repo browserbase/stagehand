@@ -25,6 +25,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { executeCodeExposureSnippet } from "./codeExposure.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
@@ -74,6 +75,8 @@ export interface PreparedBrowseCliHarnessAdapter {
   startupProfile: StartupProfile;
   cwd: string;
   env: Record<string, string>;
+  /** Pinned `browse` wrapper inside `cwd`; also first on the adapter's PATH. */
+  wrapperPath: string;
   promptInstructions: string;
   /** browse_cli owns its daemon; the Browserbase session id is not reported. */
   browserSession: BrowserSessionInfo;
@@ -107,7 +110,13 @@ export const CLAUDE_CODE_TOOL_SURFACES: ToolSurface[] = [
 // conflicting examples in the body — at install time, so the harness ships
 // one source of truth (the real, maintained browse skill) instead of a
 // second copy that drifts.
-const EVAL_HARNESS_ADDENDUM = `
+//
+// Only the invocation rule differs per harness: shell harnesses run `browse`
+// from Bash, while harnesses without a shell reach the same CLI through the
+// browse_cli MCP bridge. Everything else is identical, so the caller supplies
+// just that paragraph.
+function browseEvalHarnessAddendum(invocationRules: string): string {
+  return `
 ## Eval Harness Addendum
 
 This skill is installed by the Stagehand eval harness, which overrides some of
@@ -118,9 +127,7 @@ the guidance below:
   install/upgrade it. Never pass \`--local\`, \`--remote\`, or \`--session\` —
   the harness's wrapper appends the correct environment and session flags to
   every command automatically.
-- Run exactly one \`browse ...\` command per Bash tool call. Shell operators
-  (\`|\`, \`&&\`, \`;\`, backticks, \`$()\`, and redirection) are rejected by the
-  harness, so chained or piped commands will fail.
+${invocationRules}
 - Ignore the sections below about installing \`browse\`, Browse.sh skill
   discovery/installation (\`browse skills ...\`), Browserbase cloud/session/
   context/extension management (\`browse cloud ...\`), Functions
@@ -132,6 +139,13 @@ the guidance below:
 - When finished, report the result in the exact \`EVAL_RESULT\` format
   requested by the harness prompt.
 `;
+}
+
+/** Shell harnesses (claude_code, codex) invoke the pinned wrapper from Bash. */
+const BASH_INVOCATION_RULES = `- Run exactly one \`browse ...\` command per Bash tool call. Shell operators
+  (\`|\`, \`&&\`, \`;\`, backticks, \`$()\`, and redirection) are rejected by the
+  harness, so chained or piped commands will fail.`;
+
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const RUN_TOOL_SERVER = AGENT_RUN_TOOL_SERVER;
 const RUN_TOOL_NAME = AGENT_RUN_TOOL_NAME;
@@ -330,6 +344,7 @@ export async function prepareBrowseCliHarnessAdapter(
     startupProfile: input.startupProfile,
     cwd,
     env,
+    wrapperPath,
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
     browserSession: { provider: input.environment === "BROWSERBASE" ? "browserbase" : "local" },
     metadata: getBrowseCliToolMetadata(),
@@ -551,7 +566,7 @@ async function executeCodeExposureRunTool(input: {
 }): Promise<ClaudeToolResult> {
   try {
     const result = await withTimeout(
-      executeCodeExposureSnippet(input),
+      executeCodeExposureSnippet({ ...input, logCategory: "claude_code" }),
       readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
     );
     const text = stringifyToolResult(result);
@@ -577,54 +592,6 @@ async function executeCodeExposureRunTool(input: {
   }
 }
 
-async function executeCodeExposureSnippet(input: {
-  code: string;
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
-  plan: ExternalHarnessTaskPlan;
-  logger: EvalLogger;
-}): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-    ...args: string[]
-  ) => (...values: unknown[]) => Promise<unknown>;
-  // Snippet scope = the exposure's handle names plus startUrl/task/console.
-  // Object.keys/Object.values over the same object are guaranteed to align,
-  // so names — not positions — bind the values.
-  const fn = new AsyncFunction(
-    ...Object.keys(input.handles),
-    "startUrl",
-    "task",
-    "console",
-    input.code,
-  );
-  return fn(
-    ...Object.values(input.handles),
-    input.plan.startUrl,
-    {
-      dataset: input.plan.dataset,
-      id: input.plan.taskId,
-      startUrl: input.plan.startUrl,
-      instruction: input.plan.instruction,
-    },
-    buildRunToolConsole(input.logger),
-  );
-}
-
-function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" | "error"> {
-  const write = (level: "log" | "warn" | "error", values: unknown[]) => {
-    logger.log({
-      category: "claude_code",
-      message: `run console.${level}: ${values.map(stringifyToolResult).join(" ")}`,
-      level: 1,
-    });
-  };
-  return {
-    log: (...values: unknown[]) => write("log", values),
-    warn: (...values: unknown[]) => write("warn", values),
-    error: (...values: unknown[]) => write("error", values),
-  };
-}
-
 function buildBrowseCliPromptInstructions(plan: ExternalHarnessTaskPlan): string {
   void plan;
   return [
@@ -636,14 +603,22 @@ function buildBrowseCliPromptInstructions(plan: ExternalHarnessTaskPlan): string
   ].join("\n");
 }
 
+/**
+ * The shipped browse skill with the eval-harness addendum spliced in. Shell
+ * harnesses write it to disk for their Skill tool; harnesses without one
+ * inline the same text into the agent prompt.
+ */
+export async function buildBrowseSkillDocument(
+  invocationRules: string = BASH_INVOCATION_RULES,
+): Promise<string> {
+  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
+  return insertAfterFrontmatter(cliSkill, browseEvalHarnessAddendum(invocationRules));
+}
+
 export async function installBrowseSkill(cwd: string): Promise<void> {
   const targetDir = path.join(cwd, ".claude", "skills", "browse");
   await fsp.mkdir(targetDir, { recursive: true });
-  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
-  await fsp.writeFile(
-    path.join(targetDir, "SKILL.md"),
-    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
-  );
+  await fsp.writeFile(path.join(targetDir, "SKILL.md"), await buildBrowseSkillDocument());
 }
 
 // Inserts `addition` immediately after the skill's YAML frontmatter (so
