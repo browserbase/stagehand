@@ -15,7 +15,6 @@ import {
   type CdpTree,
 } from "../clients/cacheClient.js";
 import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
-import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
 import { type Progress, runLocatorStep } from "../understudy/progress.js";
@@ -54,23 +53,14 @@ export interface CacheContext {
   defaultCaching: Caching;
 }
 
-/** Builds a cache context for the client marker or transitional legacy settings. */
+/** Builds a cache context when client Browserbase transport is configured. */
 export function buildCacheContext(
   initParams: StagehandInitParams,
   request?: ClientBrowserbaseRequest,
 ): CacheContext | undefined {
   const sessionId = initParams.browser?.sessionId;
-  if (!sessionId) return undefined;
-  let client: CacheClient;
-  if (initParams.browserbase === "client") {
-    client = new CacheClient({ source: "client", request });
-  } else {
-    if (!initParams.apiKey) return undefined;
-    client = new CacheClient({
-      apiUrl: apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
-      apiKey: initParams.apiKey,
-    });
-  }
+  if (!sessionId || initParams.browserbase !== "client") return undefined;
+  const client = new CacheClient({ request });
   return {
     sessionId,
     client,

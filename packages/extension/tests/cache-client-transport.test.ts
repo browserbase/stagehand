@@ -234,7 +234,7 @@ describe("client cache availability", () => {
     },
   );
 
-  it("requires a session and the client marker or legacy configuration", () => {
+  it("requires a session and the client marker", () => {
     const adapter = vi.fn<(_: BrowserbaseRequestParams) => Promise<Response>>();
     expect(
       buildCacheContext({ browserbase: "client" } as StagehandInitParams, adapter),
@@ -246,11 +246,7 @@ describe("client cache availability", () => {
   });
 
   it("fails an unavailable client request without selecting legacy HTTP", async () => {
-    const context = buildCacheContext({
-      ...init,
-      apiKey: "legacy-key",
-      apiUrl: "https://legacy.test",
-    });
+    const context = buildCacheContext(init);
     await expect(context!.client.get(request)).rejects.toThrow(
       "Client Browserbase transport is unavailable",
     );

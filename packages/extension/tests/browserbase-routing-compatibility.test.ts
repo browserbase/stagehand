@@ -188,42 +188,32 @@ async function extract(batch = true, model?: ModelConfig) {
 }
 
 describe("combined Browserbase routing", () => {
-  it.each(["client", "legacy"])(
-    "preserves %s cache and Gateway retry behavior inside a batch",
-    async (source) => {
-      if (source === "legacy") {
-        const { browserbase: _marker, ...legacy } = init;
-        init = { ...legacy, apiUrl, apiKey: "bb-legacy-key" };
-        initialize();
-      }
-      retryGateway = true;
-      expect(await extract()).toMatchObject({
-        value: {
-          data: { answer: 42 },
-          metadata: {
-            cache: { status: "MISS", missReason: "not_found" },
-            usage: { inputTokens: 20, outputTokens: 10 },
-          },
+  it("preserves client cache and Gateway retry behavior inside a batch", async () => {
+    retryGateway = true;
+    expect(await extract()).toMatchObject({
+      value: {
+        data: { answer: 42 },
+        metadata: {
+          cache: { status: "MISS", missReason: "not_found" },
+          usage: { inputTokens: 20, outputTokens: 10 },
         },
-      });
-      expect(paths()).toEqual([
-        "/v1/cache/get",
-        "/v1/llm/responses",
-        "/v1/llm/responses",
-        "/v1/llm/responses",
-        "/v1/cache/set",
-      ]);
-      for (const request of requests.filter((request) => request.path.endsWith("/responses")))
-        expect(request.body).not.toHaveProperty("model");
-      expect(requests.at(-1)?.body).toMatchObject({
-        value: { answer: 42 },
-        llmUsage: { inputTokens: 20, outputTokens: 10 },
-      });
-      expect(reverseMethods()).toEqual(
-        source === "client" ? Array(5).fill("browserbase.request") : [],
-      );
-    },
-  );
+      },
+    });
+    expect(paths()).toEqual([
+      "/v1/cache/get",
+      "/v1/llm/responses",
+      "/v1/llm/responses",
+      "/v1/llm/responses",
+      "/v1/cache/set",
+    ]);
+    for (const request of requests.filter((request) => request.path.endsWith("/responses")))
+      expect(request.body).not.toHaveProperty("model");
+    expect(requests.at(-1)?.body).toMatchObject({
+      value: { answer: 42 },
+      llmUsage: { inputTokens: 20, outputTokens: 10 },
+    });
+    expect(reverseMethods()).toEqual(Array(5).fill("browserbase.request"));
+  });
 
   it.each([false, true])(
     "falls back from cache failures through real inference (batch=%s)",

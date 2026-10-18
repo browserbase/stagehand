@@ -1502,22 +1502,7 @@ export const StagehandInitParamsSchema = z
     protocolVersion: StagehandProtocolVersionSchema,
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
-    apiKey: z.string().min(1).optional(),
     browserbase: z.literal("client").optional(),
-    apiUrl: z
-      .url()
-      .refine(
-        (value) => !value.includes("?") && !value.includes("#"),
-        "Stagehand apiUrl must not include a query string or fragment",
-      )
-      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
-        message: "Stagehand apiUrl must be a service origin without /v1",
-      })
-      .optional()
-      .meta({
-        description:
-          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-      }),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:
@@ -1530,19 +1515,13 @@ export const StagehandInitParamsSchema = z
     domSettleTimeoutMs: z.number().int().positive().optional(),
     cache: CachingSchema.optional().meta({
       description:
-        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
     }),
   })
-  .refine(
-    (params) =>
-      params.browserbase === undefined ||
-      (params.apiKey === undefined && params.apiUrl === undefined && params.browser !== undefined),
-    {
-      message:
-        "Client Browserbase transport requires browser metadata and omits worker apiKey/apiUrl",
-      path: ["browserbase"],
-    },
-  )
+  .refine((params) => params.browserbase === undefined || params.browser !== undefined, {
+    message: "Client Browserbase transport requires browser metadata",
+    path: ["browserbase"],
+  })
   .meta({ id: "StagehandInitParams" });
 
 export const StagehandActParamsSchema = z

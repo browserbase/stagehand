@@ -16,7 +16,6 @@ import {
   createGatewayLanguageModel,
   type GatewayContext,
 } from "../llm/gatewayClient.js";
-import { buildCacheContext } from "../services/cacheService.js";
 import * as llmService from "../services/llmService.js";
 import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
 
@@ -58,22 +57,7 @@ const jsonReply = (body: unknown): HttpReply => ({
   body: JSON.stringify(body),
 });
 
-describe("Browserbase service endpoints", () => {
-  it.each(fixtures.endpoints)("$name", ({ region, apiUrl, expected }) => {
-    const init = StagehandInitParamsSchema.parse({
-      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: { name: "test", version: "1" },
-      apiKey: fixtures.connection.apiKey,
-      apiUrl,
-      browser: { sessionId: fixtures.connection.sessionId, region },
-    });
-
-    expect(buildGatewayContext(init)).toMatchObject({ apiUrl: expected });
-    expect(buildCacheContext(init)?.client.transport).toMatchObject({ apiUrl: expected });
-  });
-});
-
-describe("Browserbase HTTP transport", () => {
+describe("Browserbase client HTTP behavior", () => {
   let server: Server;
   let gateway: GatewayContext;
   let cache: CacheClient;
@@ -94,7 +78,6 @@ describe("Browserbase HTTP transport", () => {
       response.end(reply.body);
     });
     apiUrl = `${await listen(server)}/services/v1`;
-    cache = new CacheClient({ apiUrl, apiKey: fixtures.connection.apiKey });
   });
   afterAll(() => close(server));
 
@@ -106,6 +89,9 @@ describe("Browserbase HTTP transport", () => {
     ({ runtime, requests: rpcRequests } = bridge);
     runtime.state.setState({ status: "initialized", initParams });
     gateway = buildGatewayContext(initParams, runtime.adapters.clientBrowserbaseRequest)!;
+    cache = new CacheClient({
+      request: runtime.adapters.clientBrowserbaseRequest,
+    });
   });
 
   afterEach(async () => {
@@ -126,19 +112,11 @@ describe("Browserbase HTTP transport", () => {
     );
   }
 
-  describe.each(["client", "legacy"] as const)("Gateway via %s", (source) => {
-    beforeEach(() => {
-      if (source === "legacy") {
-        gateway = { ...fixtures.connection, apiUrl };
-        vi.mocked(boundFetch).mockImplementation(fetch);
-      }
-    });
+  describe("Gateway via client", () => {
     afterEach(() => {
-      if (source === "client") {
-        expect(rpcRequests).toHaveLength(requests.length);
-        expect(rpcRequests.every(({ operation }) => operation === "gateway.responses")).toBe(true);
-        expect(boundFetch).not.toHaveBeenCalled();
-      } else expect(rpcRequests).toEqual([]);
+      expect(rpcRequests).toHaveLength(requests.length);
+      expect(rpcRequests.every(({ operation }) => operation === "gateway.responses")).toBe(true);
+      expect(boundFetch).not.toHaveBeenCalled();
     });
     it.each(fixtures.gateway.headers)("sends Gateway $name", async ({ configured, expected }) => {
       await expect(generate({ modelName: "openai/gpt-5", headers: configured })).resolves.toEqual(
@@ -343,10 +321,7 @@ describe("Browserbase HTTP transport", () => {
     });
 
     it("never falls back when the client adapter is missing or disconnected", async () => {
-      const context = buildGatewayContext(
-        { ...initParams, apiKey: "legacy-key", apiUrl },
-        undefined,
-      );
+      const context = buildGatewayContext(initParams, undefined);
       await expect(llmService.generate(undefined, input, vi.fn(), context)).rejects.toThrow(
         "transport is unavailable",
       );
@@ -366,8 +341,6 @@ describe("Browserbase HTTP transport", () => {
         });
       });
       const model = createGatewayLanguageModel(undefined, {
-        source: "client",
-        sessionId: "session",
         request,
       });
       const pending = generateText({ model, prompt: "Hi", abortSignal: controller.signal });
@@ -385,12 +358,7 @@ describe("Browserbase HTTP transport", () => {
         buildGatewayContext({ ...initParams, browserbase: undefined }, request),
       ).toBeUndefined();
       expect(buildGatewayContext({ ...initParams, browser: undefined }, request)).toBeUndefined();
-      expect(
-        buildGatewayContext({ ...initParams, browserbase: undefined, apiKey: "legacy" }, request),
-      ).toMatchObject({ apiKey: "legacy", apiUrl: "https://api.stagehand.browserbase.com/v1" });
       expect(buildGatewayContext(initParams, request)).toEqual({
-        source: "client",
-        sessionId: fixtures.connection.sessionId,
         request,
       });
     });

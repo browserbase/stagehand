@@ -2271,7 +2271,6 @@ class StagehandInitParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
-        arbitrary_types_allowed=True,
     )
     protocol_version: Annotated[
         StrictStr,
@@ -2281,10 +2280,7 @@ class StagehandInitParams(WireModel):
     ]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browserbase: Optional[Literal["client"]] = None
-    api_url: Optional[WireUrl] = None
-    """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
@@ -2296,7 +2292,7 @@ class StagehandInitParams(WireModel):
         Optional[StrictInt], Field(gt=0, le=9007199254740991)
     ] = None
     cache: Optional[Caching] = None
-    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
+    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache."""
 
 
 class StagehandInitResult(WireModel):

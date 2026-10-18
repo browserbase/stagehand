@@ -1178,9 +1178,7 @@ class StagehandInitParams(TypedDict):
     protocol_version: str
     client_info: ImplementationInfo
     browser_cdp_url: NotRequired[str]
-    api_key: NotRequired[str]
     browserbase: NotRequired[Literal["client"]]
-    api_url: NotRequired[str]
     browser: NotRequired[BrowserSessionMetadata]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]

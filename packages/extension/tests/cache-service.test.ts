@@ -7,17 +7,16 @@ import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";
 
 describe("cache service", () => {
-  it("uses an explicit Stagehand API URL for the cache client", () => {
-    const context = cacheService.buildCacheContext({
-      apiKey: "bb-key",
-      apiUrl: "https://api.stagehand.dev.browserbase.com/",
-      browser: { sessionId: "session-id", region: "eu-central-1" },
-    } as StagehandInitParams);
-
-    expect(context?.client.transport).toEqual({
-      apiUrl: "https://api.stagehand.dev.browserbase.com/v1",
-      apiKey: "bb-key",
-    });
+  it("uses the connected SDK for cache requests", () => {
+    const request = vi.fn();
+    const context = cacheService.buildCacheContext(
+      {
+        browserbase: "client",
+        browser: { sessionId: "session-id", region: "eu-central-1" },
+      } as StagehandInitParams,
+      request,
+    );
+    expect(context?.client.transport).toEqual({ request });
   });
 
   it("marks a cache hit without executing the live request", async () => {
@@ -145,7 +144,7 @@ describe("cache service", () => {
   // without passing `cache`. These pin the default so it can't drift back.
   it("enables caching by default when init params omit `cache`", () => {
     const context = cacheService.buildCacheContext({
-      apiKey: "bb-key",
+      browserbase: "client",
       browser: { sessionId: "session-id" },
     } as StagehandInitParams);
 
@@ -154,7 +153,7 @@ describe("cache service", () => {
 
   it("honours an explicit opt-out in init params", () => {
     const context = cacheService.buildCacheContext({
-      apiKey: "bb-key",
+      browserbase: "client",
       browser: { sessionId: "session-id" },
       cache: false,
     } as StagehandInitParams);

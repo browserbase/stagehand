@@ -1201,18 +1201,9 @@
           "type": "string",
           "minLength": 1
         },
-        "api_key": {
-          "type": "string",
-          "minLength": 1
-        },
         "browserbase": {
           "type": "string",
           "const": "client"
-        },
-        "api_url": {
-          "description": "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-          "type": "string",
-          "format": "uri"
         },
         "browser": {
           "$ref": "#/$defs/BrowserSessionMetadata"
@@ -1248,7 +1239,7 @@
           "maximum": 9007199254740991
         },
         "cache": {
-          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
         }
       },
