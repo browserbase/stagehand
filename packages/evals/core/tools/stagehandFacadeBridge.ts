@@ -39,6 +39,10 @@ const HOST_ENV_KEYS = [
   "SHELL",
   "LANG",
   "LC_ALL",
+  // A local Chrome launched headful on Linux needs the display; CHROME_PATH picks the binary.
+  "DISPLAY",
+  "XAUTHORITY",
+  "CHROME_PATH",
 ] as const;
 
 export interface StagehandFacadeBridgeInput {
