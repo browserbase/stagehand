@@ -154,7 +154,6 @@ const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Lan
 // The Claude CUA toolset has TypeScript and Python SDKs, but no Go SDK.
 const PAGE_LANGUAGE_SETS = new Map<string, readonly Language[]>([
   ["v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
-  ["v4/integrations/agent-frameworks/openai-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
 ]);
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
