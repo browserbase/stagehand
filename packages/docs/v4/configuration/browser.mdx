@@ -613,6 +613,58 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
+If the client connects through a proxy or authenticated gateway, you can give the extension a separate browser-level CDP WebSocket URL:
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.connect({
+  cdpUrl: "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+  extensionCdpUrl: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+});
+const stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+from stagehand import Stagehand, local_browser
+
+browser = await local_browser.connect(
+    cdp_url="wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+    extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+)
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL:          "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+	ExtensionCDPURL: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+The override must use `ws://` or `wss://`, include a host, and use a port between 1 and 65535 if specified. Both endpoints must reach the same browser. When the option is omitted (`None` in Python or an empty string in Go), the extension uses the client's resolved CDP WebSocket URL.
+
+In this example, `127.0.0.1` refers to the browser's environment. The extension can use any host reachable from inside Chrome. Using a separate endpoint keeps the gateway URL and its credentials out of the extension and avoids routing the extension's CDP commands through the gateway.
+
+
 <Note>
 Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
 </Note>
@@ -814,7 +866,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
   "--window-size=1280,800",
-  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+  "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -825,7 +877,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
     "--window-size=1280,800",
-    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -836,14 +888,14 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-unsafe-extension-debugging",
 	"--remote-allow-origins=*",
 	"--window-size=1280,800",
-	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+	"--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
 </Tab>
 </Tabs>
 
 <Note>
-`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
+`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp) across supported Chrome versions. `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:

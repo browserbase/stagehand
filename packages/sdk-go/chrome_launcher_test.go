@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const testWebMCPChromeFlag = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+const testWebMCPChromeFlag = "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport"
 
 func TestDefaultChromeFlags(t *testing.T) {
 	fixturePath := filepath.Join("..", "..", "tests", "fixtures", "local-browser-default-flags.json")

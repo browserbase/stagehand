@@ -882,7 +882,8 @@ async function clientProtocolNotifications(
         const arguments_ = callArguments(call);
         const notification = calledFunction?.endsWith(".onNotification")
           ? arguments_[0]
-          : calledFunction === "registerNotification"
+          : calledFunction === "registerNotification" ||
+              calledFunction === "registerControlNotification"
             ? arguments_[1]
             : undefined;
         if (notification?.kind() === "interpreted_string_literal") {
@@ -1080,7 +1081,8 @@ function matchesProtocolBoundary(
     ? calledFunction?.endsWith(".onRequest") === true ||
         calledFunction?.endsWith("?.onRequest") === true
     : language === "python"
-      ? calledFunction?.endsWith(".on_request") === true
+      ? calledFunction?.endsWith(".on_request") === true ||
+        calledFunction?.endsWith(".on_request_with_context") === true
       : calledFunction?.endsWith(".onRequest") === true;
 }
 

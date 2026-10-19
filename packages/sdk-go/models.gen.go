@@ -127,6 +127,21 @@ const BrowserbaseBrowserSettingsOSMobile BrowserbaseBrowserSettingsOS = "mobile"
 const BrowserbaseBrowserSettingsOSTablet BrowserbaseBrowserSettingsOS = "tablet"
 const BrowserbaseBrowserSettingsOSWindows BrowserbaseBrowserSettingsOS = "windows"
 
+// Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore
+// completed or unknown IDs
+type BrowserbaseCancelParams struct {
+	// Reason corresponds to the JSON schema field "reason".
+	Reason BrowserbaseCancelParamsReason `json:"reason"`
+
+	// RequestID corresponds to the JSON schema field "request_id".
+	RequestID JSONRPCRequestID `json:"request_id"`
+}
+
+type BrowserbaseCancelParamsReason string
+
+const BrowserbaseCancelParamsReasonCancelled BrowserbaseCancelParamsReason = "cancelled"
+const BrowserbaseCancelParamsReasonTimeout BrowserbaseCancelParamsReason = "timeout"
+
 type BrowserbaseContext struct {
 	// ID corresponds to the JSON schema field "id".
 	ID string `json:"id"`
@@ -194,6 +209,33 @@ type BrowserbaseFingerprintScreen struct {
 	MinWidth *float64 `json:"min_width,omitempty,omitzero"`
 }
 
+// Buffered HTTP response with SDK-normalized headers and text. Redirect responses
+// are returned without following them.
+type BrowserbaseHTTPResponse struct {
+	// Fully buffered response body decoded as UTF-8 text, with a leading BOM removed
+	// and invalid byte sequences replaced
+	Body string `json:"body"`
+
+	// Lowercase names with one value per name after SDK HTTP normalization; repeated
+	// fields are collapsed. Header bytes use Latin-1 code points. content-encoding
+	// and content-length are omitted.
+	Headers BrowserbaseHTTPResponseHeaders `json:"headers"`
+
+	// Status corresponds to the JSON schema field "status".
+	Status int `json:"status"`
+
+	// StatusText corresponds to the JSON schema field "status_text".
+	StatusText string `json:"status_text"`
+
+	// Type corresponds to the JSON schema field "type".
+	Type string `json:"type"`
+}
+
+// Lowercase names with one value per name after SDK HTTP normalization; repeated
+// fields are collapsed. Header bytes use Latin-1 code points. content-encoding and
+// content-length are omitted.
+type BrowserbaseHTTPResponseHeaders map[string]string
+
 type BrowserbaseProxyConfig struct {
 	// DomainPattern corresponds to the JSON schema field "domain_pattern".
 	DomainPattern *string `json:"domain_pattern,omitempty,omitzero"`
@@ -223,6 +265,34 @@ const BrowserbaseRegionEUCentral1 BrowserbaseRegion = "eu-central-1"
 const BrowserbaseRegionUSEast1 BrowserbaseRegion = "us-east-1"
 const BrowserbaseRegionUSWest2 BrowserbaseRegion = "us-west-2"
 
+type BrowserbaseRequestParams struct {
+	// JSON request body sent as UTF-8 text
+	Body string `json:"body"`
+
+	// Application headers. SDKs validate names and values, omit caller-supplied Host,
+	// Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and,
+	// for gateway.responses, x-bb-session-id.
+	Headers BrowserbaseRequestParamsHeaders `json:"headers"`
+
+	// Operation corresponds to the JSON schema field "operation".
+	Operation BrowserbaseRequestParamsOperation `json:"operation"`
+
+	// Remaining caller budget in milliseconds, including response-body buffering;
+	// omission adds no transport deadline
+	RemainingTimeoutMs *float64 `json:"remaining_timeout_ms,omitempty,omitzero"`
+}
+
+// Application headers. SDKs validate names and values, omit caller-supplied Host,
+// Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and,
+// for gateway.responses, x-bb-session-id.
+type BrowserbaseRequestParamsHeaders map[string]string
+
+type BrowserbaseRequestParamsOperation string
+
+const BrowserbaseRequestParamsOperationCacheGet BrowserbaseRequestParamsOperation = "cache.get"
+const BrowserbaseRequestParamsOperationCacheSet BrowserbaseRequestParamsOperation = "cache.set"
+const BrowserbaseRequestParamsOperationGatewayResponses BrowserbaseRequestParamsOperation = "gateway.responses"
+
 type BrowserbaseSessionCreateParams struct {
 	// BrowserSettings corresponds to the JSON schema field "browser_settings".
 	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
@@ -246,6 +316,27 @@ type BrowserbaseSessionCreateParams struct {
 	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
 }
 
+// Transport failure without an HTTP response; disconnected is synthesized locally
+// when RPC closes
+type BrowserbaseTransportError struct {
+	// Message corresponds to the JSON schema field "message".
+	Message string `json:"message"`
+
+	// Reason corresponds to the JSON schema field "reason".
+	Reason BrowserbaseTransportErrorReason `json:"reason"`
+
+	// Type corresponds to the JSON schema field "type".
+	Type string `json:"type"`
+}
+
+type BrowserbaseTransportErrorReason string
+
+const BrowserbaseTransportErrorReasonCancelled BrowserbaseTransportErrorReason = "cancelled"
+const BrowserbaseTransportErrorReasonDisconnected BrowserbaseTransportErrorReason = "disconnected"
+const BrowserbaseTransportErrorReasonNetwork BrowserbaseTransportErrorReason = "network"
+const BrowserbaseTransportErrorReasonTimeout BrowserbaseTransportErrorReason = "timeout"
+const BrowserbaseTransportErrorReasonUnavailable BrowserbaseTransportErrorReason = "unavailable"
+
 type BrowserbaseViewport struct {
 	// Height corresponds to the JSON schema field "height".
 	Height *float64 `json:"height,omitempty,omitzero"`
@@ -261,9 +352,10 @@ type CacheMetadata struct {
 
 	// Why the cache did not serve this request; misses only. Reported by the server:
 	// "not_found", "threshold", "empty_array", "timeout", "error", "bypass",
-	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed"
-	// (the cache request itself failed) and "replay_failed" (a cached value was found
-	// but could not be applied)
+	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the
+	// cache read exceeded its budget), "read_failed" (another cache read failure),
+	// "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8
+	// bytes), and "replay_failed" (a cached value was found but could not be applied)
 	MissReason *string `json:"miss_reason,omitempty,omitzero"`
 
 	// Whether server-side caching served this result, computed it, or was not
@@ -580,6 +672,8 @@ type InputFilePayload struct {
 	// Name corresponds to the JSON schema field "name".
 	Name string `json:"name"`
 }
+
+type JSONRPCRequestID int
 
 type LLMAnnotations struct {
 	// Audience corresponds to the JSON schema field "audience".
@@ -1975,18 +2069,14 @@ type StagehandExtractParams struct {
 }
 
 type StagehandInitParams struct {
-	// APIKey corresponds to the JSON schema field "api_key".
-	APIKey *string `json:"api_key,omitempty,omitzero"`
-
-	// Stagehand API base URL override for managed services such as Model Gateway and
-	// server-side caching
-	APIURL *string `json:"api_url,omitempty,omitzero"`
-
 	// Browser corresponds to the JSON schema field "browser".
 	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
 
 	// BrowserCDPURL corresponds to the JSON schema field "browser_cdp_url".
 	BrowserCDPURL *string `json:"browser_cdp_url,omitempty,omitzero"`
+
+	// Browserbase corresponds to the JSON schema field "browserbase".
+	Browserbase *string `json:"browserbase,omitempty,omitzero"`
 
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
@@ -2307,6 +2397,10 @@ type generatedModelCatalog struct {
 	// "BrowserbaseBrowserSettings".
 	BrowserbaseBrowserSettings *BrowserbaseBrowserSettings `json:"BrowserbaseBrowserSettings,omitempty,omitzero"`
 
+	// BrowserbaseCancelParams corresponds to the JSON schema field
+	// "BrowserbaseCancelParams".
+	BrowserbaseCancelParams *BrowserbaseCancelParams `json:"BrowserbaseCancelParams,omitempty,omitzero"`
+
 	// BrowserbaseContext corresponds to the JSON schema field "BrowserbaseContext".
 	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty,omitzero"`
 
@@ -2317,6 +2411,10 @@ type generatedModelCatalog struct {
 	// BrowserbaseFingerprintScreen corresponds to the JSON schema field
 	// "BrowserbaseFingerprintScreen".
 	BrowserbaseFingerprintScreen *BrowserbaseFingerprintScreen `json:"BrowserbaseFingerprintScreen,omitempty,omitzero"`
+
+	// BrowserbaseHTTPResponse corresponds to the JSON schema field
+	// "BrowserbaseHttpResponse".
+	BrowserbaseHTTPResponse *BrowserbaseHTTPResponse `json:"BrowserbaseHttpResponse,omitempty,omitzero"`
 
 	// BrowserbaseProxyConfig corresponds to the JSON schema field
 	// "BrowserbaseProxyConfig".
@@ -2329,9 +2427,21 @@ type generatedModelCatalog struct {
 	// BrowserbaseRegion corresponds to the JSON schema field "BrowserbaseRegion".
 	BrowserbaseRegion *BrowserbaseRegion `json:"BrowserbaseRegion,omitempty,omitzero"`
 
+	// BrowserbaseRequestParams corresponds to the JSON schema field
+	// "BrowserbaseRequestParams".
+	BrowserbaseRequestParams *BrowserbaseRequestParams `json:"BrowserbaseRequestParams,omitempty,omitzero"`
+
+	// BrowserbaseRequestResult corresponds to the JSON schema field
+	// "BrowserbaseRequestResult".
+	BrowserbaseRequestResult *BrowserbaseRequestResult `json:"BrowserbaseRequestResult,omitempty,omitzero"`
+
 	// BrowserbaseSessionCreateParams corresponds to the JSON schema field
 	// "BrowserbaseSessionCreateParams".
 	BrowserbaseSessionCreateParams *BrowserbaseSessionCreateParams `json:"BrowserbaseSessionCreateParams,omitempty,omitzero"`
+
+	// BrowserbaseTransportError corresponds to the JSON schema field
+	// "BrowserbaseTransportError".
+	BrowserbaseTransportError *BrowserbaseTransportError `json:"BrowserbaseTransportError,omitempty,omitzero"`
 
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
@@ -2476,6 +2586,9 @@ type generatedModelCatalog struct {
 
 	// InputFilePayload corresponds to the JSON schema field "InputFilePayload".
 	InputFilePayload *InputFilePayload `json:"InputFilePayload,omitempty,omitzero"`
+
+	// JSONRPCRequestID corresponds to the JSON schema field "JSONRPCRequestId".
+	JSONRPCRequestID *JSONRPCRequestID `json:"JSONRPCRequestId,omitempty,omitzero"`
 
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
 	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`

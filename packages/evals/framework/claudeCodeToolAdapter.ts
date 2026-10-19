@@ -25,6 +25,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { type EvalResultContract, readResultContract } from "./harnesses/externalRunner.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
@@ -132,6 +133,14 @@ the guidance below:
 - When finished, report the result in the exact \`EVAL_RESULT\` format
   requested by the harness prompt.
 `;
+
+// The addendum's last rule names the marker line; a JSON run must not be told
+// to answer in two formats.
+function evalHarnessAddendum(resultContract: EvalResultContract): string {
+  return resultContract === "marker"
+    ? EVAL_HARNESS_ADDENDUM
+    : EVAL_HARNESS_ADDENDUM.replace("in the exact `EVAL_RESULT` format", "as the JSON report");
+}
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const RUN_TOOL_SERVER = AGENT_RUN_TOOL_SERVER;
 const RUN_TOOL_NAME = AGENT_RUN_TOOL_NAME;
@@ -642,7 +651,7 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
   const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
   await fsp.writeFile(
     path.join(targetDir, "SKILL.md"),
-    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
+    insertAfterFrontmatter(cliSkill, evalHarnessAddendum(readResultContract("marker"))),
   );
 }
 

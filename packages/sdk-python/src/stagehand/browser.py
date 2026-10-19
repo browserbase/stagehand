@@ -73,7 +73,7 @@ _DEFAULT_CHROME_FLAGS = (
     "--propagate-iph-for-testing",
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
-    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 )
 
 _BROWSER_TOKEN = object()
@@ -85,6 +85,8 @@ _CHROME_REQUEST_TIMEOUT_SECONDS = 0.1
 class _WorkerInitMetadata:
     api_key: str | None
     browser: BrowserSessionMetadata | None
+    browser_cdp_url: str | None = None
+    """The CDP WebSocket the extension dials, when it is not the client's own."""
 
 
 @dataclass(frozen=True)
@@ -533,18 +535,25 @@ class LocalBrowser:
         *,
         cdp_url: str,
         extension_id: str | None = None,
+        extension_cdp_url: str | None = None,
     ) -> StagehandBrowser:
         """Connect to an existing browser.
 
         Args:
             extension_id: Deprecated and ignored. Omit this argument; Stagehand
                 discovers the installed extension automatically.
+            extension_cdp_url: The browser-level CDP WebSocket that Stagehand's
+                extension dials from inside the browser. Defaults to the one this
+                client connected to. Set it when the client reaches Chrome through
+                a proxy the browser cannot or should not use, such as an
+                authenticated gateway whose URL carries credentials.
         """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("cdp_url", cdp_url),
                 ("extension_id", extension_id),
+                ("extension_cdp_url", extension_cdp_url),
             )
             if value is not None
         })
@@ -553,7 +562,11 @@ class LocalBrowser:
             origin="connected",
             source=_ConnectedBrowserSource(options.cdp_url),
             local_extension_dir=lambda: str(extension_directory()),
-            worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
+            worker_init_metadata=_WorkerInitMetadata(
+                api_key=None,
+                browser=None,
+                browser_cdp_url=options.extension_cdp_url,
+            ),
         )
 
 

@@ -36,7 +36,11 @@ import { withStagehandInitDeadline } from "../timeouts.js";
 export { isStagehandBrowser };
 export type { BrowserbaseBrowser, LocalBrowser, StagehandBrowser } from "./index.js";
 
-export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "browser">;
+export type StagehandWorkerInitMetadata = {
+  browserCdpUrl?: string;
+  apiKey?: string;
+  browser?: StagehandInitParams["browser"];
+};
 
 export type ClaimedStagehandBrowser = {
   cdpClient: CDPClient;
@@ -133,7 +137,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             connectCdp,
             extension: { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
-            workerInitMetadata: {},
+            workerInitMetadata: { browserCdpUrl: parsed.extensionCdpUrl },
           }),
         );
       },

@@ -56,7 +56,9 @@ const (
 
 // CreateOptions configures Stagehand over a factory-created Browser handle.
 type CreateOptions struct {
-	Browser            *Browser
+	Browser *Browser
+	// APIKey does not override the key supplied to LaunchBrowserbase or
+	// ConnectBrowserbase for a Browserbase browser.
 	APIKey             *string
 	APIURL             *string
 	Cache              *Caching

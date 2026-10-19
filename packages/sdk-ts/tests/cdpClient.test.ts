@@ -141,6 +141,36 @@ describe("CDP WebSocket transport", () => {
     expect(createSocket).toHaveBeenCalledWith("wss://browser.example/devtools/browser/session");
   });
 
+  it.each([false, true])(
+    "notifies explicit close once when socket.close throws: %s",
+    async (throws) => {
+      const socket = new FakeWebSocket();
+      socket.open();
+      const client = new CDPClient(socket as never, "ws://localhost/test");
+      const onclose = vi.fn(() => client.close());
+      client.onclose = onclose;
+      const pending = client.sendCommand("Browser.getVersion");
+      const rejected = expect(pending).rejects.toThrow("CDP client closed");
+      if (throws)
+        socket.close.mockImplementation(() => {
+          throw new Error("socket close failed");
+        });
+
+      if (throws) expect(() => client.close()).toThrow("socket close failed");
+      else client.close();
+      socket.closeFromRemote();
+      client.close();
+
+      await rejected;
+      expect(onclose).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "CDP client closed" }),
+      );
+      expect(socket.close).toHaveBeenCalledOnce();
+      expect(client.pending.size).toBe(0);
+      expect(client.onclose).toBeUndefined();
+    },
+  );
+
   it("normalizes an Undici socket error before close as one connection-closed failure", async () => {
     const socket = new FakeWebSocket();
     socket.open();

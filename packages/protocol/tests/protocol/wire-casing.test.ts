@@ -467,7 +467,7 @@ describe("JSON-RPC wire casing", () => {
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info" as const,
-      apiKey: "bb_key",
+      browserbase: "client" as const,
       browser: {
         sessionId: "session_123",
         region: "eu-central-1" as const,
@@ -488,7 +488,7 @@ describe("JSON-RPC wire casing", () => {
       protocol_version: STAGEHAND_PROTOCOL_VERSION,
       client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
       log_level: "info",
-      api_key: "bb_key",
+      browserbase: "client",
       browser: {
         session_id: "session_123",
         region: "eu-central-1",

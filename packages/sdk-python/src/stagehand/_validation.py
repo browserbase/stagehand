@@ -16,6 +16,19 @@ def _validate_url(value: str) -> str:
 WireUrl = Annotated[str, AfterValidator(_validate_url)]
 
 
+def _validate_websocket_url(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme not in ("ws", "wss") or not parsed.hostname:
+        raise ValueError("must be a ws:// or wss:// URL with a host")
+    _url_adapter.validate_python(value)
+    if parsed.port == 0:
+        raise ValueError("port must be between 1 and 65535")
+    return value
+
+
+WireWebSocketUrl = Annotated[str, AfterValidator(_validate_websocket_url)]
+
+
 class WireModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True, allow_inf_nan=False)
 
@@ -54,4 +67,14 @@ class TelemetryConfigValidation(WireModel):
         endpoint = traces.get("endpoint")
         if isinstance(endpoint, str) and not urlparse(endpoint).path.endswith("/v1/traces"):
             raise ValueError("OTLP trace endpoint must end with /v1/traces")
+        return value
+
+
+class StagehandInitParamsValidation(WireModel):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_browserbase_metadata(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            if value.get("browserbase") is not None and value.get("browser") is None:
+                raise ValueError("Client Browserbase transport requires browser metadata")
         return value
