@@ -621,7 +621,7 @@ If the client connects through a proxy or authenticated gateway, you can give th
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await localBrowser.connect({
-  cdpUrl: "wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+  cdpUrl: "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
   extensionCdpUrl: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
 });
 const stagehand = await Stagehand.create({ browser });
@@ -633,7 +633,7 @@ const stagehand = await Stagehand.create({ browser });
 from stagehand import Stagehand, local_browser
 
 browser = await local_browser.connect(
-    cdp_url="wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+    cdp_url="wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
     extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
 )
 stagehand = await Stagehand.create(browser=browser)
@@ -643,7 +643,7 @@ stagehand = await Stagehand.create(browser=browser)
 <Tab title="Go">
 ```go
 browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
-	CDPURL:          "wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+	CDPURL:          "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
 	ExtensionCDPURL: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
 })
 if err != nil {
