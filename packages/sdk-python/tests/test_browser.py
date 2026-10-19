@@ -629,6 +629,8 @@ async def test_local_connect_defaults_the_extension_to_the_client_url(
         "/devtools/browser/abc",
         "ws://browser:bad/devtools",
         "ws://browser:99999/devtools",
+        "ws://browser:0/devtools",
+        "wss://browser:0/devtools",
     ],
 )
 async def test_local_connect_rejects_an_invalid_extension_cdp_url(

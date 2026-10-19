@@ -21,6 +21,8 @@ def _validate_websocket_url(value: str) -> str:
     if parsed.scheme not in ("ws", "wss") or not parsed.hostname:
         raise ValueError("must be a ws:// or wss:// URL with a host")
     _url_adapter.validate_python(value)
+    if parsed.port == 0:
+        raise ValueError("port must be between 1 and 65535")
     return value
 
 
