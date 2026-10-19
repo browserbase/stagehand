@@ -23,6 +23,30 @@ function deferred<T>() {
 }
 
 describe("Stagehand browser factories", () => {
+  describe.each<Record<string, string> | undefined>([
+    undefined,
+    {},
+    { Authorization: "Bearer test-token", "X-Api-Key": "test-key" },
+  ])("local connect headers %j", (headers) => {
+    it.each([undefined, "ws://localhost:9222/devtools/browser/extension"])(
+      "keeps headers client-side with extension URL %s",
+      async (extensionCdpUrl) => {
+        const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+        const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
+        const browser = await localBrowser.connect({
+          cdpUrl: "wss://gateway.example/browser",
+          headers,
+          extensionCdpUrl,
+        });
+        expect(connectCdp.mock.calls[0]?.[0].headers).toEqual(headers);
+        expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
+          browserCdpUrl: extensionCdpUrl,
+        });
+        await invalidateStagehandBrowser(browser);
+      },
+    );
+  });
+
   it.each([
     "",
     "http://browser",
