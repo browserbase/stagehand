@@ -64,7 +64,19 @@ export const LocalBrowserConnectOptionsSchema = z
      * Defaults to the client's URL. Set this when the client connects through
      * a gateway the extension cannot or should not use.
      */
-    extensionCdpUrl: z.url({ protocol: /^wss?$/, hostname: /.+/ }).optional(),
+    extensionCdpUrl: z
+      .url({ protocol: /^wss?$/, hostname: /.+/ })
+      .refine(
+        (value) => {
+          try {
+            return new URL(value).port !== "0";
+          } catch {
+            return false;
+          }
+        },
+        { message: "Port must be between 1 and 65535" },
+      )
+      .optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 

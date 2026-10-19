@@ -31,6 +31,8 @@ describe("Stagehand browser factories", () => {
     "/devtools/browser/abc",
     "ws://browser:bad/devtools",
     "ws://browser:99999/devtools",
+    "ws://browser:0/devtools",
+    "wss://browser:0/devtools",
   ])("rejects invalid extension CDP URL %s before connecting", async (extensionCdpUrl) => {
     const connectCdp = vi.fn(async () => fakeCdpClient());
     const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
