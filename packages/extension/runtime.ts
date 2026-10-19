@@ -340,6 +340,7 @@ export class StagehandRuntime {
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
+  private browserSessionCdpUrl?: string;
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -364,6 +365,7 @@ export class StagehandRuntime {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
+    this.browserSessionCdpUrl = undefined;
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
@@ -375,6 +377,7 @@ export class StagehandRuntime {
         this.logger,
         bootstrapLogger,
       );
+      this.browserSessionCdpUrl = cdpUrl;
     } catch (error) {
       await this.browserSession?.close();
       this.browserSession = undefined;
@@ -398,7 +401,10 @@ export class StagehandRuntime {
           throw new Error("A Stagehand instance is already initialized");
         }
         this.logger.setLevel(params.logLevel);
-        if (!this.browserSession?.connected) {
+        if (
+          !this.browserSession?.connected ||
+          (params.browserCdpUrl !== undefined && params.browserCdpUrl !== this.browserSessionCdpUrl)
+        ) {
           if (!params.browserCdpUrl) {
             throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
           }
@@ -991,6 +997,7 @@ export class StagehandRuntime {
     await this.enqueueLifecycle(async () => {
       const session = this.browserSession;
       this.browserSession = undefined;
+      this.browserSessionCdpUrl = undefined;
       this.clearStagehandInstance();
       await session?.close();
     });
