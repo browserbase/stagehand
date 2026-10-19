@@ -20,6 +20,7 @@ def _validate_websocket_url(value: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme not in ("ws", "wss") or not parsed.hostname:
         raise ValueError("must be a ws:// or wss:// URL with a host")
+    _url_adapter.validate_python(value)
     return value
 
 

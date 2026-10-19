@@ -621,9 +621,17 @@ async def test_local_connect_defaults_the_extension_to_the_client_url(
 
 
 @pytest.mark.parametrize(
-    "extension_cdp_url", ["", "http://127.0.0.1:9300", "ws://", "/devtools/browser/abc"]
+    "extension_cdp_url",
+    [
+        "",
+        "http://127.0.0.1:9300",
+        "ws://",
+        "/devtools/browser/abc",
+        "ws://browser:bad/devtools",
+        "ws://browser:99999/devtools",
+    ],
 )
-async def test_local_connect_rejects_a_non_websocket_extension_cdp_url(
+async def test_local_connect_rejects_an_invalid_extension_cdp_url(
     fake_cdp: type[FakeCDPClient],
     extension_cdp_url: str,
 ) -> None:
