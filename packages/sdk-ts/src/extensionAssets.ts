@@ -22,9 +22,9 @@ export const STAGEHAND_EXTENSION_DIRECTORY_PATH =
 
 /**
  * Returns the ZIP archive of the extension bundled with this SDK.
- * Save or upload the buffer directly, or extract it to a directory for Chrome's
+ * Save or upload the bytes directly, or extract it to a directory for Chrome's
  * Load unpacked option. No browser session is required.
  */
-export async function getExtensionArchive(): Promise<Buffer> {
+export async function getExtensionArchive(): Promise<Uint8Array> {
   return readFile(STAGEHAND_EXTENSION_ARCHIVE_PATH);
 }

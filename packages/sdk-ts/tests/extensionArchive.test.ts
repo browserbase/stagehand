@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { getExtensionArchive } from "../src/index.js";
 
 describe("getExtensionArchive", () => {
@@ -9,12 +9,13 @@ describe("getExtensionArchive", () => {
       new URL("../dist/assets/stagehand-extension.zip", import.meta.url),
     );
 
-    expect(Buffer.isBuffer(archive)).toBe(true);
-    expect(archive.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
-    expect(archive).toEqual(bundledArchive);
+    expectTypeOf(getExtensionArchive).returns.toEqualTypeOf<Promise<Uint8Array>>();
+    expect(archive).toBeInstanceOf(Uint8Array);
+    expect(Array.from(archive.subarray(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
+    expect(Uint8Array.from(archive)).toEqual(Uint8Array.from(bundledArchive));
   });
 
-  it("returns independent buffers so callers cannot corrupt subsequent archives", async () => {
+  it("returns independent byte arrays so callers cannot corrupt subsequent archives", async () => {
     const original = await getExtensionArchive();
     const modified = await getExtensionArchive();
     modified.fill(0);
