@@ -31,13 +31,21 @@ The runner-only `session_info` call reports browser identity and is absent from
 the model-facing tool list.
 
 The build also writes `dist/facade-bundle.json` for facade hosts in other
-languages: the exact callback sources the facade sends to `experimentalBatch`
-(`run` code is `runPrelude + code + runEpilogue`; `run` actions is `actionRunner`),
+languages: the exact callback sources the facade sends to `experimentalBatch`,
 the tools/list of each tool set, and the error and screenshot messages hosts
 return verbatim. The TypeScript facade builds what it sends from the same
-constants. A host must reject run `code` that does not parse on its own as an async
-function body, as `AsyncFunction(params, code)` does in TypeScript, before joining
-it with the prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
+constants. A host sends the sources unchanged and supplies only the batch input:
+
+| Callback                                      | Input                                                        | Result                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `run` code: `runPrelude + code + runEpilogue` | `{ hiddenPageIds?: string[] }`, pages hidden from agent code | `{ value, executionError?, telemetry, artifacts, closeRequested, batchRuntimeMs }`; errors thrown by `code` are `executionError` |
+| `run` actions: `actionRunner`                 | `{ actions, xpathById }`, the latest snapshot's XPath map    | `{ completed }`, or `{ staleId }` before any action runs, which the host reports as `STALE_SNAPSHOT_ID_ERROR`                    |
+
+The host keeps the per-page snapshot map and the missing-snapshot and navigation
+checks; `src/facade/bundle.ts` documents the shapes in full. A host must reject
+run `code` that does not parse on its own as an async function body, as
+`AsyncFunction(params, code)` does in TypeScript, before joining it with the
+prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
 `{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
 escaping, so non-ASCII characters are not escaped.
 
