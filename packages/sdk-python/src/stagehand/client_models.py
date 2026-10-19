@@ -18,7 +18,7 @@ from ._generated.models import (
     StagehandResultMetadata,
     TelemetryConfig,
 )
-from ._validation import WireModel, WireUrl
+from ._validation import WireModel, WireUrl, WireWebSocketUrl
 from .browserbase_session import DEFAULT_BROWSERBASE_URL
 from .client_types import Cache as CacheInput
 
@@ -108,6 +108,8 @@ class LocalBrowserConnectOptions(WireModel):
     cdp_url: Annotated[str, Field(min_length=1)]
     extension_id: str | None = None
     """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+    extension_cdp_url: WireWebSocketUrl | None = None
+    """Browser-level CDP WebSocket the extension dials, when it differs from `cdp_url`."""
 
 
 class BrowserbaseClientOptions(WireModel):

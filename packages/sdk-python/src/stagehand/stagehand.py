@@ -500,6 +500,11 @@ class Stagehand:
             raise RuntimeError(_UNAVAILABLE_MESSAGE)
         return self._rpc_client
 
+    def _worker_init_params(self, claimed: _ClaimedBrowser) -> StagehandInitParams:
+        browser_cdp_url = (
+            claimed.worker_init_metadata.browser_cdp_url
+            or claimed.cdp_client.web_socket_debugger_url
+        )
     def _worker_init_params(
         self, claimed: _ClaimedBrowser, *, has_browserbase_connection: bool
     ) -> StagehandInitParams:
