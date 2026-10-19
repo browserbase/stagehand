@@ -27,6 +27,8 @@ import {
   stagehandFacadeConfigFromEnv,
 } from "@browserbasehq/stagehand-integrations/facade";
 
+import { compactSnapshotTree } from "./snapshot-compaction.js";
+
 type FacadeResources = {
   browser: StagehandBrowser;
   stagehand: Stagehand;
@@ -51,6 +53,17 @@ const runParameters = Type.Object({
 
 const snapshotParameters = Type.Object({
   includeIframes: Type.Optional(Type.Boolean()),
+  compact: Type.Optional(
+    Type.Boolean({
+      description:
+        "Drop layout containers and fragmented text so the tree costs far fewer tokens. Default true; false returns the raw accessibility tree.",
+    }),
+  ),
+  maxChars: Type.Optional(
+    Type.Number({
+      description: "Hard cap on the returned tree size; longer trees are cut with a marker.",
+    }),
+  ),
 });
 
 const screenshotParameters = Type.Object({
@@ -110,7 +123,10 @@ export default function stagehandExtension(pi: ExtensionAPI) {
     label: "Stagehand run",
     description: RUN_TOOL_DESCRIPTION,
     promptSnippet: "run: execute a JavaScript workflow or snapshot-ID actions in the browser",
-    promptGuidelines: [FACADE_AGENT_INSTRUCTIONS],
+    promptGuidelines: [
+      FACADE_AGENT_INSTRUCTIONS,
+      "Prefer one `run` call that returns only the values you need, e.g. `return await page.evaluate(() => [...document.querySelectorAll('h2')].map((h) => h.textContent))`, over a snapshot-then-read sequence. Snapshot payloads dominate the context; extracted values do not.",
+    ],
     parameters: runParameters,
     executionMode: "sequential",
     async execute(_toolCallId, params) {
@@ -131,16 +147,21 @@ export default function stagehandExtension(pi: ExtensionAPI) {
     name: "snapshot",
     label: "Stagehand snapshot",
     description: SNAPSHOT_TOOL_DESCRIPTION,
-    promptSnippet: "snapshot: inspect the active page and hydrate bracketed element IDs",
+    promptSnippet:
+      "snapshot: list clickable/fillable elements with bracketed IDs (compact by default)",
+    promptGuidelines: [
+      "Use `snapshot` only to discover bracketed element IDs; it is compact by default and drops anonymous layout nodes. Pass `compact: false` only when you genuinely need the raw tree. To read long text or structured data, use `run` and return only the fields you need instead of dumping page content.",
+    ],
     parameters: snapshotParameters,
     executionMode: "sequential",
     async execute(_toolCallId, params) {
-      const input = SnapshotInputSchema.parse(params);
+      const { compact = true, maxChars, ...snapshotInput } = params;
+      const input = SnapshotInputSchema.parse(snapshotInput);
       const tools = await facadeTools();
       const tree = await tools.snapshot(input);
       return {
-        content: [{ type: "text", text: tree }],
-        details: {},
+        content: [{ type: "text", text: compact ? compactSnapshotTree(tree, { maxChars }) : tree }],
+        details: { compact, rawChars: tree.length },
       } satisfies AgentToolResult<unknown>;
     },
   });
