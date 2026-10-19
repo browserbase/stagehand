@@ -1112,7 +1112,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toEqual([
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
-        expression: `(${predicate.toString()})({"value":3})`,
+        expression: `() => (${predicate.toString()})(JSON.parse("{\\"value\\":3}"))`,
         options: { polling: 25, timeout: 5_000 },
       }),
       requestCall(StagehandMethods.pageWaitForFunction, {
@@ -1123,8 +1123,8 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
         expression:
-          '((value) => typeof value === "function" ? value(".foo") : value)' +
-          "((selector) => !!document.querySelector(selector))",
+          '((value) => typeof value === "function" ? () => value(JSON.parse("\\".foo\\"")) : value)' +
+          "(((selector) => !!document.querySelector(selector)))",
         options: { timeout: 0 },
       }),
     ]);

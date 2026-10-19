@@ -151,20 +151,46 @@ describe("Page.waitForFunction", () => {
     ]);
   });
 
-  it("stands in for waitForNavigation and waitForURL across a page-initiated load", async () => {
-    const start = await page.url();
-    const target = `${fixture.url}after`;
-    const navigated = page.waitForFunction((from) => location.href !== from, start, {
-      timeout: 5000,
+  it("stands in for waitForNavigation across a same-URL reload", async () => {
+    await page.evaluate(() => {
+      (window as typeof window & { __before?: boolean }).__before = true;
     });
-    const reachedUrl = page.waitForFunction((url) => location.href === url, target, {
-      timeout: 5000,
+    const navigated = page.waitForFunction(
+      () => !(window as typeof window & { __before?: boolean }).__before,
+      undefined,
+      { timeout: 5000 },
+    );
+    await page.evaluate(() => {
+      setTimeout(() => location.reload(), 100);
     });
+    await expect(navigated).resolves.toBe(true);
+  });
+
+  it("stands in for waitForURL with a flagged RegExp", async () => {
+    const pattern = /\/AFTER$/i;
+    const reachedUrl = page.waitForFunction(
+      ([source, flags]) => new RegExp(source, flags).test(location.href),
+      [pattern.source, pattern.flags],
+      { timeout: 5000 },
+    );
     await page.evaluate((url) => {
       setTimeout(() => location.assign(url), 100);
-    }, target);
-    await expect(navigated).resolves.toBe(true);
+    }, `${fixture.url}after`);
     await expect(reachedUrl).resolves.toBe(true);
+  });
+
+  it("invokes a callback once per poll and rejects a function it returns", async () => {
+    await expect(
+      page.waitForFunction(() => () => true, undefined, { timeout: 2000 }),
+    ).rejects.toThrow("JSON-serializable");
+  });
+
+  it("keeps comma expressions and __proto__ keys intact when binding an argument", async () => {
+    await expect(
+      page.waitForFunction("window.pollCount++, (arg) => arg.__proto__.ok", {
+        ["__proto__"]: { ok: "kept" },
+      }),
+    ).resolves.toBe("kept");
   });
 
   it("does not retry a predicate exception that resembles a CDP context error", async () => {

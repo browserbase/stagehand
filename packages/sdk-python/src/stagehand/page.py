@@ -98,6 +98,9 @@ ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
+# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
+_UNSET_ARG = object()
+
 
 class CDPSubscription:
     def __init__(
@@ -547,21 +550,24 @@ class Page:
         self,
         expression: str,
         *,
-        arg: JsonValue = None,
+        arg: JsonValue = cast(JsonValue, _UNSET_ARG),
         polling: Literal["raf"] | float | None = None,
         timeout: int | None = None,
     ) -> JsonValue:
         """Poll JavaScript in the page until it returns a truthy JSON value."""
-        if arg is not None:
+        if arg is not _UNSET_ARG:
             try:
                 serialized_arg = json.dumps(arg, allow_nan=False)
             except (TypeError, ValueError) as error:
                 message = "page.wait_for_function: 'arg' must be JSON-serializable."
                 raise TypeError(message) from error
             # Like Playwright, a function expression receives arg; other expressions ignore it.
+            # The browser invokes the returned thunk once per poll. JSON.parse keeps own
+            # "__proto__" keys that an object literal would treat as a prototype.
+            parsed_arg = f"JSON.parse({json.dumps(serialized_arg)})"
             expression = (
-                f'((value) => typeof value === "function" ? value({serialized_arg}) : value)'
-                f"({expression})"
+                f'((value) => typeof value === "function" ? () => value({parsed_arg}) : value)'
+                f"(({expression}))"
             )
         params = PageWaitForFunctionParams(page_id=self.page_id, expression=expression)
         options = PageWaitForFunctionOptions.model_validate({

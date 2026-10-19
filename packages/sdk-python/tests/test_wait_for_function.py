@@ -66,18 +66,26 @@ async def test_wait_for_function_forwards_only_supplied_options(
 
 
 @pytest.mark.asyncio
-async def test_wait_for_function_binds_arg_for_function_expressions() -> None:
+@pytest.mark.parametrize(
+    ("arg", "parsed"),
+    [
+        ({"css": ".foo"}, 'JSON.parse("{\\"css\\": \\".foo\\"}")'),
+        (None, 'JSON.parse("null")'),
+        ({"__proto__": {"ok": True}}, 'JSON.parse("{\\"__proto__\\": {\\"ok\\": true}}")'),
+    ],
+)
+async def test_wait_for_function_binds_arg_for_function_expressions(
+    arg: JsonValue, parsed: str
+) -> None:
     rpc = RecordingRPCClient({"page.wait_for_function": {"value": True}})
     page = Page(cast(RPCClient, rpc), PageRef(page_id="page-1"))
 
-    await page.wait_for_function(
-        "selector => !!document.querySelector(selector)", arg={"css": ".foo"}
-    )
+    await page.wait_for_function("window.count++, selector => !!selector", arg=arg)
 
     params = cast(PageWaitForFunctionParams, rpc.calls[0][1])
     assert params.expression == (
-        '((value) => typeof value === "function" ? value({"css": ".foo"}) : value)'
-        "(selector => !!document.querySelector(selector))"
+        f'((value) => typeof value === "function" ? () => value({parsed}) : value)'
+        "((window.count++, selector => !!selector))"
     )
 
 

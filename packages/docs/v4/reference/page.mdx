@@ -550,8 +550,8 @@ const text = await page.waitForFunction(
 ```
 
 <ParamField path="expression" type="string | ((arg: Arg) => R | Promise<R>)">
-  A JavaScript expression string or a function to run in the page. A string that evaluates
-  to a function, such as `"() => window.ready"`, is called on each poll.
+  A JavaScript expression string or a function to run in the page. If a string evaluates
+  to a function, such as `"() => window.ready"`, the browser calls it on each poll.
 </ParamField>
 
 <ParamField path="arg" type="Arg" optional>
@@ -1422,12 +1422,12 @@ value = await page.wait_for_function(
 ```
 
 <ParamField path="expression" type="str">
-  JavaScript expression to run in the page, not a Python callable. An expression that
-  evaluates to a function, such as `"() => window.ready"`, is called on each poll.
+  JavaScript expression to run in the page, not a Python callable. If the expression
+  evaluates to a function, such as `"() => window.ready"`, the browser calls it on each poll.
 </ParamField>
 
 <ParamField path="arg" type="JsonValue" optional>
-  JSON-serializable argument passed to the function. Expressions that don't evaluate to a function ignore it.
+  JSON-serializable argument passed to the function. Expressions that don't evaluate to a function ignore it. `None` passes JSON `null`; omit `arg` to pass nothing.
 </ParamField>
 
 <ParamField path="polling" type="Literal['raf'] | float | None" optional>
@@ -2360,8 +2360,8 @@ fmt.Println(string(value))
 ```
 
 <ParamField path="expression" type="string">
-  JavaScript expression to run in the page. An expression that evaluates to a function,
-  such as `"() => window.ready"`, is called on each poll.
+  JavaScript expression to run in the page. If the expression evaluates to a function,
+  such as `"() => window.ready"`, the browser calls it on each poll.
 </ParamField>
 
 <ParamField path="options" type="*PageWaitForFunctionOptions" optional>
