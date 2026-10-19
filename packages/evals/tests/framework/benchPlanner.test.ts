@@ -76,6 +76,15 @@ describe("benchPlanner", () => {
     });
   });
 
+  it("uses the registry-derived Pydantic AI model override environment key", async () => {
+    expect(defaultModelsEnvKey("pydantic_ai")).toBe("EVAL_PYDANTIC_AI_MODELS");
+    await withEnvOverrides({ EVAL_PYDANTIC_AI_MODELS: "openai/custom-pydantic-ai" }, async () => {
+      expect(
+        resolveBenchModelEntries([makeTask()], { harness: "pydantic_ai" }).modelEntries,
+      ).toEqual([{ modelName: "openai/custom-pydantic-ai", mode: "hybrid", cua: false }]);
+    });
+  });
+
   it("uses the registry-derived fx model override environment key", async () => {
     expect(defaultModelsEnvKey("fx")).toBe("EVAL_FX_MODELS");
     await withEnvOverrides({ EVAL_FX_MODELS: "openai/custom-fx" }, async () => {

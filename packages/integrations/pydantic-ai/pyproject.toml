@@ -19,8 +19,9 @@ select = ["ANN", "E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "agent.py" = ["E501"]
+"runner/tests/*" = ["ANN401", "E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
-pythonpath = ["."]
+testpaths = ["tests", "runner/tests"]
+pythonpath = [".", "runner"]
