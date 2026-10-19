@@ -42,6 +42,14 @@ class BrowserbaseFingerprint(TypedDict):
     screen: NotRequired[BrowserbaseFingerprintScreen]
 
 
+class BrowserbaseHttpResponse(TypedDict):
+    type: Literal["response"]
+    status: int
+    status_text: str
+    headers: dict[str, str]
+    body: str
+
+
 class BrowserbaseProxyGeolocation(TypedDict):
     country: str
     city: NotRequired[str]
@@ -60,6 +68,22 @@ BrowserbaseRegion: TypeAlias = Literal["us-west-2", "us-east-1", "eu-central-1",
 class BrowserSessionMetadata(TypedDict):
     session_id: str
     region: NotRequired[BrowserbaseRegion]
+
+
+class BrowserbaseRequestParams(TypedDict):
+    operation: Literal["gateway.responses", "cache.get", "cache.set"]
+    headers: dict[str, str]
+    body: str
+    remaining_timeout_ms: NotRequired[float]
+
+
+class BrowserbaseTransportError(TypedDict):
+    type: Literal["error"]
+    reason: Literal["network", "cancelled", "timeout", "unavailable", "disconnected"]
+    message: str
+
+
+BrowserbaseRequestResult: TypeAlias = BrowserbaseHttpResponse | BrowserbaseTransportError
 
 
 class BrowserbaseViewport(TypedDict):
@@ -315,6 +339,11 @@ class JSONRPCErrorObject(TypedDict):
 
 
 JSONRPCRequestId: TypeAlias = int
+
+
+class BrowserbaseCancelParams(TypedDict):
+    request_id: JSONRPCRequestId
+    reason: Literal["cancelled", "timeout"]
 
 
 JSONRPCErrorResponseId: TypeAlias = JSONRPCRequestId | None
@@ -1167,8 +1196,7 @@ class StagehandInitParams(TypedDict):
     protocol_version: str
     client_info: ImplementationInfo
     browser_cdp_url: NotRequired[str]
-    api_key: NotRequired[str]
-    api_url: NotRequired[str]
+    browserbase: NotRequired[Literal["client"]]
     browser: NotRequired[BrowserSessionMetadata]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]

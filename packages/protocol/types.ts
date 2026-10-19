@@ -7,6 +7,11 @@ import type {
 } from "./schema-registry.js";
 import type {
   ActionSchema,
+  BrowserbaseCancelParamsSchema,
+  BrowserbaseHttpResponseSchema,
+  BrowserbaseRequestParamsSchema,
+  BrowserbaseRequestResultSchema,
+  BrowserbaseTransportErrorSchema,
   ActOptionsSchema,
   ActResultDataSchema,
   ActResultSchema,
@@ -245,6 +250,12 @@ import type {
   WebMCPToolResponseSchema,
   WebMCPToolsOptionsSchema,
 } from "./schemas.js";
+
+export type BrowserbaseCancelParams = z.infer<typeof BrowserbaseCancelParamsSchema>;
+export type BrowserbaseHttpResponse = z.infer<typeof BrowserbaseHttpResponseSchema>;
+export type BrowserbaseRequestParams = z.infer<typeof BrowserbaseRequestParamsSchema>;
+export type BrowserbaseRequestResult = z.infer<typeof BrowserbaseRequestResultSchema>;
+export type BrowserbaseTransportError = z.infer<typeof BrowserbaseTransportErrorSchema>;
 
 export type VariablePrimitive = z.infer<typeof VariablePrimitiveSchema>;
 export type VariableValue = z.infer<typeof VariableValueSchema>;

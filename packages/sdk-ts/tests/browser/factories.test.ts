@@ -23,6 +23,26 @@ function deferred<T>() {
 }
 
 describe("Stagehand browser factories", () => {
+  it.each([
+    "",
+    "http://browser",
+    "https://browser",
+    "ws://",
+    "/devtools/browser/abc",
+    "ws://browser:bad/devtools",
+    "ws://browser:99999/devtools",
+    "ws://browser:0/devtools",
+    "wss://browser:0/devtools",
+  ])("rejects invalid extension CDP URL %s before connecting", async (extensionCdpUrl) => {
+    const connectCdp = vi.fn(async () => fakeCdpClient());
+    const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
+
+    await expect(
+      localBrowser.connect({ cdpUrl: "ws://browser", extensionCdpUrl }),
+    ).rejects.toThrow();
+    expect(connectCdp).not.toHaveBeenCalled();
+  });
+
   it("launches a local browser and prepares the packaged extension", async () => {
     const closeSource = vi.fn();
     const launchLocalBrowser = vi.fn(async () => ({

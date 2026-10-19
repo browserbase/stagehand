@@ -16,6 +16,7 @@ import {
   RPCClientOptionsSchema,
   rpcResponseTimeoutMs,
   type CDPTransport,
+  type RPCRequestContext,
 } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
@@ -737,6 +738,39 @@ describe("RPCClient", () => {
     expect(calls).toBe(0);
     expect(cdp.sent).toStrictEqual([]);
   });
+
+  it.each(["resolve", "reject"])(
+    "provides incoming context and ignores a late %s after close",
+    async (outcome) => {
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      let receivedContext: RPCRequestContext | undefined;
+      let resolve!: (result: { value: string }) => void;
+      let reject!: (error: Error) => void;
+      client.onRequest(UppercaseMethod, (_params, requestContext) => {
+        receivedContext = requestContext;
+        return new Promise((done, fail) => {
+          resolve = done;
+          reject = fail;
+        });
+      });
+      const pending = cdp.receive({
+        jsonrpc: "2.0",
+        id: 91,
+        method: UppercaseMethod.name,
+        params: { value: "pending" },
+      });
+      expect(receivedContext?.requestId).toBe(91);
+      expect(receivedContext?.signal.aborted).toBe(false);
+      const reason = new Error("connection closed");
+      client.close(reason);
+      expect(receivedContext?.signal.reason).toBe(reason);
+      if (outcome === "resolve") resolve({ value: "finished" });
+      else reject(new Error("late failure"));
+      await pending;
+      expect(cdp.sent).toEqual([]);
+    },
+  );
 
   it("can close without taking ownership of the CDP transport", () => {
     const cdp = new ManualCDPTransport();
