@@ -279,6 +279,38 @@ describe("waitForSelector deadline", () => {
     },
   );
 
+  it.each(["Execution context was destroyed.", "Inspected target navigated or closed"])(
+    "re-issues a wait that a navigation tears down: %s",
+    async (text) => {
+      vi.spyOn(executionContexts, "waitForLocatorWorld")
+        .mockResolvedValueOnce({
+          contextId: 2,
+          kind: "extension",
+          capabilities: { closedShadowRoots: true },
+        })
+        .mockResolvedValueOnce({
+          contextId: 3,
+          kind: "extension",
+          capabilities: { closedShadowRoots: true },
+        });
+      let awaited = 0;
+      send.mockImplementation(async (method, params) => {
+        if (
+          method === "Runtime.callFunctionOn" &&
+          (params as { awaitPromise?: boolean }).awaitPromise &&
+          ++awaited === 1
+        ) {
+          throw new Error(text);
+        }
+        return respond(method);
+      });
+      await expect(page.waitForSelector("button", { timeout: 100 })).resolves.toBe(true);
+      expect(awaited).toBe(2);
+      expect(waits()).toHaveLength(2);
+      expect(waits()[1][1]).toMatchObject({ contextId: 3 });
+    },
+  );
+
   it("does not recreate a wait when disposal consumes the remaining deadline", async () => {
     const cleanup = deferred<unknown>();
     send.mockImplementation((method, params) => {
