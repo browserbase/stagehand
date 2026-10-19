@@ -19,8 +19,8 @@ grok login
 
 ## Configure
 
-Copy `.grok/config.toml` and `AGENTS.md` from this directory to your project, then replace the facade path and
-export `BROWSERBASE_API_KEY`. Grok expands `${BROWSERBASE_API_KEY}` from the environment and
+Copy `.grok/config.toml` and `AGENTS.md` from this directory to your project. Replace the
+facade path and export `BROWSERBASE_API_KEY`. Grok expands `${BROWSERBASE_API_KEY}` from the environment and
 loads project MCP configuration after you trust the project. Start an interactive `grok` session
 once to approve project trust before using the headless command below.
 
