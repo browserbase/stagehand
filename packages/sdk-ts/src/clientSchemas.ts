@@ -55,9 +55,46 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
+// Validate the whole map before record parsing so errors never contain header names or values.
+const CDPHeadersSchema = z.preprocess(
+  (value) => {
+    try {
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value) ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+      )
+        return null;
+      const entries = Object.entries(value);
+      if (
+        !entries.every(
+          ([name, content]) =>
+            name.length > 0 &&
+            !/[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(name) &&
+            typeof content === "string" &&
+            !/[^\t\x20-\x7e]/.test(content) &&
+            content === content.replace(/^[ \t]+|[ \t]+$/g, ""),
+        )
+      )
+        return null;
+      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
+      return Object.fromEntries(entries);
+    } catch {
+      return null;
+    }
+  },
+  z.record(z.string(), z.string(), {
+    error:
+      "headers must map valid HTTP header names to ASCII string values without leading or trailing spaces or tabs",
+  }),
+);
+
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
+    /** Headers for client-side CDP discovery and WebSocket connections. */
+    headers: CDPHeadersSchema.optional(),
     extensionId: z.string().optional(),
     /**
      * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
