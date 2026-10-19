@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import importlib
 import inspect
 import json
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar, assert_type, cast, overload
 
 import pytest
@@ -19,6 +21,7 @@ from stagehand import (
     LLMImageContent,
     ModelConfig,
     Page,
+    PlaywrightRunError,
     Stagehand,
     TelemetryConfig,
 )
@@ -210,7 +213,7 @@ async def test_run_runs_code_through_the_compat_runtime(
     monkeypatch.setattr(
         "stagehand.stagehand.playwright_batch_source", lambda code: f"wrapped({code})"
     )
-    recording = _recording({"stagehand.callback_batch": {"value": "Example"}})
+    recording = _recording({"stagehand.callback_batch": {"value": _run_envelope(value="Example")}})
     _install_rpc_client(monkeypatch, recording)
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
@@ -224,6 +227,101 @@ async def test_run_runs_code_through_the_compat_runtime(
         assert params.options.timeout == 2_000
     finally:
         await stagehand.close()
+
+
+def _stub_compat_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "stagehand.stagehand.playwright_batch_source", lambda code: f"wrapped({code})"
+    )
+
+
+def _run_envelope(
+    *,
+    value: object = None,
+    artifacts: list[dict[str, str]] | None = None,
+    close_requested: bool = False,
+    execution_error: dict[str, str] | None = None,
+) -> dict[str, object]:
+    return {
+        "value": value,
+        "artifacts": artifacts or [],
+        "closeRequested": close_requested,
+        **({"executionError": execution_error} if execution_error else {}),
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_writes_screenshots_saved_with_a_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_compat_source(monkeypatch)
+    png = base64.b64encode(b"\x89PNG fake").decode()
+    recording = _recording({
+        "stagehand.callback_batch": {
+            "value": _run_envelope(
+                value="ok", artifacts=[{"path": "shots/home.png", "base64": png}]
+            )
+        }
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        result = await stagehand.run(
+            "await page.screenshot({ path: 'shots/home.png' }); return 'ok';",
+            artifact_root=tmp_path,
+        )
+        assert result == "ok"
+        assert (tmp_path / "shots" / "home.png").read_bytes() == b"\x89PNG fake"
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_run_closes_when_the_code_closes_the_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_compat_source(monkeypatch)
+    recording = _recording({
+        "stagehand.callback_batch": {"value": _run_envelope(value=1, close_requested=True)}
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    assert await stagehand.run("await browser.close(); return 1;") == 1
+    assert [call[0] for call in recording.calls].count("stagehand.close") == 1
+
+
+@pytest.mark.asyncio
+async def test_run_raises_the_code_error_after_writing_screenshots_and_closing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_compat_source(monkeypatch)
+    png = base64.b64encode(b"png").decode()
+    recording = _recording({
+        "stagehand.callback_batch": {
+            "value": _run_envelope(
+                artifacts=[{"path": "before.png", "base64": png}],
+                close_requested=True,
+                execution_error={
+                    "name": "TimeoutError",
+                    "message": "locator.click: Timeout 5000ms exceeded.",
+                    "stack": "TimeoutError: locator.click ...",
+                },
+            )
+        }
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    with pytest.raises(PlaywrightRunError, match="TimeoutError: locator.click") as raised:
+        await stagehand.run("throw new Error('x');", artifact_root=tmp_path)
+    assert raised.value.name == "TimeoutError"
+    assert raised.value.stack == "TimeoutError: locator.click ..."
+    assert (tmp_path / "before.png").read_bytes() == b"png"
+    assert [call[0] for call in recording.calls].count("stagehand.close") == 1
 
 
 @pytest.mark.asyncio
