@@ -59,6 +59,12 @@ export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
     extensionId: z.string().optional(),
+    /**
+     * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
+     * Defaults to the client's URL. Set this when the client connects through
+     * a gateway the extension cannot or should not use.
+     */
+    extensionCdpUrl: z.url({ protocol: /^wss?$/, hostname: /.+/ }).optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
