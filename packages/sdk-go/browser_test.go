@@ -405,6 +405,7 @@ func TestConnectLocalBrowserRejectsInvalidExtensionCDPURL(t *testing.T) {
 	for _, endpoint := range []string{
 		"http://browser", "https://browser", "ws://", "ws://:9300/devtools",
 		"/devtools/browser/abc", "ws://browser:bad/devtools", "ws://browser:99999/devtools",
+		"ws://browser:0/devtools", "wss://browser:0/devtools",
 	} {
 		t.Run(endpoint, func(t *testing.T) {
 			connected := false

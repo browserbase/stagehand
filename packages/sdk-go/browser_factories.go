@@ -207,7 +207,7 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 			return nil, errors.New("extension CDP URL must be a ws:// or wss:// URL with a host")
 		}
 		if port := parsed.Port(); port != "" {
-			if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+			if portNumber, err := strconv.ParseUint(port, 10, 16); err != nil || portNumber == 0 {
 				return nil, errors.New("extension CDP URL must have a valid port")
 			}
 		}
