@@ -3,7 +3,7 @@ import { outputTable } from "../output.js";
 
 export function outputTemplateTable(
   templates: Template[],
-  options: { heading?: string; wide?: boolean } = {},
+  options: { heading?: string; wide?: boolean; footer?: boolean } = {},
 ): void {
   if (templates.length === 0) {
     console.log("No templates found.");
@@ -46,7 +46,8 @@ export function outputTemplateTable(
     { wide: options.wide },
   );
 
-  console.log("Use --wide for full values or --json for full descriptions.");
+  if (options.footer !== false)
+    console.log("Use --wide for full values or --json for full descriptions.");
 }
 
 export function printTemplateDetail(template: Template): void {

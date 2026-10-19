@@ -1,11 +1,16 @@
 import { Flags } from "@oclif/core";
+import { collectionVersionFlag, collectionLimitFlags } from "../collections.js";
+import { outputFormatFlags } from "../output.js";
 import type { ListSecretsOptions } from "./api.js";
 
-export const listSecretsFlags = {
+export const collectionSecretsFlags = {
+  ...collectionVersionFlag,
+  ...collectionLimitFlags,
+  ...outputFormatFlags,
   limit: Flags.integer({
     min: 1,
-    max: 1000,
-    description: "Maximum results per page (API default: 20).",
+    description:
+      "Maximum results: per page in version 1 (max 1000), total in version 2 (default 20).",
   }),
   cursor: Flags.string({
     description: "nextCursor from the previous page. Keep the same filters.",
