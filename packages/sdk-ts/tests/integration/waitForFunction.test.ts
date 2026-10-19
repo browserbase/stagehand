@@ -153,10 +153,10 @@ describe("Page.waitForFunction", () => {
 
   it("stands in for waitForNavigation across a same-URL reload", async () => {
     await page.evaluate(() => {
-      (window as typeof window & { __before?: boolean }).__before = true;
+      document.documentElement.dataset.stagehandBefore = "1";
     });
     const navigated = page.waitForFunction(
-      () => !(window as typeof window & { __before?: boolean }).__before,
+      () => !document.documentElement.dataset.stagehandBefore,
       undefined,
       { timeout: 5000 },
     );

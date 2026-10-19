@@ -548,7 +548,7 @@ Each of these is a direct substitution:
 | `page.getByPlaceholder(x)` | `page.locator('[placeholder*="x"]')`, substring like Playwright's default |
 | `page.getByAltText(x)`, `getByTitle(x)` | `page.locator('[alt*="x"]')`, `page.locator('[title*="x"]')` |
 | `page.getByLabel(x)` | Tag with the `label[for]` and wrapping-label lookup from `locateByRole()` |
-| `page.waitForNavigation()` | Mark the document with `page.evaluate(() => { window.__before = true; })`, then `page.waitForFunction(() => !window.__before, undefined, { timeout })`. This catches reloads and redirects back to the same URL. For `pushState` route changes, compare `location.href` instead |
+| `page.waitForNavigation()` | Mark the document with `page.evaluate(() => { document.documentElement.dataset.stagehandBefore = "1"; })`, then `page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore, undefined, { timeout })`. This catches reloads and redirects back to the same URL. For `pushState` route changes, compare `location.href` instead |
 | `page.waitForFunction(fn, arg, options)` | `page.waitForFunction(fn, arg, options)` polls in the browser and returns the truthy JSON value, not a `JSHandle` |
 | `keyboard.press(key)`, `keyboard.type(text)` | `page.keyPress(key)`, `page.type(text)` |
 | `mouse.move(x, y)`, `mouse.click(x, y)` | `page.hover(x, y)`, `page.click(x, y)` |
@@ -912,9 +912,10 @@ NAVIGATION AND WAITING
   It returns a detached JSON value, not a JSHandle, and arg must be JSON.
   Pass polling and timeout in options; like Playwright, there is no deadline
   unless you pass a timeout.
-- page.waitForNavigation() -> mark the document with
-  page.evaluate(() => { window.__before = true; }), then
-  page.waitForFunction(() => !window.__before, undefined, { timeout }).
+- page.waitForNavigation() -> mark the document with page.evaluate(() => {
+  document.documentElement.dataset.stagehandBefore = "1"; }), then
+  page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore,
+  undefined, { timeout }).
   This catches reloads too. For pushState routes, compare location.href.
 - page.waitForURL(url) -> page.waitForFunction(
   (url) => location.href === url, url, { timeout }). For a RegExp, pass
