@@ -168,6 +168,9 @@ def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:
     "headers",
     [
         {"Authorization": "dummy-secret\r\nInjected: 1"},
+        {"Authorization": "dummy-secret\xe9"},
+        {"Authorization": " dummy-secret"},
+        {"Authorization": "dummy-secret\t"},
         {"dummy-secret invalid name": "value"},
         {"Authorization": ["dummy-secret"]},
         "dummy-secret",
@@ -194,8 +197,9 @@ def test_local_connect_model_redacts_header_errors(mode: str, headers: object) -
     assert "valid HTTP header names" in details[0]["msg"]
 
 
-def test_local_connect_model_preserves_valid_header_values() -> None:
-    headers = {"Authorization": "Bearer dummy-secret", "X-Empty": ""}
+@pytest.mark.parametrize("value", ["", "Bearer dummy-secret", "a b", "a\tb", "!~"])
+def test_local_connect_model_preserves_valid_header_values(value: str) -> None:
+    headers = {"X-Api-Key": value}
     model = client_models.LocalBrowserConnectOptions(cdp_url="https://gateway", headers=headers)
-    assert model.headers == headers
-    assert headers == {"Authorization": "Bearer dummy-secret", "X-Empty": ""}
+    assert model.headers == {"X-Api-Key": value}
+    assert headers == {"X-Api-Key": value}

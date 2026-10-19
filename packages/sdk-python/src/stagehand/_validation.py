@@ -26,18 +26,18 @@ def _validate_url(value: str) -> str:
 
 WireUrl = Annotated[str, AfterValidator(_validate_url)]
 
-# RFC 9110 field names are tokens; values are visible characters, spaces and tabs.
+# RFC 9110 field names are tokens. Restrict values to ASCII so HTTP discovery
+# and WebSocket handshakes encode them identically; allow only internal whitespace.
 _HEADER_NAME = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
-_HEADER_VALUE = re.compile(r"[\t\x20-\x7e\x80-\xff]*")
+_HEADER_VALUE = re.compile(r"[\t\x20-\x7e]*")
 
 
 def _validate_headers(value: Mapping[str, str]) -> Mapping[str, str]:
     for name, header_value in value.items():
         if not _HEADER_NAME.fullmatch(name):
-            raise ValueError(f"invalid header name {name!r}")
-        if not _HEADER_VALUE.fullmatch(header_value):
-            # The value may be a credential, so it is not echoed.
-            raise ValueError(f"invalid value for header {name!r}")
+            raise ValueError
+        if not _HEADER_VALUE.fullmatch(header_value) or header_value != header_value.strip(" \t"):
+            raise ValueError
     return value
 
 
@@ -58,7 +58,8 @@ def _redact_header_validation_errors(
                     "input": "[redacted]",
                     "ctx": {
                         "error": ValueError(
-                            "headers must map valid HTTP header names to valid string values"
+                            "headers must map valid HTTP header names to ASCII string values "
+                            "without leading or trailing spaces or tabs"
                         )
                     },
                 }
