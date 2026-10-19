@@ -136,6 +136,7 @@ type registeredRequestHandler struct {
 }
 
 type registeredNotificationHandler struct {
+	control bool
 	id      uint64
 	decode  func(json.RawMessage) (any, error)
 	handler func(any)
@@ -414,13 +415,23 @@ func registerNotification[Notification any](
 	method string,
 	handler func(Notification),
 ) func() {
+	return registerTypedNotification(c, method, handler, false)
+}
+
+// Control handlers run on the reader and must only perform short internal bookkeeping.
+func registerControlNotification[Notification any](c *rpcClient, method string, handler func(Notification)) func() {
+	return registerTypedNotification(c, method, handler, true)
+}
+
+func registerTypedNotification[Notification any](c *rpcClient, method string, handler func(Notification), control bool) func() {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return func() {}
 	}
 	registration := registeredNotificationHandler{
-		id: c.nextRegistrationID,
+		control: control,
+		id:      c.nextRegistrationID,
 		decode: func(raw json.RawMessage) (any, error) {
 			var notification Notification
 			if err := decodeStrictJSON(raw, &notification); err != nil {
@@ -438,6 +449,10 @@ func registerNotification[Notification any](
 	retained := c.pendingNotifications[:0]
 	for _, notification := range c.pendingNotifications {
 		if notification.method == method {
+			// Control messages only apply to work admitted by a live registration.
+			if control {
+				continue
+			}
 			if decoded, err := registration.decode(notification.params); err == nil {
 				c.enqueueNotificationLocked(rpcNotificationDeliveryGroup{
 					deliveries: []rpcNotificationDelivery{{
@@ -623,28 +638,51 @@ func (c *rpcClient) receiveRequest(
 		return
 	}
 
-	go func() {
-		decoded, err := registration.handler.decode(params)
+	traceCarrier := propagation.MapCarrier{}
+	traceCarrier.Set("traceparent", traceparent)
+	traceCarrier.Set("tracestate", tracestate)
+	handlerContext := rpcTracePropagator.Extract(c.ctx, traceCarrier)
+	replyContext := registration.handler.replyContext
+	if replyContext == nil {
+		replyContext = c.ctx
+	}
+	finish := func() {}
+	if registration.handler.prepare != nil {
+		var err error
+		handlerContext, finish, err = registration.handler.prepare(handlerContext, requestID)
 		if err != nil {
-			c.sendError(requestID, jsonRPCInvalidParams, "Invalid params", nil)
+			c.sendErrorWithContext(replyContext, requestID, jsonRPCInternalError, err.Error(), nil)
 			return
 		}
-		traceCarrier := propagation.MapCarrier{}
-		traceCarrier.Set("traceparent", traceparent)
-		traceCarrier.Set("tracestate", tracestate)
-		handlerContext := rpcTracePropagator.Extract(c.ctx, traceCarrier)
+	}
+	finish = sync.OnceFunc(finish)
+	go func() {
+		defer finish()
+		if replyContext.Err() != nil {
+			return
+		}
+		decoded, err := registration.handler.decode(params)
+		if err != nil {
+			finish()
+			c.sendErrorWithContext(replyContext, requestID, jsonRPCInvalidParams, "Invalid params", nil)
+			return
+		}
 		result, err := registration.handler.handle(handlerContext, decoded)
+		finish()
+		if replyContext.Err() != nil {
+			return
+		}
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"name": "Error"})
-			c.sendError(requestID, jsonRPCInternalError, err.Error(), data)
+			c.sendErrorWithContext(replyContext, requestID, jsonRPCInternalError, err.Error(), data)
 			return
 		}
 		encoded, err := registration.handler.encode(result)
 		if err != nil {
-			c.sendError(requestID, jsonRPCInternalError, "Internal error", nil)
+			c.sendErrorWithContext(replyContext, requestID, jsonRPCInternalError, "Internal error", nil)
 			return
 		}
-		c.sendSuccess(requestID, encoded)
+		c.sendSuccess(replyContext, requestID, encoded)
 	}()
 }
 
@@ -672,6 +710,10 @@ func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 	for _, registration := range handlers {
 		notification, err := registration.decode(params)
 		if err != nil {
+			continue
+		}
+		if registration.control {
+			registration.handler(notification)
 			continue
 		}
 		deliveries = append(deliveries, rpcNotificationDelivery{
@@ -732,19 +774,23 @@ func (c *rpcClient) deliverNotifications() {
 	}
 }
 
-func (c *rpcClient) sendSuccess(requestID uint64, result json.RawMessage) {
+func (c *rpcClient) sendSuccess(ctx context.Context, requestID uint64, result json.RawMessage) {
 	response, err := json.Marshal(rpcSuccessEnvelope{
 		JSONRPC: jsonRPCVersion,
 		ID:      requestID,
 		Result:  result,
 	})
-	if err != nil {
+	if err != nil || ctx.Err() != nil {
 		return
 	}
-	_ = c.transport.Send(c.ctx, response)
+	_ = c.transport.Send(ctx, response)
 }
 
 func (c *rpcClient) sendError(requestID any, code int, message string, data json.RawMessage) {
+	c.sendErrorWithContext(c.ctx, requestID, code, message, data)
+}
+
+func (c *rpcClient) sendErrorWithContext(ctx context.Context, requestID any, code int, message string, data json.RawMessage) {
 	response, err := json.Marshal(rpcErrorEnvelope{
 		JSONRPC: jsonRPCVersion,
 		ID:      requestID,
@@ -754,10 +800,10 @@ func (c *rpcClient) sendError(requestID any, code int, message string, data json
 			Data:    data,
 		},
 	})
-	if err != nil {
+	if err != nil || ctx.Err() != nil {
 		return
 	}
-	_ = c.transport.Send(c.ctx, response)
+	_ = c.transport.Send(ctx, response)
 }
 
 func (c *rpcClient) registerPending(pending *pendingRPCRequest) (uint64, error) {

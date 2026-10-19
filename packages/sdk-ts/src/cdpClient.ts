@@ -489,11 +489,18 @@ export class CDPClient {
     if (this.closed) return;
     this.closed = true;
     this.stopHeartbeat();
+    const onclose = this.onclose;
     this.onmessage = undefined;
     this.onclose = undefined;
     this.onerror = undefined;
-    this.rejectPending(new Error("CDP client closed"));
-    this.socket.close();
+    const reason = new Error("CDP client closed");
+    this.rejectPending(reason);
+    try {
+      this.socket.close();
+    } finally {
+      // Explicit close must notify RPC even without a socket close event.
+      onclose?.(reason);
+    }
   }
 
   async handleMessage(data: unknown): Promise<void> {

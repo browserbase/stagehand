@@ -22,6 +22,8 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
+import { resolveBrowserbaseConnection } from "./browserbaseConnection.js";
+import { registerBrowserbaseTransport } from "./browserbaseRpc.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
 import {
   StagehandClientActOptionsSchema,
@@ -78,6 +80,7 @@ export class Stagehand {
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
+  private removeBrowserbaseTransport: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
 
@@ -190,23 +193,31 @@ export class Stagehand {
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
     const createConfig = this.createConfig;
+    const browserbaseConnection = resolveBrowserbaseConnection(
+      createConfig,
+      browser.workerInitMetadata,
+    );
     const rpcClient = new RPCClient(browser.cdpClient);
     this.rpcClient = rpcClient;
 
     try {
+      this.removeBrowserbaseTransport = registerBrowserbaseTransport(
+        rpcClient,
+        browserbaseConnection,
+      );
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
         handleStagehandNotification(notification, createConfig.logging),
       );
       if (createConfig.model && "generate" in createConfig.model) {
-        this.removeClientLLMHandler = rpcClient.onRequest(
-          StagehandMethods.llmGenerate,
-          createConfig.model.generate,
+        const { generate } = createConfig.model;
+        this.removeClientLLMHandler = rpcClient.onRequest(StagehandMethods.llmGenerate, (params) =>
+          generate(params),
         );
       }
 
       this.initRequestStarted = true;
       await rpcClient.sendStagehandInit(
-        stagehandCreateParamsForWorker(createConfig, browser),
+        stagehandCreateParamsForWorker(createConfig, browser, browserbaseConnection !== undefined),
         signal,
       );
       attachStagehandBrowserContext(
@@ -214,6 +225,8 @@ export class Stagehand {
         new BrowserContext(rpcClient, () => this.browserHandle.close()),
       );
     } catch (error) {
+      this.removeBrowserbaseTransport?.();
+      this.removeBrowserbaseTransport = undefined;
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
       this.removeNotificationListener?.();
@@ -320,6 +333,8 @@ export class Stagehand {
           }
         }
       } finally {
+        this.removeBrowserbaseTransport?.();
+        this.removeBrowserbaseTransport = undefined;
         this.removeClientLLMHandler?.();
         this.removeClientLLMHandler = undefined;
         this.removeNotificationListener?.();
@@ -351,8 +366,9 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
+  hasBrowserbaseConnection: boolean,
 ) {
-  const { logging, model, ...protocolParams } = createConfig;
+  const { logging, model, apiKey: _apiKey, apiUrl: _apiUrl, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   return StagehandInitParamsSchema.parse({
@@ -361,7 +377,10 @@ function stagehandCreateParamsForWorker(
     browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,
     logLevel: logging.level,
     ...protocolParams,
-    ...browser.workerInitMetadata,
+    ...(browser.workerInitMetadata.browser === undefined
+      ? {}
+      : { browser: browser.workerInitMetadata.browser }),
+    ...(hasBrowserbaseConnection ? { browserbase: "client" } : {}),
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
   });
 }

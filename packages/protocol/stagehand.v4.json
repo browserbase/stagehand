@@ -97,6 +97,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "browserbase.request": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/BrowserbaseRequestParams"
+            },
+            "result": {
+              "$ref": "#/$defs/BrowserbaseRequestResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "llm.generate": {
           "type": "object",
           "properties": {
@@ -1016,6 +1029,7 @@
         "stagehand.extract",
         "stagehand.metrics",
         "stagehand.callback_batch",
+        "browserbase.request",
         "llm.generate",
         "context.pages",
         "context.new_page",
@@ -1092,6 +1106,16 @@
     "notifications": {
       "type": "object",
       "properties": {
+        "browserbase.cancel": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/BrowserbaseCancelParams"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
+        },
         "stagehand.log": {
           "type": "object",
           "properties": {
@@ -1123,7 +1147,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event", "page.event"],
+      "required": ["browserbase.cancel", "stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -1177,14 +1201,9 @@
           "type": "string",
           "minLength": 1
         },
-        "api_key": {
+        "browserbase": {
           "type": "string",
-          "minLength": 1
-        },
-        "api_url": {
-          "description": "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-          "type": "string",
-          "format": "uri"
+          "const": "client"
         },
         "browser": {
           "$ref": "#/$defs/BrowserSessionMetadata"
@@ -1220,12 +1239,15 @@
           "maximum": 9007199254740991
         },
         "cache": {
-          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
         }
       },
       "required": ["protocol_version", "client_info"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "browserbase": ["browser"]
+      }
     },
     "ImplementationInfo": {
       "type": "object",
@@ -1714,7 +1736,7 @@
           "maximum": 9007199254740991
         },
         "miss_reason": {
-          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"read_failed\" (the cache request itself failed) and \"replay_failed\" (a cached value was found but could not be applied)",
+          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"timeout\" (the cache read exceeded its budget), \"read_failed\" (another cache read failure), \"payload_too_large\" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and \"replay_failed\" (a cached value was found but could not be applied)",
           "type": "string"
         },
         "tokens_saved": {
@@ -2197,6 +2219,99 @@
           }
         }
       ]
+    },
+    "BrowserbaseRequestParams": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": ["gateway.responses", "cache.get", "cache.set"]
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."
+        },
+        "body": {
+          "type": "string",
+          "description": "JSON request body sent as UTF-8 text"
+        },
+        "remaining_timeout_ms": {
+          "description": "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["operation", "headers", "body"],
+      "additionalProperties": false
+    },
+    "BrowserbaseRequestResult": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BrowserbaseHttpResponse"
+        },
+        {
+          "$ref": "#/$defs/BrowserbaseTransportError"
+        }
+      ]
+    },
+    "BrowserbaseHttpResponse": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "response"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 599
+        },
+        "status_text": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."
+        },
+        "body": {
+          "type": "string",
+          "description": "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"
+        }
+      },
+      "required": ["type", "status", "status_text", "headers", "body"],
+      "additionalProperties": false,
+      "description": "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."
+    },
+    "BrowserbaseTransportError": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "error"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["network", "cancelled", "timeout", "unavailable", "disconnected"]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "reason", "message"],
+      "additionalProperties": false,
+      "description": "Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes"
     },
     "LLMGenerateParams": {
       "anyOf": [
@@ -4991,6 +5106,26 @@
       "required": ["message"],
       "additionalProperties": false
     },
+    "BrowserbaseCancelParams": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/JSONRPCRequestId"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["cancelled", "timeout"]
+        }
+      },
+      "required": ["request_id", "reason"],
+      "additionalProperties": false,
+      "description": "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"
+    },
+    "JSONRPCRequestId": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
     "StagehandLog": {
       "type": "object",
       "properties": {
@@ -5643,6 +5778,33 @@
             },
             "params": {
               "$ref": "#/$defs/CallbackBatchParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "browserbase.request"
+            },
+            "params": {
+              "$ref": "#/$defs/BrowserbaseRequestParams"
             },
             "traceparent": {
               "type": "string"
@@ -7546,13 +7708,26 @@
         }
       ]
     },
-    "JSONRPCRequestId": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 9007199254740991
-    },
     "StagehandRpcNotification": {
       "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "browserbase.cancel"
+            },
+            "params": {
+              "$ref": "#/$defs/BrowserbaseCancelParams"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
         {
           "type": "object",
           "properties": {
