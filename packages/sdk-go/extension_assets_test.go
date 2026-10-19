@@ -49,7 +49,7 @@ func TestExtensionArchiveContainsManifestAndWorker(t *testing.T) {
 
 func TestExtensionArchiveReturnsIndependentCopies(t *testing.T) {
 	t.Parallel()
-	original := stagehand.ExtensionArchive()
+	original := bytes.Clone(stagehand.ExtensionArchive())
 	modified := stagehand.ExtensionArchive()
 	clear(modified)
 	if !bytes.Equal(original, stagehand.ExtensionArchive()) {
