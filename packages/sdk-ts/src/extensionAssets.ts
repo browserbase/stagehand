@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = new URL("../", import.meta.url);
@@ -18,3 +19,12 @@ export const STAGEHAND_EXTENSION_ARCHIVE_PATH =
 export const STAGEHAND_EXTENSION_DIRECTORY_PATH =
   nonEmpty(process.env.STAGEHAND_EXTENSION_DIRECTORY_PATH) ??
   fileURLToPath(new URL("dist/extension/", packageRoot));
+
+/**
+ * Returns the ZIP archive of the extension bundled with this SDK.
+ * Save or upload the buffer directly, or extract it to a directory for Chrome's
+ * Load unpacked option. No browser session is required.
+ */
+export async function getExtensionArchive(): Promise<Buffer> {
+  return readFile(STAGEHAND_EXTENSION_ARCHIVE_PATH);
+}
