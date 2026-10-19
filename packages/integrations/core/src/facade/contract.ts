@@ -230,6 +230,12 @@ export function staleSnapshotIdError(id: string): string {
   return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
 }
 
+export const SCREENSHOT_ARTIFACT_PATH_ERROR =
+  "Screenshot artifact path must stay within artifactRoot.";
+export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
+  "Screenshot artifact directory must not be a symlink.";
+export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
+
 /**
  * Prefix of the terminal error every facade tool returns once the browser
  * session is gone. Harnesses match on it to tell consequences from agent errors.

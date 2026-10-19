@@ -5,28 +5,26 @@ import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/
 import { sanitizeErrorMessage } from "../harness/redact.js";
 import {
   browserSessionLostError,
+  FACADE_BROWSER_CLOSED_ERROR,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
+  SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
 } from "./contract.js";
-import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
+import {
+  actionRunner,
+  runCallback,
+  type RunEnvelope,
+  type RunInput,
+  type ScreenshotArtifact,
+} from "./batch-sources.js";
+import type { PlaywrightCompatTelemetry } from "./runtime.js";
 
 type SnapshotState = { url: string; xpathById: Record<string, string> };
-type HydratedAction = RefAction & { selector: string };
-type ActionResult = { completed: number };
-type ScreenshotArtifact = { path: string; base64: string };
-type RunEnvelope = {
-  __stagehandPlaywrightCompat: true;
-  value: unknown;
-  executionError?: { name: string; message: string; stack?: string };
-  telemetry: PlaywrightCompatTelemetry;
-  artifacts: ScreenshotArtifact[];
-  closeRequested: boolean;
-  batchRuntimeMs: number;
-};
 
 export type StagehandFacadeRunReport = {
   telemetry: PlaywrightCompatTelemetry;
@@ -106,73 +104,8 @@ export type StagehandFacadeScreenshot = {
   mimeType: "image/png" | "image/jpeg";
 };
 
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-  ...args: string[]
-) => (...args: unknown[]) => Promise<unknown>;
-
-const ACTION_RUNNER_SOURCE = `"use strict";
-let completed = 0;
-for (const action of input.actions) {
-  const locator = stagehand.page.locator(action.selector);
-  switch (action.op) {
-    case "click": await locator.click(); break;
-    case "hover": await locator.hover(); break;
-    case "fill": await locator.fill(action.value); break;
-    case "type": await locator.type(action.text, action.delay === undefined ? undefined : { delay: action.delay }); break;
-    case "press": await locator.click(); await stagehand.page.keyPress(action.key); break;
-    case "select": await locator.selectOption(action.values); break;
-    default: throw new Error("Unsupported ref action: " + String(action.op));
-  }
-  completed += 1;
-}
-return { completed };`;
-
-const actionRunner = new AsyncFunction(
-  "stagehand",
-  "input",
-  ACTION_RUNNER_SOURCE,
-) as ExperimentalBatchCallback<{ actions: HydratedAction[] }, ActionResult>;
-
 /** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
 export const FACADE_KEEPER_PAGE_URL = "about:blank";
-
-const FACADE_PRELUDE = `"use strict";
-const __stagehandCompatIdentity = (target) => target;
-for (let index = 0; index <= 32; index += 1) {
-  globalThis[index === 0 ? "__name" : "__name" + index] = __stagehandCompatIdentity;
-}
-const createRuntime = ${createPlaywrightCompatRuntime.toString()};
-const runtime = await createRuntime(batchStagehand, { hiddenPageIds: input.hiddenPageIds ?? [] });
-const page = runtime.page;
-const context = runtime.context;
-const browser = runtime.browser;
-const console = globalThis.console;
-const __stagehandBatchStartedAt = performance.now();
-let value;
-let executionError;
-try {
-  value = await (async () => { `;
-
-const FACADE_EPILOGUE = `
-  })();
-} catch (error) {
-  executionError = {
-    name: typeof error?.name === "string" ? error.name : "Error",
-    message: typeof error?.message === "string" ? error.message : String(error),
-    ...(typeof error?.stack === "string" ? { stack: error.stack } : {}),
-  };
-}
-return {
-  __stagehandPlaywrightCompat: true,
-  value,
-  executionError,
-  telemetry: runtime.telemetry(),
-  artifacts: runtime.artifacts(),
-  closeRequested: runtime.closeRequested(),
-  batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
-};`;
-
-type RunInput = { hiddenPageIds?: string[] };
 
 export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
@@ -314,11 +247,7 @@ export class StagehandFacadeTools {
 
   private async runNow(code: string): Promise<unknown> {
     const page = await this.activePage();
-    const callback = new AsyncFunction(
-      "batchStagehand",
-      "input",
-      FACADE_PRELUDE + code + FACADE_EPILOGUE,
-    ) as ExperimentalBatchCallback<RunInput, RunEnvelope>;
+    const callback = runCallback(code);
     const startedAt = performance.now();
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
@@ -400,9 +329,7 @@ export class StagehandFacadeTools {
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative)
       ) {
-        throw new StagehandFacadeInputError(
-          "Screenshot artifact path must stay within artifactRoot.",
-        );
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
       }
       // Reject symlink traversal before creating nested directories or opening
       // the output. O_NOFOLLOW also refuses an existing symlink at the file.
@@ -414,9 +341,7 @@ export class StagehandFacadeTools {
           if (error.code !== "EEXIST") throw error;
         });
         if (!(await fsp.lstat(directory)).isDirectory()) {
-          throw new StagehandFacadeInputError(
-            "Screenshot artifact directory must not be a symlink.",
-          );
+          throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
         }
       }
       const file = await fsp.open(
@@ -478,7 +403,7 @@ export class StagehandFacadeTools {
   private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
     const guarded = async (): Promise<Result> => {
       if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
-      if (this.closed) throw new StagehandFacadeInputError("Stagehand facade browser is closed.");
+      if (this.closed) throw new StagehandFacadeInputError(FACADE_BROWSER_CLOSED_ERROR);
       try {
         await this.ensureKeeperPage();
         const value = await operation();

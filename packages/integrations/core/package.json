@@ -26,7 +26,7 @@
     }
   },
   "scripts": {
-    "build": "tsdown && node scripts/emit-playwright-compat.mjs",
+    "build": "tsdown && node scripts/emit-facade-bundle.mjs",
     "test": "pnpm run build && vitest run --root ../../.. packages/integrations/core/tests",
     "test:unit": "vitest run --root ../../.. packages/integrations/core/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json",

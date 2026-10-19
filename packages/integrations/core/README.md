@@ -30,6 +30,12 @@ it does not introduce another implementation or change the legacy description.
 The runner-only `session_info` call reports browser identity and is absent from
 the model-facing tool list.
 
+The build also writes `dist/facade-bundle.json` for facade hosts in other
+languages: the exact callback sources the facade sends to `experimentalBatch`
+(`run` code is `runPrelude + code + runEpilogue`; `run` actions is `actionRunner`),
+the tools/list of each tool set, and the error messages hosts return verbatim. The
+TypeScript facade builds what it sends from the same constants.
+
 A failed CDP attach releases a Browserbase session created by that launch even
 with `keepAlive: true`. Failed attachment to an existing session does not release
 it. There is still a shutdown limitation: the stdio host waits at most five seconds
