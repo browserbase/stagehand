@@ -290,6 +290,166 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
   });
 
+  it.each([
+    { status: "Completed" as const, output: { value: "early" } },
+    { status: "Canceled" as const },
+    {
+      status: "Error" as const,
+      errorText: "Tool failed",
+      exception: { type: "object" as const, description: "Error: Tool failed" },
+    },
+  ])("retains the first early $status response", async (response) => {
+    const event = { invocationId: "invocation-1", ...response };
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit("WebMCP.toolResponded", event);
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: "duplicate before registration",
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+    await page.invokeWebMCPTool("frame-1", "search");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "duplicate after registration",
+    });
+
+    await expect(
+      page.waitForWebMCPInvocationResult("invocation-1", { timeout: 10 }),
+    ).resolves.toStrictEqual(event);
+  });
+
+  it("matches early responses to concurrent invocations regardless of resolve order", async () => {
+    const resolvers = new Map<string, () => void>();
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession, params) => {
+        const { toolName } = params as Protocol.WebMCP.InvokeToolRequest;
+        const invocationId = `${toolName}-invocation`;
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId,
+          status: "Completed",
+          output: toolName,
+        });
+        return new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
+          resolvers.set(toolName, () => resolve({ invocationId }));
+        });
+      },
+    });
+    const page = createPage(session);
+    const first = page.invokeWebMCPTool("frame-1", "first");
+    const second = page.invokeWebMCPTool("frame-1", "second");
+    await vi.waitFor(() => expect(resolvers.size).toBe(2));
+
+    resolvers.get("second")!();
+    await second;
+    resolvers.get("first")!();
+    await first;
+
+    await expect(
+      page.waitForWebMCPInvocationResult("first-invocation", { timeout: 10 }),
+    ).resolves.toMatchObject({ output: "first" });
+    await expect(
+      page.waitForWebMCPInvocationResult("second-invocation", { timeout: 10 }),
+    ).resolves.toMatchObject({ output: "second" });
+  });
+
+  it("discards early responses for unknown invocations once no command is pending", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-2",
+          status: "Completed",
+          output: "stale",
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+    await page.invokeWebMCPTool("frame-1", "first");
+
+    session.responses["WebMCP.invokeTool"] = () => ({ invocationId: "invocation-2" });
+    await page.invokeWebMCPTool("frame-1", "second");
+    const result = page.waitForWebMCPInvocationResult("invocation-2");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "invocation-2",
+      status: "Completed",
+      output: "fresh",
+    });
+
+    await expect(result).resolves.toMatchObject({ output: "fresh" });
+  });
+
+  it("discards early responses when the last pending command fails", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "existing-invocation" }),
+    });
+    const page = createPage(session);
+    await page.invokeWebMCPTool("frame-1", "existing");
+    session.responses["WebMCP.invokeTool"] = (currentSession) => {
+      currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+        invocationId: "invocation-1",
+        status: "Completed",
+        output: "stale",
+      });
+      throw new Error("Invocation failed");
+    };
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toThrow("Invocation failed");
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+
+    session.responses["WebMCP.invokeTool"] = () => ({ invocationId: "invocation-1" });
+    await page.invokeWebMCPTool("frame-1", "retry");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "fresh",
+    });
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "fresh",
+    });
+  });
+
+  it("does not claim an early response buffered by another session", async () => {
+    let resolveMain!: (response: Protocol.WebMCP.InvokeToolResponse) => void;
+    let markCommandSent!: () => void;
+    const commandSent = new Promise<void>((resolve) => {
+      markCommandSent = resolve;
+    });
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () =>
+        new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
+          resolveMain = resolve;
+          markCommandSent();
+        }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": (currentSession) => {
+          const event = { invocationId: "child-invocation", status: "Completed" as const };
+          session.emit("WebMCP.toolResponded", { ...event, output: "wrong session" });
+          currentSession.emit("WebMCP.toolResponded", { ...event, output: "child" });
+          return { invocationId: "child-invocation" };
+        },
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    const mainInvocation = page.invokeWebMCPTool("frame-1", "main");
+    await commandSent;
+    await page.invokeWebMCPTool("frame-2", "child");
+    resolveMain({ invocationId: "main-invocation" });
+    await mainInvocation;
+
+    await expect(
+      page.waitForWebMCPInvocationResult("child-invocation", { timeout: 10 }),
+    ).resolves.toMatchObject({ output: "child" });
+  });
+
   it("times out only the current result caller and allows a later retry", async () => {
     vi.useFakeTimers();
     const session = new FakeCDPSession({
@@ -401,29 +561,36 @@ describe("Page WebMCP invocation lifecycle", () => {
     expect(context.pagesByTarget.has("target-1")).toBe(false);
   });
 
-  it("evicts settled invocation records after bounded retention", async () => {
-    vi.useFakeTimers();
-    const session = new FakeCDPSession({
-      "WebMCP.invokeTool": () => ({ invocationId: "invocation-1" }),
-    });
-    const page = createPage(session);
-    await page.invokeWebMCPTool("frame-1", "search");
-    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
-      invocationId: "invocation-1",
-      status: "Completed",
-    });
-    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toStrictEqual({
-      invocationId: "invocation-1",
-      status: "Completed",
-    });
+  it.each(["before", "after"])(
+    "evicts results delivered %s registration after retention",
+    async (timing) => {
+      vi.useFakeTimers();
+      const event: Protocol.WebMCP.ToolRespondedEvent = {
+        invocationId: "invocation-1",
+        status: "Completed",
+      };
+      const session = new FakeCDPSession({
+        "WebMCP.invokeTool": (currentSession) => {
+          if (timing === "before") currentSession.emit("WebMCP.toolResponded", event);
+          return { invocationId: "invocation-1" };
+        },
+      });
+      const page = createPage(session);
+      await page.invokeWebMCPTool("frame-1", "search");
+      if (timing === "after") session.emit("WebMCP.toolResponded", event);
+      await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toStrictEqual({
+        invocationId: "invocation-1",
+        status: "Completed",
+      });
 
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
 
-    await expect(page.waitForWebMCPInvocationResult("invocation-1")).rejects.toThrow(
-      'WebMCP invocation "invocation-1" was not found on page "target-1".',
-    );
-    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
-  });
+      await expect(page.waitForWebMCPInvocationResult("invocation-1")).rejects.toThrow(
+        'WebMCP invocation "invocation-1" was not found on page "target-1".',
+      );
+      expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+    },
+  );
 
   it("detaching an OOPIF rejects only that session's pending invocations", async () => {
     const session = new FakeCDPSession({
@@ -464,39 +631,52 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
   });
 
-  it("does not register an invocation whose child session detached during the command", async () => {
-    let resolveInvocation!: (response: Protocol.WebMCP.InvokeToolResponse) => void;
-    let markCommandSent!: () => void;
-    const commandSent = new Promise<void>((resolve) => {
-      markCommandSent = resolve;
-    });
-    const session = new FakeCDPSession();
-    const childSession = new FakeCDPSession(
-      {
-        "WebMCP.invokeTool": () =>
-          new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
-            resolveInvocation = resolve;
-            markCommandSent();
-          }),
-      },
-      "child",
-    );
-    const page = createPage(session);
-    adoptChildSession(page, childSession);
-    const invocation = page.invokeWebMCPTool("frame-2", "child");
-    await commandSent;
+  it.each(["detach", "dispose"])(
+    "clears early responses on %s while a command is pending",
+    async (action) => {
+      let resolveInvocation!: (response: Protocol.WebMCP.InvokeToolResponse) => void;
+      let markCommandSent!: () => void;
+      const commandSent = new Promise<void>((resolve) => {
+        markCommandSent = resolve;
+      });
+      const session = new FakeCDPSession();
+      const childSession = new FakeCDPSession(
+        {
+          "WebMCP.invokeTool": (currentSession) =>
+            new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
+              currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+                invocationId: "orphaned-invocation",
+                status: "Completed",
+                output: "early",
+              });
+              resolveInvocation = resolve;
+              markCommandSent();
+            }),
+        },
+        "child",
+      );
+      const page = createPage(session);
+      adoptChildSession(page, childSession);
+      const invocation = page.invokeWebMCPTool("frame-2", "child");
+      await commandSent;
 
-    page.detachOopifSession("child");
-    resolveInvocation({ invocationId: "orphaned-invocation" });
+      // The pending command retains this state even after it leaves the page's map.
+      const responses = page["webMCPResponseSessions"].get(childSession)!.earlyResponses;
+      expect(responses.size).toBe(1);
+      if (action === "detach") page.detachOopifSession("child");
+      else page.dispose();
+      expect(responses.size).toBe(0);
+      resolveInvocation({ invocationId: "orphaned-invocation" });
 
-    await expect(invocation).rejects.toThrow(
-      'WebMCP session for frame "frame-2" was disposed before invocation registration completed on page "target-1".',
-    );
-    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
-    await expect(page.waitForWebMCPInvocationResult("orphaned-invocation")).rejects.toThrow(
-      'WebMCP invocation "orphaned-invocation" was not found on page "target-1".',
-    );
-  });
+      await expect(invocation).rejects.toThrow(
+        'WebMCP session for frame "frame-2" was disposed before invocation registration completed on page "target-1".',
+      );
+      expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
+      await expect(page.waitForWebMCPInvocationResult("orphaned-invocation")).rejects.toThrow(
+        'WebMCP invocation "orphaned-invocation" was not found on page "target-1".',
+      );
+    },
+  );
 
   it("page disposal rejects invocations and removes listeners across every session", async () => {
     const session = new FakeCDPSession({
