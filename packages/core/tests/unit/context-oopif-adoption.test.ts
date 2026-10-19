@@ -12,6 +12,7 @@ type FakeTarget = {
   frameId: string;
   url: string;
   parent?: FakeTarget;
+  parentFrameId?: string;
 };
 
 type CdpRequest = { id: number; method: string; sessionId?: string };
@@ -36,11 +37,20 @@ const nestedEditor: FakeTarget = {
   url: "https://widget.example.org/",
   parent: editor,
 };
+const wrapperFrameId = "wrapper-frame";
+const wrappedEditor: FakeTarget = {
+  ...editor,
+  parentFrameId: wrapperFrameId,
+};
+const wrappedNestedEditor: FakeTarget = {
+  ...nestedEditor,
+  parent: wrappedEditor,
+};
 
 function frame(target: FakeTarget): Protocol.Page.Frame {
   return {
     id: target.frameId,
-    parentId: target.parent?.frameId,
+    parentId: target.parentFrameId ?? target.parent?.frameId,
     loaderId: `${target.frameId}-loader`,
     url: target.url,
     domainAndRegistry: "",
@@ -204,6 +214,22 @@ describe("V3Context OOPIF adoption", () => {
 
     await expectOwnedByOwnSession(owner, editor);
     await expectOwnedByOwnSession(owner, nestedEditor);
+  });
+
+  it("adopts waiting OOPIFs once the page reports the frame that contains them", async () => {
+    const fake = new FakeBrowser([page, wrappedEditor, wrappedNestedEditor]);
+    const owner = await connect(fake);
+    await fake.frameTreeServedFor(wrappedNestedEditor);
+    expect(owner.listAllFrameIds()).not.toContain(wrappedEditor.frameId);
+
+    fake.emit(
+      "Page.frameAttached",
+      { frameId: wrapperFrameId, parentFrameId: page.frameId },
+      page.sessionId,
+    );
+
+    await expectOwnedByOwnSession(owner, wrappedEditor);
+    await expectOwnedByOwnSession(owner, wrappedNestedEditor);
   });
 
   it("keeps the iframe session as owner when the parent reports the frame late", async () => {
