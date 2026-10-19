@@ -34,6 +34,7 @@ export type ServiceWorkerInfo = {
 
 export type CDPClientOptions = {
   cdpUrl: string;
+  headers?: Record<string, string>;
   extensionDir?: string;
   /** Discover an installed runtime first; load this directory only if absent or unsupported. */
   localExtensionDir?: string;
@@ -74,7 +75,11 @@ type VersionResponse = {
 
 type ResolveBrowserWebSocketUrlOptions = {
   pollIntervalMs?: number;
-  fetchFn?: (url: string, init?: { signal?: AbortSignal }) => Promise<VersionResponse>;
+  headers?: Record<string, string>;
+  fetchFn?: (
+    url: string,
+    init?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
   signal: AbortSignal;
 };
@@ -336,9 +341,12 @@ export class CDPClient {
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const signal = options.signal;
-    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, { signal });
+    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
+      signal,
+      headers: options.headers,
+    });
     throwIfAborted(signal);
-    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal);
+    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, options.headers);
 
     const client = new CDPClient(socket, webSocketDebuggerUrl);
 
@@ -554,15 +562,24 @@ export class CDPClient {
   }
 }
 
-type CDPWebSocketFactory = (url: string) => WebSocket;
+type CDPWebSocketFactory = (url: string, headers?: Record<string, string>) => WebSocket;
 
 export async function openCDPWebSocket(
   url: string,
   signal: AbortSignal,
-  createSocket: CDPWebSocketFactory = (socketUrl) => new WebSocket(socketUrl),
+  createSocket: CDPWebSocketFactory = (socketUrl, socketHeaders) => {
+    // Node supports handshake headers, but the DOM WebSocket declaration omits this overload.
+    const NodeWebSocket = WebSocket as typeof WebSocket & {
+      new (url: string, options: { headers: Record<string, string> }): WebSocket;
+    };
+    return socketHeaders
+      ? new NodeWebSocket(socketUrl, { headers: socketHeaders })
+      : new WebSocket(socketUrl);
+  },
+  headers?: Record<string, string>,
 ): Promise<WebSocket> {
   throwIfAborted(signal);
-  const socket = createSocket(url);
+  const socket = headers === undefined ? createSocket(url) : createSocket(url, headers);
 
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
@@ -845,7 +862,10 @@ export async function resolveBrowserWebSocketUrl(
     throwIfAborted(options.signal);
     try {
       const response = await abortable(
-        fetchFn(`${baseUrl}/json/version`, { signal: options.signal }),
+        fetchFn(`${baseUrl}/json/version`, {
+          signal: options.signal,
+          ...(options.headers === undefined ? {} : { headers: options.headers }),
+        }),
         options.signal,
       );
 

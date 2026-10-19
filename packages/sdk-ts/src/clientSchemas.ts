@@ -58,6 +58,8 @@ export const LocalBrowserLaunchOptionsSchema = z
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
+    /** Headers for client-side CDP discovery and WebSocket connections. */
+    headers: z.record(z.string(), z.string()).optional(),
     extensionId: z.string().optional(),
     /**
      * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
