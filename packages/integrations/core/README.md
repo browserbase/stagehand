@@ -33,8 +33,13 @@ the model-facing tool list.
 The build also writes `dist/facade-bundle.json` for facade hosts in other
 languages: the exact callback sources the facade sends to `experimentalBatch`
 (`run` code is `runPrelude + code + runEpilogue`; `run` actions is `actionRunner`),
-the tools/list of each tool set, and the error messages hosts return verbatim. The
-TypeScript facade builds what it sends from the same constants.
+the tools/list of each tool set, and the error and screenshot messages hosts
+return verbatim. The TypeScript facade builds what it sends from the same
+constants. A host must reject run `code` that does not parse on its own as an async
+function body, as `AsyncFunction(params, code)` does in TypeScript, before joining
+it with the prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
+`{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
+escaping, so non-ASCII characters are not escaped.
 
 A failed CDP attach releases a Browserbase session created by that launch even
 with `keepAlive: true`. Failed attachment to an existing session does not release

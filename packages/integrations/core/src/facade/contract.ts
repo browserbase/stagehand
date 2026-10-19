@@ -236,6 +236,9 @@ export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
   "Screenshot artifact directory must not be a symlink.";
 export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
 
+export const SCREENSHOT_CAPTURED_MESSAGE = "Screenshot captured.";
+export const SCREENSHOT_COMPRESSED_MESSAGE = "Screenshot captured with transport-safe compression.";
+
 /**
  * Prefix of the terminal error every facade tool returns once the browser
  * session is gone. Harnesses match on it to tell consequences from agent errors.

@@ -18,6 +18,8 @@ import {
   facadeToolsFor,
   SESSION_INFO_TOOL_NAME,
   SESSION_LOST_TELEMETRY_PREFIX,
+  SCREENSHOT_CAPTURED_MESSAGE,
+  SCREENSHOT_COMPRESSED_MESSAGE,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -100,8 +102,8 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
                 {
                   type: "text" as const,
                   text: screenshot.adjusted
-                    ? "Screenshot captured with transport-safe compression."
-                    : "Screenshot captured.",
+                    ? SCREENSHOT_COMPRESSED_MESSAGE
+                    : SCREENSHOT_CAPTURED_MESSAGE,
                 },
                 {
                   type: "image" as const,

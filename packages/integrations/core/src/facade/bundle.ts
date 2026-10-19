@@ -15,6 +15,8 @@ import {
   NO_HYDRATED_SNAPSHOT_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  SCREENSHOT_CAPTURED_MESSAGE,
+  SCREENSHOT_COMPRESSED_MESSAGE,
   STALE_SNAPSHOT_ID_ERROR,
 } from "./contract.js";
 
@@ -29,12 +31,19 @@ export const FACADE_BUNDLE_VERSION = 1;
  * - sources: the `run` code callback is `runPrelude + code + runEpilogue`; the
  *   `run` actions callback is `actionRunner`, with `{ actions }` as input. Both
  *   are the exact callback source text for experimental_batch. `runtime` is the
- *   Playwright-compatible runtime the prelude embeds.
+ *   Playwright-compatible runtime the prelude embeds. Before sending run code,
+ *   a host must check that `code` parses on its own as an async function body
+ *   (what `AsyncFunction(params, code)` accepts) and otherwise fail the call
+ *   with a SyntaxError, as the TS facade does; plain concatenation would let
+ *   code that closes the function early run outside the callback.
  * - contract.tools: tools/list per tool set (`--surface=playwright`,
  *   `--surface=legacy`, and playwright with EXPLICIT_SNAPSHOT_ACTIONS=1).
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
- * - sha256: of the canonical JSON of `{ sources, contract }`.
+ * - contract.messages: the screenshot tool's text, plain or after
+ *   transport-safe compression.
+ * - sha256: hex SHA-256 of the UTF-8 canonical JSON of `{ sources, contract }`
+ *   (see canonicalJson).
  */
 export function facadeBundle(packageVersion: string) {
   const content = {
@@ -59,6 +68,10 @@ export function facadeBundle(packageVersion: string) {
         SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
         FACADE_BROWSER_CLOSED_ERROR,
       },
+      messages: {
+        SCREENSHOT_CAPTURED_MESSAGE,
+        SCREENSHOT_COMPRESSED_MESSAGE,
+      },
     },
   };
   return {
@@ -71,7 +84,11 @@ export function facadeBundle(packageVersion: string) {
 
 export type FacadeBundle = ReturnType<typeof facadeBundle>;
 
-/** JSON with object keys sorted at every level and no whitespace. */
+/**
+ * JSON with object keys sorted at every level and no whitespace. Strings use
+ * JSON.stringify escaping: non-ASCII characters stay unescaped (Python needs
+ * `ensure_ascii=False`).
+ */
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value !== null && typeof value === "object") {

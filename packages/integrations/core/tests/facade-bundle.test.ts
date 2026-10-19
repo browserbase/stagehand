@@ -117,7 +117,16 @@ describe("facade bundle", () => {
     );
   });
 
-  it("carries the contract's error messages verbatim", () => {
+  // Joined as plain strings, this code would close the callback early and run
+  // `globalThis.__escaped = 1` outside it. Hosts must reject it as TS does.
+  it("rejects run code that closes the callback early", () => {
+    const code =
+      "})(); } catch {} }, globalThis.__escaped = 1, async function y(batchStagehand,input){ let value, executionError, runtime, __stagehandBatchStartedAt; try { value = await (async () => {";
+    expect(() => runCallback(code)).toThrow(SyntaxError);
+    expect(() => new Function(`return (${RUN_PRELUDE + code + RUN_EPILOGUE});`)).not.toThrow();
+  });
+
+  it("carries the contract's error and screenshot messages verbatim", () => {
     expect(bundle.contract.errors).toStrictEqual({
       NO_HYDRATED_SNAPSHOT_ERROR: contract.NO_HYDRATED_SNAPSHOT_ERROR,
       NAVIGATED_SNAPSHOT_ERROR: contract.NAVIGATED_SNAPSHOT_ERROR,
@@ -126,6 +135,10 @@ describe("facade bundle", () => {
       SCREENSHOT_ARTIFACT_PATH_ERROR: contract.SCREENSHOT_ARTIFACT_PATH_ERROR,
       SCREENSHOT_ARTIFACT_SYMLINK_ERROR: contract.SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
       FACADE_BROWSER_CLOSED_ERROR: contract.FACADE_BROWSER_CLOSED_ERROR,
+    });
+    expect(bundle.contract.messages).toStrictEqual({
+      SCREENSHOT_CAPTURED_MESSAGE: contract.SCREENSHOT_CAPTURED_MESSAGE,
+      SCREENSHOT_COMPRESSED_MESSAGE: contract.SCREENSHOT_COMPRESSED_MESSAGE,
     });
   });
 
