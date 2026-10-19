@@ -1,9 +1,19 @@
 import re
 from collections.abc import Mapping
-from typing import Annotated
+from typing import Annotated, cast
 from urllib.parse import urlparse
 
-from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, TypeAdapter, model_validator
+from pydantic import (
+    AfterValidator,
+    AnyUrl,
+    BaseModel,
+    ConfigDict,
+    TypeAdapter,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    WrapValidator,
+    model_validator,
+)
 from typing_extensions import override
 
 _url_adapter = TypeAdapter(AnyUrl)
@@ -31,7 +41,37 @@ def _validate_headers(value: Mapping[str, str]) -> Mapping[str, str]:
     return value
 
 
-WireHeaders = Annotated[dict[str, str], AfterValidator(_validate_headers)]
+def _redact_header_validation_errors(
+    value: object, handler: ValidatorFunctionWrapHandler
+) -> dict[str, str]:
+    try:
+        return cast(dict[str, str], handler(value))
+    except ValidationError:
+        # Error inputs, locations, and validator context can all contain credentials.
+        # Rebuild the error rather than only hiding inputs in its formatted message.
+        raise ValidationError.from_exception_data(
+            "CDP headers",
+            [
+                {
+                    "type": "value_error",
+                    "loc": (),
+                    "input": "[redacted]",
+                    "ctx": {
+                        "error": ValueError(
+                            "headers must map valid HTTP header names to valid string values"
+                        )
+                    },
+                }
+            ],
+            hide_input=True,
+        ) from None
+
+
+WireHeaders = Annotated[
+    dict[str, str],
+    AfterValidator(_validate_headers),
+    WrapValidator(_redact_header_validation_errors),
+]
 
 
 def _validate_websocket_url(value: str) -> str:

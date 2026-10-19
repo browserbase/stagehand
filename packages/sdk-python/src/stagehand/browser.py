@@ -561,7 +561,7 @@ class LocalBrowser:
                 ("cdp_url", cdp_url),
                 ("extension_id", extension_id),
                 ("extension_cdp_url", extension_cdp_url),
-                ("headers", dict(headers) if headers is not None else None),
+                ("headers", dict(headers) if isinstance(headers, Mapping) else headers),
             )
             if value is not None
         })

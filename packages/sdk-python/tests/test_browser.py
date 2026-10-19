@@ -655,15 +655,33 @@ async def test_local_connect_sends_headers_only_when_given(
 
 @pytest.mark.parametrize(
     "headers",
-    [{"Bad Name": "secret-value"}, {"X-Api-Key": "secret-value\r\nInjected: 1"}, {"": "v"}],
+    [
+        {"Bad Name": "secret-value"},
+        {"X-Api-Key": "secret-value\r\nInjected: 1"},
+        {"secret-value invalid name": "dummy"},
+        {"Authorization": ["secret-value"]},
+        {"Authorization": {"token": "secret-value"}},
+        {"Authorization": b"secret-value"},
+        {"Authorization": 123, "X-Api-Key": "secret-value"},
+        {"Authorization": None, "X-Api-Key": "secret-value"},
+        {1: "secret-value"},
+        "secret-value",
+        ["secret-value"],
+        [("Authorization", "secret-value")],
+        {"": "v"},
+    ],
 )
 async def test_local_connect_rejects_unsafe_headers_without_echoing_them(
     fake_cdp: type[FakeCDPClient],
-    headers: dict[str, str],
+    headers: object,
 ) -> None:
     with pytest.raises(ValidationError) as error:
-        await local_browser.connect(cdp_url="http://browser", headers=headers)
+        await local_browser.connect(cdp_url="http://browser", headers=cast(Any, headers))
     assert "secret-value" not in str(error.value)
+    assert "secret-value" not in repr(error.value.errors())
+    assert "secret-value" not in error.value.json()
+    assert error.value.errors()[0]["loc"] == ("headers",)
+    assert error.value.errors()[0]["input"] == "[redacted]"
     assert fake_cdp.connect_arguments == []
 
 

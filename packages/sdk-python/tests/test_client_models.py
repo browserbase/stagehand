@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import UnionType
 from typing import (
     Annotated,
@@ -160,3 +161,41 @@ def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:
     assert config.logging.level == "debug"
     assert config.logging.format == "json"
     assert config.logging.on_log is on_log
+
+
+@pytest.mark.parametrize("mode", ["python", "json", "assignment"])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Authorization": "dummy-secret\r\nInjected: 1"},
+        {"dummy-secret invalid name": "value"},
+        {"Authorization": ["dummy-secret"]},
+        "dummy-secret",
+    ],
+)
+def test_local_connect_model_redacts_header_errors(mode: str, headers: object) -> None:
+    options = {"cdp_url": "https://gateway", "headers": headers}
+    with pytest.raises(ValidationError) as error:
+        if mode == "python":
+            client_models.LocalBrowserConnectOptions.model_validate(options)
+        elif mode == "json":
+            client_models.LocalBrowserConnectOptions.model_validate_json(json.dumps(options))
+        else:
+            model = client_models.LocalBrowserConnectOptions(cdp_url="https://gateway")
+            model.headers = cast(Any, headers)
+
+    assert "dummy-secret" not in str(error.value)
+    assert "dummy-secret" not in repr(error.value.errors())
+    assert "dummy-secret" not in error.value.json()
+    details = error.value.errors()
+    assert len(details) == 1
+    assert details[0]["loc"] == ("headers",)
+    assert details[0]["input"] == "[redacted]"
+    assert "valid HTTP header names" in details[0]["msg"]
+
+
+def test_local_connect_model_preserves_valid_header_values() -> None:
+    headers = {"Authorization": "Bearer dummy-secret", "X-Empty": ""}
+    model = client_models.LocalBrowserConnectOptions(cdp_url="https://gateway", headers=headers)
+    assert model.headers == headers
+    assert headers == {"Authorization": "Bearer dummy-secret", "X-Empty": ""}
