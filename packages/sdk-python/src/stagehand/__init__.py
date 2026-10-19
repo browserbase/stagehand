@@ -85,7 +85,6 @@ from .page import (
     ToolsRemovedListener,
     WebMCPToolIdentity,
 )
-from .playwright_compat import PlaywrightRunError
 from .response import Response
 from .stagehand import Stagehand
 from .webmcp import (
@@ -153,7 +152,6 @@ __all__ = [
     "PageEventName",
     "PagePDFMargin",
     "PageScreenshotClip",
-    "PlaywrightRunError",
     "ProtocolLocator",
     "RgbaColor",
     "Response",

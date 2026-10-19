@@ -58,11 +58,6 @@ jobs:
 
       - run: just install
 
-      # The Python package ships the integrations package's Playwright-compatible
-      # runtime. Build it, and the SDK it imports, before alpha versioning changes
-      # workspace versions.
-      - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand-integrations
-
       - name: Apply alpha version
         if: inputs.alpha
         run: just _version-python-alpha

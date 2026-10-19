@@ -1,6 +1,6 @@
-// Writes the Playwright-compatible runtime as one standalone script, so SDKs that run
-// code through `experimental_batch` (the Python SDK) ship the same translator the
-// facade's `run` tool uses.
+// Writes the Playwright-compatible runtime as one standalone script, so hosts that run
+// code through `experimental_batch` ship the same translator the facade's `run` tool
+// uses.
 import { writeFile } from "node:fs/promises";
 import { createPlaywrightCompatRuntime } from "../dist/facade/index.mjs";
 

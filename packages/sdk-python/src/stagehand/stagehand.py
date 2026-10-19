@@ -4,7 +4,6 @@ import asyncio
 import builtins
 import inspect
 import json
-import os
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TypeVar, cast, overload
@@ -65,11 +64,6 @@ from .client_models import (
 from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
 from .locator import Locator
 from .page import Page
-from .playwright_compat import (
-    PlaywrightRunError,
-    playwright_batch_source,
-    write_screenshot_artifacts,
-)
 from .rpc_client import RPCClient, RPCError
 from .timeouts import with_stagehand_init_deadline
 
@@ -264,50 +258,6 @@ class Stagehand:
             if isinstance(result.value, BaseModel)
             else result.value
         )
-
-    async def run(
-        self,
-        code: str,
-        *,
-        timeout: int = 30_000,
-        page: Page | None = None,
-        artifact_root: str | os.PathLike[str] | None = None,
-    ) -> object:
-        """Run trusted Playwright-style JavaScript, as the facade's ``run`` tool does.
-
-        ``code`` is the body of an async function with Playwright-shaped ``page``,
-        ``context`` and ``browser`` in scope; ``return`` a JSON-serializable value.
-        It runs through ``experimental_batch`` with the facade's Playwright-compatible
-        runtime, so it keeps Playwright's strict-mode errors and full error text.
-
-        Screenshots taken with a ``path`` are written under ``artifact_root`` (default:
-        the current directory). ``browser.close()`` closes this Stagehand once the code
-        finishes. An error thrown by the code is raised as `PlaywrightRunError`, after
-        both of those.
-        """
-        if not isinstance(code, str) or not code.strip():
-            raise TypeError("code must be a non-empty JavaScript string")
-        envelope = await self.experimental_batch(
-            playwright_batch_source(code), timeout=timeout, page=page
-        )
-        if not isinstance(envelope, dict):
-            raise RuntimeError("Playwright-compatible runtime returned no result envelope")
-        try:
-            write_screenshot_artifacts(envelope.get("artifacts"), artifact_root)
-            execution_error = envelope.get("executionError")
-            if isinstance(execution_error, dict):
-                raise PlaywrightRunError(
-                    str(execution_error.get("name") or "Error"),
-                    str(execution_error.get("message") or ""),
-                    execution_error.get("stack")
-                    if isinstance(execution_error.get("stack"), str)
-                    else None,
-                )
-        finally:
-            # Close only after the batch finished, even when the code or writing failed.
-            if envelope.get("closeRequested") is True:
-                await self.close()
-        return envelope.get("value")
 
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:
         rpc_client = RPCClient(claimed.cdp_client)
