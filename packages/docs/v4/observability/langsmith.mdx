@@ -1,0 +1,174 @@
+---
+title: "LangSmith"
+description: "Send Stagehand browser traces to LangSmith using OpenTelemetry."
+---
+
+Send Stagehand browser traces to a LangSmith project through OTLP/HTTP. No LangSmith or LangChain SDK is required.
+
+## Setup
+
+1. Create a LangSmith API key.
+2. Set `BROWSERBASE_API_KEY` and `LANGSMITH_API_KEY`.
+3. Set `LANGSMITH_PROJECT` to the destination project name. The examples use `stagehand` when it is unset.
+
+The examples use `https://api.smith.langchain.com/otel/v1/traces`. Set `LANGSMITH_OTLP_TRACES_ENDPOINT` for another region or a self-hosted deployment. Regional hosts include `eu.api.smith.langchain.com`, `apac.api.smith.langchain.com`, and `aws.api.smith.langchain.com`.
+
+The `x-api-key` header authenticates the export; `Langsmith-Project` selects the project. See [LangSmith's OpenTelemetry documentation](https://docs.langchain.com/langsmith/trace-with-opentelemetry) for deployment-specific endpoints.
+
+## Configure Stagehand
+
+These examples use the [v4 SDK](/v4/first-steps/installation) with a Browserbase browser. The exporter runs inside the browser extension, so the endpoint must be reachable from that browser.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.LANGSMITH_OTLP_TRACES_ENDPOINT ?? "https://api.smith.langchain.com/otel/v1/traces",
+        headers: {
+          "x-api-key": process.env.LANGSMITH_API_KEY!,
+          "Langsmith-Project": process.env.LANGSMITH_PROJECT ?? "stagehand",
+        },
+      },
+    },
+  });
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from stagehand import Stagehand, browserbase
+
+
+async def main():
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    try:
+        stagehand = await Stagehand.create(
+            browser=browser,
+            telemetry={
+                "traces": {
+                    "endpoint": os.environ.get("LANGSMITH_OTLP_TRACES_ENDPOINT", "https://api.smith.langchain.com/otel/v1/traces"),
+                    "headers": {
+                        "x-api-key": os.environ["LANGSMITH_API_KEY"],
+                        "Langsmith-Project": os.environ.get("LANGSMITH_PROJECT", "stagehand"),
+                    },
+                },
+            },
+        )
+        try:
+            page = (await browser.context.pages())[0]
+            await page.goto("https://example.com")
+            await stagehand.observe("find the link on the page")
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: envOr("LANGSMITH_OTLP_TRACES_ENDPOINT", "https://api.smith.langchain.com/otel/v1/traces"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"x-api-key":         os.Getenv("LANGSMITH_API_KEY"),
+					"Langsmith-Project": envOr("LANGSMITH_PROJECT", "stagehand"),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	pages, err := browserContext.Pages(ctx)
+	if err != nil {
+		return err
+	}
+	if len(pages) == 0 {
+		return errors.New("browser has no active page")
+	}
+	if _, err := pages[0].Goto(ctx, "https://example.com", nil); err != nil {
+		return err
+	}
+	instruction := "find the link on the page"
+	_, err = client.Observe(ctx, &instruction, nil)
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+Close Stagehand before closing the browser to flush pending spans. Exports run in one-second batches; exiting without closing Stagehand can lose the final batch. Delivery is best effort, so successful cleanup does not confirm ingestion.
+
+## Verify traces
+
+Open the project selected by `Langsmith-Project` and inspect the run's trace. Look for the operation span and child log spans from Stagehand.
+
+Stagehand uses its own span attributes rather than LangSmith's LLM conventions. The browser operations appear as generic runs without automatic model inputs, outputs, or token accounting.
+
+If no run appears, check that the endpoint matches your deployment, the project name is correct, and Stagehand closed before the browser.
