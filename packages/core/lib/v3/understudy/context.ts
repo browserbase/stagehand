@@ -1,7 +1,7 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import { v3Logger } from "../logger.js";
-import { CdpConnection, CDPSessionLike } from "./cdp.js";
+import { CdpConnection, CdpSession, CDPSessionLike } from "./cdp.js";
 import { Page } from "./page.js";
 import { installV3PiercerIntoSession } from "./piercer.js";
 import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
@@ -136,6 +136,8 @@ export class V3Context {
   private sessionOwnerPage = new Map<SessionId, Page>();
   private frameOwnerPage = new Map<string, Page>();
   private pendingOopifByMainFrame = new Map<string, SessionId>();
+  private pendingOopifParentByMainFrame = new Map<string, string>();
+  private adoptedOopifSessionByFrame = new Map<string, SessionId>();
   private createdAtByTarget = new Map<TargetId, number>();
   private typeByTarget = new Map<TargetId, TargetType>();
   private _pageOrder: TargetId[] = [];
@@ -711,6 +713,8 @@ export class V3Context {
     this.sessionOwnerPage.clear();
     this.frameOwnerPage.clear();
     this.pendingOopifByMainFrame.clear();
+    this.pendingOopifParentByMainFrame.clear();
+    this.adoptedOopifSessionByFrame.clear();
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
@@ -1113,6 +1117,7 @@ export class V3Context {
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this._pushActive(info.targetId);
         this.installFrameEventBridges(sessionId, page);
+        this.adoptPendingOopifsByParent();
         if (piercerPreRegistered) {
           this._piercerInstalled.add(sessionId);
         }
@@ -1156,17 +1161,19 @@ export class V3Context {
           }
         }
 
+        const parentFrameId = frameTree.frame.parentId;
+        if (!owner && parentFrameId) {
+          owner = this.findPageOwningFrame(parentFrameId);
+        }
+
         if (owner) {
-          owner.adoptOopifSession(session, childMainId);
-          this.sessionOwnerPage.set(sessionId, owner);
-          this.installFrameEventBridges(sessionId, owner);
-          // Prime the execution-context registry so later lookups succeed even if
-          // the frame navigates before we issue a command.
-          void executionContexts
-            .waitForMainWorld(session, childMainId)
-            .catch(() => {});
+          this.adoptOopif(owner, session, childMainId);
+          this.adoptPendingOopifsByParent();
         } else {
           this.pendingOopifByMainFrame.set(childMainId, sessionId);
+          if (parentFrameId) {
+            this.pendingOopifParentByMainFrame.set(childMainId, parentFrameId);
+          }
         }
       } catch {
         // page.getFrameTree failed. Most likely was an ad iframe
@@ -1174,6 +1181,62 @@ export class V3Context {
       }
     } finally {
       await resume();
+    }
+  }
+
+  private findPageOwningFrame(frameId: string): Page | undefined {
+    const known = this.frameOwnerPage.get(frameId);
+    if (known) return known;
+    for (const p of this.pagesByTarget.values()) {
+      if (p.listAllFrameIds().includes(frameId)) return p;
+    }
+    return undefined;
+  }
+
+  private adoptOopif(
+    owner: Page,
+    session: CdpSession,
+    childMainId: string,
+  ): void {
+    owner.adoptOopifSession(session, childMainId);
+    this.adoptedOopifSessionByFrame.set(childMainId, session.id);
+    this.sessionOwnerPage.set(session.id, owner);
+    this.frameOwnerPage.set(childMainId, owner);
+    this.installFrameEventBridges(session.id, owner);
+    // Prime the execution-context registry so later lookups succeed even if
+    // the frame navigates before we issue a command.
+    void executionContexts
+      .waitForMainWorld(session, childMainId)
+      .catch(() => {});
+  }
+
+  /**
+   * OOPIFs that already existed when we attached (e.g. connecting to a live
+   * browser) or that are nested in another OOPIF never get a parent
+   * `frameAttached`, so adopt them once the page owning their parent is known.
+   */
+  private adoptPendingOopifsByParent(): void {
+    let adopted = true;
+    while (adopted) {
+      adopted = false;
+      for (const [childMainId, parentFrameId] of Array.from(
+        this.pendingOopifParentByMainFrame.entries(),
+      )) {
+        const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
+        const child = childSessionId
+          ? this.conn.getSession(childSessionId)
+          : undefined;
+        if (!child) {
+          this.pendingOopifParentByMainFrame.delete(childMainId);
+          continue;
+        }
+        const owner = this.findPageOwningFrame(parentFrameId);
+        if (!owner) continue;
+        this.pendingOopifByMainFrame.delete(childMainId);
+        this.pendingOopifParentByMainFrame.delete(childMainId);
+        this.adoptOopif(owner, child, childMainId);
+        adopted = true;
+      }
     }
   }
 
@@ -1280,6 +1343,11 @@ export class V3Context {
     )) {
       if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
     }
+    for (const [fid, sid] of Array.from(
+      this.adoptedOopifSessionByFrame.entries(),
+    )) {
+      if (sid === sessionId) this.adoptedOopifSessionByFrame.delete(fid);
+    }
 
     this._targetSessionListeners.delete(sessionId);
     const session = this.conn.getSession(sessionId);
@@ -1333,7 +1401,15 @@ export class V3Context {
       (evt) => {
         const { frameId, parentFrameId } = evt;
 
-        owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+        // A live OOPIF session adopted before this (late) parent event keeps ownership.
+        const adoptedSessionId = this.adoptedOopifSessionByFrame.get(frameId);
+        if (
+          !adoptedSessionId ||
+          adoptedSessionId === session.id ||
+          !this.conn.getSession(adoptedSessionId)
+        ) {
+          owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+        }
 
         // If we were waiting for this id (OOPIF child), adopt now.
         const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
@@ -1341,6 +1417,7 @@ export class V3Context {
           const child = this.conn.getSession(pendingChildSessionId);
           if (child) {
             owner.adoptOopifSession(child, frameId);
+            this.adoptedOopifSessionByFrame.set(frameId, child.id);
             this.sessionOwnerPage.set(child.id, owner);
             // Wire bridges for the child so its Page events keep flowing.
             this.installFrameEventBridges(pendingChildSessionId, owner);
