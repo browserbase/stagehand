@@ -48,5 +48,15 @@ server-generated spec just to make validation pass. Run the docs checks and
 
 ## Publishing
 
-Documentation is deployed through the Mintlify GitHub integration after changes reach the
-repository's default branch.
+Open every docs change as a PR to `main`. Merging to `main` updates the preview site. Production
+(docs.stagehand.dev) deploys from `docs-production`, which only CI writes to:
+
+- **Docs for an SDK change:** include them in the same PR. When the Version Packages PR merges and
+  every SDK released from that commit has published, `release.yml` merges that commit into
+  `docs-production`.
+- **Copy fixes, examples, links:** a stagehand team member with write access adds the
+  `docs-hotfix` label (before or after merge). After merge, `docs-hotfix.yml` cherry-picks the
+  commit onto `docs-production`. Only PRs that change nothing outside `packages/docs/` qualify.
+
+If a promotion conflicts, the workflow comments or opens an issue with the commands to resolve it
+by hand through a PR into `docs-production`.
