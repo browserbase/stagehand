@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -314,5 +315,77 @@ func TestCDPAuthenticatedHandshakeErrorOmitsResponseAndURL(t *testing.T) {
 	_, err := dialCDPWebSocket(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"?token=secret-url", http.Header{"X-Key": {"secret-header"}}, nil)
 	if err == nil || !strings.Contains(err.Error(), "HTTP 403") || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("unexpected handshake error: %v", err)
+	}
+}
+
+func TestCDPRejectsDuplicateHeaderNames(t *testing.T) {
+	for _, second := range []string{"secret-one", "secret-two"} {
+		called := false
+		_, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
+			CDPURL: "ws://gw", Headers: map[string]string{"X-Secret": "secret-one", "x-secret": second},
+		}, browserFactoryDependencies{connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+			called = true
+			return nil, errors.New("unexpected connection")
+		}})
+		if err == nil || err.Error() != "headers must not contain duplicate names ignoring case" || called {
+			t.Fatalf("duplicate validation: error=%v connected=%v", err, called)
+		}
+	}
+}
+
+func TestCDPRedirectRevalidatesCallbackURL(t *testing.T) {
+	for _, destination := range []string{"https://other/final", "https://gw:9443/final", "http://gw:443/final", "https://secret@gw/final", ""} {
+		t.Run(destination, func(t *testing.T) {
+			source, _ := http.NewRequest("GET", "https://gw/start", nil)
+			request, _ := http.NewRequest("GET", "https://gw/final", nil)
+			client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if destination == "" {
+					req.URL = nil
+				} else {
+					req.URL, _ = url.Parse(destination)
+				}
+				// Mutating the previous request must not change the captured trust boundary.
+				via[0].URL, _ = url.Parse("https://other/start")
+				return nil
+			}}
+			err := cdpHTTPClientWithHeaders(client, http.Header{"X-Key": {"secret"}}).CheckRedirect(request, []*http.Request{source})
+			if !errors.Is(err, errUnsafeCDPRedirect) {
+				t.Fatalf("rewrite error = %v", err)
+			}
+		})
+	}
+	for _, callbackError := range []error{nil, http.ErrUseLastResponse, errors.New("caller policy")} {
+		source, _ := http.NewRequest("GET", "https://gw/start", nil)
+		request, _ := http.NewRequest("GET", "https://gw/final", nil)
+		client := &http.Client{CheckRedirect: func(req *http.Request, _ []*http.Request) error { req.URL.Path = "/allowed"; return callbackError }}
+		err := cdpHTTPClientWithHeaders(client, http.Header{"X-Key": {"secret"}}).CheckRedirect(request, []*http.Request{source})
+		if err != callbackError {
+			t.Fatalf("callback result = %v, want %v", err, callbackError)
+		}
+	}
+}
+
+func TestCDPRedirectRewriteDoesNotSendCredentials(t *testing.T) {
+	for _, direct := range []bool{false, true} {
+		t.Run(fmt.Sprintf("websocket=%v", direct), func(t *testing.T) {
+			var reached atomic.Int32
+			destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached.Add(1); http.Error(w, "unexpected", 403) }))
+			defer destination.Close()
+			source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/allowed", 302) }))
+			defer source.Close()
+			client := &http.Client{CheckRedirect: func(req *http.Request, _ []*http.Request) error { req.URL, _ = url.Parse(destination.URL); return nil }}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			headers := http.Header{"X-Key": {"secret"}}
+			var err error
+			if direct {
+				_, err = dialCDPWebSocket(ctx, "ws"+strings.TrimPrefix(source.URL, "http"), headers, client)
+			} else {
+				_, err = resolveBrowserWebSocketURL(ctx, source.URL, headers, client)
+			}
+			if !errors.Is(err, errUnsafeCDPRedirect) || reached.Load() != 0 {
+				t.Fatalf("rewritten redirect: error=%v requests=%d", err, reached.Load())
+			}
+		})
 	}
 }

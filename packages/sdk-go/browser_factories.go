@@ -224,7 +224,11 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 			if err := validateCDPHeader(name, value); err != nil {
 				return nil, err
 			}
-			headers.Set(name, value)
+			canonicalName := http.CanonicalHeaderKey(name)
+			if _, exists := headers[canonicalName]; exists {
+				return nil, errors.New("headers must not contain duplicate names ignoring case")
+			}
+			headers.Set(canonicalName, value)
 		}
 	}
 

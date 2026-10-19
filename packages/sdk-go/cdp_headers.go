@@ -64,11 +64,21 @@ func cdpHTTPClientWithHeaders(client *http.Client, headers http.Header) *http.Cl
 		if len(via) >= 10 {
 			return errCDPRedirectLimit
 		}
-		if request.URL.User != nil || len(via) == 0 || !canForwardCDPHeaders(via[len(via)-1].URL.String(), request.URL.String()) {
+		if len(via) == 0 || request.URL == nil {
+			return errUnsafeCDPRedirect
+		}
+		// Capture the source before the caller callback can mutate requests.
+		source := via[len(via)-1].URL.String()
+		if request.URL.User != nil || !canForwardCDPHeaders(source, request.URL.String()) {
 			return errUnsafeCDPRedirect
 		}
 		if client.CheckRedirect != nil {
-			return client.CheckRedirect(request, via)
+			if err := client.CheckRedirect(request, via); err != nil {
+				return err
+			}
+			if request.URL == nil || request.URL.User != nil || !canForwardCDPHeaders(source, request.URL.String()) {
+				return errUnsafeCDPRedirect
+			}
 		}
 		return nil
 	}
