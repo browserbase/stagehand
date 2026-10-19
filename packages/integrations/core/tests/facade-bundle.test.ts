@@ -31,7 +31,7 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(2);
+    expect(bundle.version).toBe(3);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
@@ -127,7 +127,7 @@ describe("facade bundle", () => {
     expect(() => new Function(`return (${RUN_PRELUDE + code + RUN_EPILOGUE});`)).not.toThrow();
   });
 
-  it("carries the contract's error and screenshot messages verbatim", () => {
+  it("carries the contract's error messages, limits and screenshot messages verbatim", () => {
     expect(bundle.contract.errors).toStrictEqual({
       NO_HYDRATED_SNAPSHOT_ERROR: contract.NO_HYDRATED_SNAPSHOT_ERROR,
       NAVIGATED_SNAPSHOT_ERROR: contract.NAVIGATED_SNAPSHOT_ERROR,
@@ -135,8 +135,15 @@ describe("facade bundle", () => {
       BROWSER_SESSION_LOST_ERROR: contract.BROWSER_SESSION_LOST_ERROR,
       SCREENSHOT_ARTIFACT_PATH_ERROR: contract.SCREENSHOT_ARTIFACT_PATH_ERROR,
       SCREENSHOT_ARTIFACT_SYMLINK_ERROR: contract.SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+      SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR: contract.SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
       FACADE_BROWSER_CLOSED_ERROR: contract.FACADE_BROWSER_CLOSED_ERROR,
+      RUN_RESULT_MALFORMED_ERROR: contract.RUN_RESULT_MALFORMED_ERROR,
+      SCREENSHOT_ARTIFACT_COUNT_ERROR: contract.SCREENSHOT_ARTIFACT_COUNT_ERROR,
+      SCREENSHOT_ARTIFACT_SIZE_ERROR: contract.SCREENSHOT_ARTIFACT_SIZE_ERROR,
+      SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR: contract.SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+      RUN_VALUE_SIZE_ERROR: contract.RUN_VALUE_SIZE_ERROR,
     });
+    expect(bundle.contract.limits).toStrictEqual(contract.RUN_RESULT_LIMITS);
     expect(bundle.contract.messages).toStrictEqual({
       SCREENSHOT_CAPTURED_MESSAGE: contract.SCREENSHOT_CAPTURED_MESSAGE,
       SCREENSHOT_COMPRESSED_MESSAGE: contract.SCREENSHOT_COMPRESSED_MESSAGE,

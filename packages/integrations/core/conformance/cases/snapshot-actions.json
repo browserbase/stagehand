@@ -1,0 +1,253 @@
+{
+  "cases": [
+    {
+      "name": "snapshot returns the formatted tree",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search\n[0-9] textbox: Query",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]",
+            "0-9": "/html[1]/body[1]/input[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "result": "[0-7] button: Search\n[0-9] textbox: Query"
+          }
+        }
+      ]
+    },
+    {
+      "name": "actions are sent with the latest snapshot's XPath map",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search\n[0-9] textbox: Query",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]",
+            "0-9": "/html[1]/body[1]/input[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search\n[0-9] textbox: Query"
+          }
+        },
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "fill",
+                "id": "0-9",
+                "value": "Miami"
+              },
+              {
+                "op": "click",
+                "id": "7"
+              }
+            ]
+          },
+          "batch": [
+            {
+              "return": {
+                "completed": 2
+              }
+            }
+          ],
+          "sent": [
+            {
+              "callback": "actionRunner",
+              "input": {
+                "actions": [
+                  {
+                    "op": "fill",
+                    "id": "0-9",
+                    "value": "Miami"
+                  },
+                  {
+                    "op": "click",
+                    "id": "7"
+                  }
+                ],
+                "xpathById": {
+                  "0-7": "/html[1]/body[1]/button[1]",
+                  "0-9": "/html[1]/body[1]/input[1]"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "result": {
+              "completed": 2,
+              "url": "https://example.com/"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "actions without a snapshot fail before sending",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search\n[0-9] textbox: Query",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]",
+            "0-9": "/html[1]/body[1]/input[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": "0-7"
+              }
+            ]
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "NO_HYDRATED_SNAPSHOT_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "actions after navigation fail and discard the snapshot",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search\n[0-9] textbox: Query",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]",
+            "0-9": "/html[1]/body[1]/input[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search\n[0-9] textbox: Query"
+          }
+        },
+        {
+          "pageUrl": "https://example.com/next",
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": "0-7"
+              }
+            ]
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "NAVIGATED_SNAPSHOT_ERROR"
+            }
+          }
+        },
+        {
+          "pageUrl": "https://example.com/",
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": "0-7"
+              }
+            ]
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "NO_HYDRATED_SNAPSHOT_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a stale snapshot ID reported by the action runner fails with that ID",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search\n[0-9] textbox: Query",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]",
+            "0-9": "/html[1]/body[1]/input[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search\n[0-9] textbox: Query"
+          }
+        },
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": "0-99"
+              }
+            ]
+          },
+          "batch": [
+            {
+              "return": {
+                "staleId": "0-99"
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "STALE_SNAPSHOT_ID_ERROR",
+              "params": {
+                "id": "0-99"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

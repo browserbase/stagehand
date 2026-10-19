@@ -13,15 +13,22 @@ import {
   FACADE_TOOLS_EXPLICIT_SNAPSHOT,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
+  RUN_RESULT_LIMITS,
+  RUN_RESULT_MALFORMED_ERROR,
+  RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_COUNT_ERROR,
+  SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SIZE_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
   SCREENSHOT_CAPTURED_MESSAGE,
   SCREENSHOT_COMPRESSED_MESSAGE,
   STALE_SNAPSHOT_ID_ERROR,
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 2;
+export const FACADE_BUNDLE_VERSION = 3;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
@@ -41,6 +48,16 @@ export const FACADE_BUNDLE_VERSION = 2;
  *     (what `AsyncFunction(params, code)` accepts) and otherwise fail the call
  *     with a SyntaxError, as the TS facade does; plain concatenation would let
  *     code that closes the function early run outside the callback.
+ *     The host fails the call with RUN_RESULT_MALFORMED_ERROR, without closing
+ *     or writing anything, unless the result has the marker, `closeRequested`
+ *     boolean, `batchRuntimeMs` number, `telemetry` object, `artifacts` array
+ *     of string pairs, and `executionError` absent, null or `{ name, message,
+ *     stack? }` strings. It then checks `contract.limits` (artifact count,
+ *     each decoded artifact, their total) before writing any artifact, writes
+ *     artifacts in order, raises executionError, and finally checks the value's
+ *     compact-JSON size; whatever fails, it closes the session afterwards when
+ *     `closeRequested` is true. packages/integrations/core/conformance holds
+ *     cases every host must pass.
  *   - `run` actions: `actionRunner`, input `{ actions, xpathById }` with the
  *     validated actions and the XPath map of the active page's latest snapshot.
  *     It resolves to `{ completed }`, or to `{ staleId }` without running any
@@ -51,6 +68,7 @@ export const FACADE_BUNDLE_VERSION = 2;
  *   `--surface=legacy`, and playwright with EXPLICIT_SNAPSHOT_ACTIONS=1).
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
+ * - contract.limits: caps on a run result (RUN_RESULT_LIMITS), in bytes.
  * - contract.messages: the screenshot tool's text, plain or after
  *   transport-safe compression.
  * - sha256: hex SHA-256 of the UTF-8 canonical JSON of `{ sources, contract }`
@@ -77,8 +95,15 @@ export function facadeBundle(packageVersion: string) {
         BROWSER_SESSION_LOST_ERROR,
         SCREENSHOT_ARTIFACT_PATH_ERROR,
         SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+        SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
         FACADE_BROWSER_CLOSED_ERROR,
+        RUN_RESULT_MALFORMED_ERROR,
+        SCREENSHOT_ARTIFACT_COUNT_ERROR,
+        SCREENSHOT_ARTIFACT_SIZE_ERROR,
+        SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+        RUN_VALUE_SIZE_ERROR,
       },
+      limits: RUN_RESULT_LIMITS,
       messages: {
         SCREENSHOT_CAPTURED_MESSAGE,
         SCREENSHOT_COMPRESSED_MESSAGE,

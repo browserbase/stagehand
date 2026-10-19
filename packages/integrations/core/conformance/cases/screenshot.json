@@ -1,0 +1,49 @@
+{
+  "cases": [
+    {
+      "name": "screenshot returns the page's PNG bytes as base64",
+      "page": {
+        "url": "https://example.com/",
+        "screenshot": "iVBORw0KGgo="
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "screenshot"
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "result": {
+              "data": "iVBORw0KGgo=",
+              "mimeType": "image/png"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a JPEG screenshot is labelled image/jpeg",
+      "page": {
+        "url": "https://example.com/",
+        "screenshot": "/9j/4AAQ"
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "screenshot",
+            "type": "jpeg",
+            "quality": 40
+          },
+          "batch": [],
+          "expect": {
+            "result": {
+              "data": "/9j/4AAQ",
+              "mimeType": "image/jpeg"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
