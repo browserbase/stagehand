@@ -58,22 +58,31 @@ export const LocalBrowserLaunchOptionsSchema = z
 // Validate the whole map before record parsing so errors never contain header names or values.
 const CDPHeadersSchema = z.preprocess(
   (value) => {
-    if (
-      typeof value !== "object" ||
-      value === null ||
-      Array.isArray(value) ||
-      ![Object.prototype, null].includes(Object.getPrototypeOf(value)) ||
-      !Object.entries(value).every(
-        ([name, content]) =>
-          name.length > 0 &&
-          !/[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(name) &&
-          typeof content === "string" &&
-          !/[^\t\x20-\x7e]/.test(content) &&
-          content === content.replace(/^[ \t]+|[ \t]+$/g, ""),
+    try {
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value) ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(value))
       )
-    )
+        return null;
+      const entries = Object.entries(value);
+      if (
+        !entries.every(
+          ([name, content]) =>
+            name.length > 0 &&
+            !/[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(name) &&
+            typeof content === "string" &&
+            !/[^\t\x20-\x7e]/.test(content) &&
+            content === content.replace(/^[ \t]+|[ \t]+$/g, ""),
+        )
+      )
+        return null;
+      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
+      return Object.fromEntries(entries);
+    } catch {
       return null;
-    return value;
+    }
   },
   z.record(z.string(), z.string(), {
     error:
