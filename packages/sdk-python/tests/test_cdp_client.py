@@ -3,6 +3,7 @@ import json
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Self, cast
+from urllib.request import Request
 
 import pytest
 
@@ -111,10 +112,10 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -171,10 +172,10 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -424,7 +425,7 @@ def test_json_version_probe_uses_a_short_socket_timeout(
         def __exit__(self, *_: object) -> None:
             return None
 
-    def open_url(_: str, *, timeout: object = None) -> Response:
+    def open_url(_: object, *, timeout: object = None) -> Response:
         nonlocal observed_timeout
         observed_timeout = timeout
         return Response()
@@ -438,16 +439,75 @@ def test_json_version_probe_uses_a_short_socket_timeout(
     assert observed_timeout == 2
 
 
+def test_json_version_probe_sends_the_callers_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: dict[str, str] = {}
+
+    class Response:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def open_url(request: Request, *, timeout: object = None) -> Response:
+        sent.update(request.header_items())
+        return Response()
+
+    monkeypatch.setattr(cdp_client, "build_opener", lambda *_: SimpleNamespace(open=open_url))
+    monkeypatch.setattr(cdp_client.json, "load", lambda _: {"webSocketDebuggerUrl": "wss://gw"})
+
+    cdp_client._read_json("https://gw/cdp/json/version", {"X-Api-Key": "secret"})
+    assert sent == {"X-api-key": "secret"}
+
+
+@pytest.mark.asyncio
+async def test_resolve_sends_headers_to_the_version_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[str, object]] = []
+
+    def read(url: str, headers: object = None) -> dict[str, object]:
+        seen.append((url, headers))
+        return {"webSocketDebuggerUrl": "wss://gw/devtools/browser/1"}
+
+    monkeypatch.setattr(cdp_client, "_read_json", read)
+
+    url = await cdp_client._resolve_browser_web_socket_url(
+        "https://gw/cdp", headers={"X-Api-Key": "secret"}
+    )
+    assert url == "wss://gw/devtools/browser/1"
+    assert seen == [("https://gw/cdp/json/version", {"X-Api-Key": "secret"})]
+
+
+@pytest.mark.parametrize(
+    ("cdp_url", "web_socket_url", "same"),
+    [
+        ("https://gw/cdp", "wss://gw/devtools/browser/1", True),
+        ("https://gw:443/cdp", "wss://gw/devtools/browser/1", True),
+        ("http://127.0.0.1:9222", "ws://127.0.0.1:9222/devtools/browser/1", True),
+        ("wss://gw/devtools/browser/1", "wss://gw/devtools/browser/1", True),
+        ("https://gw/cdp", "wss://elsewhere/devtools/browser/1", False),
+        ("https://gw/cdp", "wss://gw:8443/devtools/browser/1", False),
+    ],
+)
+def test_headers_follow_only_to_the_same_host(
+    cdp_url: str, web_socket_url: str, same: bool
+) -> None:
+    assert cdp_client._can_forward_headers(cdp_url, web_socket_url) is same
+
+
 @pytest.mark.asyncio
 async def test_connect_explains_when_chrome_cannot_load_an_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     socket = FakeWebSocket(lambda _: {"error": {"code": -32601, "message": "Method not found"}})
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -540,10 +600,10 @@ async def test_connect_discovers_or_loads_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -889,7 +949,7 @@ async def test_local_cancellation_closes_connection(
 
     socket = FakeWebSocket(response_for)
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
@@ -923,7 +983,7 @@ async def test_local_loading_failure_closes_connection_without_retrying(
 
     socket = FakeWebSocket(response_for)
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)

@@ -69,6 +69,8 @@ class LocalBrowserConnectOptions(TypedDict):
     """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
     extension_cdp_url: NotRequired[str]
     """Browser-level CDP WebSocket the extension dials, when it differs from `cdp_url`."""
+    headers: NotRequired[dict[str, str]]
+    """HTTP headers sent with the CDP connection, e.g. a gateway's credentials."""
 
 
 class BrowserbaseClientOptions(TypedDict, total=False):
