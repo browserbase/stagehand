@@ -455,7 +455,7 @@ def test_json_version_probe_sends_the_callers_headers(
         sent.update(request.header_items())
         return Response()
 
-    monkeypatch.setattr(cdp_client, "urlopen", open_url)
+    monkeypatch.setattr(cdp_client, "build_opener", lambda *_: SimpleNamespace(open=open_url))
     monkeypatch.setattr(cdp_client.json, "load", lambda _: {"webSocketDebuggerUrl": "wss://gw"})
 
     cdp_client._read_json("https://gw/cdp/json/version", {"X-Api-Key": "secret"})
@@ -495,7 +495,7 @@ async def test_resolve_sends_headers_to_the_version_endpoint(
 def test_headers_follow_only_to_the_same_host(
     cdp_url: str, web_socket_url: str, same: bool
 ) -> None:
-    assert cdp_client._same_host(cdp_url, web_socket_url) is same
+    assert cdp_client._can_forward_headers(cdp_url, web_socket_url) is same
 
 
 @pytest.mark.asyncio

@@ -8,8 +8,12 @@ from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.parse import urljoin, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+
+from typing_extensions import override
+from websockets.asyncio.client import connect as WebSocketConnect
+from websockets.exceptions import InvalidStatus
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
@@ -283,8 +287,12 @@ class CDPClient:
         web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url, headers=headers)
         socket = await _connect_web_socket(
             web_socket_debugger_url,
-            # Never hand a gateway's headers to another host it advertises.
-            headers=headers if _same_host(cdp_url, web_socket_debugger_url) else None,
+            # Never forward credentials to a different endpoint or downgrade their transport.
+            headers=(
+                headers
+                if headers and _can_forward_headers(cdp_url, web_socket_debugger_url)
+                else None
+            ),
         )
         client = cls(socket, web_socket_debugger_url)
 
@@ -665,26 +673,68 @@ class CDPClient:
         task.add_done_callback(finish)
 
 
-async def _connect_web_socket(url: str, *, headers: Mapping[str, str] | None = None) -> _WebSocket:
-    from websockets.asyncio.client import connect
-
-    return cast(
-        _WebSocket,
-        await connect(url, open_timeout=None, max_size=None, additional_headers=headers),
-    )
+class _UnsafeCDPRedirectError(RuntimeError):
+    """A redirect would expose caller headers to an unauthorized endpoint."""
 
 
 _DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
 
 
-def _same_host(a: str, b: str) -> bool:
-    """Whether two URLs name the same host and port, counting ws/http and wss/https alike."""
-    first, second = urlsplit(a), urlsplit(b)
-    return (
-        first.hostname is not None
-        and first.hostname == second.hostname
-        and (first.port or _DEFAULT_PORTS.get(first.scheme))
-        == (second.port or _DEFAULT_PORTS.get(second.scheme))
+def _can_forward_headers(source: str, destination: str) -> bool:
+    """Require the same host and effective port, without a TLS downgrade."""
+    try:
+        first, second = urlsplit(source), urlsplit(destination)
+        return (
+            first.scheme in _DEFAULT_PORTS
+            and second.scheme in _DEFAULT_PORTS
+            and first.hostname is not None
+            and first.hostname == second.hostname
+            and (first.port if first.port is not None else _DEFAULT_PORTS[first.scheme])
+            == (second.port if second.port is not None else _DEFAULT_PORTS[second.scheme])
+            and not (first.scheme in ("https", "wss") and second.scheme in ("http", "ws"))
+        )
+    except ValueError:
+        return False
+
+
+class _CDPRedirectHandler(HTTPRedirectHandler):
+    @override
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> Request | None:
+        if not _can_forward_headers(req.full_url, newurl):
+            raise _UnsafeCDPRedirectError(
+                "Refusing CDP HTTP redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _CDPWebSocketConnect(WebSocketConnect):
+    @override
+    def process_redirect(self, exc: Exception) -> Exception | str:
+        if (
+            self.additional_headers
+            and isinstance(exc, InvalidStatus)
+            and exc.response.status_code in (300, 301, 302, 303, 307, 308)
+            and "Location" in exc.response.headers
+            and not _can_forward_headers(
+                self.uri, urljoin(self.uri, exc.response.headers["Location"])
+            )
+        ):
+            return _UnsafeCDPRedirectError(
+                "Refusing CDP WebSocket redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().process_redirect(exc)
+
+
+async def _connect_web_socket(url: str, *, headers: Mapping[str, str] | None = None) -> _WebSocket:
+    return cast(
+        _WebSocket,
+        await _CDPWebSocketConnect(
+            url, open_timeout=None, max_size=None, additional_headers=headers
+        ),
     )
 
 
@@ -701,6 +751,8 @@ async def _resolve_browser_web_socket_url(
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
+        except _UnsafeCDPRedirectError:
+            raise
         except Exception:
             pass
         await asyncio.sleep(0.25)
@@ -708,7 +760,9 @@ async def _resolve_browser_web_socket_url(
 
 def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
     request = Request(url, headers=dict(headers or {}))
-    with urlopen(request, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
+    # Keep the existing redirect behavior for connections without caller headers.
+    open_url = build_opener(_CDPRedirectHandler()).open if headers else urlopen
+    with open_url(request, timeout=2) as response:
         value: Any = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")
