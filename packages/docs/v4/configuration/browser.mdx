@@ -571,19 +571,6 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 Connect-time `extensionId` / `extension_id` / `ExtensionID` is deprecated and ignored.
 </Note>
 
-If the client connects through a proxy or authenticated gateway, you can give the extension a separate browser-level CDP WebSocket URL:
-
-| SDK | Optional connection parameter | Default |
-| --- | --- | --- |
-| TypeScript | `extensionCdpUrl` | When omitted, use the client's resolved CDP WebSocket URL. |
-| Python | `extension_cdp_url` | When omitted or `None`, use the client's resolved CDP WebSocket URL. |
-| Go | `ExtensionCDPURL` | When empty, use the client's resolved CDP WebSocket URL. |
-
-The override must use `ws://` or `wss://`, include a host, and use a port between 1 and 65535 if specified. Both endpoints must reach the same browser. The extension endpoint can use any host reachable from inside Chrome; it is not limited to loopback addresses.
-
-For example, the client can connect to `wss://gateway.example/cdp?api_key=YOUR_API_KEY` while the extension uses `ws://127.0.0.1:9300/devtools/browser/BROWSER_ID`. Here, `127.0.0.1` refers to the browser's environment. This keeps the gateway URL and its credentials out of the extension and avoids routing the extension's CDP commands through the gateway.
-
-
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
@@ -625,6 +612,58 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
+
+If the client connects through a proxy or authenticated gateway, you can give the extension a separate browser-level CDP WebSocket URL:
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.connect({
+  cdpUrl: "wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+  extensionCdpUrl: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+});
+const stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+from stagehand import Stagehand, local_browser
+
+browser = await local_browser.connect(
+    cdp_url="wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+    extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+)
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL:          "wss://gateway.example/cdp?api_key=YOUR_API_KEY",
+	ExtensionCDPURL: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+The override must use `ws://` or `wss://`, include a host, and use a port between 1 and 65535 if specified. Both endpoints must reach the same browser. When the option is omitted (`None` in Python or an empty string in Go), the extension uses the client's resolved CDP WebSocket URL.
+
+In this example, `127.0.0.1` refers to the browser's environment. The extension can use any host reachable from inside Chrome. Using a separate endpoint keeps the gateway URL and its credentials out of the extension and avoids routing the extension's CDP commands through the gateway.
+
 
 <Note>
 Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
