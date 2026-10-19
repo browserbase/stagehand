@@ -151,6 +151,22 @@ describe("Page.waitForFunction", () => {
     ]);
   });
 
+  it("stands in for waitForNavigation and waitForURL across a page-initiated load", async () => {
+    const start = await page.url();
+    const target = `${fixture.url}after`;
+    const navigated = page.waitForFunction((from) => location.href !== from, start, {
+      timeout: 5000,
+    });
+    const reachedUrl = page.waitForFunction((url) => location.href === url, target, {
+      timeout: 5000,
+    });
+    await page.evaluate((url) => {
+      setTimeout(() => location.assign(url), 100);
+    }, target);
+    await expect(navigated).resolves.toBe(true);
+    await expect(reachedUrl).resolves.toBe(true);
+  });
+
   it("does not retry a predicate exception that resembles a CDP context error", async () => {
     await expect(
       page.waitForFunction(
