@@ -13,7 +13,7 @@ const WRAPPER_FRAME = "wrapper-frame";
 const PAGE_SESSION = "page-session";
 const EDITOR_SESSION = "editor-session";
 const NESTED_SESSION = "nested-session";
-const PAGE_TARGET = { targetId: "page-target", type: "page", url: "https://crm.example.com/" };
+const PAGE_TARGET = { targetId: "page-target", type: "page", url: "https://app.example.com/" };
 const EDITOR_TARGET = {
   targetId: "editor-target",
   type: "iframe",
