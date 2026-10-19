@@ -15,6 +15,21 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * Errors that reject a pending wait when its execution context goes away: a
+ * stale context id, or a navigation that commits while the wait is awaited
+ * (Chrome and V8 wording).
+ */
+const CONTEXT_LOSS_MESSAGES = [
+  "Cannot find context with specified id",
+  "Execution context was destroyed",
+  "Inspected target navigated or closed",
+];
+
+function isContextLossMessage(message: string): boolean {
+  return CONTEXT_LOSS_MESSAGES.some((needle) => message.includes(needle));
+}
+
 interface FrameManager {
   session: CDPSessionLike;
   frameId: string;
@@ -245,9 +260,10 @@ export class Frame implements FrameManager {
         } catch (error) {
           progress.throwIfStopped();
           const message = error instanceof Error ? error.message : String(error);
-          // Retry context loss once, matching locator evaluation recovery
-          if (attempt !== 0 || !message.includes("Cannot find context with specified id"))
-            throw error;
+          // Retry context loss once, matching locator evaluation recovery. A
+          // wait issued right after the action that triggers a navigation is
+          // pinned to the outgoing document, so the commit rejects it too.
+          if (attempt !== 0 || !isContextLossMessage(message)) throw error;
           executionContexts.unregisterLocatorContext(this.session, response.contextId);
           continue;
         }
