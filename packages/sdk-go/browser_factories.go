@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,10 @@ type LocalBrowserLaunchOptions struct {
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
 	CDPURL string
+	// ExtensionCDPURL is the browser-level CDP WebSocket URL dialed by the
+	// extension inside Chrome. Empty uses the client's URL. Set this when the
+	// client connects through a gateway the extension cannot or should not use.
+	ExtensionCDPURL string
 	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
 	ExtensionID string
 }
@@ -125,6 +131,7 @@ type connectBrowserOptions struct {
 	extensionID        string
 	preloadedExtension bool
 	afterConnect       func(context.Context, browserCommandSender) error
+	workerCDPURL       string
 	workerAPIKey       *string
 	workerBrowser      *BrowserSessionMetadata
 }
@@ -194,10 +201,23 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 	}
 	defer cancelLifecycle()
 
+	if options.ExtensionCDPURL != "" {
+		parsed, err := url.Parse(options.ExtensionCDPURL)
+		if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "ws" && parsed.Scheme != "wss") {
+			return nil, errors.New("extension CDP URL must be a ws:// or wss:// URL with a host")
+		}
+		if port := parsed.Port(); port != "" {
+			if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+				return nil, errors.New("extension CDP URL must have a valid port")
+			}
+		}
+	}
+
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginConnected,
 		source:         browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true},
 		localExtension: true,
+		workerCDPURL:   options.ExtensionCDPURL,
 	}, dependencies)
 }
 
@@ -384,6 +404,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	}
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
+		workerCDPURL:  options.workerCDPURL,
 		workerAPIKey:  options.workerAPIKey,
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, terminateSource: terminateSource, cleanup: options.source.cleanup,
