@@ -5,7 +5,7 @@ type CompatPage = { url(): string };
 type CompatContext = { pages(): unknown[] };
 type CompatBrowser = { contexts(): unknown[] };
 
-// SDKs ship this function's source as a standalone script and evaluate it inside
+// Hosts ship this function's source as a standalone script and evaluate it inside
 // a batch callback, so it must not close over anything but the `__name` helper.
 it("exports the compat runtime as self-contained source", async () => {
   const source = createPlaywrightCompatRuntime.toString();
