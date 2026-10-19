@@ -9,6 +9,7 @@ import type { Page } from "../understudy/page.ts";
 const MAIN_FRAME = "main-frame";
 const EDITOR_FRAME = "editor-frame";
 const NESTED_FRAME = "nested-frame";
+const WRAPPER_FRAME = "wrapper-frame";
 const PAGE_SESSION = "page-session";
 const EDITOR_SESSION = "editor-session";
 const NESTED_SESSION = "nested-session";
@@ -50,7 +51,13 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
   messageHandler: (data: string) => void = () => {};
   releasePageFrameTree: (() => void) | undefined;
 
-  constructor(readonly opts: { editorRegistersFirst?: boolean; nested?: boolean } = {}) {}
+  constructor(
+    readonly opts: {
+      editorRegistersFirst?: boolean;
+      nested?: boolean;
+      editorInsideWrapper?: boolean;
+    } = {},
+  ) {}
 
   send(payload: string): void {
     void this.respond(JSON.parse(payload) as CdpRequest);
@@ -96,7 +103,8 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       return reply({ frameTree: { frame: frame(MAIN_FRAME, PAGE_TARGET.url) } });
     }
     if (method === "Page.getFrameTree" && sessionId === EDITOR_SESSION) {
-      reply({ frameTree: { frame: frame(EDITOR_FRAME, EDITOR_TARGET.url, MAIN_FRAME) } });
+      const parent = this.opts.editorInsideWrapper ? WRAPPER_FRAME : MAIN_FRAME;
+      reply({ frameTree: { frame: frame(EDITOR_FRAME, EDITOR_TARGET.url, parent) } });
       await new Promise((resolve) => setImmediate(resolve));
       this.releasePageFrameTree?.();
       return;
@@ -184,6 +192,21 @@ describe("BrowserContext OOPIF adoption", () => {
 
   it("adopts an OOPIF nested inside another OOPIF", async () => {
     const { page } = await connect(new BrowserWithLoadedOopif({ nested: true }));
+
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+  });
+
+  it("adopts waiting OOPIFs once the page reports the frame that contains them", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true, editorInsideWrapper: true });
+    const { context, page } = await connect(browser);
+    await vi.waitFor(() => expect(context.pendingOopifByMainFrame.size).toBe(2));
+
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: WRAPPER_FRAME, parentFrameId: MAIN_FRAME },
+      PAGE_SESSION,
+    );
 
     await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
     await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);

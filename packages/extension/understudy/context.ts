@@ -1200,15 +1200,9 @@ export class BrowserContext {
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
       if (pendingChildSessionId) {
         const child = this.conn.getSession(pendingChildSessionId);
-        if (child) {
-          owner.adoptOopifSession(child, frameId);
-          this.adoptedOopifSessionByFrame.set(frameId, child.id);
-          this.sessionOwnerPage.set(child.id, owner);
-          // Wire bridges for the child so its Page events keep flowing.
-          this.installFrameEventBridges(pendingChildSessionId, owner);
-        }
         this.pendingOopifByMainFrame.delete(frameId);
         this.pendingOopifParentByMainFrame.delete(frameId);
+        if (child) this.adoptOopif(owner, child, frameId);
       }
 
       // Track Page ownership for quick reverse lookups (debug helpers).
@@ -1223,6 +1217,9 @@ export class BrowserContext {
         }
         this.frameOwnerPage.set(newRoot, owner);
       }
+
+      // The new frame may be the parent of an OOPIF still waiting for adoption.
+      this.adoptPendingOopifsByParent();
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
