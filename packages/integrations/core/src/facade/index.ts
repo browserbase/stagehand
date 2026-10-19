@@ -51,3 +51,5 @@ export {
   stagehandFacadeConfigFromEnv,
   type StagehandFacadeConfig,
 } from "./config.js";
+
+export { createPlaywrightCompatRuntime } from "./runtime.js";

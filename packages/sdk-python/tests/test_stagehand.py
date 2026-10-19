@@ -204,6 +204,46 @@ async def test_experimental_batch_uses_registered_rpc_method(
 
 
 @pytest.mark.asyncio
+async def test_run_runs_code_through_the_compat_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "stagehand.stagehand.playwright_batch_source", lambda code: f"wrapped({code})"
+    )
+    recording = _recording({"stagehand.callback_batch": {"value": "Example"}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        result = await stagehand.run("return await page.title();", timeout=2_000)
+        assert result == "Example"
+        method, params, _ = recording.calls[-1]
+        assert method == "stagehand.callback_batch"
+        assert isinstance(params, CallbackBatchParams)
+        assert params.callback_source == "wrapped(return await page.title();)"
+        assert params.options.timeout == 2_000
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["", "   ", None])
+async def test_run_rejects_empty_code_before_transport(
+    monkeypatch: pytest.MonkeyPatch, code: object
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        with pytest.raises(TypeError, match="non-empty"):
+            await stagehand.run(cast(str, code))
+        assert not [call for call in recording.calls if call[0] == "stagehand.callback_batch"]
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_experimental_batch_normalizes_json_object_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

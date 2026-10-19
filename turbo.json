@@ -122,7 +122,11 @@
       "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
     },
     "//#build:wheel": {
-      "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-extension#build"],
+      "dependsOn": [
+        "//#generate:python",
+        "@browserbasehq/stagehand-extension#build",
+        "@browserbasehq/stagehand-integrations#build"
+      ],
       "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/dist/**"],
       "outputs": ["packages/sdk-python/dist/*.whl", "packages/sdk-python/dist/*.tar.gz"]
     },
