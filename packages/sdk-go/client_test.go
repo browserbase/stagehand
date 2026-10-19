@@ -454,6 +454,58 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	releaseBrowserClaim(client.browser)
 }
 
+func TestCreateLocalBrowserExtensionCDPURL(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		url  string
+	}{
+		{name: "empty uses client URL"},
+		{name: "local websocket", url: "ws://127.0.0.1:9300/devtools/browser/abc"},
+		{name: "remote secure websocket", url: "wss://browser.example/devtools/browser/abc"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			const clientURL = "wss://gateway/cdp?api_key=secret"
+			var connectedURL string
+			browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
+				CDPURL: clientURL, ExtensionCDPURL: test.url,
+			}, browserFactoryDependencies{
+				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
+					connectedURL = options.cdpURL
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender {
+					return &recordingBrowserCommandSender{}
+				},
+			})
+			if err != nil {
+				t.Fatalf("ConnectLocalBrowser() error = %v", err)
+			}
+			defer browser.Close(context.Background())
+			rpc := &recordingProtocolClient{responses: map[string]any{
+				"stagehand.init": StagehandInitResult{Initialized: true},
+			}}
+			client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, clientAdapters{
+				connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			defer client.Close(context.Background())
+			if connectedURL != clientURL {
+				t.Fatalf("client CDP URL = %q, want %q", connectedURL, clientURL)
+			}
+			want := test.url
+			if want == "" {
+				want = rpc.browserWebSocketDebuggerURL()
+			}
+			params := rpc.calls[0].params.(StagehandInitParams)
+			if params.BrowserCDPURL == nil || *params.BrowserCDPURL != want {
+				t.Fatalf("BrowserCDPURL = %#v, want %q", params.BrowserCDPURL, want)
+			}
+		})
+	}
+}
+
 func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	region := BrowserbaseRegion("us-west-2")
 	handleAPIKey := "handle-key"
