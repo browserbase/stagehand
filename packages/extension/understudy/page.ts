@@ -115,6 +115,8 @@ type WebMCPResponseSessionState = {
   handler: (event: Protocol.WebMCP.ToolRespondedEvent) => void;
   invocationIds: Set<string>;
   pendingCommands: number;
+  /** Responses that arrived before their invokeTool command resolved, kept only while one is pending. */
+  earlyResponses: Map<string, Protocol.WebMCP.ToolRespondedEvent>;
 };
 
 type WebMCPToolSessionState = {
@@ -222,13 +224,33 @@ export class Page {
     event: Protocol.WebMCP.ToolRespondedEvent,
   ): void {
     const record = this.webMCPInvocations.get(event.invocationId);
-    if (!record || record.session !== session || record.result !== undefined) return;
+    if (!record) {
+      // The event can beat the invokeTool response that tells us this ID exists. Hold it while
+      // a command is in flight; the first response wins, as it does for registered invocations.
+      const responseState = this.webMCPResponseSessions.get(session);
+      if (
+        responseState &&
+        responseState.pendingCommands > 0 &&
+        !responseState.earlyResponses.has(event.invocationId)
+      ) {
+        responseState.earlyResponses.set(event.invocationId, event);
+      }
+      return;
+    }
+    if (record.session !== session || record.result !== undefined) return;
+    this.settleWebMCPInvocation(event.invocationId, record, event);
+  }
 
+  private settleWebMCPInvocation(
+    invocationId: string,
+    record: WebMCPInvocationRecord,
+    event: Protocol.WebMCP.ToolRespondedEvent,
+  ): void {
     const result = webMCPToolResponse(event);
     record.result = result;
     record.deferred.resolve(result);
     record.retentionTimer = setTimeout(() => {
-      this.removeWebMCPInvocation(event.invocationId, record);
+      this.removeWebMCPInvocation(invocationId, record);
     }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
   }
 
@@ -1010,11 +1032,13 @@ export class Page {
         input,
       });
     } catch (error) {
-      responseState.pendingCommands -= 1;
+      this.finishWebMCPCommand(responseState);
       this.removeWebMCPResponseListenerIfIdle(session);
       throw error;
     }
-    responseState.pendingCommands -= 1;
+    const earlyResponse = responseState.earlyResponses.get(response.invocationId);
+    responseState.earlyResponses.delete(response.invocationId);
+    this.finishWebMCPCommand(responseState);
     if (this.webMCPResponseSessions.get(session) !== responseState) {
       throw new Error(
         `WebMCP session for frame "${frameId}" was disposed before invocation registration ` +
@@ -1039,13 +1063,21 @@ export class Page {
       this.removeWebMCPResponseListenerIfIdle(session);
       throw error;
     }
-    this.webMCPInvocations.set(response.invocationId, {
+    const record: WebMCPInvocationRecord = {
       descriptor,
       session,
       deferred: createDeferred<WebMCPToolResponse>(),
-    });
+    };
+    this.webMCPInvocations.set(response.invocationId, record);
     responseState.invocationIds.add(response.invocationId);
+    if (earlyResponse) this.settleWebMCPInvocation(response.invocationId, record, earlyResponse);
     return descriptor;
+  }
+
+  private finishWebMCPCommand(state: WebMCPResponseSessionState): void {
+    state.pendingCommands -= 1;
+    // Once no command is in flight, unclaimed early responses can never be matched.
+    if (state.pendingCommands === 0) state.earlyResponses.clear();
   }
 
   public async waitForWebMCPInvocationResult(
@@ -1100,6 +1132,7 @@ export class Page {
       handler: (event) => this.onWebMCPToolResponded(session, event),
       invocationIds: new Set<string>(),
       pendingCommands: 0,
+      earlyResponses: new Map(),
     };
     session.on<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", state.handler);
     this.webMCPResponseSessions.set(session, state);
@@ -1133,6 +1166,7 @@ export class Page {
   ): void {
     const responseState = this.webMCPResponseSessions.get(session);
     if (responseState) {
+      responseState.earlyResponses.clear();
       session.off<Protocol.WebMCP.ToolRespondedEvent>(
         "WebMCP.toolResponded",
         responseState.handler,
