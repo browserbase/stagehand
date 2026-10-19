@@ -11,6 +11,7 @@ else, never restated.
 | Directory      | What it is                                                                                                                                                                   |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core/`        | The `@browserbasehq/stagehand-integrations` package: the facade contract, `StagehandFacadeTools`, the `stagehand-facade` stdio MCP bin, and the code-mode MCP host scaffold. |
+| `agno/`        | Python Agno example over MCP/stdio using its native MCPTools adapter (uv project).                                                                                           |
 | `claude-code/` | Claude Agent SDK example (programmatic MCP mount) plus a `.mcp.json` for connecting a running Claude Code CLI.                                                               |
 | `codex/`       | Codex SDK example (config-override MCP mount) plus a `config.toml` template for the codex CLI.                                                                               |
 | `crewai/`      | Python CrewAI example over MCP/stdio (uv project).                                                                                                                           |

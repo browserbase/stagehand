@@ -1,0 +1,21 @@
+[project]
+name = "stagehand-agno-example"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "agno[mcp]>=3.1.5,<4",
+  "openai>=2,<3",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "ruff>=0.15,<1"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ANN", "E", "F", "I", "UP"]
