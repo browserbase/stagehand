@@ -635,6 +635,121 @@
           }
         }
       ]
+    },
+    {
+      "name": "each artifact's size and then the running total are checked in order",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "big0.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big1.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big2.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big3.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "small.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "over.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AAA="
+                    }
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "value size counts non-ASCII characters unescaped",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return big;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": {
+                  "$repeat": "\u00e9",
+                  "count": 5242879
+                },
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": {
+              "$repeat": "\u00e9",
+              "count": 5242879
+            }
+          }
+        }
+      ]
     }
   ]
 }

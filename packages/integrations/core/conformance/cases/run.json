@@ -204,6 +204,86 @@
       "expect": {
         "closed": false
       }
+    },
+    {
+      "name": "credentials in an execution error message are redacted",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "throw new TypeError(message);"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1,
+                "executionError": {
+                  "name": "TypeError",
+                  "message": "GET https://api.test/v1?apiKey=abc123&key=k9&token=tok_456 failed: sk-proj1234567890abcdef bb_live_abcd1234efgh5678 AIzaSyA0123456789abcdefghijklmnopqrstu Authorization: Bearer eyJhbGciOi.payload.sig"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "execution",
+              "name": "TypeError",
+              "message": "GET https://api.test/v1?apiKey=[redacted]&key=[redacted]&token=[redacted] failed: sk-proj12[redacted] bb_live_abcd[redacted] AIza[redacted] Authorization: Bearer [redacted]"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "name": "an execution error name is redacted before it is checked",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "throw custom;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1,
+                "executionError": {
+                  "name": "AIzaSyA0123456789abcdefghijklmnopqrstuError",
+                  "message": "bb_test_wxyz9876secret"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "execution",
+              "name": "Error",
+              "message": "bb_test_wxyz[redacted]"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false
+      }
     }
   ]
 }

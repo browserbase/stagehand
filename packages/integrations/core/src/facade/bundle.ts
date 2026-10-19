@@ -51,11 +51,12 @@ export const FACADE_BUNDLE_VERSION = 3;
  *     The host fails the call with RUN_RESULT_MALFORMED_ERROR, without closing
  *     or writing anything, unless the result has the marker, `closeRequested`
  *     boolean, `batchRuntimeMs` number, `telemetry` object, `artifacts` array
- *     of string pairs, and `executionError` absent, null or `{ name, message,
- *     stack? }` strings. It then checks `contract.limits` (artifact count,
- *     each decoded artifact, their total) before writing any artifact, writes
- *     artifacts in order, raises executionError, and finally checks the value's
- *     compact-JSON size; whatever fails, it closes the session afterwards when
+ *     of `{ path, base64 }` with base64 padded RFC 4648, and `executionError`
+ *     absent, null or `{ name, message, stack? }` strings. It then checks
+ *     `contract.limits` (artifact count, then per artifact its decoded size
+ *     and the running total) before writing any artifact, writes artifacts in
+ *     order, raises executionError, and finally checks the value's compact-JSON
+ *     size; whatever fails, it closes the session afterwards when
  *     `closeRequested` is true. packages/integrations/core/conformance holds
  *     cases every host must pass.
  *   - `run` actions: `actionRunner`, input `{ actions, xpathById }` with the

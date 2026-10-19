@@ -64,12 +64,18 @@ expands them anywhere in a case before use:
 
 A run result must have the envelope's shape (see `src/facade/bundle.ts`);
 otherwise the host fails with `RUN_RESULT_MALFORMED_ERROR` and neither writes
-artifacts nor closes. The caps in `contract.limits` are checked before any
-artifact is written: artifact count, then each decoded artifact in order, then
-their running total. Artifacts are then written in order, each path checked as
+artifacts nor closes. Types are exact: `1` is not `true` and `true` is not a
+number. Artifact bytes must be padded RFC 4648 base64 (`+/`, no line breaks),
+as `btoa` writes it. The caps in `contract.limits` are checked before any
+artifact is written: first the artifact count, then for each artifact in order
+its decoded size and then the running total. Artifacts are then written in order, each path checked as
 it is reached, so artifacts before a rejected path stay written. A path error
 takes precedence over the code's own error, which takes precedence over the
-value cap. The value cap counts the UTF-8 bytes of the value's compact JSON.
+value cap. The value cap counts the UTF-8 bytes of the value's compact JSON, with
+non-ASCII characters unescaped (Python: `separators=(",", ":")`,
+`ensure_ascii=False`). An execution error's name and message are redacted as in
+`src/harness/redact.ts` before the name is checked against
+`/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
 Whatever fails after a valid envelope, the host closes the session when
 `closeRequested` is true and then raises the error, and later calls fail with
 `FACADE_BROWSER_CLOSED_ERROR`.

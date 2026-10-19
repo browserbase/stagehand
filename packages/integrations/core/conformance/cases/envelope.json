@@ -933,6 +933,334 @@
           }
         }
       ]
+    },
+    {
+      "name": "a marker of 1 is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": 1,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a boolean batchRuntimeMs is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": true
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a closeRequested of 1 is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": 1,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a closeRequested of 0 is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": 0,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifact base64 without padding is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "AA"
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifact base64url is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "_-8="
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifact base64 with stray characters is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "A$A="
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifact base64 with a line break is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "forged.png",
+                    "base64": "AAAA\nAA=="
+                  }
+                ],
+                "closeRequested": true,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
     }
   ]
 }

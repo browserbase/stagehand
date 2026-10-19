@@ -498,7 +498,7 @@ function isRunEnvelope(value: unknown): value is RunEnvelope {
       (artifact) =>
         isRecord(artifact) &&
         typeof artifact.path === "string" &&
-        typeof artifact.base64 === "string",
+        isCanonicalBase64(artifact.base64),
     ) &&
     (executionError === undefined ||
       executionError === null ||
@@ -506,6 +506,17 @@ function isRunEnvelope(value: unknown): value is RunEnvelope {
         typeof executionError.name === "string" &&
         typeof executionError.message === "string" &&
         (executionError.stack === undefined || typeof executionError.stack === "string")))
+  );
+}
+
+/**
+ * Padded RFC 4648 base64, as btoa writes it. Node's decoder would also accept
+ * base64url, missing padding and stray characters, which other hosts' decoders
+ * refuse, so the caps would no longer agree across hosts.
+ */
+function isCanonicalBase64(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value)
   );
 }
 

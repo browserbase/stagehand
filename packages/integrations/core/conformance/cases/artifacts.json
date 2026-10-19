@@ -621,6 +621,88 @@
       "expect": {
         "tree": ["artifacts/"]
       }
+    },
+    {
+      "name": "the artifact path \"..\" is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: \"..\" });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "..",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "the artifact path \"shots/../..\" is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: \"shots/../..\" });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/../..",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
     }
   ]
 }
