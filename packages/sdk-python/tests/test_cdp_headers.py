@@ -1,6 +1,11 @@
 import asyncio
+import logging
+import traceback
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from threading import Thread
+from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 import pytest
@@ -23,9 +28,13 @@ from stagehand import cdp_client
 )
 @pytest.mark.asyncio
 async def test_connect_forwards_headers_only_to_authorized_websocket(
-    monkeypatch: pytest.MonkeyPatch, destination: str, forward: bool
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    destination: str,
+    forward: bool,
 ) -> None:
     credentials = {"Authorization": "Bearer dummy", "X-Api-Key": "dummy-key"}
+    caplog.set_level(logging.DEBUG, logger="stagehand.cdp_client")
     seen: list[object] = []
 
     async def resolve(url: str, *, headers: object = None) -> str:
@@ -44,6 +53,13 @@ async def test_connect_forwards_headers_only_to_authorized_websocket(
             cdp_url="https://gw/cdp", headers=credentials, extension_id="stagehand-extension"
         )
     assert seen == [(destination, credentials if forward else None)]
+    records = [record for record in caplog.records if record.name == "stagehand.cdp_client"]
+    assert len(records) == (0 if forward else 1)
+    if not forward:
+        assert "headers were withheld" in records[0].getMessage()
+        assert records[0].levelno == logging.DEBUG
+    for sensitive in ("Bearer dummy", "dummy-key", "Authorization", "X-Api-Key", destination):
+        assert sensitive not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -191,3 +207,65 @@ async def test_websocket_without_headers_preserves_cross_host_redirects() -> Non
     connector = cdp_client._CDPWebSocketConnect("wss://gw/start")
     response = Response(302, "Found", Headers({"Location": "wss://elsewhere/final"}))
     assert connector.process_redirect(InvalidStatus(response)) == "wss://elsewhere/final"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+@pytest.mark.parametrize("headers", [None, {}, {"X-Api-Key": "dummy-secret"}])
+@pytest.mark.asyncio
+async def test_discovery_fails_immediately_on_authentication_errors(
+    monkeypatch: pytest.MonkeyPatch, status: int, headers: dict[str, str] | None
+) -> None:
+    calls = 0
+    body = BytesIO(b"dummy-secret response body")
+
+    def read(url: str, headers: object = None) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        raise HTTPError(url, status, "dummy-secret reason", Message(), body)
+
+    monkeypatch.setattr(cdp_client, "_read_json", read)
+    with pytest.raises(
+        RuntimeError, match=f"CDP discovery was rejected with HTTP {status}"
+    ) as error:
+        await asyncio.wait_for(
+            cdp_client._resolve_browser_web_socket_url(
+                "https://gateway/cdp?token=dummy-secret", headers=headers
+            ),
+            timeout=1,
+        )
+    assert calls == 1
+    assert body.closed
+    assert "dummy-secret" not in str(error.value)
+    assert "dummy-secret reason" not in "".join(traceback.format_exception(error.value))
+    assert error.value.__cause__ is None
+    assert "credentials and access permissions" in str(error.value)
+
+
+@pytest.mark.parametrize("status", [429, 500, 503, None])
+@pytest.mark.asyncio
+async def test_discovery_still_retries_transient_errors(
+    monkeypatch: pytest.MonkeyPatch, status: int | None
+) -> None:
+    calls = 0
+    body = BytesIO(b"temporary failure")
+
+    def read(url: str, headers: object = None) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            if status is None:
+                raise URLError("connection refused")
+            raise HTTPError(url, status, "temporary failure", Message(), body)
+        return {"webSocketDebuggerUrl": "wss://gateway/browser"}
+
+    monkeypatch.setattr(cdp_client, "_read_json", read)
+    result = await asyncio.wait_for(
+        cdp_client._resolve_browser_web_socket_url(
+            "https://gateway", headers={"X-Api-Key": "dummy-secret"}
+        ),
+        timeout=2,
+    )
+    assert result == "wss://gateway/browser"
+    assert calls == 2
+    if status is not None:
+        assert body.closed

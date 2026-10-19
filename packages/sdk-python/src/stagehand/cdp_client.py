@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
+from urllib.error import HTTPError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
@@ -19,6 +21,8 @@ from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
     STAGEHAND_PROTOCOL_VERSION,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
@@ -285,15 +289,15 @@ class CDPClient:
             )
 
         web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url, headers=headers)
-        socket = await _connect_web_socket(
-            web_socket_debugger_url,
-            # Never forward credentials to a different endpoint or downgrade their transport.
-            headers=(
-                headers
-                if headers and _can_forward_headers(cdp_url, web_socket_debugger_url)
-                else None
-            ),
-        )
+        web_socket_headers = headers or None
+        if web_socket_headers and not _can_forward_headers(cdp_url, web_socket_debugger_url):
+            web_socket_headers = None
+            _LOGGER.debug(
+                "CDP headers were withheld from the advertised WebSocket endpoint because "
+                "its host or port differs, or forwarding would downgrade transport security. "
+                "If the handshake is rejected, check the gateway's advertised CDP endpoint."
+            )
+        socket = await _connect_web_socket(web_socket_debugger_url, headers=web_socket_headers)
         client = cls(socket, web_socket_debugger_url)
 
         try:
@@ -753,6 +757,13 @@ async def _resolve_browser_web_socket_url(
                 return debugger_url
         except _UnsafeCDPRedirectError:
             raise
+        except HTTPError as error:
+            error.close()
+            if error.code in (401, 403):
+                raise RuntimeError(
+                    f"CDP discovery was rejected with HTTP {error.code}. "
+                    "Check the gateway credentials and access permissions."
+                ) from None
         except Exception:
             pass
         await asyncio.sleep(0.25)
