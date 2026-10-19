@@ -1,49 +1,63 @@
-# pi + Stagehand facade (native tools)
+# Pi + Stagehand over MCP/stdio
 
-[pi](https://pi.dev) has no built-in MCP by design — extensions register tools directly. This
-package is a pi extension exposing the Stagehand facade tools (`run`, `snapshot`,
-`screenshot`) natively, with descriptions, validation, and agent guidance imported from
-`@browserbasehq/stagehand-integrations/facade`.
+This example uses Pi 1.3.0's built-in MCP support to mount Stagehand's `run`,
+`snapshot`, and `screenshot` tools. The project `.pi/mcp.json` sets `exposure` to
+`direct`, so Pi declares the tools as `mcp__stagehand__*` rather than requiring
+Pi's default codemode scripts.
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, build the integrations package first:
+From the repository root:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+export OPENAI_API_KEY="your-openai-api-key" # or ANTHROPIC_API_KEY
 ```
 
-Export the browser credentials (Browserbase is the default and recommended backend) and a model
-key pi supports:
+The server uses local Chrome by default, or Browserbase when
+`BROWSERBASE_API_KEY` is set. To select Browserbase explicitly:
 
 ```bash
-export BROWSERBASE_API_KEY=bb_live_...
-export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
+export STAGEHAND_BROWSER=browserbase
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
 ```
 
 ## Run
 
-One-off, pointing pi at the extension file (no install needed; pi loads TypeScript directly and
-resolves `@browserbasehq/stagehand-integrations` through the workspace):
+Start from this directory so Pi discovers the project MCP file and resolves the
+server path relative to the package:
 
 ```bash
 cd packages/integrations/pi
-pi -e ./extensions/stagehand.ts --no-session -p "Use your browser tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID." </dev/null
+pnpm start "Open https://example.com and report the page title." </dev/null
 ```
 
-Two headless gotchas: print mode reads piped stdin (always redirect `</dev/null`), and
-non-interactive runs never show the project-trust prompt — use `-e` as above, or `-a` after
-trusting the project.
+The script runs `pi --approve --no-session -p`. `--approve` loads trusted project
+files without an interactive prompt. `</dev/null` prevents print mode from
+waiting for piped input. Run `pnpm exec pi --approve` for an interactive session.
 
-To install permanently instead: `pi install ./packages/integrations/pi` (the `pi` manifest key
-in `package.json` points at the extension).
+To mount the server for other projects:
 
-## Security model
+```bash
+pi mcp add stagehand --exposure direct --description "Persistent Stagehand browser tools" -- \
+  node /absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs
+```
 
-The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
-service worker — browser-side, never in the pi process. Browserbase is the recommended
-isolation boundary: the privileged execution environment is a disposable cloud browser. The
-browser launches lazily on first tool use and closes on session shutdown; only
-`STAGEHAND_*`/`BROWSERBASE_*` variables configure it, and pi's model credentials never reach
-the browser session.
+Remove any previously installed native Stagehand extension before enabling this
+MCP mount. The old `pi install` setup is no longer used.
+
+## Browser lifecycle
+
+One MCP child owns the browser for the session. Keep it connected across tool
+calls to preserve navigation, authentication, and page state. The shared facade
+provides tool descriptions and validation; this CLI mount does not append its
+agent instructions to Pi's system prompt.
+
+The child inherits the shell environment, including Pi's model credentials.
+Only `STAGEHAND_*` and `BROWSERBASE_*` settings configure the browser tools;
+the tools are deterministic and do not need Pi's model credentials.
+
+The `run` tool executes model-authored JavaScript in the browser extension's
+service worker. Use Browserbase for untrusted tasks and review the
+[integration security boundary](https://docs.stagehand.dev/v4/integrations/cli-agents/overview#security-boundary).

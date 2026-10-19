@@ -4,6 +4,10 @@ import { DEFAULT_PI_THINKING_LEVEL, runPiSession } from "../src/session.js";
 const pi = vi.hoisted(() => ({
   resolveCliModel: vi.fn(),
   createAgentSession: vi.fn(),
+  bindExtensions: vi.fn(async () => {}),
+  emit: vi.fn(async () => {}),
+  dispose: vi.fn(),
+  createMcpExtension: vi.fn(() => () => {}),
 }));
 
 vi.mock("@earendil-works/pi-coding-agent", () => ({
@@ -12,7 +16,10 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   createAgentSession: pi.createAgentSession,
   SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: () => ({}) },
-  createExtensionRuntime: () => ({}),
+  DefaultResourceLoader: class {
+    async reload() {}
+  },
+  createMcpExtension: pi.createMcpExtension,
 }));
 
 describe("pi thinking precedence through the SDK loader", () => {
@@ -24,7 +31,9 @@ describe("pi thinking precedence through the SDK loader", () => {
         subscribe: () => () => {},
         prompt: async () => {},
         abort: async () => {},
-        dispose: () => {},
+        dispose: pi.dispose,
+        bindExtensions: pi.bindExtensions,
+        extensionRunner: { emit: pi.emit },
       },
     });
   });
@@ -53,8 +62,23 @@ describe("pi thinking precedence through the SDK loader", () => {
         expect.objectContaining({
           model,
           thinkingLevel: expected,
+          noTools: "builtin",
         }),
       );
     },
   );
+
+  it("disposes the session when extension startup fails", async () => {
+    pi.resolveCliModel.mockReturnValue({ model: { id: "fixture", provider: "openai" } });
+    pi.bindExtensions.mockRejectedValueOnce(new Error("startup failed"));
+    const result = await runPiSession({
+      model: "openai/fixture",
+      prompt: "task",
+      session: {},
+      logger: { log: () => {}, warn: () => {}, error: () => {} },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("startup failed");
+    expect(pi.dispose).toHaveBeenCalledOnce();
+  });
 });

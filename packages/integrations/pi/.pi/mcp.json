@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "node",
+      "args": ["../core/dist/facade/stdio-server.mjs"],
+      "exposure": "direct",
+      "description": "Persistent Stagehand browser tools"
+    }
+  }
+}
