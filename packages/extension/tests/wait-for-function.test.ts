@@ -134,7 +134,15 @@ describe("injected waitForFunction", () => {
     await vi.advanceTimersByTimeAsync(0);
   });
 
-  it.each([() => {}, Symbol("ready"), 1n])(
+  it("invokes an expression that evaluates to a function", async () => {
+    let calls = 0;
+    const wait = createFunctionWait(() => async () => ++calls >= 2 && { calls }, 10);
+    await vi.advanceTimersByTimeAsync(10);
+    await expect(wait.promise).resolves.toEqual({ calls: 2 });
+  });
+
+  // The function case returns a function after invocation, which is still not JSON.
+  it.each([() => () => {}, Symbol("ready"), 1n])(
     "rejects non-JSON values without leaving a polling task",
     async (value) => {
       const wait = createFunctionWait(() => value, 10);

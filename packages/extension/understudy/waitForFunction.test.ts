@@ -100,7 +100,9 @@ describe("Page.waitForFunction", () => {
     });
   });
 
+  // An omitted timeout means no deadline, the same as 0.
   it.each([undefined, 100, 0])("honors a timeout of %s", async (timeout) => {
+    const unlimited = !timeout;
     const result = deferred<unknown>();
     send.mockImplementation((method, params) =>
       params?.awaitPromise ? result.promise : respond(method),
@@ -108,16 +110,16 @@ describe("Page.waitForFunction", () => {
     const pending = page.waitForFunction("false", { timeout, polling: 10 });
     const settled = vi.fn();
     void pending.then(settled, settled);
-    const checked = timeout === 0 ? undefined : expect(pending).rejects.toThrow(TimeoutError);
-    await vi.advanceTimersByTimeAsync(timeout === 0 ? 60_000 : (timeout ?? 30_000) - 1);
+    const checked = unlimited ? undefined : expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(unlimited ? 60_000 : timeout - 1);
     expect(settled).not.toHaveBeenCalled();
-    if (timeout !== 0) {
+    if (!unlimited) {
       await vi.advanceTimersByTimeAsync(1);
       await checked;
       expect(disposals()).toHaveLength(1);
     }
     result.resolve({ result: { value: "ready" } });
-    if (timeout === 0) await expect(pending).resolves.toBe("ready");
+    if (unlimited) await expect(pending).resolves.toBe("ready");
     await vi.advanceTimersByTimeAsync(0);
     expect(installations()).toHaveLength(1);
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
