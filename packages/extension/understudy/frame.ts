@@ -366,7 +366,31 @@ export class Frame implements FrameManager {
       };
       params.clip = clip;
     } else if (normalizedScale !== undefined && normalizedScale !== 1) {
-      params.scale = normalizedScale;
+      const viewport = (
+        await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression:
+            "({ x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight })",
+          returnByValue: true,
+        })
+      ).result.value as { x: number; y: number; width: number; height: number };
+      let bounds = viewport;
+      if (options?.fullPage) {
+        const { cssContentSize } =
+          await this.session.send<Protocol.Page.GetLayoutMetricsResponse>("Page.getLayoutMetrics");
+        bounds = {
+          x: cssContentSize.x,
+          y: cssContentSize.y,
+          width: Math.max(cssContentSize.width, viewport.width),
+          height: cssContentSize.height,
+        };
+      }
+      params.clip = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        scale: normalizedScale,
+      };
     }
 
     if (format === "jpeg" && typeof options?.quality === "number") {
