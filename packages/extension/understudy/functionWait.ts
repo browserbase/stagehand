@@ -28,7 +28,9 @@ export function createFunctionWait(predicate: () => unknown, polling: "raf" | nu
   const poll = async () => {
     if (stopped) return;
     try {
-      const value = await predicate();
+      // Like Playwright, an expression that evaluates to a function is invoked.
+      const evaluated = predicate();
+      const value = await (typeof evaluated === "function" ? evaluated() : evaluated);
       if (stopped) return;
       if (value) {
         // Return a detached JSON value, never a remote browser handle.

@@ -647,7 +647,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.waitForSelector()` | Same name, returns a boolean |
 | `page.waitForLoadState()`, `waitForTimeout()` | Same names |
 | `page.setDefaultTimeout()`, `setDefaultNavigationTimeout()` | No equivalent. Pass `timeout` per call |
-| `page.waitForFunction()` | Same name; returns a detached JSON value, not a `JSHandle` |
+| `page.waitForFunction()` | Same name, arguments, and defaults; returns a detached JSON value, not a `JSHandle`, and `arg` must be JSON, not a handle |
 | `page.waitForResponse()`, `waitForRequest()`, `waitForEvent()` | No equivalent |
 | `page.on("request")`, `on("response")`, `on("dialog")` | `page.on("console")` only |
 | `expect(locator).toBeVisible()` | `waitForSelector()`, then your runner's assertion |
@@ -909,8 +909,9 @@ NAVIGATION AND WAITING
 - locator.waitFor({ state }) -> the same loop. count() for attached and
   detached; count() plus isVisible() for visible and hidden.
 - page.waitForFunction(fn, arg, options) polls directly in the browser.
-  It returns a detached JSON value, not a JSHandle. Pass polling and timeout
-  in options; timeout: 0 disables the deadline.
+  It returns a detached JSON value, not a JSHandle, and arg must be JSON.
+  Pass polling and timeout in options; like Playwright, there is no deadline
+  unless you pass a timeout.
 - page.waitForNavigation() -> poll page.url() until it changes.
 - page.waitForURL() -> poll page.url(), or wait for a selector that exists
   only on the destination.

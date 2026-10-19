@@ -15,6 +15,20 @@ export function normalizeEvaluationExpression<R, Arg>(
   return `(${expression.toString()})(${serializeArgument(arg, caller)})`;
 }
 
+export function normalizeFunctionWaitExpression<R, Arg>(
+  expression: string | ((arg: Arg) => R | Promise<R>),
+  arg?: Arg,
+  caller = "page.waitForFunction",
+): string {
+  if (typeof expression !== "string" || arg === undefined) {
+    return normalizeEvaluationExpression(expression, arg, caller);
+  }
+
+  // Like Playwright, a string that evaluates to a function receives arg; other expressions ignore it.
+  const serialized = serializeArgument(arg, caller);
+  return `((value) => typeof value === "function" ? value(${serialized}) : value)(${expression})`;
+}
+
 export async function normalizeInitScriptSource<Arg>(
   script: InitScriptSource<Arg>,
   arg?: Arg,

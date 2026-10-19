@@ -31,6 +31,7 @@ import { Locator } from "./locator.js";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
+  normalizeFunctionWaitExpression,
   normalizeInitScriptSource,
 } from "./pageScripts.js";
 import type { StagehandCommandClient } from "./commandClient.js";
@@ -366,8 +367,9 @@ export class Page {
   ): Promise<R> {
     const result = await this.rpcClient.send(StagehandMethods.pageWaitForFunction, {
       pageId: this.pageId,
-      expression: normalizeEvaluationExpression(expression, arg, "page.waitForFunction"),
-      ...(options ? { options } : {}),
+      expression: normalizeFunctionWaitExpression(expression, arg),
+      // Like Playwright, TypeScript waits have no deadline unless one is passed.
+      options: { ...options, timeout: options?.timeout ?? 0 },
     });
     return result.value as R;
   }

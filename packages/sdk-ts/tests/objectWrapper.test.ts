@@ -1099,27 +1099,42 @@ describe("Stagehand TS object wrapper", () => {
     const value = { snake_key: { camelKey: true } };
     client.queueResponse(StagehandMethods.pageWaitForFunction, { value });
     client.queueResponse(StagehandMethods.pageWaitForFunction, { value: "ready" });
+    client.queueResponse(StagehandMethods.pageWaitForFunction, { value: true });
     const page = new Page(client, { pageId: "page-1" });
     const predicate = (arg: { value: number }) => arg.value;
     await expect(
-      page.waitForFunction(predicate, { value: 3 }, { polling: 25, timeout: 0 }),
+      page.waitForFunction(predicate, { value: 3 }, { polling: 25, timeout: 5_000 }),
     ).resolves.toEqual(value);
     await expect(page.waitForFunction("window.ready")).resolves.toBe("ready");
+    await expect(
+      page.waitForFunction("(selector) => !!document.querySelector(selector)", ".foo"),
+    ).resolves.toBe(true);
     expect(client.calls).toEqual([
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
         expression: `(${predicate.toString()})({"value":3})`,
-        options: { polling: 25, timeout: 0 },
+        options: { polling: 25, timeout: 5_000 },
       }),
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
         expression: "window.ready",
+        options: { timeout: 0 },
+      }),
+      requestCall(StagehandMethods.pageWaitForFunction, {
+        pageId: "page-1",
+        expression:
+          '((value) => typeof value === "function" ? value(".foo") : value)' +
+          "((selector) => !!document.querySelector(selector))",
+        options: { timeout: 0 },
       }),
     ]);
     await expect(page.waitForFunction((arg) => arg, 1n)).rejects.toThrow(
       "page.waitForFunction: 'arg' must be JSON-serializable",
     );
-    expect(client.calls).toHaveLength(2);
+    await expect(page.waitForFunction("(arg) => arg", 1n)).rejects.toThrow(
+      "page.waitForFunction: 'arg' must be JSON-serializable",
+    );
+    expect(client.calls).toHaveLength(3);
   });
 
   it("returns screenshot bytes, writes paths locally, and serializes masks", async () => {

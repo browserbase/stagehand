@@ -38,6 +38,24 @@ describe("Page.waitForFunction", () => {
     });
   });
 
+  it("invokes a string that evaluates to a function on every poll", async () => {
+    await page.evaluate(() => {
+      setTimeout(() => {
+        document.title = "ready";
+      }, 100);
+    });
+    await expect(
+      page.waitForFunction("() => document.title === 'ready' && document.title"),
+    ).resolves.toBe("ready");
+  });
+
+  it("passes the argument to a function string and ignores it for plain expressions", async () => {
+    await expect(
+      page.waitForFunction("async (key) => window.app[key] && { key }", "ready"),
+    ).resolves.toEqual({ key: "ready" });
+    await expect(page.waitForFunction("window.app.ready", "ignored")).resolves.toBe(true);
+  });
+
   it("serializes a function argument and waits on animation frames by default", async () => {
     await page.evaluate(() => {
       setTimeout(() => {

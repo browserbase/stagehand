@@ -4,6 +4,7 @@ import asyncio
 import base64
 import builtins
 import inspect
+import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, TypeVar, cast, overload
@@ -546,10 +547,22 @@ class Page:
         self,
         expression: str,
         *,
+        arg: JsonValue = None,
         polling: Literal["raf"] | float | None = None,
         timeout: int | None = None,
     ) -> JsonValue:
         """Poll JavaScript in the page until it returns a truthy JSON value."""
+        if arg is not None:
+            try:
+                serialized_arg = json.dumps(arg, allow_nan=False)
+            except (TypeError, ValueError) as error:
+                message = "page.wait_for_function: 'arg' must be JSON-serializable."
+                raise TypeError(message) from error
+            # Like Playwright, a function expression receives arg; other expressions ignore it.
+            expression = (
+                f'((value) => typeof value === "function" ? value({serialized_arg}) : value)'
+                f"({expression})"
+            )
         params = PageWaitForFunctionParams(page_id=self.page_id, expression=expression)
         options = PageWaitForFunctionOptions.model_validate({
             name: value

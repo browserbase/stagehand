@@ -66,6 +66,33 @@ async def test_wait_for_function_forwards_only_supplied_options(
 
 
 @pytest.mark.asyncio
+async def test_wait_for_function_binds_arg_for_function_expressions() -> None:
+    rpc = RecordingRPCClient({"page.wait_for_function": {"value": True}})
+    page = Page(cast(RPCClient, rpc), PageRef(page_id="page-1"))
+
+    await page.wait_for_function(
+        "selector => !!document.querySelector(selector)", arg={"css": ".foo"}
+    )
+
+    params = cast(PageWaitForFunctionParams, rpc.calls[0][1])
+    assert params.expression == (
+        '((value) => typeof value === "function" ? value({"css": ".foo"}) : value)'
+        "(selector => !!document.querySelector(selector))"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arg", [float("nan"), object()])
+async def test_wait_for_function_rejects_non_json_arg_before_rpc(arg: object) -> None:
+    rpc = RecordingRPCClient()
+    page = Page(cast(RPCClient, rpc), PageRef(page_id="page-1"))
+
+    with pytest.raises(TypeError, match="'arg' must be JSON-serializable"):
+        await page.wait_for_function("x => x", arg=cast(JsonValue, arg))
+    assert not rpc.calls
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("polling", [0, -1, float("inf"), float("nan"), 2_147_483_648])
 async def test_wait_for_function_rejects_invalid_polling_before_rpc(polling: float) -> None:
     rpc = RecordingRPCClient()
