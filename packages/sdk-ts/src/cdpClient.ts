@@ -71,6 +71,8 @@ type VersionResponse = {
   status: number;
   statusText: string;
   json(): Promise<unknown>;
+  headers?: Pick<Headers, "get">;
+  body?: { cancel(): Promise<void> } | null;
 };
 
 type ResolveBrowserWebSocketUrlOptions = {
@@ -78,7 +80,7 @@ type ResolveBrowserWebSocketUrlOptions = {
   headers?: Record<string, string>;
   fetchFn?: (
     url: string,
-    init?: { signal?: AbortSignal; headers?: Record<string, string> },
+    init?: { signal?: AbortSignal; headers?: Record<string, string>; redirect?: RequestRedirect },
   ) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
   signal: AbortSignal;
@@ -346,7 +348,24 @@ export class CDPClient {
       headers: options.headers,
     });
     throwIfAborted(signal);
-    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, options.headers);
+    let headers = options.headers;
+    if (
+      headers &&
+      Object.keys(headers).length > 0 &&
+      !canForwardCDPHeaders(options.cdpUrl, webSocketDebuggerUrl)
+    ) {
+      headers = undefined;
+      if (process.env.STAGEHAND_CDP_LOG === "1") {
+        try {
+          process.stderr.write(
+            "CDP headers were withheld from the advertised WebSocket endpoint because its host or port differs, or forwarding would downgrade transport security. If the handshake is rejected, check the gateway's advertised CDP endpoint.\n",
+          );
+        } catch {
+          /* Diagnostics must not interrupt the connection. */
+        }
+      }
+    }
+    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, headers);
 
     const client = new CDPClient(socket, webSocketDebuggerUrl);
 
@@ -846,6 +865,77 @@ export async function loadUnpackedExtension(
   return loaded.id;
 }
 
+/** @internal Require the same host and effective port, without downgrading TLS. */
+export function canForwardCDPHeaders(source: string, destination: string): boolean {
+  const ports: Record<string, string> = {
+    "http:": "80",
+    "ws:": "80",
+    "https:": "443",
+    "wss:": "443",
+  };
+  try {
+    const first = new URL(source);
+    const second = new URL(destination);
+    return Boolean(
+      ports[first.protocol] &&
+      ports[second.protocol] &&
+      first.hostname &&
+      first.hostname === second.hostname &&
+      (first.port || ports[first.protocol]) === (second.port || ports[second.protocol]) &&
+      !(["https:", "wss:"].includes(first.protocol) && ["http:", "ws:"].includes(second.protocol)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+class CDPDiscoveryError extends Error {}
+
+async function fetchCDPVersion(
+  url: string,
+  options: ResolveBrowserWebSocketUrlOptions,
+): Promise<VersionResponse> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const authenticated = options.headers !== undefined && Object.keys(options.headers).length > 0;
+  for (let redirects = 0; ; redirects++) {
+    const response = await abortable(
+      fetchFn(url, {
+        signal: options.signal,
+        ...(options.headers === undefined ? {} : { headers: options.headers }),
+        ...(authenticated ? { redirect: "manual" as const } : {}),
+      }),
+      options.signal,
+    );
+    if (!response.ok) await response.body?.cancel();
+    if (response.status === 401 || response.status === 403) {
+      throw new CDPDiscoveryError(
+        `CDP discovery was rejected with HTTP ${response.status}. Check the gateway credentials and access permissions.`,
+      );
+    }
+    if (!authenticated || ![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers?.get("location");
+    if (!location) return response;
+    let destination: URL;
+    try {
+      destination = new URL(location, url);
+    } catch {
+      throw new CDPDiscoveryError("Invalid CDP HTTP redirect.");
+    }
+    if (
+      !canForwardCDPHeaders(url, destination.href) ||
+      !["http:", "https:"].includes(destination.protocol) ||
+      destination.username ||
+      destination.password
+    ) {
+      throw new CDPDiscoveryError(
+        "Refusing CDP HTTP redirect with headers to a different host or port, an insecure transport, or a URL containing credentials.",
+      );
+    }
+    if (redirects >= 20) throw new CDPDiscoveryError("Too many CDP HTTP redirects.");
+    url = destination.href;
+  }
+}
+
 export async function resolveBrowserWebSocketUrl(
   cdpUrl: string,
   options: ResolveBrowserWebSocketUrlOptions,
@@ -854,20 +944,13 @@ export async function resolveBrowserWebSocketUrl(
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;
 
   const pollIntervalMs = options.pollIntervalMs ?? 250;
-  const fetchFn = options.fetchFn ?? fetch;
   const delayFn = options.delayFn ?? delay;
   const baseUrl = cdpUrl.replace(/\/$/, "");
 
   while (true) {
     throwIfAborted(options.signal);
     try {
-      const response = await abortable(
-        fetchFn(`${baseUrl}/json/version`, {
-          signal: options.signal,
-          ...(options.headers === undefined ? {} : { headers: options.headers }),
-        }),
-        options.signal,
-      );
+      const response = await fetchCDPVersion(`${baseUrl}/json/version`, options);
 
       if (response.ok) {
         const version = (await abortable(response.json(), options.signal)) as {
@@ -875,7 +958,8 @@ export async function resolveBrowserWebSocketUrl(
         };
         if (version.webSocketDebuggerUrl) return version.webSocketDebuggerUrl;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof CDPDiscoveryError) throw error;
       throwIfAborted(options.signal);
     }
 
