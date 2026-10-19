@@ -221,6 +221,9 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 	if options.Headers != nil {
 		headers = make(http.Header, len(options.Headers))
 		for name, value := range options.Headers {
+			if err := validateCDPHeader(name, value); err != nil {
+				return nil, err
+			}
 			headers.Set(name, value)
 		}
 	}
