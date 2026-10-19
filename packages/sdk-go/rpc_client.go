@@ -40,13 +40,13 @@ var (
 		"page.go_back":             15 * time.Second,
 		"page.go_forward":          15 * time.Second,
 		"page.wait_for_load_state": 15 * time.Second,
-		"page.wait_for_function":   30 * time.Second,
 		"page.wait_for_selector":   30 * time.Second,
 		"page.pdf":                 30 * time.Second,
 		"page.snapshot":            20 * time.Second,
 		"page.webmcp_tools":        time.Second,
 	}
 	unboundedByDefaultMethods = map[string]struct{}{
+		"page.wait_for_function":         {},
 		"stagehand.init":                 {},
 		"stagehand.close":                {},
 		"stagehand.act":                  {},

@@ -77,12 +77,12 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageGoForward.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
   [StagehandMethods.pageWaitForSelector.name, 30_000],
-  [StagehandMethods.pageWaitForFunction.name, 30_000],
   [StagehandMethods.pagePDF.name, 30_000],
   [StagehandMethods.pageSnapshot.name, 20_000],
   [StagehandMethods.pageWebMCPTools.name, 1_000],
 ]);
 const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
+  StagehandMethods.pageWaitForFunction.name,
   StagehandMethods.stagehandInit.name,
   StagehandMethods.stagehandClose.name,
   StagehandMethods.stagehandAct.name,

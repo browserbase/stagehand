@@ -368,8 +368,7 @@ export class Page {
     const result = await this.rpcClient.send(StagehandMethods.pageWaitForFunction, {
       pageId: this.pageId,
       expression: normalizeFunctionWaitExpression(expression, arg),
-      // Like Playwright, TypeScript waits have no deadline unless one is passed.
-      options: { ...options, timeout: options?.timeout ?? 0 },
+      ...(options ? { options } : {}),
     });
     return result.value as R;
   }

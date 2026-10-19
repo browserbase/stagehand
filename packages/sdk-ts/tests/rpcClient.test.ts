@@ -442,7 +442,6 @@ describe("RPCClient", () => {
     [StagehandMethods.pageGoForward.name, 25_000],
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
     [StagehandMethods.pageWaitForSelector.name, 40_000],
-    [StagehandMethods.pageWaitForFunction.name, 40_000],
     [StagehandMethods.pagePDF.name, 40_000],
     [StagehandMethods.pageSnapshot.name, 30_000],
     [StagehandMethods.pageWebMCPTools.name, 11_000],
@@ -461,6 +460,13 @@ describe("RPCClient", () => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
     },
   );
+
+  it("leaves function waits without a response deadline by default", () => {
+    expect(rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, {})).toBeUndefined();
+    expect(
+      rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, { options: {} }),
+    ).toBeUndefined();
+  });
 
   it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
     "uses the effective locator timeout plus delivery grace for $name",

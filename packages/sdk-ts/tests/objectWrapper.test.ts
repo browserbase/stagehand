@@ -1118,14 +1118,12 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
         expression: "window.ready",
-        options: { timeout: 0 },
       }),
       requestCall(StagehandMethods.pageWaitForFunction, {
         pageId: "page-1",
         expression:
           '((value) => typeof value === "function" ? () => value(JSON.parse("\\".foo\\"")) : value)' +
           "(((selector) => !!document.querySelector(selector)))",
-        options: { timeout: 0 },
       }),
     ]);
     await expect(page.waitForFunction((arg) => arg, 1n)).rejects.toThrow(

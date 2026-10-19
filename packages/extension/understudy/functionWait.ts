@@ -71,7 +71,7 @@ export async function waitForFunction(
     throw new RangeError("Polling must be 'raf' or a positive interval up to 2147483647ms");
   }
   return runWithProgress(
-    { name: "waitForFunction", timeout: options.timeout ?? 30_000 },
+    { name: "waitForFunction", timeout: options.timeout ?? 0 },
     async (progress) => {
       for (;;) {
         progress.throwIfStopped();

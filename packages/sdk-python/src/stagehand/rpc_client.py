@@ -30,13 +30,13 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.go_back": 15_000,
     "page.go_forward": 15_000,
     "page.wait_for_load_state": 15_000,
-    "page.wait_for_function": 30_000,
     "page.wait_for_selector": 30_000,
     "page.pdf": 30_000,
     "page.snapshot": 20_000,
     "page.webmcp_tools": 1_000,
 }
 _UNBOUNDED_BY_DEFAULT_METHODS = {
+    "page.wait_for_function",
     "stagehand.init",
     "stagehand.close",
     "stagehand.act",

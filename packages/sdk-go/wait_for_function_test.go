@@ -86,8 +86,8 @@ func TestWaitForFunctionResponseDeadline(t *testing.T) {
 		want    time.Duration
 		bounded bool
 	}{
-		{`{}`, 40 * time.Second, true},
-		{`{"options":{}}`, 40 * time.Second, true},
+		{`{}`, 0, false},
+		{`{"options":{}}`, 0, false},
 		{`{"options":{"timeout":250}}`, 10*time.Second + 250*time.Millisecond, true},
 		{`{"options":{"timeout":45000}}`, 55 * time.Second, true},
 		{`{"options":{"timeout":0}}`, 0, false},

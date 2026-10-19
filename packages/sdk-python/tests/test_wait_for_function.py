@@ -122,7 +122,7 @@ async def test_wait_for_function_preserves_remote_errors() -> None:
     assert caught.value is error
 
 
-@pytest.mark.parametrize("timeout,expected", [(None, 40), (250, 10.25), (45_000, 55), (0, None)])
+@pytest.mark.parametrize("timeout,expected", [(None, None), (250, 10.25), (45_000, 55), (0, None)])
 def test_wait_for_function_response_deadline(timeout: int | None, expected: float | None) -> None:
     params = PageWaitForFunctionParams(page_id="page-1", expression="true")
     if timeout is not None:
