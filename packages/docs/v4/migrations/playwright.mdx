@@ -148,7 +148,7 @@ One section per area of the API. Skip to the one you're porting.
 
 For a hosted browser, use `browserbase.launch({ apiKey })`. That's what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). To attach to a browser that's already running, use `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })`.
 
-Close both handles. `stagehand.close()` releases the Stagehand runtime and leaves the browser running, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Close both handles. `stagehand.close()` releases the Stagehand runtime and leaves the browser running. Call `browser.close()` when you're done. See [browser configuration](/v4/configuration/browser).
 
 <Note>
 Chromium only. Stagehand has no Firefox or WebKit support, and no bundled browser download step. A local run uses the Chrome you already have installed, and a Browserbase run needs nothing installed at all.

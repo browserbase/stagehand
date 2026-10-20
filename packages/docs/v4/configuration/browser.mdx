@@ -472,7 +472,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session without `keepAlive` enabled.
+When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session.
 </Note>
 
 ### Alternative: Browserbase SDK
@@ -996,9 +996,11 @@ Set the ignore-default-args option to `true` to remove all default arguments. Us
 
 ### Keep alive
 
-The keep-alive option controls whether the browser remains running after `close()` is called.
+Keep-alive keeps a launched browser running after `stagehand.close()` or after your script exits, so you can reconnect to it later. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
 
-By default, Stagehand terminates the browser it launched and cleans up all resources when it shuts down. Turning keep-alive on keeps the browser running independently so you can reconnect to it later.
+<Note>
+Keeping sessions alive is available on the Browserbase Startup plan and above.
+</Note>
 
 <Tabs>
 <Tab title="TypeScript">
@@ -1012,9 +1014,8 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 const sessionId = browser.sessionId!;
 
-// The browser session continues running after close()
+// The session keeps running after stagehand.close()
 await stagehand.close();
-await browser.close();
 
 // Later, reconnect to the same Browserbase session
 const browser2 = await browserbase.connect({
@@ -1022,6 +1023,12 @@ const browser2 = await browserbase.connect({
   sessionId,
 });
 const stagehand2 = await Stagehand.create({ browser: browser2 });
+
+// End the session when you're done
+await stagehand2.close();
+// This doesn't delete the extension that launch() uploaded.
+// Pass extensionId to launch() to reuse one upload, or delete the upload separately.
+await browser2.close();
 ```
 </Tab>
 
@@ -1039,9 +1046,8 @@ stagehand = await Stagehand.create(browser=browser)
 session_id = browser.session_id
 assert session_id is not None
 
-# The browser session continues running after close()
+# The session keeps running after stagehand.close()
 await stagehand.close()
-await browser.close()
 
 # Later, reconnect to the same Browserbase session
 browser2 = await browserbase.connect(
@@ -1049,6 +1055,12 @@ browser2 = await browserbase.connect(
     session_id=session_id,
 )
 stagehand2 = await Stagehand.create(browser=browser2)
+
+# End the session when you're done
+await stagehand2.close()
+# This doesn't delete the extension that launch() uploaded.
+# Pass extension_id to launch() to reuse one upload, or delete the upload separately.
+await browser2.close()
 ```
 </Tab>
 
@@ -1070,11 +1082,8 @@ if err != nil {
 }
 sessionID := browser.SessionID()
 
-// The browser session continues running after Close()
+// The session keeps running after client.Close()
 if err := client.Close(ctx); err != nil {
-	return err
-}
-if err := browser.Close(ctx); err != nil {
 	return err
 }
 
@@ -1093,18 +1102,21 @@ client2, err := stagehand.Create(ctx, stagehand.CreateOptions{
 if err != nil {
 	return err
 }
-defer func() { err = errors.Join(err, client2.Close(ctx)) }()
+// End the session when you're done. browser2.Close() doesn't delete the extension that
+// LaunchBrowserbase uploaded. Pass ExtensionID to reuse one upload, or delete the upload separately.
+defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
 
 #### Behavior by environment
 
-| Behavior | keep-alive on | keep-alive off (default) |
+| Environment | After `stagehand.close()` | After `browser.close()` |
 | --- | --- | --- |
-| **Browserbase** | Session stays active after `close()` | Session is terminated via API |
-| **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
-| **Attached over CDP** | Always left running | Always left running (Stagehand never owns the browser) |
+| **Browserbase, `launch()`** | Session stays active until `browser.close()` or its timeout | Ends the session |
+| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session |
+| **Local, `connect()`** | Browser keeps running | Closes the browser |
 
 #### Local environment
 
@@ -1124,7 +1136,6 @@ await page.goto("https://example.com");
 
 // Browser window stays open after the script exits
 await stagehand.close();
-await browser.close();
 ```
 </Tab>
 
@@ -1141,7 +1152,6 @@ await page.goto("https://example.com")
 
 # Browser window stays open after the script exits
 await stagehand.close()
-await browser.close()
 ```
 </Tab>
 
@@ -1177,21 +1187,13 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 }
 
 // Browser window stays open after the program exits
-return errors.Join(client.Close(ctx), browser.Close(ctx))
+return client.Close(ctx)
 ```
 </Tab>
 </Tabs>
 
 <Note>
 A temporary user data directory is deleted when a local browser shuts down. Set `userDataDir` (or turn on the preserve option) if you want the profile to survive.
-</Note>
-
-#### Browserbase environment
-
-On Browserbase, keep-alive keeps the cloud session active so you can reconnect later with `browserbase.connect()`. This is useful for long-running workflows that span multiple script executions.
-
-<Note>
-Keeping sessions alive is available on the Browserbase Startup plan and above.
 </Note>
 
 ### Fixed CDP debugging port

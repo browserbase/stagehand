@@ -436,7 +436,7 @@ The constructor is private and `init()` is gone. Get a browser from a factory, t
 + const stagehand = await Stagehand.create({ browser });
 ```
 
-Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. `stagehand.close()` doesn't close the browser. Call `browser.close()` when you're done. See [browser configuration](/v4/configuration/browser).
 
 ### Pages and the browser context
 
