@@ -7,10 +7,13 @@ import {
 } from "./batch-sources.js";
 import {
   BROWSER_SESSION_LOST_ERROR,
+  FACADE_AGENT_INSTRUCTIONS,
   FACADE_BROWSER_CLOSED_ERROR,
   FACADE_LEGACY_TOOLS,
   FACADE_TOOLS,
   FACADE_TOOLS_EXPLICIT_SNAPSHOT,
+  facadeAgentInstructions,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RUN_RESULT_LIMITS,
@@ -28,7 +31,7 @@ import {
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 3;
+export const FACADE_BUNDLE_VERSION = 4;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
@@ -70,6 +73,10 @@ export const FACADE_BUNDLE_VERSION = 3;
  *     for navigation since the snapshot before sending.
  * - contract.tools: tools/list per tool set (`--surface=playwright`,
  *   `--surface=legacy`, and playwright with EXPLICIT_SNAPSHOT_ACTIONS=1).
+ * - contract.instructions: the agent instructions for each of those tool
+ *   sets. The MCP server sends none; a host puts them in the agent's system
+ *   prompt, as the evals harness does with facadeAgentInstructions() and
+ *   LEGACY_FACADE_AGENT_INSTRUCTIONS.
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
  * - contract.limits: caps on a run result (RUN_RESULT_LIMITS), in bytes.
@@ -94,6 +101,11 @@ export function facadeBundle(packageVersion: string) {
           playwright: FACADE_TOOLS,
           legacy: FACADE_LEGACY_TOOLS,
           explicitSnapshotActions: FACADE_TOOLS_EXPLICIT_SNAPSHOT,
+        },
+        instructions: {
+          playwright: FACADE_AGENT_INSTRUCTIONS,
+          legacy: LEGACY_FACADE_AGENT_INSTRUCTIONS,
+          explicitSnapshotActions: facadeAgentInstructions({ EXPLICIT_SNAPSHOT_ACTIONS: "1" }),
         },
         errors: {
           NO_HYDRATED_SNAPSHOT_ERROR,

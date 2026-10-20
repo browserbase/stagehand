@@ -9,6 +9,7 @@ same tools.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from functools import cache
 from importlib.resources import files
@@ -17,10 +18,33 @@ from typing import Any, Literal
 ToolSet = Literal["playwright", "legacy", "explicitSnapshotActions"]
 
 
+class StagehandFacadeBundleError(Exception):
+    """The bundle's content does not match its ``sha256``."""
+
+
+def canonical_json(value: object) -> str:
+    """``canonicalJson`` in ``src/facade/bundle.ts``: keys sorted at every level, no
+    whitespace, non-ASCII characters unescaped."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def parse_bundle(text: str) -> dict[str, Any]:
+    """Parses a bundle and checks its ``sha256`` against its ``sources`` and ``contract``."""
+    bundle = json.loads(text)
+    content = {"sources": bundle.get("sources"), "contract": bundle.get("contract")}
+    digest = hashlib.sha256(canonical_json(content).encode("utf-8")).hexdigest()
+    if digest != bundle.get("sha256"):
+        raise StagehandFacadeBundleError(
+            f"Facade bundle content does not match its sha256 (expected {bundle.get('sha256')}, "
+            f"computed {digest}); reinstall stagehand-integrations or re-sync _bundle.json."
+        )
+    return bundle
+
+
 @cache
 def facade_bundle() -> dict[str, Any]:
-    """The vendored bundle, parsed once. Treat it as read-only."""
-    return json.loads(
+    """The vendored bundle, parsed and checked once. Treat it as read-only."""
+    return parse_bundle(
         files("stagehand_integrations.facade").joinpath("_bundle.json").read_text(encoding="utf-8")
     )
 
@@ -33,6 +57,16 @@ def facade_tools(tool_set: ToolSet = "playwright") -> list[dict[str, Any]]:
     ``EXPLICIT_SNAPSHOT_ACTIONS=1``.
     """
     return copy.deepcopy(facade_bundle()["contract"]["tools"][tool_set])
+
+
+def facade_instructions(tool_set: ToolSet = "playwright") -> str:
+    """The agent instructions for a tool set, for the agent's system prompt.
+
+    They are what the TypeScript hosts send with the same tool set; the MCP server
+    itself sends no instructions.
+    """
+    instructions: str = facade_bundle()["contract"]["instructions"][tool_set]
+    return instructions
 
 
 def contract_error(key: str, **params: str) -> str:

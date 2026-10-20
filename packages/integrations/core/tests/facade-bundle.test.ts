@@ -31,7 +31,7 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(3);
+    expect(bundle.version).toBe(4);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
@@ -150,6 +150,18 @@ describe("facade bundle", () => {
     });
   });
 
+  it("carries the agent instructions hosts send for each tool set", () => {
+    expect(bundle.contract.instructions).toStrictEqual({
+      playwright: contract.facadeAgentInstructions({}),
+      legacy: contract.LEGACY_FACADE_AGENT_INSTRUCTIONS,
+      explicitSnapshotActions: contract.facadeAgentInstructions({ EXPLICIT_SNAPSHOT_ACTIONS: "1" }),
+    });
+    expect(bundle.contract.instructions.playwright).toBe(contract.FACADE_AGENT_INSTRUCTIONS);
+    expect(bundle.contract.instructions.explicitSnapshotActions).toBe(
+      `${contract.FACADE_AGENT_INSTRUCTIONS}\n\n${contract.SNAPSHOT_ACTIONS_WORKFLOW}`,
+    );
+  });
+
   it.each([
     ["playwright", [], {}],
     ["legacy", ["--surface=legacy"], {}],
@@ -168,6 +180,9 @@ describe("facade bundle", () => {
         await client.connect(transport);
         const { tools } = await client.listTools();
         expect(bundle.contract.tools[toolSet]).toStrictEqual(tools);
+        // Instructions reach the agent through the host's system prompt, not
+        // the server; contract.instructions is what hosts send.
+        expect(client.getInstructions()).toBeUndefined();
       } finally {
         await client.close();
       }
