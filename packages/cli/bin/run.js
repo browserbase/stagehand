@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { config as loadDotenvConfig } from "dotenv";
 import satisfies from "semver/functions/satisfies.js";
 
-const { engines } = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-);
+const require = createRequire(import.meta.url);
+const { engines } = require("../package.json");
 if (!satisfies(process.versions.node, engines.node)) {
   console.error(
     `[browse] Node.js ${engines.node} is required; found ${process.versions.node}. Upgrade Node.js and rerun browse.`,
