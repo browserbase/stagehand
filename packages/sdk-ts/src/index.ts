@@ -146,3 +146,5 @@ export {
   type WebMCPResultOptions,
   type WebMCPToolsOptions,
 } from "./clientSchemas.js";
+
+export { getExtensionArchive } from "./extensionAssets.js";
