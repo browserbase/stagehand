@@ -2,6 +2,7 @@ import { defineConfig } from "oxlint";
 import { stagehandRuleConfig } from "./rules/oxlint/stagehand-plugin.ts";
 
 export default defineConfig({
+  ignorePatterns: ["packages/extension/dom/locatorScripts/vendor/playwright/*.ts"],
   jsPlugins: [{ name: "stagehand", specifier: "./rules/oxlint/stagehand-plugin.ts" }],
   rules: {
     "no-console": "error",

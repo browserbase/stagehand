@@ -1,3 +1,8 @@
 {
-  "ignorePatterns": ["packages/docs/**/*.md", "packages/docs/**/*.mdx", "packages/cli/**"]
+  "ignorePatterns": [
+    "packages/docs/**/*.md",
+    "packages/docs/**/*.mdx",
+    "packages/cli/**",
+    "packages/extension/dom/locatorScripts/vendor/playwright/*.ts"
+  ]
 }

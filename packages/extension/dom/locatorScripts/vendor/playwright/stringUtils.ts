@@ -1,0 +1,226 @@
+/**
+ * Copyright (c) Microsoft Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// NOTE: this function should not be used to escape any selectors.
+export function escapeWithQuotes(text: string, char: string = '\'') {
+  const stringified = JSON.stringify(text);
+  const escapedText = stringified.substring(1, stringified.length - 1).replace(/\\"/g, '"');
+  if (char === '\'')
+    return char + escapedText.replace(/[']/g, '\\\'') + char;
+  if (char === '"')
+    return char + escapedText.replace(/["]/g, '\\"') + char;
+  if (char === '`')
+    return char + escapedText.replace(/[`]/g, '\\`') + char;
+  throw new Error('Invalid escape char');
+}
+
+export function escapeTemplateString(text: string): string {
+  return text
+      .replace(/\\/g, '\\\\')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+}
+
+export function isString(obj: any): obj is string {
+  return typeof obj === 'string' || obj instanceof String;
+}
+
+export function toTitleCase(name: string) {
+  return name.charAt(0).toUpperCase() + name.substring(1);
+}
+
+export function toSnakeCase(name: string): string {
+  // E.g. ignoreHTTPSErrors => ignore_https_errors.
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/([A-Z])([A-Z][a-z])/g, '$1_$2').toLowerCase();
+}
+
+export function formatObject(value: any, indent = '  ', mode: 'multiline' | 'oneline' = 'multiline'): string {
+  if (value === null)
+    return 'null';
+  if (typeof value === 'string')
+    return escapeWithQuotes(value, '\'');
+  if (Array.isArray(value))
+    return `[${value.map(o => formatObject(o)).join(', ')}]`;
+  if (typeof value === 'object') {
+    const keys = Object.keys(value).filter(key => key !== 'timeout' && value[key] !== undefined).sort();
+    if (!keys.length)
+      return '{}';
+    const tokens: string[] = [];
+    for (const key of keys)
+      tokens.push(`${key}: ${formatObject(value[key])}`);
+    if (mode === 'multiline')
+      return `{\n${tokens.map(t => indent + t).join(`,\n`)}\n}`;
+    return `{ ${tokens.join(', ')} }`;
+  }
+  return String(value);
+}
+
+export function formatObjectOrVoid(value: any, indent = '  '): string {
+  const result = formatObject(value, indent);
+  return result === '{}' ? '' : result;
+}
+
+export function quoteCSSAttributeValue(text: string): string {
+  return `"${text.replace(/["\\]/g, char => '\\' + char)}"`;
+}
+
+let normalizedWhitespaceCache: Map<string, string> | undefined;
+
+export function cacheNormalizedWhitespaces() {
+  normalizedWhitespaceCache = new Map();
+}
+
+export function normalizeWhiteSpace(text: string): string {
+  let result = normalizedWhitespaceCache?.get(text);
+  if (result === undefined) {
+    result = text.replace(/[\u200b\u00ad]/g, '').trim().replace(/\s+/g, ' ');
+    normalizedWhitespaceCache?.set(text, result);
+  }
+  return result;
+}
+
+export function normalizeEscapedRegexQuotes(source: string) {
+  // This function reverses the effect of escapeRegexForSelector below.
+  // Odd number of backslashes followed by the quote -> remove unneeded backslash.
+  return source.replace(/(^|[^\\])(\\\\)*\\(['"`])/g, '$1$2$3');
+}
+
+function escapeRegexForSelector(re: RegExp): string {
+  // Unicode mode does not allow "identity character escapes", so we do not escape and
+  // hope that it does not contain quotes and/or >> signs.
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_escape
+  // TODO: rework RE usages in internal selectors away from literal representation to json, e.g. {source,flags}.
+  if (re.unicode || (re as any).unicodeSets)
+    return String(re);
+  // Even number of backslashes followed by the quote -> insert a backslash.
+  return String(re).replace(/(^|[^\\])(\\\\)*(["'`])/g, '$1$2\\$3').replace(/>>/g, '\\>\\>');
+}
+
+export function escapeForTextSelector(text: string | RegExp, exact: boolean): string {
+  if (typeof text !== 'string')
+    return escapeRegexForSelector(text);
+  return `${JSON.stringify(text)}${exact ? 's' : 'i'}`;
+}
+
+export function escapeForAttributeSelector(value: string | RegExp, exact: boolean): string {
+  if (typeof value !== 'string')
+    return escapeRegexForSelector(value);
+  // TODO: this should actually be
+  //   cssEscape(value).replace(/\\ /g, ' ')
+  // However, our attribute selectors do not conform to CSS parsing spec,
+  // so we escape them differently.
+  return `"${value.replace(/\\/g, '\\\\').replace(/["]/g, '\\"')}"${exact ? 's' : 'i'}`;
+}
+
+export function trimString(input: string, cap: number, suffix: string = ''): string {
+  if (input.length <= cap)
+    return input;
+  const chars = [...input];
+  if (chars.length > cap)
+    return chars.slice(0, cap - suffix.length).join('') + suffix;
+  return chars.join('');
+}
+
+export function trimStringWithEllipsis(input: string, cap: number): string {
+  return trimString(input, cap, '\u2026');
+}
+
+export function truncateDataUrl(url: string): string {
+  // Data URLs can carry megabytes of base64 payload, which is never useful in
+  // human/AI-facing output. Keep the media type prefix for context, drop the data.
+  if (!url.startsWith('data:'))
+    return url;
+  const comma = url.indexOf(',');
+  if (comma === -1)
+    return url;
+  return url.slice(0, comma + 1) + '\u2026';
+}
+
+export function escapeRegExp(s: string) {
+  // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#escaping
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
+
+const escaped = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' };
+export function escapeHTMLAttribute(s: string): string {
+  return s.replace(/[&<>"']/ug, char => (escaped as any)[char]);
+}
+export function escapeHTML(s: string): string {
+  return s.replace(/[&<]/ug, char => (escaped as any)[char]);
+}
+
+export function longestCommonSubstring(s1: string, s2: string): string {
+  const n = s1.length;
+  const m = s2.length;
+  let maxLen = 0;
+  let endingIndex = 0;
+
+  // Initialize a 2D array with zeros
+  const dp = Array(n + 1)
+      .fill(null)
+      .map(() => Array(m + 1).fill(0));
+
+  // Build the dp table
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (s1[i - 1] === s2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+
+        if (dp[i][j] > maxLen) {
+          maxLen = dp[i][j];
+          endingIndex = i;
+        }
+      }
+    }
+  }
+
+  // Extract the longest common substring
+  return s1.slice(endingIndex - maxLen, endingIndex);
+}
+
+export function parseRegex(regex: string): RegExp {
+  if (regex[0] !== '/')
+    throw new Error(`Invalid regex, must start with '/': ${regex}`);
+  const lastSlash = regex.lastIndexOf('/');
+  if (lastSlash <= 0)
+    throw new Error(`Invalid regex, must end with '/' followed by optional flags: ${regex}`);
+  const source = regex.slice(1, lastSlash);
+  const flags = regex.slice(lastSlash + 1);
+  return new RegExp(source, flags);
+}
+
+export function tomlBasicString(value: string): string {
+  // JSON.stringify produces a valid TOML basic string: escapes \", \\, \n, \r, \t and uses \uXXXX for control chars.
+  return JSON.stringify(value);
+}
+
+export function tomlArray(values: string[]): string {
+  return `[${values.map(value => tomlBasicString(value)).join(', ')}]`;
+}
+
+export function tomlMultilineBasicString(value: string): string {
+  // Triple-quoted basic string: escape backslashes first, then any literal """ sequences.
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+  return `"""\n${escaped}\n"""`;
+}
+
+// Semicolons removed from [[\]()#;?] to avoid polynomial backtracking
+// when both that group and (?:;...)* can match runs of semicolons.
+// \d{1,4} relaxed to \d{0,4} so empty params (e.g. ESC[;H) still match.
+export const ansiRegex = new RegExp('([\\u001B\\u009B][[\\]()#?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{0,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~])))', 'g');
+export function stripAnsiEscapes(str: string): string {
+  return str.replace(ansiRegex, '');
+}
