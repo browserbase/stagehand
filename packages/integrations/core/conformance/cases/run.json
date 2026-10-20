@@ -206,6 +206,71 @@
       }
     },
     {
+      "name": "run code with a strict-mode early error is rejected before sending",
+      "notApplicable": {
+        "python": "The Python host checks code on its own in sloppy mode; the executor reports strict-mode early errors."
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "with (Math) { return max(1, 2); }"
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "syntax"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "name": "run code with a mid-line --> operator is sent",
+      "notApplicable": {
+        "python": "The Python host rejects a mid-line `-->`, which its parser reads differently from V8."
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "let i = 3; while (i-->0) {} return i + 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": 0,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "sent": [
+            {
+              "callback": "run",
+              "code": "let i = 3; while (i-->0) {} return i + 1;"
+            }
+          ],
+          "expect": {
+            "result": 0
+          }
+        }
+      ],
+      "expect": {
+        "closed": false
+      }
+    },
+    {
       "name": "credentials in an execution error message are redacted",
       "steps": [
         {
@@ -237,6 +302,46 @@
               "kind": "execution",
               "name": "TypeError",
               "message": "GET https://api.test/v1?apiKey=[redacted]&key=[redacted]&token=[redacted] failed: sk-proj12[redacted] bb_live_abcd[redacted] AIza[redacted] Authorization: Bearer [redacted]"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "name": "redaction treats non-ASCII whitespace as JavaScript's \\s does",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "throw new TypeError(message);"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1,
+                "executionError": {
+                  "name": "TypeError",
+                  "message": "Authorization: Bearer\u00a0eyJhbGciOi.payload.sig GET /v1?token=tok_456\u2028next"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "execution",
+              "name": "TypeError",
+              "message": "Authorization: Bearer\u00a0[redacted] GET /v1?token=[redacted]\u2028next"
             }
           }
         }

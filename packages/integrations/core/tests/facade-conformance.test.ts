@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Stagehand } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 import { facadeBundle } from "../src/facade/bundle.js";
 import { StagehandFacadeInputError, StagehandFacadeTools } from "../src/facade/tools.js";
 
@@ -19,7 +20,7 @@ type ConformanceCall =
   | { tool: "screenshot"; fullPage?: boolean; type?: "png" | "jpeg"; quality?: number };
 
 type ExpectedError = {
-  kind: "input" | "execution" | "batch" | "syntax";
+  kind: "input" | "invalid" | "execution" | "batch" | "syntax";
   name?: string;
   message?: string;
   contractError?: string;
@@ -38,6 +39,7 @@ type ConformanceStep = {
 
 type ConformanceCase = {
   name: string;
+  notApplicable?: Record<string, string>;
   page?: {
     url?: string;
     snapshot?: { formattedTree: string; xpathMap: Record<string, string> };
@@ -157,6 +159,9 @@ function expectError(actual: unknown, expected: ExpectedError): void {
     case "input":
       expect(error).toBeInstanceOf(StagehandFacadeInputError);
       break;
+    case "invalid":
+      expect(error).toBeInstanceOf(ZodError);
+      break;
     case "execution":
       expect(error.facadeExecutionError).toBe(true);
       break;
@@ -214,7 +219,8 @@ describe("facade conformance (TypeScript host)", () => {
     };
     describe(file, () => {
       for (const testCase of cases) {
-        it(testCase.name, { timeout: 60_000 }, async () => {
+        const test = testCase.notApplicable?.typescript === undefined ? it : it.skip;
+        test(testCase.name, { timeout: 60_000 }, async () => {
           const sandbox = await fsp.realpath(
             await fsp.mkdtemp(path.join(os.tmpdir(), "facade-conformance-")),
           );

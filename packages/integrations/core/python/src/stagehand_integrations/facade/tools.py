@@ -18,7 +18,7 @@ import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
-from typing import TYPE_CHECKING, Any, Literal, TypeGuard, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeGuard, TypeVar, cast
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
@@ -42,16 +42,22 @@ _ERROR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]*Error")
 # Padded RFC 4648 base64, as btoa writes it (see isCanonicalBase64 in tools.ts).
 _CANONICAL_BASE64 = re.compile(r"[A-Za-z0-9+/]*={0,2}")
 # sanitizeErrorMessage in src/harness/redact.ts. JavaScript regexes without the
-# `u` flag are ASCII for \b, \w and case folding.
+# `u` flag are ASCII for \b, \w and case folding, but \s is Unicode whitespace.
+_JS_SPACE = "\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 _REDACTIONS = [
     (
-        re.compile(r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+", re.I | re.A),
+        re.compile(
+            rf"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&{_JS_SPACE}\"']+", re.I | re.A
+        ),
         r"\1[redacted]",
     ),
     (re.compile(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
     (re.compile(r"\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
     (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}", re.A), "AIza[redacted]"),
-    (re.compile(r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}", re.I | re.A), r"\1[redacted]"),
+    (
+        re.compile(rf"\b(Bearer[{_JS_SPACE}]+)[A-Za-z0-9._~+/=-]{{8,}}", re.I | re.A),
+        r"\1[redacted]",
+    ),
 ]
 
 
@@ -164,7 +170,7 @@ class StagehandFacadeTools:
             snapshot = await page.snapshot(include_iframes=include_iframes, timeout=0.0)
             return snapshot.formatted_tree, snapshot.xpath_map, await page.url()
 
-        tree, xpath_map, url = await asyncio.wait_for(capture(), PAGE_CAPTURE_DEADLINE_S)
+        tree, xpath_map, url = await _with_deadline(capture(), "page.snapshot")
         self._snapshots[page.page_id] = _Snapshot(url, dict(xpath_map))
         return tree
 
@@ -174,9 +180,8 @@ class StagehandFacadeTools:
         page = await self._active_page()
         # CDP only accepts quality for jpeg, and only as an integer (rounded like Math.round).
         rounded = math.floor(quality + 0.5) if type == "jpeg" and quality is not None else None
-        data = await asyncio.wait_for(
-            page.screenshot(type=type, full_page=full_page, quality=rounded),
-            PAGE_CAPTURE_DEADLINE_S,
+        data = await _with_deadline(
+            page.screenshot(type=type, full_page=full_page, quality=rounded), "page.screenshot"
         )
         mime_type = "image/jpeg" if type == "jpeg" else "image/png"
         return {"data": base64.b64encode(data).decode("ascii"), "mimeType": mime_type}
@@ -343,6 +348,14 @@ class StagehandFacadeTools:
             raise StagehandFacadeCleanupError()
 
 
+async def _with_deadline(awaitable: Awaitable[T], operation: str) -> T:
+    try:
+        return await asyncio.wait_for(awaitable, PAGE_CAPTURE_DEADLINE_S)
+    except TimeoutError:
+        timeout_ms = round(PAGE_CAPTURE_DEADLINE_S * 1000)
+        raise TimeoutError(f"{operation} received no response within {timeout_ms}ms") from None
+
+
 @cache
 def _run_input_validator() -> Validator:
     return Draft202012Validator(facade_tools()[0]["inputSchema"])
@@ -353,6 +366,12 @@ def _validate_run_input(arguments: dict[str, object]) -> None:
     error = best_match(_run_input_validator().iter_errors(arguments))
     if error is not None:
         raise StagehandFacadeInputError(f"Invalid run input: {error.message}")
+    # The advertised schema leaves out RefActionSchema's non-empty `id` and `key`
+    # (src/facade/contract.ts), which the TypeScript host also enforces.
+    for action in cast("list[dict[str, object]]", arguments.get("actions", [])):
+        for field in ("id", "key"):
+            if action.get(field) == "":
+                raise StagehandFacadeInputError(f"Invalid run input: '{field}' must not be empty")
 
 
 def _is_run_envelope(value: object) -> TypeGuard[dict[str, Any]]:

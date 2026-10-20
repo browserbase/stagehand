@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 
 import pytest
 
-from stagehand_integrations.facade import facade_bundle, facade_tools
+from stagehand_integrations.facade import facade_bundle, facade_tools, tools
 from stagehand_integrations.facade._syntax import check_run_syntax
 
 
@@ -60,3 +61,11 @@ def test_run_code_that_is_a_function_body_passes(code: str) -> None:
 def test_run_code_that_is_not_a_function_body_fails(code: str) -> None:
     with pytest.raises(SyntaxError):
         check_run_syntax(code)
+
+
+async def test_a_capture_past_its_deadline_fails_with_the_typescript_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tools, "PAGE_CAPTURE_DEADLINE_S", 0.01)
+    with pytest.raises(TimeoutError, match=r"^page\.snapshot received no response within 10ms$"):
+        await tools._with_deadline(asyncio.sleep(1), "page.snapshot")

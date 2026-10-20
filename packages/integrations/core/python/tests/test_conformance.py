@@ -155,7 +155,7 @@ async def call_tool(tools: StagehandFacadeTools, call: dict[str, Any]) -> object
 
 def check_error(error: BaseException, expected: dict[str, Any]) -> None:
     kind = expected["kind"]
-    if kind == "input":
+    if kind in ("input", "invalid"):
         assert isinstance(error, StagehandFacadeInputError), repr(error)
     elif kind == "execution":
         assert isinstance(error, StagehandFacadeExecutionError), repr(error)

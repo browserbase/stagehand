@@ -44,10 +44,13 @@ export const FACADE_BUNDLE_VERSION = 3;
  *     executionError?: { name, message, stack? }, telemetry, artifacts:
  *     { path, base64 }[], closeRequested, batchRuntimeMs }`; an error thrown by
  *     `code` arrives as executionError, not as a batch failure. Before sending,
- *     a host must check that `code` parses on its own as an async function body
- *     (what `AsyncFunction(params, code)` accepts) and otherwise fail the call
- *     with a SyntaxError, as the TS facade does; plain concatenation would let
- *     code that closes the function early run outside the callback.
+ *     a host must make sure `code` cannot close the callback early and
+ *     otherwise fail the call with a SyntaxError; plain concatenation would let
+ *     such code run outside the callback. The TS facade parses the whole
+ *     callback body, strict mode included, with `AsyncFunction`. A host without
+ *     a JavaScript engine may instead check that `code` parses on its own as an
+ *     async function body; conformance cases marked notApplicable record where
+ *     the two checks differ.
  *     The host fails the call with RUN_RESULT_MALFORMED_ERROR, without closing
  *     or writing anything, unless the result has the marker, `closeRequested`
  *     boolean, `batchRuntimeMs` number, `telemetry` object, `artifacts` array

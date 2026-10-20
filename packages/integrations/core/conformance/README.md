@@ -36,7 +36,7 @@ Each file holds `{ "cases": [...] }`. A case:
 | Field            | Meaning                                                                                                                                                                                                     |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`           | What the case shows.                                                                                                                                                                                        |
-| `notApplicable`  | Optional `{ "<host>": "reason" }` (e.g. `python`): that host skips the case, for the reason given.                                                                                                          |
+| `notApplicable`  | Optional `{ "<host>": "reason" }` (`typescript` or `python`): that host skips the case, for the reason given.                                                                                               |
 | `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                      |
 | `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
 | `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
@@ -48,12 +48,13 @@ Each file holds `{ "cases": [...] }`. A case:
 
 An expected error has a `kind` and, optionally, a `name` and a message:
 
-| `kind`      | The host raised                                                                        |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `input`     | its ordinary tool error (`StagehandFacadeInputError` in TypeScript).                   |
-| `execution` | the error thrown by the agent's code, with that `name` and message.                    |
-| `batch`     | the error the batch call itself raised, unchanged.                                     |
-| `syntax`    | a syntax error for run code, before sending anything. Messages differ between parsers. |
+| `kind`      | The host raised                                                                         |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `input`     | its ordinary tool error (`StagehandFacadeInputError` in TypeScript).                    |
+| `invalid`   | its error for arguments outside the tool's input contract (a `ZodError` in TypeScript). |
+| `execution` | the error thrown by the agent's code, with that `name` and message.                     |
+| `batch`     | the error the batch call itself raised, unchanged.                                      |
+| `syntax`    | a syntax error for run code, before sending anything. Messages differ between parsers.  |
 
 The message is `message` verbatim, or `contractError`: a key of
 `contract.errors` in the bundle, with `${key}` placeholders filled from
