@@ -52,6 +52,10 @@ prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
 `{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
 escaping, so non-ASCII characters are not escaped.
 
+`python/` is the Python host, `stagehand-integrations` (`stagehand_integrations.facade`).
+It ships a copy of the bundle; run `pnpm run sync:python` after building to refresh
+it, and `tests/facade-python-bundle.test.ts` fails while the copy is stale.
+
 A failed CDP attach releases a Browserbase session created by that launch even
 with `keepAlive: true`. Failed attachment to an existing session does not release
 it. There is still a shutdown limitation: the stdio host waits at most five seconds

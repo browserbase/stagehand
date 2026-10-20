@@ -4,7 +4,8 @@ Every facade host (the TypeScript `StagehandFacadeTools`, and hosts in other
 languages built on `dist/facade-bundle.json`) must pass every case in `cases/`.
 The cases drive a host against a fake Stagehand, so they check what the host
 does with batch results, snapshots and the artifact root, not the browser-side
-JavaScript. `tests/facade-conformance.test.ts` runs them on the TypeScript host.
+JavaScript. `tests/facade-conformance.test.ts` runs them on the TypeScript host
+and `python/tests/test_conformance.py` on the Python host.
 
 ## Running a case
 
@@ -35,6 +36,7 @@ Each file holds `{ "cases": [...] }`. A case:
 | Field            | Meaning                                                                                                                                                                                                     |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`           | What the case shows.                                                                                                                                                                                        |
+| `notApplicable`  | Optional `{ "<host>": "reason" }` (e.g. `python`): that host skips the case, for the reason given.                                                                                                          |
 | `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                      |
 | `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
 | `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
