@@ -86,3 +86,19 @@ non-ASCII characters unescaped (Python: `separators=(",", ":")`,
 Whatever fails after a valid envelope, the host closes the session when
 `closeRequested` is true and then raises the error, and later calls fail with
 `FACADE_BROWSER_CLOSED_ERROR`.
+
+## Environment and browser launch
+
+The cases do not cover the environment allowlist, because no host they drive
+reads or forwards the environment. The rule belongs to whatever launches the
+browser or a child process: the stdio server (`src/facade/stdio-server.ts`)
+builds its Stagehand and browser from `STAGEHAND_*` and `BROWSERBASE_*`
+variables (`stagehandFacadeConfigFromEnv`), and code that spawns the server or
+an agent harness passes it only those (`buildAllowlistedEnv` in
+`src/harness/env.ts`). Their own tests check that.
+
+`StagehandFacadeTools`, in TypeScript and in Python, takes a Stagehand the
+caller has already built and never launches a browser, spawns a process or
+reads the environment, so there is nothing to forward. The Python package has
+no stdio server or launcher, so it has no allowlist case at all; a host that
+adds one must apply the same rule.
