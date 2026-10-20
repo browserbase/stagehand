@@ -1,5 +1,17 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { config as loadDotenvConfig } from "dotenv";
+import satisfies from "semver/functions/satisfies.js";
+
+const { engines } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
+if (!satisfies(process.versions.node, engines.node)) {
+  console.error(
+    `[browse] Node.js ${engines.node} is required; found ${process.versions.node}. Upgrade Node.js and rerun browse.`,
+  );
+  process.exit(1);
+}
 
 // `BROWSE_LOAD_DOTENV` controls whether `browse` auto-loads a `.env` file
 // from the current working directory. This is deprecated: a future release
