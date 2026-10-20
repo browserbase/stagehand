@@ -106,6 +106,10 @@ class StagehandFacadeTools:
     (default: the current directory) and must stay within it. ``on_close_requested``
     replaces the default cleanup (closing the Stagehand, then its browser) when run
     code calls ``browser.close()``.
+
+    ``quiet_wait`` (experimental, off by default) makes ``page.waitForTimeout(ms)`` in
+    run code return once the page is quiet, never later than ms; see
+    ``contract.runOptions.quietWait`` in the bundle.
     """
 
     def __init__(
@@ -114,10 +118,15 @@ class StagehandFacadeTools:
         *,
         artifact_root: str | os.PathLike[str] | None = None,
         on_close_requested: Callable[[], Awaitable[None]] | None = None,
+        quiet_wait: bool | None = None,
     ) -> None:
         self._stagehand = stagehand
         self._artifact_root = artifact_root
         self._on_close_requested = on_close_requested
+        if quiet_wait is None:
+            quiet_wait = _bundle()["contract"]["runOptions"]["quietWait"]["default"]
+        # Options go in the run input only when on, so the default input stays `{}`.
+        self._run_input: dict[str, object] = {"quietWait": True} if quiet_wait else {}
         self._snapshots: dict[str, _Snapshot] = {}
         self._lock = asyncio.Lock()
         self._closed = False
@@ -256,13 +265,16 @@ class StagehandFacadeTools:
         closed its tab), retry once on the new active page; no code has run yet."""
         try:
             return await self._stagehand.experimental_batch(
-                source, {}, timeout=RUN_BATCH_TIMEOUT_MS, page=page
+                source, dict(self._run_input), timeout=RUN_BATCH_TIMEOUT_MS, page=page
             )
         except Exception as error:
             if not re.search(r"callback batch page was not found", str(error), re.I):
                 raise
         return await self._stagehand.experimental_batch(
-            source, {}, timeout=RUN_BATCH_TIMEOUT_MS, page=await self._active_page()
+            source,
+            dict(self._run_input),
+            timeout=RUN_BATCH_TIMEOUT_MS,
+            page=await self._active_page(),
         )
 
     def _write_artifacts(self, artifacts: list[dict[str, str]]) -> None:

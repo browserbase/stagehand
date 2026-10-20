@@ -16,6 +16,7 @@ import {
   LEGACY_FACADE_AGENT_INSTRUCTIONS,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
+  RUN_OPTIONS,
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
@@ -31,7 +32,7 @@ import {
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 4;
+export const FACADE_BUNDLE_VERSION = 5;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
@@ -42,11 +43,13 @@ export const FACADE_BUNDLE_VERSION = 4;
  *   supplies the batch input. `runtime` is the Playwright-compatible runtime
  *   the prelude embeds.
  *   - `run` code: `runPrelude + code + runEpilogue`, input
- *     `{ hiddenPageIds?: string[] }` (pages agent code must not see, such as a
- *     keeper tab). It resolves to `{ __stagehandPlaywrightCompat: true, value,
- *     executionError?: { name, message, stack? }, telemetry, artifacts:
- *     { path, base64 }[], closeRequested, batchRuntimeMs }`; an error thrown by
- *     `code` arrives as executionError, not as a batch failure. Before sending,
+ *     `{ hiddenPageIds?: string[], quietWait?: boolean }`: pages agent code
+ *     must not see, such as a keeper tab, and the options in
+ *     `contract.runOptions`, sent only when turned on. It resolves to
+ *     `{ __stagehandPlaywrightCompat: true, value, executionError?: { name,
+ *     message, stack? }, telemetry, artifacts: { path, base64 }[],
+ *     closeRequested, batchRuntimeMs }`; an error thrown by `code` arrives as
+ *     executionError, not as a batch failure. Before sending,
  *     a host must make sure `code` cannot close the callback early and
  *     otherwise fail the call with a SyntaxError; plain concatenation would let
  *     such code run outside the callback. The TS facade parses the whole
@@ -80,6 +83,8 @@ export const FACADE_BUNDLE_VERSION = 4;
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
  * - contract.limits: caps on a run result (RUN_RESULT_LIMITS), in bytes.
+ * - contract.runOptions: the `run` input options, with their defaults and the
+ *   constants the runtime uses for them (RUN_OPTIONS).
  * - contract.messages: the screenshot tool's text, plain or after
  *   transport-safe compression.
  * - sha256: hex SHA-256 of the UTF-8 canonical JSON of `{ sources, contract }`
@@ -123,6 +128,7 @@ export function facadeBundle(packageVersion: string) {
           RUN_VALUE_SIZE_ERROR,
         },
         limits: RUN_RESULT_LIMITS,
+        runOptions: RUN_OPTIONS,
         messages: {
           SCREENSHOT_CAPTURED_MESSAGE,
           SCREENSHOT_COMPRESSED_MESSAGE,

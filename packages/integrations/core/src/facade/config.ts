@@ -19,6 +19,8 @@ export type StagehandFacadeConfig = {
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
     | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions };
   stagehand: StagehandClientCreateConfig;
+  /** STAGEHAND_FACADE_QUIET_WAIT: see StagehandFacadeToolsOptions.quietWait. */
+  quietWait: boolean;
 };
 
 export function stagehandFacadeConfigFromEnv(
@@ -89,6 +91,8 @@ export function stagehandFacadeConfigFromEnv(
     );
   }
   const stagehand = parsed.data;
+  const quietWait =
+    booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ?? false;
 
   return {
     browser:
@@ -116,6 +120,7 @@ export function stagehandFacadeConfigFromEnv(
           }
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
+    quietWait,
   };
 }
 

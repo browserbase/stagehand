@@ -22,6 +22,7 @@ new visible page in the same browser. In-process callers can pass
 | `STAGEHAND_BROWSERBASE_PROXIES`, `STAGEHAND_BROWSERBASE_VERIFIED` | Unset leaves the corresponding Browserbase API option unspecified. Accepts `1/true/yes/on` and `0/false/no/off`. The eval runner explicitly defaults both to true. |
 | `STAGEHAND_BROWSERBASE_EXTENSION_ID`                              | Unset uploads a packaged extension for this session; set to reuse the host's uploaded extension. The host owns the shared upload's cleanup.                        |
 | `STAGEHAND_MODEL_NAME`, `STAGEHAND_MODEL_API_KEY`                 | Optional Stagehand model configuration. A model API key requires an explicit model name. Plain facade navigation and inspection do not invoke a model.             |
+| `STAGEHAND_FACADE_QUIET_WAIT`                                     | Off unless `1/true/yes/on`. Experimental: `page.waitForTimeout(ms)` returns once the page is quiet (DOM loaded, no mutation for 400 ms), never later than `ms`.    |
 
 `--surface=playwright` is the default stdio description. `--surface=legacy` selects
 the earlier description with the same runtime. `EXPLICIT_SNAPSHOT_ACTIONS=1`
@@ -41,6 +42,13 @@ supplies only the batch input:
 | --------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `run` code: `runPrelude + code + runEpilogue` | `{ hiddenPageIds?: string[] }`, pages hidden from agent code | `{ value, executionError?, telemetry, artifacts, closeRequested, batchRuntimeMs }`; errors thrown by `code` are `executionError` |
 | `run` actions: `actionRunner`                 | `{ actions, xpathById }`, the latest snapshot's XPath map    | `{ completed }`, or `{ staleId }` before any action runs, which the host reports as `STALE_SNAPSHOT_ID_ERROR`                    |
+
+The run input also carries the options in `contract.runOptions`, only when a
+host turns them on: `quietWait: true` (`StagehandFacadeTools`'s `quietWait`,
+the Python host's `quiet_wait`). Each run report's `telemetry.waits` gives
+`{ count, requestedMs, waitedMs, earlyReturns }` for `page.waitForTimeout`, in
+both modes; the stdio server writes it on its `stagehand_playwright_compat`
+stderr line.
 
 The host keeps the per-page snapshot map and the missing-snapshot and navigation
 checks, rejects run results without the envelope's shape, and enforces the caps

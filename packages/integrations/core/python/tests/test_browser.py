@@ -100,3 +100,43 @@ async def test_tools_drive_a_local_chrome(stagehand: Stagehand, tmp_path: Path) 
     with pytest.raises(StagehandFacadeInputError) as error:
         await tools.snapshot()
     assert str(error.value) == contract_error("FACADE_BROWSER_CLOSED_ERROR")
+
+
+def mutating_page(mutate_ms: int | None) -> str:
+    """A page that changes its DOM every 50 ms, for mutate_ms (None: forever)."""
+    stop = "Infinity" if mutate_ms is None else str(mutate_ms)
+    return "data:text/html," + quote(
+        "<!doctype html><title>Mutating</title><output id=tick>0</output><script>"
+        "const started = performance.now();"
+        "const timer = setInterval(() => {"
+        f"  if (performance.now() - started > {stop}) {{"
+        "    clearInterval(timer); document.body.dataset.done = '1'; return; }"
+        "  document.getElementById('tick').textContent++; }, 50);"
+        "</script>"
+    )
+
+
+TIMED_WAIT = (
+    "const startedAt = Date.now(); await page.waitForTimeout({ms});"
+    " return {{ waited: Date.now() - startedAt,"
+    " done: await page.evaluate('document.body.dataset.done ?? null') }};"
+)
+
+
+async def test_quiet_wait_returns_once_the_page_stops_changing(stagehand: Stagehand) -> None:
+    tools = StagehandFacadeTools(stagehand, quiet_wait=True)
+    await tools.run(code=f"await page.goto({mutating_page(1200)!r}); return null;")
+    result = await tools.run(code=TIMED_WAIT.format(ms=8000))
+    assert isinstance(result, dict)
+    # It waited until the mutations stopped, not the full 8 s.
+    assert result["done"] == "1"
+    assert 400 <= result["waited"] < 4000
+
+
+async def test_quiet_wait_is_capped_while_the_page_keeps_changing(stagehand: Stagehand) -> None:
+    tools = StagehandFacadeTools(stagehand, quiet_wait=True)
+    await tools.run(code=f"await page.goto({mutating_page(None)!r}); return null;")
+    result = await tools.run(code=TIMED_WAIT.format(ms=1500))
+    assert isinstance(result, dict)
+    assert result["done"] is None
+    assert 1500 <= result["waited"] < 2500

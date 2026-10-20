@@ -24,6 +24,25 @@ describe("Stagehand facade contract", () => {
     });
   });
 
+  it("reads STAGEHAND_FACADE_QUIET_WAIT, off by default", () => {
+    expect(stagehandFacadeConfigFromEnv({}).quietWait).toBe(false);
+    for (const on of ["1", "true", "YES", " on "]) {
+      expect(stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_QUIET_WAIT: on }).quietWait).toBe(
+        true,
+      );
+    }
+    for (const off of ["", "0", "false", "off"]) {
+      expect(stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_QUIET_WAIT: off }).quietWait).toBe(
+        false,
+      );
+    }
+    expect(() => stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_QUIET_WAIT: "maybe" })).toThrow(
+      new StagehandFacadeConfigError(
+        'STAGEHAND_FACADE_QUIET_WAIT must be a boolean (got "maybe").',
+      ),
+    );
+  });
+
   it("ignores malformed Browserbase-only options in local mode", () => {
     expect(
       stagehandFacadeConfigFromEnv({

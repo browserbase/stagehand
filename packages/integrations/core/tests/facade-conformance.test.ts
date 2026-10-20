@@ -40,6 +40,7 @@ type ConformanceStep = {
 type ConformanceCase = {
   name: string;
   notApplicable?: Record<string, string>;
+  host?: { quietWait?: boolean };
   page?: {
     url?: string;
     snapshot?: { formattedTree: string; xpathMap: Record<string, string> };
@@ -77,7 +78,10 @@ function describeSentCall(source: string, input: unknown): Json {
       sources.runPrelude.length,
       source.length - sources.runEpilogue.length,
     );
-    return { callback: "run", code };
+    const options = input as Record<string, Json>;
+    return Object.keys(options).length === 0
+      ? { callback: "run", code }
+      : { callback: "run", code, input: options };
   }
   return { callback: "unknown", source };
 }
@@ -230,6 +234,7 @@ describe("facade conformance (TypeScript host)", () => {
           const tools = new StagehandFacadeTools(fake.stagehand, {
             artifactRoot: path.join(sandbox, "artifacts"),
             keeperPage: false,
+            ...(testCase.host?.quietWait !== undefined && { quietWait: testCase.host.quietWait }),
           });
 
           for (const [index, step] of testCase.steps.entries()) {

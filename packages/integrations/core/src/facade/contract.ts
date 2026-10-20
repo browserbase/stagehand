@@ -253,6 +253,17 @@ export const RUN_RESULT_LIMITS = Object.freeze({
   maxValueBytes: 10 * MB,
 } as const);
 
+/**
+ * Run options a host passes in the `run` batch input; all are off unless the
+ * host turns them on. `quietWait`: page.waitForTimeout(ms) returns once the
+ * page is quiet (readyState past "loading", no DOM mutation for `windowMs`),
+ * polling every `pollMs`, never later than ms; at or below `windowMs` it just
+ * sleeps. The runtime (src/facade/runtime.ts) holds the same numbers.
+ */
+export const RUN_OPTIONS = {
+  quietWait: { default: false, windowMs: 400, pollMs: 100 },
+} as const;
+
 export const RUN_RESULT_MALFORMED_ERROR = "The run batch returned a malformed result.";
 export const SCREENSHOT_ARTIFACT_COUNT_ERROR = `A run can save at most ${RUN_RESULT_LIMITS.maxArtifacts} screenshot artifacts.`;
 export const SCREENSHOT_ARTIFACT_SIZE_ERROR = `A screenshot artifact can be at most ${RUN_RESULT_LIMITS.maxArtifactBytes / MB} MB.`;

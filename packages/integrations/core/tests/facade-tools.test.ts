@@ -198,6 +198,56 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(reports[0].batchRoundTripMs).toBeGreaterThanOrEqual(reports[0].batchRuntimeMs);
   });
 
+  it("sends quietWait in the run input only when the host turns it on", async () => {
+    const run = async (quietWait: boolean | undefined) => {
+      const fakePage = createFakePage();
+      const probe = vi.fn(async () => ({ readyState: "complete", quietMs: 1_000 }));
+      const evaluate = fakePage.evaluate.getMockImplementation()!;
+      const page = Object.assign(fakePage, {
+        evaluate: vi.fn(async (expression: unknown) =>
+          typeof expression === "string" && expression.includes("stagehand.facade.quietWait")
+            ? probe()
+            : evaluate(expression),
+        ),
+      });
+      const { stagehand, experimentalBatch } = createFakeStagehand(page);
+      const reports: StagehandFacadeRunReport[] = [];
+      const tools = new StagehandFacadeTools(stagehand, {
+        onRunReport: (r) => reports.push(r),
+        ...(quietWait !== undefined && { quietWait }),
+      });
+      await tools.run(`await page.waitForTimeout(5000); return null;`);
+      return { input: experimentalBatch.mock.calls[0][1], page, probe, report: reports[0] };
+    };
+
+    for (const quietWait of [undefined, false]) {
+      const off = await run(quietWait);
+      expect(off.input).toStrictEqual({ hiddenPageIds: ["keeper-page"] });
+      expect(off.page.waitForTimeout.mock.calls).toStrictEqual([[5_000]]);
+      expect(off.probe).not.toHaveBeenCalled();
+      expect(off.report.quietWait).toBe(false);
+      expect(off.report.telemetry.waits).toStrictEqual({
+        count: 1,
+        requestedMs: 5_000,
+        waitedMs: 5_000,
+        earlyReturns: 0,
+      });
+    }
+
+    const on = await run(true);
+    expect(on.input).toStrictEqual({ hiddenPageIds: ["keeper-page"], quietWait: true });
+    expect(on.page.waitForTimeout).not.toHaveBeenCalled();
+    expect(on.probe).toHaveBeenCalledOnce();
+    expect(on.report.quietWait).toBe(true);
+    expect(on.report.telemetry.calls["page.waitForTimeout"]).toBe(1);
+    expect(on.report.telemetry.waits).toMatchObject({
+      count: 1,
+      requestedMs: 5_000,
+      earlyReturns: 1,
+    });
+    expect(on.report.telemetry.waits.waitedMs).toBeLessThan(5_000);
+  });
+
   it("does not expose Stagehand AI methods or the raw client to the snippet", async () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     const tools = new StagehandFacadeTools(stagehand);

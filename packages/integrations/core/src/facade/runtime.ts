@@ -139,6 +139,12 @@ type BatchStagehandRuntime = {
 export type PlaywrightCompatTelemetry = {
   calls: Record<string, number>;
   misses: Record<string, number>;
+  /**
+   * page.waitForTimeout calls: the time agent code asked for and the time it
+   * waited (capped at the request). They differ only with `quietWait`, where
+   * earlyReturns counts the waits that ended because the page was quiet.
+   */
+  waits: { count: number; requestedMs: number; waitedMs: number; earlyReturns: number };
 };
 
 export type PlaywrightCompatRuntime = {
@@ -158,6 +164,12 @@ export type PlaywrightCompatRuntime = {
 export type PlaywrightCompatRuntimeOptions = {
   /** Pages the host keeps for itself (the facade's keeper tab); never surfaced to agent code. */
   hiddenPageIds?: string[];
+  /**
+   * page.waitForTimeout(ms) returns once the page is quiet (DOM content loaded
+   * and no DOM mutation for 400 ms), never later than ms. Off by default: the
+   * wait then sleeps exactly ms.
+   */
+  quietWait?: boolean;
 };
 
 export async function createPlaywrightCompatRuntime(
@@ -182,7 +194,11 @@ export async function createPlaywrightCompatRuntime(
     return { timeout: remaining };
   };
 
-  const stats: CompatStats = { calls: {}, misses: {} };
+  const stats: CompatStats = {
+    calls: {},
+    misses: {},
+    waits: { count: 0, requestedMs: 0, waitedMs: 0, earlyReturns: 0 },
+  };
   const record = (bucket: "calls" | "misses", method: string): void => {
     stats[bucket][method] = (stats[bucket][method] ?? 0) + 1;
   };
@@ -1007,6 +1023,71 @@ export async function createPlaywrightCompatRuntime(
     (await rawContext.pages()).filter(
       (page) => page.pageId === undefined || !hiddenPageIds.has(page.pageId),
     );
+  // page.waitForTimeout with options.quietWait. Models overshoot fixed waits,
+  // so the wait ends once the page is quiet: readyState is past "loading" and
+  // the DOM has not mutated for QUIET_WAIT_WINDOW_MS. It never runs past the
+  // requested time, and a failed or hung probe (navigation) only costs a poll.
+  const QUIET_WAIT_WINDOW_MS = 400;
+  const QUIET_WAIT_POLL_MS = 100;
+  // Installs one MutationObserver per document under a registry symbol, then
+  // reports readyState and the time since the last mutation (or the install).
+  const QUIET_WAIT_PROBE = `(() => {
+    const key = Symbol.for("stagehand.facade.quietWait");
+    let state = document[key];
+    if (!state) {
+      state = { lastMutation: performance.now() };
+      Object.defineProperty(document, key, { value: state, configurable: true });
+      new MutationObserver(() => {
+        state.lastMutation = performance.now();
+      }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    }
+    return { readyState: document.readyState, quietMs: performance.now() - state.lastMutation };
+  })()`;
+  const probeQuiet = async (page: RawPage, budgetMs: number): Promise<boolean> => {
+    let timer: Parameters<typeof clearTimeout>[0];
+    try {
+      const probe = await Promise.race([
+        page.evaluate<{ readyState?: unknown; quietMs?: unknown }>(QUIET_WAIT_PROBE),
+        new Promise<undefined>((resolve) => {
+          timer = setTimeout(resolve, budgetMs);
+        }),
+      ]);
+      return (
+        typeof probe?.readyState === "string" &&
+        probe.readyState !== "loading" &&
+        typeof probe.quietMs === "number" &&
+        probe.quietMs >= QUIET_WAIT_WINDOW_MS
+      );
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const waitForTimeoutOrQuiet = async (page: RawPage, ms: number): Promise<void> => {
+    const requestedMs = Number.isFinite(ms) && ms > 0 ? ms : 0;
+    stats.waits.count += 1;
+    stats.waits.requestedMs += requestedMs;
+    if (!options.quietWait || !(requestedMs > QUIET_WAIT_WINDOW_MS)) {
+      await page.waitForTimeout(ms);
+      stats.waits.waitedMs += requestedMs;
+      return;
+    }
+    const startedAt = Date.now();
+    const deadline = startedAt + requestedMs;
+    let early = false;
+    for (let remaining = requestedMs; remaining > 0; remaining = deadline - Date.now()) {
+      if (await probeQuiet(page, remaining)) {
+        early = true;
+        break;
+      }
+      const left = deadline - Date.now();
+      if (left <= 0) break;
+      await page.waitForTimeout(Math.min(QUIET_WAIT_POLL_MS, left));
+    }
+    stats.waits.waitedMs += Math.min(Date.now() - startedAt, requestedMs);
+    if (early) stats.waits.earlyReturns += 1;
+  };
   const compatPages = new Map<PageKey, unknown>();
   const closedPages = new Set<PageKey>();
   let closeRequested = false;
@@ -3116,7 +3197,7 @@ export async function createPlaywrightCompatRuntime(
       },
       waitForTimeout: async (ms: number) => {
         record("calls", "page.waitForTimeout");
-        await page.waitForTimeout(ms);
+        await waitForTimeoutOrQuiet(page, ms);
         for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
       waitForLoadState: (state = "load", options: { timeout?: number } = {}) => {
@@ -3512,7 +3593,11 @@ export async function createPlaywrightCompatRuntime(
     page: initialPage,
     context,
     browser,
-    telemetry: () => ({ calls: { ...stats.calls }, misses: { ...stats.misses } }),
+    telemetry: () => ({
+      calls: { ...stats.calls },
+      misses: { ...stats.misses },
+      waits: { ...stats.waits },
+    }),
     artifacts: () => screenshotArtifacts.map((artifact) => ({ ...artifact })),
     closeRequested: () => closeRequested,
   };
