@@ -29,7 +29,7 @@ npm install -g browse
 
 ## Quick start
 
-Requires Node.js 22.18.0 or later, matching the Stagehand SDK runtime requirement.
+Requires Node.js 22.18+.
 
 ```bash
 npm install -g browse
