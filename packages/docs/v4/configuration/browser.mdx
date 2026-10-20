@@ -477,7 +477,7 @@ When `browserbase.launch()` creates a session without an `extensionId`, Stagehan
 
 ### Alternative: Browserbase SDK
 
-If you prefer to manage sessions directly, upload the Stagehand extension to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
+If you prefer to manage sessions directly, [export the Stagehand extension](#exporting-the-stagehand-extension) and upload it to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
 
 <Note>
 The extension ID used to create the session is the uploaded-extension resource ID returned by the Browserbase Extensions API. `browserbase.launch()` handles this upload and session configuration automatically.
@@ -991,6 +991,81 @@ stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 </Tabs>
 
 Set the ignore-default-args option to `true` to remove all default arguments. Use a list to remove only exact matches while preserving the rest.
+
+## Exporting the Stagehand extension
+
+Each SDK exposes the extension bundled with its installed version as ZIP bytes. Use this archive to upload the extension to Browserbase or extract it for local installation in Chrome. These helpers do not require a Stagehand instance or a browser session and do not write files themselves.
+
+<Tabs>
+<Tab title="TypeScript">
+`getExtensionArchive()` returns `Promise<Uint8Array>`.
+
+```typescript
+import { writeFile } from "node:fs/promises";
+import { getExtensionArchive } from "@browserbasehq/stagehand";
+
+const archive = await getExtensionArchive();
+await writeFile("stagehand-extension.zip", archive);
+```
+</Tab>
+<Tab title="Python">
+`get_extension_archive()` returns `bytes` synchronously.
+
+```python
+from pathlib import Path
+from stagehand import get_extension_archive
+
+archive = get_extension_archive()
+Path("stagehand-extension.zip").write_bytes(archive)
+```
+</Tab>
+<Tab title="Go">
+`ExtensionArchive()` returns an independent copy of the archive as `[]byte`.
+
+```go
+package main
+
+import (
+    "log"
+    "os"
+
+    stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func main() {
+    archive := stagehand.ExtensionArchive()
+    if err := os.WriteFile("stagehand-extension.zip", archive, 0o644); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+</Tab>
+</Tabs>
+
+### Upload to Browserbase
+
+Upload `stagehand-extension.zip` using the Browserbase Extensions API or the [CLI deployment workflow](/v4/best-practices/deployments). Include the returned extension ID when creating the session, as shown in [Alternative: Browserbase SDK](#alternative-browserbase-sdk). `browserbase.launch()` handles the upload automatically when you omit an extension ID.
+
+### Load unpacked in Chrome
+
+1. Extract `stagehand-extension.zip` to a folder.
+2. Open `chrome://extensions` and enable **Developer mode**.
+3. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
+
+The archive contains `manifest.json` at its root. **Load unpacked** requires the extracted files on disk; it cannot accept ZIP bytes or a ZIP file directly. Keep the extracted folder available while the extension is installed.
+
+You can also extract the archive directly from Python:
+
+```python
+import io
+import zipfile
+from stagehand import get_extension_archive
+
+with zipfile.ZipFile(io.BytesIO(get_extension_archive())) as archive:
+    archive.extractall("stagehand-extension")
+```
+
+Select the `stagehand-extension` folder in **Load unpacked**. To attach Stagehand to that browser, it must also expose a DevTools endpoint; see [Connecting over CDP](#connecting-over-cdp).
 
 ## Advanced configuration
 
