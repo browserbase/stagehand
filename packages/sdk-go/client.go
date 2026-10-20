@@ -14,14 +14,18 @@ var (
 )
 
 type requestHandler struct {
-	decode func(json.RawMessage) (any, error)
-	handle func(context.Context, any) (any, error)
-	encode func(any) (json.RawMessage, error)
+	// prepare admits work on the reader before subsequent control notifications.
+	prepare      func(context.Context, uint64) (context.Context, func(), error)
+	replyContext context.Context
+	decode       func(json.RawMessage) (any, error)
+	handle       func(context.Context, any) (any, error)
+	encode       func(any) (json.RawMessage, error)
 }
 
 // protocolClient is deliberately private. The public SDK exposes generated
 // protocol values and domain wrappers, not its JSON-RPC transport.
 type protocolClient interface {
+	registerBrowserbaseTransport(*browserbaseConnection) func()
 	call(ctx context.Context, method string, params any, result any) error
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()

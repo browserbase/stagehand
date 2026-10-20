@@ -43,7 +43,7 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
     state: { getState: () => ({ status: "initialized", initParams }) },
     resolveUnderstudyPage: vi.fn(() => ({})),
     resolvePage: vi.fn(() => ({})),
-    adapters: { clientLLMGenerate: vi.fn() },
+    adapters: { clientLLMGenerate: vi.fn(), clientBrowserbaseRequest: vi.fn() },
     metrics: { record: vi.fn() },
     runWithTelemetryContext: async (_scope: symbol, _logger: unknown, run: () => unknown) =>
       await run(),
@@ -130,7 +130,7 @@ describe("model configuration", () => {
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it("routes every primitive without a model through the Browserbase gateway", async () => {
+    it("routes every primitive without a model through the client Gateway", async () => {
       const act = vi.spyOn(actService, "act").mockResolvedValue({
         data: { success: true, message: "", actionDescription: "", actions: [] },
         metadata,
@@ -143,12 +143,11 @@ describe("model configuration", () => {
         data: [],
         metadata,
       });
-      const controller = createStagehandController(
-        runtimeWith({
-          apiKey: "bb-api-key",
-          browser: { sessionId: "session-123", region: "eu-central-1" },
-        } as StagehandInitParams),
-      );
+      const runtime = runtimeWith({
+        browserbase: "client",
+        browser: { sessionId: "session-123", region: "eu-central-1" },
+      } as StagehandInitParams);
+      const controller = createStagehandController(runtime);
 
       await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
       await controller.extract(
@@ -161,10 +160,15 @@ describe("model configuration", () => {
         expect(service).toHaveBeenCalledWith(
           expect.objectContaining({
             model: undefined,
-            gateway: {
-              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-              apiKey: "bb-api-key",
+            cache: expect.objectContaining({
               sessionId: "session-123",
+              defaultCaching: true,
+              client: expect.objectContaining({
+                transport: { request: runtime.adapters.clientBrowserbaseRequest },
+              }),
+            }),
+            gateway: {
+              request: runtime.adapters.clientBrowserbaseRequest,
             },
           }),
         );
@@ -206,6 +210,52 @@ describe("model configuration", () => {
   describe("per-call models", () => {
     it.todo("uses the initialized model when a call does not provide one");
     it.todo("uses the complete per-call model when a call provides one");
-    it.todo("does not inherit initialized credentials into a per-call model");
+    it.each([
+      { modelName: "openai/gpt-5", apiKey: "provider-key", headers: { "x-default": "value" } },
+      { source: "client" },
+    ] as const)(
+      "does not inherit an initialized model into a keyless override: %j",
+      async (model) => {
+        const act = vi.spyOn(actService, "act").mockResolvedValue({
+          data: { success: true, message: "", actionDescription: "", actions: [] },
+          metadata,
+        });
+        const extract = vi
+          .spyOn(extractService, "extract")
+          .mockResolvedValue({ data: {}, metadata });
+        const observe = vi
+          .spyOn(observeService, "observe")
+          .mockResolvedValue({ data: [], metadata });
+        const runtime = runtimeWith({
+          browserbase: "client",
+          browser: { sessionId: "session-123" },
+          model,
+        } as StagehandInitParams);
+        const controller = createStagehandController(runtime);
+        const override = { modelName: "anthropic/future-model" } as const;
+        await controller.act(
+          { pageId: "page-1", instruction: "Click", options: { model: override } },
+          handlerContext,
+        );
+        await controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {}, options: { model: override } },
+          handlerContext,
+        );
+        await controller.observe(
+          { pageId: "page-1", options: { model: override } },
+          handlerContext,
+        );
+        for (const service of [act, extract, observe]) {
+          expect(service).toHaveBeenCalledWith(
+            expect.objectContaining({
+              model: override,
+              gateway: {
+                request: runtime.adapters.clientBrowserbaseRequest,
+              },
+            }),
+          );
+        }
+      },
+    );
   });
 });

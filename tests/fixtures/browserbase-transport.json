@@ -1,0 +1,424 @@
+{
+  "connection": {
+    "apiKey": "bb-fixture-key",
+    "sessionId": "session-fixture"
+  },
+  "endpoints": [
+    {
+      "name": "default region",
+      "expected": "https://api.stagehand.browserbase.com/v1"
+    },
+    {
+      "name": "us-west-2",
+      "region": "us-west-2",
+      "expected": "https://api.stagehand.browserbase.com/v1"
+    },
+    {
+      "name": "us-east-1",
+      "region": "us-east-1",
+      "expected": "https://api.use1.stagehand.browserbase.com/v1"
+    },
+    {
+      "name": "eu-central-1",
+      "region": "eu-central-1",
+      "expected": "https://api.euc1.stagehand.browserbase.com/v1"
+    },
+    {
+      "name": "ap-southeast-1",
+      "region": "ap-southeast-1",
+      "expected": "https://api.apse1.stagehand.browserbase.com/v1"
+    },
+    {
+      "name": "explicit URL overrides region",
+      "region": "eu-central-1",
+      "apiUrl": "https://fixture.example/",
+      "expected": "https://fixture.example/v1"
+    },
+    {
+      "name": "explicit prefix and trailing slashes",
+      "region": "us-east-1",
+      "apiUrl": "https://fixture.example/services///",
+      "expected": "https://fixture.example/services/v1"
+    }
+  ],
+  "gateway": {
+    "input": {
+      "systemPrompt": "Answer concisely.",
+      "messages": [
+        {
+          "role": "user",
+          "content": {
+            "type": "text",
+            "text": "Say héllo"
+          }
+        }
+      ]
+    },
+    "requestInput": [
+      {
+        "role": "system",
+        "content": "Answer concisely."
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "Say héllo"
+          }
+        ]
+      }
+    ],
+    "response": {
+      "id": "resp_fixture",
+      "object": "response",
+      "created_at": 1700000000,
+      "model": "openai/gpt-5",
+      "status": "completed",
+      "output": [
+        {
+          "type": "message",
+          "id": "msg_fixture",
+          "status": "completed",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Héllo from the gateway",
+              "annotations": []
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15
+      }
+    },
+    "result": {
+      "role": "assistant",
+      "content": {
+        "type": "text",
+        "text": "Héllo from the gateway"
+      },
+      "stopReason": "stop",
+      "outputFormat": "text",
+      "usage": {
+        "inputTokens": 10,
+        "outputTokens": 5,
+        "totalTokens": 15
+      }
+    },
+    "headers": [
+      {
+        "name": "default headers",
+        "configured": {},
+        "expected": {
+          "authorization": "Bearer bb-fixture-key",
+          "x-bb-api-key": "bb-fixture-key",
+          "x-bb-session-id": "session-fixture"
+        }
+      },
+      {
+        "name": "explicit Authorization and matching Browserbase header names",
+        "configured": {
+          "Authorization": "Bearer custom-value",
+          "x-custom-header": "custom-value",
+          "x-bb-api-key": "custom-key",
+          "x-bb-session-id": "custom-session"
+        },
+        "expected": {
+          "authorization": "Bearer custom-value",
+          "x-custom-header": "custom-value",
+          "x-bb-api-key": "bb-fixture-key",
+          "x-bb-session-id": "session-fixture"
+        }
+      },
+      {
+        "name": "differently cased header names",
+        "configured": {
+          "authorization": "Bearer custom-value",
+          "X-BB-API-KEY": "custom-key",
+          "X-BB-SESSION-ID": "custom-session"
+        },
+        "expected": {
+          "authorization": "Bearer custom-value",
+          "x-bb-api-key": "bb-fixture-key",
+          "x-bb-session-id": "session-fixture"
+        }
+      }
+    ]
+  },
+  "httpFailures": [
+    {
+      "name": "unauthorized JSON",
+      "status": 401,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":{\"message\":\"fixture unauthorized\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}",
+      "gatewayAttempts": 1
+    },
+    {
+      "name": "rate limit with millisecond retry header",
+      "status": 429,
+      "headers": {
+        "content-type": "application/json",
+        "retry-after-ms": "0",
+        "retry-after": "30"
+      },
+      "body": "{\"error\":{\"message\":\"fixture rate limit\",\"type\":\"rate_limit_error\",\"code\":\"rate_limit_exceeded\"}}",
+      "gatewayAttempts": 3
+    },
+    {
+      "name": "service unavailable with second retry header",
+      "status": 503,
+      "headers": {
+        "content-type": "application/json",
+        "retry-after": "0"
+      },
+      "body": "{\"error\":{\"message\":\"fixture unavailable\",\"type\":\"server_error\",\"code\":\"unavailable\"}}",
+      "gatewayAttempts": 3
+    },
+    {
+      "name": "non-JSON upstream failure",
+      "status": 502,
+      "headers": {
+        "content-type": "text/plain",
+        "retry-after": "0"
+      },
+      "body": "fixture upstream unavailable",
+      "gatewayAttempts": 3
+    }
+  ],
+  "cache": {
+    "get": {
+      "request": {
+        "method": "extract",
+        "sessionId": "session-fixture",
+        "url": "https://example.com/café",
+        "cdpTree": {
+          "rootFrameId": "frame-1",
+          "frames": [
+            {
+              "frameId": "frame-1",
+              "axNodes": [
+                {
+                  "nodeId": "1",
+                  "ignored": false,
+                  "role": {
+                    "type": "role",
+                    "value": "RootWebArea"
+                  },
+                  "name": {
+                    "type": "computedString",
+                    "value": "Café"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "data": {
+          "instruction": "Read the title",
+          "options": {
+            "cacheThreshold": 2
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "cacheKey": "fixture-cache-key",
+          "hit": true,
+          "value": {
+            "title": "Café"
+          },
+          "hitCount": 2,
+          "threshold": 2,
+          "tokensSaved": {
+            "input": 100,
+            "output": 5,
+            "total": 105
+          }
+        }
+      }
+    },
+    "set": {
+      "response": {
+        "success": true,
+        "data": {
+          "cacheKey": "fixture-cache-key",
+          "written": true
+        }
+      },
+      "value": {
+        "title": "Café"
+      },
+      "llmUsage": {
+        "model": "openai/gpt-5",
+        "inputTokens": 100,
+        "outputTokens": 5,
+        "llmDurationMs": 1200
+      }
+    },
+    "envelopeFailures": [
+      {
+        "name": "rejected request",
+        "body": {
+          "success": false,
+          "message": "fixture rejected"
+        },
+        "message": "rejected: fixture rejected"
+      },
+      {
+        "name": "invalid envelope",
+        "body": {
+          "data": {
+            "cacheKey": "fixture-cache-key",
+            "hit": true
+          }
+        },
+        "message": "unrecognized envelope"
+      },
+      {
+        "name": "invalid payload",
+        "body": {
+          "success": true,
+          "data": {
+            "cacheKey": "fixture-cache-key",
+            "hit": "yes",
+            "written": "yes"
+          }
+        },
+        "message": "unexpected payload"
+      }
+    ]
+  },
+  "requestHeaders": [
+    {
+      "name": "transport headers and mixed-case connection fields",
+      "configured": {
+        "hOsT": "other.example",
+        "Content-Length": "9999",
+        "Connection": "X-Remove",
+        "connection": "X-Other",
+        "X-Remove": "discard",
+        "X-Other": "discard",
+        "Keep-Alive": "timeout=60",
+        "Proxy-Authenticate": "Basic",
+        "Proxy-Authorization": "Basic proxy-value",
+        "Proxy-Connection": "keep-alive",
+        "TE": "trailers",
+        "Trailer": "X-Trailer",
+        "Transfer-Encoding": "chunked",
+        "Upgrade": "websocket",
+        "Forwarded": "host=other.example",
+        "X-Forwarded-Host": "other.example",
+        "x-forwarded-proto": "http",
+        "X-BB-API-KEY": "custom-key",
+        "x-bb-api-key": "another-key",
+        "X-BB-Session-ID": "custom-session",
+        "Authorization": "Bearer custom-value",
+        "Content-Type": "application/custom+json",
+        "X-Custom": "  keep\tvalue  ",
+        "X-Note": "café",
+        "X-BB-Project-ID": "project-fixture"
+      },
+      "expected": {
+        "authorization": "Bearer custom-value",
+        "content-type": "application/custom+json",
+        "x-custom": "keep\tvalue",
+        "x-note": "café",
+        "x-bb-project-id": "project-fixture"
+      },
+      "absent": [
+        "x-remove",
+        "x-other",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "forwarded",
+        "x-forwarded-host",
+        "x-forwarded-proto"
+      ]
+    },
+    {
+      "name": "connection nominations cannot remove SDK defaults",
+      "configured": {
+        "Connection": " Content-Type, AUTHORIZATION, x-bb-api-key, X-BB-Session-ID ",
+        "Content-Type": "application/custom+json",
+        "Authorization": "discard",
+        "X-BB-API-KEY": "discard",
+        "X-BB-SESSION-ID": "discard"
+      },
+      "expected": {
+        "content-type": "application/json"
+      },
+      "absent": []
+    },
+    {
+      "name": "empty custom authorization",
+      "configured": {
+        "Authorization": ""
+      },
+      "expected": {
+        "authorization": "",
+        "content-type": "application/json"
+      },
+      "absent": []
+    }
+  ],
+  "invalidRequestHeaders": [
+    {
+      "bad name": "value"
+    },
+    {
+      "": "value"
+    },
+    {
+      "x-tést": "value"
+    },
+    {
+      "x-test": "bad\r\nvalue"
+    },
+    {
+      "x-test": "\nleading"
+    },
+    {
+      "x-test": "bad\u0000value"
+    },
+    {
+      "x-test": "bad\u000bvalue"
+    },
+    {
+      "x-test": "badvalue"
+    },
+    {
+      "x-test": "Ā"
+    },
+    {
+      "Host": "bad\nhost"
+    }
+  ],
+  "responseHeaders": {
+    "raw": {
+      "X-Bytes": "\u00c4\u0080",
+      "X-Repeated": "first",
+      "x-repeated": "second",
+      "Content-Type": "text/plain; charset=utf-8"
+    },
+    "normalized": {
+      "x-bytes": "\u00c4\u0080",
+      "x-repeated": "first, second",
+      "content-type": "text/plain; charset=utf-8"
+    },
+    "body": "héllo 🌎"
+  }
+}

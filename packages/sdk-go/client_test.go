@@ -34,14 +34,15 @@ type recordedCall struct {
 }
 
 type recordingProtocolClient struct {
-	calls            []recordedCall
-	responses        map[string]any
-	callErrors       map[string]error
-	callHook         func(context.Context, string) error
-	handlers         map[string]requestHandler
-	pageEventHandler func(PageCDPEventNotification)
-	toolEventHandler func(PageEventNotification)
-	closed           bool
+	calls                 []recordedCall
+	responses             map[string]any
+	callErrors            map[string]error
+	callHook              func(context.Context, string) error
+	handlers              map[string]requestHandler
+	pageEventHandler      func(PageCDPEventNotification)
+	toolEventHandler      func(PageEventNotification)
+	closed                bool
+	browserbaseRegistered bool
 }
 
 func (c *recordingProtocolClient) call(
@@ -68,6 +69,11 @@ func (c *recordingProtocolClient) call(
 		return err
 	}
 	return json.Unmarshal(data, result)
+}
+
+func (c *recordingProtocolClient) registerBrowserbaseTransport(*browserbaseConnection) func() {
+	c.browserbaseRegistered = true
+	return func() { c.browserbaseRegistered = false }
 }
 
 func (c *recordingProtocolClient) onRequest(method string, handler requestHandler) func() {
@@ -231,9 +237,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	}) {
 		t.Fatalf("client info = %#v", initParams.ClientInfo)
 	}
-	if initParams.APIURL == nil || *initParams.APIURL != apiURL {
-		t.Fatalf("API URL = %#v, want %q", initParams.APIURL, apiURL)
-	}
+	assertInitOmitsBrowserbaseOptions(t, initParams)
 	if initParams.Telemetry != nil {
 		t.Fatalf("telemetry = %#v, want nil", initParams.Telemetry)
 	}
@@ -450,6 +454,58 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	releaseBrowserClaim(client.browser)
 }
 
+func TestCreateLocalBrowserExtensionCDPURL(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		url  string
+	}{
+		{name: "empty uses client URL"},
+		{name: "local websocket", url: "ws://127.0.0.1:9300/devtools/browser/abc"},
+		{name: "remote secure websocket", url: "wss://browser.example/devtools/browser/abc"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			const clientURL = "wss://gateway/cdp?api_key=secret"
+			var connectedURL string
+			browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
+				CDPURL: clientURL, ExtensionCDPURL: test.url,
+			}, browserFactoryDependencies{
+				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
+					connectedURL = options.cdpURL
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender {
+					return &recordingBrowserCommandSender{}
+				},
+			})
+			if err != nil {
+				t.Fatalf("ConnectLocalBrowser() error = %v", err)
+			}
+			defer browser.Close(context.Background())
+			rpc := &recordingProtocolClient{responses: map[string]any{
+				"stagehand.init": StagehandInitResult{Initialized: true},
+			}}
+			client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, clientAdapters{
+				connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			defer client.Close(context.Background())
+			if connectedURL != clientURL {
+				t.Fatalf("client CDP URL = %q, want %q", connectedURL, clientURL)
+			}
+			want := test.url
+			if want == "" {
+				want = rpc.browserWebSocketDebuggerURL()
+			}
+			params := rpc.calls[0].params.(StagehandInitParams)
+			if params.BrowserCDPURL == nil || *params.BrowserCDPURL != want {
+				t.Fatalf("BrowserCDPURL = %#v, want %q", params.BrowserCDPURL, want)
+			}
+		})
+	}
+}
+
 func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	region := BrowserbaseRegion("us-west-2")
 	handleAPIKey := "handle-key"
@@ -480,8 +536,9 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
 	}
-	if params.APIKey == nil || *params.APIKey != handleAPIKey {
-		t.Fatalf("APIKey = %#v", params.APIKey)
+	assertInitOmitsBrowserbaseOptions(t, params)
+	if params.Browserbase == nil || *params.Browserbase != "client" {
+		t.Fatalf("worker connection fields = %#v", params)
 	}
 	if params.Browser == nil || params.Browser.SessionID != "session-1" || params.Browser.Region == nil || *params.Browser.Region != region {
 		t.Fatalf("Browser = %#v", params.Browser)
@@ -522,8 +579,9 @@ func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	params := rpc.calls[0].params.(StagehandInitParams)
-	if params.Browser != nil || params.APIKey == nil || *params.APIKey != apiKey {
-		t.Fatalf("worker metadata = %#v %#v", params.Browser, params.APIKey)
+	assertInitOmitsBrowserbaseOptions(t, params)
+	if params.Browser != nil || params.Browserbase != nil {
+		t.Fatalf("worker metadata = %#v", params)
 	}
 }
 
@@ -555,7 +613,7 @@ func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	if _, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters); !errors.Is(err, initErr) {
 		t.Fatalf("first Create() error = %v", err)
 	}
-	if !failedRPC.closed {
+	if !failedRPC.closed || failedRPC.browserbaseRegistered {
 		t.Fatal("failed Create did not close its RPC client")
 	}
 	client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters)
@@ -564,6 +622,9 @@ func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	}
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatalf("Close() error = %v", err)
+	}
+	if successRPC.browserbaseRegistered {
+		t.Fatal("Stagehand.Close left Browserbase handlers registered")
 	}
 	if browser.Closed() {
 		t.Fatal("Stagehand.Close closed the Browser handle")
@@ -771,4 +832,21 @@ func TestCreateBoundsInitializationAndFailsClosedOnCancellation(t *testing.T) {
 			t.Fatal("malformed success response left Browser reusable")
 		}
 	})
+}
+
+func assertInitOmitsBrowserbaseOptions(t *testing.T, params StagehandInitParams) {
+	t.Helper()
+	data, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(data, &wire); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"api_key", "api_url", "apiKey", "apiUrl"} {
+		if _, exists := wire[field]; exists {
+			t.Fatalf("unexpected init option %s: %s", field, data)
+		}
+	}
 }

@@ -29,6 +29,7 @@ const (
 )
 
 var customDefinitions = map[string]string{
+	"BrowserbaseRequestResult":     "BrowserbaseRequestResult",
 	"PageEventNotification":        "PageEventNotification",
 	"Caching":                      "Caching",
 	"CookieFilter":                 "CookieFilter",
@@ -72,6 +73,7 @@ var customProperties = map[string]string{
 	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
 	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
 	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",
+	"$defs/PageWaitForFunctionOptions/properties/polling":           "FunctionPolling",
 	"$defs/StagehandActParams/properties/instruction":               "ActInstructionValue",
 	"$defs/StagehandInitParams/properties/model":                    "StagehandInitModel",
 }

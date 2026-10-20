@@ -761,6 +761,51 @@ async def test_invalid_response_closes_client_and_rejects_pending_request() -> N
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("close_transport", [True, False])
+async def test_close_waits_for_all_listeners_before_propagating_failure(
+    close_transport: bool,
+) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+    failed = asyncio.Event()
+    release = asyncio.Event()
+    finished = asyncio.Event()
+    failure = RuntimeError("cleanup failed")
+
+    async def failing_listener() -> None:
+        await started.wait()
+        failed.set()
+        raise failure
+
+    async def delayed_listener() -> None:
+        started.set()
+        await release.wait()
+        assert not transport.closed.is_set()
+        finished.set()
+
+    client.on_close(failing_listener)
+    client.on_close(delayed_listener)
+    closing = asyncio.create_task(client.close(close_transport=close_transport))
+    try:
+        await asyncio.wait_for(failed.wait(), timeout=1)
+        # Let gather process the failed listener while the other is still blocked.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert not closing.done()
+        assert not transport.closed.is_set()
+        release.set()
+        with pytest.raises(RuntimeError, match="cleanup failed") as error:
+            await asyncio.wait_for(closing, timeout=1)
+        assert error.value is failure
+        assert finished.is_set()
+        assert transport.closed.is_set() is close_transport
+    finally:
+        release.set()
+        await asyncio.gather(closing, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_close_can_detach_without_closing_transport() -> None:
     transport = QueueTransport()
     client = RPCClient(transport)
@@ -974,3 +1019,56 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
         assert client._pending == {}
     finally:
         await client.close()
+
+
+async def test_request_context_exposes_incoming_id() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+
+    def handle(params: models.EmptyParams, context: rpc_client.RPCRequestContext) -> RPCResult:
+        assert params == models.EmptyParams()
+        assert context.request_id == 91
+        return RPCResult(ok=True)
+
+    client.on_request_with_context("test.context", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "test.context",
+            "params": {},
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert response == {"jsonrpc": "2.0", "id": 91, "result": {"ok": True}}
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_close_suppresses_late_handler_result_or_error(fail: bool) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+
+    async def handle(_params: models.EmptyParams) -> RPCResult:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            if fail:
+                raise RuntimeError("late handler error") from None
+            return RPCResult(ok=True)
+        raise AssertionError("Handler must be cancelled")
+
+    client.on_request("test.late", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "test.late",
+            "params": {},
+        })
+        await asyncio.wait_for(started.wait(), 1)
+    finally:
+        await client.close()
+    assert not transport.sent
