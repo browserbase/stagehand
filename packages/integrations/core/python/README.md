@@ -55,3 +55,6 @@ uv run pytest
 ```
 
 `tests/test_conformance.py` runs the cases in `../conformance` against this host.
+`tests/test_browser.py` drives a local Chrome end to end; it is skipped unless
+`STAGEHAND_INTEGRATIONS_BROWSER_TESTS=1` (set `CHROME_PATH` if the Stagehand SDK
+does not find Chrome).
