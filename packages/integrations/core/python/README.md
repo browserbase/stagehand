@@ -9,7 +9,7 @@ bundle, so agents see the same tools as with the TypeScript facade.
 
 ```python
 from stagehand import Stagehand
-from stagehand_integrations.facade import StagehandFacadeTools, facade_tools
+from stagehand_integrations.facade import StagehandFacadeTools, facade_instructions, facade_tools
 
 stagehand = await Stagehand.create(...)
 tools = StagehandFacadeTools(stagehand, artifact_root="artifacts")
@@ -20,6 +20,7 @@ await tools.run(actions=[{"op": "click", "id": "0-7"}])
 image = await tools.screenshot(type="jpeg", quality=40)
 
 facade_tools()  # tools/list entries to register with an agent framework
+facade_instructions()  # the agent instructions for the system prompt
 ```
 
 - `run` code runs inside an async function with Playwright-shaped `page`,
@@ -41,7 +42,10 @@ This host has no keeper tab and does not latch session loss; the TypeScript
 `src/stagehand_integrations/facade/_bundle.json` is a copy of the built bundle.
 After changing the TypeScript facade, rebuild the integrations package and run
 `pnpm run sync:python` in `packages/integrations/core`;
-`tests/facade-python-bundle.test.ts` fails while the copy is stale.
+`tests/facade-python-bundle.test.ts` and
+`node scripts/sync-python-facade-bundle.mjs --check` (which CI runs in the
+Python job) fail while the copy is stale. The package also checks the copy's
+`sha256` when it loads it.
 
 ```bash
 uv run ruff format --check
