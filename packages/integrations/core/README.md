@@ -32,8 +32,8 @@ the model-facing tool list.
 
 The build also writes `dist/facade-bundle.json` for facade hosts in other
 languages: the exact callback sources the facade sends to `experimentalBatch`,
-the tools/list of each tool set, and the error and screenshot messages hosts
-return verbatim. The TypeScript facade builds what it sends from the same
+the tools/list and agent instructions of each tool set, and the error and
+screenshot messages hosts return verbatim. The TypeScript facade builds what it sends from the same
 constants. A host sends the sources unchanged and supplies only the batch input:
 
 | Callback                                      | Input                                                        | Result                                                                                                                           |
