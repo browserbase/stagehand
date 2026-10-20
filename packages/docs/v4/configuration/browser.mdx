@@ -1113,7 +1113,7 @@ defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }
 
 | Environment | After `stagehand.close()` | After `browser.close()` |
 | --- | --- | --- |
-| **Browserbase, `launch()`** | Session stays active until `browser.close()` or its timeout | Ends the session |
+| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session |
 | **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
 | **Browserbase, `connect()`** | Session keeps running | Ends the session |
 | **Local, `connect()`** | Browser keeps running | Closes the browser |
