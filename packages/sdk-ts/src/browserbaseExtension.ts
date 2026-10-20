@@ -1,5 +1,6 @@
-import { createReadStream } from "node:fs";
-import Browserbase from "@browserbasehq/sdk";
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
+import Browserbase, { toFile } from "@browserbasehq/sdk";
 import { STAGEHAND_EXTENSION_ARCHIVE_PATH } from "./extensionAssets.js";
 
 export type BrowserbaseExtensionClient = {
@@ -15,7 +16,7 @@ export type ProvisionedBrowserbaseExtension = {
 export type BrowserbaseExtensionSdk = {
   extensions: {
     create(
-      params: { file: ReturnType<typeof createReadStream> },
+      params: { file: Awaited<ReturnType<typeof toFile>> },
       options?: { maxRetries?: number },
     ): Promise<{ id: string }>;
     delete(
@@ -34,10 +35,12 @@ export function createBrowserbaseExtensionClient(
   const browserbase = createSdk(apiKey);
   return {
     async uploadExtension(archivePath) {
-      const extension = await browserbase.extensions.create(
-        { file: createReadStream(archivePath) },
-        { maxRetries: 0 },
-      );
+      // Upload a File, not an fs.ReadStream: outside Node (for example Deno) the
+      // SDK doesn't recognize the stream as a file and fails to build the form.
+      const file = await toFile(await readFile(archivePath), basename(archivePath), {
+        type: "application/zip",
+      });
+      const extension = await browserbase.extensions.create({ file }, { maxRetries: 0 });
       return { id: extension.id };
     },
     async deleteExtension(extensionId) {
