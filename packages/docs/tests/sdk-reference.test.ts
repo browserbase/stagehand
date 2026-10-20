@@ -151,10 +151,6 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
-// The Claude CUA toolset has TypeScript and Python SDKs, but no Go SDK.
-const PAGE_LANGUAGE_SETS = new Map<string, readonly Language[]>([
-  ["v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
-]);
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
@@ -170,6 +166,7 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.cookies:TypeScript:result.sameSite", "Cookie['sameSite']"],
   ["context.cookies:Python:result.same_site", "Literal['Strict', 'Lax', 'None']"],
   ["page.wait_for_selector:TypeScript:options.state", "PageWaitForSelectorOptions['state']"],
+  ["page.wait_for_function:TypeScript:options.polling", "PageWaitForFunctionOptions['polling']"],
   ["page.screenshot:TypeScript:options.animations", "ScreenshotOptions['animations']"],
   ["page.screenshot:TypeScript:options.caret", "ScreenshotOptions['caret']"],
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
@@ -1320,6 +1317,48 @@ describe("Mintlify customization boundary", () => {
     ).toStrictEqual(indexedContentPages);
   });
 
+  it.each([
+    [
+      "TypeScript-only integration",
+      "v4/integrations/example.mdx",
+      [["TypeScript"], ["TypeScript"]],
+      true,
+    ],
+    [
+      "two-language integration",
+      "v4/integrations/example.mdx",
+      [
+        ["TypeScript", "Python"],
+        ["TypeScript", "Python"],
+      ],
+      true,
+    ],
+    ["Go integration", "v4/integrations/example.mdx", [["Go"]], true],
+    [
+      "incomplete integration group",
+      "v4/integrations/example.mdx",
+      [["TypeScript", "Python"], ["TypeScript"]],
+      false,
+    ],
+    [
+      "duplicate integration tabs",
+      "v4/integrations/example.mdx",
+      [["TypeScript", "TypeScript"]],
+      false,
+    ],
+    ["core guide missing Go", "v4/guides/example.mdx", [["TypeScript", "Python"]], false],
+    ["complete core guide", "v4/guides/example.mdx", [["TypeScript", "Python", "Go"]], true],
+  ] as const)("validates language groups for %s", (_name, pagePath, groups, valid) => {
+    const source = groups
+      .map(
+        (titles) =>
+          `<Tabs>${titles.map((title) => `<Tab title="${title}">Example</Tab>`).join("")}</Tabs>`,
+      )
+      .join("\n\n");
+    const tree = createProcessor({ format: "mdx" }).parse(source) as MdxNode;
+    expect(languageTabGroupProblems(pagePath, tree).length === 0).toBe(valid);
+  });
+
   it("gives every language tab group the complete language set for its page", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
@@ -1345,26 +1384,7 @@ describe("Mintlify customization boundary", () => {
           }
           if (titled.length === 0) return found;
 
-          // Every language present on the page must appear the same number of times
-          const counts = new Map<string, number>();
-          for (const { title } of titled) {
-            counts.set(title, (counts.get(title) ?? 0) + 1);
-          }
-          const requiredLanguages = PAGE_LANGUAGE_SETS.get(pagePath) ?? LANGUAGES;
-          const missing = requiredLanguages.filter((language) => !counts.has(language));
-          if (missing.length > 0) {
-            found.push(`${pagePath}: missing ${missing.join(", ")} snippets`);
-          }
-          const tallies = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
-          const expected = Math.max(...counts.values());
-          const short = tallies.filter(([, count]) => count !== expected);
-          if (short.length > 0) {
-            found.push(
-              `${pagePath}: uneven language tab groups (${tallies
-                .map(([title, count]) => `${title} x${count}`)
-                .join(", ")})`,
-            );
-          }
+          found.push(...languageTabGroupProblems(pagePath, tree));
 
           // One icon per title, so the selector labels stay stable.
           const icons = new Map<string, Set<string>>();
@@ -1376,16 +1396,6 @@ describe("Mintlify customization boundary", () => {
           for (const [title, set] of icons) {
             if (set.size > 1) {
               found.push(`${pagePath}: ${title} uses more than one icon (${[...set].join(", ")})`);
-            }
-          }
-
-          // Two adjacent language tabs sharing a title means a malformed group.
-          for (let index = 1; index < titled.length; index += 1) {
-            if (titled[index].title === titled[index - 1].title) {
-              found.push(
-                `${pagePath}: two adjacent language tabs both titled ${titled[index].title}`,
-              );
-              break;
             }
           }
 
@@ -2486,6 +2496,33 @@ function findElements(node: MdxNode, name: string): MdxNode[] {
 function isLanguageTab(node: MdxNode): boolean {
   const title = stringAttribute(node, "title");
   return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
+}
+
+// Integrations follow their upstream SDKs. Core docs cover all Stagehand SDKs.
+// Within a page, each language group must still offer the same choices.
+function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
+  const present = new Set(findLanguageTabs(tree).map((tab) => stringAttribute(tab, "title")));
+  const required = pagePath.startsWith("v4/integrations/")
+    ? LANGUAGES.filter((language) => present.has(language))
+    : LANGUAGES;
+
+  return findElements(tree, "Tabs").flatMap((group, index) => {
+    const titles = (group.children ?? [])
+      .filter(isLanguageTab)
+      .map((tab) => stringAttribute(tab, "title"));
+    if (titles.length === 0) return [];
+    const problems: string[] = [];
+    const missing = required.filter((language) => !titles.includes(language));
+    if (missing.length > 0) {
+      problems.push(
+        `${pagePath}: language group ${index + 1} missing ${missing.join(", ")} snippets`,
+      );
+    }
+    if (new Set(titles).size !== titles.length) {
+      problems.push(`${pagePath}: language group ${index + 1} has duplicate language tabs`);
+    }
+    return problems;
+  });
 }
 
 // Document-order language tabs, ignoring tabs that switch on any other axis.

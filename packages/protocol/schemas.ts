@@ -1,183 +1,17 @@
 import { z } from "zod/v4";
+import { JSONRPCRequestIdSchema } from "./json-rpc/schemas.ts";
 import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
 
 export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
 
-// Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
-// Stagehand owns these allowlists: changes are reviewed and maintained here
-// rather than inherited automatically from the SDK.
-export const OpenAIModelIdSchema = z
-  .enum([
-    "gpt-4.1",
-    "gpt-4.1-2025-04-14",
-    "gpt-4.1-mini",
-    "gpt-4.1-mini-2025-04-14",
-    "gpt-4.1-nano",
-    "gpt-4.1-nano-2025-04-14",
-    "gpt-4o",
-    "gpt-4o-2024-05-13",
-    "gpt-4o-2024-08-06",
-    "gpt-4o-2024-11-20",
-    "gpt-4o-audio-preview",
-    "gpt-4o-audio-preview-2024-12-17",
-    "gpt-4o-search-preview",
-    "gpt-4o-search-preview-2025-03-11",
-    "gpt-4o-mini-search-preview",
-    "gpt-4o-mini-search-preview-2025-03-11",
-    "gpt-4o-mini",
-    "gpt-4o-mini-2024-07-18",
-    "gpt-3.5-turbo-0125",
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-1106",
-    "gpt-5-chat-latest",
-    "o1",
-    "o1-2024-12-17",
-    "o3",
-    "o3-2025-04-16",
-    "o3-mini",
-    "o3-mini-2025-01-31",
-    "o4-mini",
-    "o4-mini-2025-04-16",
-    "gpt-5",
-    "gpt-5-2025-08-07",
-    "gpt-5-codex",
-    "gpt-5-mini",
-    "gpt-5-mini-2025-08-07",
-    "gpt-5-nano",
-    "gpt-5-nano-2025-08-07",
-    "gpt-5-pro",
-    "gpt-5-pro-2025-10-06",
-    "gpt-5.1",
-    "gpt-5.1-chat-latest",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-max",
-    "gpt-5.2",
-    "gpt-5.2-chat-latest",
-    "gpt-5.2-pro",
-    "gpt-5.2-codex",
-    "gpt-5.3-chat-latest",
-    "gpt-5.3-codex",
-    "gpt-5.4",
-    "gpt-5.4-2026-03-05",
-    "gpt-5.4-mini",
-    "gpt-5.4-mini-2026-03-17",
-    "gpt-5.4-nano",
-    "gpt-5.4-nano-2026-03-17",
-    "gpt-5.4-pro",
-    "gpt-5.4-pro-2026-03-05",
-    "gpt-5.5",
-    "gpt-5.5-2026-04-23",
-    "gpt-5.6",
-    "gpt-5.6-luna",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-  ])
-  .meta({ id: "OpenAIModelId" });
+// Providers determine model availability; Stagehand only validates the ID format.
+const ModelIdSchema = z.string().min(1).regex(/^\S+$/);
 
-export const AnthropicModelIdSchema = z
-  .enum([
-    "claude-3-haiku-20240307",
-    "claude-haiku-4-5-20251001",
-    "claude-haiku-4-5",
-    "claude-opus-4-0",
-    "claude-opus-4-20250514",
-    "claude-opus-4-1-20250805",
-    "claude-opus-4-1",
-    "claude-opus-4-5",
-    "claude-opus-4-5-20251101",
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20250514",
-    "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-6",
-    "claude-opus-4-6",
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-fable-5",
-    "claude-sonnet-5",
-  ])
-  .meta({ id: "AnthropicModelId" });
-
-export const GoogleModelIdSchema = z
-  .enum([
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-lite-001",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-preview-tts",
-    "gemini-2.5-pro-preview-tts",
-    "gemini-2.5-flash-native-audio-latest",
-    "gemini-2.5-flash-native-audio-preview-09-2025",
-    "gemini-2.5-flash-native-audio-preview-12-2025",
-    "gemini-2.5-computer-use-preview-10-2025",
-    "gemini-3-pro-preview",
-    "gemini-3-pro-image-preview",
-    "gemini-3-flash-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-3.1-pro-preview-customtools",
-    "gemini-3.1-flash-image-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-flash-tts-preview",
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
-    "gemini-pro-latest",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "deep-research-pro-preview-12-2025",
-    "deep-research-max-preview-04-2026",
-    "deep-research-preview-04-2026",
-    "nano-banana-pro-preview",
-    "aqa",
-    "gemini-robotics-er-1.5-preview",
-    "gemma-3-1b-it",
-    "gemma-3-4b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
-  ])
-  .meta({ id: "GoogleModelId" });
-
-export const GroqModelIdSchema = z
-  .enum([
-    "gemma2-9b-it",
-    "llama-3.1-8b-instant",
-    "llama-3.3-70b-versatile",
-    "meta-llama/llama-guard-4-12b",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "deepseek-r1-distill-llama-70b",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-prompt-guard-2-22m",
-    "meta-llama/llama-prompt-guard-2-86m",
-    "moonshotai/kimi-k2-instruct-0905",
-    "qwen/qwen3-32b",
-    "llama-guard-3-8b",
-    "llama3-70b-8192",
-    "llama3-8b-8192",
-    "mixtral-8x7b-32768",
-    "qwen-qwq-32b",
-    "qwen-2.5-32b",
-    "deepseek-r1-distill-qwen-32b",
-  ])
-  .meta({ id: "GroqModelId" });
-
-export const CerebrasModelIdSchema = z
-  .enum([
-    "llama3.1-8b",
-    "gpt-oss-120b",
-    "qwen-3-235b-a22b-instruct-2507",
-    "qwen-3-235b-a22b-thinking-2507",
-    "zai-glm-4.6",
-    "zai-glm-4.7",
-  ])
-  .meta({ id: "CerebrasModelId" });
+export const OpenAIModelIdSchema = ModelIdSchema.meta({ id: "OpenAIModelId" });
+export const AnthropicModelIdSchema = ModelIdSchema.meta({ id: "AnthropicModelId" });
+export const GoogleModelIdSchema = ModelIdSchema.meta({ id: "GoogleModelId" });
+export const GroqModelIdSchema = ModelIdSchema.meta({ id: "GroqModelId" });
+export const CerebrasModelIdSchema = ModelIdSchema.meta({ id: "CerebrasModelId" });
 
 export const ModelProviderSchema = z
   .enum(["openai", "anthropic", "google", "groq", "cerebras"])
@@ -209,7 +43,7 @@ export const ModelNameSchema = z
   ])
   .meta({
     id: "ModelName",
-    description: "An explicitly supported model name with its provider prefix",
+    description: "A model name with a supported provider prefix",
   });
 
 export const CookieSchema = z
@@ -854,7 +688,7 @@ const ModelConnectionSchema = z
 
 export const ModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
-    description: "An explicitly supported model name with its provider prefix",
+    description: "A model name with a supported provider prefix",
     example: "openai/gpt-5.4-mini",
   }),
 }).meta({ id: "ModelConfig" });
@@ -1098,7 +932,7 @@ export const CacheMetadataSchema = z
     }),
     missReason: z.string().optional().meta({
       description:
-        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)',
     }),
     tokensSaved: CacheTokenSavingsSchema.optional().meta({
       description: "LLM tokens avoided by serving this request from cache; hits only",
@@ -1585,6 +1419,69 @@ export const LocatorDescriptorSchema = z
   })
   .meta({ id: "LocatorDescriptor" });
 
+/** One HTTP attempt; the caller owns retries and response interpretation. */
+export const BrowserbaseRequestParamsSchema = z
+  .strictObject({
+    operation: z.enum(["gateway.responses", "cache.get", "cache.set"]),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id.",
+    }),
+    body: z.string().meta({ description: "JSON request body sent as UTF-8 text" }),
+    remainingTimeoutMs: z.number().nonnegative().optional().meta({
+      description:
+        "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
+    }),
+  })
+  .meta({ id: "BrowserbaseRequestParams" });
+
+export const BrowserbaseHttpResponseSchema = z
+  .strictObject({
+    type: z.literal("response"),
+    status: z.int().min(200).max(599),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted.",
+    }),
+    body: z.string().meta({
+      description:
+        "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced",
+    }),
+  })
+  .meta({
+    id: "BrowserbaseHttpResponse",
+    description:
+      "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them.",
+  });
+
+export const BrowserbaseTransportErrorSchema = z
+  .strictObject({
+    type: z.literal("error"),
+    reason: z.enum(["network", "cancelled", "timeout", "unavailable", "disconnected"]),
+    message: z.string(),
+  })
+  .meta({
+    id: "BrowserbaseTransportError",
+    description:
+      "Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes",
+  });
+
+export const BrowserbaseRequestResultSchema = z
+  .discriminatedUnion("type", [BrowserbaseHttpResponseSchema, BrowserbaseTransportErrorSchema])
+  .meta({ id: "BrowserbaseRequestResult" });
+
+export const BrowserbaseCancelParamsSchema = z
+  .strictObject({
+    requestId: JSONRPCRequestIdSchema,
+    reason: z.enum(["cancelled", "timeout"]),
+  })
+  .meta({
+    id: "BrowserbaseCancelParams",
+    description:
+      "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs",
+  });
+
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1619,21 +1516,7 @@ export const StagehandInitParamsSchema = z
     protocolVersion: StagehandProtocolVersionSchema,
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
-    apiKey: z.string().min(1).optional(),
-    apiUrl: z
-      .url()
-      .refine(
-        (value) => !value.includes("?") && !value.includes("#"),
-        "Stagehand apiUrl must not include a query string or fragment",
-      )
-      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
-        message: "Stagehand apiUrl must be a service origin without /v1",
-      })
-      .optional()
-      .meta({
-        description:
-          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-      }),
+    browserbase: z.literal("client").optional(),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:
@@ -1646,10 +1529,14 @@ export const StagehandInitParamsSchema = z
     domSettleTimeoutMs: z.number().int().positive().optional(),
     cache: CachingSchema.optional().meta({
       description:
-        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
     }),
   })
-  .meta({ id: "StagehandInitParams" });
+  .refine((params) => params.browserbase === undefined || params.browser !== undefined, {
+    message: "Client Browserbase transport requires browser metadata",
+    path: ["browserbase"],
+  })
+  .meta({ id: "StagehandInitParams", dependentRequired: { browserbase: ["browser"] } });
 
 export const StagehandActParamsSchema = z
   .strictObject({
@@ -2000,6 +1887,17 @@ export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
 }).meta({ id: "PageWaitForTimeoutParams" });
 
+export const PageWaitForFunctionParamsSchema = PageIdParamsSchema.extend({
+  expression: z.string(),
+  options: z
+    .strictObject({
+      polling: z.union([z.literal("raf"), z.number().positive().max(2_147_483_647)]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+    })
+    .meta({ id: "PageWaitForFunctionOptions" })
+    .optional(),
+}).meta({ id: "PageWaitForFunctionParams" });
+
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
   options: z
@@ -2180,6 +2078,10 @@ export const PageWaitForSelectorResultSchema = z
     matched: z.boolean(),
   })
   .meta({ id: "PageWaitForSelectorResult" });
+
+export const PageWaitForFunctionResultSchema = z
+  .strictObject({ value: z.json() })
+  .meta({ id: "PageWaitForFunctionResult" });
 
 export const LocatorClickResultSchema = z
   .strictObject({

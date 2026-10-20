@@ -372,6 +372,20 @@ func (p *Page) WaitForTimeout(ctx context.Context, ms int) error {
 	return p.rpc.call(ctx, "page.wait_for_timeout", params, &result)
 }
 
+// WaitForFunction polls JavaScript in the page until it returns a truthy JSON value.
+func (p *Page) WaitForFunction(
+	ctx context.Context,
+	expression string,
+	options *PageWaitForFunctionOptions,
+) (json.RawMessage, error) {
+	params := PageWaitForFunctionParams{PageID: p.PageID(), Expression: expression, Options: options}
+	var result PageWaitForFunctionResult
+	if err := p.rpc.call(ctx, "page.wait_for_function", params, &result); err != nil {
+		return nil, err
+	}
+	return result.Value, nil
+}
+
 // WaitForSelector waits for a selector and reports whether it matched.
 func (p *Page) WaitForSelector(
 	ctx context.Context,

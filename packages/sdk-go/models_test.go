@@ -2,6 +2,7 @@ package stagehand
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -189,10 +190,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 		},
 		{
 			name:  "model",
-			value: ModelConfig{ModelName: ModelName("openai/gpt-5.6")},
+			value: ModelConfig{ModelName: ModelName("openai/future-model-v1")},
 			new:   func() any { return new(ModelConfig) },
 			check: func(t *testing.T, value any) {
-				if value.(*ModelConfig).ModelName != ModelName("openai/gpt-5.6") {
+				if value.(*ModelConfig).ModelName != ModelName("openai/future-model-v1") {
 					t.Fatal("decoded the wrong model configuration")
 				}
 			},
@@ -583,4 +584,49 @@ func jsonEqual(left, right []byte) bool {
 		return false
 	}
 	return reflect.DeepEqual(leftValue, rightValue)
+}
+
+func TestInitBrowserbaseMetadataDependency(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		options string
+		valid   bool
+	}{
+		{"local", "", true},
+		{"browser only", `,"browser":{"session_id":"session-1"}`, true},
+		{"client", `,"browserbase":"client","browser":{"session_id":"session-1"}`, true},
+		{"missing browser", `,"browserbase":"client"`, false},
+		{"null browser", `,"browserbase":"client","browser":null`, false},
+		{"removed key", `,"browserbase":"client","browser":{"session_id":"session-1"},"api_key":"key"`, false},
+		{"removed URL", `,"browserbase":"client","browser":{"session_id":"session-1"},"api_url":"https://example.com"`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := `{"protocol_version":"4.1.0","client_info":{"name":"test","version":"1"}` + tc.options + `}`
+			var params StagehandInitParams
+			if err := json.Unmarshal([]byte(input), &params); (err == nil) != tc.valid {
+				t.Fatalf("valid = %v, error = %v", tc.valid, err)
+			}
+			if tc.valid {
+				if _, err := marshalValidatedJSON(params); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func TestRPCRejectsClientInitWithoutBrowserBeforeDispatch(t *testing.T) {
+	mode := "client"
+	params := StagehandInitParams{
+		ProtocolVersion: "4.1.0",
+		ClientInfo:      ImplementationInfo{Name: "test", Version: "1"},
+		Browserbase:     &mode,
+	}
+	// No connection is needed: invalid params must fail before dispatch.
+	client := &rpcClient{}
+	var result StagehandInitResult
+	err := client.call(context.Background(), "stagehand.init", params, &result)
+	if err == nil || !strings.Contains(err.Error(), "requires browser metadata") {
+		t.Fatalf("expected validation error before dispatch, got %v", err)
+	}
 }

@@ -680,7 +680,7 @@ await page.listWebMCPTools(options?: WebMCPListToolsOptions): Promise<WebMCPTool
 **Returns:** A fresh `Promise<WebMCPTool[]>` snapshot from the browser. Each tool is identified by its `name` and `frameId`.
 
 <Note>
-WebMCP requires Chrome or Chromium newer than version 149, and it must be launched with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport`. Stagehand launches browsers with those flags by default.
+WebMCP requires Chrome or Chromium newer than version 149, and it must be launched with `--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport`. Stagehand launches browsers with those flags by default.
 </Note>
 
 ### invokeWebMCPTool()
