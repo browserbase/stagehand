@@ -10,19 +10,27 @@ type CompatPage = { waitForTimeout(ms: number): Promise<void> };
 type Probe = { readyState: string; quietMs: number } | "throw" | "hang";
 
 const isProbe = (expression: unknown) =>
-  typeof expression === "string" && expression.includes("stagehand.facade.quietWait");
+  typeof expression === "string" && expression.includes("new MutationObserver");
+const isCleanup = (expression: unknown) =>
+  typeof expression === "string" && expression.includes("observer.disconnect()");
+/** The document key a probe or cleanup expression uses. */
+const keyOf = (expression: unknown) => /const key = "([^"]+)"/.exec(String(expression))?.[1];
 
 /**
- * A raw page whose quiet-wait probe answers with `probe(now)`; its
+ * A raw page whose quiet-wait probe answers with `probe(now, key)`; its
  * waitForTimeout sleeps on the (fake) clock like the extension's does.
  */
-async function fixture(options: PlaywrightCompatRuntimeOptions, probe: (now: number) => Probe) {
+async function fixture(
+  options: PlaywrightCompatRuntimeOptions,
+  probe: (now: number, key: string) => Probe,
+) {
   const rawPage = {
     pageId: "test-page",
     url: vi.fn(async () => "https://example.com/"),
     evaluate: vi.fn(async (expression: unknown) => {
+      if (isCleanup(expression)) return undefined;
       if (!isProbe(expression)) return { width: 800, height: 600 };
-      const answer = probe(Date.now());
+      const answer = probe(Date.now(), keyOf(expression)!);
       if (answer === "throw") throw new Error("Execution context was destroyed.");
       if (answer === "hang") return new Promise(() => undefined);
       return answer;
@@ -41,7 +49,9 @@ async function fixture(options: PlaywrightCompatRuntimeOptions, probe: (now: num
     options,
   );
   const probes = () => rawPage.evaluate.mock.calls.filter(([expression]) => isProbe(expression));
-  return { page: runtime.page as CompatPage, rawPage, runtime, probes };
+  const cleanups = () =>
+    rawPage.evaluate.mock.calls.filter(([expression]) => isCleanup(expression));
+  return { page: runtime.page as CompatPage, rawPage, runtime, probes, cleanups };
 }
 
 /** Runs page.waitForTimeout(ms) on the fake clock and reports when it resolved. */
@@ -187,6 +197,48 @@ describe("facade page.waitForTimeout", () => {
       waitedMs: 1_000,
       earlyReturns: 0,
     });
+  });
+
+  it("measures each wait's quiet window from that wait, not an earlier one", async () => {
+    // A probe installs an observer per key; the page last mutated 500 ms into
+    // the second wait (the effect of an action taken before it).
+    const installs = new Map<string, number>();
+    let secondWaitAt: number | undefined;
+    const { page, runtime, probes, cleanups } = await fixture({ quietWait: true }, (now, key) => {
+      if (!installs.has(key)) installs.set(key, now);
+      const mutatedAt = secondWaitAt === undefined ? 0 : secondWaitAt + 500;
+      return {
+        readyState: "complete",
+        quietMs: now - Math.max(installs.get(key)!, Math.min(mutatedAt, now)),
+      };
+    });
+    const first = await timedWait(page, 3_000);
+    expect(first).toBeGreaterThanOrEqual(RUN_OPTIONS.quietWait.windowMs);
+    await vi.advanceTimersByTimeAsync(10_000);
+    secondWaitAt = Date.now();
+    const second = await timedWait(page, 3_000);
+    expect(second).toBeGreaterThanOrEqual(500 + RUN_OPTIONS.quietWait.windowMs);
+    expect(second).toBeLessThan(
+      500 + RUN_OPTIONS.quietWait.windowMs + 2 * RUN_OPTIONS.quietWait.pollMs,
+    );
+    expect(installs.size).toBe(2);
+    // Each wait removes its own observer once it ends.
+    expect(cleanups().map(([expression]) => keyOf(expression))).toStrictEqual([...installs.keys()]);
+    expect(new Set(probes().map(([expression]) => keyOf(expression)))).toStrictEqual(
+      new Set(installs.keys()),
+    );
+    expect(runtime.telemetry().waits.earlyReturns).toBe(2);
+  });
+
+  it("keeps the probe's document key out of the page's registry", async () => {
+    const { page, probes } = await fixture({ quietWait: true }, () => ({
+      readyState: "complete",
+      quietMs: 10_000,
+    }));
+    await timedWait(page, 1_000);
+    const [[expression]] = probes();
+    expect(expression).not.toContain("Symbol.for");
+    expect(keyOf(expression)).not.toMatch(/stagehand/i);
   });
 
   it("adds every wait to the run's telemetry", async () => {

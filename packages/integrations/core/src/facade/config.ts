@@ -4,6 +4,7 @@ import {
   type LocalBrowserLaunchOptions,
   type StagehandClientCreateConfig,
 } from "@browserbasehq/stagehand";
+import { RUN_OPTIONS } from "./contract.js";
 
 export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
@@ -92,7 +93,8 @@ export function stagehandFacadeConfigFromEnv(
   }
   const stagehand = parsed.data;
   const quietWait =
-    booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ?? false;
+    booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ??
+    RUN_OPTIONS.quietWait.default;
 
   return {
     browser:

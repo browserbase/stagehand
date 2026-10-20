@@ -205,7 +205,7 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
       const evaluate = fakePage.evaluate.getMockImplementation()!;
       const page = Object.assign(fakePage, {
         evaluate: vi.fn(async (expression: unknown) =>
-          typeof expression === "string" && expression.includes("stagehand.facade.quietWait")
+          typeof expression === "string" && expression.includes("new MutationObserver")
             ? probe()
             : evaluate(expression),
         ),

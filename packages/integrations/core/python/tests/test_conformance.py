@@ -219,7 +219,7 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
     tools = StagehandFacadeTools(
         cast(Stagehand, fake),
         artifact_root=sandbox / "artifacts",
-        quiet_wait=host.get("quietWait", False),
+        quiet_wait=host.get("quietWait"),
     )
 
     for index, step in enumerate(case["steps"]):

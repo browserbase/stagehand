@@ -77,6 +77,34 @@ describe("facade page.waitForTimeout with quietWait", () => {
     }
   });
 
+  it("waits for a later change on a document an earlier wait already watched", async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent("<p>static</p>");
+      await run(page, TIMED_WAIT(2_000), { quietWait: true });
+      // The next run's action changes the page 300 ms later (a fetch rendering),
+      // inside the quiet window of a wait that starts now.
+      const render = `setTimeout(() => { document.body.dataset.done = "1"; }, 300);`;
+      const { value, waits } = await run(
+        page,
+        `await page.evaluate(${JSON.stringify(render)});\n${TIMED_WAIT(5_000)}`,
+        { quietWait: true },
+      );
+      assert.equal(value.done, "1");
+      assert.ok(value.waited >= 700 && value.waited < 2_500, `waited ${value.waited} ms`);
+      assert.equal(waits.earlyReturns, 1);
+      // Both waits removed their observers and keys.
+      assert.deepEqual(
+        await page.evaluate(() =>
+          Object.getOwnPropertyNames(document).filter((name) => name.startsWith("_")),
+        ),
+        [],
+      );
+    } finally {
+      await page.close();
+    }
+  });
+
   it("is capped while the page keeps changing", async () => {
     const page = await browser.newPage();
     try {

@@ -9,6 +9,7 @@ import {
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
+  RUN_OPTIONS,
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
@@ -263,9 +264,10 @@ export class StagehandFacadeTools {
     const callback = runCallback(code);
     const startedAt = performance.now();
     const keeperPageId = await this.keeper;
+    const quietWait = this.options.quietWait ?? RUN_OPTIONS.quietWait.default;
     const input: RunInput = {
       ...(keeperPageId && { hiddenPageIds: [keeperPageId] }),
-      ...(this.options.quietWait && { quietWait: true }),
+      ...(quietWait && { quietWait: true }),
     };
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
     // Agent code runs inside the callback that builds this result, so it is not
@@ -276,7 +278,7 @@ export class StagehandFacadeTools {
     try {
       this.options.onRunReport?.({
         telemetry: envelope.telemetry,
-        quietWait: this.options.quietWait === true,
+        quietWait,
         batchRoundTripMs: performance.now() - startedAt,
         batchRuntimeMs: envelope.batchRuntimeMs,
         closeRequested: envelope.closeRequested,
