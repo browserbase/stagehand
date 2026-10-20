@@ -380,42 +380,148 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("search sends the expected POST body and prints JSON", async () => {
+  it.each([
+    { name: "server defaults", args: [], options: {} },
+    {
+      name: "Parallel fast mode",
+      args: ["--provider", "parallel", "--mode", "fast"],
+      options: { provider: "parallel", mode: "fast" },
+    },
+    {
+      name: "Parallel advanced mode",
+      args: ["--provider", "parallel", "--mode", "advanced"],
+      options: { provider: "parallel", mode: "advanced" },
+    },
+    {
+      name: "Parallel with the server's default mode",
+      args: ["--provider", "parallel"],
+      options: { provider: "parallel" },
+    },
+    {
+      name: "Exa",
+      args: ["--provider", "exa"],
+      options: { provider: "exa" },
+    },
+    {
+      name: "fast mode with the server's default provider",
+      args: ["--mode", "fast"],
+      options: { mode: "fast" },
+    },
+    {
+      name: "advanced mode with the server's default provider",
+      args: ["--mode", "advanced"],
+      options: { mode: "advanced" },
+    },
+  ])(
+    "search sends the expected POST body and prints JSON: $name",
+    async ({ args, options }) => {
+      await withServer(
+        async (_request, response) => {
+          jsonResponse(
+            response,
+            200,
+            makeSearchResponse("test query", [
+              { id: "res_1", url: "https://example.com", title: "Example" },
+            ]),
+          );
+        },
+        async ({ baseUrl, requests }) => {
+          const result = await runCli([
+            "cloud",
+            "search",
+            "test query",
+            ...args,
+            "--num-results",
+            "5",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ]);
+
+          expect(result.exitCode).toBe(0);
+          const output = JSON.parse(result.stdout) as {
+            query: string;
+            results: unknown[];
+          };
+          expect(output.query).toBe("test query");
+          expect(output.results).toHaveLength(1);
+          expect(requests).toHaveLength(1);
+          expectRequest(requests[0], "POST", "/v1/search", "test-key");
+          expect(requests[0]?.jsonBody).toEqual({
+            query: "test query",
+            numResults: 5,
+            ...options,
+          });
+        },
+      );
+    },
+  );
+
+  it.each([
+    { flag: "--provider", value: "unknown-provider" },
+    { flag: "--mode", value: "unknown-mode" },
+  ])(
+    "search rejects invalid $flag before calling the API",
+    async ({ flag, value }) => {
+      await withServer(
+        async (_request, response) => {
+          jsonResponse(response, 200, makeSearchResponse("test query", []));
+        },
+        async ({ baseUrl, requests }) => {
+          const result = await runCli([
+            "cloud",
+            "search",
+            "test query",
+            flag,
+            value,
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ]);
+
+          expect(result.exitCode).toBe(2);
+          expect(result.stderr).toContain(flag);
+          expect(result.stderr).toContain(value);
+          expect(requests).toHaveLength(0);
+        },
+      );
+    },
+  );
+
+  it("search surfaces API errors for unsupported provider and mode combinations", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(
-          response,
-          200,
-          makeSearchResponse("test query", [
-            { id: "res_1", url: "https://example.com", title: "Example" },
-          ]),
-        );
+        jsonResponse(response, 400, {
+          message: "mode is only supported by the parallel provider",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
           "cloud",
           "search",
           "test query",
-          "--num-results",
-          "5",
+          "--provider",
+          "exa",
+          "--mode",
+          "fast",
           "--api-key",
           "test-key",
           "--base-url",
           baseUrl,
         ]);
 
-        expect(result.exitCode).toBe(0);
-        const output = JSON.parse(result.stdout) as {
-          query: string;
-          results: unknown[];
-        };
-        expect(output.query).toBe("test query");
-        expect(output.results).toHaveLength(1);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain(
+          "mode is only supported by the parallel provider",
+        );
         expect(requests).toHaveLength(1);
         expectRequest(requests[0], "POST", "/v1/search", "test-key");
-        expect(requests[0]?.jsonBody).toMatchObject({
+        expect(requests[0]?.jsonBody).toEqual({
           query: "test query",
-          numResults: 5,
+          provider: "exa",
+          mode: "fast",
         });
       },
     );

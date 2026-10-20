@@ -1,5 +1,11 @@
 # browse
 
+## 0.11.2
+
+### Patch Changes
+
+- [#3139](https://github.com/browserbase/stagehand/pull/3139) [`e48dc5b`](https://github.com/browserbase/stagehand/commit/e48dc5b2d2f0a0a2ed23226cacc562243e2cc888) Thanks [@shrey150](https://github.com/shrey150)! - Add `--provider` and `--mode` flags to `browse cloud search`.
+
 ## 0.11.1
 
 ### Patch Changes

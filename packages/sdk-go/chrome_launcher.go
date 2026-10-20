@@ -54,7 +54,7 @@ var defaultChromeFlags = []string{
 	"--propagate-iph-for-testing",
 	"--enable-unsafe-extension-debugging",
 	"--remote-allow-origins=*",
-	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+	"--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 }
 
 type launchedChrome struct {

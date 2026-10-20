@@ -181,6 +181,12 @@ func TestProtocolCompatibility(t *testing.T) {
 		reason     string
 		detail     string
 	}{
+		{name: "client routing minimum", client: "2.2.0", server: "2.1.99", reason: "protocol-server-too-old", detail: "Server protocol 2.1.99 is older than client requirement 2.2.0"},
+		{name: "client routing supported", client: "2.2.0", server: "2.2.0", compatible: true},
+		{name: "current protocol", client: "3.0.0", server: "3.0.0", compatible: true},
+		{name: "previous client on current worker", client: "2.2.0", server: "3.0.0", reason: "protocol-major-mismatch"},
+		{name: "current client on previous worker", client: "3.0.0", server: "2.2.0", reason: "protocol-major-mismatch"},
+		{name: "older client on new worker", client: "2.1.1", server: "2.2.0", compatible: true},
 		{name: "patch ignored", client: "1.2.4", server: "1.2.0", compatible: true},
 		{name: "newer server minor", client: "1.2.4", server: "1.9.0", compatible: true},
 		// Detail wording is the TS SDK's compatibilityDetail; keep the SDKs identical.

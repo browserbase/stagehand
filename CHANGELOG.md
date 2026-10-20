@@ -3,6 +3,144 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.3.0
+
+### Minor Changes
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3253](https://github.com/browserbase/stagehand/pull/3253) [`6bf4146`](https://github.com/browserbase/stagehand/commit/6bf4146508a282bd0f5742f74ca3de63ffb26bd6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add optional `extensionCdpUrl` to `localBrowser.connect` to allow configuring the in-browser CDP url
+
+- [#3263](https://github.com/browserbase/stagehand/pull/3263) [`ecb2a6b`](https://github.com/browserbase/stagehand/commit/ecb2a6b55c6783d510429d6823497136138d28f6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `headers` to `localBrowser.connect` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `page.waitForFunction()` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Python SDK 4.3.0
+
+### Minor Changes
+
+- [#3260](https://github.com/browserbase/stagehand/pull/3260) [`2859fd5`](https://github.com/browserbase/stagehand/commit/2859fd5fe8468dbe9666ea487930d1d1fbff02fa) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `headers` to `local_browser.connect` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3252](https://github.com/browserbase/stagehand/pull/3252) [`21e0363`](https://github.com/browserbase/stagehand/commit/21e03638df1b648cf49e7cb95c9fa959c4f9d749) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `extension_cdp_url` to `local_browser.connect` for clients that reach Chrome through a proxy the extension cannot use
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `page.wait_for_function()` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Extension Runtime 1.2.0
+
+### Minor Changes
+
+- [#3208](https://github.com/browserbase/stagehand/pull/3208) [`4a7c637`](https://github.com/browserbase/stagehand/commit/4a7c637dbb3de17be4e0b70987a69db8d3521b98) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Support routing Browserbase Model Gateway and cache requests through the connected SDK.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add the `page.wait_for_function` method.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3257](https://github.com/browserbase/stagehand/pull/3257) [`113ad81`](https://github.com/browserbase/stagehand/commit/113ad81c4f854b7a943c59ba62349b0062b6aa32) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - honour a changed extension CDP WS URL when creating a new Stagehand instance after closing the previous one
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+## Go SDK 4.3.0
+
+### Minor Changes
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3265](https://github.com/browserbase/stagehand/pull/3265) [`a31e2da`](https://github.com/browserbase/stagehand/commit/a31e2da5098b77ef457e414827a4497404e243c1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `Headers` to `LocalBrowserConnectOptions` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3254](https://github.com/browserbase/stagehand/pull/3254) [`9eac212`](https://github.com/browserbase/stagehand/commit/9eac2126b59f6168b2f414068377d18bd1417dd4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add optional `ExtensionCDPURL` to `LocalBrowserConnectOptions` to allow configuring the in-browser CDP url.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `Page.WaitForFunction` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Protocol 3.0.0
+
+### Major Changes
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+### Minor Changes
+
+- [#3208](https://github.com/browserbase/stagehand/pull/3208) [`4a7c637`](https://github.com/browserbase/stagehand/commit/4a7c637dbb3de17be4e0b70987a69db8d3521b98) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Support routing Browserbase Model Gateway and cache requests through the connected SDK.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add the `page.wait_for_function` method.
+
+## Eve Extension 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968), [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738), [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a), [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7), [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3), [`6bf4146`](https://github.com/browserbase/stagehand/commit/6bf4146508a282bd0f5742f74ca3de63ffb26bd6), [`ecb2a6b`](https://github.com/browserbase/stagehand/commit/ecb2a6b55c6783d510429d6823497136138d28f6), [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a)]:
+  - @browserbasehq/stagehand@4.3.0
+
+## TypeScript SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Python SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Extension Runtime 1.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Go SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Protocol 2.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Eve Extension 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab)]:
+  - @browserbasehq/stagehand@4.2.1
+
 ## TypeScript SDK 4.2.0
 
 ### Minor Changes

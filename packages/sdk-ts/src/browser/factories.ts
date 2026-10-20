@@ -36,7 +36,11 @@ import { withStagehandInitDeadline } from "../timeouts.js";
 export { isStagehandBrowser };
 export type { BrowserbaseBrowser, LocalBrowser, StagehandBrowser } from "./index.js";
 
-export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "browser">;
+export type StagehandWorkerInitMetadata = {
+  browserCdpUrl?: string;
+  apiKey?: string;
+  browser?: StagehandInitParams["browser"];
+};
 
 export type ClaimedStagehandBrowser = {
   cdpClient: CDPClient;
@@ -133,7 +137,8 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             connectCdp,
             extension: { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
-            workerInitMetadata: {},
+            headers: parsed.headers,
+            workerInitMetadata: { browserCdpUrl: parsed.extensionCdpUrl },
           }),
         );
       },
@@ -263,6 +268,7 @@ async function connectBrowser(options: {
     | { preloadedExtension: true };
   signal: AbortSignal;
   afterConnect?: (cdpClient: CDPClient, signal: AbortSignal) => Promise<void>;
+  headers?: Record<string, string>;
   workerInitMetadata: StagehandWorkerInitMetadata;
 }): Promise<StagehandBrowser> {
   const ownsSource = options.origin === "launched" && !options.source.keepAlive;
@@ -270,6 +276,7 @@ async function connectBrowser(options: {
   try {
     const connectionPromise = options.connectCdp({
       cdpUrl: options.source.cdpUrl,
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
       signal: options.signal,
