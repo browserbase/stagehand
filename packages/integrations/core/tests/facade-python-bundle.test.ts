@@ -12,7 +12,14 @@ describe("Python facade bundle", () => {
         "utf8",
       ),
     ]);
+    // All but packageVersion, which release versioning bumps in package.json
+    // without rebuilding the bundle.
+    const withoutVersion = (text: string) =>
+      JSON.stringify({ ...JSON.parse(text), packageVersion: 0 });
     // Not toBe(built): a diff of two 250 KB strings would bury the fix.
-    expect(vendored === built, "stale copy; run pnpm run sync:python").toBe(true);
+    expect(
+      withoutVersion(vendored) === withoutVersion(built),
+      "stale copy; run pnpm run sync:python",
+    ).toBe(true);
   });
 });
