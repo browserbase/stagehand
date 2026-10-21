@@ -41,6 +41,9 @@ type LocalBrowserLaunchOptions struct {
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
 	CDPURL string
+	// Headers are sent with client-side CDP discovery and WebSocket connections.
+	// They are not passed to the extension.
+	Headers map[string]string
 	// ExtensionCDPURL is the browser-level CDP WebSocket URL dialed by the
 	// extension inside Chrome. Empty uses the client's URL. Set this when the
 	// client connects through a gateway the extension cannot or should not use.
@@ -123,6 +126,7 @@ type browserConnectionSource struct {
 }
 
 type connectBrowserOptions struct {
+	headers            http.Header
 	provider           BrowserProvider
 	origin             BrowserOrigin
 	source             browserConnectionSource
@@ -213,11 +217,27 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 		}
 	}
 
+	var headers http.Header
+	if options.Headers != nil {
+		headers = make(http.Header, len(options.Headers))
+		for name, value := range options.Headers {
+			if err := validateCDPHeader(name, value); err != nil {
+				return nil, err
+			}
+			canonicalName := http.CanonicalHeaderKey(name)
+			if _, exists := headers[canonicalName]; exists {
+				return nil, errors.New("headers must not contain duplicate names ignoring case")
+			}
+			headers.Set(canonicalName, value)
+		}
+	}
+
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginConnected,
 		source:         browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true},
 		localExtension: true,
 		workerCDPURL:   options.ExtensionCDPURL,
+		headers:        headers,
 	}, dependencies)
 }
 
@@ -348,7 +368,8 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		}
 	}
 	cdp, err := connect(ctx, cdpClientOptions{
-		cdpURL: options.source.cdpURL, extensionDir: options.extensionDir,
+		headers: options.headers,
+		cdpURL:  options.source.cdpURL, extensionDir: options.extensionDir,
 		localExtensionDir: localExtensionDir,
 		extensionID:       options.extensionID, preloadedExtension: options.preloadedExtension,
 		serviceWorkerURLIncludes: "service-worker.js",

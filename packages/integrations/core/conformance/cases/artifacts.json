@@ -1,0 +1,708 @@
+{
+  "cases": [
+    {
+      "name": "screenshot artifacts are written relative to the artifact root",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shots/first.png' }); return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/first.png",
+                    "base64": "iVBORw0KGgo="
+                  },
+                  {
+                    "path": "second.png",
+                    "base64": "AAEC"
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": "ok"
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": [
+          "artifacts/",
+          "artifacts/second.png",
+          "artifacts/shots/",
+          "artifacts/shots/first.png"
+        ],
+        "files": {
+          "artifacts/shots/first.png": "iVBORw0KGgo=",
+          "artifacts/second.png": "AAEC"
+        }
+      }
+    },
+    {
+      "name": "an existing regular file at the artifact path is overwritten",
+      "fs": [
+        {
+          "file": "artifacts/shot.png",
+          "base64": "b2xk"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/shot.png"],
+        "files": {
+          "artifacts/shot.png": "iVBORw0KGgo="
+        }
+      }
+    },
+    {
+      "name": "a parent-directory path is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "../escape.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "a path that normalizes outside the root is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/../../escape.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "an absolute path outside the root is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": {
+                      "$sandbox": "outside/absolute.png"
+                    },
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "the artifact root itself is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": ".",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "an empty path is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "a path that normalizes to the root is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/..",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "a symlinked directory component is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        },
+        {
+          "symlink": "artifacts/linked",
+          "target": "../outside"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "linked/created/sub.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_SYMLINK_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/linked@", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "a symlinked target file is rejected",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        },
+        {
+          "symlink": "artifacts/linked-file.png",
+          "target": "../outside/existing.png"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'x.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "linked-file.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/linked-file.png@", "outside/", "outside/existing.png"],
+        "files": {
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "artifacts before a rejected one are already written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'a.png' }); await page.screenshot({ path: '../b.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "a.png",
+                    "base64": "iVBORw0KGgo="
+                  },
+                  {
+                    "path": "../b.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/a.png"],
+        "files": {
+          "artifacts/a.png": "iVBORw0KGgo="
+        }
+      }
+    },
+    {
+      "name": "a path error takes precedence over the code's own error",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: '../b.png' }); throw new Error('later');"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "executionError": {
+                  "name": "Error",
+                  "message": "later"
+                },
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "../b.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "the artifact path \"..\" is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: \"..\" });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "..",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "the artifact path \"shots/../..\" is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: \"shots/../..\" });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/../..",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    }
+  ]
+}

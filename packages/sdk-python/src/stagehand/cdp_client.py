@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.parse import urljoin, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+
+from typing_extensions import override
+from websockets.asyncio.client import connect as WebSocketConnect
+from websockets.exceptions import InvalidStatus
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
     STAGEHAND_PROTOCOL_VERSION,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
@@ -257,6 +266,7 @@ class CDPClient:
         extension_id: str | None = None,
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -278,8 +288,16 @@ class CDPClient:
                 "or preloaded_extension is required"
             )
 
-        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
-        socket = await _connect_web_socket(web_socket_debugger_url)
+        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url, headers=headers)
+        web_socket_headers = headers or None
+        if web_socket_headers and not _can_forward_headers(cdp_url, web_socket_debugger_url):
+            web_socket_headers = None
+            _LOGGER.debug(
+                "CDP headers were withheld from the advertised WebSocket endpoint because "
+                "its host or port differs, or forwarding would downgrade transport security. "
+                "If the handshake is rejected, check the gateway's advertised CDP endpoint."
+            )
+        socket = await _connect_web_socket(web_socket_debugger_url, headers=web_socket_headers)
         client = cls(socket, web_socket_debugger_url)
 
         try:
@@ -659,33 +677,103 @@ class CDPClient:
         task.add_done_callback(finish)
 
 
-async def _connect_web_socket(url: str) -> _WebSocket:
-    from websockets.asyncio.client import connect
+class _UnsafeCDPRedirectError(RuntimeError):
+    """A redirect would expose caller headers to an unauthorized endpoint."""
 
+
+_DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+
+
+def _can_forward_headers(source: str, destination: str) -> bool:
+    """Require the same host and effective port, without a TLS downgrade."""
+    try:
+        first, second = urlsplit(source), urlsplit(destination)
+        return (
+            first.scheme in _DEFAULT_PORTS
+            and second.scheme in _DEFAULT_PORTS
+            and first.hostname is not None
+            and first.hostname == second.hostname
+            and (first.port if first.port is not None else _DEFAULT_PORTS[first.scheme])
+            == (second.port if second.port is not None else _DEFAULT_PORTS[second.scheme])
+            and not (first.scheme in ("https", "wss") and second.scheme in ("http", "ws"))
+        )
+    except ValueError:
+        return False
+
+
+class _CDPRedirectHandler(HTTPRedirectHandler):
+    @override
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> Request | None:
+        if not _can_forward_headers(req.full_url, newurl):
+            raise _UnsafeCDPRedirectError(
+                "Refusing CDP HTTP redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _CDPWebSocketConnect(WebSocketConnect):
+    @override
+    def process_redirect(self, exc: Exception) -> Exception | str:
+        if (
+            self.additional_headers
+            and isinstance(exc, InvalidStatus)
+            and exc.response.status_code in (300, 301, 302, 303, 307, 308)
+            and "Location" in exc.response.headers
+            and not _can_forward_headers(
+                self.uri, urljoin(self.uri, exc.response.headers["Location"])
+            )
+        ):
+            return _UnsafeCDPRedirectError(
+                "Refusing CDP WebSocket redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().process_redirect(exc)
+
+
+async def _connect_web_socket(url: str, *, headers: Mapping[str, str] | None = None) -> _WebSocket:
     return cast(
         _WebSocket,
-        await connect(url, open_timeout=None, max_size=None),
+        await _CDPWebSocketConnect(
+            url, open_timeout=None, max_size=None, additional_headers=headers
+        ),
     )
 
 
-async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
+async def _resolve_browser_web_socket_url(
+    cdp_url: str, *, headers: Mapping[str, str] | None = None
+) -> str:
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
 
     base_url = cdp_url.rstrip("/")
     while True:
         try:
-            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version")
+            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version", headers)
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
+        except _UnsafeCDPRedirectError:
+            raise
+        except HTTPError as error:
+            error.close()
+            if error.code in (401, 403):
+                raise RuntimeError(
+                    f"CDP discovery was rejected with HTTP {error.code}. "
+                    "Check the gateway credentials and access permissions."
+                ) from None
         except Exception:
             pass
         await asyncio.sleep(0.25)
 
 
-def _read_json(url: str) -> dict[str, object]:
-    with urlopen(url, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
+def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    request = Request(url, headers=dict(headers or {}))
+    # Keep the existing redirect behavior for connections without caller headers.
+    open_url = build_opener(_CDPRedirectHandler()).open if headers else urlopen
+    with open_url(request, timeout=2) as response:
         value: Any = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")
