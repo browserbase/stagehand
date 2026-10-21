@@ -9,8 +9,15 @@ import {
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
+  RUN_RESULT_LIMITS,
+  RUN_RESULT_MALFORMED_ERROR,
+  RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_COUNT_ERROR,
+  SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SIZE_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
@@ -250,6 +257,9 @@ export class StagehandFacadeTools {
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
+    // Agent code runs inside the callback that builds this result, so it is not
+    // acted on (no artifacts, no close) unless it has the envelope's shape.
+    if (!isRunEnvelope(envelope)) throw new StagehandFacadeInputError(RUN_RESULT_MALFORMED_ERROR);
     let runError: unknown;
     let runFailed = false;
     try {
@@ -264,6 +274,10 @@ export class StagehandFacadeTools {
         // Thrown by the agent's own code inside the browser, so its message can
         // never be evidence about this process's connection to the browser.
         throw new StagehandFacadeExecutionError(envelope.executionError);
+      }
+      const valueBytes = Buffer.byteLength(JSON.stringify(envelope.value) ?? "");
+      if (valueBytes > RUN_RESULT_LIMITS.maxValueBytes) {
+        throw new StagehandFacadeInputError(RUN_VALUE_SIZE_ERROR);
       }
     } catch (error) {
       runError = error;
@@ -295,7 +309,7 @@ export class StagehandFacadeTools {
     callback: ExperimentalBatchCallback<RunInput, RunEnvelope>,
     input: RunInput,
     page: Page,
-  ): Promise<RunEnvelope> {
+  ): Promise<unknown> {
     try {
       return await this.stagehand.experimentalBatch(callback, input, {
         page,
@@ -315,10 +329,31 @@ export class StagehandFacadeTools {
 
   private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
     if (artifacts.length === 0) return;
+    // Enforce every cap before the first write so an oversized run saves nothing.
+    if (artifacts.length > RUN_RESULT_LIMITS.maxArtifacts) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_COUNT_ERROR);
+    }
+    // Sizes come from the base64 length (isRunEnvelope already required
+    // canonical padding), so no artifact is decoded until all of them fit.
+    let totalBytes = 0;
+    for (const artifact of artifacts) {
+      const size = decodedBase64Length(artifact.base64);
+      if (size > RUN_RESULT_LIMITS.maxArtifactBytes) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SIZE_ERROR);
+      }
+      totalBytes += size;
+      if (totalBytes > RUN_RESULT_LIMITS.maxTotalArtifactBytes) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR);
+      }
+    }
+    const decoded = artifacts.map((artifact) => ({
+      path: artifact.path,
+      bytes: Buffer.from(artifact.base64, "base64"),
+    }));
     const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
-    for (const artifact of artifacts) {
+    for (const artifact of decoded) {
       const target = path.resolve(configuredRoot, artifact.path);
       const relative = path.relative(configuredRoot, target);
       if (
@@ -342,13 +377,20 @@ export class StagehandFacadeTools {
           throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
         }
       }
-      const file = await fsp.open(
-        path.join(directory, components.at(-1)!),
-        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-        0o600,
-      );
+      const file = await fsp
+        .open(
+          path.join(directory, components.at(-1)!),
+          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+          0o600,
+        )
+        .catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ELOOP") {
+            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
+          }
+          throw error;
+        });
       try {
-        await file.writeFile(Buffer.from(artifact.base64, "base64"));
+        await file.writeFile(artifact.bytes);
       } finally {
         await file.close();
       }
@@ -443,6 +485,50 @@ export class StagehandFacadeTools {
       // Preserve the first browser failure when an observer throws synchronously.
     }
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRunEnvelope(value: unknown): value is RunEnvelope {
+  if (!isRecord(value) || value.__stagehandPlaywrightCompat !== true) return false;
+  const { executionError, artifacts } = value;
+  return (
+    typeof value.closeRequested === "boolean" &&
+    typeof value.batchRuntimeMs === "number" &&
+    isRecord(value.telemetry) &&
+    Array.isArray(artifacts) &&
+    artifacts.every(
+      (artifact) =>
+        isRecord(artifact) &&
+        typeof artifact.path === "string" &&
+        isCanonicalBase64(artifact.base64),
+    ) &&
+    (executionError === undefined ||
+      executionError === null ||
+      (isRecord(executionError) &&
+        typeof executionError.name === "string" &&
+        typeof executionError.message === "string" &&
+        (executionError.stack === undefined || typeof executionError.stack === "string")))
+  );
+}
+
+/**
+ * Padded RFC 4648 base64, as btoa writes it. Node's decoder would also accept
+ * base64url, missing padding and stray characters, which other hosts' decoders
+ * refuse, so the caps would no longer agree across hosts.
+ */
+function isCanonicalBase64(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  );
+}
+
+/** Byte length a canonical padded base64 string decodes to. */
+function decodedBase64Length(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
 }
 
 class FacadeDeadlineError extends Error {

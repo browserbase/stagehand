@@ -42,7 +42,10 @@ constants. A host sends the sources unchanged and supplies only the batch input:
 | `run` actions: `actionRunner`                 | `{ actions, xpathById }`, the latest snapshot's XPath map    | `{ completed }`, or `{ staleId }` before any action runs, which the host reports as `STALE_SNAPSHOT_ID_ERROR`                    |
 
 The host keeps the per-page snapshot map and the missing-snapshot and navigation
-checks; `src/facade/bundle.ts` documents the shapes in full. A host must reject
+checks, rejects run results without the envelope's shape, and enforces the caps
+in `contract.limits` (32 artifacts, 25 MB per artifact, 100 MB in total, 10 MB of
+returned JSON); `src/facade/bundle.ts` documents the shapes in full. The cases in
+`conformance/` pin this behavior for every host. A host must reject
 run `code` that does not parse on its own as an async function body, as
 `AsyncFunction(params, code)` does in TypeScript, before joining it with the
 prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
