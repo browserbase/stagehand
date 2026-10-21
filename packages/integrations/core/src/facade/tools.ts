@@ -333,18 +333,23 @@ export class StagehandFacadeTools {
     if (artifacts.length > RUN_RESULT_LIMITS.maxArtifacts) {
       throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_COUNT_ERROR);
     }
+    // Sizes come from the base64 length (isRunEnvelope already required
+    // canonical padding), so no artifact is decoded until all of them fit.
     let totalBytes = 0;
-    const decoded = artifacts.map((artifact) => {
-      const bytes = Buffer.from(artifact.base64, "base64");
-      if (bytes.length > RUN_RESULT_LIMITS.maxArtifactBytes) {
+    for (const artifact of artifacts) {
+      const size = decodedBase64Length(artifact.base64);
+      if (size > RUN_RESULT_LIMITS.maxArtifactBytes) {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SIZE_ERROR);
       }
-      totalBytes += bytes.length;
+      totalBytes += size;
       if (totalBytes > RUN_RESULT_LIMITS.maxTotalArtifactBytes) {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR);
       }
-      return { path: artifact.path, bytes };
-    });
+    }
+    const decoded = artifacts.map((artifact) => ({
+      path: artifact.path,
+      bytes: Buffer.from(artifact.base64, "base64"),
+    }));
     const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
@@ -518,6 +523,12 @@ function isCanonicalBase64(value: unknown): value is string {
   return (
     typeof value === "string" && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value)
   );
+}
+
+/** Byte length a canonical padded base64 string decodes to. */
+function decodedBase64Length(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
 }
 
 class FacadeDeadlineError extends Error {

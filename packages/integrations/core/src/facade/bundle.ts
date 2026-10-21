@@ -76,47 +76,59 @@ export const FACADE_BUNDLE_VERSION = 3;
  *   (see canonicalJson).
  */
 export function facadeBundle(packageVersion: string) {
-  const content = {
-    sources: {
-      runtime: RUNTIME_SOURCE,
-      runPrelude: RUN_PRELUDE,
-      runEpilogue: RUN_EPILOGUE,
-      actionRunner: ACTION_RUNNER_SOURCE,
-    },
-    contract: {
-      tools: {
-        playwright: FACADE_TOOLS,
-        legacy: FACADE_LEGACY_TOOLS,
-        explicitSnapshotActions: FACADE_TOOLS_EXPLICIT_SNAPSHOT,
+  // A frozen copy: callers can't change the sources, caps or wording that the
+  // module's own hosts keep using.
+  const content = deepFreeze(
+    structuredClone({
+      sources: {
+        runtime: RUNTIME_SOURCE,
+        runPrelude: RUN_PRELUDE,
+        runEpilogue: RUN_EPILOGUE,
+        actionRunner: ACTION_RUNNER_SOURCE,
       },
-      errors: {
-        NO_HYDRATED_SNAPSHOT_ERROR,
-        NAVIGATED_SNAPSHOT_ERROR,
-        STALE_SNAPSHOT_ID_ERROR,
-        BROWSER_SESSION_LOST_ERROR,
-        SCREENSHOT_ARTIFACT_PATH_ERROR,
-        SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
-        SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
-        FACADE_BROWSER_CLOSED_ERROR,
-        RUN_RESULT_MALFORMED_ERROR,
-        SCREENSHOT_ARTIFACT_COUNT_ERROR,
-        SCREENSHOT_ARTIFACT_SIZE_ERROR,
-        SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
-        RUN_VALUE_SIZE_ERROR,
+      contract: {
+        tools: {
+          playwright: FACADE_TOOLS,
+          legacy: FACADE_LEGACY_TOOLS,
+          explicitSnapshotActions: FACADE_TOOLS_EXPLICIT_SNAPSHOT,
+        },
+        errors: {
+          NO_HYDRATED_SNAPSHOT_ERROR,
+          NAVIGATED_SNAPSHOT_ERROR,
+          STALE_SNAPSHOT_ID_ERROR,
+          BROWSER_SESSION_LOST_ERROR,
+          SCREENSHOT_ARTIFACT_PATH_ERROR,
+          SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+          SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+          FACADE_BROWSER_CLOSED_ERROR,
+          RUN_RESULT_MALFORMED_ERROR,
+          SCREENSHOT_ARTIFACT_COUNT_ERROR,
+          SCREENSHOT_ARTIFACT_SIZE_ERROR,
+          SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+          RUN_VALUE_SIZE_ERROR,
+        },
+        limits: RUN_RESULT_LIMITS,
+        messages: {
+          SCREENSHOT_CAPTURED_MESSAGE,
+          SCREENSHOT_COMPRESSED_MESSAGE,
+        },
       },
-      limits: RUN_RESULT_LIMITS,
-      messages: {
-        SCREENSHOT_CAPTURED_MESSAGE,
-        SCREENSHOT_COMPRESSED_MESSAGE,
-      },
-    },
-  };
-  return {
+    }),
+  );
+  return Object.freeze({
     version: FACADE_BUNDLE_VERSION,
     packageVersion,
     sha256: createHash("sha256").update(canonicalJson(content)).digest("hex"),
     ...content,
-  };
+  });
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const entry of Object.values(value)) deepFreeze(entry);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 export type FacadeBundle = ReturnType<typeof facadeBundle>;

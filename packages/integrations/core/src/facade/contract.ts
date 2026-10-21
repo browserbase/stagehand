@@ -246,12 +246,12 @@ const MB = 1024 * 1024;
  * run: a full-page PNG is a few MB, and a 10 MB value is already far more than a
  * model can read. Value size is the UTF-8 length of the value's compact JSON.
  */
-export const RUN_RESULT_LIMITS = {
+export const RUN_RESULT_LIMITS = Object.freeze({
   maxArtifacts: 32,
   maxArtifactBytes: 25 * MB,
   maxTotalArtifactBytes: 100 * MB,
   maxValueBytes: 10 * MB,
-} as const;
+} as const);
 
 export const RUN_RESULT_MALFORMED_ERROR = "The run batch returned a malformed result.";
 export const SCREENSHOT_ARTIFACT_COUNT_ERROR = `A run can save at most ${RUN_RESULT_LIMITS.maxArtifacts} screenshot artifacts.`;
