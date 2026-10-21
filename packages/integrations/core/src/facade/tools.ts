@@ -9,6 +9,7 @@ import {
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
+  RUN_OPTIONS,
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
@@ -35,6 +36,8 @@ type SnapshotState = { url: string; xpathById: Record<string, string> };
 
 export type StagehandFacadeRunReport = {
   telemetry: PlaywrightCompatTelemetry;
+  /** Whether the run used StagehandFacadeToolsOptions.quietWait. */
+  quietWait: boolean;
   /** Wall-clock time of the whole experimentalBatch round trip. */
   batchRoundTripMs: number;
   /** Time the agent's code spent executing inside the batch. */
@@ -88,6 +91,13 @@ export type StagehandFacadeToolsOptions = {
    * (`context.pages()` / `waitForEvent("page")` never list it).
    */
   keeperPage?: boolean;
+  /**
+   * Experimental, off by default: page.waitForTimeout(ms) longer than 400 ms
+   * in run code returns once the main document is quiet, capped at ms (see
+   * RUN_OPTIONS.quietWait). The run
+   * report's telemetry.waits shows requested against waited time.
+   */
+  quietWait?: boolean;
 };
 
 /** Every facade tool returns this once the browser session is gone. */
@@ -255,7 +265,11 @@ export class StagehandFacadeTools {
     const callback = runCallback(code);
     const startedAt = performance.now();
     const keeperPageId = await this.keeper;
-    const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
+    const quietWait = this.options.quietWait ?? RUN_OPTIONS.quietWait.default;
+    const input: RunInput = {
+      ...(keeperPageId && { hiddenPageIds: [keeperPageId] }),
+      ...(quietWait && { quietWait: true }),
+    };
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
     // Agent code runs inside the callback that builds this result, so it is not
     // acted on (no artifacts, no close) unless it has the envelope's shape.
@@ -265,6 +279,7 @@ export class StagehandFacadeTools {
     try {
       this.options.onRunReport?.({
         telemetry: envelope.telemetry,
+        quietWait,
         batchRoundTripMs: performance.now() - startedAt,
         batchRuntimeMs: envelope.batchRuntimeMs,
         closeRequested: envelope.closeRequested,

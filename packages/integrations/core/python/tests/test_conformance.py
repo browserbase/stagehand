@@ -55,6 +55,8 @@ def describe_sent_call(source: str, input: object) -> object:
         return {"callback": "actionRunner", "input": input}
     if source.startswith(SOURCES["runPrelude"]) and source.endswith(SOURCES["runEpilogue"]):
         code = source[len(SOURCES["runPrelude"]) : len(source) - len(SOURCES["runEpilogue"])]
+        if input:
+            return {"callback": "run", "code": code, "input": input}
         return {"callback": "run", "code": code}
     return {"callback": "unknown", "source": source}
 
@@ -213,7 +215,12 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
     sandbox = tmp_path.resolve()
     prepare_sandbox(case, sandbox)
     fake = FakeStagehand(case, sandbox)
-    tools = StagehandFacadeTools(cast(Stagehand, fake), artifact_root=sandbox / "artifacts")
+    host = case.get("host", {})
+    tools = StagehandFacadeTools(
+        cast(Stagehand, fake),
+        artifact_root=sandbox / "artifacts",
+        quiet_wait=host.get("quietWait"),
+    )
 
     for index, step in enumerate(case["steps"]):
         if "pageUrl" in step:

@@ -15,7 +15,7 @@ export type ActionResult =
   | { completed: number; staleId?: never }
   | { staleId: string; completed?: never };
 export type ScreenshotArtifact = { path: string; base64: string };
-export type RunInput = { hiddenPageIds?: string[] };
+export type RunInput = { hiddenPageIds?: string[]; quietWait?: boolean };
 export type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
@@ -80,7 +80,7 @@ for (let index = 0; index <= 32; index += 1) {
   globalThis[index === 0 ? "__name" : "__name" + index] = __stagehandCompatIdentity;
 }
 const createRuntime = ${RUNTIME_SOURCE};
-const runtime = await createRuntime(batchStagehand, { hiddenPageIds: input.hiddenPageIds ?? [] });
+const runtime = await createRuntime(batchStagehand, { hiddenPageIds: input.hiddenPageIds ?? [], quietWait: input.quietWait === true });
 const page = runtime.page;
 const context = runtime.context;
 const browser = runtime.browser;
