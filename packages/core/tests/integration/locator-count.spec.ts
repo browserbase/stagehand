@@ -91,6 +91,29 @@ test.describe("Locator count() method tests", () => {
     expect(count).toBe(2);
   });
 
+  test("count() finds light DOM XPath when a host overrides children and a shadow root exists", async () => {
+    const page = v3.context.pages()[0];
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          "<my-widget></my-widget>" +
+            '<form><x-scoped><input id="target"></x-scoped></form>' +
+            "<script>" +
+            'document.querySelector("my-widget").attachShadow({mode: "open"});' +
+            'Object.defineProperty(document.querySelector("x-scoped"), "children", { get: () => [] });' +
+            "</script>",
+        ),
+      { waitUntil: "load", timeoutMs: 30000 },
+    );
+
+    const locator = page
+      .mainFrame()
+      .locator("xpath=/html[1]/body[1]/form[1]/x-scoped[1]/input[1]");
+
+    expect(await locator.count()).toBe(1);
+  });
+
   test("count() works with complex CSS selectors", async () => {
     const page = v3.context.pages()[0];
 

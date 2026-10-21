@@ -62,7 +62,12 @@ export function resolveXPathAtIndex(
     xp,
     shadowCtx.getClosedRoot,
   );
-  return shadowHopMatches[targetIndex] ?? null;
+  if (shadowHopMatches.length > 0) {
+    return shadowHopMatches[targetIndex] ?? null;
+  }
+
+  // Page code can override "children" on an element. Native XPath ignores that override.
+  return resolveNativeAtIndexWithError(xp, targetIndex).value;
 }
 
 export function countXPathMatches(
@@ -91,7 +96,10 @@ export function countXPathMatches(
   ).length;
   if (composedCount > 0) return composedCount;
 
-  return resolveStagehandShadowHopMatches(xp, shadowCtx.getClosedRoot).length;
+  return (
+    resolveStagehandShadowHopMatches(xp, shadowCtx.getClosedRoot).length ||
+    resolveNativeCountWithError(xp).count
+  );
 }
 
 export function resolveXPathComposedMatches(
