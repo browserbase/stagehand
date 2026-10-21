@@ -135,6 +135,89 @@
       ]
     },
     {
+      "name": "an action with an empty id is rejected before sending",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search"
+          }
+        },
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": ""
+              }
+            ]
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "invalid"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a press with an empty key is rejected before sending",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search"
+          }
+        },
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "press",
+                "id": "0-7",
+                "key": ""
+              }
+            ]
+          },
+          "batch": [],
+          "sent": [],
+          "expect": {
+            "error": {
+              "kind": "invalid"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "actions after navigation fail and discard the snapshot",
       "page": {
         "url": "https://example.com/",

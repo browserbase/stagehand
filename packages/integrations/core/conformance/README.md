@@ -1,10 +1,12 @@
 # Facade conformance cases
 
 Every facade host (the TypeScript `StagehandFacadeTools`, and hosts in other
-languages built on `dist/facade-bundle.json`) must pass every case in `cases/`.
+languages built on `dist/facade-bundle.json`) must pass every applicable case
+in `cases/`: every case except those `notApplicable` marks for that host.
 The cases drive a host against a fake Stagehand, so they check what the host
 does with batch results, snapshots and the artifact root, not the browser-side
-JavaScript. `tests/facade-conformance.test.ts` runs them on the TypeScript host.
+JavaScript. `tests/facade-conformance.test.ts` runs them on the TypeScript host
+and `python/tests/test_conformance.py` on the Python host.
 
 ## Running a case
 
@@ -35,6 +37,7 @@ Each file holds `{ "cases": [...] }`. A case:
 | Field            | Meaning                                                                                                                                                                                                     |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`           | What the case shows.                                                                                                                                                                                        |
+| `notApplicable`  | Optional `{ "<host>": "reason" }` (`typescript` or `python`): that host skips the case, for the reason given.                                                                                               |
 | `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                      |
 | `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
 | `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
@@ -46,12 +49,13 @@ Each file holds `{ "cases": [...] }`. A case:
 
 An expected error has a `kind` and, optionally, a `name` and a message:
 
-| `kind`      | The host raised                                                                        |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `input`     | its ordinary tool error (`StagehandFacadeInputError` in TypeScript).                   |
-| `execution` | the error thrown by the agent's code, with that `name` and message.                    |
-| `batch`     | the error the batch call itself raised, unchanged.                                     |
-| `syntax`    | a syntax error for run code, before sending anything. Messages differ between parsers. |
+| `kind`      | The host raised                                                                         |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `input`     | its ordinary tool error (`StagehandFacadeInputError` in TypeScript).                    |
+| `invalid`   | its error for arguments outside the tool's input contract (a `ZodError` in TypeScript). |
+| `execution` | the error thrown by the agent's code, with that `name` and message.                     |
+| `batch`     | the error the batch call itself raised, unchanged.                                      |
+| `syntax`    | a syntax error for run code, before sending anything. Messages differ between parsers.  |
 
 The message is `message` verbatim, or `contractError`: a key of
 `contract.errors` in the bundle, with `${key}` placeholders filled from
@@ -83,3 +87,19 @@ non-ASCII characters unescaped (Python: `separators=(",", ":")`,
 Whatever fails after a valid envelope, the host closes the session when
 `closeRequested` is true and then raises the error, and later calls fail with
 `FACADE_BROWSER_CLOSED_ERROR`.
+
+## Environment and browser launch
+
+The cases do not cover the environment allowlist, because no host they drive
+reads or forwards the environment. The rule belongs to whatever launches the
+browser or a child process: the stdio server (`src/facade/stdio-server.ts`)
+builds its Stagehand and browser from `STAGEHAND_*` and `BROWSERBASE_*`
+variables (`stagehandFacadeConfigFromEnv`), and code that spawns the server or
+an agent harness passes it only those (`buildAllowlistedEnv` in
+`src/harness/env.ts`). Their own tests check that.
+
+`StagehandFacadeTools`, in TypeScript and in Python, takes a Stagehand the
+caller has already built and never launches a browser, spawns a process or
+reads the environment, so there is nothing to forward. The Python package has
+no stdio server or launcher, so it has no allowlist case at all; a host that
+adds one must apply the same rule.

@@ -32,9 +32,10 @@ the model-facing tool list.
 
 The build also writes `dist/facade-bundle.json` for facade hosts in other
 languages: the exact callback sources the facade sends to `experimentalBatch`,
-the tools/list of each tool set, and the error and screenshot messages hosts
-return verbatim. The TypeScript facade builds what it sends from the same
-constants. A host sends the sources unchanged and supplies only the batch input:
+the tools/list and agent instructions of each tool set, and the error and
+screenshot messages hosts return verbatim. The TypeScript facade builds what
+it sends from the same constants. A host sends the sources unchanged and
+supplies only the batch input:
 
 | Callback                                      | Input                                                        | Result                                                                                                                           |
 | --------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -51,6 +52,10 @@ run `code` that does not parse on its own as an async function body, as
 prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
 `{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
 escaping, so non-ASCII characters are not escaped.
+
+`python/` is the Python host, `stagehand-integrations` (`stagehand_integrations.facade`).
+It ships a copy of the bundle; run `pnpm run sync:python` after building to refresh
+it, and `tests/facade-python-bundle.test.ts` fails while the copy is stale.
 
 A failed CDP attach releases a Browserbase session created by that launch even
 with `keepAlive: true`. Failed attachment to an existing session does not release

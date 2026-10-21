@@ -38,6 +38,7 @@ jobs:
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
+      integrations-python: ${{ steps.filter.outputs.integrations-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -78,6 +79,13 @@ jobs:
               - '.github/**'
             deepagents-runner:
               - 'packages/integrations/deepagents/runner/**'
+              - '.github/**'
+            integrations-python:
+              - 'packages/integrations/core/python/**'
+              - 'packages/integrations/core/conformance/**'
+              - 'packages/integrations/core/src/facade/**'
+              - 'packages/integrations/core/scripts/**'
+              - 'packages/sdk-python/**'
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
@@ -397,6 +405,57 @@ jobs:
 
       - run: uv lock --check
       - run: uv sync --locked --dev
+      - run: uv run --locked pytest
+
+  integrations-python-checks:
+    name: Python facade checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.integrations-python == 'true'
+    defaults:
+      run:
+        working-directory: packages/integrations/core/python
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      # The vendored _bundle.json must equal the integrations build's
+      # dist/facade-bundle.json. The check reads two files with node:fs, so the
+      # build job's artifacts and a bare Node are enough; no pnpm install.
+      - name: Download build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-artifacts
+          path: .
+          merge-multiple: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+
+      - name: Check the vendored facade bundle
+        run: node scripts/sync-python-facade-bundle.mjs --check
+        working-directory: packages/integrations/core
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/integrations/core/python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/integrations/core/python
+          enable-cache: true
+          cache-dependency-glob: packages/integrations/core/python/uv.lock
+
+      - run: uv lock --check
+      - run: uv sync --locked --dev
+      - run: uv run --locked ruff format --check
+      - run: uv run --locked ruff check
+      - run: uv run --locked ty check
       - run: uv run --locked pytest
 
   python-wheel-smoke:
