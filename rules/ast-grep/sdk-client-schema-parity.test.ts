@@ -17,7 +17,6 @@ type Concept = {
 };
 
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
-const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
 // These deprecated Chrome extension ID fields are accepted but ignored by connect.
 const intentionallyUndocumentedBrowserFields = new Set([
@@ -185,15 +184,12 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
     const expected = {
       TypeScript: Object.keys(ClientSchemas.StagehandCreateOptionsSchema.shape).sort(),
       Python: pythonFields,
-      Go: (await goStructFieldSpellings("client_options.go", "CreateOptions"))
-        .map((field) => `options.${field}`)
-        .sort(),
     } as const;
     const differences: string[] = [];
 
     for (const [language, fields] of Object.entries(expected)) {
       const section = languageSection(source, language);
-      const create = headingSection(section, language === "Go" ? "Create" : "create");
+      const create = headingSection(section, "create");
       const documented = [...create.matchAll(/<ParamField\s+path="([^"]+)"/gu)]
         .map((match) => match[1] as string)
         .sort();
@@ -227,11 +223,6 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
     for (const concept of browserConcepts) {
       const typescriptFields = Object.keys(concept.typescript.shape);
       const pythonFields = await concept.python();
-      const goFile =
-        concept.name === "StagehandClientLoggingConfig"
-          ? "client_options.go"
-          : "browser_factories.go";
-      const goFields = await goStructFieldSpellings(goFile, concept.name);
       for (const field of typescriptFields) {
         if (
           !isIntentionallyUndocumentedBrowserField(concept.name, field) &&
@@ -248,14 +239,6 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
           missing.push(`browser Python ${concept.name}.${field}`);
         }
       }
-      for (const field of goFields) {
-        if (
-          !isIntentionallyUndocumentedBrowserField(concept.name, field) &&
-          !browserDocs.includes(field)
-        ) {
-          missing.push(`browser Go ${concept.name}.${field}`);
-        }
-      }
     }
     for (const field of Object.keys(ClientSchemas.StagehandClientLoggingConfigSchema.shape)) {
       if (!loggingDocs.includes(field)) missing.push(`logging TypeScript ${field}`);
@@ -265,12 +248,6 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
       "StagehandClientLoggingConfig",
     )) {
       if (!loggingDocs.includes(field)) missing.push(`logging Python ${field}`);
-    }
-    for (const field of await goStructFieldSpellings(
-      "client_options.go",
-      "StagehandClientLoggingConfig",
-    )) {
-      if (!loggingDocs.includes(field)) missing.push(`logging Go ${field}`);
     }
 
     expect(
@@ -361,18 +338,6 @@ function pythonParameterName(parameter: SgNode): string | undefined {
   const name = parameter.field("name") ?? parameter.field("pattern");
   if (name) return name.find({ rule: { kind: "identifier" } })?.text() ?? name.text();
   return parameter.find({ rule: { kind: "identifier" } })?.text();
-}
-
-async function goStructFieldSpellings(file: string, structName: string): Promise<string[]> {
-  const source = await readFile(new URL(file, goSource), "utf8");
-  const body = source.match(
-    new RegExp(`^type ${structName} struct \\{\\n([\\s\\S]*?)^\\}`, "mu"),
-  )?.[1];
-  if (body === undefined) throw new Error(`${structName} was not found in ${file}`);
-  return body
-    .split("\n")
-    .flatMap((line) => line.match(/^\s*([A-Z][A-Za-z0-9_]*)\s+/u)?.[1] ?? [])
-    .sort();
 }
 
 function languageSection(source: string, language: string): string {
