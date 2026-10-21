@@ -22,6 +22,9 @@ export {
   NAVIGATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
   staleSnapshotIdError,
+  SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  FACADE_BROWSER_CLOSED_ERROR,
   BROWSER_SESSION_LOST_ERROR,
   BROWSER_SESSION_LOST_ERROR_PREFIX,
   SESSION_LOST_TELEMETRY_PREFIX,
@@ -53,3 +56,4 @@ export {
 } from "./config.js";
 
 export { createPlaywrightCompatRuntime } from "./runtime.js";
+export { FACADE_BUNDLE_VERSION, canonicalJson, facadeBundle, type FacadeBundle } from "./bundle.js";
