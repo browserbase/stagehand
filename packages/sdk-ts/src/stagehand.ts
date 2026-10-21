@@ -374,7 +374,8 @@ function stagehandCreateParamsForWorker(
   return StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-    browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,
+    browserCdpUrl:
+      browser.workerInitMetadata.browserCdpUrl ?? browser.cdpClient.webSocketDebuggerUrl,
     logLevel: logging.level,
     ...protocolParams,
     ...(browser.workerInitMetadata.browser === undefined

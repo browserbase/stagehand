@@ -277,6 +277,9 @@ FieldSchema13: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema13"
 FieldSchema14: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema14"], dict[str, "FieldSchema14"]]]
 
 
+FieldSchema15: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema15"], dict[str, "FieldSchema15"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -332,7 +335,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema14]
+    data: NotRequired[FieldSchema15]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -718,7 +721,7 @@ class PageAddInitScriptParams(TypedDict):
     source: str
 
 
-PageCDPEventParams: TypeAlias = dict[str, FieldSchema12]
+PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]
 
 
 class PageCDPEvent(TypedDict):
@@ -984,6 +987,21 @@ class PageVoidResult(TypedDict):
     ok: Literal[True]
 
 
+class PageWaitForFunctionOptions(TypedDict):
+    polling: NotRequired[Literal["raf"] | float]
+    timeout: NotRequired[int]
+
+
+class PageWaitForFunctionParams(TypedDict):
+    page_id: str
+    expression: str
+    options: NotRequired[PageWaitForFunctionOptions]
+
+
+class PageWaitForFunctionResult(TypedDict):
+    value: FieldSchema10
+
+
 class PageWaitForLoadStateParams(TypedDict):
     page_id: str
     state: LoadState
@@ -1101,7 +1119,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema11]
+StagehandLogData: TypeAlias = dict[str, FieldSchema12]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -1242,7 +1260,7 @@ class WebMCPAnnotation(TypedDict):
 WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
 
 
-WebMCPJsonValue: TypeAlias = FieldSchema10
+WebMCPJsonValue: TypeAlias = FieldSchema11
 
 
 class PageWebMCPInvokeToolParams(TypedDict):

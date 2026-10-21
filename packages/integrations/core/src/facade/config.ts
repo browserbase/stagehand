@@ -4,6 +4,7 @@ import {
   type LocalBrowserLaunchOptions,
   type StagehandClientCreateConfig,
 } from "@browserbasehq/stagehand";
+import { RUN_OPTIONS } from "./contract.js";
 
 export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
@@ -19,6 +20,8 @@ export type StagehandFacadeConfig = {
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
     | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions };
   stagehand: StagehandClientCreateConfig;
+  /** STAGEHAND_FACADE_QUIET_WAIT: see StagehandFacadeToolsOptions.quietWait. */
+  quietWait: boolean;
 };
 
 export function stagehandFacadeConfigFromEnv(
@@ -89,6 +92,9 @@ export function stagehandFacadeConfigFromEnv(
     );
   }
   const stagehand = parsed.data;
+  const quietWait =
+    booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ??
+    RUN_OPTIONS.quietWait.default;
 
   return {
     browser:
@@ -116,6 +122,7 @@ export function stagehandFacadeConfigFromEnv(
           }
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
+    quietWait,
   };
 }
 
