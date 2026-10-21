@@ -166,8 +166,9 @@ export type PlaywrightCompatRuntimeOptions = {
   hiddenPageIds?: string[];
   /**
    * page.waitForTimeout(ms) returns once the page is quiet (DOM content loaded
-   * and no DOM mutation for 400 ms), never later than ms. Off by default: the
-   * wait then sleeps exactly ms.
+   * and no mutation in the main document for 400 ms; shadow roots and iframes
+   * are not observed), never later than ms. Waits of 400 ms or less always
+   * sleep in full. Off by default: the wait then sleeps exactly ms.
    */
   quietWait?: boolean;
 };
@@ -1025,8 +1026,10 @@ export async function createPlaywrightCompatRuntime(
     );
   // page.waitForTimeout with options.quietWait. Models overshoot fixed waits,
   // so the wait ends once the page is quiet: readyState is past "loading" and
-  // the DOM has not mutated for QUIET_WAIT_WINDOW_MS. It never runs past the
-  // requested time, and a failed or hung probe (navigation) only costs a poll.
+  // the DOM has not mutated for QUIET_WAIT_WINDOW_MS. Only the main document
+  // is observed: changes inside shadow roots or iframes go unseen, so such a
+  // page can look quiet early. It never runs past the requested time, and a
+  // failed or hung probe (navigation) only costs a poll.
   const QUIET_WAIT_WINDOW_MS = 400;
   const QUIET_WAIT_POLL_MS = 100;
   // Each wait installs its own MutationObserver on the document under a random

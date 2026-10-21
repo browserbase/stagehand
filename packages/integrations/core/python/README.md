@@ -39,9 +39,10 @@ facade_instructions()  # the agent instructions for the system prompt
   symlink.
 - `browser.close()` in run code closes the Stagehand and its browser once the
   call finishes (pass `on_close_requested` to own that cleanup); later calls fail.
-- `quiet_wait=True` (experimental, off by default) makes `page.waitForTimeout(ms)`
-  in run code return once the page is quiet (DOM loaded, no DOM mutation for
-  400 ms), never later than `ms`.
+- `quiet_wait=True` (experimental, off by default) makes a `page.waitForTimeout(ms)`
+  longer than 400 ms in run code return once the page is quiet (DOM loaded, no
+  mutation in the main document for 400 ms; shadow roots are not observed),
+  never later than `ms`. Shorter waits sleep in full.
 
 This host has no keeper tab and does not latch session loss; the TypeScript
 `StagehandFacadeTools` does both.

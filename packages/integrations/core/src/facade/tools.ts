@@ -92,8 +92,9 @@ export type StagehandFacadeToolsOptions = {
    */
   keeperPage?: boolean;
   /**
-   * Experimental, off by default: page.waitForTimeout(ms) in run code returns
-   * once the page is quiet, capped at ms (see RUN_OPTIONS.quietWait). The run
+   * Experimental, off by default: page.waitForTimeout(ms) longer than 400 ms
+   * in run code returns once the main document is quiet, capped at ms (see
+   * RUN_OPTIONS.quietWait). The run
    * report's telemetry.waits shows requested against waited time.
    */
   quietWait?: boolean;
