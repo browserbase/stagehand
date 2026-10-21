@@ -569,18 +569,51 @@ This tab does not describe the active SDK API.
     ).toEqual([]);
   });
 
-  it("uses exactly one tab per SDK language on every reference page", async () => {
-    const invalidPages = (await readReferencePages()).flatMap((page) => {
-      const titles = page.views.map(({ title }) => title ?? "<missing title>").sort();
-      return arraysEqual(titles, [...DOCUMENTATION_LANGUAGES].sort())
-        ? []
-        : [`${page.filePath}: ${titles.join(", ")}`];
-    });
+  it("requires one TypeScript and Python tab per reference page, with Go optional", async () => {
+    const invalidPages = (await readReferencePages()).flatMap(referenceTabProblems);
 
     expect(
       invalidPages,
-      "Each reference page must contain exactly one TypeScript, Python, and Go tab",
+      "Each reference page must contain exactly one TypeScript and Python tab, with no duplicate language tabs",
     ).toEqual([]);
+  });
+
+  it.each([
+    ["active SDKs only", ["TypeScript", "Python"], true],
+    ["optional Go content", ["TypeScript", "Python", "Go"], true],
+    ["missing TypeScript", ["Python", "Go"], false],
+    ["missing Python", ["TypeScript", "Go"], false],
+    ["Go only", ["Go"], false],
+    ["no language tabs", [], false],
+    ["duplicate TypeScript", ["TypeScript", "TypeScript", "Python"], false],
+    ["duplicate Python", ["TypeScript", "Python", "Python"], false],
+    ["duplicate Go", ["TypeScript", "Python", "Go", "Go"], false],
+  ] as const)("validates reference coverage with %s", (_name, titles, valid) => {
+    const source = `<Tabs>
+${titles
+  .map(
+    (title) => `<Tab title="${title}">
+
+## freshFeature()
+
+</Tab>`,
+  )
+  .join("\n")}
+</Tabs>`;
+    const tree = createProcessor({ format: "mdx" }).parse(source) as MdxNode;
+    const page: ReferencePage = {
+      classSlug: "fresh-object",
+      filePath: "v4/reference/fresh-object.mdx",
+      views: findLanguageTabs(tree).map((view) => readReferenceTab(view, "fixture.mdx")),
+    };
+    expect(referenceTabProblems(page).length === 0).toBe(valid);
+    if (valid) {
+      for (const language of LANGUAGES) {
+        expect(documentedMethods([page], language).map(({ method }) => method.methodName)).toEqual([
+          "freshFeature",
+        ]);
+      }
+    }
   });
 
   it("documents the exact direct signature parameters inside each language tab", async () => {
@@ -1215,7 +1248,46 @@ describe("Mintlify customization boundary", () => {
       [["TypeScript", "TypeScript"]],
       false,
     ],
-    ["core guide missing Go", "v4/guides/example.mdx", [["TypeScript", "Python"]], false],
+    ["core guide without Go", "v4/guides/example.mdx", [["TypeScript", "Python"]], true],
+    ["core guide missing TypeScript", "v4/guides/example.mdx", [["Python", "Go"]], false],
+    ["core guide missing Python", "v4/guides/example.mdx", [["TypeScript", "Go"]], false],
+    ["core guide with only Go", "v4/guides/example.mdx", [["Go"]], false],
+    [
+      "core guide with optional Go in only one group",
+      "v4/guides/example.mdx",
+      [
+        ["TypeScript", "Python", "Go"],
+        ["TypeScript", "Python"],
+      ],
+      true,
+    ],
+    [
+      "integration with optional Go in only one group",
+      "v4/integrations/example.mdx",
+      [["TypeScript", "Go"], ["TypeScript"]],
+      true,
+    ],
+    [
+      "core guide missing an active SDK in a later group",
+      "v4/guides/example.mdx",
+      [
+        ["TypeScript", "Python"],
+        ["TypeScript", "Go"],
+      ],
+      false,
+    ],
+    [
+      "duplicate core guide tabs",
+      "v4/guides/example.mdx",
+      [["TypeScript", "Python", "Python"]],
+      false,
+    ],
+    [
+      "duplicate optional tabs",
+      "v4/guides/example.mdx",
+      [["TypeScript", "Python", "Go", "Go"]],
+      false,
+    ],
     ["complete core guide", "v4/guides/example.mdx", [["TypeScript", "Python", "Go"]], true],
   ] as const)("validates language groups for %s", (_name, pagePath, groups, valid) => {
     const source = groups
@@ -1228,7 +1300,7 @@ describe("Mintlify customization boundary", () => {
     expect(languageTabGroupProblems(pagePath, tree).length === 0).toBe(valid);
   });
 
-  it("gives every language tab group the complete language set for its page", async () => {
+  it("gives every language tab group the required active SDK coverage for its page", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
@@ -1275,7 +1347,7 @@ describe("Mintlify customization boundary", () => {
 
     expect(
       problems,
-      "Every language tab group must offer the languages supported by its page, so switching never hides a snippet",
+      "Every language tab group must cover its required active SDKs; Go content is optional",
     ).toEqual([]);
   });
 
@@ -2063,6 +2135,15 @@ async function readReferencePages(): Promise<ReferencePage[]> {
   );
 }
 
+function referenceTabProblems(page: ReferencePage): string[] {
+  const titles = page.views.map(({ title }) => title ?? "<missing title>");
+  const valid =
+    LANGUAGES.every((language) => titles.includes(language)) &&
+    titles.every((title) => LANGUAGE_TAB_TITLES.has(title)) &&
+    new Set(titles).size === titles.length;
+  return valid ? [] : [`${page.filePath}: ${titles.join(", ")}`];
+}
+
 function readReferenceTab(view: MdxNode, filePath: string): ReferenceTab {
   const title = stringAttribute(view, "title");
   return {
@@ -2161,13 +2242,13 @@ function isLanguageTab(node: MdxNode): boolean {
   return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
 }
 
-// Integrations follow their upstream SDKs. Core docs cover all Stagehand SDKs.
-// Within a page, each language group must still offer the same choices.
+// Integrations require the active SDK languages used elsewhere on their page.
+// Core docs require both active SDKs. Go is recognized but never required.
 function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   const present = new Set(findLanguageTabs(tree).map((tab) => stringAttribute(tab, "title")));
   const required = pagePath.startsWith("v4/integrations/")
-    ? DOCUMENTATION_LANGUAGES.filter((language) => present.has(language))
-    : DOCUMENTATION_LANGUAGES;
+    ? LANGUAGES.filter((language) => present.has(language))
+    : LANGUAGES;
 
   return findElements(tree, "Tabs").flatMap((group, index) => {
     const titles = (group.children ?? [])
