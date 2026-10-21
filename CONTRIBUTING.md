@@ -35,16 +35,14 @@ That protocol is the contract, and it decides how a change ripples through the r
 | [`packages/evals`](packages/evals)           | The evaluation harness                                                                                     |
 | [`packages/docs`](packages/docs)             | The documentation site                                                                                     |
 
-Because Python and Go are generated, a protocol change is never a single-package change. Regenerate
-the clients rather than hand-editing anything under `packages/sdk-python/src/stagehand/_generated/`
-or a `*.gen.go` file.
+The Python models are generated from the protocol. Regenerate them rather than hand-editing
+anything under `packages/sdk-python/src/stagehand/_generated/`.
 
 ## Set up your environment
 
-Stagehand is a TypeScript, Python, and Go monorepo, and [`just`](https://github.com/casey/just)
-drives all three. Install Node.js 22.18 or later, Go 1.26, `just`, [`pnpm`](https://pnpm.io), and
+The root [`just`](https://github.com/casey/just) recipes cover TypeScript and Python development.
+Install Node.js 22.18 or later, `just`, [`pnpm`](https://pnpm.io), and
 [`uv`](https://docs.astral.sh/uv/).
-Go first.
 
 ```bash
 git clone https://github.com/browserbase/stagehand.git
@@ -53,9 +51,9 @@ just install
 just build
 ```
 
-`just install` installs the pnpm workspace, syncs the Python environment with `uv`, and downloads the
-Go modules. `pnpm install` on its own covers only the TypeScript workspace, which leaves the Python
-and Go checks unable to run.
+`just install` installs the pnpm workspace and syncs the Python environment with `uv`.
+`pnpm install` on its own covers only the TypeScript workspace, which leaves the Python
+checks unable to run.
 
 Add an LLM provider key and a Browserbase API key to run anything that reaches a model or a cloud
 browser:
@@ -67,29 +65,27 @@ cp .env.example .env
 Run an example to confirm the setup works:
 
 ```bash
-just example act        # packages/sdk-ts/examples/act.ts
-just go-example act     # packages/sdk-go/examples/act.go
+just example act # packages/sdk-ts/examples/act.ts
 ```
 
 ## Before you open a pull request
 
-Run these from the repository root. Each covers TypeScript, Python, and Go together, which is what
-CI runs:
+Run these from the repository root to format, check, and test TypeScript and Python:
 
 ```bash
-just fmt   # oxfmt, ruff, and gofmt
-just check # formatting, lint, types, generated-code drift, and go vet
-just test  # vitest, pytest, and go test
+just fmt   # oxfmt and ruff
+just check # formatting, lint, types, release metadata, and Python generated-code drift
+just test  # vitest and pytest
 ```
 
-`just check` validates generated clients against the committed protocol schema. If you touched
+`just check` validates the generated Python models against the committed protocol schema. If you touched
 `packages/protocol`, regenerate first:
 
 ```bash
 just generate
 ```
 
-That rebuilds the protocol, regenerates the Python models and the Go client, and rebuilds the
+That rebuilds the protocol, regenerates and type-checks the Python models, and rebuilds the
 extension bundle. Commit the regenerated files with your change.
 
 > [!TIP]
