@@ -52,11 +52,15 @@ class _BrowserRuntime:
         self.browserbase_api_key = browserbase_api_key
         self.browserbase_api_url = browserbase_api_url
         self.session_id = browser.session_id
+        # Set when run code called browser.close(): later calls get the facade's
+        # terminal closed error instead of a relaunched browser.
+        self.closed_by_agent = False
+        self._closed = False
         self.tools = StagehandFacadeTools(
             stagehand,
             artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
             # run code calling browser.close() closes and releases the session.
-            on_close_requested=self.close,
+            on_close_requested=self._close_requested,
             quiet_wait=os.environ.get("STAGEHAND_FACADE_QUIET_WAIT", "").lower()
             in {"1", "true", "yes", "on"},
         )
@@ -129,7 +133,14 @@ class _BrowserRuntime:
             await browser.close()
             raise
 
+    async def _close_requested(self) -> None:
+        self.closed_by_agent = True
+        await self.close()
+
     async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         try:
             try:
                 await self.stagehand.close()
@@ -160,6 +171,11 @@ class _BrowserRegistry:
         async with self.lock:
             await self._close_expired(now)
             entry = self.entries.get(thread_id)
+            if entry is not None and entry.browser.closed_by_agent:
+                # An intentional close is not a crash; keep answering with the
+                # facade's closed error until the entry expires.
+                entry.last_used = now
+                return entry.browser
             if entry is not None and not await _runtime_alive(entry.browser):
                 # The handle is dead (socket drop, resume elsewhere) — closed
                 # never flips on its own, so probe liveness. The keep-alive

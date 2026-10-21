@@ -142,10 +142,12 @@ async def test_browser_tools_pass_options_to_the_facade(
 
 
 async def test_close_shuts_down_stagehand_then_browser_once() -> None:
+    calls: list[str] = []
     stagehand = AsyncMock()
     browser = AsyncMock()
+    stagehand.close.side_effect = lambda: calls.append("stagehand")
+    browser.close.side_effect = lambda: calls.append("browser")
     tools = BrowserTools(stagehand=stagehand, browser=browser, config=RuntimeConfig())
     await tools.close()
     await tools.close()
-    stagehand.close.assert_awaited_once()
-    browser.close.assert_awaited_once()
+    assert calls == ["stagehand", "browser"]
