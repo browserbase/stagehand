@@ -89,12 +89,16 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if options.Generate != nil {
 		client.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(options.Generate))
 	}
+	browserCDPURL := claimed.workerCDPURL
+	if browserCDPURL == "" {
+		browserCDPURL = rpc.browserWebSocketDebuggerURL()
+	}
 	initParams := workerInitParams(workerInitOptions{
 		browserbase: connection != nil, browser: claimed.workerBrowser, cache: options.Cache,
 		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
-		telemetry: optionalTelemetry(options.Telemetry), browserCDPURL: rpc.browserWebSocketDebuggerURL(),
+		telemetry: optionalTelemetry(options.Telemetry), browserCDPURL: browserCDPURL,
 	})
 	var initResult StagehandInitResult
 	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {

@@ -14,6 +14,12 @@ dependencies = [
 
 [tool.uv]
 package = false
+# CrewAI 1.15.24 restricts these dependencies below their security fixes.
+# Remove once upstream accepts MCP 1.30.0 and uv 0.13.4 or newer.
+override-dependencies = [
+  "mcp>=1.30.0,<2", # GHSA-84m7-p3x7-pcfv
+  "uv>=0.13.4,<0.14", # GHSA-hq85-5cpj-mr62
+]
 
 [dependency-groups]
 dev = ["pytest>=9,<10", "ruff>=0.15,<1"]

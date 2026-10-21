@@ -599,6 +599,100 @@ async def test_local_connect_ignores_id_and_defers_packaged_extension(
     await handle.close()
 
 
+async def test_local_connect_carries_the_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(
+        cdp_url="wss://gateway/cdp?api_key=secret",
+        extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/abc",
+    )
+    metadata = handle._attachment.worker_init_metadata
+    assert metadata.browser_cdp_url == "ws://127.0.0.1:9300/devtools/browser/abc"
+    assert fake_cdp.connect_arguments[-1]["cdp_url"] == "wss://gateway/cdp?api_key=secret"
+    await handle.close()
+
+
+async def test_local_connect_defaults_the_extension_to_the_client_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert handle._attachment.worker_init_metadata.browser_cdp_url is None
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "extension_cdp_url",
+    [
+        "",
+        "http://127.0.0.1:9300",
+        "ws://",
+        "/devtools/browser/abc",
+        "ws://browser:bad/devtools",
+        "ws://browser:99999/devtools",
+        "ws://browser:0/devtools",
+        "wss://browser:0/devtools",
+    ],
+)
+async def test_local_connect_rejects_an_invalid_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+    extension_cdp_url: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        await local_browser.connect(cdp_url="http://browser", extension_cdp_url=extension_cdp_url)
+
+
+async def test_local_connect_sends_headers_only_when_given(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="https://gw/cdp", headers={"X-Api-Key": "k"})
+    assert fake_cdp.connect_arguments[-1]["headers"] == {"X-Api-Key": "k"}
+    await handle.close()
+
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert "headers" not in fake_cdp.connect_arguments[-1]
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Bad Name": "secret-value"},
+        {"X-Api-Key": "secret-value\r\nInjected: 1"},
+        {"X-Api-Key": "secret-value\x80"},
+        {"X-Api-Key": "secret-value\xff"},
+        {"X-Api-Key": "secret-value\u2603"},
+        {"X-Api-Key": " secret-value"},
+        {"X-Api-Key": "secret-value "},
+        {"X-Api-Key": "\tsecret-value"},
+        {"X-Api-Key": "secret-value\t"},
+        {"X-Api-Key": " \t "},
+        {"secret-value invalid name": "dummy"},
+        {"Authorization": ["secret-value"]},
+        {"Authorization": {"token": "secret-value"}},
+        {"Authorization": b"secret-value"},
+        {"Authorization": 123, "X-Api-Key": "secret-value"},
+        {"Authorization": None, "X-Api-Key": "secret-value"},
+        {1: "secret-value"},
+        "secret-value",
+        ["secret-value"],
+        [("Authorization", "secret-value")],
+        {"": "v"},
+    ],
+)
+async def test_local_connect_rejects_unsafe_headers_without_echoing_them(
+    fake_cdp: type[FakeCDPClient],
+    headers: object,
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        await local_browser.connect(cdp_url="http://browser", headers=cast(Any, headers))
+    assert "secret-value" not in str(error.value)
+    assert "secret-value" not in repr(error.value.errors())
+    assert "secret-value" not in error.value.json()
+    assert error.value.errors()[0]["loc"] == ("headers",)
+    assert error.value.errors()[0]["input"] == "[redacted]"
+    assert fake_cdp.connect_arguments == []
+
+
 async def test_browser_factory_bounds_the_complete_connection_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
