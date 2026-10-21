@@ -5,9 +5,11 @@ import { CDPConnectionClosedError, type Stagehand } from "@browserbasehq/stageha
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BROWSER_SESSION_LOST_ERROR_PREFIX,
+  staleSnapshotIdError,
   type FacadeSessionLoss,
 } from "../src/facade/contract.js";
 import {
+  StagehandFacadeInputError,
   StagehandFacadeSessionLostError,
   StagehandFacadeCleanupError,
   StagehandFacadeTools,
@@ -744,6 +746,53 @@ describe("StagehandFacadeTools session loss", () => {
     expect(world.locators.filter((locator) => locator.selector === "xpath=/first")).toHaveLength(1);
     expect(world.locators[0]?.click).toHaveBeenCalledOnce();
     expect(page.waitForTimeout).not.toHaveBeenCalled();
+  });
+
+  it("resolves bare backend ids and text nodes to their element XPath", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-7": "/html[1]/body[1]/a[1]", "1-9": "/html[1]/body[1]/p[1]/text()[2]" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(
+      tools.runActions([
+        { op: "click", id: "7" },
+        { op: "hover", id: "1-9" },
+      ]),
+    ).resolves.toStrictEqual({ completed: 2, url: "https://example.com" });
+    expect(world.locators.map((locator) => locator.selector)).toStrictEqual([
+      "xpath=/html[1]/body[1]/a[1]",
+      "xpath=/html[1]/body[1]/p[1]",
+    ]);
+  });
+
+  it.each([
+    ["an unknown id", "0-3"],
+    ["an ambiguous bare backend id", "7"],
+    ["a bare id containing a dash", "x-7"],
+  ])("rejects %s as stale before running any action", async (_case, id) => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-1": "/first", "0-7": "/a", "1-7": "/b" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    const error = await tools
+      .runActions([
+        { op: "click", id: "0-1" },
+        { op: "click", id },
+      ])
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(StagehandFacadeInputError);
+    expect((error as Error).message).toBe(staleSnapshotIdError(id));
+    expect(world.locators).toHaveLength(0);
   });
 
   it("treats a single capture deadline as recoverable, escalating to session loss only after repeated consecutive timeouts", async () => {
