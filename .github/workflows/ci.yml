@@ -11,15 +11,14 @@ on:
       - labeled
       - unlabeled
       - edited
-  push:
-    branches:
-      - v4-go
+  # The release workflow runs these same checks for pushes before tagging.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -60,6 +59,8 @@ jobs:
           fi
       - name: Check Go unions
         run: pnpm exec vitest run rules/ast-grep/go-union-strictness.test.ts
+      - name: Test Go release status
+        run: pnpm exec vitest run scripts/release/go-publish-status.test.ts
       - name: Vet, test, and build Go
         working-directory: packages/sdk-go
         shell: bash
