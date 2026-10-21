@@ -75,12 +75,18 @@ class FakePage:
         return self._stagehand.url
 
     async def snapshot(self, *, include_iframes: bool, timeout: float) -> FakeSnapshot:
-        snapshot = self._stagehand.case.get("page", {}).get("snapshot")
+        snapshot = self._stagehand.snapshot
         if snapshot is None:
             return FakeSnapshot("", {})
         return FakeSnapshot(snapshot["formattedTree"], snapshot["xpathMap"])
 
     async def screenshot(self, *, type: str, full_page: bool | None, quality: int | None) -> bytes:
+        # Recorded in the case format's { type, fullPage?, quality? } shape.
+        self._stagehand.screenshot_options = {
+            "type": type,
+            **({"fullPage": full_page} if full_page is not None else {}),
+            **({"quality": quality} if quality is not None else {}),
+        }
         return base64.b64decode(self._stagehand.case.get("page", {}).get("screenshot", ""))
 
 
@@ -120,9 +126,12 @@ class FakeStagehand:
     scripted: list[dict[str, Any]] = field(default_factory=list)
     sent: list[object] = field(default_factory=list)
     close_count: int = 0
+    snapshot: dict[str, Any] | None = None
+    screenshot_options: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         self.url = self.case.get("page", {}).get("url", self.url)
+        self.snapshot = self.case.get("page", {}).get("snapshot")
         self.browser = FakeBrowser(FakePage(self))
 
     async def experimental_batch(
@@ -209,6 +218,9 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
     for index, step in enumerate(case["steps"]):
         if "pageUrl" in step:
             fake.url = step["pageUrl"]
+        if "snapshot" in step:
+            fake.snapshot = step["snapshot"]
+        fake.screenshot_options = None
         fake.scripted = list(step["batch"])
         fake.sent = []
         try:
@@ -227,10 +239,15 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
         assert not fake.scripted, f"step {index}: unused batch responses"
         if "sent" in step:
             assert fake.sent == step["sent"], f"step {index}"
+        if "screenshotOptions" in step:
+            assert json.dumps(fake.screenshot_options, sort_keys=True) == json.dumps(
+                step["screenshotOptions"], sort_keys=True
+            ), f"step {index}: screenshot options"
 
     expected = case.get("expect", {})
     if "closed" in expected:
         assert fake.close_count == (1 if expected["closed"] else 0)
+        assert fake.browser.close_count == (1 if expected["closed"] else 0)
     if "tree" in expected:
         assert list_tree(sandbox) == expected["tree"]
     for file, content in expected.get("files", {}).items():

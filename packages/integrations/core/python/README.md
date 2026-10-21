@@ -25,9 +25,15 @@ facade_instructions()  # the agent instructions for the system prompt
 
 - `run` code runs inside an async function with Playwright-shaped `page`,
   `context` and `browser`. An error it throws is raised as
-  `StagehandFacadeExecutionError` (with the JavaScript `name` and `stack`);
-  ordinary tool errors are `StagehandFacadeInputError`. Code that does not parse
-  as an async function body raises `SyntaxError` before anything is sent.
+  `StagehandFacadeExecutionError` (with the JavaScript `name` and `stack`).
+  `StagehandFacadeInputError` covers bad input and contract errors (stale
+  snapshot IDs, malformed run results, artifact paths and caps, a closed facade).
+  Other failures keep their own types: an error from the batch or RPC call
+  itself (for example `stagehand.rpc_client.RPCError`) propagates unchanged, a snapshot or
+  screenshot past its capture deadline raises `TimeoutError`, and a failed close
+  raises `StagehandFacadeCleanupError` (or an `ExceptionGroup` with the run's own
+  error). Code that does not parse as an async function body raises
+  `SyntaxError` before anything is sent.
 - Screenshots saved with a `path` are written under `artifact_root` (default: the
   current directory). A path must stay within it and must not pass through a
   symlink.

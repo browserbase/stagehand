@@ -5,9 +5,11 @@ import copy
 import hashlib
 import json
 from collections.abc import Callable
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import pytest
+from stagehand import Stagehand
 
 from stagehand_integrations.facade import (
     StagehandFacadeBundleError,
@@ -112,3 +114,51 @@ async def test_a_capture_past_its_deadline_fails_with_the_typescript_message(
     monkeypatch.setattr(tools, "PAGE_CAPTURE_DEADLINE_S", 0.01)
     with pytest.raises(TimeoutError, match=r"^page\.snapshot received no response within 10ms$"):
         await tools._with_deadline(asyncio.sleep(1), "page.snapshot")
+
+
+def test_facade_bundle_returns_a_copy_the_host_does_not_use() -> None:
+    bundle = facade_bundle()
+    bundle["contract"]["limits"]["maxArtifacts"] = 10_000
+    bundle["sources"]["runPrelude"] = "tampered"
+    assert facade_bundle()["contract"]["limits"]["maxArtifacts"] == 32
+    assert facade_bundle()["sources"]["runPrelude"] != "tampered"
+
+
+def _host(**options: Any) -> tools.StagehandFacadeTools:  # noqa: ANN401 - host options
+    return tools.StagehandFacadeTools(cast(Stagehand, object()), **options)
+
+
+def test_artifacts_fail_closed_without_o_nofollow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delattr(tools.os, "O_NOFOLLOW", raising=False)
+    host = _host(artifact_root=tmp_path)
+    with pytest.raises(tools.StagehandFacadeInputError, match="no O_NOFOLLOW"):
+        host._write_artifacts([{"path": "shot.png", "base64": "AA=="}])
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("\ud800", len('"\\ud800"')),  # a lone surrogate is a six-byte escape, as in JS
+        (chr(0xD83D) + chr(0xDE00), len('""') + 4),  # a pair as two code units is one character
+        ("\U0001f600", len('""') + 4),
+        ("é", len('""') + 2),
+        ({"a": [1, None]}, len('{"a":[1,null]}')),
+    ],
+    ids=["lone-surrogate", "split-pair", "astral", "latin", "object"],
+)
+def test_value_size_counts_bytes_like_json_stringify(value: object, expected: int) -> None:
+    assert tools._json_value_bytes(value) == expected
+
+
+async def test_a_failed_close_callback_is_not_chained() -> None:
+    async def failing_close() -> None:
+        raise RuntimeError("provider said: secret-token")
+
+    host = _host(on_close_requested=failing_close)
+    with pytest.raises(tools.StagehandFacadeCleanupError) as raised:
+        await host._close_now()
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__

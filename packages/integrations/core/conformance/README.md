@@ -1,7 +1,8 @@
 # Facade conformance cases
 
 Every facade host (the TypeScript `StagehandFacadeTools`, and hosts in other
-languages built on `dist/facade-bundle.json`) must pass every case in `cases/`.
+languages built on `dist/facade-bundle.json`) must pass every applicable case
+in `cases/`: every case except those `notApplicable` marks for that host.
 The cases drive a host against a fake Stagehand, so they check what the host
 does with batch results, snapshots and the artifact root, not the browser-side
 JavaScript. `tests/facade-conformance.test.ts` runs them on the TypeScript host
