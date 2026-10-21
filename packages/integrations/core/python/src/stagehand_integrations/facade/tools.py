@@ -25,7 +25,7 @@ from jsonschema.exceptions import best_match
 from jsonschema.protocols import Validator
 
 from ._syntax import check_run_syntax
-from .bundle import contract_error, facade_bundle, facade_tools
+from .bundle import _bundle, contract_error, facade_tools
 
 if TYPE_CHECKING:
     from stagehand import Page, Stagehand
@@ -37,6 +37,10 @@ RUN_BATCH_TIMEOUT_MS = 60_000
 PAGE_CAPTURE_DEADLINE_S = 120.0
 """snapshot/screenshot RPCs have no executor-side deadline; calls are serialized, so
 one that never answers must release the queue at a bounded deadline."""
+SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR = (
+    "Screenshot artifacts cannot be written safely on this platform: it has no O_NOFOLLOW."
+)
+"""Python-only: the TypeScript facade always has O_NOFOLLOW, so it needs no such error."""
 
 _ERROR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]*Error")
 # Padded RFC 4648 base64, as btoa writes it (see isCanonicalBase64 in tools.ts).
@@ -196,7 +200,7 @@ class StagehandFacadeTools:
             raise StagehandFacadeInputError(contract_error("NAVIGATED_SNAPSHOT_ERROR"))
         # Earlier actions may already have run when one fails; never replay the batch.
         result = await self._stagehand.experimental_batch(
-            facade_bundle()["sources"]["actionRunner"],
+            _bundle()["sources"]["actionRunner"],
             {"actions": actions, "xpathById": snapshot.xpath_by_id},
             timeout=RUN_BATCH_TIMEOUT_MS,
             page=page,
@@ -210,7 +214,7 @@ class StagehandFacadeTools:
 
     async def _run_code(self, code: str) -> object:
         check_run_syntax(code)
-        sources = facade_bundle()["sources"]
+        sources = _bundle()["sources"]
         source = sources["runPrelude"] + code + sources["runEpilogue"]
         page = await self._active_page()
         envelope = await self._run_batch(source, page)
@@ -228,9 +232,8 @@ class StagehandFacadeTools:
                     execution_error["message"],
                     execution_error.get("stack"),
                 )
-            value = json.dumps(envelope.get("value"), separators=(",", ":"), ensure_ascii=False)
-            limit = facade_bundle()["contract"]["limits"]["maxValueBytes"]
-            if len(value.encode("utf-8", "surrogatepass")) > limit:
+            limit = _bundle()["contract"]["limits"]["maxValueBytes"]
+            if _json_value_bytes(envelope.get("value")) > limit:
                 raise StagehandFacadeInputError(contract_error("RUN_VALUE_SIZE_ERROR"))
         except Exception as error:
             run_error = error
@@ -265,22 +268,26 @@ class StagehandFacadeTools:
     def _write_artifacts(self, artifacts: list[dict[str, str]]) -> None:
         if not artifacts:
             return
-        limits = facade_bundle()["contract"]["limits"]
+        limits = _bundle()["contract"]["limits"]
         # Check every cap before the first write so an oversized run saves nothing.
         if len(artifacts) > limits["maxArtifacts"]:
             raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_COUNT_ERROR"))
-        decoded: list[tuple[str, bytes]] = []
+        # Sizes come from the base64 length (_is_run_envelope already required
+        # canonical padding), so no artifact is decoded until all of them fit.
         total = 0
         for artifact in artifacts:
-            data = base64.b64decode(artifact["base64"], validate=True)
-            if len(data) > limits["maxArtifactBytes"]:
+            size = _decoded_base64_length(artifact["base64"])
+            if size > limits["maxArtifactBytes"]:
                 raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_SIZE_ERROR"))
-            total += len(data)
+            total += size
             if total > limits["maxTotalArtifactBytes"]:
                 raise StagehandFacadeInputError(
                     contract_error("SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR")
                 )
-            decoded.append((artifact["path"], data))
+        decoded = [
+            (artifact["path"], base64.b64decode(artifact["base64"], validate=True))
+            for artifact in artifacts
+        ]
         configured_root = os.path.abspath(self._artifact_root or os.getcwd())
         os.makedirs(configured_root, exist_ok=True)
         root = os.path.realpath(configured_root)
@@ -308,7 +315,11 @@ class StagehandFacadeTools:
                     raise StagehandFacadeInputError(
                         contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
                     )
-            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+            no_follow = getattr(os, "O_NOFOLLOW", None)
+            if no_follow is None:
+                # Without O_NOFOLLOW (Windows) a symlink at the file would be followed.
+                raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | no_follow
             try:
                 descriptor = os.open(os.path.join(directory, name), flags, 0o600)
             except OSError as error:
@@ -335,8 +346,9 @@ class StagehandFacadeTools:
         if self._on_close_requested is not None:
             try:
                 await self._on_close_requested()
-            except Exception as error:
-                raise StagehandFacadeCleanupError() from error
+            except Exception:
+                # Not chained: the callback's error can carry provider details.
+                raise StagehandFacadeCleanupError() from None
             return
         failed = False
         for close in (self._stagehand.close, self._stagehand.browser.close):
@@ -346,6 +358,22 @@ class StagehandFacadeTools:
                 failed = True
         if failed:
             raise StagehandFacadeCleanupError()
+
+
+def _decoded_base64_length(value: str) -> int:
+    """Byte length a canonical padded base64 string decodes to."""
+    padding = 2 if value.endswith("==") else 1 if value.endswith("=") else 0
+    return len(value) // 4 * 3 - padding
+
+
+def _json_value_bytes(value: object) -> int:
+    """UTF-8 length of the value's compact JSON as JavaScript's JSON.stringify writes
+    it: non-ASCII unescaped, but a lone surrogate written as a six-byte \\uXXXX escape."""
+    text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    # Pair up surrogates the string holds as two code units, then escape the rest.
+    text = text.encode("utf-16", "surrogatepass").decode("utf-16", "surrogatepass")
+    text = re.sub(r"[\ud800-\udfff]", lambda match: f"\\u{ord(match.group()):04x}", text)
+    return len(text.encode("utf-8"))
 
 
 async def _with_deadline(awaitable: Awaitable[T], operation: str) -> T:

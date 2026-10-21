@@ -42,11 +42,17 @@ def parse_bundle(text: str) -> dict[str, Any]:
 
 
 @cache
-def facade_bundle() -> dict[str, Any]:
-    """The vendored bundle, parsed and checked once. Treat it as read-only."""
+def _bundle() -> dict[str, Any]:
+    """The vendored bundle, parsed and checked once; the host's own read-only copy."""
     return parse_bundle(
         files("stagehand_integrations.facade").joinpath("_bundle.json").read_text(encoding="utf-8")
     )
+
+
+def facade_bundle() -> dict[str, Any]:
+    """A copy of the vendored, checksum-verified bundle. Changing it does not affect
+    the host, which keeps using its own copy."""
+    return copy.deepcopy(_bundle())
 
 
 def facade_tools(tool_set: ToolSet = "playwright") -> list[dict[str, Any]]:
@@ -56,7 +62,7 @@ def facade_tools(tool_set: ToolSet = "playwright") -> list[dict[str, Any]]:
     and ``explicitSnapshotActions`` the wording the TypeScript facade uses with
     ``EXPLICIT_SNAPSHOT_ACTIONS=1``.
     """
-    return copy.deepcopy(facade_bundle()["contract"]["tools"][tool_set])
+    return copy.deepcopy(_bundle()["contract"]["tools"][tool_set])
 
 
 def facade_instructions(tool_set: ToolSet = "playwright") -> str:
@@ -65,13 +71,13 @@ def facade_instructions(tool_set: ToolSet = "playwright") -> str:
     They are what the TypeScript hosts send with the same tool set; the MCP server
     itself sends no instructions.
     """
-    instructions: str = facade_bundle()["contract"]["instructions"][tool_set]
+    instructions: str = _bundle()["contract"]["instructions"][tool_set]
     return instructions
 
 
 def contract_error(key: str, **params: str) -> str:
     """A message from ``contract.errors`` with its ``${name}`` placeholders filled."""
-    message: str = facade_bundle()["contract"]["errors"][key]
+    message: str = _bundle()["contract"]["errors"][key]
     for name, value in params.items():
         message = message.replace(f"${{{name}}}", value, 1)
     return message
