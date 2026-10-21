@@ -44,7 +44,7 @@ describe("goPublishStatus", () => {
   });
 
   it.each(['"@browserbasehq/stagehand-go": patch', '{ "@browserbasehq/stagehand-go": patch }'])(
-    "does not tag while a changeset is pending (%s)",
+    "rejects Go changesets before looking up a tag (%s)",
     async (frontmatter) => {
       const repositoryRoot = await repositoryFixture();
       await writeFile(
@@ -53,10 +53,9 @@ describe("goPublishStatus", () => {
       );
       const tagExists = vi.fn();
 
-      await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
-        shouldTag: false,
-        tag: "packages/sdk-go/v4.0.0",
-      });
+      await expect(goPublishStatus({ repositoryRoot, tagExists })).rejects.toThrow(
+        "prepare Go patches on v4-go without Changesets",
+      );
       expect(tagExists).not.toHaveBeenCalled();
     },
   );
