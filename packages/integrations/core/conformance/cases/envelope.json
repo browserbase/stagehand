@@ -1261,6 +1261,39 @@
         "closed": false,
         "tree": ["artifacts/"]
       }
+    },
+    {
+      "name": "telemetry of the wrong type is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": 1,
+                "telemetry": [],
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_RESULT_MALFORMED_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
     }
   ]
 }

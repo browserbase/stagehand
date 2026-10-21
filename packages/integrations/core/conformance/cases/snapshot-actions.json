@@ -248,6 +248,84 @@
           }
         }
       ]
+    },
+    {
+      "name": "actions use the XPath map of the most recent snapshot",
+      "page": {
+        "url": "https://example.com/",
+        "snapshot": {
+          "formattedTree": "[0-7] button: Search",
+          "xpathMap": {
+            "0-7": "/html[1]/body[1]/button[1]"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] button: Search"
+          }
+        },
+        {
+          "snapshot": {
+            "formattedTree": "[0-7] link: Next",
+            "xpathMap": {
+              "0-7": "/html[1]/body[1]/a[1]"
+            }
+          },
+          "call": {
+            "tool": "snapshot"
+          },
+          "batch": [],
+          "expect": {
+            "result": "[0-7] link: Next"
+          }
+        },
+        {
+          "call": {
+            "tool": "run",
+            "actions": [
+              {
+                "op": "click",
+                "id": "0-7"
+              }
+            ]
+          },
+          "batch": [
+            {
+              "return": {
+                "completed": 1
+              }
+            }
+          ],
+          "sent": [
+            {
+              "callback": "actionRunner",
+              "input": {
+                "actions": [
+                  {
+                    "op": "click",
+                    "id": "0-7"
+                  }
+                ],
+                "xpathById": {
+                  "0-7": "/html[1]/body[1]/a[1]"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "result": {
+              "completed": 1,
+              "url": "https://example.com/"
+            }
+          }
+        }
+      ]
     }
   ]
 }

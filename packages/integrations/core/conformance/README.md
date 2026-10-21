@@ -15,13 +15,16 @@ page whose URL is `page.url` (default `about:blank`), whose snapshot is
 `page.snapshot`, and whose screenshot is the base64 bytes `page.screenshot`.
 Each step then:
 
-1. sets the page URL to `pageUrl`, when present;
+1. sets the page URL to `pageUrl` and the page's snapshot to `snapshot`, when
+   present (both persist for later steps);
 2. queues the step's `batch` responses: each experimental_batch call takes the
    next one, which either returns `return` or raises an error with `throw.name`
    and `throw.message`;
 3. calls the tool in `call` and checks `expect`;
-4. checks that every queued response was used, and that the batch calls made
-   match `sent` exactly, when present.
+4. checks that every queued response was used, that the batch calls made
+   match `sent` exactly, and that the options the host passed to
+   `page.screenshot` equal `screenshotOptions` (`{ type, fullPage?, quality? }`),
+   when present.
 
 After the last step it checks the case's `expect`.
 
@@ -55,7 +58,8 @@ The message is `message` verbatim, or `contractError`: a key of
 `params`.
 
 Two generators keep large or machine-specific values out of the files; a runner
-expands them anywhere in a case before use:
+expands them in batch `return` values and expected `result` values, and nowhere
+else:
 
 - `{ "$repeat": s, "count": n, "suffix"?: t }` is `s` repeated `n` times, then `t`.
 - `{ "$sandbox": p }` is the absolute path of `p` inside the sandbox.

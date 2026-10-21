@@ -28,6 +28,8 @@ type ExpectedError = {
 
 type ConformanceStep = {
   pageUrl?: string;
+  snapshot?: { formattedTree: string; xpathMap: Record<string, string> };
+  screenshotOptions?: Json;
   call: ConformanceCall;
   batch: ({ return: Json } | { throw: { name: string; message: string } })[];
   sent?: Json[];
@@ -79,14 +81,21 @@ function describeSentCall(source: string, input: unknown): Json {
 }
 
 function createFakeStagehand(testCase: ConformanceCase, sandbox: string) {
-  const state = { url: testCase.page?.url ?? "about:blank" };
+  const state = {
+    url: testCase.page?.url ?? "about:blank",
+    snapshot: testCase.page?.snapshot ?? { formattedTree: "", xpathMap: {} },
+    screenshotOptions: undefined as Json | undefined,
+  };
   let scripted: ConformanceStep["batch"] = [];
   const sent: Json[] = [];
   const page = {
     pageId: "page-1",
     url: async () => state.url,
-    snapshot: async () => testCase.page?.snapshot ?? { formattedTree: "", xpathMap: {} },
-    screenshot: async () => Buffer.from(testCase.page?.screenshot ?? "", "base64"),
+    snapshot: async () => state.snapshot,
+    screenshot: async (options: Record<string, Json>) => {
+      state.screenshotOptions = options;
+      return Buffer.from(testCase.page?.screenshot ?? "", "base64");
+    },
   };
   const context = {
     activePage: async () => page,
@@ -219,6 +228,8 @@ describe("facade conformance (TypeScript host)", () => {
 
           for (const [index, step] of testCase.steps.entries()) {
             if (step.pageUrl !== undefined) fake.state.url = step.pageUrl;
+            if (step.snapshot !== undefined) fake.state.snapshot = step.snapshot;
+            fake.state.screenshotOptions = undefined;
             fake.script(step.batch);
             const outcome = await callTool(tools, step.call).then(
               (result) => ({ result }),
@@ -233,6 +244,11 @@ describe("facade conformance (TypeScript host)", () => {
             }
             expect(fake.unusedResponses(), `${label} unused batch responses`).toBe(0);
             if (step.sent !== undefined) expect(fake.sent, label).toStrictEqual(step.sent);
+            if (step.screenshotOptions !== undefined) {
+              expect(fake.state.screenshotOptions, `${label} screenshot options`).toStrictEqual(
+                step.screenshotOptions,
+              );
+            }
           }
 
           const expected = testCase.expect ?? {};

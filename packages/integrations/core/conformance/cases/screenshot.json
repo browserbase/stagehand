@@ -18,6 +18,9 @@
               "data": "iVBORw0KGgo=",
               "mimeType": "image/png"
             }
+          },
+          "screenshotOptions": {
+            "type": "png"
           }
         }
       ]
@@ -40,6 +43,36 @@
             "result": {
               "data": "/9j/4AAQ",
               "mimeType": "image/jpeg"
+            }
+          },
+          "screenshotOptions": {
+            "type": "jpeg",
+            "quality": 40
+          }
+        }
+      ]
+    },
+    {
+      "name": "a full-page screenshot asks the page for the full page",
+      "page": {
+        "url": "https://example.com/",
+        "screenshot": "iVBORw0KGgo="
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "screenshot",
+            "fullPage": true
+          },
+          "batch": [],
+          "screenshotOptions": {
+            "type": "png",
+            "fullPage": true
+          },
+          "expect": {
+            "result": {
+              "data": "iVBORw0KGgo=",
+              "mimeType": "image/png"
             }
           }
         }
