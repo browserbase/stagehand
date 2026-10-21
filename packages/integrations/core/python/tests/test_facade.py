@@ -11,15 +11,15 @@ from typing import Any, cast
 import pytest
 from stagehand import Stagehand
 
-from stagehand_integrations.facade import (
+from stagehand_middleware.facade import (
     StagehandFacadeBundleError,
     facade_bundle,
     facade_instructions,
     facade_tools,
     tools,
 )
-from stagehand_integrations.facade._syntax import check_run_syntax
-from stagehand_integrations.facade.bundle import canonical_json, parse_bundle
+from stagehand_middleware.facade._syntax import check_run_syntax
+from stagehand_middleware.facade.bundle import canonical_json, parse_bundle
 
 
 def test_bundle_content_matches_its_hash() -> None:

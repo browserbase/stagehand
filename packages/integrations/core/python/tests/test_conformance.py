@@ -15,7 +15,7 @@ from typing import Any, cast
 import pytest
 from stagehand import Stagehand
 
-from stagehand_integrations.facade import (
+from stagehand_middleware.facade import (
     StagehandFacadeExecutionError,
     StagehandFacadeInputError,
     StagehandFacadeTools,
