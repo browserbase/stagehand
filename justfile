@@ -1,4 +1,5 @@
 python_dir := "packages/sdk-python"
+integrations_python_dir := "packages/integrations/core/python"
 go_dir := "packages/sdk-go"
 go_generator_dir := "packages/sdk-go/internal/generator"
 
@@ -93,6 +94,8 @@ _version:
     pnpm exec tsx scripts/release/consolidate-changelogs.ts
     pnpm exec tsx scripts/release/sync-python-version.ts
     uv --directory "{{python_dir}}" lock
+    # Its lockfile pins the editable sdk-python, whose version just changed.
+    uv --directory "{{integrations_python_dir}}" lock
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 

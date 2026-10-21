@@ -184,6 +184,7 @@ describe("Stagehand runtime state", () => {
 
     const replacementParams: StagehandInitParams = {
       ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example/different",
       model: { modelName: "anthropic/claude-sonnet-4-5" },
       systemPrompt: "Replacement caller",
       telemetry: {
@@ -241,6 +242,94 @@ describe("Stagehand runtime state", () => {
     expect(sessions).toHaveLength(1);
     expect(prepareForInitialization).toHaveBeenCalledTimes(2);
     expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
+  });
+
+  it("replaces a live browser connection when the next instance supplies a different URL", async () => {
+    const closePrevious = vi.fn();
+    const previous = createBrowserSession({ close: closePrevious });
+    const replacement = createBrowserSession();
+    const browserSessionFactory = vi
+      .fn()
+      .mockResolvedValueOnce(previous)
+      .mockImplementationOnce(async () => {
+        expect(closePrevious).toHaveBeenCalledOnce();
+        return replacement;
+      });
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "wss://gateway.example/cdp" });
+    await runtime.disposeStagehandInstance();
+    expect(closePrevious).not.toHaveBeenCalled();
+
+    const params = {
+      ...runtimeIdentity,
+      browserCdpUrl: "ws://127.0.0.1:9300/devtools/browser/abc",
+    };
+    await expect(runtime.initialize(params)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(browserSessionFactory).toHaveBeenCalledTimes(2);
+    expect(browserSessionFactory).toHaveBeenLastCalledWith(
+      params.browserCdpUrl,
+      runtime.logger,
+      runtime.logger,
+    );
+    expect(runtime.browserSession).toBe(replacement);
+    expect(runtime.state.getState()).toStrictEqual({ status: "initialized", initParams: params });
+    await runtime.close();
+  });
+
+  it("reuses a live browser connection when the next instance omits the URL", async () => {
+    const close = vi.fn();
+    const prepareForInitialization = vi.fn();
+    const session = createBrowserSession({ close, prepareForInitialization });
+    const browserSessionFactory = vi.fn(async () => session);
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    await runtime.disposeStagehandInstance();
+    await runtime.initialize(runtimeIdentity);
+
+    expect(browserSessionFactory).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    expect(prepareForInitialization).toHaveBeenCalledTimes(2);
+    expect(runtime.browserSession).toBe(session);
+    await runtime.close();
+  });
+
+  it("can retry a changed endpoint after replacement fails", async () => {
+    const closePrevious = vi.fn();
+    const previous = createBrowserSession({ close: closePrevious });
+    const replacement = createBrowserSession();
+    const browserSessionFactory = vi
+      .fn()
+      .mockResolvedValueOnce(previous)
+      .mockRejectedValueOnce(new Error("CDP connection failed"))
+      .mockResolvedValueOnce(replacement);
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example/old" });
+    await runtime.disposeStagehandInstance();
+
+    const params = { ...runtimeIdentity, browserCdpUrl: "ws://browser.example/new" };
+    await expect(runtime.initialize(params)).rejects.toThrow("CDP connection failed");
+    expect(closePrevious).toHaveBeenCalledOnce();
+    expect(runtime.browserSession).toBeUndefined();
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
+
+    await expect(runtime.initialize(params)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(browserSessionFactory).toHaveBeenCalledTimes(3);
+    expect(browserSessionFactory).toHaveBeenLastCalledWith(
+      params.browserCdpUrl,
+      runtime.logger,
+      runtime.logger,
+    );
+    expect(runtime.browserSession).toBe(replacement);
+    expect(closePrevious).toHaveBeenCalledOnce();
+    await runtime.close();
   });
 
   it("waits for runtime disposal before initializing the next Stagehand instance", async () => {

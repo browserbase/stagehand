@@ -1,6 +1,5 @@
 // Package extensionassets exposes the Stagehand extension bundled into the Go
-// module. It is internal so the SDK can share one artifact between local Chrome
-// and Browserbase without adding a public asset API.
+// module, shared by local Chrome, Browserbase, and the public archive helper.
 package extensionassets
 
 import (
