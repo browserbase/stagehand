@@ -401,6 +401,32 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 	}
 }
 
+func TestConnectLocalBrowserRejectsInvalidExtensionCDPURL(t *testing.T) {
+	for _, endpoint := range []string{
+		"http://browser", "https://browser", "ws://", "ws://:9300/devtools",
+		"/devtools/browser/abc", "ws://browser:bad/devtools", "ws://browser:99999/devtools",
+		"ws://browser:0/devtools", "wss://browser:0/devtools",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			connected := false
+			browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
+				CDPURL: "ws://browser", ExtensionCDPURL: endpoint,
+			}, browserFactoryDependencies{
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					connected = true
+					return nil, errors.New("unexpected connection")
+				},
+			})
+			if err == nil || !strings.Contains(err.Error(), "extension CDP URL") {
+				t.Fatalf("ConnectLocalBrowser() error = %v, want extension CDP URL validation error", err)
+			}
+			if connected || browser != nil {
+				t.Fatalf("invalid URL initiated a connection: connected=%v, browser=%v", connected, browser)
+			}
+		})
+	}
+}
+
 func TestConnectLocalBrowserIgnoresExtensionIDAndDefersMaterialization(t *testing.T) {
 	for _, id := range []string{"", "existing", "wrong-id"} {
 		t.Run(id, func(t *testing.T) {

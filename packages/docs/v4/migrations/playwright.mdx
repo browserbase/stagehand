@@ -148,7 +148,7 @@ One section per area of the API. Skip to the one you're porting.
 
 For a hosted browser, use `browserbase.launch({ apiKey })`. That's what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). To attach to a browser that's already running, use `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })`.
 
-Close both handles. `stagehand.close()` releases the Stagehand runtime and leaves the browser running, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Close both handles. `stagehand.close()` releases the Stagehand runtime and leaves the browser running. Call `browser.close()` when you're done. See [browser configuration](/v4/configuration/browser).
 
 <Note>
 Chromium only. Stagehand has no Firefox or WebKit support, and no bundled browser download step. A local run uses the Chrome you already have installed, and a Browserbase run needs nothing installed at all.
@@ -246,9 +246,9 @@ Wait first, then act:
 
 A single wait isn't the same as Playwright's per-action retry. When a step races a re-render, use the [retry loop](#auto-waiting-and-retries) instead.
 
-There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
+There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForFunction()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
 
-Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, `waitForEvent()`, or `waitForURL()`. `page.on()` supports `"console"` only. Poll `page.url()` for navigation, or wait for something that only exists on the destination page.
+Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.on()` supports `"console"` only. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
 
 Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
 
@@ -548,8 +548,8 @@ Each of these is a direct substitution:
 | `page.getByPlaceholder(x)` | `page.locator('[placeholder*="x"]')`, substring like Playwright's default |
 | `page.getByAltText(x)`, `getByTitle(x)` | `page.locator('[alt*="x"]')`, `page.locator('[title*="x"]')` |
 | `page.getByLabel(x)` | Tag with the `label[for]` and wrapping-label lookup from `locateByRole()` |
-| `page.waitForNavigation()` | Poll `page.url()` every 50 ms until it changes |
-| `page.waitForFunction(fn)` | Poll `page.evaluate(fn)` on the same 50 ms loop |
+| `page.waitForNavigation()` | Mark the document with `page.evaluate(() => { document.documentElement.dataset.stagehandBefore = "1"; })`, then `page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore, undefined, { timeout })`. This catches reloads and redirects back to the same URL. For `pushState` route changes, compare `location.href` instead |
+| `page.waitForFunction(fn, arg, options)` | `page.waitForFunction(fn, arg, options)` polls in the browser and returns the truthy JSON value, not a `JSHandle` |
 | `keyboard.press(key)`, `keyboard.type(text)` | `page.keyPress(key)`, `page.type(text)` |
 | `mouse.move(x, y)`, `mouse.click(x, y)` | `page.hover(x, y)`, `page.click(x, y)` |
 | `mouse.wheel(dx, dy)` | `page.scroll(x, y, dx, dy)` |
@@ -592,7 +592,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.url()`, `page.title()` | Same names, both async |
 | `page.goto()` default `waitUntil` | `"domcontentloaded"`, not Playwright's `"load"` |
 | `waitUntil: "commit"` | Not supported. `load`, `domcontentloaded`, and `networkidle` only |
-| `page.waitForURL()` | Poll `page.url()`, or wait for a destination selector |
+| `page.waitForURL(url)` | `page.waitForFunction((url) => location.href === url, url, { timeout })`. For a `RegExp`, pass `[re.source, re.flags]` and test with `new RegExp(source, flags)`. Convert glob patterns to a `RegExp` first |
 | `page.setContent()` | No equivalent. Navigate, or build the DOM in `page.evaluate()` |
 | `page.evaluate()`, `addInitScript()` | Same names |
 | `page.$eval()`, `$$eval()` | `page.evaluate()` |
@@ -647,7 +647,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.waitForSelector()` | Same name, returns a boolean |
 | `page.waitForLoadState()`, `waitForTimeout()` | Same names |
 | `page.setDefaultTimeout()`, `setDefaultNavigationTimeout()` | No equivalent. Pass `timeout` per call |
-| `page.waitForFunction()` | Poll `page.evaluate()` |
+| `page.waitForFunction()` | Same name, arguments, and defaults; returns a detached JSON value, not a `JSHandle`, and `arg` must be JSON, not a handle |
 | `page.waitForResponse()`, `waitForRequest()`, `waitForEvent()` | No equivalent |
 | `page.on("request")`, `on("response")`, `on("dialog")` | `page.on("console")` only |
 | `expect(locator).toBeVisible()` | `waitForSelector()`, then your runner's assertion |
@@ -908,10 +908,19 @@ NAVIGATION AND WAITING
   Retry observe() instead, then pass its Action to act() once.
 - locator.waitFor({ state }) -> the same loop. count() for attached and
   detached; count() plus isVisible() for visible and hidden.
-- page.waitForFunction(fn) -> poll page.evaluate(fn) on that loop.
-- page.waitForNavigation() -> poll page.url() until it changes.
-- page.waitForURL() -> poll page.url(), or wait for a selector that exists
-  only on the destination.
+- page.waitForFunction(fn, arg, options) polls directly in the browser.
+  It returns a detached JSON value, not a JSHandle, and arg must be JSON.
+  Pass polling and timeout in options; like Playwright, there is no deadline
+  unless you pass a timeout.
+- page.waitForNavigation() -> mark the document with page.evaluate(() => {
+  document.documentElement.dataset.stagehandBefore = "1"; }), then
+  page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore,
+  undefined, { timeout }).
+  This catches reloads too. For pushState routes, compare location.href.
+- page.waitForURL(url) -> page.waitForFunction(
+  (url) => location.href === url, url, { timeout }). For a RegExp, pass
+  [re.source, re.flags] and test with new RegExp(source, flags); convert
+  globs to a RegExp first. Both keep waiting across the load.
 - No waitForResponse, waitForRequest, or waitForEvent. page.on() supports
   "console" only: no request, response, requestfailed, download, dialog,
   popup, or pageerror events, and no CDP escape hatch.
