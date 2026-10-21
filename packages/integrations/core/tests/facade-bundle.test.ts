@@ -31,7 +31,7 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(4);
+    expect(bundle.version).toBe(5);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
@@ -103,6 +103,8 @@ describe("facade bundle", () => {
 
     expect(sent).toHaveLength(2);
     expect(sent[0]!.source).toBe(bundle.sources.runPrelude + code + bundle.sources.runEpilogue);
+    // Run options are sent only when turned on (contract.runOptions).
+    expect(sent[0]!.input).toStrictEqual({});
     expect(bundle.sources.runPrelude).toContain(`const createRuntime = ${bundle.sources.runtime};`);
     expect(sent[1]!.source).toBe(bundle.sources.actionRunner);
     expect(sent[1]!.input).toStrictEqual({
@@ -127,7 +129,7 @@ describe("facade bundle", () => {
     expect(() => new Function(`return (${RUN_PRELUDE + code + RUN_EPILOGUE});`)).not.toThrow();
   });
 
-  it("carries the contract's error messages, limits and screenshot messages verbatim", () => {
+  it("carries the contract's error messages, limits, run options and screenshot messages verbatim", () => {
     expect(bundle.contract.errors).toStrictEqual({
       NO_HYDRATED_SNAPSHOT_ERROR: contract.NO_HYDRATED_SNAPSHOT_ERROR,
       NAVIGATED_SNAPSHOT_ERROR: contract.NAVIGATED_SNAPSHOT_ERROR,
@@ -144,6 +146,7 @@ describe("facade bundle", () => {
       RUN_VALUE_SIZE_ERROR: contract.RUN_VALUE_SIZE_ERROR,
     });
     expect(bundle.contract.limits).toStrictEqual(contract.RUN_RESULT_LIMITS);
+    expect(bundle.contract.runOptions).toStrictEqual(contract.RUN_OPTIONS);
     expect(bundle.contract.messages).toStrictEqual({
       SCREENSHOT_CAPTURED_MESSAGE: contract.SCREENSHOT_CAPTURED_MESSAGE,
       SCREENSHOT_COMPRESSED_MESSAGE: contract.SCREENSHOT_COMPRESSED_MESSAGE,

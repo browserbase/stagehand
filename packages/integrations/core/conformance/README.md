@@ -12,9 +12,10 @@ and `python/tests/test_conformance.py` on the Python host.
 
 A runner creates an empty sandbox directory with an `artifacts/` directory
 inside it, applies the case's `fs` entries, and builds a fresh host with
-`artifacts/` as its artifact root and no keeper tab. The fake Stagehand has one
-page whose URL is `page.url` (default `about:blank`), whose snapshot is
-`page.snapshot`, and whose screenshot is the base64 bytes `page.screenshot`.
+`artifacts/` as its artifact root, no keeper tab and the case's `host` options.
+The fake Stagehand has one page whose URL is `page.url` (default
+`about:blank`), whose snapshot is `page.snapshot`, and whose screenshot is the
+base64 bytes `page.screenshot`.
 Each step then:
 
 1. sets the page URL to `pageUrl` and the page's snapshot to `snapshot`, when
@@ -38,11 +39,12 @@ Each file holds `{ "cases": [...] }`. A case:
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`           | What the case shows.                                                                                                                                                                                        |
 | `notApplicable`  | Optional `{ "<host>": "reason" }` (`typescript` or `python`): that host skips the case, for the reason given.                                                                                               |
+| `host`           | Optional host options, `{ "quietWait"? }` (see `contract.runOptions`); a missing option is the host default.                                                                                                |
 | `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                      |
 | `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
 | `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
 | `steps[].expect` | `{ "result" }`: the tool's return value (run code: the value; run actions: `{ completed, url }`; snapshot: the formatted tree; screenshot: `{ data, mimeType }`). Or `{ "error" }`, below.                  |
-| `steps[].sent`   | Batch calls in order: `{ "callback": "run", "code" }` when the host sent `runPrelude + code + runEpilogue`, `{ "callback": "actionRunner", "input" }` when it sent `actionRunner` with that input.          |
+| `steps[].sent`   | Batch calls in order: `{ "callback": "run", "code", "input"? }` when it sent `runPrelude + code + runEpilogue`, `{ "callback": "actionRunner", "input" }` when it sent `actionRunner` with that input.      |
 | `expect.closed`  | Whether the host closed the Stagehand session (exactly once, or never).                                                                                                                                     |
 | `expect.tree`    | Every entry under the sandbox, sorted by code unit, without following symlinks: directories end in `/`, symlinks in `@`. Use it to show that nothing else was written.                                      |
 | `expect.files`   | Contents of files, relative to the sandbox: base64, or `{ "size" }` in bytes.                                                                                                                               |
@@ -84,6 +86,9 @@ non-ASCII characters unescaped (Python: `separators=(",", ":")`,
 `ensure_ascii=False`). An execution error's name and message are redacted as in
 `src/harness/redact.ts` before the name is checked against
 `/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
+A run's batch input is empty unless the host turned a run option on; then it
+carries exactly those options (`{ "quietWait": true }`). `sent` lists a run's
+`input` only when it is not empty.
 Whatever fails after a valid envelope, the host closes the session when
 `closeRequested` is true and then raises the error, and later calls fail with
 `FACADE_BROWSER_CLOSED_ERROR`.
