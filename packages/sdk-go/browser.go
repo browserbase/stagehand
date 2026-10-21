@@ -36,6 +36,7 @@ type Browser struct {
 	closeRequested  bool
 	closeResult     error
 	cdp             *cdpClient
+	workerCDPURL    string
 	workerAPIKey    *string
 	workerBrowser   *BrowserSessionMetadata
 	extensionDir    string
@@ -184,6 +185,7 @@ func (browser *Browser) terminateResources(ctx context.Context) error {
 
 type claimedBrowser struct {
 	cdp           *cdpClient
+	workerCDPURL  string
 	workerAPIKey  *string
 	workerBrowser *BrowserSessionMetadata
 }
@@ -203,6 +205,7 @@ func claimBrowser(browser *Browser) (claimedBrowser, error) {
 	browser.claimed = true
 	return claimedBrowser{
 		cdp:           browser.cdp,
+		workerCDPURL:  browser.workerCDPURL,
 		workerAPIKey:  browser.workerAPIKey,
 		workerBrowser: browser.workerBrowser,
 	}, nil
