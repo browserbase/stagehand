@@ -2,6 +2,8 @@ name: Preview
 
 on:
   pull_request:
+    branches-ignore:
+      - v4-go
     types:
       - labeled
       - reopened
