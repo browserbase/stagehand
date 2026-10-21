@@ -257,8 +257,9 @@ export const RUN_RESULT_LIMITS = Object.freeze({
  * Run options a host passes in the `run` batch input; all are off unless the
  * host turns them on. `quietWait`: page.waitForTimeout(ms) returns once the
  * page is quiet (readyState past "loading", no mutation in the main document
- * for `windowMs`; shadow roots and iframes are not observed), polling every
- * `pollMs`, never later than ms; at or below `windowMs` it just sleeps. The runtime (src/facade/runtime.ts) holds the same numbers.
+ * for `windowMs`; shadow roots and iframes are not observed), checked in the
+ * page every `pollMs` through page.waitForFunction, never later than ms; at or
+ * below `windowMs` it just sleeps, as it does on pages without waitForFunction. The runtime (src/facade/runtime.ts) holds the same numbers.
  */
 export const RUN_OPTIONS = {
   quietWait: { default: false, windowMs: 400, pollMs: 100 },

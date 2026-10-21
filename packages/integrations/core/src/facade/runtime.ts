@@ -91,6 +91,11 @@ type RawPage = {
   waitForLoadState(state: string, timeout?: number): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   waitForSelector(selector: string, options?: Record<string, unknown>): Promise<boolean>;
+  waitForFunction?(
+    expression: string,
+    arg?: undefined,
+    options?: { polling?: "raf" | number; timeout?: number },
+  ): Promise<unknown>;
   url(): Promise<string>;
   title(): Promise<string>;
   close(): Promise<void>;
@@ -1028,17 +1033,18 @@ export async function createPlaywrightCompatRuntime(
   // so the wait ends once the page is quiet: readyState is past "loading" and
   // the DOM has not mutated for QUIET_WAIT_WINDOW_MS. Only the main document
   // is observed: changes inside shadow roots or iframes go unseen, so such a
-  // page can look quiet early. It never runs past the requested time, and a
-  // failed or hung probe (navigation) only costs a poll.
+  // page can look quiet early. It never runs past the requested time.
   const QUIET_WAIT_WINDOW_MS = 400;
   const QUIET_WAIT_POLL_MS = 100;
-  // Each wait installs its own MutationObserver on the document under a random
-  // key (the first probe of the wait), so the quiet window always lies inside
-  // the current wait, and disconnects it once the wait ends. The probe runs in
-  // the page's main world: while a wait is in progress the page can see the
-  // observer and the key, and can patch the globals the probe uses; the cap
-  // still bounds the wait.
-  const quietWaitProbe = (key: string) => `(() => {
+  // page.waitForFunction evaluates this expression in the page's main world
+  // every QUIET_WAIT_POLL_MS and reinstalls it in the new document after a
+  // navigation. It yields a boolean, not a function, so every waitForFunction
+  // (Stagehand's, or Playwright's in tests) reads it the same way. Each wait installs its own MutationObserver under a random key
+  // on its first poll in a document, so the quiet window always lies inside
+  // the current wait, and disconnects it once the wait ends. While a wait is in
+  // progress the page can see the observer and the key, and can patch the
+  // globals the predicate uses; the host-side cap still bounds the wait.
+  const quietWaitPredicate = (key: string) => `(() => {
     const key = ${JSON.stringify(key)};
     let state = document[key];
     if (!state) {
@@ -1049,7 +1055,7 @@ export async function createPlaywrightCompatRuntime(
       Object.defineProperty(document, key, { value: state, configurable: true });
       state.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
     }
-    return { readyState: document.readyState, quietMs: performance.now() - state.lastMutation };
+    return document.readyState !== "loading" && performance.now() - state.lastMutation >= ${QUIET_WAIT_WINDOW_MS};
   })()`;
   const quietWaitCleanup = (key: string) => `(() => {
     const key = ${JSON.stringify(key)};
@@ -1059,49 +1065,43 @@ export async function createPlaywrightCompatRuntime(
       delete document[key];
     }
   })()`;
-  const probeQuiet = async (page: RawPage, key: string, budgetMs: number): Promise<boolean> => {
-    let timer: Parameters<typeof clearTimeout>[0];
-    try {
-      const probe = await Promise.race([
-        page.evaluate<{ readyState?: unknown; quietMs?: unknown }>(quietWaitProbe(key)),
-        new Promise<undefined>((resolve) => {
-          timer = setTimeout(resolve, budgetMs);
-        }),
-      ]);
-      return (
-        typeof probe?.readyState === "string" &&
-        probe.readyState !== "loading" &&
-        typeof probe.quietMs === "number" &&
-        probe.quietMs >= QUIET_WAIT_WINDOW_MS
-      );
-    } catch {
-      return false;
-    } finally {
-      clearTimeout(timer);
-    }
-  };
   const waitForTimeoutOrQuiet = async (page: RawPage, ms: number): Promise<void> => {
     const requestedMs = Number.isFinite(ms) && ms > 0 ? ms : 0;
     stats.waits.count += 1;
     stats.waits.requestedMs += requestedMs;
-    if (!options.quietWait || !(requestedMs > QUIET_WAIT_WINDOW_MS)) {
+    const waitForFunction = page.waitForFunction;
+    if (
+      !options.quietWait ||
+      !(requestedMs > QUIET_WAIT_WINDOW_MS) ||
+      typeof waitForFunction !== "function"
+    ) {
       await page.waitForTimeout(ms);
       stats.waits.waitedMs += requestedMs;
       return;
     }
     const key = `_${crypto.randomUUID()}`;
     const startedAt = Date.now();
-    const deadline = startedAt + requestedMs;
-    let early = false;
-    for (let remaining = requestedMs; remaining > 0; remaining = deadline - Date.now()) {
-      if (await probeQuiet(page, key, remaining)) {
-        early = true;
-        break;
-      }
-      const left = deadline - Date.now();
-      if (left <= 0) break;
-      await page.waitForTimeout(Math.min(QUIET_WAIT_POLL_MS, left));
-    }
+    let timer: Parameters<typeof clearTimeout>[0];
+    // The cap runs on this side too, so late page timers cannot stretch the wait.
+    const early = await Promise.race([
+      waitForFunction
+        .call(page, quietWaitPredicate(key), undefined, {
+          polling: QUIET_WAIT_POLL_MS,
+          timeout: requestedMs,
+        })
+        .then(
+          () => true,
+          () => false,
+        ),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), requestedMs);
+      }),
+    ]);
+    clearTimeout(timer);
+    // A wait that failed before the cap (page closed, predicate error) sleeps
+    // out the rest, like the plain wait would have.
+    const left = startedAt + requestedMs - Date.now();
+    if (!early && left > 0) await page.waitForTimeout(left);
     stats.waits.waitedMs += Math.min(Date.now() - startedAt, requestedMs);
     if (early) stats.waits.earlyReturns += 1;
     // Not awaited, so the wait still ends by ms; a navigation already dropped it.

@@ -202,13 +202,8 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const run = async (quietWait: boolean | undefined) => {
       const fakePage = createFakePage();
       const probe = vi.fn(async () => ({ readyState: "complete", quietMs: 1_000 }));
-      const evaluate = fakePage.evaluate.getMockImplementation()!;
       const page = Object.assign(fakePage, {
-        evaluate: vi.fn(async (expression: unknown) =>
-          typeof expression === "string" && expression.includes("new MutationObserver")
-            ? probe()
-            : evaluate(expression),
-        ),
+        waitForFunction: vi.fn(async () => probe()),
       });
       const { stagehand, experimentalBatch } = createFakeStagehand(page);
       const reports: StagehandFacadeRunReport[] = [];
