@@ -994,3 +994,46 @@ async def test_local_loading_failure_closes_connection_without_retrying(
         "Extensions.getExtensions",
         "Extensions.loadUnpacked",
     ]
+
+
+@pytest.mark.parametrize(
+    "endpoint, expected",
+    [
+        ("http://localhost:9222", "http://localhost:9222/json/version"),
+        ("http://localhost:9222/", "http://localhost:9222/json/version"),
+        (
+            "https://proxy.test/browser?token=demo",
+            "https://proxy.test/browser/json/version?token=demo",
+        ),
+        (
+            "https://proxy.test/browser/?token=demo%2Fkey&region=us",
+            "https://proxy.test/browser/json/version?token=demo%2Fkey&region=us",
+        ),
+        ("https://proxy.test/browser#connection", "https://proxy.test/browser/json/version"),
+        (
+            "https://proxy.test/browser/?token=demo#connection",
+            "https://proxy.test/browser/json/version?token=demo",
+        ),
+    ],
+)
+async def test_resolve_browser_url_preserves_query_and_drops_fragment(
+    monkeypatch: pytest.MonkeyPatch, endpoint: str, expected: str
+) -> None:
+    requests: list[str] = []
+
+    def read_json(url: str, headers: object = None) -> dict[str, object]:
+        requests.append(url)
+        return {"webSocketDebuggerUrl": "wss://proxy.test/devtools/browser/test"}
+
+    monkeypatch.setattr(cdp_client, "_read_json", read_json)
+    assert await cdp_client._resolve_browser_web_socket_url(endpoint) == (
+        "wss://proxy.test/devtools/browser/test"
+    )
+    assert requests == [expected]
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["ws://localhost:9222/devtools/browser/1", "wss://proxy.test/browser?token=demo"]
+)
+async def test_resolve_browser_url_keeps_websocket_endpoint(endpoint: str) -> None:
+    assert await cdp_client._resolve_browser_web_socket_url(endpoint) == endpoint

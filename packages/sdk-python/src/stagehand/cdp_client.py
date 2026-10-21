@@ -10,7 +10,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
 from urllib.error import HTTPError
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from typing_extensions import override
@@ -748,10 +748,13 @@ async def _resolve_browser_web_socket_url(
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
 
-    base_url = cdp_url.rstrip("/")
+    endpoint = urlsplit(cdp_url)
+    version_url = urlunsplit(
+        endpoint._replace(path=endpoint.path.rstrip("/") + "/json/version", fragment="")
+    )
     while True:
         try:
-            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version", headers)
+            version = await asyncio.to_thread(_read_json, version_url, headers)
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
