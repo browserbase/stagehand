@@ -31,7 +31,7 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(1);
+    expect(bundle.version).toBe(2);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
@@ -106,7 +106,8 @@ describe("facade bundle", () => {
     expect(bundle.sources.runPrelude).toContain(`const createRuntime = ${bundle.sources.runtime};`);
     expect(sent[1]!.source).toBe(bundle.sources.actionRunner);
     expect(sent[1]!.input).toStrictEqual({
-      actions: [{ op: "click", id: "0-7", selector: "xpath=/html[1]/body[1]/button[1]" }],
+      actions: [{ op: "click", id: "0-7" }],
+      xpathById: { "0-7": "/html[1]/body[1]/button[1]" },
     });
   });
 

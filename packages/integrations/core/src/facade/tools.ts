@@ -230,19 +230,17 @@ export class StagehandFacadeTools {
       throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
-    const hydrated = parsed.map((action) => {
-      const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
-      if (!xpath) throw new StagehandFacadeInputError(staleSnapshotIdError(action.id));
-      return { ...action, selector: `xpath=${xpath}` };
-    });
     // The callback can already have dispatched earlier actions when one fails.
     // Never replay an action batch after a partial failure.
     const result = await this.stagehand.experimentalBatch(
       actionRunner,
-      { actions: hydrated },
+      { actions: parsed, xpathById: snapshot.xpathById },
       { page, timeout: RUN_BATCH_TIMEOUT_MS },
     );
-    return { completed: result?.completed ?? hydrated.length, url: await page.url() };
+    if (result?.staleId !== undefined) {
+      throw new StagehandFacadeInputError(staleSnapshotIdError(result.staleId));
+    }
+    return { completed: result?.completed ?? parsed.length, url: await page.url() };
   }
 
   private async runNow(code: string): Promise<unknown> {
@@ -514,21 +512,4 @@ function cdpSessionLossCause(error: Error): string {
     cause = cause.cause;
   }
   return sanitizeErrorMessage(messages.join("; caused by "));
-}
-
-function trimTrailingTextNode(path: string | undefined): string | undefined {
-  return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
-}
-
-/**
- * Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
- * regularly copy only the backend id; accept that when it is unambiguous.
- */
-function resolveSnapshotXPath(xpathById: Record<string, string>, id: string): string | undefined {
-  const exact = xpathById[id];
-  if (exact !== undefined) return exact;
-  if (id.includes("-")) return undefined;
-  const suffix = `-${id}`;
-  const matches = Object.keys(xpathById).filter((key) => key.endsWith(suffix));
-  return matches.length === 1 ? xpathById[matches[0]!] : undefined;
 }

@@ -9,8 +9,11 @@ import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from ".
  * unchanged for other hosts.
  */
 
-export type HydratedAction = RefAction & { selector: string };
-export type ActionResult = { completed: number };
+export type ActionInput = { actions: RefAction[]; xpathById: Record<string, string> };
+/** `staleId` is the first action ID that resolved to no XPath; no action ran. */
+export type ActionResult =
+  | { completed: number; staleId?: never }
+  | { staleId: string; completed?: never };
 export type ScreenshotArtifact = { path: string; base64: string };
 export type RunInput = { hiddenPageIds?: string[] };
 export type RunEnvelope = {
@@ -35,10 +38,27 @@ const DYNAMIC_FUNCTION_TAIL = "\n}";
 /** createPlaywrightCompatRuntime as one self-contained function source. */
 export const RUNTIME_SOURCE = createPlaywrightCompatRuntime.toString();
 
+// Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
+// regularly copy only the backend id; accept that when it is unambiguous.
+// Every ID resolves before the first action runs.
 const ACTION_RUNNER_BODY = `"use strict";
-let completed = 0;
+const resolveSnapshotXPath = (id) => {
+  const exact = input.xpathById[id];
+  if (exact !== undefined) return exact;
+  if (id.includes("-")) return undefined;
+  const suffix = "-" + id;
+  const matches = Object.keys(input.xpathById).filter((key) => key.endsWith(suffix));
+  return matches.length === 1 ? input.xpathById[matches[0]] : undefined;
+};
+const selectors = [];
 for (const action of input.actions) {
-  const locator = stagehand.page.locator(action.selector);
+  const xpath = resolveSnapshotXPath(action.id)?.replace(/\\/text\\(\\)(\\[\\d+\\])?$/iu, "");
+  if (!xpath) return { staleId: action.id };
+  selectors.push("xpath=" + xpath);
+}
+let completed = 0;
+for (const [index, action] of input.actions.entries()) {
+  const locator = stagehand.page.locator(selectors[index]);
   switch (action.op) {
     case "click": await locator.click(); break;
     case "hover": await locator.hover(); break;
@@ -90,12 +110,12 @@ return {
   batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
 };`;
 
-/** Runs hydrated snapshot-ID actions; input is `{ actions: HydratedAction[] }`. */
+/** Resolves snapshot IDs against the page's stored XPath map, then runs the actions. */
 export const actionRunner = new AsyncFunction(
   "stagehand",
   "input",
   ACTION_RUNNER_BODY,
-) as ExperimentalBatchCallback<{ actions: HydratedAction[] }, ActionResult>;
+) as ExperimentalBatchCallback<ActionInput, ActionResult>;
 
 export const ACTION_RUNNER_SOURCE = Function.prototype.toString.call(actionRunner);
 

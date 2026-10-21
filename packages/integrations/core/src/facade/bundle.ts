@@ -21,21 +21,32 @@ import {
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 1;
+export const FACADE_BUNDLE_VERSION = 2;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
  * from the same constants the TS facade sends. The build writes it to
  * dist/facade-bundle.json.
  *
- * - sources: the `run` code callback is `runPrelude + code + runEpilogue`; the
- *   `run` actions callback is `actionRunner`, with `{ actions }` as input. Both
- *   are the exact callback source text for experimental_batch. `runtime` is the
- *   Playwright-compatible runtime the prelude embeds. Before sending run code,
- *   a host must check that `code` parses on its own as an async function body
- *   (what `AsyncFunction(params, code)` accepts) and otherwise fail the call
- *   with a SyntaxError, as the TS facade does; plain concatenation would let
- *   code that closes the function early run outside the callback.
+ * - sources: exact callback source text for experimental_batch; a host only
+ *   supplies the batch input. `runtime` is the Playwright-compatible runtime
+ *   the prelude embeds.
+ *   - `run` code: `runPrelude + code + runEpilogue`, input
+ *     `{ hiddenPageIds?: string[] }` (pages agent code must not see, such as a
+ *     keeper tab). It resolves to `{ __stagehandPlaywrightCompat: true, value,
+ *     executionError?: { name, message, stack? }, telemetry, artifacts:
+ *     { path, base64 }[], closeRequested, batchRuntimeMs }`; an error thrown by
+ *     `code` arrives as executionError, not as a batch failure. Before sending,
+ *     a host must check that `code` parses on its own as an async function body
+ *     (what `AsyncFunction(params, code)` accepts) and otherwise fail the call
+ *     with a SyntaxError, as the TS facade does; plain concatenation would let
+ *     code that closes the function early run outside the callback.
+ *   - `run` actions: `actionRunner`, input `{ actions, xpathById }` with the
+ *     validated actions and the XPath map of the active page's latest snapshot.
+ *     It resolves to `{ completed }`, or to `{ staleId }` without running any
+ *     action when an ID has no XPath; the host then fails with
+ *     STALE_SNAPSHOT_ID_ERROR. The host still checks for a missing snapshot and
+ *     for navigation since the snapshot before sending.
  * - contract.tools: tools/list per tool set (`--surface=playwright`,
  *   `--surface=legacy`, and playwright with EXPLICIT_SNAPSHOT_ACTIONS=1).
  * - contract.errors: messages hosts must return verbatim; `${id}` and
