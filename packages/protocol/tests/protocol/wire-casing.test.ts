@@ -425,12 +425,26 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("preserves opaque page payload keys", () => {
-    const evaluate = StagehandMethods.pageEvaluate;
-    const evaluation = { value: { camelCase: true, nestedValue: { staysCamelCase: true } } };
-    expect(encodeWireValue(evaluation, evaluate.resultWire)).toStrictEqual(evaluation);
-    expect(wireSchema(evaluate.result, evaluate.resultWire).parse(evaluation)).toStrictEqual(
-      evaluation,
-    );
+    const ownKeys = { toString: "payload", constructor: "data", hasOwnProperty: true };
+    const evaluation = {
+      value: {
+        ...ownKeys,
+        camelCase: true,
+        nestedValue: [{ ...ownKeys, staysCamelCase: true }],
+      },
+    };
+    for (const method of [StagehandMethods.pageEvaluate, StagehandMethods.pageWaitForFunction]) {
+      const parsed = method.result.parse(evaluation);
+      const encoded = encodeWireValue(parsed, method.resultWire);
+      const decoded = wireSchema(method.result, method.resultWire).parse(encoded);
+      for (const result of [parsed, encoded, decoded]) {
+        expect(result).toStrictEqual(evaluation);
+        const { value } = result as typeof evaluation;
+        for (const object of [value, ...value.nestedValue]) {
+          for (const key of Object.keys(ownKeys)) expect(Object.hasOwn(object, key)).toBe(true);
+        }
+      }
+    }
 
     const headers = StagehandMethods.pageSetExtraHTTPHeaders;
     const headerParams = {

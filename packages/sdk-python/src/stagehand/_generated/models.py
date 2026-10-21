@@ -710,6 +710,12 @@ class FieldSchema14(
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
+class FieldSchema15(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -811,7 +817,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema14] = None
+    data: Optional[FieldSchema15] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1564,8 +1570,8 @@ class PageCDPEventNotification(WireModel):
     event: PageCDPEvent
 
 
-class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
-    root: dict[StrictStr, Optional[FieldSchema12]]
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
+    root: dict[StrictStr, Optional[FieldSchema13]]
 
 
 class PageClickOptions(WireModel):
@@ -2027,6 +2033,33 @@ class PageVoidResult(WireModel):
     ok: Literal[True]
 
 
+class PageWaitForFunctionOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    polling: Optional[Union[Literal["raf"], Polling]] = None
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+
+
+class PageWaitForFunctionParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    expression: StrictStr
+    options: Optional[PageWaitForFunctionOptions] = None
+
+
+class PageWaitForFunctionResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[FieldSchema10]
+
+
 class PageWaitForLoadStateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2121,6 +2154,10 @@ class PageWebMCPToolsResult(WireModel):
         validate_by_name=True,
     )
     tools: list[WebMCPToolDescriptor]
+
+
+class Polling(RootModel[StrictFloat]):
+    root: Annotated[StrictFloat, Field(gt=0.0, le=2147483647.0)]
 
 
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
@@ -2321,8 +2358,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema11]]]):
-    root: dict[StrictStr, Optional[FieldSchema11]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
+    root: dict[StrictStr, Optional[FieldSchema12]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2482,8 +2519,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema10]]):
-    root: Optional[FieldSchema10]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema11]]):
+    root: Optional[FieldSchema11]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2549,6 +2586,7 @@ FieldSchema11.model_rebuild()
 FieldSchema12.model_rebuild()
 FieldSchema13.model_rebuild()
 FieldSchema14.model_rebuild()
+FieldSchema15.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

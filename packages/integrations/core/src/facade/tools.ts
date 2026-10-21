@@ -5,28 +5,33 @@ import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/
 import { sanitizeErrorMessage } from "../harness/redact.js";
 import {
   browserSessionLostError,
+  FACADE_BROWSER_CLOSED_ERROR,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
+  RUN_RESULT_LIMITS,
+  RUN_RESULT_MALFORMED_ERROR,
+  RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_COUNT_ERROR,
+  SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
 } from "./contract.js";
-import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
+import {
+  actionRunner,
+  runCallback,
+  type RunEnvelope,
+  type RunInput,
+  type ScreenshotArtifact,
+} from "./batch-sources.js";
+import type { PlaywrightCompatTelemetry } from "./runtime.js";
 
 type SnapshotState = { url: string; xpathById: Record<string, string> };
-type HydratedAction = RefAction & { selector: string };
-type ActionResult = { completed: number };
-type ScreenshotArtifact = { path: string; base64: string };
-type RunEnvelope = {
-  __stagehandPlaywrightCompat: true;
-  value: unknown;
-  executionError?: { name: string; message: string; stack?: string };
-  telemetry: PlaywrightCompatTelemetry;
-  artifacts: ScreenshotArtifact[];
-  closeRequested: boolean;
-  batchRuntimeMs: number;
-};
 
 export type StagehandFacadeRunReport = {
   telemetry: PlaywrightCompatTelemetry;
@@ -106,73 +111,8 @@ export type StagehandFacadeScreenshot = {
   mimeType: "image/png" | "image/jpeg";
 };
 
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-  ...args: string[]
-) => (...args: unknown[]) => Promise<unknown>;
-
-const ACTION_RUNNER_SOURCE = `"use strict";
-let completed = 0;
-for (const action of input.actions) {
-  const locator = stagehand.page.locator(action.selector);
-  switch (action.op) {
-    case "click": await locator.click(); break;
-    case "hover": await locator.hover(); break;
-    case "fill": await locator.fill(action.value); break;
-    case "type": await locator.type(action.text, action.delay === undefined ? undefined : { delay: action.delay }); break;
-    case "press": await locator.click(); await stagehand.page.keyPress(action.key); break;
-    case "select": await locator.selectOption(action.values); break;
-    default: throw new Error("Unsupported ref action: " + String(action.op));
-  }
-  completed += 1;
-}
-return { completed };`;
-
-const actionRunner = new AsyncFunction(
-  "stagehand",
-  "input",
-  ACTION_RUNNER_SOURCE,
-) as ExperimentalBatchCallback<{ actions: HydratedAction[] }, ActionResult>;
-
 /** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
 export const FACADE_KEEPER_PAGE_URL = "about:blank";
-
-const FACADE_PRELUDE = `"use strict";
-const __stagehandCompatIdentity = (target) => target;
-for (let index = 0; index <= 32; index += 1) {
-  globalThis[index === 0 ? "__name" : "__name" + index] = __stagehandCompatIdentity;
-}
-const createRuntime = ${createPlaywrightCompatRuntime.toString()};
-const runtime = await createRuntime(batchStagehand, { hiddenPageIds: input.hiddenPageIds ?? [] });
-const page = runtime.page;
-const context = runtime.context;
-const browser = runtime.browser;
-const console = globalThis.console;
-const __stagehandBatchStartedAt = performance.now();
-let value;
-let executionError;
-try {
-  value = await (async () => { `;
-
-const FACADE_EPILOGUE = `
-  })();
-} catch (error) {
-  executionError = {
-    name: typeof error?.name === "string" ? error.name : "Error",
-    message: typeof error?.message === "string" ? error.message : String(error),
-    ...(typeof error?.stack === "string" ? { stack: error.stack } : {}),
-  };
-}
-return {
-  __stagehandPlaywrightCompat: true,
-  value,
-  executionError,
-  telemetry: runtime.telemetry(),
-  artifacts: runtime.artifacts(),
-  closeRequested: runtime.closeRequested(),
-  batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
-};`;
-
-type RunInput = { hiddenPageIds?: string[] };
 
 export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
@@ -297,32 +237,29 @@ export class StagehandFacadeTools {
       throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
-    const hydrated = parsed.map((action) => {
-      const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
-      if (!xpath) throw new StagehandFacadeInputError(staleSnapshotIdError(action.id));
-      return { ...action, selector: `xpath=${xpath}` };
-    });
     // The callback can already have dispatched earlier actions when one fails.
     // Never replay an action batch after a partial failure.
     const result = await this.stagehand.experimentalBatch(
       actionRunner,
-      { actions: hydrated },
+      { actions: parsed, xpathById: snapshot.xpathById },
       { page, timeout: RUN_BATCH_TIMEOUT_MS },
     );
-    return { completed: result?.completed ?? hydrated.length, url: await page.url() };
+    if (result?.staleId !== undefined) {
+      throw new StagehandFacadeInputError(staleSnapshotIdError(result.staleId));
+    }
+    return { completed: result?.completed ?? parsed.length, url: await page.url() };
   }
 
   private async runNow(code: string): Promise<unknown> {
     const page = await this.activePage();
-    const callback = new AsyncFunction(
-      "batchStagehand",
-      "input",
-      FACADE_PRELUDE + code + FACADE_EPILOGUE,
-    ) as ExperimentalBatchCallback<RunInput, RunEnvelope>;
+    const callback = runCallback(code);
     const startedAt = performance.now();
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
+    // Agent code runs inside the callback that builds this result, so it is not
+    // acted on (no artifacts, no close) unless it has the envelope's shape.
+    if (!isRunEnvelope(envelope)) throw new StagehandFacadeInputError(RUN_RESULT_MALFORMED_ERROR);
     let runError: unknown;
     let runFailed = false;
     try {
@@ -337,6 +274,10 @@ export class StagehandFacadeTools {
         // Thrown by the agent's own code inside the browser, so its message can
         // never be evidence about this process's connection to the browser.
         throw new StagehandFacadeExecutionError(envelope.executionError);
+      }
+      const valueBytes = Buffer.byteLength(JSON.stringify(envelope.value) ?? "");
+      if (valueBytes > RUN_RESULT_LIMITS.maxValueBytes) {
+        throw new StagehandFacadeInputError(RUN_VALUE_SIZE_ERROR);
       }
     } catch (error) {
       runError = error;
@@ -368,7 +309,7 @@ export class StagehandFacadeTools {
     callback: ExperimentalBatchCallback<RunInput, RunEnvelope>,
     input: RunInput,
     page: Page,
-  ): Promise<RunEnvelope> {
+  ): Promise<unknown> {
     try {
       return await this.stagehand.experimentalBatch(callback, input, {
         page,
@@ -388,10 +329,31 @@ export class StagehandFacadeTools {
 
   private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
     if (artifacts.length === 0) return;
+    // Enforce every cap before the first write so an oversized run saves nothing.
+    if (artifacts.length > RUN_RESULT_LIMITS.maxArtifacts) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_COUNT_ERROR);
+    }
+    // Sizes come from the base64 length (isRunEnvelope already required
+    // canonical padding), so no artifact is decoded until all of them fit.
+    let totalBytes = 0;
+    for (const artifact of artifacts) {
+      const size = decodedBase64Length(artifact.base64);
+      if (size > RUN_RESULT_LIMITS.maxArtifactBytes) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SIZE_ERROR);
+      }
+      totalBytes += size;
+      if (totalBytes > RUN_RESULT_LIMITS.maxTotalArtifactBytes) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR);
+      }
+    }
+    const decoded = artifacts.map((artifact) => ({
+      path: artifact.path,
+      bytes: Buffer.from(artifact.base64, "base64"),
+    }));
     const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
-    for (const artifact of artifacts) {
+    for (const artifact of decoded) {
       const target = path.resolve(configuredRoot, artifact.path);
       const relative = path.relative(configuredRoot, target);
       if (
@@ -400,9 +362,7 @@ export class StagehandFacadeTools {
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative)
       ) {
-        throw new StagehandFacadeInputError(
-          "Screenshot artifact path must stay within artifactRoot.",
-        );
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
       }
       // Reject symlink traversal before creating nested directories or opening
       // the output. O_NOFOLLOW also refuses an existing symlink at the file.
@@ -414,18 +374,23 @@ export class StagehandFacadeTools {
           if (error.code !== "EEXIST") throw error;
         });
         if (!(await fsp.lstat(directory)).isDirectory()) {
-          throw new StagehandFacadeInputError(
-            "Screenshot artifact directory must not be a symlink.",
-          );
+          throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
         }
       }
-      const file = await fsp.open(
-        path.join(directory, components.at(-1)!),
-        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-        0o600,
-      );
+      const file = await fsp
+        .open(
+          path.join(directory, components.at(-1)!),
+          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+          0o600,
+        )
+        .catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ELOOP") {
+            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
+          }
+          throw error;
+        });
       try {
-        await file.writeFile(Buffer.from(artifact.base64, "base64"));
+        await file.writeFile(artifact.bytes);
       } finally {
         await file.close();
       }
@@ -478,7 +443,7 @@ export class StagehandFacadeTools {
   private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
     const guarded = async (): Promise<Result> => {
       if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
-      if (this.closed) throw new StagehandFacadeInputError("Stagehand facade browser is closed.");
+      if (this.closed) throw new StagehandFacadeInputError(FACADE_BROWSER_CLOSED_ERROR);
       try {
         await this.ensureKeeperPage();
         const value = await operation();
@@ -520,6 +485,50 @@ export class StagehandFacadeTools {
       // Preserve the first browser failure when an observer throws synchronously.
     }
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRunEnvelope(value: unknown): value is RunEnvelope {
+  if (!isRecord(value) || value.__stagehandPlaywrightCompat !== true) return false;
+  const { executionError, artifacts } = value;
+  return (
+    typeof value.closeRequested === "boolean" &&
+    typeof value.batchRuntimeMs === "number" &&
+    isRecord(value.telemetry) &&
+    Array.isArray(artifacts) &&
+    artifacts.every(
+      (artifact) =>
+        isRecord(artifact) &&
+        typeof artifact.path === "string" &&
+        isCanonicalBase64(artifact.base64),
+    ) &&
+    (executionError === undefined ||
+      executionError === null ||
+      (isRecord(executionError) &&
+        typeof executionError.name === "string" &&
+        typeof executionError.message === "string" &&
+        (executionError.stack === undefined || typeof executionError.stack === "string")))
+  );
+}
+
+/**
+ * Padded RFC 4648 base64, as btoa writes it. Node's decoder would also accept
+ * base64url, missing padding and stray characters, which other hosts' decoders
+ * refuse, so the caps would no longer agree across hosts.
+ */
+function isCanonicalBase64(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  );
+}
+
+/** Byte length a canonical padded base64 string decodes to. */
+function decodedBase64Length(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
 }
 
 class FacadeDeadlineError extends Error {
@@ -589,21 +598,4 @@ function cdpSessionLossCause(error: Error): string {
     cause = cause.cause;
   }
   return sanitizeErrorMessage(messages.join("; caused by "));
-}
-
-function trimTrailingTextNode(path: string | undefined): string | undefined {
-  return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
-}
-
-/**
- * Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
- * regularly copy only the backend id; accept that when it is unambiguous.
- */
-function resolveSnapshotXPath(xpathById: Record<string, string>, id: string): string | undefined {
-  const exact = xpathById[id];
-  if (exact !== undefined) return exact;
-  if (id.includes("-")) return undefined;
-  const suffix = `-${id}`;
-  const matches = Object.keys(xpathById).filter((key) => key.endsWith(suffix));
-  return matches.length === 1 ? xpathById[matches[0]!] : undefined;
 }

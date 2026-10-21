@@ -30,6 +30,33 @@ it does not introduce another implementation or change the legacy description.
 The runner-only `session_info` call reports browser identity and is absent from
 the model-facing tool list.
 
+The build also writes `dist/facade-bundle.json` for facade hosts in other
+languages: the exact callback sources the facade sends to `experimentalBatch`,
+the tools/list and agent instructions of each tool set, and the error and
+screenshot messages hosts return verbatim. The TypeScript facade builds what
+it sends from the same constants. A host sends the sources unchanged and
+supplies only the batch input:
+
+| Callback                                      | Input                                                        | Result                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `run` code: `runPrelude + code + runEpilogue` | `{ hiddenPageIds?: string[] }`, pages hidden from agent code | `{ value, executionError?, telemetry, artifacts, closeRequested, batchRuntimeMs }`; errors thrown by `code` are `executionError` |
+| `run` actions: `actionRunner`                 | `{ actions, xpathById }`, the latest snapshot's XPath map    | `{ completed }`, or `{ staleId }` before any action runs, which the host reports as `STALE_SNAPSHOT_ID_ERROR`                    |
+
+The host keeps the per-page snapshot map and the missing-snapshot and navigation
+checks, rejects run results without the envelope's shape, and enforces the caps
+in `contract.limits` (32 artifacts, 25 MB per artifact, 100 MB in total, 10 MB of
+returned JSON); `src/facade/bundle.ts` documents the shapes in full. The cases in
+`conformance/` pin this behavior for every host. A host must reject
+run `code` that does not parse on its own as an async function body, as
+`AsyncFunction(params, code)` does in TypeScript, before joining it with the
+prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
+`{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
+escaping, so non-ASCII characters are not escaped.
+
+`python/` is the Python host, `stagehand-integrations` (`stagehand_integrations.facade`).
+It ships a copy of the bundle; run `pnpm run sync:python` after building to refresh
+it, and `tests/facade-python-bundle.test.ts` fails while the copy is stale.
+
 A failed CDP attach releases a Browserbase session created by that launch even
 with `keepAlive: true`. Failed attachment to an existing session does not release
 it. There is still a shutdown limitation: the stdio host waits at most five seconds

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,13 @@ type LocalBrowserLaunchOptions struct {
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
 	CDPURL string
+	// Headers are sent with client-side CDP discovery and WebSocket connections.
+	// They are not passed to the extension.
+	Headers map[string]string
+	// ExtensionCDPURL is the browser-level CDP WebSocket URL dialed by the
+	// extension inside Chrome. Empty uses the client's URL. Set this when the
+	// client connects through a gateway the extension cannot or should not use.
+	ExtensionCDPURL string
 	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
 	ExtensionID string
 }
@@ -117,6 +126,7 @@ type browserConnectionSource struct {
 }
 
 type connectBrowserOptions struct {
+	headers            http.Header
 	provider           BrowserProvider
 	origin             BrowserOrigin
 	source             browserConnectionSource
@@ -125,6 +135,7 @@ type connectBrowserOptions struct {
 	extensionID        string
 	preloadedExtension bool
 	afterConnect       func(context.Context, browserCommandSender) error
+	workerCDPURL       string
 	workerAPIKey       *string
 	workerBrowser      *BrowserSessionMetadata
 }
@@ -194,10 +205,39 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 	}
 	defer cancelLifecycle()
 
+	if options.ExtensionCDPURL != "" {
+		parsed, err := url.Parse(options.ExtensionCDPURL)
+		if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "ws" && parsed.Scheme != "wss") {
+			return nil, errors.New("extension CDP URL must be a ws:// or wss:// URL with a host")
+		}
+		if port := parsed.Port(); port != "" {
+			if portNumber, err := strconv.ParseUint(port, 10, 16); err != nil || portNumber == 0 {
+				return nil, errors.New("extension CDP URL must have a valid port")
+			}
+		}
+	}
+
+	var headers http.Header
+	if options.Headers != nil {
+		headers = make(http.Header, len(options.Headers))
+		for name, value := range options.Headers {
+			if err := validateCDPHeader(name, value); err != nil {
+				return nil, err
+			}
+			canonicalName := http.CanonicalHeaderKey(name)
+			if _, exists := headers[canonicalName]; exists {
+				return nil, errors.New("headers must not contain duplicate names ignoring case")
+			}
+			headers.Set(canonicalName, value)
+		}
+	}
+
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginConnected,
 		source:         browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true},
 		localExtension: true,
+		workerCDPURL:   options.ExtensionCDPURL,
+		headers:        headers,
 	}, dependencies)
 }
 
@@ -328,7 +368,8 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		}
 	}
 	cdp, err := connect(ctx, cdpClientOptions{
-		cdpURL: options.source.cdpURL, extensionDir: options.extensionDir,
+		headers: options.headers,
+		cdpURL:  options.source.cdpURL, extensionDir: options.extensionDir,
 		localExtensionDir: localExtensionDir,
 		extensionID:       options.extensionID, preloadedExtension: options.preloadedExtension,
 		serviceWorkerURLIncludes: "service-worker.js",
@@ -384,6 +425,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	}
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
+		workerCDPURL:  options.workerCDPURL,
 		workerAPIKey:  options.workerAPIKey,
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, terminateSource: terminateSource, cleanup: options.source.cleanup,
