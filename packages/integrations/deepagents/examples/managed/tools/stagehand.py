@@ -2,6 +2,7 @@
 # finds the injected `runtime: ToolRuntime` parameter only from real annotations.
 import asyncio
 import json
+import logging
 import os
 import time
 from collections.abc import Awaitable, Callable
@@ -27,15 +28,24 @@ def _sanitize_error(message: str) -> str:
     return sanitize_error_message(message)
 
 
-async def _release_session(api_key: str, api_url: str, session_id: str) -> None:
-    """Best-effort release of a keep-alive session so expiry doesn't strand it."""
+_LOGGER = logging.getLogger(__name__)
+
+
+async def _release_session(api_key: str, api_url: str, session_id: str) -> bool:
+    """Release a keep-alive session so expiry doesn't strand it; False if it failed."""
     from browserbase import AsyncBrowserbase
 
     try:
         async with AsyncBrowserbase(api_key=api_key, base_url=api_url) as client:
             await client.sessions.update(session_id, status="REQUEST_RELEASE")
-    except Exception:
-        pass
+    except Exception as error:
+        _LOGGER.warning(
+            "Failed to release Browserbase session %s: %s",
+            session_id,
+            _sanitize_error(str(error)),
+        )
+        return False
+    return True
 
 
 class _BrowserRuntime:
@@ -55,7 +65,8 @@ class _BrowserRuntime:
         # Set when run code called browser.close(): later calls get the facade's
         # terminal closed error instead of a relaunched browser.
         self.closed_by_agent = False
-        self._closed = False
+        self._shut_down = False
+        self._released = False
         self.tools = StagehandFacadeTools(
             stagehand,
             artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
@@ -138,19 +149,20 @@ class _BrowserRuntime:
         await self.close()
 
     async def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
+        # Shutting down happens once; a failed release is retried by later close()
+        # calls (the registry's expiry sweep closes agent-closed entries again).
         try:
-            try:
-                await self.stagehand.close()
-            finally:
-                await self.browser.close()
+            if not self._shut_down:
+                self._shut_down = True
+                try:
+                    await self.stagehand.close()
+                finally:
+                    await self.browser.close()
         finally:
-            if self.session_id is not None:
+            if self.session_id is not None and not self._released:
                 # keep-alive sessions outlive close(); release explicitly
                 # so expired registry entries don't strand paid sessions.
-                await _release_session(
+                self._released = await _release_session(
                     self.browserbase_api_key, self.browserbase_api_url, self.session_id
                 )
 

@@ -51,15 +51,15 @@ call and therefore lose the browser and snapshot IDs.
 
 ## Server configuration
 
-| Variable                      | Default | Meaning                                                                                       |
-| ----------------------------- | ------- | --------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`           | `local` | `local` or `browserbase`                                                                      |
-| `STAGEHAND_HEADLESS`          | `false` | Headless local Chrome                                                                         |
-| `STAGEHAND_START_URL`         | unset   | Optional URL opened when the server starts                                                    |
-| `STAGEHAND_MODEL`             | unset   | Optional model used by Stagehand AI methods inside `run`                                      |
-| `STAGEHAND_ARTIFACT_ROOT`     | cwd     | Where screenshots saved with a `path` in `run` are written                                    |
+| Variable                      | Default | Meaning                                                                                                                                                                                                |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `STAGEHAND_BROWSER`           | `local` | `local` or `browserbase`                                                                                                                                                                               |
+| `STAGEHAND_HEADLESS`          | `false` | Headless local Chrome                                                                                                                                                                                  |
+| `STAGEHAND_START_URL`         | unset   | Optional URL opened when the server starts                                                                                                                                                             |
+| `STAGEHAND_MODEL`             | unset   | Optional model used by Stagehand AI methods inside `run`                                                                                                                                               |
+| `STAGEHAND_ARTIFACT_ROOT`     | cwd     | Where screenshots saved with a `path` in `run` are written                                                                                                                                             |
 | `STAGEHAND_FACADE_QUIET_WAIT` | `false` | Experimental: `page.waitForTimeout(ms)` longer than 400 ms returns once the DOM has loaded and the main document has gone 400 ms without mutations, never later than `ms`; shorter waits sleep in full |
-| `BROWSERBASE_API_KEY`         | unset   | Required for Browserbase                                                                      |
+| `BROWSERBASE_API_KEY`         | unset   | Required for Browserbase                                                                                                                                                                               |
 
 `run` accepts exactly one of JavaScript `code` or snapshot `actions`. JavaScript executes against
 the Playwright-shaped `page`, `context`, and `browser` facade. Snapshot actions use bracketed IDs
