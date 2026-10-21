@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func patchFixture(t *testing.T, version string) (string, string) {
@@ -153,5 +156,23 @@ func TestPreparePatchRejectsStaleSDKIdentityWithoutWriting(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before, patchSnapshot(t, root)) {
 		t.Fatal("stale identity rejection changed files")
+	}
+}
+
+func TestWritePatchFilePreservesOriginalAfterPartialWrite(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"package.json", sdkVersionFile} {
+		t.Run(name, func(t *testing.T) {
+			root, sdkRoot := patchFixture(t, "4.3.9")
+			before := patchSnapshot(t, root)
+			writeErr := errors.New("write interrupted")
+			contents := io.MultiReader(strings.NewReader("partial new contents"), iotest.ErrReader(writeErr))
+			if err := writePatchFile(filepath.Join(sdkRoot, name), contents); !errors.Is(err, writeErr) {
+				t.Fatalf("expected write error, got %v", err)
+			}
+			if !reflect.DeepEqual(before, patchSnapshot(t, root)) {
+				t.Fatal("partial write changed an original file or left a temporary file behind")
+			}
+		})
 	}
 }

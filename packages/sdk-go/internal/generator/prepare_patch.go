@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,16 +67,36 @@ func preparePatch(sdkRoot, version string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(manifestPath, updated, 0o644); err != nil {
+	if err := writePatchFile(manifestPath, bytes.NewReader(updated)); err != nil {
 		return fmt.Errorf("write SDK package: %w", err)
 	}
-	if err := os.WriteFile(identityPath, source, 0o644); err != nil {
-		// Restore the original pair if writing the generated identity fails.
+	if err := writePatchFile(identityPath, bytes.NewReader(source)); err != nil {
+		// The identity is untouched on failure; restore the original manifest too.
 		return errors.Join(
 			fmt.Errorf("write generated SDK version: %w", err),
-			os.WriteFile(manifestPath, manifest, 0o644),
-			os.WriteFile(identityPath, identity, 0o644),
+			writePatchFile(manifestPath, bytes.NewReader(manifest)),
 		)
 	}
 	return nil
+}
+
+// Finish writing and closing a file in the same directory before replacing the
+// original, so a partial write cannot truncate an existing version file.
+func writePatchFile(path string, contents io.Reader) error {
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".go-patch-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temporary.Name())
+	defer temporary.Close()
+	if err := temporary.Chmod(0o644); err != nil {
+		return err
+	}
+	if _, err := io.Copy(temporary, contents); err != nil {
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporary.Name(), path)
 }
