@@ -25,15 +25,15 @@ it.
 
 That protocol is the contract, and it decides how a change ripples through the repository:
 
-| Package                                      | What it is                                                                                                 |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [`packages/protocol`](packages/protocol)     | The JSON-RPC contract. The source of truth for every client                                                |
-| [`packages/extension`](packages/extension)   | The in-browser runtime that serves those methods                                                           |
-| [`packages/sdk-ts`](packages/sdk-ts)         | The TypeScript SDK, published to npm as `@browserbasehq/stagehand`. Consumes the protocol schemas directly |
-| [`packages/sdk-python`](packages/sdk-python) | The Python SDK, published to PyPI as `stagehand`. Its models are generated from the protocol               |
-| [`packages/sdk-go`](packages/sdk-go)         | The Go SDK. Its models are generated from the protocol, and it is released by module tag                   |
-| [`packages/evals`](packages/evals)           | The evaluation harness                                                                                     |
-| [`packages/docs`](packages/docs)             | The documentation site                                                                                     |
+| Package                                                                                  | What it is                                                                                                 |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`packages/protocol`](packages/protocol)                                                 | The JSON-RPC contract. The source of truth for every client                                                |
+| [`packages/extension`](packages/extension)                                               | The in-browser runtime that serves those methods                                                           |
+| [`packages/sdk-ts`](packages/sdk-ts)                                                     | The TypeScript SDK, published to npm as `@browserbasehq/stagehand`. Consumes the protocol schemas directly |
+| [`packages/sdk-python`](packages/sdk-python)                                             | The Python SDK, published to PyPI as `stagehand`. Its models are generated from the protocol               |
+| [`packages/sdk-go`](https://github.com/browserbase/stagehand/tree/v4-go/packages/sdk-go) | The Go SDK. Its models are generated from the protocol, and it is released by module tag                   |
+| [`packages/evals`](packages/evals)                                                       | The evaluation harness                                                                                     |
+| [`packages/docs`](packages/docs)                                                         | The documentation site                                                                                     |
 
 The Python models are generated from the protocol. Regenerate them rather than hand-editing
 anything under `packages/sdk-python/src/stagehand/_generated/`.
@@ -141,7 +141,7 @@ Two consequences are worth knowing before you plan a change:
 - The extension is embedded in each SDK rather than published separately, so an SDK release is what
   delivers an extension fix to users.
 - The release workflow does not create Go module tags. A Go release is tagged separately, with the
-  version from `packages/sdk-go/package.json`.
+  version from [`packages/sdk-go/package.json`](https://github.com/browserbase/stagehand/blob/v4-go/packages/sdk-go/package.json).
 
 The protocol package is versioned for compatibility tracking and is never published.
 
