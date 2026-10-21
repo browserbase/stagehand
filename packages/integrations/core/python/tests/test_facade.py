@@ -25,7 +25,7 @@ from stagehand_integrations.facade.bundle import canonical_json, parse_bundle
 def test_bundle_content_matches_its_hash() -> None:
     bundle = facade_bundle()
     canonical = canonical_json({"sources": bundle["sources"], "contract": bundle["contract"]})
-    assert bundle["version"] == 4
+    assert bundle["version"] == 5
     assert hashlib.sha256(canonical.encode()).hexdigest() == bundle["sha256"]
 
 
@@ -162,3 +162,58 @@ async def test_a_failed_close_callback_is_not_chained() -> None:
         await host._close_now()
     assert raised.value.__cause__ is None
     assert raised.value.__suppress_context__
+
+
+def test_run_options_default_off() -> None:
+    assert facade_bundle()["contract"]["runOptions"] == {
+        "quietWait": {"default": False, "windowMs": 400, "pollMs": 100}
+    }
+
+
+class _RetryingStagehand:
+    """Fails the first run batch as if its page had gone, then answers; records inputs."""
+
+    def __init__(self) -> None:
+        page = _Page()
+        self.inputs: list[object] = []
+        self.browser = type("Browser", (), {"context": _Context(page)})()
+
+    async def experimental_batch(
+        self, source: str, input: object, *, timeout: int, page: object
+    ) -> object:
+        self.inputs.append(input)
+        if len(self.inputs) == 1:
+            raise RuntimeError("callback batch page was not found")
+        return {
+            "__stagehandPlaywrightCompat": True,
+            "value": 1,
+            "telemetry": {"calls": {}, "misses": {}},
+            "artifacts": [],
+            "closeRequested": False,
+            "batchRuntimeMs": 1,
+        }
+
+
+class _Page:
+    page_id = "page-1"
+
+
+class _Context:
+    def __init__(self, page: _Page) -> None:
+        self._page = page
+
+    async def active_page(self) -> _Page:
+        return self._page
+
+
+@pytest.mark.parametrize(
+    ("quiet_wait", "expected"),
+    [(None, {}), (False, {}), (True, {"quietWait": True})],
+)
+async def test_quiet_wait_goes_into_every_run_input(
+    quiet_wait: bool | None, expected: dict[str, object]
+) -> None:
+    stagehand = _RetryingStagehand()
+    host = tools.StagehandFacadeTools(cast("Stagehand", stagehand), quiet_wait=quiet_wait)
+    assert await host.run(code="return 1;") == 1
+    assert stagehand.inputs == [expected, expected]

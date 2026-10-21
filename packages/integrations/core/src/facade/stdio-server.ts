@@ -153,6 +153,7 @@ async function createResources(): Promise<FacadeResources> {
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     const tools = new StagehandFacadeTools(stagehand, {
+      ...(config.quietWait && { quietWait: true }),
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
       // The browser is not recreated on purpose: a fresh session would silently

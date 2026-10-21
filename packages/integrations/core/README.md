@@ -14,14 +14,15 @@ from the facade's pages and page events; closing the last visible tab permits a
 new visible page in the same browser. In-process callers can pass
 `{ keeperPage: false }` to `StagehandFacadeTools` and remain responsible for cleanup.
 
-| Setting                                                           | Default and behavior                                                                                                                                               |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`                                               | `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`; accepts these two values only. Local Chrome is headed.                                         |
-| `BROWSERBASE_API_KEY`, `BROWSERBASE_PROJECT_ID`                   | Existing Browserbase credentials and optional project ID; the API key is required for Browserbase.                                                                 |
-| `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS`                   | `3600`; integer seconds from `1` through `21600`.                                                                                                                  |
-| `STAGEHAND_BROWSERBASE_PROXIES`, `STAGEHAND_BROWSERBASE_VERIFIED` | Unset leaves the corresponding Browserbase API option unspecified. Accepts `1/true/yes/on` and `0/false/no/off`. The eval runner explicitly defaults both to true. |
-| `STAGEHAND_BROWSERBASE_EXTENSION_ID`                              | Unset uploads a packaged extension for this session; set to reuse the host's uploaded extension. The host owns the shared upload's cleanup.                        |
-| `STAGEHAND_MODEL_NAME`, `STAGEHAND_MODEL_API_KEY`                 | Optional Stagehand model configuration. A model API key requires an explicit model name. Plain facade navigation and inspection do not invoke a model.             |
+| Setting                                                           | Default and behavior                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`                                               | `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`; accepts these two values only. Local Chrome is headed.                                                                                                                                            |
+| `BROWSERBASE_API_KEY`, `BROWSERBASE_PROJECT_ID`                   | Existing Browserbase credentials and optional project ID; the API key is required for Browserbase.                                                                                                                                                                    |
+| `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS`                   | `3600`; integer seconds from `1` through `21600`.                                                                                                                                                                                                                     |
+| `STAGEHAND_BROWSERBASE_PROXIES`, `STAGEHAND_BROWSERBASE_VERIFIED` | Unset leaves the corresponding Browserbase API option unspecified. Accepts `1/true/yes/on` and `0/false/no/off`. The eval runner explicitly defaults both to true.                                                                                                    |
+| `STAGEHAND_BROWSERBASE_EXTENSION_ID`                              | Unset uploads a packaged extension for this session; set to reuse the host's uploaded extension. The host owns the shared upload's cleanup.                                                                                                                           |
+| `STAGEHAND_MODEL_NAME`, `STAGEHAND_MODEL_API_KEY`                 | Optional Stagehand model configuration. A model API key requires an explicit model name. Plain facade navigation and inspection do not invoke a model.                                                                                                                |
+| `STAGEHAND_FACADE_QUIET_WAIT`                                     | Off unless `1/true/yes/on`. Experimental: a `page.waitForTimeout(ms)` longer than 400 ms returns once the page is quiet (DOM loaded, no mutation in the main document for 400 ms; shadow roots are not observed), never later than `ms`. Shorter waits sleep in full. |
 
 `--surface=playwright` is the default stdio description. `--surface=legacy` selects
 the earlier description with the same runtime. `EXPLICIT_SNAPSHOT_ACTIONS=1`
@@ -41,6 +42,13 @@ supplies only the batch input:
 | --------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `run` code: `runPrelude + code + runEpilogue` | `{ hiddenPageIds?: string[] }`, pages hidden from agent code | `{ value, executionError?, telemetry, artifacts, closeRequested, batchRuntimeMs }`; errors thrown by `code` are `executionError` |
 | `run` actions: `actionRunner`                 | `{ actions, xpathById }`, the latest snapshot's XPath map    | `{ completed }`, or `{ staleId }` before any action runs, which the host reports as `STALE_SNAPSHOT_ID_ERROR`                    |
+
+The run input also carries the options in `contract.runOptions`, only when a
+host turns them on: `quietWait: true` (`StagehandFacadeTools`'s `quietWait`,
+the Python host's `quiet_wait`). Each run report's `telemetry.waits` gives
+`{ count, requestedMs, waitedMs, earlyReturns }` for `page.waitForTimeout`, in
+both modes; the stdio server writes it on its `stagehand_playwright_compat`
+stderr line.
 
 The host keeps the per-page snapshot map and the missing-snapshot and navigation
 checks, rejects run results without the envelope's shape, and enforces the caps
