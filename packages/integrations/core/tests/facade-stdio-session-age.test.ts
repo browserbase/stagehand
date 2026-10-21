@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   setRequestHandler: vi.fn(),
   onSessionLost: undefined as ((loss: FacadeSessionLoss) => void) | undefined,
+  quietWait: false,
+  toolsOptions: undefined as object | undefined,
 }));
 
 vi.mock("@browserbasehq/stagehand", () => ({
@@ -25,6 +27,7 @@ vi.mock("../src/facade/config.js", () => ({
   stagehandFacadeConfigFromEnv: () => ({
     browser: { type: "browserbase", launchOptions: { timeout: 3600 } },
     stagehand: {},
+    quietWait: mocks.quietWait,
   }),
 }));
 vi.mock("../src/facade/tools.js", () => ({
@@ -34,6 +37,7 @@ vi.mock("../src/facade/tools.js", () => ({
       options: { onSessionLost: (loss: FacadeSessionLoss) => void },
     ) {
       mocks.onSessionLost = options.onSessionLost;
+      mocks.toolsOptions = options;
     }
     async snapshot() {
       vi.setSystemTime(15_000);
@@ -48,6 +52,8 @@ vi.mock("../src/facade/tools.js", () => ({
 }));
 
 afterEach(() => {
+  mocks.quietWait = false;
+  mocks.toolsOptions = undefined;
   vi.restoreAllMocks();
   vi.useRealTimers();
   vi.resetModules();
@@ -86,4 +92,22 @@ it("includes browser launch and Stagehand initialization in measured session age
     sessionAgeMs: 13_000,
     sessionTimeoutMs: 3_600_000,
   });
+  // STAGEHAND_FACADE_QUIET_WAIT is unset in this config.
+  expect(mocks.toolsOptions).not.toHaveProperty("quietWait");
+});
+
+it("turns quietWait on for the tools when the config asks for it", async () => {
+  mocks.quietWait = true;
+  mocks.launch.mockResolvedValue({ provider: "local", close: vi.fn() });
+  mocks.create.mockResolvedValue({});
+  vi.spyOn(process.stderr, "write").mockReturnValue(true);
+  vi.spyOn(process, "once").mockReturnValue(process);
+  vi.spyOn(process.stdin, "once").mockReturnValue(process.stdin);
+  await import("../src/facade/stdio-server.js");
+  const handler = mocks.setRequestHandler.mock.calls.at(-1)?.[1] as (
+    request: { params: { name: string; arguments: object } },
+    extra: { requestId: string },
+  ) => Promise<unknown>;
+  await handler({ params: { name: "snapshot", arguments: {} } }, { requestId: "snapshot-1" });
+  expect(mocks.toolsOptions).toMatchObject({ quietWait: true });
 });

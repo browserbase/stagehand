@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -177,10 +178,15 @@ func connectCDPClient(ctx context.Context, options cdpClientOptions) (*cdpClient
 	if err != nil {
 		return nil, err
 	}
+	headers := options.headers
+	if len(headers) > 0 && !canForwardCDPHeaders(options.cdpURL, webSocketDebuggerURL) {
+		headers = nil
+		slog.DebugContext(ctx, "CDP headers were withheld from the advertised WebSocket endpoint because its host or port differs, or forwarding would downgrade transport security. If the handshake is rejected, check the gateway’s advertised CDP endpoint.")
+	}
 	socket, err := dialCDPWebSocket(
 		ctx,
 		webSocketDebuggerURL,
-		options.headers,
+		headers,
 		options.httpClient,
 	)
 	if err != nil {
@@ -261,10 +267,25 @@ func dialCDPWebSocket(
 	httpClient *http.Client,
 ) (*websocket.Conn, error) {
 	socket, response, err := websocket.Dial(ctx, webSocketDebuggerURL, &websocket.DialOptions{
-		HTTPClient: httpClient,
+		HTTPClient: cdpHTTPClientWithHeaders(httpClient, headers),
 		HTTPHeader: headers.Clone(),
 	})
 	if err != nil {
+		if errors.Is(err, errUnsafeCDPRedirect) {
+			return nil, errUnsafeCDPRedirect
+		}
+		if errors.Is(err, errCDPRedirectLimit) {
+			return nil, errCDPRedirectLimit
+		}
+		if len(headers) > 0 {
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("open CDP WebSocket: %w", ctx.Err())
+			}
+			if response != nil {
+				return nil, fmt.Errorf("open CDP WebSocket: HTTP %d", response.StatusCode)
+			}
+			return nil, errors.New("failed to open authenticated CDP WebSocket")
+		}
 		if response != nil {
 			return nil, fmt.Errorf(
 				"open CDP WebSocket: %s: %w",
@@ -1131,9 +1152,7 @@ func resolveBrowserWebSocketURL(
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", fmt.Errorf("unsupported CDP URL scheme %q", parsed.Scheme)
 	}
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
+	httpClient = cdpHTTPClientWithHeaders(httpClient, headers)
 
 	baseURL := strings.TrimRight(cdpURL, "/")
 	versionURL := baseURL + "/json/version"
@@ -1151,8 +1170,18 @@ func resolveBrowserWebSocketURL(
 		request.Header = headers.Clone()
 		response, err := httpClient.Do(request)
 		if err != nil {
+			if errors.Is(err, errUnsafeCDPRedirect) {
+				return "", errUnsafeCDPRedirect
+			}
+			if errors.Is(err, errCDPRedirectLimit) {
+				return "", errCDPRedirectLimit
+			}
 			lastError = err.Error()
 		} else {
+			if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+				_ = response.Body.Close()
+				return "", fmt.Errorf("CDP discovery was rejected with HTTP %d. Check the gateway credentials and access permissions", response.StatusCode)
+			}
 			webSocketURL, readErr := readCDPVersionResponse(response)
 			if readErr == nil {
 				return webSocketURL, nil
@@ -1161,6 +1190,9 @@ func resolveBrowserWebSocketURL(
 		}
 
 		if err := waitForCDPPoll(ctx, defaultCDPResolveInterval); err != nil {
+			if len(headers) > 0 {
+				return "", fmt.Errorf("resolve authenticated CDP WebSocket URL: %w", err)
+			}
 			if lastError != "" {
 				return "", fmt.Errorf(
 					"resolve CDP WebSocket URL from %s: %w (last error: %s)",

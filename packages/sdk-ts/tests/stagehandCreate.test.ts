@@ -76,6 +76,30 @@ describe("Stagehand.create", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
+  it.each([
+    undefined,
+    "ws://127.0.0.1:9300/devtools/browser/abc",
+    "wss://browser.example/devtools/browser/abc",
+  ])("uses extension CDP URL %s or falls back to the client's URL", async (extensionCdpUrl) => {
+    const cdp = new FakeCDPClient();
+    const connectCdp = vi.fn(async () => cdp as unknown as CDPClient);
+    const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
+    const cdpUrl = "wss://gateway/cdp?api_key=secret";
+    const browser = await localBrowser.connect({
+      cdpUrl,
+      ...(extensionCdpUrl === undefined ? {} : { extensionCdpUrl }),
+    });
+    const stagehand = await Stagehand.create({ browser });
+
+    expect(connectCdp).toHaveBeenCalledWith(expect.objectContaining({ cdpUrl }));
+    expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+      params: { browser_cdp_url: extensionCdpUrl ?? cdp.webSocketDebuggerUrl },
+    });
+
+    await stagehand.close();
+    await browser.close();
+  });
+
   it("forwards an unknown model ID during initialization", async () => {
     const cdp = new FakeCDPClient();
     const { localBrowser } = createBrowserFactoriesForTest({

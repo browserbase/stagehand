@@ -1887,6 +1887,17 @@ export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
 }).meta({ id: "PageWaitForTimeoutParams" });
 
+export const PageWaitForFunctionParamsSchema = PageIdParamsSchema.extend({
+  expression: z.string(),
+  options: z
+    .strictObject({
+      polling: z.union([z.literal("raf"), z.number().positive().max(2_147_483_647)]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+    })
+    .meta({ id: "PageWaitForFunctionOptions" })
+    .optional(),
+}).meta({ id: "PageWaitForFunctionParams" });
+
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
   options: z
@@ -2067,6 +2078,10 @@ export const PageWaitForSelectorResultSchema = z
     matched: z.boolean(),
   })
   .meta({ id: "PageWaitForSelectorResult" });
+
+export const PageWaitForFunctionResultSchema = z
+  .strictObject({ value: z.json() })
+  .meta({ id: "PageWaitForFunctionResult" });
 
 export const LocatorClickResultSchema = z
   .strictObject({

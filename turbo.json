@@ -41,7 +41,7 @@
     },
     "@browserbasehq/stagehand-integrations#build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!python/**"],
       "outputs": ["dist/**"]
     },
     "@browserbasehq/eve#build": {
