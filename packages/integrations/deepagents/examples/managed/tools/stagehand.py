@@ -1,42 +1,18 @@
-from __future__ import annotations
-
+# No `from __future__ import annotations`: with a JSON-schema args_schema, LangChain
+# finds the injected `runtime: ToolRuntime` parameter only from real annotations.
 import asyncio
-import base64
 import json
 import os
-import re
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from functools import lru_cache
-from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from langchain.tools import ToolRuntime, tool
-from pydantic import BaseModel, ConfigDict, Field
-from stagehand import Page, Stagehand, StagehandBrowser, browserbase
-
-_ACTION_SOURCE = """async (stagehand, input) => {
-  let completed = 0;
-  for (const action of input.actions) {
-    const locator = stagehand.page.locator(action.selector);
-    switch (action.op) {
-      case "click": await locator.click(); break;
-      case "hover": await locator.hover(); break;
-      case "fill": await locator.fill(action.value); break;
-      case "type": await locator.type(
-        action.text,
-        action.delay === undefined ? undefined : { delay: action.delay },
-      ); break;
-      case "press": await locator.click(); await stagehand.page.keyPress(action.key); break;
-      case "select": await locator.selectOption(action.values); break;
-      default: throw new Error("Unsupported ref action: " + String(action.op));
-    }
-    completed += 1;
-  }
-  return { completed };
-}"""
-
-_TEXT_NODE_SUFFIX = re.compile(r"/text\(\)(?:\[\d+\])?$")
+from langchain_core.tools import BaseTool
+from stagehand import Stagehand, StagehandBrowser, browserbase
+from stagehand_middleware.facade import StagehandFacadeTools, facade_tools
+from stagehand_middleware.facade.tools import sanitize_error_message
 
 
 def _positive_int_env(name: str, default: int) -> int:
@@ -48,18 +24,7 @@ def _positive_int_env(name: str, default: int) -> int:
 
 def _sanitize_error(message: str) -> str:
     """Redact credential-bearing fragments before errors reach the model."""
-    message = re.sub(
-        r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+",
-        r"\1[redacted]",
-        message,
-        flags=re.IGNORECASE,
-    )
-    return re.sub(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", r"\1[redacted]", message)
-
-
-@lru_cache(maxsize=1)
-def _facade_source() -> str:
-    return Path(__file__).with_name("_assets").joinpath("playwright_facade.js").read_text()
+    return sanitize_error_message(message)
 
 
 async def _release_session(api_key: str, api_url: str, session_id: str) -> None:
@@ -71,56 +36,6 @@ async def _release_session(api_key: str, api_url: str, session_id: str) -> None:
             await client.sessions.update(session_id, status="REQUEST_RELEASE")
     except Exception:
         pass
-
-
-class ClickAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["click"]
-    id: str = Field(min_length=1)
-
-
-class HoverAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["hover"]
-    id: str = Field(min_length=1)
-
-
-class FillAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["fill"]
-    id: str = Field(min_length=1)
-    value: str
-
-
-class TypeAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["type"]
-    id: str = Field(min_length=1)
-    text: str
-    delay: float | None = Field(default=None, ge=0)
-
-
-class PressAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["press"]
-    id: str = Field(min_length=1)
-    key: str = Field(min_length=1)
-
-
-class SelectAction(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    op: Literal["select"]
-    id: str = Field(min_length=1)
-    values: str | list[str]
-
-
-Action = ClickAction | HoverAction | FillAction | TypeAction | PressAction | SelectAction
-
-
-@dataclass(frozen=True)
-class _Snapshot:
-    url: str
-    xpath_by_id: dict[str, str]
 
 
 class _BrowserRuntime:
@@ -137,11 +52,17 @@ class _BrowserRuntime:
         self.browserbase_api_key = browserbase_api_key
         self.browserbase_api_url = browserbase_api_url
         self.session_id = browser.session_id
-        self.snapshots: dict[str, _Snapshot] = {}
-        self.lock = asyncio.Lock()
+        self.tools = StagehandFacadeTools(
+            stagehand,
+            artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
+            # run code calling browser.close() closes and releases the session.
+            on_close_requested=self.close,
+            quiet_wait=os.environ.get("STAGEHAND_FACADE_QUIET_WAIT", "").lower()
+            in {"1", "true", "yes", "on"},
+        )
 
     @classmethod
-    async def start(cls, *, session_id: str | None = None) -> _BrowserRuntime:
+    async def start(cls, *, session_id: str | None = None) -> "_BrowserRuntime":
         api_key = os.environ.get("BROWSERBASE_API_KEY", "")
         if not api_key:
             raise RuntimeError("BROWSERBASE_API_KEY is required")
@@ -183,7 +104,7 @@ class _BrowserRuntime:
         *,
         browserbase_api_key: str,
         browserbase_api_url: str,
-    ) -> _BrowserRuntime:
+    ) -> "_BrowserRuntime":
         try:
             model = os.environ.get("STAGEHAND_MODEL") or None
             model_api_key = os.environ.get("STAGEHAND_MODEL_API_KEY") or None
@@ -222,98 +143,6 @@ class _BrowserRuntime:
                     self.browserbase_api_key, self.browserbase_api_url, self.session_id
                 )
 
-    async def active_page(self) -> Page:
-        pages = await self.browser.context.pages()
-        if not pages:
-            return await self.browser.context.new_page()
-        return pages[-1]
-
-    async def execute(
-        self,
-        *,
-        code: str | None,
-        actions: list[Action] | None,
-    ) -> object:
-        if (code is None) == (actions is None):
-            raise ValueError("run requires exactly one of code or actions")
-        async with self.lock:
-            page = await self.active_page()
-            if code is not None:
-                return await self._execute_code(page, code)
-            return await self._execute_actions(page, actions or [])
-
-    async def snapshot(self, include_iframes: bool) -> str:
-        async with self.lock:
-            page = await self.active_page()
-            snapshot = await page.snapshot(include_iframes=include_iframes)
-            self.snapshots[page.page_id] = _Snapshot(
-                url=await page.url(),
-                xpath_by_id=dict(snapshot.xpath_map),
-            )
-            return snapshot.formatted_tree
-
-    async def screenshot(
-        self,
-        *,
-        full_page: bool | None,
-        image_type: Literal["png", "jpeg"],
-        quality: int | None,
-    ) -> tuple[bytes, str]:
-        async with self.lock:
-            page = await self.active_page()
-            image = await page.screenshot(
-                full_page=full_page,
-                type=image_type,
-                quality=quality,
-            )
-            return image, "image/jpeg" if image_type == "jpeg" else "image/png"
-
-    async def _execute_code(self, page: Page, code: str) -> object:
-        facade = _facade_source()
-        source = f"""async (batchStagehand, input) => {{
-  "use strict";
-  const __stagehandCompatIdentity = (target) => target;
-  for (let index = 0; index <= 32; index += 1) {{
-    globalThis[index === 0 ? "__name" : "__name" + index] = __stagehandCompatIdentity;
-  }}
-  {facade}
-  const runtime = await createPlaywrightCompatRuntime(batchStagehand);
-  const page = runtime.page;
-  const context = runtime.context;
-  const browser = runtime.browser;
-  return await (async () => {{
-    {code}
-  }})();
-}}"""
-        return await self.stagehand.experimental_batch(
-            source,
-            {},
-            page=page,
-            timeout=_positive_int_env("STAGEHAND_RUN_TIMEOUT_MS", 60_000),
-        )
-
-    async def _execute_actions(self, page: Page, actions: list[Action]) -> object:
-        if not actions:
-            raise ValueError("run actions must not be empty")
-        snapshot = self.snapshots.get(page.page_id)
-        if snapshot is None or snapshot.url != await page.url():
-            raise ValueError("No current hydrated snapshot exists; call snapshot again")
-        hydrated: list[dict[str, object]] = []
-        for action in actions:
-            value = action.model_dump(exclude_none=True)
-            xpath = snapshot.xpath_by_id.get(action.id)
-            if xpath is None:
-                raise ValueError(f'Snapshot ID "{action.id}" is stale or not actionable')
-            value["selector"] = f"xpath={_TEXT_NODE_SUFFIX.sub('', xpath)}"
-            hydrated.append(value)
-        result = await self.stagehand.experimental_batch(
-            _ACTION_SOURCE,
-            {"actions": hydrated},
-            page=page,
-            timeout=_positive_int_env("STAGEHAND_RUN_TIMEOUT_MS", 60_000),
-        )
-        return {"result": result, "url": await page.url()}
-
 
 @dataclass
 class _RegistryEntry:
@@ -326,7 +155,7 @@ class _BrowserRegistry:
         self.entries: dict[str, _RegistryEntry] = {}
         self.lock = asyncio.Lock()
 
-    async def get(self, thread_id: str) -> _BrowserRuntime:
+    async def get(self, thread_id: str) -> "_BrowserRuntime":
         now = time.monotonic()
         async with self.lock:
             await self._close_expired(now)
@@ -394,62 +223,56 @@ def _thread_id(runtime: ToolRuntime) -> str:
     return str(identifier)
 
 
-@tool
+_CONTRACT = {spec["name"]: spec for spec in facade_tools()}
+
+
+def _contract_tool(name: str) -> Callable[[Callable[..., Awaitable[object]]], BaseTool]:
+    """`@tool` with the facade contract's description and input schema."""
+    return tool(
+        name,
+        description=_CONTRACT[name]["description"],
+        args_schema=_CONTRACT[name]["inputSchema"],
+    )
+
+
+@_contract_tool("run")
 async def run(
     code: str | None = None,
-    actions: list[Action] | None = None,
+    actions: list[dict[str, Any]] | None = None,
     *,
     runtime: ToolRuntime,
 ) -> str:
-    """Execute JavaScript or snapshot-ID actions in the persistent Stagehand browser.
-
-    Provide exactly one of code or actions. JavaScript receives Playwright-shaped page, context,
-    and browser objects. Actions use IDs from the latest snapshot.
-    """
     browser = await _REGISTRY.get(_thread_id(runtime))
     try:
-        result = await browser.execute(code=code, actions=actions)
+        result = await browser.tools.run(code=code, actions=actions)
     except Exception as error:
         raise RuntimeError(_sanitize_error(str(error))) from None
     return json.dumps(result, default=str, separators=(",", ":"))
 
 
-@tool
+@_contract_tool("snapshot")
 async def snapshot(includeIframes: bool = True, *, runtime: ToolRuntime) -> str:
-    """Capture the active page tree and hydrate IDs for subsequent run actions."""
     browser = await _REGISTRY.get(_thread_id(runtime))
     try:
-        return await browser.snapshot(includeIframes)
+        return await browser.tools.snapshot(include_iframes=includeIframes)
     except Exception as error:
         raise RuntimeError(_sanitize_error(str(error))) from None
 
 
-@tool
+@_contract_tool("screenshot")
 async def screenshot(
     fullPage: bool | None = None,
     type: Literal["png", "jpeg"] = "png",
-    quality: int | None = None,
+    quality: float | None = None,
     *,
     runtime: ToolRuntime,
 ) -> list[dict[str, object]]:
-    """Capture a screenshot of the active page."""
-    if quality is not None and not 0 <= quality <= 100:
-        raise ValueError("quality must be between 0 and 100")
-    if type == "png" and quality is not None:
-        raise ValueError("quality is only valid for jpeg screenshots")
     browser = await _REGISTRY.get(_thread_id(runtime))
     try:
-        image, mime_type = await browser.screenshot(
-            full_page=fullPage,
-            image_type=type,
-            quality=quality,
-        )
+        image = await browser.tools.screenshot(full_page=fullPage, type=type, quality=quality)
     except Exception as error:
         raise RuntimeError(_sanitize_error(str(error))) from None
     return [
         {"type": "text", "text": "Screenshot of the current page:"},
-        {
-            "type": "image",
-            "url": f"data:{mime_type};base64,{base64.b64encode(image).decode('ascii')}",
-        },
+        {"type": "image", "url": f"data:{image['mimeType']};base64,{image['data']}"},
     ]

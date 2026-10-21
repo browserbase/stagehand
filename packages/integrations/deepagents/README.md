@@ -51,23 +51,27 @@ call and therefore lose the browser and snapshot IDs.
 
 ## Server configuration
 
-| Variable                   | Default | Meaning                                                  |
-| -------------------------- | ------- | -------------------------------------------------------- |
-| `STAGEHAND_BROWSER`        | `local` | `local` or `browserbase`                                 |
-| `STAGEHAND_HEADLESS`       | `false` | Headless local Chrome                                    |
-| `STAGEHAND_START_URL`      | unset   | Optional URL opened when the server starts               |
-| `STAGEHAND_MODEL`          | unset   | Optional model used by Stagehand AI methods inside `run` |
-| `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Callback-batch timeout                                   |
-| `BROWSERBASE_API_KEY`      | unset   | Required for Browserbase                                 |
+| Variable                      | Default | Meaning                                                                                       |
+| ----------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`           | `local` | `local` or `browserbase`                                                                      |
+| `STAGEHAND_HEADLESS`          | `false` | Headless local Chrome                                                                         |
+| `STAGEHAND_START_URL`         | unset   | Optional URL opened when the server starts                                                    |
+| `STAGEHAND_MODEL`             | unset   | Optional model used by Stagehand AI methods inside `run`                                      |
+| `STAGEHAND_ARTIFACT_ROOT`     | cwd     | Where screenshots saved with a `path` in `run` are written                                    |
+| `STAGEHAND_FACADE_QUIET_WAIT` | `false` | Experimental: `page.waitForTimeout(ms)` returns once the page is quiet, never later than `ms` |
+| `BROWSERBASE_API_KEY`         | unset   | Required for Browserbase                                                                      |
 
 `run` accepts exactly one of JavaScript `code` or snapshot `actions`. JavaScript executes against
 the Playwright-shaped `page`, `context`, and `browser` facade. Snapshot actions use bracketed IDs
-from the most recent `snapshot` call.
+from the most recent `snapshot` call. The tools, their descriptions and schemas, and the agent
+instructions come from [`stagehand-middleware`](https://pypi.org/project/stagehand-middleware/),
+the same facade contract the TypeScript facade uses.
 
 ## Managed Deep Agents
 
-The managed example lives in `examples/managed`. Its authored LangChain tools run the Python
-Stagehand SDK directly and expose the same `run`, `snapshot`, and `screenshot` contract. The managed
+The managed example lives in `examples/managed`. Its authored LangChain tools wrap
+`stagehand-middleware`'s facade tools over the Python Stagehand SDK and expose the same `run`,
+`snapshot`, and `screenshot` contract; `instructions.md` is the contract's agent instructions. The managed
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
 exposed to the model.
 
