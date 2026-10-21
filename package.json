@@ -30,7 +30,6 @@
     "build:wheel": "uv --directory packages/sdk-python run --locked python scripts/build.py"
   },
   "devDependencies": {
-    "@ast-grep/lang-go": "catalog:",
     "@ast-grep/lang-python": "catalog:",
     "@ast-grep/napi": "catalog:",
     "@changesets/apply-release-plan": "catalog:",
