@@ -325,6 +325,9 @@ async function connectBrowser(options: {
       invalidate,
       // Never closes the browser or its session, even one Stagehand launched.
       disconnect: () => connectedClient.close(),
+      // close() after disconnect(): release a browser or session Stagehand launched,
+      // never one it connected to.
+      releaseOwned: options.origin === "launched" ? () => closeSource(options.source) : undefined,
     });
   } catch (error) {
     cdpClient?.close();

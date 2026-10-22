@@ -36,4 +36,4 @@ it("disconnect() leaves a connected Chrome running with its pages", async () => 
   } finally {
     await chrome.close();
   }
-});
+}, 60_000);

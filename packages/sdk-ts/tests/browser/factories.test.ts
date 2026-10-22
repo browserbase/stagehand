@@ -228,7 +228,7 @@ describe("Stagehand browser factories", () => {
       },
     );
 
-    it("is terminal: later disconnect() and close() calls do nothing", async () => {
+    it("is terminal for a connected local browser: later calls do nothing", async () => {
       const closeCdp = vi.fn();
       const sendCommand = vi.fn(async () => ({}));
       const { localBrowser } = createBrowserFactoriesForTest({
@@ -245,6 +245,62 @@ describe("Stagehand browser factories", () => {
         "Cannot attach Stagehand to a closed browser",
       );
     });
+
+    it.each([false, true])(
+      "close() after disconnect() closes a launched local browser once, keepAlive=%s",
+      async (keepAlive) => {
+        const closeSource = vi.fn();
+        const closeCdp = vi.fn();
+        const sendCommand = vi.fn(async () => ({}));
+        const { localBrowser } = createBrowserFactoriesForTest({
+          launchLocalBrowser: async () => ({ cdpUrl: "http://127.0.0.1:9222", close: closeSource }),
+          connectCdp: async () => fakeCdpClient(closeCdp, sendCommand),
+        });
+        const browser = await localBrowser.launch({ keepAlive });
+
+        await browser.disconnect();
+        await Promise.all([browser.close(), browser.close()]);
+        await browser.close();
+
+        expect(closeSource).toHaveBeenCalledOnce();
+        expect(closeCdp).toHaveBeenCalledOnce();
+        expect(sendCommand).not.toHaveBeenCalled();
+        expect(browser.closed).toBe(true);
+      },
+    );
+
+    it.each([
+      { origin: "launched" as const, keepAlive: false, releases: 1 },
+      { origin: "launched" as const, keepAlive: true, releases: 1 },
+      { origin: "connected" as const, keepAlive: true, releases: 0 },
+    ])(
+      "close() after disconnect() on a $origin Browserbase browser releases it $releases time(s)",
+      async ({ origin, keepAlive, releases }) => {
+        const closeSession = vi.fn();
+        const session = {
+          sessionId: "session_123",
+          cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+          close: closeSession,
+        };
+        const { browserbase } = createBrowserFactoriesForTest({
+          createBrowserbaseSessionClient: () => ({
+            createSession: vi.fn(async () => session),
+            connectSession: vi.fn(async () => session),
+          }),
+          connectCdp: async () => fakeCdpClient(),
+        });
+        const browser =
+          origin === "launched"
+            ? await browserbase.launch({ apiKey: "bb_key", keepAlive })
+            : await browserbase.connect({ apiKey: "bb_key", sessionId: "session_123" });
+
+        await browser.disconnect();
+        await browser.close();
+        await browser.close();
+
+        expect(closeSession).toHaveBeenCalledTimes(releases);
+      },
+    );
 
     it("does nothing after close()", async () => {
       const closeCdp = vi.fn();

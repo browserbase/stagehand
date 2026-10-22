@@ -236,6 +236,45 @@ async def test_disconnect_is_terminal_and_later_calls_do_nothing(
         _claim_browser(handle)
 
 
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive", "expected_source_closes"),
+    [
+        ("local", "launched", False, 1),
+        ("local", "launched", True, 1),
+        ("local", "connected", True, 0),
+        ("browserbase", "launched", False, 1),
+        ("browserbase", "launched", True, 1),
+        ("browserbase", "connected", True, 0),
+    ],
+)
+async def test_close_after_disconnect_releases_only_what_stagehand_launched(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+    expected_source_closes: int,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    await handle.disconnect()
+    await asyncio.gather(handle.close(), handle.close())
+    await handle.close()
+    await handle.disconnect()
+
+    assert handle.closed is True
+    assert source.close_calls == expected_source_closes
+    assert cdp.commands == []
+    assert cdp.close_calls == 1
+
+
 async def test_disconnect_after_close_does_nothing(fake_cdp: type[FakeCDPClient]) -> None:
     handle = await _connected_handle(FakeSource(keep_alive=True), origin="connected")
     cdp = fake_cdp.instances[-1]

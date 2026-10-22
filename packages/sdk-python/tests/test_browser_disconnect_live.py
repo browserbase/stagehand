@@ -24,26 +24,28 @@ def _get_json(url: str) -> object:
 
 
 async def test_disconnect_leaves_a_connected_chrome_running_with_its_pages() -> None:
-    # Started outside Stagehand's browser factories, like a long-lived user browser.
-    chrome = await _launch_local_browser(
-        LocalBrowserLaunchOptions.model_validate({"headless": True})
-    )
-    try:
-        browser = await local_browser.connect(cdp_url=chrome.cdp_url)
-        stagehand = await Stagehand.create(browser=browser)
-        page = await browser.context.new_page()
-        await page.goto("data:text/html,<title>still here</title>", wait_until="load")
-        await stagehand.close()
+    # Bounded like the TypeScript test; pytest has no default per-test timeout.
+    async with asyncio.timeout(60):
+        # Started outside Stagehand's browser factories, like a long-lived user browser.
+        chrome = await _launch_local_browser(
+            LocalBrowserLaunchOptions.model_validate({"headless": True})
+        )
+        try:
+            browser = await local_browser.connect(cdp_url=chrome.cdp_url)
+            stagehand = await Stagehand.create(browser=browser)
+            page = await browser.context.new_page()
+            await page.goto("data:text/html,<title>still here</title>", wait_until="load")
+            await stagehand.close()
 
-        await browser.disconnect()
-        assert browser.closed is True
-        await browser.close()
+            await browser.disconnect()
+            assert browser.closed is True
+            await browser.close()
 
-        host = urlparse(chrome.cdp_url).netloc
-        version = await asyncio.to_thread(_get_json, f"http://{host}/json/version")
-        assert isinstance(version, dict) and "Browser" in version
-        targets = await asyncio.to_thread(_get_json, f"http://{host}/json/list")
-        assert isinstance(targets, list)
-        assert "still here" in [target.get("title") for target in targets]
-    finally:
-        await chrome.close()
+            host = urlparse(chrome.cdp_url).netloc
+            version = await asyncio.to_thread(_get_json, f"http://{host}/json/version")
+            assert isinstance(version, dict) and "Browser" in version
+            targets = await asyncio.to_thread(_get_json, f"http://{host}/json/list")
+            assert isinstance(targets, list)
+            assert "still here" in [target.get("title") for target in targets]
+        finally:
+            await chrome.close()

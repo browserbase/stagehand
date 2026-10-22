@@ -742,7 +742,7 @@ await browser.disconnect()  # Chrome and its tabs keep running
 </Tab>
 </Tabs>
 
-Like `close()`, `disconnect()` is final: the handle can't be attached again, and later `close()` or `disconnect()` calls do nothing. A browser Stagehand launched keeps running too, so closing it is up to you, and Stagehand doesn't release a Browserbase session or remove a temporary local profile.
+After `disconnect()` the handle can't be attached again, and repeated `disconnect()` calls do nothing. A browser Stagehand launched keeps running too. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
 
 ## Local environment
 
@@ -1220,10 +1220,10 @@ defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }
 
 | Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
 | --- | --- | --- | --- |
-| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running; Stagehand doesn't release it |
-| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile | Chrome and its profile stay |
-| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running |
-| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running |
+| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until `browser.close()` or its timeout |
+| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile | Chrome keeps running until `browser.close()` |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running; a later `browser.close()` does nothing |
+| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running; a later `browser.close()` does nothing |
 
 #### Local environment
 
