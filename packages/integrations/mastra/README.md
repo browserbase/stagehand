@@ -12,7 +12,7 @@ a durable Stagehand session, with no bridge process but framework-specific code.
 
 ## Setup
 
-Node.js 24 or newer is required. From the repository root, build the integrations
+Node.js 24.22.1 or newer is required. From the repository root, build the integrations
 package first so its `dist` server entrypoint exists:
 
 ```sh

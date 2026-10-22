@@ -42,7 +42,7 @@ or a `*.gen.go` file.
 ## Set up your environment
 
 Stagehand is a TypeScript, Python, and Go monorepo, and [`just`](https://github.com/casey/just)
-drives all three. Install Node.js 22.18 or later, Go 1.26, `just`, [`pnpm`](https://pnpm.io), and
+drives all three. Install Node.js 24.22.1+, Go 1.26, `just`, [`pnpm`](https://pnpm.io), and
 [`uv`](https://docs.astral.sh/uv/).
 Go first.
 

@@ -10,7 +10,7 @@ Stagehand also runs on other platforms. If Functions is not a good fit for you, 
 ## Prerequisites
 
 - A Browserbase API key from [Settings](https://www.browserbase.com/settings)
-- Node.js 22.18 or later and pnpm
+- Node.js 22.23.4+ or 24.22.1+ and pnpm
 - The `browse` CLI:
 
 ```bash
@@ -527,7 +527,7 @@ func main() {
     "name": "bb-stagehand-on-vercel",
     "private": true,
     "type": "module",
-    "engines": { "node": ">=22.18" },
+    "engines": { "node": "^22.23.4 || ^24.22.1 || >=26.12.1" },
     "dependencies": {
       "@browserbasehq/stagehand": "^4.0.0",
       "zod": "^4.0.0"
