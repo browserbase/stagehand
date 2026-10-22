@@ -30,3 +30,10 @@ test("rendering preserves literal braces and dollar signs in task data", () => {
   const instruction = 'Inspect {{template}} and {"price":"$12"}';
   expect(renderPrompt("Task: $instruction", { instruction })).toBe(`Task: ${instruction}`);
 });
+
+test("rendering never rewrites interpolated values", () => {
+  const instruction = "Price $$5 for $task __VERIFIER_DOUBLE_DOLLAR__";
+  expect(renderPrompt("Costs $$5. Task: $instruction $$$missing", { instruction })).toBe(
+    `Costs $5. Task: ${instruction} $$missing`,
+  );
+});

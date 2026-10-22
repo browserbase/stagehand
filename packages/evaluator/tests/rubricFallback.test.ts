@@ -33,3 +33,28 @@ test("detects rubric fallback clauses and ignores ordinary full-credit criteria"
   expect(describeRubricFallbacks({ items: [rubric.items[2]] })).toBe("");
   expect(describeRubricFallbacks(rubric)).toContain("unachievable_fallback_accepted");
 });
+
+test("a condition in a negated branch is not surfaced as a fallback", () => {
+  const item = (description: string) => ({
+    items: [{ criterion: "Model", maxPoints: 1, description }],
+  });
+  expect(
+    detectRubricFallbacks(
+      item("Full credit if the exact model is found, not if no exact match is available."),
+    ),
+  ).toEqual([]);
+  // "unless" in a penalty clause is the fallback allowance itself, so it stays surfaced.
+  expect(
+    detectRubricFallbacks(
+      item("Partial credit if the agent uses another site without trying X, unless X is blocked."),
+    ),
+  ).toHaveLength(1);
+  // An affirmative branch alongside a negated one still counts.
+  expect(
+    detectRubricFallbacks(
+      item(
+        "Full credit if the exact model is found, or if no exact match exists and the agent names the closest alternative, not if it guesses.",
+      ),
+    ),
+  ).toHaveLength(1);
+});

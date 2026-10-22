@@ -45,9 +45,9 @@ the later recorded state takes precedence.
 **Core Evaluation Principles:**
 
 1. **Best Effort.** Reward effort within constraints the agent cannot control.
-2. **Uncontrollable blockers** (CAPTCHA, login walls, sold out, site down, entity nonexistence) → award full credit when screenshots confirm the blocker.
+2. **Uncontrollable blockers** (CAPTCHA, login walls, sold out, site down, entity nonexistence) → award full PROCESS credit when the recorded evidence confirms the blocker, including for a hard constraint the blocker made impossible to meet. This credits effort only; it does not mean the task was completed.
 3. **Controllable failures** (wrong selections when correct options exist, hallucinations, premature giveup) → penalize per severity.
-4. **Hard constraints in the task** (specific qualifications, attributes, filters) → only award full credit when the constraint is actually met in the final evidence, not just searched for.
+4. **Hard constraints in the task** (specific qualifications, attributes, filters) → unless rule 2 applies, only award full credit when the constraint is actually met in the final evidence, not just searched for.
 5. **Conditional criteria.** If this criterion has a Condition and the condition is NOT met, set \`earned_points\` to \`criterion_max_points\` (criterion is not applicable) and note this in the justification.
 6. **Nitpick vs critical error scoring:**
    - Only nitpicks → 75–100% of max

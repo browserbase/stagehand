@@ -89,6 +89,7 @@ export function selectSignalImages(inputs: SignalInputs): number[] {
     const nearDup = picked.some(
       (p) =>
         Math.abs(p.originalStepIndex - c.originalStepIndex) <= 1 &&
+        url !== undefined &&
         stepUrl(inputs.trajectory.steps[p.originalStepIndex]) === url &&
         !c.reasons.includes("anchor"),
     );

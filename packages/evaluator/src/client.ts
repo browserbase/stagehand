@@ -87,6 +87,12 @@ function thinkingProviderOptions(): Record<string, unknown> {
   return { providerOptions: { google: { thinkingConfig: { thinkingBudget: budget } } } };
 }
 
+/** Judge attempts per call (default 2); non-finite or non-positive values fall back to the default. */
+export function resolveCallAttempts(raw: string | undefined): number {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n >= 1 ? n : 2;
+}
+
 export class AISdkJudge implements LLMClient {
   constructor(
     readonly model: LanguageModel,
@@ -146,7 +152,7 @@ export class AISdkJudge implements LLMClient {
     // Per-attempt timeout with retry: a stalled provider call is abandoned and retried instead of
     // consuming one long timeout and leaving the row ungraded. Budget: attempts × per-attempt timeout.
     const perAttemptMs = Number(process.env.VERIFIER_CALL_TIMEOUT_MS) || 60_000;
-    const attempts = Math.max(1, Number(process.env.VERIFIER_CALL_ATTEMPTS) || 2);
+    const attempts = resolveCallAttempts(process.env.VERIFIER_CALL_ATTEMPTS);
     let response: Awaited<ReturnType<typeof generateObject>> | undefined;
     for (let attempt = 1; ; attempt++) {
       try {

@@ -37,7 +37,7 @@ $action_history
 **Selected Trajectory Evidence:**
 $outcome_evidence_summary
 
-**Final trajectory state** (authoritative — page content and screenshot captured at the very end of the run; treat as ground truth for what the agent saw on its final page, even when no \`extract\`/\`observe\` step appears in the action history):
+**Final trajectory state** (authoritative for the page state captured at the end of the run, even when no \`extract\`/\`observe\` step appears in the action history; a probe taken after the trajectory ended shows the terminal state, not necessarily what the agent saw):
 $final_state_block
 
 **Agent's Predicted Output (Final Answer):**

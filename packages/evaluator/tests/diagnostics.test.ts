@@ -27,6 +27,8 @@ test.each([
   "screenshot",
   "stagehand.run",
   "mcp__stagehand__run",
+  "mcp__stagehand_browser__run",
+  "stagehand-browser.snapshot",
   "stagehand_run",
   "provider.stagehand.snapshot",
   "stagehand.stagehand-run",

@@ -106,3 +106,21 @@ test("JSON deliverables with record arrays or field/value objects count as struc
     ),
   ).toBe("json-records");
 });
+
+test("quoted CSV cells with commas still count as csv rows", () => {
+  expect(
+    answerStructure(
+      'name,address,price\n"Cafe A","1 Main St, Springfield",$5\nCafe B,"2 Elm St, Shelbyville",$6',
+    ),
+  ).toBe("csv-rows");
+});
+
+test("fenced JSON records are classified without an answer wrapper", () => {
+  expect(
+    answerStructure('```json\n[{"store": "A", "price": 5}, {"store": "B", "price": 6}]\n```'),
+  ).toBe("json-records");
+  expect(answerStructure('```\n{"store": "A", "price": 5, "stock": true}\n```')).toBe(
+    "json-records",
+  );
+  expect(answerStructure('```json\n{"note": "nothing found"}\n```')).toBe("prose");
+});

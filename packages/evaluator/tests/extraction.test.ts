@@ -95,9 +95,11 @@ test.skipIf(!process.env.EVALUATOR_UPSTREAM_MODULE)(
   },
 );
 
-test("loads existing disk trajectories without a browser", async () => {
-  if (!process.env.EVALUATOR_REPLAY_DIR) return;
-  const trajectory = await loadTrajectoryFromDisk(process.env.EVALUATOR_REPLAY_DIR);
-  expect(trajectory.task.id).toBeTruthy();
-  expect(Array.isArray(trajectory.steps)).toBe(true);
-});
+test.skipIf(!process.env.EVALUATOR_REPLAY_DIR)(
+  "loads existing disk trajectories without a browser",
+  async () => {
+    const trajectory = await loadTrajectoryFromDisk(process.env.EVALUATOR_REPLAY_DIR!);
+    expect(trajectory.task.id).toBeTruthy();
+    expect(Array.isArray(trajectory.steps)).toBe(true);
+  },
+);

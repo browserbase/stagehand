@@ -51,7 +51,7 @@ The CLI always emits JSON. Exit 0 means grading completed, including ordinary
 task failures; exit 1 means input/startup failure; exit 2 means degraded or failed
 verification. Consume `health` directly instead of matching reasoning text.
 
-Opt-in knobs (defaults unchanged; measured in `EVALUATOR_V4_NOTES.md`):
+Opt-in knobs (defaults unchanged):
 
 | Variable                                              | Effect                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -59,11 +59,13 @@ Opt-in knobs (defaults unchanged; measured in `EVALUATOR_V4_NOTES.md`):
 | `VERIFIER_SIGNAL_IMAGES` / `VERIFIER_RECENT_IMAGES`   | Frame budget for `signals` (default 10) / `recency` (default 4).                                                                                                                                                                                                                       |
 | `VERIFIER_THINKING_BUDGET`                            | Caps judge reasoning tokens (Google `thinkingConfig`).                                                                                                                                                                                                                                 |
 | `VERIFIER_CALL_TIMEOUT_MS` / `VERIFIER_CALL_ATTEMPTS` | Per-attempt judge timeout (default 60000) and attempts (default 2).                                                                                                                                                                                                                    |
-| `VERIFIER_OCR_CMD`                                    | Optional command that OCRs screenshots into observation-tier text (`scripts/ocr-macos.swift`); cached by image hash.                                                                                                                                                                   |
+| `VERIFIER_OCR_CMD`                                    | Optional command (executable plus space-separated arguments, e.g. `swift scripts/ocr-macos.swift`) that OCRs screenshots into observation-tier text; cached by image hash.                                                                                                             |
 | `VERIFIER_REQUIREMENTS`                               | `1` verifies a cached per-task requirement checklist inside the judgment call.                                                                                                                                                                                                         |
 | `VERIFIER_UNRESOLVED_BLOCKS`                          | `0` lets only contradicted checks veto a judge pass.                                                                                                                                                                                                                                   |
 
 `scripts/replay.mjs` checks frozen input hashes and stamps the actual compiled
 build, config, model, and manifest. `scripts/report.py` reports ungated judge and
 gated production baselines separately, with confidence tables and per-row flips.
-See the repository's `EVALUATOR_V4_NOTES.md` for the calibration protocol and limits.
+Accuracy was measured on held-out labeled runs with the default configuration (chunked
+evidence, `llm` image selection, fused judgment, precomputed rubrics). Re-measure with
+these two scripts before relying on a changed knob.

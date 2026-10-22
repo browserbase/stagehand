@@ -7,8 +7,28 @@
  */
 import type { Rubric } from "./types.js";
 
-const FALLBACK_RE =
-  /((?:full|partial)\s+credit\s+(?:also\s+)?(?:if|when)[^.]*?(?:unavailab|not\s+available|out\s+of\s+stock|inaccessib|blocked|block|captcha|login\s+wall|no\s+(?:exact\s+)?match|impossible|cannot\s+be|technical\s+error|site\s+error|closest\s+(?:available\s+)?alternative|report(?:s|ed|ing)?\s+the\s+(?:blocker|issue|unavailab))[^.]*\.)/gi;
+const CONDITION =
+  /(?:unavailab|not\s+available|out\s+of\s+stock|inaccessib|blocked|block|captcha|login\s+wall|no\s+(?:exact\s+)?match|impossible|cannot\s+be|technical\s+error|site\s+error|closest\s+(?:available\s+)?alternative|report(?:s|ed|ing)?\s+the\s+(?:blocker|issue|unavailab))/;
+const FALLBACK_RE = new RegExp(
+  `((?:full|partial)\\s+credit\\s+(?:also\\s+)?(?:if|when)[^.]*?${CONDITION.source}[^.]*\\.)`,
+  "gi",
+);
+const CONDITION_ALL = new RegExp(CONDITION.source, "gi");
+// "…, not if no exact match is available": the condition is excluded from credit, not an allowed
+// fallback. Scope is the comma/semicolon-delimited phrase before it. "unless" is deliberately not
+// treated as negation: in penalty clauses ("Partial credit if … unless the site is blocked") it is
+// itself the fallback allowance.
+const NEGATED_BRANCH = /\b(?:not|never)\s+(?:even\s+)?(?:if|when)\b[^,;]*$/i;
+
+/** True when at least one fallback condition in the clause is not in a negated branch. */
+function hasAffirmativeCondition(clause: string): boolean {
+  for (const m of clause.matchAll(CONDITION_ALL)) {
+    const before = clause.slice(0, m.index);
+    const phrase = before.slice(Math.max(before.lastIndexOf(","), before.lastIndexOf(";")) + 1);
+    if (!NEGATED_BRANCH.test(phrase)) return true;
+  }
+  return false;
+}
 
 export interface FallbackClause {
   criterion: string;
@@ -24,6 +44,7 @@ export function detectRubricFallbacks(rubric: Rubric | undefined): FallbackClaus
       .replace(/\bi\.e\./gi, "ie")
       .replace(/\betc\./gi, "etc");
     for (const m of text.matchAll(FALLBACK_RE)) {
+      if (!hasAffirmativeCondition(m[1])) continue;
       out.push({ criterion: item.criterion, clause: m[1].replace(/\s+/g, " ").trim() });
     }
   }

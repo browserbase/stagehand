@@ -107,11 +107,20 @@ export async function loadOrGenerateChecklist(args: {
         },
       });
       const checklist = ChecklistSchema.parse(res.data);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(
-        file,
-        JSON.stringify({ ...checklist, _key: key, _task: args.task.id }, null, 1),
-      );
+      try {
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(
+          file,
+          JSON.stringify({ ...checklist, _key: key, _task: args.task.id }, null, 1),
+        );
+      } catch (error) {
+        // Persistence is best-effort: an unwritable cache must not discard a generated checklist.
+        args.logger({
+          category: "verifier",
+          level: 1,
+          message: `requirement checklist not cached: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
       return checklist;
     } catch (error) {
       args.logger({
@@ -123,6 +132,10 @@ export async function loadOrGenerateChecklist(args: {
     }
   })();
   inflight.set(key, p);
+  // Keep successful checklists memoized; drop failures so a transient error is retried.
+  void p.then((checklist) => {
+    if (!checklist && inflight.get(key) === p) inflight.delete(key);
+  });
   return p;
 }
 

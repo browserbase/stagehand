@@ -7,7 +7,7 @@ import type {
   Trajectory,
   TrajectoryStep,
 } from "./types.js";
-import { redactInlineImagePayloads } from "./evidenceNormalization.js";
+import { REDACTED_INLINE_IMAGE, redactInlineImagePayloads } from "./evidenceNormalization.js";
 
 type RawRubricCriterion = {
   criterion: unknown;
@@ -49,6 +49,9 @@ export function normalizeRubric(rubric: unknown): Rubric | undefined {
 
       if (typeof maxPoints !== "number" || !Number.isFinite(maxPoints)) {
         throw new TypeError(`Rubric criterion "${criterion}" is missing a numeric maxPoints value`);
+      }
+      if (maxPoints <= 0) {
+        throw new TypeError(`Rubric criterion "${criterion}" must have a positive maxPoints value`);
       }
 
       return {
@@ -129,24 +132,43 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
     >;
   };
 
-  const resolveWithinTrajectoryDir = (candidate: string, fieldName = "screenshotPath"): string => {
+  let canonicalTrajectoryDir: string | undefined;
+  /**
+   * Resolve a persisted file reference, rejecting paths that escape the
+   * trajectory dir lexically or through a symlink. Returns undefined when the
+   * file is missing so callers can treat it as absent evidence.
+   */
+  const resolveWithinTrajectoryDir = async (
+    candidate: string,
+    fieldName = "screenshotPath",
+  ): Promise<string | undefined> => {
+    const isOutside = (root: string, target: string): boolean => {
+      const relative = path.relative(root, target);
+      return relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
+    };
+    const escapes = () =>
+      new Error(`Trajectory ${fieldName} escapes trajectory directory: ${candidate}`);
+
     const resolved = path.resolve(trajectoryDir, candidate);
-    const relative = path.relative(trajectoryDir, resolved);
-    const outside =
-      relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
+    if (isOutside(trajectoryDir, resolved)) throw escapes();
 
-    if (outside) {
-      throw new Error(`Trajectory ${fieldName} escapes trajectory directory: ${candidate}`);
+    let canonical: string;
+    try {
+      canonical = await fs.realpath(resolved);
+    } catch {
+      return undefined;
     }
-
-    return resolved;
+    canonicalTrajectoryDir ??= await fs.realpath(trajectoryDir);
+    if (isOutside(canonicalTrajectoryDir, canonical)) throw escapes();
+    return canonical;
   };
 
   const hydrateProbeScreenshot = async (
     probe: PersistedProbeEvidence | undefined,
   ): Promise<void> => {
     if (probe?.screenshotPath && !probe.screenshot) {
-      const resolved = resolveWithinTrajectoryDir(probe.screenshotPath);
+      const resolved = await resolveWithinTrajectoryDir(probe.screenshotPath);
+      if (!resolved) return;
       try {
         probe.screenshot = await fs.readFile(resolved);
       } catch {
@@ -174,13 +196,16 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
           bytesBase64?: string;
         };
         if (typeof raw.imagePath === "string") {
-          const imagePath = resolveWithinTrajectoryDir(raw.imagePath, "imagePath");
-          try {
-            const bytes = await fs.readFile(imagePath);
-            resolved.push({ type: "image", bytes, mediaType: m.mediaType });
-          } catch {
-            // Missing tier-1 image: drop this modality. evidence_insufficient
-            // handles the downstream effect.
+          // Missing tier-1 image: drop this modality. evidence_insufficient
+          // handles the downstream effect.
+          const imagePath = await resolveWithinTrajectoryDir(raw.imagePath, "imagePath");
+          if (imagePath) {
+            try {
+              const bytes = await fs.readFile(imagePath);
+              resolved.push({ type: "image", bytes, mediaType: m.mediaType });
+            } catch {
+              /* unreadable: drop as above */
+            }
           }
         } else if (typeof raw.bytesBase64 === "string") {
           resolved.push({
@@ -311,7 +336,11 @@ export async function writeTrajectoryDir(dir: string, trajectory: Trajectory): P
       agentEvidence: { modalities },
       toolOutput: {
         ...step.toolOutput,
-        result: redactInlineImagePayloads(step.toolOutput.result, step.actionName),
+        // Buffer results are already externalized as image modalities; JSON
+        // would otherwise inline them as a numeric byte array.
+        result: Buffer.isBuffer(step.toolOutput.result)
+          ? REDACTED_INLINE_IMAGE
+          : redactInlineImagePayloads(step.toolOutput.result, step.actionName),
       },
     });
   }

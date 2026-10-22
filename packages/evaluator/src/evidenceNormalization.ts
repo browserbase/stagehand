@@ -9,28 +9,57 @@ function shouldRedactBase64Key(key: string, actionName?: string): boolean {
   return INLINE_IMAGE_KEYS.has(key) || (actionName === "screenshot" && key === "base64");
 }
 
-export function collectInlineImagePayloads(
+/** MCP-style image block: `{ data, mimeType: "image/..." }`. */
+function isDataImageBlock(value: object): value is { data: string; mimeType: string } {
+  const block = value as { data?: unknown; mimeType?: unknown };
+  return (
+    typeof block.data === "string" &&
+    typeof block.mimeType === "string" &&
+    block.mimeType.startsWith("image/")
+  );
+}
+
+interface InlineImagePayload {
+  base64: string;
+  mediaType: string;
+}
+
+function collectInlineImages(
   value: unknown,
-  actionName?: string,
-  out: string[] = [],
-): string[] {
+  actionName: string | undefined,
+  out: InlineImagePayload[],
+): InlineImagePayload[] {
   if (!value || typeof value !== "object") return out;
   if (Buffer.isBuffer(value)) return out;
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      collectInlineImagePayloads(item, actionName, out);
+      collectInlineImages(item, actionName, out);
     }
     return out;
   }
 
+  const dataBlock = isDataImageBlock(value);
   for (const [key, nested] of Object.entries(value)) {
-    if (shouldRedactBase64Key(key, actionName) && typeof nested === "string") {
-      out.push(nested);
+    if (dataBlock && key === "data") {
+      out.push({ base64: nested as string, mediaType: (value as { mimeType: string }).mimeType });
       continue;
     }
-    collectInlineImagePayloads(nested, actionName, out);
+    if (shouldRedactBase64Key(key, actionName) && typeof nested === "string") {
+      out.push({ base64: nested, mediaType: "image/png" });
+      continue;
+    }
+    collectInlineImages(nested, actionName, out);
   }
+  return out;
+}
+
+export function collectInlineImagePayloads(
+  value: unknown,
+  actionName?: string,
+  out: string[] = [],
+): string[] {
+  for (const image of collectInlineImages(value, actionName, [])) out.push(image.base64);
   return out;
 }
 
@@ -42,14 +71,17 @@ export function redactInlineImagePayloads(value: unknown, actionName?: string): 
     return value.map((item) => redactInlineImagePayloads(item, actionName));
   }
 
-  const out: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value)) {
-    out[key] =
-      shouldRedactBase64Key(key, actionName) && typeof nested === "string"
+  const dataBlock = isDataImageBlock(value);
+  // fromEntries defines own properties, so a `__proto__` key stays data.
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [
+      key,
+      (dataBlock && key === "data") ||
+      (shouldRedactBase64Key(key, actionName) && typeof nested === "string")
         ? REDACTED_INLINE_IMAGE
-        : redactInlineImagePayloads(nested, actionName);
-  }
-  return out;
+        : redactInlineImagePayloads(nested, actionName),
+    ]),
+  );
 }
 
 export function mergeAgentEvidence(...parts: Array<AgentEvidence | undefined>): AgentEvidence {
@@ -84,12 +116,12 @@ export function buildAgentEvidenceFromStepFinished(event: AgentStepFinishedEvent
       mediaType: "image/png",
     });
   } else if (typeof result === "object") {
-    for (const imageBase64 of collectInlineImagePayloads(result, event.actionName)) {
+    for (const image of collectInlineImages(result, event.actionName, [])) {
       try {
         modalities.push({
           type: "image",
-          bytes: Buffer.from(imageBase64, "base64"),
-          mediaType: "image/png",
+          bytes: Buffer.from(image.base64, "base64"),
+          mediaType: image.mediaType,
         });
       } catch {
         // Malformed base64; skip the image and keep the JSON modality.

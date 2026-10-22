@@ -81,7 +81,14 @@ await fs.writeFile(
     2,
   ),
 );
-await new Evaluator({ modelName: values.model }).validate(); // Fail before starting a batch.
+// Fail before starting a batch. Per-row verifiers reuse this process-wide health check, so its
+// judge usage is recorded once here rather than in any row's usage.
+const preflightUsage = [];
+await new Evaluator({ modelName: values.model, onUsage: (u) => preflightUsage.push(u) }).validate();
+await fs.writeFile(
+  path.join(values.out, "preflight.json"),
+  JSON.stringify({ usage: preflightUsage }, null, 2),
+);
 let next = 0;
 const results = [];
 await Promise.all(

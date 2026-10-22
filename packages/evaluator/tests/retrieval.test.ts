@@ -234,3 +234,40 @@ test("agent text that reproduces the tool result is tagged as an observation and
   const r = retrieveText(evidence, trajectory.task.precomputedRubric, trajectory.finalAnswer, 3000);
   expect(r.anchors.find((a) => a.kind === "quote")?.found.length).toBeGreaterThan(0);
 });
+
+test("money and identifier anchors locate complete values only", async () => {
+  const located = async (page: string, finalAnswer: string) => {
+    const trajectory = {
+      task: {
+        id: "complete",
+        instruction: "Report the price and model",
+        precomputedRubric: {
+          items: [{ criterion: "Price", description: "price and model", maxPoints: 1 }],
+        },
+      },
+      steps: [
+        {
+          actionName: "run",
+          actionArgs: {},
+          reasoning: "",
+          agentEvidence: { modalities: [] },
+          probeEvidence: {},
+          toolOutput: { ok: true, result: page },
+        },
+      ],
+      finalObservation: { url: "https://example.test" },
+      status: "complete",
+      finalAnswer,
+      usage: { input_tokens: 0, output_tokens: 0 },
+    } satisfies Trajectory;
+    const { evidence } = await collectCanonicalEvidence(trajectory, { chunked: true });
+    const r = retrieveText(evidence, trajectory.task.precomputedRubric, finalAnswer, 3000);
+    return Object.fromEntries(r.anchors.map((a) => [a.phrase, a.found.length > 0]));
+  };
+  expect(
+    await located("Price $1200, bulk $120,000. Models AB1234 and XAB123.", "$120 AB123"),
+  ).toEqual({ $120: false, ab123: false });
+  expect(
+    await located("Price $120.00 (was $16.50), model AB123-B and AB123.", "$120 $16.5 AB123"),
+  ).toEqual({ $120: true, "$16.5": true, ab123: true });
+});

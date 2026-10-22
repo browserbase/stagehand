@@ -504,8 +504,11 @@ export class RubricVerifier implements Verifier {
   ): Promise<EvaluationResult> {
     const taskSpec = trajectory.task;
     const config = mergeConfig(this.baseConfig, overrides);
+    const final = trajectory.finalObservation;
     const hasTrajectorySignal =
-      trajectory.steps.length > 0 || Boolean(trajectory.finalAnswer?.trim());
+      trajectory.steps.length > 0 ||
+      Boolean(trajectory.finalAnswer?.trim()) ||
+      Boolean(final?.screenshot || final?.ariaTree?.trim() || final?.url);
     if (!hasTrajectorySignal) {
       return this.emptyTrajectoryResult(normalizeRubric(taskSpec.precomputedRubric));
     }
@@ -1173,6 +1176,17 @@ export class RubricVerifier implements Verifier {
             },
           });
           const data = response.data as unknown as z.infer<typeof PerCriterionScoreResponseSchema>;
+          // Same contract as the fused path: an unmet condition leaves the
+          // criterion out of both process-score totals.
+          if (criterion.condition && data.condition_met === false)
+            return {
+              criterion: criterion.criterion,
+              maxPoints: criterion.maxPoints,
+              earnedPoints: null,
+              conditionMet: false,
+              explanation: data.justification,
+              evidenceInsufficient: false,
+            };
           const clamped = Math.max(0, Math.min(criterion.maxPoints, data.earned_points));
           return {
             criterion: criterion.criterion,

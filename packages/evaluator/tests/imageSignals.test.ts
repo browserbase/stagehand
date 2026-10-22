@@ -62,3 +62,31 @@ test("selection is budgeted, drops adjacent same-page duplicates, and is chronol
   expect(picked).toContain(104);
   expect(picked).toContain(101);
 });
+
+test("an adjacent same-page frame loses to its higher-scored neighbour", () => {
+  // Steps 2 and 3 are adjacent snapshots of /search; 2 outranks 3 (new-page), so 3 is dropped even
+  // though the budget has room for it.
+  const picked = selectSignalImages({
+    trajectory: t,
+    images: images.filter((i) => i.originalStepIndex !== 1),
+    anchorSteps: [],
+    retrievalSteps: [],
+    k: 4,
+  });
+  expect(picked).toEqual([100, 102, 104]);
+});
+
+test("frames without a recorded URL are never treated as same-page duplicates", () => {
+  const noUrl = {
+    ...t,
+    steps: t.steps.map((s) => ({ ...s, probeEvidence: {} })),
+  } as unknown as Trajectory;
+  const picked = selectSignalImages({
+    trajectory: noUrl,
+    images: images.filter((i) => i.originalStepIndex >= 2),
+    anchorSteps: [],
+    retrievalSteps: [],
+    k: 3,
+  });
+  expect(picked).toEqual([102, 103, 104]);
+});

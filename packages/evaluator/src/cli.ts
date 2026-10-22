@@ -19,7 +19,7 @@ async function main() {
   });
   if (values.help) {
     process.stdout.write(
-      "stagehand-evaluator <trajectory-directory> [--model provider/model] [--rubric file] [--out file] [--trace file] [--json]\n",
+      "stagehand-evaluator <trajectory-directory> [--model provider/model] [--rubric file] [--generate-rubric] [--out file] [--trace file] [--json]\n",
     );
     return;
   }

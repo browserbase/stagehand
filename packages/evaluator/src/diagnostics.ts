@@ -26,7 +26,7 @@ export function detectBrowserUse(steps: TrajectoryStep[]): BrowserUse {
     if (step.toolOutput?.ok !== true || serverIdentity(step)) continue;
     if (
       /^(?:run|snapshot|screenshot)$/.test(step.actionName) ||
-      /(?:^|[.:_-])stagehand[.:_-]+(?:stagehand[-_])?(?:run|snapshot|screenshot)$/.test(
+      /(?:^|[.:_-])stagehand(?:[-_]browser)?[.:_-]+(?:stagehand[-_])?(?:run|snapshot|screenshot)$/.test(
         step.actionName,
       )
     ) {

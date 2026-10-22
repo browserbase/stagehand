@@ -34,13 +34,18 @@ export function unwrapAnswer(answer: string | undefined): string {
 }
 
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
+/** Commas outside double-quoted CSV cells; lines with unbalanced quotes (e.g. 27" screens) count raw. */
+const csvCommas = (l: string) =>
+  count(l, /"/g) % 2 === 0 ? count(l.replace(/"[^"]*"/g, ""), /,/g) : count(l, /,/g);
 const consistent = (ns: number[], tol = 1) =>
   ns.length > 0 && Math.max(...ns) - Math.min(...ns) <= tol;
 
 export function answerStructure(answer: string | undefined): AnswerStructure {
   const raw = unwrapAnswer(answer);
   if (!raw.trim()) return "empty";
-  if (isStructuredJson(raw)) return "json-records";
+  // A fenced JSON payload without an answer wrapper is classified by its content.
+  const fenced = raw.trim().match(/^```(?:json)?\s*([[{][\s\S]*[\]}])\s*```$/);
+  if (isStructuredJson(raw) || (fenced && isStructuredJson(fenced[1]))) return "json-records";
   const a = raw.replace(URL_RE, "URL");
   const lines = a.split("\n").filter((l) => l.trim());
   if (/<table[\s>]/i.test(a) && /<tr[\s>]/i.test(a)) return "html-table";
@@ -55,10 +60,11 @@ export function answerStructure(answer: string | undefined): AnswerStructure {
   if (
     lines.length >= 3 &&
     commaLines.length === lines.length &&
-    consistent(
+    (consistent(
       commaLines.map((l) => count(l, /,/g)),
       0,
-    )
+    ) ||
+      consistent(commaLines.map(csvCommas), 0))
   )
     return "csv-rows";
   if (lines.length <= 2 && count(a, /\|/g) >= 4) return "inline-delimited";

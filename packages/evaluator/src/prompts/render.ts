@@ -18,18 +18,17 @@ export function renderPrompt(
   template: string,
   vars: Record<string, string | number | boolean | undefined>,
 ): string {
-  // Two-pass: first protect literal $$, then interpolate, then restore.
-  const placeholder = "__VERIFIER_DOUBLE_DOLLAR__";
-  let out = template.replaceAll("$$", placeholder);
-  out = out.replace(/\$([A-Za-z_][A-Za-z0-9_]*)/g, (_match, key: string) => {
+  // Single pass: `$$` and placeholders are matched together so interpolated
+  // values are never rescanned.
+  return template.replace(/\$\$|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, key?: string) => {
+    if (key === undefined) return "$";
     if (key in vars) {
       const v = vars[key];
       return v === undefined ? "" : String(v);
     }
     // Unknown variable: leave it intact so a missing-binding bug surfaces.
-    return `$${key}`;
+    return match;
   });
-  return out.replaceAll(placeholder, "$");
 }
 
 /**

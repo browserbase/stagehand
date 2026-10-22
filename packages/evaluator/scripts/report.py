@@ -38,27 +38,30 @@ def main():
         score_bytes = score_path.read_bytes()
         assert hashlib.sha256(score_bytes).hexdigest() == row['files']['scores/result.json'], row['id']
         score = json.loads(score_bytes)
-        predictions['disk gated production outcome'][row['id']] = score['outcomeSuccess']
+        predictions['disk gated production outcome'][row['id']] = score.get('outcomeSuccess')
         # If an older score has no gate metadata, the saved outcome is the judge's verdict.
         judge = score.get('judgeOutcomeSuccess', score.get('judge', {}).get('outcomeSuccess'))
         if judge is None and not score.get('outcomeGates'):
-            judge = score['outcomeSuccess']
+            judge = score.get('outcomeSuccess')
         predictions['disk ungated judge'][row['id']] = judge
+    # Key replays by full path: basenames can collide across directories.
+    names = {run: str(run) for run in args.runs}
+    assert len(set(names.values())) == len(args.runs), 'duplicate --runs entries'
     for run in args.runs:
-        stamps[run.name] = json.loads((run / 'run.json').read_text())
-        assert stamps[run.name]['manifestSha256'] == hashlib.sha256(args.manifest.read_bytes()).hexdigest()
-        predictions[run.name] = {}
-        details[run.name] = {}
-        run_health[run.name] = Counter()
+        stamps[names[run]] = json.loads((run / 'run.json').read_text())
+        assert stamps[names[run]]['manifestSha256'] == hashlib.sha256(args.manifest.read_bytes()).hexdigest()
+        predictions[names[run]] = {}
+        details[names[run]] = {}
+        run_health[names[run]] = Counter()
         for i, row in enumerate(rows):
             record = json.loads((run / f'{i}.json').read_text())
             assert record['id'] == row['id']
             result = record.get('result', {})
             health = result.get('health', {})
             error = record.get('error') or (health and health.get('status') != 'healthy')
-            run_health[run.name]['thrown' if record.get('error') else health.get('status', 'unreported')] += 1
-            predictions[run.name][row['id']] = None if error else result.get('outcomeSuccess')
-            details[run.name][row['id']] = {'state': result.get('outcomeState'), 'health': health,
+            run_health[names[run]]['thrown' if record.get('error') else health.get('status', 'unreported')] += 1
+            predictions[names[run]][row['id']] = None if error else result.get('outcomeSuccess')
+            details[names[run]][row['id']] = {'state': result.get('outcomeState'), 'health': health,
                 'error': record.get('error'), 'reasoning': result.get('rawSteps', {}).get('reasoning')}
     tables = {title: {name: table(rows, values, confirmed) for name, values in predictions.items()}
               for title, confirmed in [('confirmed-only primary', True), ('all-confidence sensitivity', False)]}
@@ -75,18 +78,18 @@ def main():
             'replays': {name: data[row['id']] for name, data in details.items()}})
     flips, variance = {}, {}
     for a, b in zip(args.runs, args.runs[1:]):
-        flips[f'{a.name} -> {b.name}'] = [r['id'] for r in rows
-            if isinstance(predictions[a.name][r['id']], bool) and isinstance(predictions[b.name][r['id']], bool)
-            and predictions[a.name][r['id']] != predictions[b.name][r['id']]]
-        comparable = [r for r in rows if isinstance(predictions[a.name][r['id']], bool)
-                      and isinstance(predictions[b.name][r['id']], bool)]
+        flips[f'{names[a]} -> {names[b]}'] = [r['id'] for r in rows
+            if isinstance(predictions[names[a]][r['id']], bool) and isinstance(predictions[names[b]][r['id']], bool)
+            and predictions[names[a]][r['id']] != predictions[names[b]][r['id']]]
+        comparable = [r for r in rows if isinstance(predictions[names[a]][r['id']], bool)
+                      and isinstance(predictions[names[b]][r['id']], bool)]
         labeled = [r for r in comparable if isinstance(r.get('label'), bool)]
-        changed = set(flips[f'{a.name} -> {b.name}'])
-        variance[f'{a.name} -> {b.name}'] = {
-            'sameModel': stamps[a.name]['model'] == stamps[b.name]['model'],
-            'sameBuild': (stamps[a.name]['buildSha256'] == stamps[b.name]['buildSha256'])
-                if stamps[a.name].get('buildSha256') and stamps[b.name].get('buildSha256') else None,
-            'sameConfig': stamps[a.name].get('config') == stamps[b.name].get('config'),
+        changed = set(flips[f'{names[a]} -> {names[b]}'])
+        variance[f'{names[a]} -> {names[b]}'] = {
+            'sameModel': stamps[names[a]]['model'] == stamps[names[b]]['model'],
+            'sameBuild': (stamps[names[a]]['buildSha256'] == stamps[names[b]]['buildSha256'])
+                if stamps[names[a]].get('buildSha256') and stamps[names[b]].get('buildSha256') else None,
+            'sameConfig': stamps[names[a]].get('config') == stamps[names[b]].get('config'),
             'comparableRows': len(comparable), 'flippedRows': len(changed),
             'labeledComparableRows': len(labeled), 'labeledFlippedRows': sum(r['id'] in changed for r in labeled),
             'rowsWithErrorInEitherRun': len(rows) - len(comparable)}

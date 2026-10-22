@@ -10,6 +10,7 @@ import { RubricVerifier } from "./rubricVerifier.js";
 import type { EvaluationResult, TaskSpec, Trajectory, VerifierConfig } from "./types.js";
 import { detectBrowserUse, executionIssues } from "./diagnostics.js";
 import { disclosedFallback, environmentBlocked, goalUnachievable } from "./outcomeChecks.js";
+import { normalizeRubric } from "./trajectory.js";
 
 export interface EvaluatorOptions {
   modelName?: string;
@@ -23,10 +24,18 @@ export interface EvaluatorOptions {
 /** Process-wide cache of successful judge health checks, keyed by model id. */
 const VALIDATED_MODELS = new Map<string, Promise<void>>();
 
+/** A malformed precomputed rubric surfaces as a verification health error, not a throw from here. */
+function hasValidRubric(rubric: unknown): boolean {
+  try {
+    return normalizeRubric(rubric) !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 export class Evaluator {
   readonly modelName: string;
   private readonly verifier: RubricVerifier;
-  private ready?: Promise<void>;
   private readonly options: EvaluatorOptions;
 
   constructor(options: EvaluatorOptions = {}) {
@@ -56,28 +65,35 @@ export class Evaluator {
         : this.client));
   }
 
+  /** Health-checks the judge and the rubric-generation model. */
   async validate(): Promise<void> {
-    this.ready ??= (async () => {
-      for (const client of new Set([this.client, this.rubricClient])) {
-        if (!(client instanceof AISdkJudge)) continue;
-        // One health check per model per process: harnesses construct an Evaluator per task, and a
-        // per-task check adds an LLM call and latency to every row without new information. A failed
-        // check is not cached, so a transient failure is retried by the next caller.
-        const key = client.modelId;
-        let check = VALIDATED_MODELS.get(key);
-        if (!check) {
-          check = client.validate();
-          VALIDATED_MODELS.set(key, check);
-          check.catch(() => VALIDATED_MODELS.delete(key));
-        }
-        await check;
+    await this.check([this.client, this.rubricClient]);
+  }
+
+  private async check(clients: LLMClient[]): Promise<void> {
+    for (const client of new Set(clients)) {
+      if (!(client instanceof AISdkJudge)) continue;
+      // One health check per model per process: harnesses construct an Evaluator per task, and a
+      // per-task check adds an LLM call and latency to every row without new information. A failed
+      // check is not cached, so a transient failure is retried by the next caller.
+      const key = client.modelId;
+      let check = VALIDATED_MODELS.get(key);
+      if (!check) {
+        check = client.validate();
+        VALIDATED_MODELS.set(key, check);
+        check.catch(() => VALIDATED_MODELS.delete(key));
       }
-    })();
-    await this.ready;
+      await check;
+    }
   }
 
   async verify(trajectory: Trajectory): Promise<EvaluationResult> {
-    await this.validate();
+    // The rubric model is only called to generate a missing rubric or the opt-in requirement checklist.
+    const config = this.verifier.config;
+    const usesRubricModel =
+      config.approach !== "outcome-only" &&
+      (!hasValidRubric(trajectory.task.precomputedRubric) || config.requirementChecklist);
+    await this.check(usesRubricModel ? [this.client, this.rubricClient] : [this.client]);
     const errors: Array<{ stage: string; message: string }> = [];
     const track = (client: LLMClient): LLMClient => ({
       async createChatCompletion<T>(request: CompletionRequest): Promise<T> {
@@ -161,7 +177,7 @@ export class Evaluator {
   }
 
   async generateRubric(task: TaskSpec) {
-    await this.validate();
+    await this.check([this.rubricClient]);
     return this.verifier.generateRubric(task);
   }
 }

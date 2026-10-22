@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   checkedOutcomeState,
   disclosedFallback,
@@ -8,6 +8,10 @@ import {
 } from "../src/outcomeChecks.js";
 
 const ok = { requirement: "r", evidence: "e", state: "supported" as const };
+
+// These assert the default gate; the VERIFIER_UNRESOLVED_BLOCKS=0 experiment intentionally relaxes it.
+beforeEach(() => vi.stubEnv("VERIFIER_UNRESOLVED_BLOCKS", undefined));
+afterEach(() => vi.unstubAllEnvs());
 
 test("goal_achievability is optional and does not affect the three required checks", () => {
   const checks = OutcomeChecksSchema.parse({

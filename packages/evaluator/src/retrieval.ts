@@ -70,11 +70,21 @@ export function extractAnchors(
 
 const OBSERVATION_SOURCES = new Set(["probe-aria", "tool-output", "screenshot-ocr"]);
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function containsAnchor(
   normalizedContent: string,
   anchor: { phrase: string; kind: AnswerAnchor["kind"] },
 ): boolean {
-  if (anchor.kind === "money") return normalizedContent.replace(/\s/g, "").includes(anchor.phrase);
+  const p = escapeRe(anchor.phrase);
+  // Complete values only: "$120" must not match "$1200" or "$120,000" (trailing zero cents are the
+  // same amount), and identifier "ab123" must not match "ab1234" or "xab123".
+  if (anchor.kind === "money") {
+    const cents = anchor.phrase.includes(".") ? "0*" : "(?:\\.0+)?";
+    return new RegExp(`${p}${cents}(?!\\d|[,.]\\d)`).test(normalizedContent.replace(/\s/g, ""));
+  }
+  if (anchor.kind === "identifier")
+    return new RegExp(`(?<![\\p{L}\\p{N}])${p}(?![\\p{L}\\p{N}])`, "u").test(normalizedContent);
   return normalizedContent.includes(anchor.phrase);
 }
 

@@ -155,7 +155,12 @@ export interface Trajectory {
 
 /** A single screenshot kept by Step 1, ready for downstream relevance scoring. */
 export interface CanonicalScreenshot {
-  /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
+  /**
+   * 0-based evidence index. `loadAndReduceScreenshots` assigns the position in the
+   * kept-screenshots array; `collectCanonicalEvidence` re-stamps it into the
+   * combined image + text index space, so it can then exceed the position in
+   * `screenshots`.
+   */
   canonicalIndex: number;
   /**
    * 0-based position in `Trajectory.steps` this screenshot came from
@@ -196,10 +201,12 @@ export interface EvidenceLoadResult {
   /** Kept frames, in chronological order. */
   screenshots: CanonicalScreenshot[];
   /**
-   * Maps trajectory step position → canonical index in `screenshots`. Steps
+   * Maps trajectory step position → `canonicalIndex` of the kept frame. Steps
    * whose screenshots were deduplicated point to the surviving canonical frame
    * (typically the prior kept frame). Useful for "find me the screenshot for
-   * step K" lookups in downstream prompts.
+   * step K" lookups in downstream prompts. Same index space as
+   * `screenshots[].canonicalIndex`: kept-screenshot positions from
+   * `loadAndReduceScreenshots`, combined image + text indices from `collectCanonicalEvidence`.
    */
   stepIndexToCanonical: Map<number, number>;
   /** Number of original frames considered. */
