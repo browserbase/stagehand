@@ -58,7 +58,7 @@ export interface ResolveRubricTracedOptions {
 /**
  * Resolve a task's rubric — precomputed, cached, or freshly generated — inside
  * a `verifier.rubric` span. Single definition shared by the stagehand and
- * external-harness (claude_code/codex) paths so the logged `source` always
+ * external-harness (claude_code) paths so the logged `source` always
  * reflects what actually happened: a cache miss that generates is reported as
  * "generated", never "cached".
  */
@@ -126,7 +126,7 @@ export async function resolveRubricTraced(
 /**
  * Run V3Evaluator.verify() inside a `verifier.verify` span with the standard
  * scores + evaluation metadata. Single definition shared by the stagehand and
- * external-harness (claude_code/codex) paths.
+ * external-harness (claude_code) paths.
  */
 export async function verifyTraced(
   evaluator: Pick<V3Evaluator, "verify">,
@@ -167,7 +167,7 @@ export async function verifyTraced(
 }
 
 /**
- * Verifier wiring for an external-harness runner (claude_code / codex). The
+ * Verifier wiring for an external-harness runner (claude_code). The
  * runner's only job is turning its event stream into a Trajectory; everything
  * else — evaluator construction, rubric hydration, verification, persistence,
  * and folding the verdict into the TaskResult — is harness-agnostic and lives
@@ -200,7 +200,7 @@ export interface GradeExternalTrajectoryOptions {
   baseResult: TaskResult;
   /** Error message for a run the verifier grades as unsuccessful. */
   errorMessage: string;
-  /** Logger category ("claude_code" | "codex"). */
+  /** Logger category ("claude_code"). */
   category: string;
   logger: EvalLogger;
 }

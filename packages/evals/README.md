@@ -71,12 +71,16 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 | `-c, --concurrency <n>` | Max parallel sessions |
 | `-m, --model <id>` / `-p, --provider <name>` | Override the model/provider matrix |
 | `--api` | Run via the Stagehand API instead of the SDK |
-| `--harness <stagehand\|claude_code\|codex>` | Which agent harness drives the bench task |
+| `--harness <stagehand\|claude_code>` | Which agent harness drives the bench task |
 | `--agent-mode <dom\|hybrid\|cua>` / `--agent-modes <csv>` | Stagehand agent mode (or matrix) |
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets |
 | `--preview` | Print the resolved plan and exit — no browser, no LLM calls |
 
 Defaults live in `evals.config.json` and can be edited via `evals config set …`.
+
+The Claude Code harness defaults to `--tool playwright_code`; `--tool cdp_code`
+is also supported. Browse evals and the Browse-only Codex harness are not
+available on the v3 branch.
 
 `--preview` is useful for sanity-checking the plan before paying for a run:
 

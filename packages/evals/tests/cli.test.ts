@@ -434,7 +434,7 @@ describe.sequential("core config", () => {
 
   it("auto-resets startup when a tool change invalidates it", async () => {
     resetConfig();
-    // cdp_code supports tool_attach_local_cdp; browse_cli does not.
+    // cdp_code supports tool_attach_local_cdp; understudy_code does not.
     await runCli(["config", "core", "set", "tool", "cdp_code"]);
     await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
     const { stdout, code } = await runCli([
@@ -442,13 +442,13 @@ describe.sequential("core config", () => {
       "core",
       "set",
       "tool",
-      "browse_cli",
+      "understudy_code",
     ]);
     expect(code).toBe(0);
     expect(stdout).toContain("Resetting startup");
 
     const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-    expect(saved.core?.tool).toBe("browse_cli");
+    expect(saved.core?.tool).toBe("understudy_code");
     expect(saved.core?.startup).toBeUndefined();
   }, 30_000);
 

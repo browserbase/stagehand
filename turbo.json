@@ -92,21 +92,6 @@
         "!openapi.v4.yaml"
       ]
     },
-    "browse#build": {
-      "dependsOn": ["^build"],
-      "outputs": [
-        "dist/**",
-        "oclif.manifest.json"
-      ],
-      "inputs": [
-        "**/*.ts",
-        "**/*.js",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "!dist/**"
-      ]
-    },
     "@browserbasehq/stagehand-server-v4#gen:openapi": {
       "dependsOn": ["^build:esm"],
       "outputs": ["openapi.v4.yaml"],
@@ -502,18 +487,6 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json"
-      ]
-    },
-    "test:cli": {
-      "dependsOn": ["build"],
-      "outputs": [],
-      "cache": false,
-      "inputs": [
-        "tests/**/*.ts",
-        "src/**/*.ts",
-        "package.json",
-        "tsconfig.json",
-        "vitest.config.ts"
       ]
     },
     "dev": {

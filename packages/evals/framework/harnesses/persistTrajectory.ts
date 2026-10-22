@@ -46,8 +46,8 @@ export interface PersistAdapterTrajectoryResult {
 }
 
 /**
- * Persist a trajectory produced by an external-harness adapter (claude_code,
- * codex). External harnesses produce a complete Trajectory synchronously
+ * Persist a trajectory produced by an external-harness adapter (claude_code).
+ * External harnesses produce a complete Trajectory synchronously
  * rather than streaming bus events, so they bypass TrajectoryRecorder and
  * call writeTrajectoryDir directly. The evaluationResult, if supplied, is
  * also written under scores/result.json and merged into task_data.json.

@@ -20,14 +20,9 @@ import {
   type Harness,
 } from "./benchTypes.js";
 import {
-  getBrowseCliToolMetadata,
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
 } from "./claudeCodeToolAdapter.js";
-import {
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "./codexToolAdapter.js";
 import {
   inferDefaultStagehandAgentMode,
   isCuaCapableModel,
@@ -35,9 +30,6 @@ import {
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
   "anthropic/claude-sonnet-4-6" as AvailableModel,
-];
-const DEFAULT_CODEX_MODELS: AvailableModel[] = [
-  "openai/gpt-5.4-mini" as AvailableModel,
 ];
 
 export interface BenchPlanOptions {
@@ -214,16 +206,6 @@ function resolveDefaultModelEntries(
     }));
   }
 
-  if (harness === "codex") {
-    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map(
-      (modelName) => ({
-        modelName,
-        mode: "hybrid",
-        cua: false,
-      }),
-    );
-  }
-
   return isAgentCategory
     ? getAgentModelEntries()
     : getModelList(effectiveCategory).map((modelName) => ({
@@ -389,7 +371,7 @@ export function generateBenchTestcases(
   );
   const allTestcases = [...suiteTestcases.testcases];
 
-  if (options.harness === "claude_code" || options.harness === "codex") {
+  if (options.harness === "claude_code") {
     if (suiteTestcases.remainingTasks.length > 0) {
       const unsupported = suiteTestcases.remainingTasks
         .map((task) => task.name)
@@ -450,7 +432,6 @@ export function generateBenchTestcases(
           provider: row.provider,
           toolSurface: row.toolSurface,
           startupProfile: row.startupProfile,
-          ...buildToolMetadata(row),
           agentMode: row.agentMode,
         },
         expected: true,
@@ -472,9 +453,6 @@ function resolveBenchRowToolSurface(
   if (harness === "claude_code") {
     return resolveClaudeCodeToolSurface(requested);
   }
-  if (harness === "codex") {
-    return resolveCodexToolSurface(requested);
-  }
   return requested;
 }
 
@@ -486,14 +464,7 @@ function resolveBenchRowStartupProfile(
 ): StartupProfile | undefined {
   if (harness === "claude_code") {
     return resolveClaudeCodeStartupProfile(
-      toolSurface ?? "browse_cli",
-      environment,
-      requested,
-    );
-  }
-  if (harness === "codex") {
-    return resolveCodexStartupProfile(
-      toolSurface ?? "browse_cli",
+      toolSurface ?? "playwright_code",
       environment,
       requested,
     );
@@ -598,18 +569,7 @@ function withBenchMetadata(
       provider: row.provider,
       toolSurface: row.toolSurface,
       startupProfile: row.startupProfile,
-      ...buildToolMetadata(row),
       agentMode: row.agentMode,
     },
   };
-}
-
-function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
-  if (
-    (row.harness === "claude_code" || row.harness === "codex") &&
-    row.toolSurface === "browse_cli"
-  ) {
-    return getBrowseCliToolMetadata();
-  }
-  return {};
 }

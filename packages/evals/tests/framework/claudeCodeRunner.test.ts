@@ -34,15 +34,15 @@ describe("claude code runner helpers", () => {
   it("builds a browser task prompt with the required result marker", () => {
     const prompt = buildClaudeCodePrompt(
       plan,
-      "Use browse only. Discover usage with browse -h.",
+      "Use the run tool with the initialized page object.",
     );
 
     expect(prompt).toContain("Dataset: webvoyager");
     expect(prompt).toContain("Task ID: wv-1");
     expect(prompt).toContain("Start URL: https://example.com");
     expect(prompt).toContain("Find the checkout button");
-    expect(prompt).toContain("Use browse only.");
-    expect(prompt).toContain("browse -h");
+    expect(prompt).toContain("Use the run tool");
+    expect(prompt).toContain("initialized page object");
     expect(prompt).toContain("EVAL_RESULT:");
   });
 

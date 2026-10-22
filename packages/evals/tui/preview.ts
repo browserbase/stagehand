@@ -53,9 +53,6 @@ const COLUMN_ORDER = [
   "provider",
   "toolSurface",
   "startupProfile",
-  "toolCommand",
-  "browseCliVersion",
-  "browseCliEntrypoint",
 ];
 
 const HIDDEN_COLUMNS = new Set(["task", "harnessConfig", "tier"]);
@@ -71,9 +68,6 @@ const COLUMN_HEADERS: Record<string, string> = {
   provider: "Provider",
   toolSurface: "Tool surface",
   startupProfile: "Startup",
-  toolCommand: "Tool cmd",
-  browseCliVersion: "browse CLI",
-  browseCliEntrypoint: "browse entry",
 };
 
 export function renderPreview(payload: unknown): void {
