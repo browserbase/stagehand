@@ -33,13 +33,50 @@ describe("facade page.mouse", () => {
     await mouse.move(10, 20);
     await mouse.down({ button: "right" });
     await mouse.move(30, 40);
-    await mouse.move(50, 60, { steps: 12 });
+    await mouse.move(50, 60, { steps: 4 });
     await mouse.up();
     expect(rawPage.dragAndDrop.mock.calls).toStrictEqual([
-      [10, 20, 50, 60, { button: "right", steps: 13, route: [{ x: 30, y: 40 }] }],
+      [
+        10,
+        20,
+        50,
+        60,
+        {
+          button: "right",
+          route: [
+            { x: 30, y: 40 },
+            { x: 35, y: 45 },
+            { x: 40, y: 50 },
+            { x: 45, y: 55 },
+          ],
+        },
+      ],
     ]);
     expect(rawPage.click).not.toHaveBeenCalled();
     expect(rawPage.hover.mock.calls).toStrictEqual([[10, 20]]);
+  });
+
+  it("interpolates a single stepped held move into the route", async () => {
+    const { mouse, rawPage } = await fixture();
+    await mouse.move(0, 0);
+    await mouse.down();
+    await mouse.move(30, 60, { steps: 3 });
+    await mouse.up();
+    expect(rawPage.dragAndDrop.mock.calls).toStrictEqual([
+      [
+        0,
+        0,
+        30,
+        60,
+        {
+          button: "left",
+          route: [
+            { x: 10, y: 20 },
+            { x: 20, y: 40 },
+          ],
+        },
+      ],
+    ]);
   });
 
   it("drags straight to the release point after a single held move", async () => {

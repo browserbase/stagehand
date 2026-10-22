@@ -3477,7 +3477,8 @@ export async function createPlaywrightCompatRuntime(
       },
       mouse: (() => {
         // A held button becomes one real drag on release: press where `down` was called, pass
-        // through every point `move` visited while held, release at the last one.
+        // through every point `move` visited while held (`steps` interpolated per move, as in
+        // Playwright), release at the last one.
         let x = 0;
         let y = 0;
         let held: {
@@ -3485,25 +3486,30 @@ export async function createPlaywrightCompatRuntime(
           fromX: number;
           fromY: number;
           route: Array<{ x: number; y: number }>;
-          steps: number;
         } | null = null;
         return {
           click: (nextX: number, nextY: number, options?: Record<string, unknown>) =>
             page.click(nextX, nextY, options),
           move: async (nextX: number, nextY: number, options?: { steps?: number }) => {
+            const prevX = x;
+            const prevY = y;
             x = nextX;
             y = nextY;
             if (!held) {
               await page.hover(x, y);
               return;
             }
+            const steps = Math.max(1, Math.min(100, Math.floor(options?.steps ?? 1) || 1));
+            for (let step = 1; step < steps; step++) {
+              const t = step / steps;
+              held.route.push({ x: prevX + (x - prevX) * t, y: prevY + (y - prevY) * t });
+            }
             held.route.push({ x, y });
-            held.steps += Math.max(1, Math.min(100, Math.floor(options?.steps ?? 1)));
           },
           wheel: (deltaX: number, deltaY: number) => page.scroll(x, y, deltaX, deltaY),
           down: async (options?: { button?: MouseButton }) => {
             if (held) return;
-            held = { button: options?.button ?? "left", fromX: x, fromY: y, route: [], steps: 0 };
+            held = { button: options?.button ?? "left", fromX: x, fromY: y, route: [] };
           },
           up: async () => {
             if (!held) return;
@@ -3513,11 +3519,11 @@ export async function createPlaywrightCompatRuntime(
               await page.click(x, y, drag.button === "left" ? undefined : { button: drag.button });
               return;
             }
+            // A lone unstepped move still gets a few intermediate moves so drag handlers fire.
             const via = drag.route.slice(0, -1);
             await page.dragAndDrop(drag.fromX, drag.fromY, x, y, {
               button: drag.button,
-              steps: Math.max(8, Math.min(100, drag.steps)),
-              ...(via.length ? { route: via } : {}),
+              ...(via.length ? { route: via } : { steps: 8 }),
             });
           },
         };
