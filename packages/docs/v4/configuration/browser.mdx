@@ -742,7 +742,7 @@ await browser.disconnect()  # Chrome and its tabs keep running
 </Tab>
 </Tabs>
 
-After `disconnect()` the handle can't be attached again, and repeated `disconnect()` calls do nothing. A browser Stagehand launched keeps running too. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
+After `disconnect()` you can't reattach the handle, and repeated `disconnect()` calls do nothing. A browser Stagehand launched keeps running too. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
 
 ## Local environment
 
