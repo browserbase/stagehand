@@ -12,9 +12,7 @@
     "@earendil-works/chord": "1.4.0",
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-durable": "1.4.0",
-    "@workflow/world-local": "5.1.2",
     "dotenv": "^17.4.2",
-    "durable-harness": "0.0.1-beta.6",
     "proper-lockfile": "4.1.2",
     "zod": "4.4.3"
   },

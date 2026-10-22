@@ -2,7 +2,7 @@
 
 Prepare a demonstration order, save the exact values, wait for terminal approval, then complete the order yourself through Live View and type Done.
 
-Official Pi Durable on durable-harness World storage. TypeScript CLI, Browserbase only. No application deployment required.
+Official Pi Durable with native SQLite storage. TypeScript CLI, Browserbase only. No application deployment required.
 
 ## Install and run
 
@@ -29,7 +29,7 @@ Earendil describes Pi Durable as experimental. These examples pin its published 
 
 ## Follow the code
 
-1. `src/index.ts` creates a local Workflow World. `resumeWith` and `acquireHarness` give native Pi Durable storage backed by that World.
+1. `src/index.ts` opens `agent.sqlite` with Pi Durable's native `openNodeSqliteStorage`. Reopening it restores the same conversation.
 2. `src/scenario.ts` fills a public test form and persists its exact values in a Pi document.
 3. The terminal approval rereads the form and compares it with the saved proposal. The human then submits in Live View.
 4. Typing Done resumes the conversation and asks Pi to verify the response; the explicit return command supports recovery after exit.
@@ -38,13 +38,11 @@ This teaches a decision that survives process exit. It does not demonstrate an a
 
 ## Why durability matters
 
-Pi still runs the conversation and tools. `durable-harness/pi-durable` supplies World-backed storage through `resumeWith` and `acquireHarness`. Browser binding, proposal, approval and confirmation are Pi documents in the local World's log. This CLI drives Pi explicitly; it does not keep a background worker running after exit.
+Pi Durable runs the conversation and tools, and saves browser binding, proposal, approval and confirmation as documents in SQLite. Submitting or waiting starts its scheduler. Reopening the same database restores the task. No durable-harness adapter or Workflow World is required.
 
 `prepare_order` fills the public httpbin test order form and saves every actual form value. `approve` rereads the form and refuses changed values. The agent has no click or submit tool. After approval, the human submits through Live View. `verify_order` compares httpbin's echoed response with the approved values. A mismatch is a failure, not a successful purchase. No money moves.
 
 Approval state survives agent restarts, but this minimal CLI does not recreate an expired checkout or Browserbase session. If the browser expires, start a fresh run and approve fresh values. A production purchase assistant must rebuild and revalidate price, contents and availability before requesting new approval.
-
-This cookbook uses the explicitly pinned experimental `durable-harness@0.0.1-beta.6`. APIs may change between releases.
 
 ## Browser operations
 
@@ -54,7 +52,7 @@ Use the printed Browserbase session link to inspect execution and Live View for 
 
 ## Recovery and limits
 
-Browser lifetime is 30 minutes, including time spent waiting for you. The pinned Browserbase SDK 2.22.0 calls this option `api_timeout`, in seconds, and sends it as `timeout` to the API. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
+Browser lifetime is 30 minutes, including time spent waiting for you. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
 
 Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
 
@@ -72,4 +70,4 @@ pnpm typecheck
 
 Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.
 
-Shared dependencies follow the existing cookbook ranges: `typescript@^5`, `@types/node@^24`, `tsx@^4.23.1`, `dotenv@^17.4.2`, `@browserbasehq/sdk@^2.16.0` and `zod@4.4.3`. Framework packages keep exact pins. Install with the frozen lockfile. See [dependency version notes](https://docs.stagehand.dev/v4/cookbooks/overview#durable-dependency-versions) for compatibility requirements.
+Shared dependencies follow the existing cookbook ranges: `typescript@^5`, `@types/node@^24`, `tsx@^4.23.1`, `dotenv@^17.4.2`, `@browserbasehq/sdk@^2.16.0` and `zod@4.4.3`. Framework packages keep exact pins. Install with the frozen lockfile.

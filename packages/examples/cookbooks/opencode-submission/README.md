@@ -53,7 +53,7 @@ Use the printed Browserbase session link to inspect execution and Live View for 
 
 ## Recovery and limits
 
-Browser lifetime is 30 minutes, including time spent waiting for you. The pinned Browserbase SDK 2.22.0 calls this option `api_timeout`, in seconds, and sends it as `timeout` to the API. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
+Browser lifetime is 30 minutes, including time spent waiting for you. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
 
 Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
 

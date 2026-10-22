@@ -21,7 +21,7 @@ if (!contextId) {
 }
 const browser = await browserbase.launch({
   apiKey,
-  timeout: 300,
+  api_timeout: 300,
   browserSettings: { context: { id: contextId, persist: true } },
 });
 try {

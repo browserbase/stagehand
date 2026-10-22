@@ -31,7 +31,6 @@ export class Browser {
         this.browser = await browserbase.launch({
           apiKey: process.env.BROWSERBASE_API_KEY!,
           keepAlive: true,
-          // SDK 2.22 names session lifetime api_timeout; it sends timeout to the API.
           api_timeout: 1800,
           browserSettings: { solveCaptchas: false },
         });

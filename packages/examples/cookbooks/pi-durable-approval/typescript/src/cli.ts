@@ -1,5 +1,5 @@
-import { mkdir, open, readFile, rename } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { mkdir, open, rename } from "node:fs/promises";
+import { resolve } from "node:path";
 import lockfile from "proper-lockfile";
 
 export const directory = resolve(process.env.STATE_DIR ?? "out/run");
@@ -14,15 +14,6 @@ export async function saveJson(path: string, value: unknown) {
     await file.close();
   }
   await rename(temporary, path);
-}
-
-export async function savedId(): Promise<string | undefined> {
-  try {
-    return JSON.parse(await readFile(join(directory, "run.json"), "utf8")).sessionId;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
 }
 
 export async function exclusive<T>(run: () => Promise<T>): Promise<T> {

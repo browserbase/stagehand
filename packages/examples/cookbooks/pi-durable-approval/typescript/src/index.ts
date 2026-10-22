@@ -1,9 +1,8 @@
 import "dotenv/config";
 import { Terminal } from "./terminal.js";
 import { join } from "node:path";
-import { createWorld } from "@workflow/world-local";
-import { acquireHarness, resumeWith } from "durable-harness/pi-durable";
-import { registerQueue } from "durable-harness";
+import { existsSync } from "node:fs";
+import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import {
   command,
   checkCommand,
@@ -12,7 +11,6 @@ import {
   exclusive,
   requireEnv,
   saveJson,
-  savedId,
 } from "./cli.js";
 import { decide, approveOrder } from "./state.js";
 import { BACKGROUND_CONTEXT, openAgent } from "./pi.js";
@@ -24,24 +22,15 @@ async function main() {
   const terminal = new Terminal(["start", "resume"].includes(command));
   try {
     await exclusive(async () => {
-      if (!(await savedId()) && command !== "start")
-        throw new Error("No saved run. Use start first.");
-      const world = createWorld({ dataDir: join(directory, "world"), recoverActiveRuns: false });
-      const opened = new Map<
-        Awaited<ReturnType<typeof openAgent>>["harness"],
-        Awaited<ReturnType<typeof openAgent>>
-      >();
-      const open = resumeWith(
-        async (storage) => {
-          const agent = await openAgent(storage);
-          opened.set(agent.harness, agent);
-          return agent.harness;
-        },
-        { world, name: "order-approval" },
-      );
-      registerQueue(world);
-      const lease = await acquireHarness(await savedId(), open, { world, name: "order-approval" });
-      const { harness, store, browser } = opened.get(lease.harness)!;
+      const database = join(directory, "agent.sqlite");
+      if (!existsSync(database)) {
+        if (command !== "start") throw new Error("No saved SQLite run. Use start first.");
+        if (existsSync(join(directory, "run.json")))
+          throw new Error(
+            "This directory contains an older World-backed run. Use a new STATE_DIR.",
+          );
+      }
+      const { harness, store, browser } = await openAgent(await openNodeSqliteStorage(database));
       try {
         const root = await harness.root(BACKGROUND_CONTEXT, {
           agent: {
@@ -51,7 +40,6 @@ async function main() {
             },
           },
         });
-        await saveJson(join(directory, "run.json"), { sessionId: lease.storage.sessionId });
         if (command === "cleanup") {
           await browser.stop(true);
           console.log(
@@ -127,11 +115,7 @@ async function main() {
         try {
           await browser.stop();
         } finally {
-          try {
-            await lease.release();
-          } finally {
-            await world.close?.();
-          }
+          await harness.close(BACKGROUND_CONTEXT);
         }
       }
     });

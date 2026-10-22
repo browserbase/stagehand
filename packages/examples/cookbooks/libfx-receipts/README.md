@@ -12,7 +12,15 @@ cp .env.example .env
 pnpm install --frozen-lockfile
 ```
 
-Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` power browser extraction. `AI_GATEWAY_API_KEY` powers the libfx agent. Set `RECEIPT_URLS` to a JSON array of one to five real merchant receipt-list URLs.
+Use Node.js 24.18+ and pnpm. Set these keys in `.env`:
+
+| Key                   | Used by                                   |
+| --------------------- | ----------------------------------------- |
+| `BROWSERBASE_API_KEY` | Browserbase browser session and Live View |
+| `AI_GATEWAY_API_KEY`  | libfx agent, using its default provider   |
+| `OPENAI_API_KEY`      | Stagehand receipt extraction              |
+
+This recipe uses both model keys because the agent and extraction make separate model calls. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs.
 
 ```bash
 pnpm start
@@ -53,7 +61,7 @@ After 20 extraction attempts, the next incomplete source saves a handoff. Inspec
 
 ## Recovery and limits
 
-Browser lifetime is 30 minutes, including time spent waiting for you. The pinned Browserbase SDK 2.22.0 calls this option `api_timeout`, in seconds, and sends it as `timeout` to the API. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
+Browser lifetime is 30 minutes, including time spent waiting for you. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
 
 Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
 

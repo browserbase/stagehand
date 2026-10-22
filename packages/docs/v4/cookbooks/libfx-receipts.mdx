@@ -20,7 +20,7 @@ The output covers up to 50 visible records per source. It does not paginate or d
 ## Agent prompt
 
 <Prompt description="Collect browser data with resumable libfx tools." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/libfx-receipts/typescript` to my merchant receipt pages. Read the README, environment template, source first. Keep native libfx local durability and the existing dependency versions and lockfile.
+Adapt `packages/examples/cookbooks/libfx-receipts/typescript` to my merchant receipt pages. Read the README, environment template and source first. Keep native libfx local durability and the existing dependency versions and lockfile.
 
 Change the extraction schema and completeness checks together. Accept only configured source URLs, serialize access to the shared page, and validate extracted values. Save each completed source before returning its tool result. Repeated reads must reuse that source's saved result. Do not infer missing records or call partial visible-page coverage a complete account export.
 
@@ -32,8 +32,6 @@ Keep the libfx journal and application manifest together in STATE_DIR. Preserve 
 ## Prerequisites and inputs
 
 Use Node.js 24.18+ and pnpm. Add `BROWSERBASE_API_KEY`, `OPENAI_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. OpenAI powers Stagehand extraction; AI Gateway powers libfx. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs you intend the agent to access.
-
-The recipe pins `libfx@0.0.14`. Shared utilities follow the existing cookbook versions. See the [version notes](/v4/cookbooks/overview#durable-dependency-versions).
 
 ## Check out and run
 
@@ -129,4 +127,4 @@ The browser is a 30-minute keep-alive session, including human waiting time. A p
 
 Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep the same source URLs and dependency pins when resuming. `cleanup` releases the browser and retains records. A crash before saving a newly allocated session ID can leave a browser until its timeout.
 
-This CLI resumes when invoked; changing libfx's backend alone does not migrate the separate manifest. See [storage and hosting](/v4/cookbooks/overview#durable-storage-and-hosting) before deploying it.
+This CLI resumes when invoked; changing libfx's backend alone does not migrate the separate manifest. See [storage and hosting](/v4/cookbooks/overview#storage-and-hosting-options) before deploying it.
