@@ -16,10 +16,10 @@ Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSER
 
 ```bash
 pnpm start
-# Review the saved values and Live View before approving.
-pnpm start approve <decision-id>
-# After a crash, unset CRASH_AFTER_SUBMIT, then:
-pnpm start resume
+# In the running terminal, type: approve
+# OpenCode submits once, verifies the response and exits.
+pnpm start status
+pnpm start cleanup
 ```
 
 Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
@@ -39,7 +39,7 @@ OpenCode runs its agent loop inside durable-harness. Its events and tool results
 
 The prepared request includes a reference in its comments. The approval is tied to the exact form values. Before clicking Submit, the tool commits an `attempted` marker through the session document API. That write intentionally precedes the external effect. A crash after the marker but before the click can therefore leave an unsubmitted request marked uncertain. Recovery checks the page; it does not authorize another attempt.
 
-`CRASH_AFTER_SUBMIT=1` kills the process after the click but before the tool returns. Unset it, wait for the stale CLI lock to clear, and resume. A matching httpbin response confirms success. An expired browser, missing confirmation, or mismatched response stops with an error and requires manual review. httpbin is an echo service, not an idempotent transaction system. This example does not promise exactly-once website actions.
+`CRASH_AFTER_SUBMIT=1` kills the process after the click but before the tool returns. Unset it and resume; the CLI waits for the stale lock automatically. A matching httpbin response confirms success. An expired browser, missing confirmation, or mismatched response stops with an error and requires manual review. httpbin is an echo service, not an idempotent transaction system. This example does not promise exactly-once website actions.
 
 Keep OpenCode's packages pinned to `2.0.22`, the version this durable-harness beta supports. The latest OpenCode release may be incompatible.
 
@@ -57,11 +57,11 @@ Browser lifetime is 30 minutes, including time spent waiting for you. The pinned
 
 Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
 
-Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writers and becomes stale 30 seconds after a crashed process stops updating it. Do not bypass that lock. Resume on the same machine and disk with the same environment and package pins. Remote deployment needs a worker and appropriate persistent storage.
+Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writers. After a crash, the next command waits up to 35 seconds for the stale lock to clear. Do not delete or bypass an active lock. Resume on the same machine and disk with the same environment and package pins. Remote deployment needs a worker and appropriate persistent storage.
 
 ## Manual browser check
 
-Prepare the request, then set `CRASH_AFTER_SUBMIT=1` for the approval command. After the intentional crash, unset it and wait 30 seconds for the lock to expire. Resume with the same `STATE_DIR`. Expect confirmation recovery without another click. If the confirmation is missing, expect an unknown outcome, not a retry.
+Prepare the request, type `pause` at the approval prompt, then set `CRASH_AFTER_SUBMIT=1` for the explicit approval command. After the intentional crash, unset it. The next command waits for the stale lock automatically. Resume with the same `STATE_DIR`. Expect confirmation recovery without another click. If the confirmation is missing, expect an unknown outcome, not a retry.
 
 These steps are for your live verification; they have not been run as part of this change.
 

@@ -45,15 +45,16 @@ pnpm install --frozen-lockfile
 pnpm start
 ```
 
-Review the saved values and Live View. The CLI exits with a pending decision. To submit normally:
+Review the saved values and Live View while the CLI waits. To submit normally:
 
 ```bash
-pnpm start approve <decision-id>
+# In the running terminal, type: approve
+# OpenCode submits once and verifies the response, then exits.
 pnpm start status
 pnpm start cleanup
 ```
 
-To reject a pending proposal instead, run `pnpm start reject <decision-id>`, then `cleanup`. To exercise interruption, use the manual check below instead of normal approval.
+Type `reject` at the prompt to stop without submitting. Type `pause` or press Ctrl+C while waiting to retain the pending decision. `pnpm start resume` reopens the prompt. Explicit `approve <decision-id>` and `reject <decision-id>` commands remain available for scripts when no CLI is running. To exercise interruption, use the manual check below.
 
 ## How the job works
 
@@ -64,7 +65,7 @@ To reject a pending proposal instead, run `pnpm start reject <decision-id>`, the
 ```typescript
 const agent = opencode({
   world,
-  model: process.env.AGENT_MODEL ?? "anthropic/claude-haiku-4.5",
+  model: process.env.AGENT_MODEL ?? "openai/gpt-6-luna",
   tools,
   durability: "strict",
   directDriveMs: 120_000,
@@ -109,11 +110,11 @@ A matching httpbin response is required. If the crash happened after saving the 
 
 `STATE_DIR` defaults to `out/run`. It contains the local World, `run.json` and `status.json`. An attempted marker records uncertainty; only `confirmed: true` establishes the expected result.
 
-Before a PR, start a fresh run and use its pending decision ID:
+Before a PR, start a fresh run, type `pause` at its approval prompt, then use the saved decision ID:
 
 ```bash
 CRASH_AFTER_SUBMIT=1 pnpm start approve <decision-id>
-# After the intentional SIGKILL, wait 30 seconds for the lock to expire.
+# The next command waits for the stale crash lock automatically.
 pnpm start resume
 pnpm start status
 pnpm start cleanup
@@ -127,6 +128,6 @@ Run `pnpm typecheck` and `pnpm test` for offline checks. The recovery test reope
 
 The browser is a 30-minute keep-alive session. Durable state can outlive it, but a replacement browser cannot prove an old submission's outcome. Retain uncertain history for review before starting a separate task with a new `STATE_DIR`. A crash before saving a newly allocated session ID can leave a browser until its timeout.
 
-Run one CLI process per state directory. After a hard crash, the lock expires after 30 seconds. Keep dependency pins unchanged when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
+Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep dependency pins unchanged when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
 
 This CLI resumes when invoked; it does not deploy an unattended worker. See [storage and hosting](/v4/cookbooks/overview#durable-storage-and-hosting) before deploying it.

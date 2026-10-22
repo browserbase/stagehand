@@ -16,10 +16,10 @@ Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSER
 
 ```bash
 pnpm start
-# If login blocks extraction, use the printed Live View:
-pnpm start return <decision-id>
-# After an interruption:
-pnpm start resume
+# If login blocks extraction, sign in through Live View.
+# In the waiting terminal, type: done
+# After collection finishes:
+pnpm start cleanup
 ```
 
 Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
@@ -41,7 +41,7 @@ libfx's own `createFxAgent` persists turns and tool outcomes. This recipe explic
 
 The output is receipt metadata, not downloaded PDFs. Extraction covers up to 50 visible records per source, without pagination. Adjust the schema and completeness checks together for your portal. Saved records keep their earlier values and do not prove that every receipt in an account was collected.
 
-To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, wait for the stale CLI lock to clear, then run `pnpm start resume`. The saved source should be reused. Offline tests cover manifest reopen and libfx input deduplication. Live extraction and model execution remain untested.
+To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, run `pnpm start resume`. The saved source should be reused. Offline tests cover manifest reopen and libfx input deduplication. Live extraction and model execution remain untested.
 
 ## Browser operations
 
@@ -49,7 +49,7 @@ libfx decides when to read or hand off. Stagehand navigates only to configured s
 
 Use the printed Browserbase session link to inspect execution and Live View for human interaction. These recipes use task-specific tools and DOM-based completion checks. Screenshots are optional visual evidence; they do not replace persisted decisions or confirmation checks.
 
-After 20 extraction attempts, the next incomplete source saves a handoff. Inspect the page and run `return <decision-id>` to grant another 20 attempts. Completed sources remain saved and do not consume the new budget.
+After 20 extraction attempts, the next incomplete source saves a handoff. Inspect the page and type `done` at the prompt to grant another 20 attempts. Completed sources remain saved and do not consume the new budget.
 
 ## Recovery and limits
 
@@ -57,11 +57,11 @@ Browser lifetime is 30 minutes, including time spent waiting for you. The pinned
 
 Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
 
-Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writers and becomes stale 30 seconds after a crashed process stops updating it. Do not bypass that lock. Resume on the same machine and disk with the same environment and package pins. Remote deployment needs a worker and appropriate persistent storage.
+Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writers. After a crash, the next command waits up to 35 seconds for the stale lock to clear. Do not delete or bypass an active lock. Resume on the same machine and disk with the same environment and package pins. Remote deployment needs a worker and appropriate persistent storage.
 
 ## Manual browser check
 
-Use two receipt-list URLs. Run with `CRASH_AFTER_RECEIPT=1`; after the intentional crash, unset it and wait 30 seconds for the lock to expire. Resume with the same `STATE_DIR`. Check that the first source is reused and the second is collected. If login is required, complete it in Live View before returning control.
+Use two receipt-list URLs. Run with `CRASH_AFTER_RECEIPT=1`; after the intentional crash, unset it. The next command waits for the stale lock automatically. Resume with the same `STATE_DIR`. Check that the first source is reused and the second is collected. If login is required, complete it in Live View before returning control.
 
 These steps are for your live verification; they have not been run as part of this change.
 

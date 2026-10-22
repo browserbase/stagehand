@@ -13,7 +13,7 @@ Use this when a browser job must wait for a human decision across process restar
 
 ## Goal and output
 
-Fill the [httpbin test order form](https://httpbin.org/forms/post), save its actual values and exit with an approval request. Reopen the same run, approve those values, submit through Live View and return control. Pi checks that the echoed response matches the saved order. No payment is made.
+Fill the [httpbin test order form](https://httpbin.org/forms/post), save its actual values and keep the CLI open at an approval prompt. Reopen the same run, approve those values, submit through Live View and return control. Pi checks that the echoed response matches the saved order. No payment is made.
 
 ## Agent prompt
 
@@ -45,17 +45,17 @@ pnpm install --frozen-lockfile
 pnpm start
 ```
 
-The CLI prints the proposal, decision ID and Live View URL, then exits. In the same directory:
+The CLI prints the proposal, decision ID and Live View URL, then waits for input in the same terminal:
 
 ```bash
-pnpm start status
-pnpm start approve <decision-id>
+# At the terminal prompt, type: approve
 # Submit the approved form yourself in Live View.
-pnpm start return <decision-id>
+# Back at the terminal prompt, type: done
+# The agent verifies the response, then exits.
 pnpm start cleanup
 ```
 
-To reject a pending proposal instead, run `pnpm start reject <decision-id>`, then `cleanup`.
+At the approval prompt, type `reject` to stop without submitting. Type `pause` or press Ctrl+C while waiting to leave the decision saved; `pnpm start resume` reopens it. Scripted commands `approve <decision-id>`, `return <decision-id>` and `reject <decision-id>` remain available when the CLI is not already running.
 
 ## How the job works
 
@@ -78,7 +78,7 @@ This excerpt shows the storage boundary. The runnable CLI also registers the que
 
 ### Save the proposal, then check approval
 
-`prepare_order` fills the form with Stagehand locators and saves its actual values in a Pi document. The pending decision ends the turn. The `approve` command reads the form again before committing consent:
+`prepare_order` fills the form with Stagehand locators and saves its actual values in a Pi document. The pending decision ends the turn. The approval handler reads the form again before committing consent:
 
 ```typescript
 const actual = await browser.formValues();
@@ -91,7 +91,7 @@ await store.update((draft) => {
 
 ### Verify after human return
 
-The human submits in Live View and runs `return`. Pi's `verify_order` tool compares httpbin's echoed response with the approved values:
+The human submits in Live View and types `done` at the waiting terminal. Pi's `verify_order` tool compares httpbin's echoed response with the approved values:
 
 ```typescript
 await browser.confirmation(state.decision.values);
@@ -108,8 +108,8 @@ A mismatch throws before `confirmed` can become true. The CLI's stable initial a
 
 Before a PR, manually verify:
 
-1. Start a run, let it exit at approval and run `status`. The browser session, decision ID and proposal must be unchanged.
-2. Change a field in Live View. `approve` must refuse it. Restore the saved value, approve, submit and return; expect a matching confirmation.
+1. Start a run, type `pause` at approval, then run `status` and `resume`. The browser session, decision ID and proposal must be unchanged.
+2. Change a field in Live View. Typing `approve` must refuse it and keep the prompt open. Restore the saved value, type `approve`, submit in Live View and type `done`; expect a matching confirmation.
 3. Use a fresh `STATE_DIR` to test rejection. It must not submit or become approved later.
 
 Run `pnpm typecheck` and `pnpm test` for offline checks. Tests cover World-backed Pi reopen, decision guards and cleanup. Live browser behavior and paid model execution still need your verification.
@@ -118,6 +118,6 @@ Run `pnpm typecheck` and `pnpm test` for offline checks. Tests cover World-backe
 
 The browser is a 30-minute keep-alive session, including human waiting time. Durable agent state can outlive that browser. If it expires, retain the history, start a fresh task with a new `STATE_DIR`, and approve fresh values. A crash between browser allocation and saving its ID can leave a session until its timeout.
 
-Run one CLI process per state directory. After a hard crash, the lock expires after 30 seconds. Keep the same directory and dependency pins when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
+Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep the same directory and dependency pins when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
 
 This CLI resumes when invoked; it does not run an unattended worker. See [storage and hosting](/v4/cookbooks/overview#durable-storage-and-hosting) before deploying it.

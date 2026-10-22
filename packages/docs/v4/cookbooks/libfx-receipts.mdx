@@ -13,7 +13,7 @@ Use this when an agent collects data from several authenticated pages and must p
 
 ## Goal and output
 
-Read one to five merchant receipt-list URLs. Save each completed source before returning its tool result. If a page needs login, persist a handoff and exit. After human return or a crash, continue incomplete sources and reuse saved records.
+Read one to five merchant receipt-list URLs. Save each completed source before returning its tool result. If a page needs login, persist a handoff and wait for Done in the terminal. After human return or a crash, continue incomplete sources and reuse saved records.
 
 The output covers up to 50 visible records per source. It does not paginate or download PDFs. An empty page remains incomplete because the schema cannot distinguish an empty account from blocked access.
 
@@ -47,15 +47,15 @@ pnpm install --frozen-lockfile
 pnpm start
 ```
 
-If a handoff appears, complete login in the printed Live View, then:
+If a handoff appears, the CLI stays open. Complete login in the printed Live View, then type `done` in the waiting terminal. Collection continues in the same process:
 
 ```bash
-pnpm start return <decision-id>
+# After collection finishes:
 pnpm start status
 pnpm start cleanup
 ```
 
-Use `pnpm start resume` after an interruption, with the same state directory and source URLs.
+Type `pause` or press Ctrl+C while waiting to save the handoff and exit. Use `pnpm start resume` after an interruption, with the same state directory and source URLs. The explicit `return <decision-id>` command remains available for scripts when no CLI is running.
 
 ## How the job works
 
@@ -103,7 +103,7 @@ const turn = session.prompt(text, {
 });
 ```
 
-After 20 extraction attempts, the next incomplete read saves a handoff. Human return grants another 20 attempts without deleting completed sources.
+After 20 extraction attempts, the next incomplete read saves a handoff. Typing Done grants another 20 attempts without deleting completed sources.
 
 ## Expected result and manual checks
 
@@ -113,7 +113,7 @@ Before a PR, configure two sources and run the crash check:
 
 ```bash
 CRASH_AFTER_RECEIPT=1 pnpm start
-# After the intentional SIGKILL, wait 30 seconds for the lock to expire.
+# The next command waits for the stale crash lock automatically.
 pnpm start resume
 pnpm start status
 pnpm start cleanup
@@ -127,6 +127,6 @@ Run `pnpm typecheck` and `pnpm test` for offline checks. Tests cover libfx messa
 
 The browser is a 30-minute keep-alive session, including human waiting time. A persisted handoff does not extend the browser or its login. Reconnect failure stops collection. Retain prior output when starting a fresh task, and never claim missing sources completed.
 
-Run one CLI process per state directory. After a hard crash, the lock expires after 30 seconds. Keep the same source URLs and dependency pins when resuming. `cleanup` releases the browser and retains records. A crash before saving a newly allocated session ID can leave a browser until its timeout.
+Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep the same source URLs and dependency pins when resuming. `cleanup` releases the browser and retains records. A crash before saving a newly allocated session ID can leave a browser until its timeout.
 
 This CLI resumes when invoked; changing libfx's backend alone does not migrate the separate manifest. See [storage and hosting](/v4/cookbooks/overview#durable-storage-and-hosting) before deploying it.
