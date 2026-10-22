@@ -108,7 +108,6 @@
               {
                 "group": "Durable agents",
                 "pages": [
-                  "v4/cookbooks/pi-durable-handoff",
                   "v4/cookbooks/pi-durable-approval",
                   "v4/cookbooks/libfx-receipts",
                   "v4/cookbooks/opencode-submission"

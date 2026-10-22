@@ -16,7 +16,6 @@ Independent TypeScript CLI recipes for browser work that waits for a human or re
 
 | Cookbook                                       | Agent                         | Output                                           |
 | ---------------------------------------------- | ----------------------------- | ------------------------------------------------ |
-| [Notion workspace handoff](pi-durable-handoff) | Official Pi Durable, SQLite   | Persisted handoff and saved workspace page links |
 | [Approve an order later](pi-durable-approval)  | Pi Durable on durable-harness | Saved proposal, approval and matching receipt    |
 | [Collect receipts](libfx-receipts)             | Native libfx                  | Receipt metadata and completeness manifest       |
 | [Recover a submission](opencode-submission)    | OpenCode on durable-harness   | Confirmed or uncertain submission outcome        |
