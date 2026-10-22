@@ -43,6 +43,15 @@ export interface StagehandBrowser {
   readonly context: BrowserContext;
   readonly closed: boolean;
   close(): Promise<void>;
+  /**
+   * Closes Stagehand's connection to the browser and leaves the browser running.
+   *
+   * Unlike close(), this never closes the browser or its Browserbase session; a
+   * browser Stagehand launched keeps running and becomes the caller's to close.
+   * Like close(), it is terminal: the handle cannot be attached again, and later
+   * close() or disconnect() calls resolve without doing anything.
+   */
+  disconnect(): Promise<void>;
 }
 
 export interface LocalBrowser {
@@ -63,6 +72,7 @@ type BrowserHandleInternals = {
   context?: BrowserContext;
   close: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
+  disconnect: () => Promise<void> | void;
   terminalPromise?: Promise<void>;
 };
 
@@ -99,6 +109,12 @@ class StagehandBrowserHandle implements StagehandBrowser {
     internals.terminalPromise ??= Promise.resolve().then(internals.close);
     return internals.terminalPromise;
   }
+
+  disconnect(): Promise<void> {
+    const internals = requireBrowserHandleInternals(this);
+    internals.terminalPromise ??= Promise.resolve().then(internals.disconnect);
+    return internals.terminalPromise;
+  }
 }
 
 /** @internal */
@@ -108,6 +124,8 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   attachment: Attachment;
   close: () => Promise<void> | void;
   invalidate?: () => Promise<void> | void;
+  /** Closes only the connection; defaults to doing nothing. */
+  disconnect?: () => Promise<void> | void;
   sessionId?: string;
 }): StagehandBrowser {
   return new StagehandBrowserHandle(
@@ -118,6 +136,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
       attachment: options.attachment,
       close: options.close,
       invalidate: options.invalidate ?? options.close,
+      disconnect: options.disconnect ?? (() => undefined),
     },
     options.sessionId,
   );

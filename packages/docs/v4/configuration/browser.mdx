@@ -709,8 +709,40 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 
 
 <Note>
-Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
+`browser.close()` closes the browser, including one you attached to with `localBrowser.connect()`. To detach and leave the browser running, call `browser.disconnect()`.
 </Note>
+
+#### Disconnecting without closing the browser
+
+`browser.disconnect()` closes Stagehand's connection and leaves the browser running, however you got it. Use it when the browser holds state you want to keep, such as a signed-in profile. Close the Stagehand instance first:
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+const stagehand = await Stagehand.create({ browser });
+// ...
+await stagehand.close();
+await browser.disconnect(); // Chrome and its tabs keep running
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
+# ...
+await stagehand.close()
+await browser.disconnect()  # Chrome and its tabs keep running
+```
+</Tab>
+
+<Tab title="Go">
+`Disconnect` isn't available in the Go SDK.
+</Tab>
+</Tabs>
+
+Like `close()`, `disconnect()` is final: the handle can't be attached again, and later `close()` or `disconnect()` calls do nothing. A browser Stagehand launched keeps running too, so closing it is up to you, and Stagehand doesn't release a Browserbase session or remove a temporary local profile.
 
 ## Local environment
 
@@ -1186,12 +1218,12 @@ defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }
 
 #### Behavior by environment
 
-| Environment | After `stagehand.close()` | After `browser.close()` |
-| --- | --- | --- |
-| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session |
-| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
-| **Browserbase, `connect()`** | Session keeps running | Ends the session |
-| **Local, `connect()`** | Browser keeps running | Closes the browser |
+| Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
+| --- | --- | --- | --- |
+| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running; Stagehand doesn't release it |
+| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile | Chrome and its profile stay |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running |
+| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running |
 
 #### Local environment
 

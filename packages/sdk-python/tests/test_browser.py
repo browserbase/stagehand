@@ -184,6 +184,69 @@ async def test_explicit_browser_close_matrix(
     assert cdp.close_calls == 1
 
 
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive"),
+    [
+        ("local", "launched", False),
+        ("local", "launched", True),
+        ("local", "connected", True),
+        ("browserbase", "launched", False),
+        ("browserbase", "launched", True),
+        ("browserbase", "connected", True),
+    ],
+)
+async def test_disconnect_closes_only_the_connection(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    await handle.disconnect()
+
+    assert handle.closed is True
+    assert cdp.close_calls == 1
+    assert cdp.commands == []
+    assert source.close_calls == 0
+
+
+async def test_disconnect_is_terminal_and_later_calls_do_nothing(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=True)
+    handle = await _connected_handle(source, origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    await asyncio.gather(handle.disconnect(), handle.disconnect())
+    await handle.close()
+
+    assert cdp.close_calls == 1
+    assert cdp.commands == []
+    assert source.close_calls == 0
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        _claim_browser(handle)
+
+
+async def test_disconnect_after_close_does_nothing(fake_cdp: type[FakeCDPClient]) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True), origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    await handle.close()
+    await handle.disconnect()
+
+    assert cdp.commands == [("Browser.close", {})]
+    assert cdp.close_calls == 1
+
+
 async def test_connected_local_close_accepts_transport_loss_caused_by_command(
     fake_cdp: type[FakeCDPClient],
     monkeypatch: pytest.MonkeyPatch,

@@ -323,6 +323,8 @@ async function connectBrowser(options: {
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,
+      // Never closes the browser or its session, even one Stagehand launched.
+      disconnect: () => connectedClient.close(),
     });
   } catch (error) {
     cdpClient?.close();

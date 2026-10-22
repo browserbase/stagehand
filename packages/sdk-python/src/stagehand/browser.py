@@ -114,6 +114,10 @@ async def _invoke_close(callback: Callable[[], Awaitable[None]]) -> None:
     await callback()
 
 
+async def _noop() -> None:
+    return None
+
+
 @dataclass(frozen=True)
 class _ChromeProfile:
     path: Path
@@ -125,6 +129,7 @@ class StagehandBrowser:
         "_attachment",
         "_claimed",
         "_close_callback",
+        "_disconnect_callback",
         "_invalidate_callback",
         "_terminal_task",
         "_context",
@@ -141,6 +146,7 @@ class StagehandBrowser:
         close: Callable[[], Awaitable[None]],
         *,
         invalidate: Callable[[], Awaitable[None]] | None = None,
+        disconnect: Callable[[], Awaitable[None]] | None = None,
         session_id: str | None = None,
         _token: object | None = None,
     ) -> None:
@@ -151,6 +157,7 @@ class StagehandBrowser:
         self._attachment = attachment
         self._close_callback = close
         self._invalidate_callback = invalidate or close
+        self._disconnect_callback = disconnect or _noop
         self._claimed = False
         self._terminal_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
@@ -187,6 +194,21 @@ class StagehandBrowser:
             self._terminal_task = asyncio.create_task(
                 _run_browser_terminal_callback(self._close_callback),
                 name="stagehand-browser-close",
+            )
+        return asyncio.shield(self._terminal_task)
+
+    def disconnect(self) -> Awaitable[None]:
+        """Close Stagehand's connection to the browser and leave the browser running.
+
+        Unlike ``close()``, this never closes the browser or its Browserbase session;
+        a browser Stagehand launched keeps running and becomes the caller's to close.
+        Like ``close()``, it is terminal: the handle cannot be attached again, and
+        later ``close()`` or ``disconnect()`` calls return without doing anything.
+        """
+        if self._terminal_task is None:
+            self._terminal_task = asyncio.create_task(
+                _run_browser_terminal_callback(self._disconnect_callback),
+                name="stagehand-browser-disconnect",
             )
         return asyncio.shield(self._terminal_task)
 
@@ -391,6 +413,8 @@ async def _connect_browser(
         ),
         close,
         invalidate=invalidate,
+        # Never closes the browser or its session, even one Stagehand launched.
+        disconnect=connected_client.close,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
         ),
