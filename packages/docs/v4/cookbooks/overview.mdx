@@ -51,6 +51,23 @@ Pi Durable is an agent framework with its own conversation, task and document mo
 
 All three resume when you invoke the CLI. A deployed durable agent also needs a host or worker to drive interrupted turns. Changing storage does not keep that worker running or extend the Browserbase session. These CLIs explicitly construct local backends, so setting World environment variables alone does not migrate them. See [self-hosting](https://vercel.com/docs/agent-harnesses/self-hosting) for host and queue setup.
 
+## Durable dependency versions
+
+Checked against npm release tags on October 22, 2026. New framework dependencies use the latest supported release; shared utilities follow the existing cookbook ranges and frozen lockfiles.
+
+| Package | Cookbook version | Reason |
+| --- | --- | --- |
+| Pi Durable, pi-ai and Chord | `1.4.0` | Latest published release |
+| libfx | `0.0.14` | Latest release; excludes development builds |
+| durable-harness | `0.0.1-beta.6` | Latest published beta |
+| Workflow local World | `5.1.2` | Latest release |
+| OpenCode client, core, schema and server | `2.0.22` | Exact versions required by the current harness adapter |
+| Effect | `4.0.0-rc.112` | Exact version required by that adapter and OpenCode |
+
+OpenCode `2.1.3` and Effect `4.0.5` are newer standalone releases. The current durable-harness adapter checks its required versions at runtime, so upgrading them alone prevents the agent from running. Revisit those pins when a compatible adapter is published.
+
+Zod stays at the repository's `4.4.3` pin. TypeScript, Node types, tsx, dotenv and Browserbase SDK use the same ranges as the existing repository setup. These examples do not upgrade shared tooling independently. A version check is not live validation: manually verify each of the three browser flows before a PR.
+
 ## Run a cookbook
 
 Choose a cookbook folder in [`packages/examples/cookbooks`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks), then check out that folder:

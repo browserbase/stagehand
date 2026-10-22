@@ -26,7 +26,7 @@ pnpm start return <decision-id>
 
 Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
-Earendil describes Pi Durable as experimental. These examples pin its published `1.3.0` release; the version pin does not imply a stable API guarantee.
+Earendil describes Pi Durable as experimental. These examples pin its published `1.4.0` release; the version pin does not imply a stable API guarantee.
 
 ## Follow the code
 
@@ -75,3 +75,5 @@ pnpm test
 ```
 
 The tests release and reacquire a real local World-backed Pi session and check exact-value approval, decision identity and rejection. Keep these focused recovery tests when adapting the example. They run without credentials or network access; they cannot prove that a real website login or submission works. Live sites and paid model execution have not been tested as part of this change. Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.
+
+Shared dependencies follow the existing cookbook ranges: `typescript@^5`, `@types/node@^24`, `tsx@^4.23.1`, `dotenv@^17.4.2`, `@browserbasehq/sdk@^2.16.0` and `zod@4.4.3`. Framework packages keep exact pins. Install with the frozen lockfile. See [dependency version notes](https://docs.stagehand.dev/v4/cookbooks/overview#durable-dependency-versions) for compatibility requirements.

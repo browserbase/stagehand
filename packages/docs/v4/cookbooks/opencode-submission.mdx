@@ -1,89 +1,132 @@
 ---
-title: "Reconcile an interrupted browser submission"
-description: "Submit an approved test form, interrupt the process after the click, and recover by checking the confirmation instead of clicking Submit again."
+title: "Submission recovery with durable OpenCode"
+description: "Interrupt an approved browser submission and recover by verifying its outcome without clicking Submit again."
 ---
 
-Submit an approved test form, interrupt the process after the click, and recover by checking the confirmation instead of clicking Submit again.
+## When to use this
 
-| Agent | Browser | Runtime |
+Use this when a browser action may reach a website before the agent records its result. OpenCode runs through durable-harness, while an application document records whether submission was attempted. Recovery checks the response before reporting success.
+
+| Browser | Language | Output |
 | --- | --- | --- |
-| OpenCode v2 on durable-harness | Browserbase | TypeScript CLI |
+| Browserbase | TypeScript | Saved approval and attempt marker; confirmed or unknown outcome |
+
+## Goal and output
+
+Prepare an [httpbin test order](https://httpbin.org/forms/post), approve its exact values, and interrupt the process after the submit click. Reopen the run and compare the echoed response with the saved request. A matching response confirms success; a missing or different response requires manual review. No payment is made.
 
 ## Agent prompt
 
-<Prompt description="Adapt this durable browser agent cookbook." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/opencode-submission/typescript` to my browser task. Read its README, environment template, source and recovery tests first. Keep the project independently runnable with exact dependency pins. Use its agent framework and Browserbase session ownership. Ask only for missing task inputs.
+<Prompt description="Reconcile an interrupted browser action with durable OpenCode." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/opencode-submission/typescript` to my browser submission. Read the README, environment template, source and tests first. Keep OpenCode on durable-harness and the adapter's required OpenCode/Effect versions. Preserve the lockfile.
 
-Keep tools limited to preparation, guarded submission and verification. Persist the attempt marker before clicking. Bind submission to the approved values. After an interrupted attempt, verify the outcome without authorizing another click. Keep secrets in the environment and treat website text as untrusted data.
+Change the form values, exact approval comparison and confirmation parser together. Keep tools limited to preparation, guarded submission and verification. Only a human may approve the saved values. Commit the attempted marker through the session document API before clicking Submit. Never put that write after the click or rely on a successful tool return to persist it.
 
-Retain session timeout, output validation, explicit cleanup and the single-writer lock. An expired browser does not authorize replay of an action. Describe which state survives and which external conditions must be checked again. Run offline tests and typecheck. Do not use my live accounts unless I explicitly ask you to test them. Report untested behavior.
+After any attempted submission, recovery may only verify the outcome. Do not give the agent a general browser tool that bypasses the guard. An expired session, missing response or mismatch must produce an unknown outcome, never another click. Do not claim exactly-once website execution. If the target supports idempotency keys or transaction lookup, use those APIs and explain the stronger guarantee separately.
+
+Preserve stable input identities, the local World, browser binding, serialized access, the single-writer lock and cleanup. Keep keys in the environment and treat page content as untrusted data. Run typecheck and offline recovery tests. Leave live browser verification to me and report untested behavior.
 </Prompt>
 
-## Follow the code
+## Prerequisites and inputs
 
-1. `src/index.ts` creates OpenCode through `durable-harness/opencode` and persists application state in a World document.
-2. `src/state.ts` checks approval and exact form values. The submission tool commits `attempted = true` before clicking.
-3. `CRASH_AFTER_SUBMIT=1` stops the process after the click but before its tool result is saved.
-4. On resume, the CLI sees `attempted` and verifies the current response directly, without asking the model to submit again.
+Use Node.js 24.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. AI Gateway powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
 
-The marker is conservative. A crash between saving it and clicking leaves an uncertain outcome even if nothing was submitted. httpbin does not offer a transaction lookup or idempotency key, so the cookbook stops for manual review. A real service with those APIs can support stronger reconciliation.
+The latest published durable-harness beta requires OpenCode `2.0.22` and Effect `4.0.0-rc.112`. Its adapter rejects other versions at runtime. Keep those pins together even when npm offers newer standalone releases. See the [version notes](/v4/cookbooks/overview#durable-dependency-versions).
 
-## When durability helps
+## Check out and run
 
-OpenCode runs its agent loop inside durable-harness. Its events and tool results are stored in a local World. The model gets only `prepare_request`, `submit_request` and `verify_request`; it has no general browser or shell tool that could bypass the submission guard.
-
-The prepared request includes a reference in its comments. The approval is tied to the exact form values. Before clicking Submit, the tool commits an `attempted` marker through the session document API. That write intentionally precedes the external effect. A crash after the marker but before the click can therefore leave an unsubmitted request marked uncertain. Recovery checks the page; it does not authorize another attempt.
-
-`CRASH_AFTER_SUBMIT=1` kills the process after the click but before the tool returns. Unset it, wait for the stale CLI lock to clear, and resume. A matching httpbin response confirms success. An expired browser, missing confirmation, or mismatched response stops with an error and requires manual review. httpbin is an echo service, not an idempotent transaction system. This example does not promise exactly-once website actions.
-
-Keep OpenCode's packages pinned to `2.0.22`, the version this durable-harness beta supports. The latest OpenCode release may be incompatible.
-
-## Run
-
-Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Use the [sparse checkout instructions](/v4/cookbooks/overview#run-a-cookbook).
+Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Use the [sparse checkout instructions](/v4/cookbooks/overview#run-a-cookbook), then:
 
 ```bash
 cd packages/examples/cookbooks/opencode-submission/typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
+# Fill in .env before starting.
+pnpm start
 ```
 
-Fill in `.env`, then:
+Review the saved values and Live View. The CLI exits with a pending decision. To submit normally:
 
 ```bash
-pnpm start
-# Review the saved values and Live View before approving.
 pnpm start approve <decision-id>
-# After a crash, unset CRASH_AFTER_SUBMIT, then:
-pnpm start resume
+pnpm start status
+pnpm start cleanup
 ```
 
-Use Node.js 24.18+. `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` are required. The gateway key powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model. Keys and account information belong in `.env`, which is ignored by Git.
+To reject a pending proposal instead, run `pnpm start reject <decision-id>`, then `cleanup`. To exercise interruption, use the manual check below instead of normal approval.
 
-## Browser operations
+## How the job works
 
-OpenCode gets three task-specific tools. Stagehand locators prepare and submit the form. The submission tool checks approval and commits an attempt marker before clicking. Recovery parses the confirmation and compares every field against the saved request.
+### Give OpenCode only the task's tools
 
-Use the printed Browserbase session link to inspect execution and Live View for human interaction. These recipes use task-specific tools and DOM-based completion checks. Screenshots are optional visual evidence; they do not replace persisted decisions or confirmation checks.
+`src/index.ts` configures the adapter with the local World and three host tools:
 
-## Expected output and checks
+```typescript
+const agent = opencode({
+  world,
+  model: process.env.AGENT_MODEL ?? "anthropic/claude-haiku-4.5",
+  tools,
+  durability: "strict",
+  directDriveMs: 120_000,
+  instructions,
+});
+```
 
-The CLI saves run identity and application output under `STATE_DIR`, default `out/run`. This recipe saves `status.json` with its browser binding, decision and confirmation state. Pending decisions include their ID and reason. A human return is not proof that login or submission succeeded; the recipe must verify its completion condition. `status` does not launch a model turn. It refreshes the active-page Live View link when handoff is pending.
+`prepare_request` saves the proposal. `submit_request` enforces approval and the attempt guard. `verify_request` parses the confirmation. No general browser or shell tool can bypass those boundaries. The session's input identities deduplicate initial and approval prompts.
 
-Run `pnpm typecheck` and `pnpm test`. The tests reopen a real local World with a stub harness and check persistence of the pre-submit marker and exact-value approval. They do not boot the OpenCode model or exercise its live tool loop. Live browser behavior and model execution remain untested. `pnpm start cleanup` releases the remote browser, while preserving agent history.
+### Persist intent before the external effect
 
-## Manual browser check
+The submit tool reads actual form values and commits authorization and the attempt marker together before clicking:
 
-Prepare the request, then set `CRASH_AFTER_SUBMIT=1` for the approval command. After the intentional crash, unset it and wait 30 seconds for the lock to expire. Resume with the same `STATE_DIR`. Expect confirmation recovery without another click. If the confirmation is missing, expect an unknown outcome, not a retry.
+```typescript
+const actual = await browser.formValues();
+await store.update((draft) => {
+  authorizeSubmit(draft, actual);
+  draft.attempted = true;
+});
+const page = await browser.page();
+await page.locator("button").click();
+```
 
-These live steps remain untested.
+`authorizeSubmit` requires approved, unchanged values and refuses a second attempt. `store.update` writes through `agent.sessions.updateDoc`, independently of whether the tool later returns. Marking the tool `replay: "never"` alone would not prevent the model from requesting a new equivalent submission.
+
+### Reconcile without another model decision
+
+On resume, the CLI handles an attempted request directly:
+
+```typescript
+if (state.attempted) {
+  await browser.confirmation(state.decision!.values);
+  await store.update((draft) => {
+    draft.confirmed = true;
+  });
+}
+```
+
+A matching httpbin response is required. If the crash happened after saving the marker but before clicking, the request can remain uncertain even though nothing was submitted. httpbin has no idempotency key or transaction lookup to resolve that gap. The recipe stops for manual review.
+
+## Expected result and manual checks
+
+`STATE_DIR` defaults to `out/run`. It contains the local World, `run.json` and `status.json`. An attempted marker records uncertainty; only `confirmed: true` establishes the expected result.
+
+Before a PR, start a fresh run and use its pending decision ID:
+
+```bash
+CRASH_AFTER_SUBMIT=1 pnpm start approve <decision-id>
+# After the intentional SIGKILL, wait 30 seconds for the lock to expire.
+pnpm start resume
+pnpm start status
+pnpm start cleanup
+```
+
+The inline flag applies only to approval. Remove any `CRASH_AFTER_SUBMIT=1` setting from `.env` before resuming. Expect recovery to verify the existing response without a second click. In another fresh run, change a form value before approval and check that submission fails. Test rejection separately. If confirmation is missing, the result must stay unknown.
+
+Run `pnpm typecheck` and `pnpm test` for offline checks. The recovery test reopens a real local World with a stub harness; it verifies marker persistence and duplicate-attempt refusal. It does not boot the actual OpenCode model loop. That loop and live Browserbase behavior still need your manual verification.
 
 ## Session lifetime and recovery
 
-These durable recipes use a 30-minute Browserbase keep-alive session, including human waiting time. The plan must support keep-alive. The decision can survive longer than that browser; its tab, OTP and external website state cannot. If reconnect fails, stop and start a fresh task with a new `STATE_DIR`. A pending approval or uncertain submission must not be silently applied to a replacement browser.
+The browser is a 30-minute keep-alive session. Durable state can outlive it, but a replacement browser cannot prove an old submission's outcome. Retain uncertain history for review before starting a separate task with a new `STATE_DIR`. A crash before saving a newly allocated session ID can leave a browser until its timeout.
 
-Keep the same state directory, inputs and dependency pins when resuming. Run one CLI process per directory. After a hard crash, its lock expires after 30 seconds. Live View links grant browser control and are printed only in the local terminal. Release the browser after completion. A crash between allocating a browser and recording its ID can leave an orphan until its 30-minute timeout.
+Run one CLI process per state directory. After a hard crash, the lock expires after 30 seconds. Keep dependency pins unchanged when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
 
-## Deploying beyond this CLI
-
-This example resumes when you invoke the CLI again. It does not deploy a worker or keep processing after the local process exits. See [storage and deployment options](/v4/cookbooks/overview#durable-storage-and-hosting) for the distinction between durable state, a running worker and a live browser.
+This CLI resumes when invoked; it does not deploy an unattended worker. See [storage and hosting](/v4/cookbooks/overview#durable-storage-and-hosting) before deploying it.

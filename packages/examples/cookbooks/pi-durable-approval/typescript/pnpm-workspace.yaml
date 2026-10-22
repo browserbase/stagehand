@@ -3,8 +3,16 @@ packages:
 
 allowBuilds:
   esbuild: true
+  "@google/genai": false
+  cbor-extract: false
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - "@workflow/errors@5.0.5"
   - "@workflow/world-local@5.1.2"
   - "@workflow/world@5.0.5"
+  - "@earendil-works/chord@1.4.0"
+  - "@earendil-works/pi-ai@1.4.0"
+  - "@earendil-works/pi-codemode@1.4.0"
+  - "@earendil-works/pi-durable@1.4.0"
+  - "@earendil-works/pi-telemetry@1.4.0"
