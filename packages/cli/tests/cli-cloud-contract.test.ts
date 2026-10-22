@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import { getExtensionArchive } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -1021,6 +1022,8 @@ describe("cloud API contracts", () => {
   });
 
   it("extensions upload --stagehand uploads the bundled Stagehand extension", async () => {
+    const expectedArchive = Buffer.from(await getExtensionArchive());
+
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, { id: "ext_stagehand" });
@@ -1045,6 +1048,10 @@ describe("cloud API contracts", () => {
         expect(requests[0]?.bodyText).toContain(
           'filename="stagehand-extension.zip"',
         );
+
+        const bodyBuffer = requests[0]?.bodyBuffer;
+        expect(bodyBuffer).toBeDefined();
+        expect(bodyBuffer!.includes(expectedArchive)).toBe(true);
       },
     );
   });
