@@ -63,10 +63,24 @@ export function buildUngradedVerifierResult(
   };
 }
 
-/** Retain a failed judge response for audit without presenting its synthetic scores as a grade. */
+/**
+ * Retain a failed judge response for audit without presenting its synthetic scores as a grade.
+ * A non-healthy result is ungraded too: Evaluator.verify() reports judge-call failures through
+ * `health` and forces `outcomeState: "unresolved"`, with no uncertainty finding.
+ */
 export function getUngradedVerifierResult(
   evaluation: EvaluationResult,
 ): { graded: false; verifierError: string; judge: EvaluationResult } | undefined {
+  if (evaluation.health && evaluation.health.status !== "healthy") {
+    const errors = evaluation.health.errors.map((error) => `${error.stage}: ${error.message}`);
+    return {
+      graded: false,
+      verifierError: sanitizeErrorMessage(
+        `Verifier health is ${evaluation.health.status}${errors.length ? `: ${errors.join("; ")}` : ""}; no trustworthy grade was produced.`,
+      ),
+      judge: evaluation,
+    };
+  }
   if (!evaluation.findings?.some((finding) => finding.category === "verifier_uncertainty")) {
     return undefined;
   }
@@ -398,12 +412,6 @@ export async function gradeExternalTrajectory({
             // (often confident) self-report.
             `${describeOutcomeGates(gates)} (judge passed; agent said: ${clipError(String(baseResult.error ?? errorMessage))})`
           : (baseResult.error ?? errorMessage),
-      ...(evaluationResult.health &&
-        evaluationResult.health.status !== "healthy" && {
-          verifierError: evaluationResult.health.errors
-            .map((error) => `${error.stage}: ${error.message}`)
-            .join("; "),
-        }),
       health: evaluationResult.health,
       outcomeState: evaluationResult.outcomeState,
       outcomeChecks: evaluationResult.outcomeChecks,
@@ -473,7 +481,11 @@ export async function gradeExternalTrajectory({
       verifierError: message,
       error: `Verification failed: ${message}`,
       outcomeState: "unresolved",
-      health: { schemaVersion: 1, status: "error", errors: [{ stage: "adapter", message }] },
+      // Keep the evaluator's own health (which stage failed) when it reported the failure.
+      health:
+        rawEvaluation?.health && rawEvaluation.health.status !== "healthy"
+          ? rawEvaluation.health
+          : { schemaVersion: 1, status: "error", errors: [{ stage: "adapter", message }] },
       ...(savedDirectory && { trajectoryDir: savedDirectory }),
     };
   }

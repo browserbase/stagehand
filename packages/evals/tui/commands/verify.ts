@@ -11,8 +11,8 @@
  * tool matcher and is not applied offline.
  *
  * Output: writes a new result file under `scores/result_<label>.json`.
- * Judge uncertainty is saved as { graded: false, verifierError, judge } with no
- * top-level scores; the command exits nonzero. JSON output follows the same shape.
+ * Judge uncertainty or a non-healthy judge is saved as { graded: false, verifierError, judge }
+ * with no top-level scores; the command exits nonzero. JSON output follows the same shape.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -195,7 +195,6 @@ export async function handleVerify(args: string[]): Promise<void> {
     ...(rubricItemCount !== undefined && { rubricItemCount }),
   });
   const result = buildPersistedEvaluationResult(judgeResult, gates);
-  if (result.health && result.health.status !== "healthy") process.exitCode = 2;
 
   if (parsed.json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -206,10 +205,6 @@ export async function handleVerify(args: string[]): Promise<void> {
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
   console.log(formatVerdictLine(result));
-  if (result.health?.status !== "healthy") {
-    for (const error of result.health?.errors ?? [])
-      console.log(red(`${error.stage}: ${error.message}`));
-  }
   const perCriterion = result.perCriterion ?? [];
   const evidenceInsufficient = result.evidenceInsufficient ?? [];
   console.log(

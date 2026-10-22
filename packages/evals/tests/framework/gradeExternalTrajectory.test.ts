@@ -92,6 +92,26 @@ describe("gradeExternalTrajectory", () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+  it.each(["error", "degraded"])(
+    "treats a %s judge health without findings as ungraded, never a scored failure",
+    async (status) => {
+      const health = {
+        schemaVersion: 1,
+        status,
+        errors: [{ stage: "FusedJudgment", message: "provider unavailable" }],
+      };
+      mockState.evaluationResult = { outcomeSuccess: false, outcomeState: "unresolved", health };
+      const result = await grade({ _success: true });
+      expect(result._success).toBe(false);
+      expect(result.agentReportedSuccess).toBe(true);
+      expect(result.verifierError).toContain("FusedJudgment: provider unavailable");
+      expect(result.health).toEqual(health);
+      expect(result).not.toHaveProperty("outcomeSuccess");
+      expect(result).not.toHaveProperty("processScore");
+      expect(result).not.toHaveProperty("outcomeGates");
+    },
+  );
+
   const rubric: Rubric = {
     items: [
       { criterion: "step one", description: "does step one", maxPoints: 1 },

@@ -162,13 +162,25 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
         );
       }
       const plan = buildExternalHarnessTaskPlan(input);
-      // Reject an unavailable judge before allocating a browser or running an agent.
-      const evaluator = createVerifierEvaluator({ logger: logger.log.bind(logger) });
-      await evaluator.validate();
       let toolAdapter: TAdapter | undefined;
       let browserSession: BrowserSessionInfo = {
         provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
       };
+      // Reject an unavailable judge before allocating a browser or running an agent. A cancellation
+      // during this preflight skips adapter setup instead of waiting out the judge check.
+      const evaluator = createVerifierEvaluator({ logger: logger.log.bind(logger) });
+      if (await abortedBefore(evaluator.validate(), signal)) {
+        return withBrowserSession(
+          {
+            _success: false,
+            error: "aborted by user",
+            harnessStatus: "sdk_error",
+            terminationReason: "aborted",
+            logs: logger.getLogs(),
+          },
+          browserSession,
+        );
+      }
       try {
         toolAdapter = await prepareToolAdapter({
           toolSurface: row.config.toolSurface,
@@ -219,6 +231,28 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
       }
     },
   };
+}
+
+/** Resolves true if `signal` aborts before `work` settles; a rejection of `work` still throws. */
+async function abortedBefore(work: Promise<void>, signal?: AbortSignal): Promise<boolean> {
+  if (!signal) {
+    await work;
+    return false;
+  }
+  if (signal.aborted) {
+    work.catch(() => {});
+    return true;
+  }
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<true>((resolve) => {
+    onAbort = () => resolve(true);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([work.then(() => false), aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
 }
 
 function buildExternalHarnessTaskSpec(

@@ -130,7 +130,13 @@ export function applyVerdictGates({
     (evaluation.health && evaluation.health.status !== "healthy")
   )
     outcomeGates.push("unresolved_evaluation");
-  if (isFacadeTool && !detectBrowserUse(trajectory.steps).used) {
+  // The harness matcher covers tool names the evaluator's detector does not know (e.g. Mastra's
+  // stagehand_browser_run); either source counts as browser use when the call succeeded.
+  if (
+    isFacadeTool &&
+    !detectBrowserUse(trajectory.steps).used &&
+    !trajectory.steps.some((step) => isFacadeTool(step.actionName) && step.toolOutput?.ok === true)
+  ) {
     outcomeGates.push("no_browser_use");
   }
 

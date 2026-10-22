@@ -120,6 +120,24 @@ describe("offline verifier command", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("emits a non-healthy judge result without findings as ungraded", async () => {
+    state.result = {
+      outcomeSuccess: false,
+      outcomeState: "unresolved",
+      health: {
+        schemaVersion: 1,
+        status: "error",
+        errors: [{ stage: "FusedJudgment", message: "provider unavailable" }],
+      },
+    };
+    await handleVerify([dir, "--json"]);
+    const result = JSON.parse(output);
+    expect(result).toMatchObject({ graded: false, judge: state.result });
+    expect(result.verifierError).toContain("FusedJudgment: provider unavailable");
+    expect(result).not.toHaveProperty("outcomeSuccess");
+    expect(process.exitCode).toBe(1);
+  });
+
   it("keeps a trustworthy failed verdict scored", async () => {
     state.result = { outcomeSuccess: false, processScore: 0 };
     await handleVerify([dir, "--json"]);

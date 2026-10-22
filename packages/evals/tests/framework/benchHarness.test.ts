@@ -426,6 +426,69 @@ describe("bench harness registry", () => {
     }
   });
 
+  it("skips adapter setup when cancelled during the judge preflight", async () => {
+    const controller = new AbortController();
+    const validate = vi
+      .spyOn(Evaluator.prototype, "validate")
+      .mockImplementationOnce(() => new Promise<void>(() => {}));
+    const prepareToolAdapter = vi.fn(async () => ({ cleanup: async () => {} }));
+    const harness = defineExternalHarness({
+      harness: "preflight_abort_external",
+      supportedToolSurfaces: ["browse_cli"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter,
+      runAgent: async () => ({ _success: true }),
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: { id: "wv-1", web: "https://example.com", ques: "Find it" },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+    const config = {
+      harness: "preflight_abort_external",
+      model: input.modelName,
+      environment: "LOCAL" as const,
+      useApi: false,
+      toolSurface: "browse_cli" as const,
+      startupProfile: "tool_launch_local" as const,
+    };
+    const row: BenchMatrixRow = {
+      ...config,
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      trial: 1,
+      config,
+    };
+
+    try {
+      const pending = harness.execute?.({
+        task,
+        input,
+        row,
+        logger: new EvalLogger(false),
+        signal: controller.signal,
+      });
+      controller.abort();
+      await expect(pending).resolves.toMatchObject({
+        _success: false,
+        terminationReason: "aborted",
+      });
+      expect(prepareToolAdapter).not.toHaveBeenCalled();
+    } finally {
+      validate.mockRestore();
+    }
+  });
+
   it("logs the browser session as the first task log line and stamps the result", async () => {
     const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
     const logger = new EvalLogger(false);

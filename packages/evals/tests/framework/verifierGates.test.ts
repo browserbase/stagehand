@@ -759,3 +759,21 @@ it("recognizes Cursor mcp server identity even when the legacy name matcher reje
   expect(gates.outcomeSuccess).toBe(true);
   expect(gates.outcomeGates).toEqual([]);
 });
+
+it("counts a successful matcher-recognized call the detector does not know (Mastra)", () => {
+  const isMastraTool = (name: string) => name === "stagehand_browser_run";
+  const run = (ok: boolean) =>
+    applyVerdictGates({
+      evaluation: passingJudge,
+      trajectory: {
+        steps: [step({ action: "stagehand_browser_run", output: "Price: $12", ok })],
+        status: "complete",
+        finalAnswer: "$12",
+      },
+      isFacadeTool: isMastraTool,
+      requireGrounding: false,
+    });
+  expect(run(true).outcomeGates).toEqual([]);
+  expect(run(true).outcomeSuccess).toBe(true);
+  expect(run(false).outcomeGates).toEqual(["no_browser_use"]);
+});
