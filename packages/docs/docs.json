@@ -104,7 +104,16 @@
               "v4/cookbooks/paginated-catalog",
               "v4/cookbooks/files-to-bucket",
               "v4/cookbooks/approve-form-submission",
-              "v4/cookbooks/ai-sdk-research-agent"
+              "v4/cookbooks/ai-sdk-research-agent",
+              {
+                "group": "Durable agents",
+                "pages": [
+                  "v4/cookbooks/pi-durable-handoff",
+                  "v4/cookbooks/pi-durable-approval",
+                  "v4/cookbooks/libfx-receipts",
+                  "v4/cookbooks/opencode-submission"
+                ]
+              }
             ]
           },
           {

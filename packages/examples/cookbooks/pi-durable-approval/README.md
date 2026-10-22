@@ -1,0 +1,77 @@
+# Approve an order across agent restarts
+
+Prepare a demonstration order, save the exact values, exit while approval is pending, then approve and complete the order yourself through Live View.
+
+Official Pi Durable on durable-harness World storage. TypeScript CLI, Browserbase only. No application deployment required.
+
+## Install and run
+
+```bash
+cd typescript
+cp .env.example .env
+pnpm install --frozen-lockfile
+```
+
+Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` are required. The OpenAI key powers Pi. The browser uses deterministic Stagehand operations and needs no browser model.
+
+```bash
+pnpm start
+# Review the values printed by the CLI.
+pnpm start approve <decision-id>
+# Click Submit yourself in the printed Live View.
+pnpm start return <decision-id>
+# Alternatively, before approving:
+# pnpm start reject <decision-id>
+```
+
+Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+
+Earendil describes Pi Durable as experimental. These examples pin its published `1.3.0` release; the version pin does not imply a stable API guarantee.
+
+## Follow the code
+
+1. `src/index.ts` creates a local Workflow World. `resumeWith` and `acquireHarness` give native Pi Durable storage backed by that World.
+2. `src/scenario.ts` fills a public test form and persists its exact values in a Pi document.
+3. `approve <id>` rereads the form and compares it with the saved proposal. The human then submits in Live View.
+4. `return <id>` reopens the conversation and asks Pi to verify the response.
+
+This teaches a decision that survives process exit. It does not demonstrate an agent making a purchase or a queue worker running unattended. The fixed form deliberately keeps website interaction small so you can inspect the persisted approval.
+
+## Why durability matters
+
+Pi still runs the conversation and tools. `durable-harness/pi-durable` supplies World-backed storage through `resumeWith` and `acquireHarness`. Browser binding, proposal, approval and confirmation are Pi documents in the local World's log. This CLI drives Pi explicitly; it does not keep a background worker running after exit.
+
+`prepare_order` fills the public httpbin test order form and saves every actual form value. `approve` rereads the form and refuses changed values. The agent has no click or submit tool. After approval, the human submits through Live View. `verify_order` compares httpbin's echoed response with the approved values. A mismatch is a failure, not a successful purchase. No money moves.
+
+Approval state survives agent restarts, but this minimal CLI does not recreate an expired checkout or Browserbase session. If the browser expires, start a fresh run and approve fresh values. A production purchase assistant must rebuild and revalidate price, contents and availability before requesting new approval.
+
+This cookbook uses the explicitly pinned experimental `durable-harness@0.0.1-beta.6`. APIs may change between releases.
+
+## Browser operations
+
+Pi chooses between preparing and verifying the order. Stagehand locators fill the known form, and `page.evaluate` reads its actual values. Approval checks those values again. The human clicks Submit in Live View; deterministic parsing checks the echoed response.
+
+Use the printed Browserbase session link to inspect execution and Live View for human interaction. These recipes use task-specific tools and DOM-based completion checks. Screenshots are optional visual evidence; they do not replace persisted decisions or confirmation checks.
+
+## Recovery and limits
+
+Browser lifetime is 30 minutes, including time spent waiting for you. The pinned Browserbase SDK 2.22.0 calls this option `api_timeout`, in seconds, and sends it as `timeout` to the API. The Browserbase plan must support keep-alive. Keeping the agent state does not extend a browser, login code, reservation, or price quote. Reconnect failures stop the recipe rather than silently create a fresh browser and replay actions. Once a run completes, release its browser with `cleanup`.
+
+Live View URLs are freshly requested for the active page. They grant interactive access; this CLI prints them locally and does not save them in output files. Keep automation paused while the human controls the page. The pending request is durable even when the CLI is gone. The browser remains billable while alive. Browser and tool limits are not a fixed cost cap.
+
+Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writers and becomes stale 30 seconds after a crashed process stops updating it. Do not bypass that lock. Resume on the same machine and disk with the same environment and package pins. Remote deployment needs a worker and appropriate persistent storage.
+
+## Manual browser check
+
+Prepare an order, exit, and inspect it in Live View. Change a field before running `approve <decision-id>` and expect refusal. Restore the saved values, approve, submit in Live View, then run `return <decision-id>`. Expect a matching confirmation. Do not submit before approval.
+
+These steps are for your live verification; they have not been run as part of this change.
+
+## Verify
+
+```bash
+pnpm typecheck
+pnpm test
+```
+
+The tests release and reacquire a real local World-backed Pi session and check exact-value approval, decision identity and rejection. Keep these focused recovery tests when adapting the example. They run without credentials or network access; they cannot prove that a real website login or submission works. Live sites and paid model execution have not been tested as part of this change. Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.

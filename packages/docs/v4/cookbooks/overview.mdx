@@ -13,7 +13,7 @@ Cookbooks are runnable browser jobs with a source folder, an agent prompt, defin
 | [Showcase](https://stagehand.dev/showcase) | Recorded jobs on real sites, with benchmark results |
 | [Functions](/v4/best-practices/deployments) | Deployment instructions and CLI templates |
 
-Cloud recipes print a Browserbase session link and limit browser lifetime to five minutes. Model calls and integrations can add charges. Page and step limits bound work, not a fixed dollar amount. See [model configuration](/v4/configuration/models).
+Cloud recipes print a Browserbase session link and limit browser lifetime to five minutes, or 30 minutes for durable agents. Model calls and integrations can add charges. Page and step limits bound work, not a fixed dollar amount. See [model configuration](/v4/configuration/models).
 
 | Cookbook | Use it when | Inputs | Output | Stagehand methods | Languages |
 | --- | --- | --- | --- | --- | --- |
@@ -22,6 +22,36 @@ Cloud recipes print a Browserbase session link and limit browser lifetime to fiv
 | [Save extracted files to a bucket](/v4/cookbooks/files-to-bucket) | Extracted page data and downloaded bytes must reach object storage | Target page, optional S3 bucket | Local JSON and cover, optional bucket objects | `extract()` | TypeScript |
 | [Approve a form submission](/v4/cookbooks/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
 | [Build an AI SDK research agent](/v4/cookbooks/ai-sdk-research-agent) | An agent must research approved pages and cite sources | Research question, approved URLs | Typed report with source URLs | `extract()` | TypeScript |
+
+## Durable agents
+
+Use these when browser work must wait for a human, preserve completed results, or reconcile an action after a crash. Each is an independent TypeScript CLI project. The agent's state survives process exit; browser sessions and verification codes still expire.
+
+| Cookbook | Framework | Durable behavior |
+| --- | --- | --- |
+| [Read a Notion workspace after handoff](/v4/cookbooks/pi-durable-handoff) | Official Pi Durable on SQLite | Resume after human login and save workspace page links |
+| [Approve an order later](/v4/cookbooks/pi-durable-approval) | Pi Durable on durable-harness | Save the exact proposal and verify the human's submission |
+| [Collect merchant receipts](/v4/cookbooks/libfx-receipts) | Native libfx | Reuse completed reads and continue incomplete portals |
+| [Recover an interrupted submission](/v4/cookbooks/opencode-submission) | OpenCode on durable-harness | Verify confirmation without repeating the submission |
+
+The harness recipes use the explicitly pinned beta `durable-harness@0.0.1-beta.6`. Follow each README for inputs, model keys, recovery limits and cleanup.
+
+## Durable storage and hosting
+
+These are local CLI examples with offline validation. Browserbase flows and paid model turns still need live verification. Start with the Notion recipe for handoff, then compare the approval and interrupted-submission recipes to see where human consent ends and outcome verification begins.
+
+Pi Durable is an agent framework with its own conversation, task and document model. `durable-harness/pi-durable` supplies World-backed storage for it. Native libfx already has durability; it does not need a durable-harness adapter. The OpenCode recipe uses that adapter package to persist its execution. See [Earendil's introduction](https://earendil.com/posts/pi-durable/) and [Vercel's overview](https://vercel.com/blog/making-every-harness-durable/).
+
+| Combination | Included here |
+| --- | --- |
+| Pi Durable with Node SQLite | Notion CLI |
+| Pi Durable with a local Workflow World | Approval CLI |
+| Native libfx local durability | Receipt CLI, plus its separate on-disk manifest |
+| OpenCode with a local Workflow World | Submission CLI |
+| Vercel or a self-hosted Postgres World | Requires deployment and queue setup |
+| Turso or another Workflow World | Not implemented or verified in these recipes |
+
+All four resume when you invoke the CLI. A deployed durable agent also needs a host or worker to drive interrupted turns. Changing storage does not keep that worker running or extend the Browserbase session. These CLIs explicitly construct local backends, so setting World environment variables alone does not migrate them. See [self-hosting](https://vercel.com/docs/agent-harnesses/self-hosting) for host and queue setup.
 
 ## Run a cookbook
 
