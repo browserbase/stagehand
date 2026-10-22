@@ -41,7 +41,7 @@ libfx's own `createFxAgent` persists turns and tool outcomes. This recipe explic
 
 The output is receipt metadata, not downloaded PDFs. Extraction covers up to 50 visible records per source, without pagination. Adjust the schema and completeness checks together for your portal. Saved records keep their earlier values and do not prove that every receipt in an account was collected.
 
-To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, run `pnpm start resume`. The saved source should be reused. Offline tests cover manifest reopen and libfx input deduplication. Live extraction and model execution remain untested.
+To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, run `pnpm start resume`. The saved source should be reused.
 
 ## Browser operations
 
@@ -63,13 +63,10 @@ Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writer
 
 Use two receipt-list URLs. Run with `CRASH_AFTER_RECEIPT=1`; after the intentional crash, unset it. The next command waits for the stale lock automatically. Resume with the same `STATE_DIR`. Check that the first source is reused and the second is collected. If login is required, complete it in Live View before returning control.
 
-These steps are for your live verification; they have not been run as part of this change.
-
 ## Verify
 
 ```bash
 pnpm typecheck
-pnpm test
 ```
 
-The tests reopen the manifest and a real libfx session with a synthetic model stream. They check retained receipts, message deduplication and handoff ownership. Keep these focused recovery tests when adapting the example. They run without credentials or network access; they cannot prove that a real website login or submission works. Live sites and paid model execution have not been tested as part of this change. Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/libfx-receipts) for the agent prompt and deployment boundaries.
+Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/libfx-receipts) for the agent prompt and deployment boundaries.

@@ -2,11 +2,7 @@ import { returnControl, type Store } from "./state.js";
 import type { Browser } from "./browser.js";
 import type { Terminal } from "./terminal.js";
 
-export async function returnFromHandoff(
-  store: Store,
-  browser: Pick<Browser, "liveLink">,
-  terminal: Terminal,
-) {
+export async function returnFromHandoff(store: Store, browser: Browser, terminal: Terminal) {
   const state = await store.read();
   if (state.decision?.status !== "pending") return false;
   console.log(`Human step: ${state.decision.reason}`);

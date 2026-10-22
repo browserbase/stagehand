@@ -21,9 +21,7 @@ import { prompt } from "./scenario.js";
 
 async function main() {
   checkCommand();
-  const terminal = new Terminal({
-    enabled: ["start", "resume"].includes(command) ? undefined : false,
-  });
+  const terminal = new Terminal(["start", "resume"].includes(command));
   try {
     await exclusive(async () => {
       if (!(await savedId()) && command !== "start")

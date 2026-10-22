@@ -35,9 +35,7 @@ const noArguments = { type: "object", properties: {}, additionalProperties: fals
 async function main() {
   checkCommand();
   if (command === "return") throw new Error("This cookbook uses approve <id> or reject <id>.");
-  const terminal = new Terminal({
-    enabled: ["start", "resume"].includes(command) ? undefined : false,
-  });
+  const terminal = new Terminal(["start", "resume"].includes(command));
   try {
     await exclusive(async () => {
       let sessionId = await savedId();

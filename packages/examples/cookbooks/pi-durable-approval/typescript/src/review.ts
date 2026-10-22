@@ -2,11 +2,7 @@ import { approveOrder, decide, type Store } from "./state.js";
 import type { Browser } from "./browser.js";
 import type { Terminal } from "./terminal.js";
 
-export async function reviewOrder(
-  store: Store,
-  browser: Pick<Browser, "liveLink" | "formValues">,
-  terminal: Terminal,
-) {
+export async function reviewOrder(store: Store, browser: Browser, terminal: Terminal) {
   let state = await store.read();
   if (!state.decision || !["pending", "approved"].includes(state.decision.status)) return false;
   await browser.liveLink();

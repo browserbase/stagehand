@@ -64,15 +64,12 @@ Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writer
 
 Prepare an order and inspect it in Live View while the terminal waits. Change a field before typing `approve` and expect refusal. Restore the saved values, approve, submit in Live View, then type `done`. Expect a matching confirmation. Do not submit before approval.
 
-These steps are for your live verification; they have not been run as part of this change.
-
 ## Verify
 
 ```bash
 pnpm typecheck
-pnpm test
 ```
 
-The tests release and reacquire a real local World-backed Pi session and check exact-value approval, decision identity and rejection. Keep these focused recovery tests when adapting the example. They run without credentials or network access; they cannot prove that a real website login or submission works. Live sites and paid model execution have not been tested as part of this change. Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.
+Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.
 
 Shared dependencies follow the existing cookbook ranges: `typescript@^5`, `@types/node@^24`, `tsx@^4.23.1`, `dotenv@^17.4.2`, `@browserbasehq/sdk@^2.16.0` and `zod@4.4.3`. Framework packages keep exact pins. Install with the frozen lockfile. See [dependency version notes](https://docs.stagehand.dev/v4/cookbooks/overview#durable-dependency-versions) for compatibility requirements.

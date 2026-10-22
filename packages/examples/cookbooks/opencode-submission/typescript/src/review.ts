@@ -2,11 +2,7 @@ import { decide, type Store } from "./state.js";
 import type { Browser } from "./browser.js";
 import type { Terminal } from "./terminal.js";
 
-export async function reviewSubmission(
-  store: Store,
-  browser: Pick<Browser, "liveLink">,
-  terminal: Terminal,
-) {
+export async function reviewSubmission(store: Store, browser: Browser, terminal: Terminal) {
   const state = await store.read();
   if (state.decision?.status !== "pending") return false;
   await browser.liveLink();

@@ -25,29 +25,14 @@ export async function savedId(): Promise<string | undefined> {
   }
 }
 
-export async function exclusive<T>(run: () => Promise<T>, stateDirectory = directory): Promise<T> {
-  await mkdir(stateDirectory, { recursive: true, mode: 0o700 });
-  const options = { stale: 30_000, update: 10_000, retries: 0 };
-  let release: () => Promise<void>;
-  try {
-    release = await lockfile.lock(stateDirectory, options);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ELOCKED") throw error;
-    console.log(
-      "State directory is locked. Waiting up to 35 seconds for the previous process or crash lock to clear...",
-    );
-    try {
-      release = await lockfile.lock(stateDirectory, {
-        ...options,
-        retries: { retries: 35, factor: 1, minTimeout: 1000, maxTimeout: 1000, randomize: false },
-      });
-    } catch (retryError) {
-      if ((retryError as NodeJS.ErrnoException).code !== "ELOCKED") throw retryError;
-      throw new Error(
-        "Another CLI process still owns this STATE_DIR. Return to its prompt or stop it before retrying. Do not delete its lock.",
-      );
-    }
-  }
+export async function exclusive<T>(run: () => Promise<T>): Promise<T> {
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  // A killed process leaves its lock behind until the stale interval passes.
+  const release = await lockfile.lock(directory, {
+    stale: 30_000,
+    update: 10_000,
+    retries: { retries: 35, factor: 1, minTimeout: 1000, maxTimeout: 1000, randomize: false },
+  });
   try {
     return await run();
   } finally {

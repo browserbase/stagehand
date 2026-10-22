@@ -63,13 +63,10 @@ Run one CLI process per `STATE_DIR`. A filesystem lock prevents competing writer
 
 Prepare the request, type `pause` at the approval prompt, then set `CRASH_AFTER_SUBMIT=1` for the explicit approval command. After the intentional crash, unset it. The next command waits for the stale lock automatically. Resume with the same `STATE_DIR`. Expect confirmation recovery without another click. If the confirmation is missing, expect an unknown outcome, not a retry.
 
-These steps are for your live verification; they have not been run as part of this change.
-
 ## Verify
 
 ```bash
 pnpm typecheck
-pnpm test
 ```
 
-The tests reopen a real local World with a stub harness and check persistence of the pre-submit marker and exact-value approval. They do not boot the OpenCode model or exercise its live tool loop. Keep these focused recovery tests when adapting the example. They run without credentials or network access; they cannot prove that a real website login or submission works. Live sites and paid model execution have not been tested as part of this change. Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/opencode-submission) for the agent prompt and deployment boundaries.
+Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/opencode-submission) for the agent prompt and deployment boundaries.

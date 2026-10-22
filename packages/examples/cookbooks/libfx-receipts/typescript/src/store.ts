@@ -6,7 +6,7 @@ import { initialState, type State, type Store } from "./state.js";
 // This local CLI keeps its manifest beside libfx's durable session files. Copy the whole STATE_DIR to move it.
 export class FileStore implements Store {
   private queue: Promise<unknown> = Promise.resolve();
-  constructor(private path = join(directory, "manifest.json")) {}
+  private readonly path = join(directory, "manifest.json");
   async read(): Promise<State> {
     await this.queue;
     try {

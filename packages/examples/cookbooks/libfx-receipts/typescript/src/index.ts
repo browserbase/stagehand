@@ -27,9 +27,7 @@ async function main() {
   checkCommand();
   if (["approve", "reject"].includes(command))
     throw new Error("Use return <id> after merchant login.");
-  const terminal = new Terminal({
-    enabled: ["start", "resume"].includes(command) ? undefined : false,
-  });
+  const terminal = new Terminal(["start", "resume"].includes(command));
   try {
     await exclusive(async () => {
       const store = new FileStore();

@@ -24,13 +24,9 @@ export const Work = defineDoc<State>({
   checkpointWhen: () => true,
 });
 
-function defaultModels() {
+export async function openAgent(storage: Storage) {
   const models = createModels();
   models.setProvider(openaiProvider());
-  return models;
-}
-
-export async function openAgent(storage: Storage, models = defaultModels()) {
   const registry = createRegistry();
   let harness: Harness;
   const store: Store = {

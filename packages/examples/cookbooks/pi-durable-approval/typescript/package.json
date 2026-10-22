@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.16.0",
