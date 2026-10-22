@@ -103,6 +103,23 @@ const turn = session.prompt(text, {
 
 After 20 extraction attempts, the next incomplete read saves a handoff. Typing Done grants another 20 attempts without deleting completed sources.
 
+### Inspect completed and pending sources
+
+After pausing or stopping the CLI, run `pnpm start status`. It reads the manifest without calling libfx, a model or the browser. A collection interrupted after one saved source might include:
+
+```json
+{
+  "progress": {
+    "phase": "collecting",
+    "completedSources": 1,
+    "pendingSources": ["https://merchant.example/receipts"],
+    "nextAction": "Run pnpm start resume to continue incomplete sources. Saved receipts will be reused."
+  }
+}
+```
+
+A pending login handoff reports `awaiting_human` instead. Saved records remain available even if the browser expires. Resume requires the original browser to remain accessible.
+
 ## Expected result and manual checks
 
 `STATE_DIR` defaults to `out/run`. It contains the libfx journal, `run.json`, `manifest.json` and `receipts.json`. `complete: true` means every configured URL has saved records, not that every receipt in the account was collected.

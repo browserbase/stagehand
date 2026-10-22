@@ -22,7 +22,7 @@ pnpm start status
 pnpm start cleanup
 ```
 
-Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+Run `pnpm start status` to inspect saved state without calling a model or reconnecting the browser. After an interrupted submission, `progress.phase` is `outcome_unknown` until confirmation is verified. `progress.nextAction` directs you to verification instead of another submission. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
 ## Follow the code
 

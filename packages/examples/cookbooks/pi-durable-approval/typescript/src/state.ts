@@ -57,3 +57,32 @@ export function approveOrder(state: State, id: string, actual: Record<string, st
     throw new Error("Form changed. Request fresh approval.");
   decide(state, id, "approved");
 }
+
+export function progress(state: State) {
+  if (state.confirmed)
+    return { phase: "confirmed", nextAction: "Run pnpm start cleanup to release the browser." };
+  if (state.decision?.status === "rejected")
+    return {
+      phase: "rejected",
+      nextAction: "Run pnpm start cleanup. The order was not submitted by the agent.",
+    };
+  if (state.decision?.status === "pending")
+    return {
+      phase: "awaiting_approval",
+      nextAction: "Run pnpm start resume to review the saved proposal.",
+    };
+  if (state.decision?.status === "approved")
+    return {
+      phase: "awaiting_human_submission",
+      nextAction: "Run pnpm start resume, submit in Live View, then type Done.",
+    };
+  if (state.decision?.status === "returned")
+    return {
+      phase: "awaiting_verification",
+      nextAction: "Run pnpm start resume to verify the human's submission.",
+    };
+  return {
+    phase: "preparing",
+    nextAction: "Run pnpm start resume to continue preparing the proposal.",
+  };
+}

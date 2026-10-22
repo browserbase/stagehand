@@ -8,6 +8,7 @@ import { Browser } from "./browser.js";
 import { FileStore } from "./store.js";
 import {
   assertBrowserControl,
+  progress,
   returnControl,
   reserveBrowserCall,
   requestDecision,
@@ -43,7 +44,7 @@ async function main() {
         });
       let state = await store.read();
       if (command === "status") {
-        console.log(JSON.stringify(state, null, 2));
+        console.log(JSON.stringify({ ...state, progress: progress(state) }, null, 2));
         return;
       }
       if (state.decision?.status === "pending") {

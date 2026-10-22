@@ -97,6 +97,21 @@ await store.update((draft) => {
 
 A mismatch throws before `confirmed` can become true. The CLI's stable initial and return request IDs prevent duplicate input submissions after a restart.
 
+### Inspect the saved handoff
+
+After pausing or stopping the CLI, run `pnpm start status`. It reads SQLite without calling the model or reconnecting the browser. For an approved proposal, the output includes:
+
+```json
+{
+  "progress": {
+    "phase": "awaiting_human_submission",
+    "nextAction": "Run pnpm start resume, submit in Live View, then type Done."
+  }
+}
+```
+
+The summary comes from the saved decision. Approval and human return survive a restart; only a matching browser confirmation establishes completion.
+
 ## Expected result and manual checks
 
 `STATE_DIR` defaults to `out/run`. It contains `agent.sqlite` and `status.json`. The final status must contain `confirmed: true`; a human return is not proof of success.

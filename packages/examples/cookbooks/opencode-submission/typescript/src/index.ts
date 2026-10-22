@@ -10,6 +10,7 @@ import {
   authorizeSubmit,
   decide,
   initialState,
+  progress,
   requestDecision,
   type State,
   type Store,
@@ -169,11 +170,13 @@ async function main() {
             }
             state = await store.read();
           }
-          await saveJson(join(directory, "status.json"), state);
-          console.log(JSON.stringify(state, null, 2));
+          const status = { ...state, progress: progress(state) };
+          await saveJson(join(directory, "status.json"), status);
+          console.log(JSON.stringify(command === "status" ? status : state, null, 2));
           if (command === "status") break;
           if (await reviewSubmission(store, browser, terminal)) continue;
-          await saveJson(join(directory, "status.json"), await store.read());
+          state = await store.read();
+          await saveJson(join(directory, "status.json"), { ...state, progress: progress(state) });
           if (state.confirmed)
             console.log(
               "Matching confirmation verified. Release the browser with pnpm start cleanup.",

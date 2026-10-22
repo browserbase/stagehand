@@ -30,7 +30,7 @@ pnpm start
 pnpm start cleanup
 ```
 
-Run `pnpm start status` to inspect saved state. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+Run `pnpm start status` to inspect the manifest without calling a model or reconnecting the browser. `progress` lists completed and pending sources, any human handoff, and the next action. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
 ## Follow the code
 

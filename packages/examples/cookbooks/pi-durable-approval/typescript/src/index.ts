@@ -12,7 +12,7 @@ import {
   requireEnv,
   saveJson,
 } from "./cli.js";
-import { decide, approveOrder } from "./state.js";
+import { decide, approveOrder, progress } from "./state.js";
 import { BACKGROUND_CONTEXT, openAgent } from "./pi.js";
 import { reviewOrder } from "./review.js";
 import { prompt } from "./scenario.js";
@@ -85,14 +85,9 @@ async function main() {
             await root.waitForIdle(BACKGROUND_CONTEXT);
             state = await store.read();
           }
-          await saveJson(join(directory, "status.json"), state);
-          console.log(
-            JSON.stringify(
-              { decision: state.decision, browser: state.browser, confirmed: state.confirmed },
-              null,
-              2,
-            ),
-          );
+          const status = { ...state, progress: progress(state) };
+          await saveJson(join(directory, "status.json"), status);
+          console.log(JSON.stringify(command === "status" ? status : state, null, 2));
           if (
             command !== "status" &&
             !state.confirmed &&
@@ -103,8 +98,9 @@ async function main() {
             process.exitCode = 2;
           if (command === "status") break;
           if (await reviewOrder(store, browser, terminal)) continue;
-          await saveJson(join(directory, "status.json"), await store.read());
-          if ((await store.read()).confirmed)
+          state = await store.read();
+          await saveJson(join(directory, "status.json"), { ...state, progress: progress(state) });
+          if (state.confirmed)
             console.log("Matching confirmation verified. Cleanup: pnpm start cleanup.");
           console.log(
             "Resume: pnpm start resume. Cleanup: pnpm start cleanup. Keep STATE_DIR unchanged.",

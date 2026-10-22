@@ -27,11 +27,13 @@ Cloud recipes print a Browserbase session link and limit browser lifetime to fiv
 
 Use these when browser work must wait for a human, preserve completed results, or reconcile an action after a crash. Each is an independent TypeScript CLI project. The agent's state survives process exit; browser sessions and verification codes still expire.
 
-| Cookbook | Framework | Durable behavior |
+| Cookbook | What survives a restart | What happens next |
 | --- | --- | --- |
-| [Approve an order later](/v4/cookbooks/pi-durable-approval) | Native Pi Durable with SQLite | Save the exact proposal and verify the human's submission |
-| [Collect merchant receipts](/v4/cookbooks/libfx-receipts) | Native libfx | Reuse completed reads and continue incomplete portals |
-| [Recover an interrupted submission](/v4/cookbooks/opencode-submission) | OpenCode on durable-harness | Verify confirmation without repeating the submission |
+| [Order approval with Pi Durable](/v4/cookbooks/pi-durable-approval) | Exact proposal and human decision in SQLite | The human submits through Live View; Pi verifies the result |
+| [Receipt collection with durable libfx](/v4/cookbooks/libfx-receipts) | Completed sources and pending login handoff | libfx continues incomplete sources and reuses saved records |
+| [Submission recovery with durable OpenCode](/v4/cookbooks/opencode-submission) | Approval and a marker saved before submission | Recovery checks confirmation without submitting again |
+
+After stopping a run, `pnpm start status` reads its saved state and reports a `progress` summary with the next action. It does not call a model or reconnect the browser. These examples make different recovery decisions from stored evidence; a saved conversation alone cannot establish whether a website action succeeded.
 
 ## Storage and hosting options
 

@@ -104,6 +104,23 @@ if (state.attempted) {
 
 A matching httpbin response is required. If the crash happened after saving the marker but before clicking, the request can remain uncertain even though nothing was submitted. httpbin has no idempotency key or transaction lookup to resolve that gap. The recipe stops for manual review.
 
+### Inspect an uncertain outcome
+
+After a crash, run `pnpm start status` before resuming. It reads the saved World document without driving OpenCode, calling a model or reconnecting the browser. An attempted submission without a verified response includes:
+
+```json
+{
+  "attempted": true,
+  "confirmed": false,
+  "progress": {
+    "phase": "outcome_unknown",
+    "nextAction": "Run pnpm start resume to check confirmation. Submission will not be repeated."
+  }
+}
+```
+
+This status describes the evidence already stored. It does not ask the model to infer whether the request succeeded. Resume checks the existing response; a missing confirmation requires manual review.
+
 ## Expected result and manual checks
 
 `STATE_DIR` defaults to `out/run`. It contains the local World, `run.json` and `status.json`. An attempted marker records uncertainty; only `confirmed: true` establishes the expected result.
