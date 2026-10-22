@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -99,9 +100,12 @@ class FakePage:
 
 
 class FakeContext:
-    def __init__(self, pages: list[FakePage], active: object) -> None:
+    def __init__(
+        self, pages: list[FakePage], active: object, make_page: Callable[[str], FakePage]
+    ) -> None:
         self._pages = pages
         self._active = active
+        self._make_page = make_page
         self.calls: dict[str, Any] = {"newPages": 0, "setActivePage": []}
 
     async def active_page(self) -> FakePage | None:
@@ -119,7 +123,9 @@ class FakeContext:
 
     async def new_page(self, url: str | None = None) -> FakePage:
         self.calls["newPages"] += 1
-        return self._pages[0]
+        page = self._make_page(f"new-page-{self.calls['newPages']}")
+        self._pages.append(page)
+        return page
 
     async def set_active_page(self, page: FakePage) -> None:
         self.calls["setActivePage"].append(page.page_id)
@@ -129,8 +135,10 @@ _DEFAULT_ACTIVE = object()
 
 
 class FakeBrowser:
-    def __init__(self, pages: list[FakePage], active: object) -> None:
-        self.context = FakeContext(pages, active)
+    def __init__(
+        self, pages: list[FakePage], active: object, make_page: Callable[[str], FakePage]
+    ) -> None:
+        self.context = FakeContext(pages, active, make_page)
         self.close_count = 0
 
     async def close(self) -> None:
@@ -154,10 +162,17 @@ class FakeStagehand:
         self.url = self.case.get("page", {}).get("url", self.url)
         self.snapshot = self.case.get("page", {}).get("snapshot")
         context = self.case.get("context", {})
-        pages = [
-            FakePage(self, entry["id"], entry.get("snapshot")) for entry in context.get("pages", [])
-        ] or [FakePage(self)]
-        self.browser = FakeBrowser(pages, context.get("activePage", _DEFAULT_ACTIVE))
+        # A case's "pages" list is used as given (even empty); without one there is one page.
+        pages = (
+            [FakePage(self, entry["id"], entry.get("snapshot")) for entry in context["pages"]]
+            if "pages" in context
+            else [FakePage(self)]
+        )
+        self.browser = FakeBrowser(
+            pages,
+            context.get("activePage", _DEFAULT_ACTIVE),
+            lambda page_id: FakePage(self, page_id),
+        )
 
     async def experimental_batch(
         self, source: str, input: object, *, timeout: int, page: FakePage
@@ -193,7 +208,10 @@ def check_error(error: BaseException, expected: dict[str, Any]) -> None:
         assert isinstance(error, StagehandFacadeInputError), repr(error)
     elif kind == "execution":
         assert isinstance(error, StagehandFacadeExecutionError), repr(error)
-    elif kind in ("batch", "sdk"):
+    elif kind == "sdk":
+        # SDK errors reach the host as RPCError and must propagate unchanged.
+        assert isinstance(error, RPCError), repr(error)
+    elif kind == "batch":
         assert not isinstance(error, StagehandFacadeInputError | StagehandFacadeExecutionError)
     else:
         assert isinstance(error, SyntaxError), repr(error)

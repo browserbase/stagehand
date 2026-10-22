@@ -131,7 +131,9 @@ function createFakeStagehand(testCase: ConformanceCase, sandbox: string) {
     pages: async () => [...pages],
     newPage: async () => {
       contextCalls.newPages += 1;
-      return pages[0];
+      const page = makePage(`new-page-${contextCalls.newPages}`);
+      pages.push(page);
+      return page;
     },
     setActivePage: async (page: { pageId: string }) => {
       contextCalls.setActivePage.push(page.pageId);
