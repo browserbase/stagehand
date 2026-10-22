@@ -76,6 +76,8 @@ type CompatSelectOption =
   | { value?: string; label?: string; index?: number }
   | Array<string | { value?: string; label?: string; index?: number }>;
 
+type MouseButton = "left" | "right" | "middle";
+
 type RawPage = {
   readonly pageId?: string;
   goto(url: string, options?: Record<string, unknown>): Promise<unknown>;
@@ -104,6 +106,17 @@ type RawPage = {
   keyPress(key: string, options?: { delay?: number }): Promise<void>;
   click(x: number, y: number, options?: Record<string, unknown>): Promise<void>;
   hover(x: number, y: number): Promise<void>;
+  dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: {
+      button?: MouseButton;
+      steps?: number;
+      route?: Array<{ x: number; y: number }>;
+    },
+  ): Promise<void>;
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
   setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
   addInitScript(script: string | ((arg: unknown) => unknown), arg?: unknown): Promise<void>;
@@ -3463,24 +3476,49 @@ export async function createPlaywrightCompatRuntime(
         press: (key: string, options?: { delay?: number }) => page.keyPress(key, options),
       },
       mouse: (() => {
+        // A held button becomes one real drag on release: press where `down` was called, pass
+        // through every point `move` visited while held, release at the last one.
         let x = 0;
         let y = 0;
-        let down = false;
+        let held: {
+          button: MouseButton;
+          fromX: number;
+          fromY: number;
+          route: Array<{ x: number; y: number }>;
+          steps: number;
+        } | null = null;
         return {
           click: (nextX: number, nextY: number, options?: Record<string, unknown>) =>
             page.click(nextX, nextY, options),
-          move: async (nextX: number, nextY: number) => {
+          move: async (nextX: number, nextY: number, options?: { steps?: number }) => {
             x = nextX;
             y = nextY;
-            await page.hover(x, y);
+            if (!held) {
+              await page.hover(x, y);
+              return;
+            }
+            held.route.push({ x, y });
+            held.steps += Math.max(1, Math.min(100, Math.floor(options?.steps ?? 1)));
           },
           wheel: (deltaX: number, deltaY: number) => page.scroll(x, y, deltaX, deltaY),
-          down: async () => {
-            down = true;
+          down: async (options?: { button?: MouseButton }) => {
+            if (held) return;
+            held = { button: options?.button ?? "left", fromX: x, fromY: y, route: [], steps: 0 };
           },
           up: async () => {
-            if (down) await page.click(x, y);
-            down = false;
+            if (!held) return;
+            const drag = held;
+            held = null;
+            if (drag.route.length === 0) {
+              await page.click(x, y, drag.button === "left" ? undefined : { button: drag.button });
+              return;
+            }
+            const via = drag.route.slice(0, -1);
+            await page.dragAndDrop(drag.fromX, drag.fromY, x, y, {
+              button: drag.button,
+              steps: Math.max(8, Math.min(100, drag.steps)),
+              ...(via.length ? { route: via } : {}),
+            });
           },
         };
       })(),
