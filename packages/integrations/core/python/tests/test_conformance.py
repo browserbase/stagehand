@@ -14,6 +14,7 @@ from typing import Any, cast
 
 import pytest
 from stagehand import Stagehand
+from stagehand.rpc_client import RPCError, _JSONRPCError
 
 from stagehand_middleware.facade import (
     StagehandFacadeExecutionError,
@@ -68,16 +69,21 @@ class FakeSnapshot:
 
 
 class FakePage:
-    page_id = "page-1"
-
-    def __init__(self, stagehand: FakeStagehand) -> None:
+    def __init__(
+        self,
+        stagehand: FakeStagehand,
+        page_id: str = "page-1",
+        snapshot: dict[str, Any] | None = None,
+    ) -> None:
         self._stagehand = stagehand
+        self.page_id = page_id
+        self._snapshot = snapshot
 
     async def url(self) -> str:
         return self._stagehand.url
 
     async def snapshot(self, *, include_iframes: bool, timeout: float) -> FakeSnapshot:
-        snapshot = self._stagehand.snapshot
+        snapshot = self._snapshot or self._stagehand.snapshot
         if snapshot is None:
             return FakeSnapshot("", {})
         return FakeSnapshot(snapshot["formattedTree"], snapshot["xpathMap"])
@@ -93,25 +99,38 @@ class FakePage:
 
 
 class FakeContext:
-    def __init__(self, page: FakePage) -> None:
-        self._page = page
+    def __init__(self, pages: list[FakePage], active: object) -> None:
+        self._pages = pages
+        self._active = active
+        self.calls: dict[str, Any] = {"newPages": 0, "setActivePage": []}
 
-    async def active_page(self) -> FakePage:
-        return self._page
+    async def active_page(self) -> FakePage | None:
+        if self._active is None:
+            return None
+        if isinstance(self._active, dict):
+            # The SDK surfaces extension errors as RPCError.
+            raise RPCError(_JSONRPCError(code=-32000, message=self._active["throw"]["message"]))
+        if self._active is _DEFAULT_ACTIVE:
+            return self._pages[0]
+        return next(page for page in self._pages if page.page_id == self._active)
 
     async def pages(self) -> list[FakePage]:
-        return [self._page]
+        return list(self._pages)
 
     async def new_page(self, url: str | None = None) -> FakePage:
-        return self._page
+        self.calls["newPages"] += 1
+        return self._pages[0]
 
     async def set_active_page(self, page: FakePage) -> None:
-        pass
+        self.calls["setActivePage"].append(page.page_id)
+
+
+_DEFAULT_ACTIVE = object()
 
 
 class FakeBrowser:
-    def __init__(self, page: FakePage) -> None:
-        self.context = FakeContext(page)
+    def __init__(self, pages: list[FakePage], active: object) -> None:
+        self.context = FakeContext(pages, active)
         self.close_count = 0
 
     async def close(self) -> None:
@@ -134,7 +153,11 @@ class FakeStagehand:
     def __post_init__(self) -> None:
         self.url = self.case.get("page", {}).get("url", self.url)
         self.snapshot = self.case.get("page", {}).get("snapshot")
-        self.browser = FakeBrowser(FakePage(self))
+        context = self.case.get("context", {})
+        pages = [
+            FakePage(self, entry["id"], entry.get("snapshot")) for entry in context.get("pages", [])
+        ] or [FakePage(self)]
+        self.browser = FakeBrowser(pages, context.get("activePage", _DEFAULT_ACTIVE))
 
     async def experimental_batch(
         self, source: str, input: object, *, timeout: int, page: FakePage
@@ -170,7 +193,7 @@ def check_error(error: BaseException, expected: dict[str, Any]) -> None:
         assert isinstance(error, StagehandFacadeInputError), repr(error)
     elif kind == "execution":
         assert isinstance(error, StagehandFacadeExecutionError), repr(error)
-    elif kind == "batch":
+    elif kind in ("batch", "sdk"):
         assert not isinstance(error, StagehandFacadeInputError | StagehandFacadeExecutionError)
     else:
         assert isinstance(error, SyntaxError), repr(error)
@@ -255,6 +278,8 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
     if "closed" in expected:
         assert fake.close_count == (1 if expected["closed"] else 0)
         assert fake.browser.close_count == (1 if expected["closed"] else 0)
+    if "context" in expected:
+        assert fake.browser.context.calls == expected["context"]
     if "tree" in expected:
         assert list_tree(sandbox) == expected["tree"]
     for file, content in expected.get("files", {}).items():

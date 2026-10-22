@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "name": "acts on the newest registered tab when the focused window's tab is not managed by Stagehand",
+      "context": {
+        "pages": [
+          {
+            "id": "page-1",
+            "snapshot": { "formattedTree": "[0-1] heading: First tab", "xpathMap": {} }
+          },
+          {
+            "id": "page-2",
+            "snapshot": { "formattedTree": "[0-1] heading: Newest tab", "xpathMap": {} }
+          }
+        ],
+        "activePage": {
+          "throw": {
+            "name": "TimeoutError",
+            "message": "activePage: active target not registered (target-9)"
+          }
+        }
+      },
+      "steps": [
+        {
+          "call": { "tool": "snapshot" },
+          "batch": [],
+          "sent": [],
+          "expect": { "result": "[0-1] heading: Newest tab" }
+        }
+      ],
+      "expect": { "context": { "newPages": 0, "setActivePage": [] } }
+    },
+    {
+      "name": "propagates any other activePage error unchanged",
+      "context": {
+        "activePage": {
+          "throw": { "name": "Error", "message": "Stagehand browser connection closed" }
+        }
+      },
+      "steps": [
+        {
+          "call": { "tool": "snapshot" },
+          "batch": [],
+          "sent": [],
+          "expect": { "error": { "kind": "sdk", "message": "Stagehand browser connection closed" } }
+        }
+      ],
+      "expect": { "context": { "newPages": 0, "setActivePage": [] } }
+    },
+    {
+      "name": "without an active tab, activates the first registered tab",
+      "context": {
+        "pages": [
+          {
+            "id": "page-1",
+            "snapshot": { "formattedTree": "[0-1] heading: First tab", "xpathMap": {} }
+          },
+          {
+            "id": "page-2",
+            "snapshot": { "formattedTree": "[0-1] heading: Newest tab", "xpathMap": {} }
+          }
+        ],
+        "activePage": null
+      },
+      "steps": [
+        {
+          "call": { "tool": "snapshot" },
+          "batch": [],
+          "sent": [],
+          "expect": { "result": "[0-1] heading: First tab" }
+        }
+      ],
+      "expect": { "context": { "newPages": 0, "setActivePage": ["page-1"] } }
+    }
+  ]
+}

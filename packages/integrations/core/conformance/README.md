@@ -15,7 +15,13 @@ inside it, applies the case's `fs` entries, and builds a fresh host with
 `artifacts/` as its artifact root, no keeper tab and the case's `host` options.
 The fake Stagehand has one page whose URL is `page.url` (default
 `about:blank`), whose snapshot is `page.snapshot`, and whose screenshot is the
-base64 bytes `page.screenshot`.
+base64 bytes `page.screenshot`. A case's `context` can replace that one page
+with several registered pages (`pages`, each with an `id` and its own
+`snapshot`) and script what `context.activePage()` does (`activePage`): return
+the page with that id (default: the first page), return no page (`null`), or
+raise an SDK error with `throw.message` (the Python runner raises
+`stagehand.rpc_client.RPCError`). The fake records `newPage` and
+`setActivePage` calls.
 Each step then:
 
 1. sets the page URL to `pageUrl` and the page's snapshot to `snapshot`, when
@@ -45,9 +51,11 @@ Each file holds `{ "cases": [...] }`. A case:
 | `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
 | `steps[].expect` | `{ "result" }`: the tool's return value (run code: the value; run actions: `{ completed, url }`; snapshot: the formatted tree; screenshot: `{ data, mimeType }`). Or `{ "error" }`, below.                  |
 | `steps[].sent`   | Batch calls in order: `{ "callback": "run", "code", "input"? }` when it sent `runPrelude + code + runEpilogue`, `{ "callback": "actionRunner", "input" }` when it sent `actionRunner` with that input.      |
+| `context`        | Optional `{ pages?, activePage? }`, above.                                                                                                                                                                  |
 | `expect.closed`  | Whether the host closed the Stagehand session (exactly once, or never).                                                                                                                                     |
 | `expect.tree`    | Every entry under the sandbox, sorted by code unit, without following symlinks: directories end in `/`, symlinks in `@`. Use it to show that nothing else was written.                                      |
 | `expect.files`   | Contents of files, relative to the sandbox: base64, or `{ "size" }` in bytes.                                                                                                                               |
+| `expect.context` | `{ newPages, setActivePage }`: how many pages the host created, and the ids it passed to `setActivePage`, in order.                                                                                         |
 
 An expected error has a `kind` and, optionally, a `name` and a message:
 
@@ -57,6 +65,7 @@ An expected error has a `kind` and, optionally, a `name` and a message:
 | `invalid`   | its error for arguments outside the tool's input contract (a `ZodError` in TypeScript). |
 | `execution` | the error thrown by the agent's code, with that `name` and message.                     |
 | `batch`     | the error the batch call itself raised, unchanged.                                      |
+| `sdk`       | the error another Stagehand SDK call raised (e.g. `context.activePage()`), unchanged.   |
 | `syntax`    | a syntax error for run code, before sending anything. Messages differ between parsers.  |
 
 The message is `message` verbatim, or `contractError`: a key of
