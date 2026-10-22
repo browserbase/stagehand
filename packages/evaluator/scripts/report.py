@@ -30,7 +30,9 @@ def main():
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())
     baseline = {r['id']: r for r in json.loads(args.baseline.read_text())['rows']}
-    rows = [{**baseline.get(r['id'], {}), **r} for r in manifest]
+    # replay.mjs falls back to the run path for rows without an id; use the same key here.
+    rows = [{**r, 'id': r['run'] if r.get('id') is None else r['id']} for r in manifest]
+    rows = [{**baseline.get(r['id'], {}), **r} for r in rows]
     predictions = {'disk gated production outcome': {}, 'disk ungated judge': {}}
     details, stamps, run_health = {}, {}, {}
     for row in rows:

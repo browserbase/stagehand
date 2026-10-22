@@ -3,7 +3,7 @@
  * text so retrieval, answer anchors and the signals selector can find claimed values that appear only
  * on screen. Zero LLM calls. The command takes image paths and prints one JSON line per image:
  * {"path": "...", "text": "..."} (scripts/ocr-macos.swift is a Vision-framework implementation).
- * Results are cached by image hash, so re-grading the same run is free.
+ * Results are cached by command + image hash (owner-only files), so re-grading the same run is free.
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -36,7 +36,7 @@ export async function ocrScreenshots(
     });
   const dir = process.env.VERIFIER_OCR_CACHE_DIR ?? path.join(os.tmpdir(), "evaluator-ocr");
   try {
-    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   } catch (error) {
     fail("cache directory", error);
     return out;
@@ -44,7 +44,13 @@ export async function ocrScreenshots(
   // Byte-identical screenshots share one OCR job and fan the text out to every canonical index.
   const pending = new Map<string, { indices: number[]; key: string; file: string }>();
   for (const img of images) {
-    const key = createHash("sha256").update(img.bytes).digest("hex").slice(0, 24);
+    // The command is part of the key so switching OCR engines does not reuse stale text.
+    const key = createHash("sha256")
+      .update(cmd)
+      .update("\0")
+      .update(img.bytes)
+      .digest("hex")
+      .slice(0, 24);
     const queued = pending.get(key);
     if (queued) {
       queued.indices.push(img.canonicalIndex);
@@ -58,7 +64,7 @@ export async function ocrScreenshots(
     }
     const file = path.join(dir, `${key}${img.mediaType.includes("jpeg") ? ".jpg" : ".png"}`);
     try {
-      await fs.writeFile(file, img.bytes);
+      await fs.writeFile(file, img.bytes, { mode: 0o600 });
     } catch (error) {
       fail("image write", error);
       continue;
@@ -90,7 +96,7 @@ export async function ocrScreenshots(
               const c = row.path ? byFile.get(row.path) : undefined;
               if (!c || typeof row.text !== "string") continue;
               for (const index of c.indices) out.set(index, row.text);
-              await fs.writeFile(path.join(dir, `${c.key}.txt`), row.text);
+              await fs.writeFile(path.join(dir, `${c.key}.txt`), row.text, { mode: 0o600 });
             } catch {
               /* skip malformed line or unwritable cache entry */
             }
@@ -99,7 +105,11 @@ export async function ocrScreenshots(
           fail(`${chunk.length} images (timeout ${OCR_TIMEOUT_MS} ms)`, error);
         } finally {
           // Only the .txt result is cached; screenshots may hold sensitive page content.
-          await Promise.all(chunk.map((c) => fs.rm(c.file, { force: true })));
+          await Promise.all(
+            chunk.map((c) =>
+              fs.rm(c.file, { force: true }).catch((error) => fail("image cleanup", error)),
+            ),
+          );
         }
       }),
   );

@@ -58,3 +58,18 @@ test("a condition in a negated branch is not surfaced as a fallback", () => {
     ),
   ).toHaveLength(1);
 });
+
+test("a fallback clause at the end of the description needs no trailing period", () => {
+  expect(
+    detectRubricFallbacks({
+      items: [
+        {
+          criterion: "Add flour to cart",
+          maxPoints: 2,
+          description:
+            "Full credit if flour added to cart successfully OR if flour is unavailable and agent reports this",
+        },
+      ],
+    }),
+  ).toHaveLength(1);
+});

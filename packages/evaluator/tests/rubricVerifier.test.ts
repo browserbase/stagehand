@@ -98,3 +98,44 @@ test("a zero-step run with only a final observation still reaches the judge", as
   expect(calls).toContain("FusedJudgment");
   expect(result.rawSteps?.reason).not.toBe("empty-trajectory");
 });
+
+test("approach a shows answer-anchor evidence to every criterion", async () => {
+  const prompts: string[] = [];
+  const base_ = client();
+  const verifier = new RubricVerifier({
+    getClient: () => ({
+      async createChatCompletion<T>(request: CompletionRequest): Promise<T> {
+        if (request.options.response_model.name === "PerCriterionScore")
+          prompts.push(JSON.stringify(request.options.messages));
+        return base_.createChatCompletion<T>(request);
+      },
+    }),
+    config: { approach: "a", imageSelection: "recency", optionalSteps: "skip" },
+  });
+  await verifier.verify({
+    ...base,
+    steps: [
+      // Criterion-relevant chunks fill each criterion's top-K, so only the anchor group carries the
+      // chunk that holds the claimed price.
+      ...Array.from({ length: 40 }, (_, i) => ({
+        actionName: "run",
+        actionArgs: {},
+        reasoning: "",
+        agentEvidence: { modalities: [] },
+        probeEvidence: {},
+        toolOutput: { ok: true, result: `Widget cart coupon field ${i}: add widget, apply coupon` },
+      })),
+      {
+        actionName: "run",
+        actionArgs: {},
+        reasoning: "",
+        agentEvidence: { modalities: [] },
+        probeEvidence: {},
+        toolOutput: { ok: true, result: "Grand total due today: $129.99" },
+      },
+    ],
+    finalAnswer: "Bought the widget for $129.99",
+  });
+  expect(prompts).toHaveLength(2);
+  for (const prompt of prompts) expect(prompt).toContain("Grand total due today");
+});

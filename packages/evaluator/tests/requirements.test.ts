@@ -133,11 +133,17 @@ test("judge health check runs once per model per process across Evaluator instan
   const { Evaluator } = await import("../src/evaluator.js");
   const { AISdkJudge } = await import("../src/client.js");
   let checks = 0;
-  const judge = new AISdkJudge({ provider: "fixture", modelId: "judge-x" } as never);
-  (judge as unknown as { validate: () => Promise<void> }).validate = async () => {
-    checks++;
+  // Separate instances with one model id, as when each Evaluator creates its own client.
+  const judge = () => {
+    const j = new AISdkJudge({ provider: "fixture", modelId: "judge-x" } as never);
+    (j as unknown as { validate: () => Promise<void> }).validate = async () => {
+      checks++;
+    };
+    return j;
   };
-  await new Evaluator({ client: judge, rubricClient: judge }).validate();
-  await new Evaluator({ client: judge, rubricClient: judge }).validate();
+  const first = judge();
+  const second = judge();
+  await new Evaluator({ client: first, rubricClient: first }).validate();
+  await new Evaluator({ client: second, rubricClient: second }).validate();
   expect(checks).toBe(1);
 });

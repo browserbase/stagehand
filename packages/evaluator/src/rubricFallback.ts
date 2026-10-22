@@ -10,7 +10,7 @@ import type { Rubric } from "./types.js";
 const CONDITION =
   /(?:unavailab|not\s+available|out\s+of\s+stock|inaccessib|blocked|block|captcha|login\s+wall|no\s+(?:exact\s+)?match|impossible|cannot\s+be|technical\s+error|site\s+error|closest\s+(?:available\s+)?alternative|report(?:s|ed|ing)?\s+the\s+(?:blocker|issue|unavailab))/;
 const FALLBACK_RE = new RegExp(
-  `((?:full|partial)\\s+credit\\s+(?:also\\s+)?(?:if|when)[^.]*?${CONDITION.source}[^.]*\\.)`,
+  `((?:full|partial)\\s+credit\\s+(?:also\\s+)?(?:if|when)[^.]*?${CONDITION.source}[^.]*(?:\\.|$))`,
   "gi",
 );
 const CONDITION_ALL = new RegExp(CONDITION.source, "gi");

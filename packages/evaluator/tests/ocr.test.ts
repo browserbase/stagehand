@@ -71,3 +71,20 @@ test("a failing command is logged with the timeout and leaves no images behind",
   expect(lines[0]).toContain("timeout 60000 ms");
   expect(await fs.readdir(cache)).toEqual([]);
 });
+
+test("cache entries are owner-only and keyed by command", async () => {
+  const cache = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "ocr-cache-")), "sub");
+  process.env.VERIFIER_OCR_CACHE_DIR = cache;
+  const first = await fakeOcr();
+  await ocrScreenshots([shot(0, "x")], first.cmd, () => {});
+  if (process.platform !== "win32") {
+    expect((await fs.stat(cache)).mode & 0o777).toBe(0o700);
+    const [file] = await fs.readdir(cache);
+    expect((await fs.stat(path.join(cache, file))).mode & 0o777).toBe(0o600);
+  }
+  // A different OCR command must not reuse the first command's cached text.
+  const second = await fakeOcr();
+  await ocrScreenshots([shot(0, "x")], second.cmd, () => {});
+  expect(await fs.readFile(second.log, "utf8")).toBe("1\n");
+  expect(await fs.readdir(cache)).toHaveLength(2);
+});

@@ -98,7 +98,13 @@ export class Evaluator {
     const track = (client: LLMClient): LLMClient => ({
       async createChatCompletion<T>(request: CompletionRequest): Promise<T> {
         try {
-          return await client.createChatCompletion<T>(request);
+          const response = await client.createChatCompletion<T>(request);
+          // generateRubric retries: a recovered attempt is not an evaluator error.
+          if (request.options.response_model.name === "Rubric") {
+            for (let i = errors.length - 1; i >= 0; i--)
+              if (errors[i].stage === "Rubric") errors.splice(i, 1);
+          }
+          return response;
         } catch (error) {
           errors.push({
             stage: request.options.response_model.name,
@@ -128,6 +134,7 @@ export class Evaluator {
     const rubric = trajectory.task.precomputedRubric;
     if (
       rubric &&
+      hasValidRubric(rubric) &&
       verifier.config.approach !== "outcome-only" &&
       result.perCriterion?.length !== rubric.items.length
     ) {

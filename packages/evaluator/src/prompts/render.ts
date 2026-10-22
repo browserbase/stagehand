@@ -22,7 +22,7 @@ export function renderPrompt(
   // values are never rescanned.
   return template.replace(/\$\$|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, key?: string) => {
     if (key === undefined) return "$";
-    if (key in vars) {
+    if (Object.hasOwn(vars, key)) {
       const v = vars[key];
       return v === undefined ? "" : String(v);
     }

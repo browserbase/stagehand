@@ -3,6 +3,9 @@ import type { AgentEvidence } from "./types.js";
 
 export const REDACTED_INLINE_IMAGE = "[redacted inline image payload]";
 
+/** Standard or URL-safe base64, optionally padded; non-empty. */
+const BASE64 = /^(?:[A-Za-z0-9+/]+|[A-Za-z0-9_-]+)={0,2}$/;
+
 const INLINE_IMAGE_KEYS = new Set(["screenshotBase64"]);
 
 function shouldRedactBase64Key(key: string, actionName?: string): boolean {
@@ -117,15 +120,14 @@ export function buildAgentEvidenceFromStepFinished(event: AgentStepFinishedEvent
     });
   } else if (typeof result === "object") {
     for (const image of collectInlineImages(result, event.actionName, [])) {
-      try {
-        modalities.push({
-          type: "image",
-          bytes: Buffer.from(image.base64, "base64"),
-          mediaType: image.mediaType,
-        });
-      } catch {
-        // Malformed base64; skip the image and keep the JSON modality.
-      }
+      // Buffer.from silently drops invalid characters, so validate first; malformed base64 is
+      // skipped and the JSON modality is kept.
+      if (!BASE64.test(image.base64.replace(/\s+/g, ""))) continue;
+      modalities.push({
+        type: "image",
+        bytes: Buffer.from(image.base64, "base64"),
+        mediaType: image.mediaType,
+      });
     }
     modalities.push({
       type: "json",

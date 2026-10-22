@@ -49,7 +49,10 @@ export function answerStructure(answer: string | undefined): AnswerStructure {
   const a = raw.replace(URL_RE, "URL");
   const lines = a.split("\n").filter((l) => l.trim());
   if (/<table[\s>]/i.test(a) && /<tr[\s>]/i.test(a)) return "html-table";
-  if (/^\s*\|?[\s:-]+\|[\s:|-]+$/m.test(a)) return "markdown-table";
+  // A separator row counts only alongside a real (header or data) pipe row.
+  const isSeparator = (l: string) => /^\s*\|?[\s:-]+\|[\s:|-]+$/.test(l);
+  if (lines.some(isSeparator) && lines.some((l) => !isSeparator(l) && l.includes("|")))
+    return "markdown-table";
   const pipeLines = lines.filter((l) => count(l, /\|/g) >= 1);
   if (pipeLines.length >= 2 && consistent(pipeLines.map((l) => count(l, /\|/g))))
     return "multiline-pipe-rows";

@@ -6,6 +6,7 @@ import {
   renderRetrievedEvidence,
   imageKey,
   chunkText,
+  ANCHOR_GROUP,
   RECENT_IMAGE_GROUP,
   type AnswerAnchor,
 } from "./retrieval.js";
@@ -1103,7 +1104,14 @@ export class RubricVerifier implements Verifier {
 
     const tasks = rubric.items.map((criterion, cIdx) =>
       limit(async (): Promise<CriterionScore> => {
-        const topK = groupedTopK.get(cIdx) ?? [];
+        // Answer anchors and selected screenshots are shared groups; every criterion sees them.
+        const topK = [
+          ...new Set([
+            ...(groupedTopK.get(cIdx) ?? []),
+            ...(groupedTopK.get(ANCHOR_GROUP) ?? []),
+            ...(groupedTopK.get(RECENT_IMAGE_GROUP) ?? []),
+          ]),
+        ];
         const evidencePoints = topK
           .map((eIdx) => evidenceByIdx.get(eIdx))
           .filter((e): e is CanonicalEvidence => e !== undefined);

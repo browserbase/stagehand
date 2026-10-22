@@ -76,3 +76,20 @@ test.each([0, -1])("rejects non-positive maxPoints (%s)", (maxPoints) => {
     normalizeRubric({ items: [{ criterion: "c", description: "d", maxPoints }] }),
   ).toThrow(/positive maxPoints/);
 });
+
+test("stringified text copies of tool results do not embed inline image payloads on disk", async () => {
+  const dir = await tmpDir();
+  const result = { content: [{ type: "image", data: "aGVsbG8=", mimeType: "image/png" }] };
+  const t = trajectory(result);
+  t.steps[0].agentEvidence.modalities = [
+    { type: "json", content: result },
+    { type: "text", content: JSON.stringify(result) },
+    { type: "text", content: "{ plain text, not json" },
+  ];
+  await writeTrajectoryDir(dir, t);
+  const raw = await fs.readFile(path.join(dir, "trajectory.json"), "utf8");
+  expect(raw).not.toContain("aGVsbG8=");
+  const modalities = JSON.parse(raw).steps[0].agentEvidence.modalities;
+  expect(JSON.parse(modalities[1].content).content[0].data).toBe(REDACTED_INLINE_IMAGE);
+  expect(modalities[2].content).toBe("{ plain text, not json");
+});

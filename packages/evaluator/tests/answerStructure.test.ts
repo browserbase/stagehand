@@ -124,3 +124,8 @@ test("fenced JSON records are classified without an answer wrapper", () => {
   );
   expect(answerStructure('```json\n{"note": "nothing found"}\n```')).toBe("prose");
 });
+
+test("a separator row alone is not a markdown table", () => {
+  expect(answerStructure("| --- | --- |")).not.toBe("markdown-table");
+  expect(answerStructure("| a | b |\n| --- | --- |")).toBe("markdown-table");
+});

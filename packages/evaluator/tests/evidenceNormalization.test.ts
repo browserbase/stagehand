@@ -34,3 +34,14 @@ test("non-image data fields are left alone", () => {
   const value = { data: "hello", mimeType: "text/plain" };
   expect(redactInlineImagePayloads(value)).toEqual(value);
 });
+
+test("malformed base64 is not emitted as an image modality", () => {
+  const evidence = buildAgentEvidenceFromStepFinished({
+    actionName: "screenshot",
+    toolOutput: {
+      ok: true,
+      result: { content: [{ type: "image", data: "not base64!", mimeType: "image/png" }] },
+    },
+  } as unknown as AgentStepFinishedEvent);
+  expect(evidence.modalities.map((m) => m.type)).toEqual(["json"]);
+});

@@ -90,3 +90,19 @@ test("frames without a recorded URL are never treated as same-page duplicates", 
   });
   expect(picked).toEqual([102, 103, 104]);
 });
+
+test("the later same-step frame (post-action probe) survives near-duplicate pruning", () => {
+  const sameStep = [
+    { canonicalIndex: 10, originalStepIndex: 1 },
+    { canonicalIndex: 11, originalStepIndex: 1 },
+  ];
+  expect(
+    selectSignalImages({
+      trajectory: t,
+      images: sameStep,
+      anchorSteps: [],
+      retrievalSteps: [],
+      k: 1,
+    }),
+  ).toEqual([11]);
+});

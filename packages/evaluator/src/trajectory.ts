@@ -7,7 +7,11 @@ import type {
   Trajectory,
   TrajectoryStep,
 } from "./types.js";
-import { REDACTED_INLINE_IMAGE, redactInlineImagePayloads } from "./evidenceNormalization.js";
+import {
+  REDACTED_INLINE_IMAGE,
+  collectInlineImagePayloads,
+  redactInlineImagePayloads,
+} from "./evidenceNormalization.js";
 
 type RawRubricCriterion = {
   criterion: unknown;
@@ -261,6 +265,23 @@ export function shouldPersistTrajectory(override: boolean | undefined): boolean 
 }
 
 /**
+ * Harness adapters add a stringified copy of object results as a text modality; redact the inline
+ * image payloads it carries so trajectory.json does not embed the base64 the json copy redacts.
+ */
+function redactStringifiedImagePayloads(content: string, actionName: string): string {
+  if (!/^\s*[[{]/.test(content)) return content;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return content;
+  }
+  return collectInlineImagePayloads(parsed, actionName).length
+    ? JSON.stringify(redactInlineImagePayloads(parsed, actionName))
+    : content;
+}
+
+/**
  * Write the on-disk trajectory layout under `dir`:
  *
  *   <dir>/
@@ -312,7 +333,7 @@ export async function writeTrajectoryDir(dir: string, trajectory: Trajectory): P
                 ...m,
                 content: redactInlineImagePayloads(m.content, step.actionName),
               }
-            : m,
+            : { ...m, content: redactStringifiedImagePayloads(m.content, step.actionName) },
         );
         continue;
       }

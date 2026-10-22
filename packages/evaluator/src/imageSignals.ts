@@ -80,7 +80,12 @@ export function scoreImages(
 
 export function selectSignalImages(inputs: SignalInputs): number[] {
   const scored = scoreImages(inputs).sort(
-    (a, b) => b.score - a.score || b.originalStepIndex - a.originalStepIndex,
+    // Same-step frames score alike; prefer the later capture (the post-action probe follows the
+    // agent's own screenshots in canonical order) so it is not displaced as a near-duplicate.
+    (a, b) =>
+      b.score - a.score ||
+      b.originalStepIndex - a.originalStepIndex ||
+      b.canonicalIndex - a.canonicalIndex,
   );
   const picked: typeof scored = [];
   for (const c of scored) {

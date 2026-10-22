@@ -37,3 +37,9 @@ test("rendering never rewrites interpolated values", () => {
     `Costs $5. Task: ${instruction} $$missing`,
   );
 });
+
+test("rendering leaves placeholders named like Object.prototype members intact", () => {
+  expect(renderPrompt("$toString $constructor $task", { task: "x" })).toBe(
+    "$toString $constructor x",
+  );
+});
