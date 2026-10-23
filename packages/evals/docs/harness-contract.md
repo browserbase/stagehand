@@ -5,6 +5,11 @@ where supported; `stagehand_facade_legacy` remains explicitly selectable. Provid
 adapters translate their protocols to that shared runtime. They do not start a
 second browser or implement a separate Playwright facade.
 
+DeepAgents and Pydantic AI eval runners consume MCP mounts. For `stagehand_facade`,
+the shared TypeScript facade bridge owns the browser and evidence capture. The
+standalone Python examples' use of `stagehand-middleware` does not change this
+benchmark path.
+
 ## Prompt and execution configuration
 
 The eval runner owns the no-clarification policy in `evalSystemPrompt.ts`. It is

@@ -23,14 +23,14 @@ cd packages/integrations/pydantic-ai
 uv sync --locked
 ```
 
-| Variable | Purpose |
-| --- | --- |
-| `STAGEHAND_BROWSER` | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
-| `BROWSERBASE_API_KEY` | Required for Browserbase. |
-| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
-| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`. |
-| `PYDANTIC_AI_MODEL` | Agent model; defaults to `openai:gpt-6-sol`. |
-| `OPENAI_API_KEY` | Credential for the default agent model. |
+| Variable                                      | Purpose                                                                                                   |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`                           | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
+| `BROWSERBASE_API_KEY`                         | Required for Browserbase.                                                                                 |
+| `STAGEHAND_HEADLESS`                          | Set to `true` for headless local Chrome. Defaults to `false`.                                             |
+| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`.                               |
+| `PYDANTIC_AI_MODEL`                           | Agent model; defaults to `openai:gpt-6-sol`.                                                              |
+| `OPENAI_API_KEY`                              | Credential for the default agent model.                                                                   |
 
 ## Run
 
@@ -50,3 +50,22 @@ If attaching Stagehand fails, it closes the launched browser too.
 `run(code)` executes model-authored JavaScript in the browser extension service worker.
 Use Browserbase for untrusted tasks. The Python process owns the browser connection
 and calls the shared middleware directly.
+
+## Eval runner
+
+The repository's `--harness pydantic_ai` benchmark uses
+[`runner/run_eval.py`](runner/run_eval.py), launched by the TypeScript session SDK.
+It consumes the eval runtime's MCP mount, including the shared TypeScript facade
+for `stagehand_facade`. It does not launch the native example's Python browser.
+The runtime owns browser cleanup and captures evidence from the same session
+used by the agent.
+
+The standalone example above uses `stagehand-middleware` directly. Installing its
+Python dependencies is sufficient for that example. Running repository benchmarks
+also requires the [eval workspace setup](../../evals/README.md#quickstart).
+
+Run the example and runner tests from this directory:
+
+```sh
+uv run --locked pytest
+```
