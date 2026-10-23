@@ -17,7 +17,7 @@ from urllib.parse import quote
 import pytest
 from stagehand import Stagehand, local_browser
 
-from stagehand_integrations.facade import (
+from stagehand_middleware.facade import (
     StagehandFacadeInputError,
     StagehandFacadeTools,
     contract_error,
