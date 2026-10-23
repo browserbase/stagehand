@@ -540,9 +540,8 @@ OpenAI models are called through the Responses API.
 
 <Tab title="xAI">
 
-<Tabs>
-<Tab title="TypeScript">
-```typescript
+<CodeGroup>
+```typescript TypeScript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = await Stagehand.create({
@@ -553,10 +552,8 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</Tab>
 
-<Tab title="Python">
-```python
+```python Python
 import os
 
 from stagehand import Stagehand, browserbase
@@ -569,35 +566,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["XAI_API_KEY"],
 )
 ```
-</Tab>
 
-<Tab title="Go">
-```go
-apiKey := os.Getenv("BROWSERBASE_API_KEY")
-modelAPIKey := os.Getenv("XAI_API_KEY")
-model := stagehand.ModelConfig{
-	ModelName: "xai/grok-4.7",
-	APIKey:    &modelAPIKey,
-}
 
-browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-})
-if err != nil {
-	return err
-}
-
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{
-	Browser: browser,
-	Model:   &model,
-})
-if err != nil {
-	return err
-}
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
-</Tab>
-</Tabs>
+</CodeGroup>
 
 <Note>
 xAI models use the Responses API and require an explicit xAI API key. Browserbase Model Gateway does not support xAI. Stop sequences are not supported.

@@ -2,7 +2,6 @@
 "@browserbasehq/stagehand-protocol": minor
 "@browserbasehq/stagehand-extension": patch
 "@browserbasehq/stagehand-python": minor
-"@browserbasehq/stagehand-go": minor
 "@browserbasehq/stagehand": minor
 ---
 
