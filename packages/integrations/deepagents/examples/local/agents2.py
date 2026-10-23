@@ -7,18 +7,12 @@ from _client import SERVER_NAME, create_stagehand_client
 from deepagents import create_deep_agent
 from langchain_mcp_adapters.tools import load_mcp_tools
 from pydantic import BaseModel, ConfigDict, Field
+from stagehand_middleware.facade import facade_instructions
 
 dotenv.load_dotenv()
 
-BROWSER_INSTRUCTIONS = """You control one persistent browser through exactly three tools:
-- snapshot: inspect the active page and hydrate bracketed element IDs.
-- run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
-- screenshot: inspect the rendered page visually.
-
-Navigate to the requested form, take a snapshot, identify the requested fields, and fill them with
-the supplied mock data. Prefer one batched run actions call after taking the snapshot. Do not submit
-the form unless explicitly asked.
-"""
+# The facade contract's agent instructions, matching the MCP server's tools.
+BROWSER_INSTRUCTIONS = facade_instructions()
 
 
 class FilledField(BaseModel):

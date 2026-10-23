@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -100,7 +100,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -161,7 +161,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -213,7 +213,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -256,7 +256,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -295,7 +295,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -334,7 +334,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
