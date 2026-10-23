@@ -410,6 +410,8 @@ type CallbackBatchResult struct {
 	Value json.RawMessage `json:"value,omitempty,omitzero"`
 }
 
+type CerebrasModelName string
+
 type ClearCookieOptions struct {
 	// Domain corresponds to the JSON schema field "domain".
 	Domain *CookieFilter `json:"domain,omitempty,omitzero"`
@@ -646,6 +648,8 @@ type ExtractResult struct {
 }
 
 type GoogleModelName string
+
+type GroqModelName string
 
 type ImplementationInfo struct {
 	// Name corresponds to the JSON schema field "name".
@@ -2488,6 +2492,9 @@ type generatedModelCatalog struct {
 	// CallbackBatchResult corresponds to the JSON schema field "CallbackBatchResult".
 	CallbackBatchResult *CallbackBatchResult `json:"CallbackBatchResult,omitempty,omitzero"`
 
+	// CerebrasModelName corresponds to the JSON schema field "CerebrasModelName".
+	CerebrasModelName *CerebrasModelName `json:"CerebrasModelName,omitempty,omitzero"`
+
 	// ClearCookieOptions corresponds to the JSON schema field "ClearCookieOptions".
 	ClearCookieOptions *ClearCookieOptions `json:"ClearCookieOptions,omitempty,omitzero"`
 
@@ -2594,6 +2601,9 @@ type generatedModelCatalog struct {
 
 	// GoogleModelName corresponds to the JSON schema field "GoogleModelName".
 	GoogleModelName *GoogleModelName `json:"GoogleModelName,omitempty,omitzero"`
+
+	// GroqModelName corresponds to the JSON schema field "GroqModelName".
+	GroqModelName *GroqModelName `json:"GroqModelName,omitempty,omitzero"`
 
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`

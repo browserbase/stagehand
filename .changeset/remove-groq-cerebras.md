@@ -2,7 +2,6 @@
 "@browserbasehq/stagehand-protocol": major
 "@browserbasehq/stagehand-extension": major
 "@browserbasehq/stagehand-python": major
-"@browserbasehq/stagehand-go": major
 "@browserbasehq/stagehand": major
 ---
 
