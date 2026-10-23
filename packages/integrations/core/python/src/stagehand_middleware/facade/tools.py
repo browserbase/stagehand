@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeGuard, TypeVar, cast
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 from jsonschema.protocols import Validator
+from stagehand.rpc_client import RPCError
 
 from ._syntax import check_run_syntax
 from .bundle import _bundle, contract_error, facade_tools
@@ -344,9 +345,21 @@ class StagehandFacadeTools:
                 file.write(data)
 
     async def _active_page(self) -> Page:
-        """The page the agent works on; a fresh blank page when its tab is gone."""
+        """The page the agent works on; a fresh blank page when its tab is gone.
+
+        When another window has focus on a tab Stagehand does not manage, the agent
+        keeps working on the newest tab Stagehand registered; nothing is reordered,
+        since activating a tab does not move window focus.
+        """
         context = self._stagehand.browser.context
-        active = await context.active_page()
+        try:
+            active = await context.active_page()
+        except RPCError as error:
+            marker = _bundle()["contract"]["sdkErrorMarkers"]["UNMANAGED_ACTIVE_PAGE_ERROR_MARKER"]
+            if marker not in str(error):
+                raise
+            pages = await context.pages()
+            return pages[-1] if pages else await context.new_page()
         if active is not None:
             return active
         pages = await context.pages()
