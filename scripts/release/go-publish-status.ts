@@ -1,4 +1,3 @@
-import { scopedChangesets } from "./release-scope.ts";
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -55,8 +54,6 @@ export async function goPublishStatus({
   }
 
   const tag = `packages/sdk-go/v${version}`;
-  if ((await scopedChangesets(repositoryRoot, "sdk")).length > 0) return { shouldTag: false, tag };
-
   return { shouldTag: !(await tagExists(tag)), tag };
 }
 

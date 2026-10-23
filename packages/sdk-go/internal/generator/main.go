@@ -89,16 +89,22 @@ func main() {
 	check := flag.Bool("check", false, "fail when generated models differ")
 	flag.Parse()
 
-	if err := run(*check); err != nil {
+	if err := run(*check, flag.Args()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(check bool) error {
+func run(check bool, args []string) error {
 	sdkRoot, err := findSDKRoot()
 	if err != nil {
 		return err
+	}
+	if len(args) > 0 {
+		if len(args) != 2 || args[0] != "prepare-patch" || check {
+			return errors.New("usage: generator [--check] | generator prepare-patch VERSION")
+		}
+		return preparePatch(sdkRoot, args[1])
 	}
 
 	protocolPath := filepath.Join(sdkRoot, "..", "protocol", "stagehand.v4.json")

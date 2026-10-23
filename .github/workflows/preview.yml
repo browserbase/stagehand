@@ -16,6 +16,7 @@ jobs:
   build:
     name: Build preview
     if: >-
+      github.event.pull_request.base.ref != 'v4-go' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (
         (github.event.action == 'labeled' && github.event.label.name == 'preview') ||

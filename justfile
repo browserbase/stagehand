@@ -84,6 +84,10 @@ build:
 changeset:
     pnpm exec changeset
 
+# Prepare a security patch without versioning TS/Python or rebuilding the runtime.
+prepare-go-patch version:
+    go -C {{go_generator_dir}} run . prepare-patch "{{version}}"
+
 # Prefixed with `_` because this internal recipe is only used to generate release versions and changelogs.
 _version:
     #!/usr/bin/env bash
