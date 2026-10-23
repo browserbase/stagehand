@@ -236,6 +236,68 @@ describe("deriveCategoryFilter", () => {
     );
   });
 
+  it("keeps a harness tool default out of core-tier runs", async () => {
+    const registry = makeRegistry([
+      makeTask({
+        name: "navigation/open",
+        tier: "core",
+        primaryCategory: "navigation",
+        categories: ["navigation"],
+      }),
+    ]);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // harnesses.<h>.tool = stagehand_facade is agent-mount only; applied to a
+    // core run it would be rejected like the explicit --tool above.
+    await expect(
+      runCommand(
+        {
+          target: "core:navigation",
+          normalizedTarget: "core:navigation",
+          trials: 1,
+          concurrency: 1,
+          environment: "LOCAL",
+          useApi: false,
+          benchToolSurface: "stagehand_facade",
+          harness: "stagehand",
+          envOverrides: {},
+          dryRun: true,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        registry,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("applies the harness tool default to bench runs", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await runCommand(
+      {
+        target: "act",
+        normalizedTarget: "act",
+        trials: 1,
+        concurrency: 1,
+        environment: "LOCAL",
+        model: "openai/gpt-4.1-mini",
+        useApi: false,
+        coreToolSurface: "understudy_code",
+        benchToolSurface: "browse_cli",
+        harness: "stagehand",
+        envOverrides: {},
+        dryRun: false,
+        preview: false,
+        successMode: "outcome",
+        verbose: false,
+      },
+      makeRegistry([makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] })]),
+    );
+    expect(runEvalsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ coreToolSurface: "browse_cli" }),
+    );
+  });
+
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
     const registry = makeRegistry([
       makeTask({
