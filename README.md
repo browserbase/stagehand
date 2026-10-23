@@ -59,6 +59,8 @@ Most existing browser automation tools either require you to write low-level cod
 
 ## Getting Started
 
+For the v3 TypeScript SDK, we recommend Node.js 24.22.1 or a later patched Node 24 release. If you use Node 22 or 26, upgrade to at least 22.23.4 or 26.12.1 respectively for the [October 2026 security fixes](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases). The SDK runs in your application's Node installation; updating the SDK does not update Node. Upgrade Node in your development and deployment environments and restart your applications.
+
 Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/v3/first-steps/quickstart) for more information:
 
 ```bash
@@ -98,8 +100,10 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ### Build and Run from Source
 
+Use Node.js 24.22.1 or a later patched Node 24 release for v3 development. The full build includes the standalone server binary, whose build checks the Node version it embeds.
+
 ```bash
-git clone https://github.com/browserbase/stagehand.git
+git clone --branch v3 https://github.com/browserbase/stagehand.git
 cd stagehand
 pnpm install
 pnpm run build
