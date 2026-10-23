@@ -404,10 +404,6 @@ class Caret(StrEnum):
     initial = "initial"
 
 
-class CerebrasModelName(RootModel[StrictStr]):
-    root: Annotated[StrictStr, Field(pattern="^cerebras\\/\\S+$")]
-
-
 class ClearCookieOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -766,10 +762,6 @@ class FieldSchema9(
 
 class GoogleModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^google\\/\\S+$")]
-
-
-class GroqModelName(RootModel[StrictStr]):
-    root: Annotated[StrictStr, Field(pattern="^groq\\/\\S+$")]
 
 
 class HttpVersion(StrEnum):
@@ -1511,10 +1503,8 @@ class OpenAIModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^openai\\/\\S+$")]
 
 
-class ModelName(
-    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
-):
-    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
+class ModelName(RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName]]):
+    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName]
     """A model name with a supported provider prefix"""
 
 

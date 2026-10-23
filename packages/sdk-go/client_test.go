@@ -119,7 +119,7 @@ func TestStagehandDoesNotExposeContext(t *testing.T) {
 func TestCreateForwardsUnknownModelIDs(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []string{"openai", "anthropic", "google", "groq", "cerebras"} {
+	for _, provider := range []string{"openai", "anthropic", "google"} {
 		t.Run(provider, func(t *testing.T) {
 			t.Parallel()
 			modelName := ModelName(provider + "/vendor/future-model-v1")
