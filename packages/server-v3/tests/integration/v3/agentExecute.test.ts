@@ -99,7 +99,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
       headers,
       body: JSON.stringify({
         agentConfig: {
-          model: "gpt-4.1-nano",
+          model: "gpt-4.1-mini",
         },
         executeOptions: {
           instruction: "What is the title of this page?",
@@ -139,7 +139,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
         agentConfig: {
           model: {
             provider: "openai",
-            modelName: "gpt-4.1-nano",
+            modelName: "gpt-4.1-mini",
           },
         },
         executeOptions: {
@@ -365,7 +365,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - OpenAI with API key", () => 
       body: JSON.stringify({
         agentConfig: {
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -481,7 +481,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
         agentConfig: {
           cua: false,
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -603,7 +603,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
           cua: true,
           mode: "dom",
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -673,7 +673,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
       headers,
       body: JSON.stringify({
         agentConfig: {
-          executionModel: "gpt-4.1-nano",
+          executionModel: "gpt-4.1-mini",
         },
         executeOptions: {
           instruction: "What is the title of this page?",
@@ -713,7 +713,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
       body: JSON.stringify({
         agentConfig: {
           executionModel: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -755,11 +755,11 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
       body: JSON.stringify({
         agentConfig: {
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
           executionModel: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -1004,7 +1004,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - variables", () => {
       body: JSON.stringify({
         agentConfig: {
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },
@@ -1058,7 +1058,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - variables", () => {
       body: JSON.stringify({
         agentConfig: {
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },

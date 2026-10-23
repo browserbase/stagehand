@@ -201,7 +201,7 @@ export async function createSessionWithCdp(
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
   const startPayload = {
-    modelName: "gpt-4.1-nano",
+    modelName: "gpt-4.1-mini",
     ...createLocalBrowserBody(),
   };
 
