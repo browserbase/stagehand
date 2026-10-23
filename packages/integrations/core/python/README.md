@@ -1,4 +1,4 @@
-# stagehand-integrations (Python)
+# stagehand-middleware (Python)
 
 The facade's `run`, `snapshot` and `screenshot` tools for Python, over an existing
 `stagehand.Stagehand`. It is a thin host for the facade bundle that
@@ -9,7 +9,7 @@ bundle, so agents see the same tools as with the TypeScript facade.
 
 ```python
 from stagehand import Stagehand
-from stagehand_integrations.facade import StagehandFacadeTools, facade_instructions, facade_tools
+from stagehand_middleware.facade import StagehandFacadeTools, facade_instructions, facade_tools
 
 stagehand = await Stagehand.create(...)
 tools = StagehandFacadeTools(stagehand, artifact_root="artifacts")
@@ -49,7 +49,7 @@ This host has no keeper tab and does not latch session loss; the TypeScript
 
 ## Development
 
-`src/stagehand_integrations/facade/_bundle.json` is a copy of the built bundle.
+`src/stagehand_middleware/facade/_bundle.json` is a copy of the built bundle.
 After changing the TypeScript facade, rebuild the integrations package and run
 `pnpm run sync:python` in `packages/integrations/core`;
 `tests/facade-python-bundle.test.ts` and

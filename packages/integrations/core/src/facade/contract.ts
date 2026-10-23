@@ -238,6 +238,13 @@ export const SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR =
   "Screenshot artifact file must not be a symlink.";
 export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
 
+/**
+ * Part of the error a Stagehand SDK raises from `context.activePage()` when the
+ * focused window's active tab is not one Stagehand registered (another window
+ * has focus). Hosts then act on the newest registered tab instead of failing.
+ */
+export const UNMANAGED_ACTIVE_PAGE_ERROR_MARKER = "active target not registered";
+
 const MB = 1024 * 1024;
 
 /**
