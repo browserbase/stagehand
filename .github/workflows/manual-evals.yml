@@ -118,7 +118,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "false"
-          node-version: 20.x
+          node-version: "24.22.1"
 
       - name: Run Build
         run: pnpm exec turbo run build
@@ -172,7 +172,7 @@ jobs:
         with:
           use-prebuilt-artifacts: "true"
           restore-turbo-cache: "false"
-          node-version: 20.x
+          node-version: "24.22.1"
 
       - name: Select Browserbase region
         uses: ./.github/actions/select-browserbase-region

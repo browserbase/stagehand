@@ -30,7 +30,7 @@ on:
         description: "Node.js version for setup."
         required: false
         type: string
-        default: "20.x"
+        default: "24.22.1"
       upload-only-binary:
         description: "Upload only this binary (empty => upload all)."
         required: false
@@ -64,7 +64,7 @@ on:
         description: "Node.js version for setup."
         required: false
         type: string
-        default: "20.x"
+        default: "24.22.1"
       upload-only-binary:
         description: "Upload only this binary (empty => upload all)."
         required: false
