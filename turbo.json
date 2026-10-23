@@ -10,109 +10,236 @@
     ".oxfmtrc.json",
     ".github/workflows/ci.yml"
   ],
-  "globalEnv": ["CI"],
+  "globalEnv": [
+    "CI"
+  ],
   "tasks": {
     "@browserbasehq/stagehand-protocol#build": {
-      "inputs": ["$TURBO_DEFAULT$", "!stagehand.v4.json"],
-      "outputs": ["stagehand.v4.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!stagehand.v4.json"
+      ],
+      "outputs": [
+        "stagehand.v4.json"
+      ]
     },
     "@browserbasehq/stagehand-extension#build": {
-      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
+      "dependsOn": [
+        "@browserbasehq/stagehand-protocol#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "!dist/**",
         "!artifacts/stagehand-extension.zip"
       ],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "outputs": [
+        "dist/**",
+        "artifacts/stagehand-extension.zip"
+      ]
     },
     "@browserbasehq/stagehand#build": {
-      "dependsOn": ["@browserbasehq/stagehand-extension#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "@browserbasehq/stagehand-extension#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "browse#build": {
-      "dependsOn": ["@browserbasehq/stagehand#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!oclif.manifest.json"],
-      "outputs": ["dist/**", "oclif.manifest.json"]
+      "dependsOn": [
+        "@browserbasehq/stagehand#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!oclif.manifest.json"
+      ],
+      "outputs": [
+        "dist/**",
+        "oclif.manifest.json"
+      ]
     },
     "browse#lint": {
-      "dependsOn": ["@browserbasehq/stagehand#build"]
+      "dependsOn": [
+        "@browserbasehq/stagehand#build"
+      ]
     },
     "@browserbasehq/stagehand-integrations#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!python/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!python/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "stagehand-middleware#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/eve#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
         "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
         "!dist/**"
       ],
-      "outputs": ["dist/**"]
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-codex-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-eve-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-fx-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-cursor-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-evals#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "build:cli": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/cli/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/cli/**"
+      ]
     },
     "//#generate:python": {
-      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/src/stagehand/_generated/**"],
-      "outputs": ["packages/sdk-python/src/stagehand/_generated/**"]
+      "dependsOn": [
+        "@browserbasehq/stagehand-protocol#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!packages/sdk-python/src/stagehand/_generated/**"
+      ],
+      "outputs": [
+        "packages/sdk-python/src/stagehand/_generated/**"
+      ]
     },
     "//#generate:go": {
       "dependsOn": [
@@ -124,49 +251,94 @@
         "!packages/sdk-go/models.gen.go",
         "!packages/sdk-go/internal/extensionassets/**"
       ],
-      "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
+      "outputs": [
+        "packages/sdk-go/models.gen.go",
+        "packages/sdk-go/internal/extensionassets/**"
+      ]
     },
     "//#build:wheel": {
-      "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-extension#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/dist/**"],
-      "outputs": ["packages/sdk-python/dist/*.whl", "packages/sdk-python/dist/*.tar.gz"]
+      "dependsOn": [
+        "//#generate:python",
+        "@browserbasehq/stagehand-extension#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!packages/sdk-python/dist/**"
+      ],
+      "outputs": [
+        "packages/sdk-python/dist/*.whl",
+        "packages/sdk-python/dist/*.tar.gz"
+      ]
     },
     "//#fmt:check": {},
     "//#lint": {},
     "//#typecheck": {
-      "dependsOn": ["@browserbasehq/stagehand#typecheck"],
-      "inputs": ["tsconfig.tooling.json", "rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
+      "dependsOn": [
+        "@browserbasehq/stagehand#typecheck"
+      ],
+      "inputs": [
+        "tsconfig.tooling.json",
+        "rules/ast-grep/**/*.ts",
+        "scripts/release/**/*.ts"
+      ]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
-      "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]
+      "dependsOn": [
+        "^typecheck",
+        "@browserbasehq/stagehand#typecheck"
+      ]
     },
     "@browserbasehq/stagehand-protocol#typecheck": {},
     "@browserbasehq/stagehand#typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": [
+        "^typecheck"
+      ]
     },
     "@browserbasehq/stagehand-evals#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "stagehand-middleware#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-codex-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -176,7 +348,10 @@
       ]
     },
     "stagehand-middleware#test:unit": {
-      "dependsOn": ["^build", "stagehand-middleware#build"],
+      "dependsOn": [
+        "^build",
+        "stagehand-middleware#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -188,7 +363,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-agent-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-claude-agent-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -198,7 +376,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-codex-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-codex-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-codex-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -208,7 +389,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-mastra-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -218,7 +402,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pi-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-pi-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -228,7 +415,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-eve-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-eve-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-eve-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -238,7 +428,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-deepagents-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-deepagents-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -248,7 +441,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-fx-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-fx-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-fx-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -258,7 +454,10 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-cursor-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-cursor-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -268,7 +467,9 @@
       ]
     },
     "@browserbasehq/eve#typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
@@ -276,7 +477,9 @@
       ]
     },
     "@browserbasehq/eve#test:unit": {
-      "dependsOn": ["build"],
+      "dependsOn": [
+        "build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -291,41 +494,65 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-example-vercel-ai-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-examples#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-example-claude-code-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-example-cursor-facade#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-fx-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-cursor-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -335,7 +562,10 @@
       ]
     },
     "@browserbasehq/stagehand-extension#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-extension#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-extension#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -349,7 +579,10 @@
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -363,17 +596,39 @@
       ]
     },
     "//#test:unit": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts", "vitest.config.ts"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "vitest.config.ts"
+      ]
     },
     "@browserbasehq/stagehand-integrations#test:browser": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations#build"
+      ],
       "cache": false,
-      "passThroughEnv": ["CHROME_PATH", "PLAYWRIGHT_CHROMIUM_CHANNEL"],
-      "inputs": ["$TURBO_DEFAULT$", "integration/**", "src/**", "vitest.browser.config.ts"]
+      "passThroughEnv": [
+        "CHROME_PATH",
+        "PLAYWRIGHT_CHROMIUM_CHANNEL"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "integration/**",
+        "src/**",
+        "vitest.browser.config.ts"
+      ]
     },
     "@browserbasehq/stagehand#test:browser": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand#build"
+      ],
       "cache": false,
       "passThroughEnv": [
         "CHROME_PATH",
@@ -409,7 +664,10 @@
       ]
     },
     "@browserbasehq/stagehand-protocol#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-protocol#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-protocol#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -422,7 +680,9 @@
       ]
     },
     "@browserbasehq/stagehand-docs#test:unit": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -439,15 +699,27 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-cua-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-claude-cua-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -460,15 +732,27 @@
       ]
     },
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk#typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-gemini-cua-sdk#build"],
+      "dependsOn": [
+        "^build",
+        "@browserbasehq/stagehand-integrations-gemini-cua-sdk#build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",

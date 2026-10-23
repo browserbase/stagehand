@@ -4,7 +4,7 @@ import {
   type LocalBrowserLaunchOptions,
   type StagehandClientCreateConfig,
 } from "@browserbasehq/stagehand";
-import { RUN_OPTIONS } from "./contract.js";
+import { type FacadeEnv, RUN_OPTIONS } from "./contract.js";
 
 export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
@@ -25,7 +25,7 @@ export type StagehandFacadeConfig = {
 };
 
 export function stagehandFacadeConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
+  env: FacadeEnv = process.env,
 ): StagehandFacadeConfig {
   const browserbaseApiKey = nonEmpty(env.BROWSERBASE_API_KEY);
   const browserbaseProjectId = nonEmpty(env.BROWSERBASE_PROJECT_ID);
@@ -152,7 +152,7 @@ function providerName(modelName: string): string {
   return modelName.split("/", 1)[0] ?? "";
 }
 
-function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): string | undefined {
+function providerApiKey(provider: string | undefined, env: FacadeEnv): string | undefined {
   switch (provider) {
     case "google":
       return (

@@ -24,7 +24,7 @@ const browser = await localBrowser.launch();
 const stagehand = await Stagehand.create({ browser });
 const tools = new StagehandFacadeTools(stagehand, {
   artifactRoot: "artifacts", // where screenshots saved with a `path` are written
-  quietWait: false, // opt in to quiet `page.waitForTimeout`
+  quietWait: true, // opt in to quiet `page.waitForTimeout`
 });
 
 const title = await tools.run(`await page.goto("https://example.com"); return await page.title();`);
