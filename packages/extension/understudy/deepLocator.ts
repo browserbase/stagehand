@@ -129,7 +129,14 @@ export class DeepLocatorDelegate {
   }
 
   // Locator API delegates
-  async click(options?: { button?: MouseButton; clickCount?: number }, progress?: Progress) {
+  async click(
+    options?: {
+      button?: MouseButton;
+      clickCount?: number;
+      position?: { x: number; y: number };
+    },
+    progress?: Progress,
+  ) {
     return (await this.real(progress)).click(options, progress);
   }
   async count(progress?: Progress) {
