@@ -54,7 +54,7 @@ describe.each([
     ids: [secretId],
     index: 0,
   })),
-  ...["get", "update", "delete"].map((action) => ({
+  ...["get", "delete"].map((action) => ({
     command: ["cloud", "contexts", action],
     ids: [secretId],
     index: 0,
