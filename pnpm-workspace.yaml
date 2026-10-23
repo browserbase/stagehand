@@ -78,6 +78,8 @@ overrides:
   vite: "catalog:"
   adm-zip: 0.6.1
   "js-yaml@4": 4.3.2
+  "undici@7": 7.30.1
+  "undici@8": 8.12.3
 allowBuilds:
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true

@@ -592,8 +592,8 @@ dev = [
 ]
 
 [[package]]
-name = "stagehand-integrations"
-version = "0.1.0"
+name = "stagehand-middleware"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "jsonschema" },

@@ -29,10 +29,11 @@ import {
   SCREENSHOT_CAPTURED_MESSAGE,
   SCREENSHOT_COMPRESSED_MESSAGE,
   STALE_SNAPSHOT_ID_ERROR,
+  UNMANAGED_ACTIVE_PAGE_ERROR_MARKER,
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 5;
+export const FACADE_BUNDLE_VERSION = 6;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
@@ -83,6 +84,8 @@ export const FACADE_BUNDLE_VERSION = 5;
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
  * - contract.limits: caps on a run result (RUN_RESULT_LIMITS), in bytes.
+ * - contract.sdkErrorMarkers: substrings of SDK errors hosts recognise, e.g.
+ *   UNMANAGED_ACTIVE_PAGE_ERROR_MARKER (see the hosts' active-page lookup).
  * - contract.runOptions: the `run` input options, with their defaults and the
  *   constants the runtime uses for them (RUN_OPTIONS).
  * - contract.messages: the screenshot tool's text, plain or after
@@ -128,6 +131,7 @@ export function facadeBundle(packageVersion: string) {
           RUN_VALUE_SIZE_ERROR,
         },
         limits: RUN_RESULT_LIMITS,
+        sdkErrorMarkers: { UNMANAGED_ACTIVE_PAGE_ERROR_MARKER },
         runOptions: RUN_OPTIONS,
         messages: {
           SCREENSHOT_CAPTURED_MESSAGE,
