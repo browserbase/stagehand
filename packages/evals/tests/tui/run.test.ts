@@ -939,7 +939,7 @@ describe("end-of-run summary", () => {
 
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain(
-      "Judge: google/gemini-3.5-flash  Success: outcome  Trajectories: on (.trajectories)",
+      "Judge: google/gemini-3.8-flash  Success: outcome  Trajectories: on (.trajectories)",
     );
     expect(output).toMatch(/codex × stagehand_facade × openai\/gpt-5.4-mini\s+50% 1\/2\s+0\s+1/);
     expect(output).toContain(

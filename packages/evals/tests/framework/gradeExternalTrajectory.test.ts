@@ -17,8 +17,8 @@ const mockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("stagehand-v3")>();
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
   class FakeV3Evaluator {
     async verify() {
       return mockState.evaluationResult;
@@ -29,7 +29,7 @@ vi.mock("stagehand-v3", async (importOriginal) => {
   }
   return {
     ...mod,
-    V3Evaluator: FakeV3Evaluator as unknown as typeof mod.V3Evaluator,
+    Evaluator: FakeV3Evaluator as unknown as typeof mod.Evaluator,
   };
 });
 
@@ -92,6 +92,26 @@ describe("gradeExternalTrajectory", () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+  it.each(["error", "degraded"])(
+    "treats a %s judge health without findings as ungraded, never a scored failure",
+    async (status) => {
+      const health = {
+        schemaVersion: 1,
+        status,
+        errors: [{ stage: "FusedJudgment", message: "provider unavailable" }],
+      };
+      mockState.evaluationResult = { outcomeSuccess: false, outcomeState: "unresolved", health };
+      const result = await grade({ _success: true });
+      expect(result._success).toBe(false);
+      expect(result.agentReportedSuccess).toBe(true);
+      expect(result.verifierError).toContain("FusedJudgment: provider unavailable");
+      expect(result.health).toEqual(health);
+      expect(result).not.toHaveProperty("outcomeSuccess");
+      expect(result).not.toHaveProperty("processScore");
+      expect(result).not.toHaveProperty("outcomeGates");
+    },
+  );
+
   const rubric: Rubric = {
     items: [
       { criterion: "step one", description: "does step one", maxPoints: 1 },
