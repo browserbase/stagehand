@@ -1,38 +1,40 @@
-# Pydantic AI + Stagehand facade over MCP/stdio
+# Pydantic AI + Stagehand middleware
 
-This example connects a Pydantic AI agent to the Stagehand facade MCP server over stdio. It
-exposes the facade's `run`, `snapshot`, and `screenshot` tools to the agent and keeps one MCP
-session open for the whole run so the browser and snapshot IDs stay valid. Browser calls run sequentially.
+This example registers `stagehand-middleware`'s `run`, `snapshot`, and `screenshot` as
+native Pydantic AI tools. One Python-owned browser stays open for the agent run.
+Instructions and tool schemas come from the middleware.
+Browser calls run sequentially, and screenshots reach the model as image content.
 Tested with Pydantic AI 2.57.0.
 
 ## Setup
 
-Node.js 24+ and [uv](https://docs.astral.sh/uv/) are required. From the repository root, build
-the integrations package first so its dist server entrypoint exists:
+Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/) are required, plus Google Chrome
+for local browser mode. In your own Python project, install the dependencies and copy
+[agent.py](agent.py) into the project:
 
 ```sh
-pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+uv add "pydantic-ai>=2.57,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
 ```
 
-Then install the Python dependencies:
+To run from this example directory instead:
 
 ```sh
 cd packages/integrations/pydantic-ai
 uv sync --locked
 ```
 
-| Variable                                           | Purpose                                                                                                                  |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`                                | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                         |
-| `BROWSERBASE_API_KEY`                              | Browserbase API key.                                                                                                     |
-| `STAGEHAND_MODEL_NAME` / `STAGEHAND_MODEL_API_KEY` | Model used by the facade server and its key.                                                                             |
-| `PYDANTIC_AI_MODEL`                                | Pydantic AI agent model; defaults to `openai:gpt-6-sol`.                                                                 |
-| `OPENAI_API_KEY`                                   | Credential for the default agent model. Only `STAGEHAND_*` and `BROWSERBASE_*` variables are forwarded to the MCP child. |
+| Variable | Purpose |
+| --- | --- |
+| `STAGEHAND_BROWSER` | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
+| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`. |
+| `PYDANTIC_AI_MODEL` | Agent model; defaults to `openai:gpt-6-sol`. |
+| `OPENAI_API_KEY` | Credential for the default agent model. |
 
 ## Run
 
-From `packages/integrations/pydantic-ai/`:
+From the directory containing `agent.py`:
 
 ```sh
 uv run python agent.py "your instruction"
@@ -40,10 +42,11 @@ uv run python agent.py "your instruction"
 
 Pass `--structured` to return a `PageReport` model (`title`, `url`, `notes`) instead of plain text.
 
-## Security model
+## Browser lifecycle
 
-`run(code)` executes model-authored JavaScript in the extension service worker:
-it runs browser-side, never in the host process. Browserbase is the
-recommended isolation boundary. The Python host process spawns the facade server
-(a Node child process) and holds only the MCP connection; model-authored JavaScript
-does not execute inside the host process.
+The example closes the Stagehand session and browser when the agent finishes or fails.
+If attaching Stagehand fails, it closes the launched browser too.
+
+`run(code)` executes model-authored JavaScript in the browser extension service worker.
+Use Browserbase for untrusted tasks. The Python process owns the browser connection
+and calls the shared middleware directly.
