@@ -1,5 +1,14 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.7.7
+
+### Patch Changes
+
+- [#3312](https://github.com/browserbase/stagehand/pull/3312) [`e11bbe5`](https://github.com/browserbase/stagehand/commit/e11bbe55b7a81b2ff2eb2b57c5ec41f968471457) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Rebuild the standalone server binaries with Node.js 24.22.1 and Undici 7.30.1 to include the October 2026 security fixes. Binary builds now reject outdated Node versions and rebuild instead of reusing cached executables.
+
+- Updated dependencies [[`69c2440`](https://github.com/browserbase/stagehand/commit/69c2440b7a69b4ac561d088b093b82a278e430a2), [`f6b3d85`](https://github.com/browserbase/stagehand/commit/f6b3d851d844052a71953b7e61e727eb4f96d890), [`09063f6`](https://github.com/browserbase/stagehand/commit/09063f63d6ce26445737302ec5a110d45d9db53c), [`27ee07c`](https://github.com/browserbase/stagehand/commit/27ee07cf07405420166a5bf46ff120446516e213)]:
+  - @browserbasehq/stagehand@3.7.4
+
 ## 3.7.6
 
 ### Patch Changes
