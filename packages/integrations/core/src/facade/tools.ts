@@ -22,6 +22,7 @@ import {
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
+  UNMANAGED_ACTIVE_PAGE_ERROR_MARKER,
 } from "./contract.js";
 import {
   actionRunner,
@@ -416,11 +417,26 @@ export class StagehandFacadeTools {
    * The page the agent is working on. A closed or crashed tab leaves the
    * context without an active page (or with only the keeper); the agent then
    * gets a fresh blank page rather than a dead end, and the keeper stays hidden.
+   * When another window has focus on a tab Stagehand does not manage, the agent
+   * keeps working on the newest tab Stagehand registered; nothing is reordered,
+   * since activating a tab does not move window focus.
    */
   private async activePage(): Promise<Page> {
     const context = this.stagehand.browser.context;
     const keeperPageId = await this.keeper;
-    const active = await context.activePage();
+    let active: Page | undefined;
+    try {
+      active = await context.activePage();
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes(UNMANAGED_ACTIVE_PAGE_ERROR_MARKER)
+      ) {
+        throw error;
+      }
+      const visible = (await context.pages()).filter((page) => page.pageId !== keeperPageId);
+      return visible.at(-1) ?? (await context.newPage());
+    }
     if (active && active.pageId !== keeperPageId) return active;
     const visible = (await context.pages()).filter((page) => page.pageId !== keeperPageId);
     const page = visible[0] ?? (await context.newPage());

@@ -8,14 +8,16 @@ from __future__ import annotations
 import base64
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from stagehand import Stagehand
+from stagehand.rpc_client import RPCError, _JSONRPCError
 
-from stagehand_integrations.facade import (
+from stagehand_middleware.facade import (
     StagehandFacadeExecutionError,
     StagehandFacadeInputError,
     StagehandFacadeTools,
@@ -68,16 +70,21 @@ class FakeSnapshot:
 
 
 class FakePage:
-    page_id = "page-1"
-
-    def __init__(self, stagehand: FakeStagehand) -> None:
+    def __init__(
+        self,
+        stagehand: FakeStagehand,
+        page_id: str = "page-1",
+        snapshot: dict[str, Any] | None = None,
+    ) -> None:
         self._stagehand = stagehand
+        self.page_id = page_id
+        self._snapshot = snapshot
 
     async def url(self) -> str:
         return self._stagehand.url
 
     async def snapshot(self, *, include_iframes: bool, timeout: float) -> FakeSnapshot:
-        snapshot = self._stagehand.snapshot
+        snapshot = self._snapshot or self._stagehand.snapshot
         if snapshot is None:
             return FakeSnapshot("", {})
         return FakeSnapshot(snapshot["formattedTree"], snapshot["xpathMap"])
@@ -93,25 +100,45 @@ class FakePage:
 
 
 class FakeContext:
-    def __init__(self, page: FakePage) -> None:
-        self._page = page
+    def __init__(
+        self, pages: list[FakePage], active: object, make_page: Callable[[str], FakePage]
+    ) -> None:
+        self._pages = pages
+        self._active = active
+        self._make_page = make_page
+        self.calls: dict[str, Any] = {"newPages": 0, "setActivePage": []}
 
-    async def active_page(self) -> FakePage:
-        return self._page
+    async def active_page(self) -> FakePage | None:
+        if self._active is None:
+            return None
+        if isinstance(self._active, dict):
+            # The SDK surfaces extension errors as RPCError.
+            raise RPCError(_JSONRPCError(code=-32000, message=self._active["throw"]["message"]))
+        if self._active is _DEFAULT_ACTIVE:
+            return self._pages[0]
+        return next(page for page in self._pages if page.page_id == self._active)
 
     async def pages(self) -> list[FakePage]:
-        return [self._page]
+        return list(self._pages)
 
     async def new_page(self, url: str | None = None) -> FakePage:
-        return self._page
+        self.calls["newPages"] += 1
+        page = self._make_page(f"new-page-{self.calls['newPages']}")
+        self._pages.append(page)
+        return page
 
     async def set_active_page(self, page: FakePage) -> None:
-        pass
+        self.calls["setActivePage"].append(page.page_id)
+
+
+_DEFAULT_ACTIVE = object()
 
 
 class FakeBrowser:
-    def __init__(self, page: FakePage) -> None:
-        self.context = FakeContext(page)
+    def __init__(
+        self, pages: list[FakePage], active: object, make_page: Callable[[str], FakePage]
+    ) -> None:
+        self.context = FakeContext(pages, active, make_page)
         self.close_count = 0
 
     async def close(self) -> None:
@@ -134,7 +161,18 @@ class FakeStagehand:
     def __post_init__(self) -> None:
         self.url = self.case.get("page", {}).get("url", self.url)
         self.snapshot = self.case.get("page", {}).get("snapshot")
-        self.browser = FakeBrowser(FakePage(self))
+        context = self.case.get("context", {})
+        # A case's "pages" list is used as given (even empty); without one there is one page.
+        pages = (
+            [FakePage(self, entry["id"], entry.get("snapshot")) for entry in context["pages"]]
+            if "pages" in context
+            else [FakePage(self)]
+        )
+        self.browser = FakeBrowser(
+            pages,
+            context.get("activePage", _DEFAULT_ACTIVE),
+            lambda page_id: FakePage(self, page_id),
+        )
 
     async def experimental_batch(
         self, source: str, input: object, *, timeout: int, page: FakePage
@@ -170,6 +208,9 @@ def check_error(error: BaseException, expected: dict[str, Any]) -> None:
         assert isinstance(error, StagehandFacadeInputError), repr(error)
     elif kind == "execution":
         assert isinstance(error, StagehandFacadeExecutionError), repr(error)
+    elif kind == "sdk":
+        # SDK errors reach the host as RPCError and must propagate unchanged.
+        assert isinstance(error, RPCError), repr(error)
     elif kind == "batch":
         assert not isinstance(error, StagehandFacadeInputError | StagehandFacadeExecutionError)
     else:
@@ -255,6 +296,8 @@ async def test_conformance(case: dict[str, Any], tmp_path: Path) -> None:
     if "closed" in expected:
         assert fake.close_count == (1 if expected["closed"] else 0)
         assert fake.browser.close_count == (1 if expected["closed"] else 0)
+    if "context" in expected:
+        assert fake.browser.context.calls == expected["context"]
     if "tree" in expected:
         assert list_tree(sandbox) == expected["tree"]
     for file, content in expected.get("files", {}).items():

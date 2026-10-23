@@ -8,7 +8,7 @@ describe("Python facade bundle", () => {
     const [built, vendored] = await Promise.all([
       fs.readFile(new URL("../dist/facade-bundle.json", import.meta.url), "utf8"),
       fs.readFile(
-        new URL("../python/src/stagehand_integrations/facade/_bundle.json", import.meta.url),
+        new URL("../python/src/stagehand_middleware/facade/_bundle.json", import.meta.url),
         "utf8",
       ),
     ]);

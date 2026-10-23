@@ -31,7 +31,7 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(5);
+    expect(bundle.version).toBe(6);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
