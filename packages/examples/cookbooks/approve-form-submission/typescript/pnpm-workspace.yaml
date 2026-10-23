@@ -3,3 +3,5 @@ packages:
 
 allowBuilds:
   esbuild: true
+overrides:
+  "undici@7": 7.30.1

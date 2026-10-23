@@ -3,6 +3,7 @@
     "packages/docs/**/*.md",
     "packages/docs/**/*.mdx",
     "packages/cli/**",
-    "packages/integrations/core/python/src/stagehand_integrations/facade/_bundle.json"
+    "packages/integrations/core/python/src/stagehand_middleware/facade/_bundle.json",
+    "packages/integrations/deepagents/examples/managed/instructions.md"
   ]
 }
