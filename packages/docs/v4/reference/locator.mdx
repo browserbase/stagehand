@@ -1035,18 +1035,6 @@ if err := locator.Click(ctx, nil); err != nil {
   <ParamField path="options.ClickCount" type="*int" optional>
     The number of clicks to dispatch.
   </ParamField>
-
-  <ParamField path="options.Position" type="*LocatorClickPosition" optional>
-    The point to click, in CSS pixels from the top-left corner of the element's padding box. Defaults to the element's center.
-
-    <ParamField path="options.Position.X" type="float64">
-      The horizontal offset in CSS pixels.
-    </ParamField>
-
-    <ParamField path="options.Position.Y" type="float64">
-      The vertical offset in CSS pixels.
-    </ParamField>
-  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="error">
