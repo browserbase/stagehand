@@ -24,9 +24,7 @@ export type StagehandFacadeConfig = {
   quietWait: boolean;
 };
 
-export function stagehandFacadeConfigFromEnv(
-  env: FacadeEnv = process.env,
-): StagehandFacadeConfig {
+export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): StagehandFacadeConfig {
   const browserbaseApiKey = nonEmpty(env.BROWSERBASE_API_KEY);
   const browserbaseProjectId = nonEmpty(env.BROWSERBASE_PROJECT_ID);
   const requestedBrowser = nonEmpty(env.STAGEHAND_BROWSER);
