@@ -33,7 +33,7 @@ uv run python agent.py "Open https://example.com and report the page title."
 
 | Variable | Purpose |
 | --- | --- |
-| `AGNO_MODEL` | OpenAI model ID; defaults to `gpt-5.6-luna`. Use a vision-capable model for screenshots. |
+| `AGNO_MODEL` | OpenAI model ID; defaults to `gpt-6-luna`. Use a vision-capable model for screenshots. |
 | `OPENAI_API_KEY` | Agent model credential. |
 | `OPENAI_BASE_URL` | Optional OpenAI-compatible gateway endpoint. |
 | `STAGEHAND_BROWSER` | `local` or `browserbase`. Defaults to Browserbase when its API key is set, otherwise local Chrome. |
