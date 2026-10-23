@@ -1,18 +1,16 @@
 import { readFile } from "node:fs/promises";
-import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 import * as ClientSchemas from "../../packages/sdk-ts/src/clientSchemas.js";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ python });
 
 type ObjectSchema = {
   shape: Record<string, unknown>;
 };
 
 type Concept = {
-  go: () => Promise<string[]>;
   name: string;
   python: () => Promise<string[]>;
   typescript: ObjectSchema;
@@ -32,89 +30,63 @@ const concepts: readonly Concept[] = [
     name: "LocalBrowserLaunchOptions",
     typescript: ClientSchemas.LocalBrowserLaunchOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserLaunchOptions"),
-    go: () => goStructFields("browser_factories.go", "LocalBrowserLaunchOptions"),
   },
   {
     name: "LocalBrowserConnectOptions",
     typescript: ClientSchemas.LocalBrowserConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserConnectOptions"),
-    go: () => goStructFields("browser_factories.go", "LocalBrowserConnectOptions"),
   },
   {
     name: "BrowserbaseConnectOptions",
     typescript: ClientSchemas.BrowserbaseConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "BrowserbaseConnectOptions"),
-    go: () => goStructFields("browser_factories.go", "BrowserbaseConnectOptions"),
   },
   {
     name: "BrowserbaseSearchOptions",
     typescript: ClientSchemas.BrowserbaseSearchOptionsSchema,
     python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "search"),
-    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchOptions"),
   },
   {
     name: "BrowserbaseFetchOptions",
     typescript: ClientSchemas.BrowserbaseFetchOptionsSchema,
     python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "fetch"),
-    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchOptions"),
   },
   {
     name: "BrowserbaseSearchResult",
     typescript: ClientSchemas.BrowserbaseSearchResultSchema,
     python: () => pythonClassFields("client_models.py", "BrowserbaseSearchResult"),
-    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchResult"),
   },
   {
     name: "BrowserbaseFetchResult",
     typescript: ClientSchemas.BrowserbaseFetchResultSchema,
     python: () => pythonClassFields("client_models.py", "BrowserbaseFetchResult"),
-    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchResult"),
   },
   {
     name: "StagehandClientLoggingConfig",
     typescript: ClientSchemas.StagehandClientLoggingConfigSchema,
     python: () => pythonClassFields("client_types.py", "StagehandClientLoggingConfig"),
-    go: () => goStructFields("client_options.go", "StagehandClientLoggingConfig"),
   },
   {
     name: "StagehandClientActOptions",
     typescript: ClientSchemas.StagehandClientActOptionsSchema,
     python: () => pythonMethodParameters("stagehand.py", "Stagehand", "act", ["instruction"]),
-    go: () => goStructFields("client_options.go", "StagehandClientActOptions"),
   },
   {
     name: "StagehandClientObserveOptions",
     typescript: ClientSchemas.StagehandClientObserveOptionsSchema,
     python: () => pythonMethodParameters("stagehand.py", "Stagehand", "observe", ["instruction"]),
-    go: () => goStructFields("client_options.go", "StagehandClientObserveOptions"),
   },
   {
     name: "StagehandClientExtractOptions",
     typescript: ClientSchemas.StagehandClientExtractOptionsSchema,
     python: () =>
       pythonMethodParameters("stagehand.py", "Stagehand", "extract", ["instruction", "schema"]),
-    go: () => goStructFields("client_options.go", "StagehandClientExtractOptions"),
   },
 ] as const;
 
-describe("SDK-owned schemas remain one cross-language contract", () => {
-  it("keeps every comparable SDK-only field in TypeScript, Python, and Go", async () => {
-    const differences: string[] = [];
-
-    for (const concept of concepts) {
-      const expected = schemaFields(concept.typescript);
-      const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
-      if (!arraysEqual(pythonFields, expected)) {
-        differences.push(
-          `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
-        );
-      }
-      if (!arraysEqual(goFields, expected)) {
-        differences.push(
-          `${concept.name} Go: expected [${expected.join(", ")}], received [${goFields.join(", ")}]`,
-        );
-      }
-    }
+describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
+  it("keeps every comparable SDK-only field in TypeScript and Python", async () => {
+    const differences = await clientSchemaDifferences(concepts);
 
     expect(
       differences,
@@ -154,13 +126,12 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
   it("keeps Stagehand creation fields aligned while naming intentional language adapters", async () => {
     const expectedConfig = schemaFields(ClientSchemas.StagehandClientCreateConfigSchema);
     const expectedCreate = schemaFields(ClientSchemas.StagehandCreateOptionsSchema);
-    const [pythonConfig, pythonCreate, goCreate] = await Promise.all([
+    const [pythonConfig, pythonCreate] = await Promise.all([
       pythonClassFields("client_models.py", "StagehandClientCreateConfig"),
       pythonMethodParameters("stagehand.py", "Stagehand", "create", [
         "model_api_key",
         "model_headers",
       ]),
-      goStructFields("client_options.go", "CreateOptions"),
     ]);
 
     expect(pythonConfig, "Python create config must match the canonical client schema").toEqual(
@@ -168,13 +139,6 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
     );
     expect(pythonCreate, "Python create parameters must match StagehandCreateOptions").toEqual(
       expectedCreate,
-    );
-    expect(
-      goCreate.filter((field) => field !== "generate"),
-      "Go splits the client-LLM callback into Generate; every other CreateOptions field must match",
-    ).toEqual(expectedCreate);
-    expect(goCreate, "Go must retain its explicit client-LLM callback adapter").toContain(
-      "generate",
     );
   });
 
@@ -399,10 +363,6 @@ function pythonParameterName(parameter: SgNode): string | undefined {
   return parameter.find({ rule: { kind: "identifier" } })?.text();
 }
 
-async function goStructFields(file: string, structName: string): Promise<string[]> {
-  return (await goStructFieldSpellings(file, structName)).map(snakeCase).sort();
-}
-
 async function goStructFieldSpellings(file: string, structName: string): Promise<string[]> {
   const source = await readFile(new URL(file, goSource), "utf8");
   const body = source.match(
@@ -449,3 +409,41 @@ function snakeCase(value: string): string {
 function namedChildren(node: SgNode): SgNode[] {
   return node.children().filter((child) => child.isNamed());
 }
+
+async function clientSchemaDifferences(concepts: readonly Concept[]): Promise<string[]> {
+  const differences: string[] = [];
+
+  for (const concept of concepts) {
+    const expected = schemaFields(concept.typescript);
+    const pythonFields = await concept.python();
+    if (!arraysEqual(pythonFields, expected)) {
+      differences.push(
+        `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
+      );
+    }
+  }
+  return differences;
+}
+
+// A new client option belongs to the active SDKs; it needs no Go counterpart.
+describe("active SDK client-schema coverage regressions", () => {
+  it.each(["none", "typescript", "python"] as const)(
+    "checks a TS/Python-only option with missing SDK: %s",
+    async (missing) => {
+      const differences = await clientSchemaDifferences([
+        {
+          name: "FreshOptions",
+          typescript: { shape: missing === "typescript" ? {} : { freshOption: {} } },
+          python: async () => (missing === "python" ? [] : ["fresh_option"]),
+        },
+      ]);
+      expect(differences).toEqual(
+        missing === "typescript"
+          ? ["FreshOptions Python: expected [], received [fresh_option]"]
+          : missing === "python"
+            ? ["FreshOptions Python: expected [fresh_option], received []"]
+            : [],
+      );
+    },
+  );
+});
