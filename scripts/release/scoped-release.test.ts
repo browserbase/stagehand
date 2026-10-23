@@ -43,6 +43,7 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
     cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "workspace:*" } },
     sdk: { name: "sdk", version: "4.1.0" },
     python: { name: "python", version: "4.1.0", private: true },
+    middleware: { name: "stagehand-middleware", version: "0.1.1" },
   })) {
     await mkdir(path.join(root, "packages", directory), { recursive: true });
     await writeFile(
@@ -231,7 +232,7 @@ describe("independent release scopes using the real Changesets engine", () => {
       it(`exposes only ${scope} to the native publisher and restores manifests after ${fail ? "failure" : "success"}`, async () => {
         const root = await fixture();
         const original = await Promise.all(
-          ["cli", "sdk", "python"].map((name) =>
+          ["cli", "sdk", "python", "middleware"].map((name) =>
             readFile(path.join(root, "packages", name, "package.json"), "utf8"),
           ),
         );
@@ -239,12 +240,14 @@ describe("independent release scopes using the real Changesets engine", () => {
           expect(Boolean((await manifest(root, "cli")).private)).toBe(scope !== "cli");
           expect(Boolean((await manifest(root, "sdk")).private)).toBe(scope !== "sdk");
           expect((await manifest(root, "python")).private).toBe(true);
+          // Published by hand only, never by either scope's native publisher.
+          expect((await manifest(root, "middleware")).private).toBe(true);
           if (fail) throw new Error("publish failed");
         });
         if (fail) await expect(publish).rejects.toThrow("publish failed");
         else await publish;
         const restored = await Promise.all(
-          ["cli", "sdk", "python"].map((name) =>
+          ["cli", "sdk", "python", "middleware"].map((name) =>
             readFile(path.join(root, "packages", name, "package.json"), "utf8"),
           ),
         );
