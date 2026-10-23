@@ -25,7 +25,7 @@ from stagehand_middleware.facade.bundle import canonical_json, parse_bundle
 def test_bundle_content_matches_its_hash() -> None:
     bundle = facade_bundle()
     canonical = canonical_json({"sources": bundle["sources"], "contract": bundle["contract"]})
-    assert bundle["version"] == 5
+    assert bundle["version"] == 6
     assert hashlib.sha256(canonical.encode()).hexdigest() == bundle["sha256"]
 
 
