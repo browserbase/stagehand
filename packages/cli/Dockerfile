@@ -1,6 +1,6 @@
 # No browser is bundled: browse drives a remote Browserbase cloud browser over
 # CDP, so the image stays a thin client.
-FROM node:20-slim
+FROM node:24.22.1-slim
 
 ARG BROWSE_VERSION
 RUN test -n "$BROWSE_VERSION" \
