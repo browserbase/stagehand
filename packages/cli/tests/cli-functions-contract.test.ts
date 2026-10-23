@@ -360,10 +360,11 @@ echo '{"lockfileVersion":3}' > package-lock.json
       async (request, response) => {
         if (
           request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
+          request.path ===
+            "/v1/functions/00000000-0000-4000-8000-000000000004/invoke"
         ) {
           jsonResponse(response, 200, {
-            functionId: "fn_123",
+            functionId: "00000000-0000-4000-8000-000000000004",
             id: "inv_123",
             status: "RUNNING",
           });
@@ -375,7 +376,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
           request.path === "/v1/functions/invocations/inv_123"
         ) {
           jsonResponse(response, 200, {
-            functionId: "fn_123",
+            functionId: "00000000-0000-4000-8000-000000000004",
             id: "inv_123",
             results: { ok: true },
             status: "COMPLETED",
@@ -389,7 +390,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
         const result = await runCli([
           "functions",
           "invoke",
-          "fn_123",
+          "00000000-0000-4000-8000-000000000004",
           "--params",
           '{"url":"https://example.com"}',
           "--api-key",
@@ -407,7 +408,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
         expectRequest(
           requests[0],
           "POST",
-          "/v1/functions/fn_123/invoke",
+          "/v1/functions/00000000-0000-4000-8000-000000000004/invoke",
           "test-key",
         );
         expect(requests[0]?.jsonBody).toMatchObject({
@@ -423,15 +424,57 @@ echo '{"lockfileVersion":3}' > package-lock.json
     );
   });
 
+  it.each([false, true])(
+    "supports invocation mode checkStatus=%s with one request",
+    async (checkStatus) => {
+      const functionId = "00000000-0000-4000-8000-000000000004";
+      const invocationId = "00000000-0000-4000-8000-000000000006";
+      await withServer(
+        async (_request, response) => {
+          jsonResponse(response, 200, {
+            id: invocationId,
+            functionId,
+            status: "RUNNING",
+          });
+        },
+        async ({ baseUrl, requests }) => {
+          const result = await runCli([
+            "functions",
+            "invoke",
+            ...(checkStatus
+              ? ["--check-status", invocationId]
+              : [functionId, "--no-wait"]),
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ]);
+          expect(result.exitCode).toBe(0);
+          expect(JSON.parse(result.stdout)).toMatchObject({ id: invocationId });
+          expect(requests).toHaveLength(1);
+          expectRequest(
+            requests[0],
+            checkStatus ? "GET" : "POST",
+            checkStatus
+              ? `/v1/functions/invocations/${invocationId}`
+              : `/v1/functions/${functionId}/invoke`,
+            "test-key",
+          );
+        },
+      );
+    },
+  );
+
   it("exits nonzero when an invocation fails", async () => {
     await withServer(
       async (request, response) => {
         if (
           request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
+          request.path ===
+            "/v1/functions/00000000-0000-4000-8000-000000000004/invoke"
         ) {
           jsonResponse(response, 200, {
-            functionId: "fn_123",
+            functionId: "00000000-0000-4000-8000-000000000004",
             id: "inv_failed",
             status: "RUNNING",
           });
@@ -439,7 +482,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
         }
 
         jsonResponse(response, 200, {
-          functionId: "fn_123",
+          functionId: "00000000-0000-4000-8000-000000000004",
           id: "inv_failed",
           status: "FAILED",
         });
@@ -448,7 +491,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
         const result = await runCli([
           "functions",
           "invoke",
-          "fn_123",
+          "00000000-0000-4000-8000-000000000004",
           "--api-key",
           "test-key",
           "--base-url",

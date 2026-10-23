@@ -1,6 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
+import { parseUuid } from "../../lib/cloud/ids.js";
 import { invokeFunction } from "../../lib/functions/invoke.js";
 
 export default class FunctionsInvoke extends BrowseCommand {
@@ -16,6 +17,7 @@ export default class FunctionsInvoke extends BrowseCommand {
   static override args = {
     functionId: Args.string({
       description: "Function ID to invoke.",
+      parse: async (value) => parseUuid(value, "Function ID"),
       required: false,
     }),
   };
@@ -30,6 +32,7 @@ export default class FunctionsInvoke extends BrowseCommand {
       helpValue: "<baseUrl>",
     }),
     "check-status": Flags.string({
+      parse: async (value) => parseUuid(value, "Invocation ID"),
       description:
         "Invocation ID to inspect without creating a new invocation.",
       helpValue: "<invocationId>",

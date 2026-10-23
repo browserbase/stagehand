@@ -1,5 +1,4 @@
-import { Args } from "@oclif/core";
-
+import { extensionIdArg } from "../../../lib/cloud/args.js";
 import {
   createBrowserbaseClient,
   outputJson,
@@ -13,7 +12,7 @@ export default class ExtensionsGet extends BrowseCommand {
   static override examples = ["browse cloud extensions get <extension-id>"];
 
   static override args = {
-    id: Args.string({ required: true, description: "Extension ID." }),
+    id: extensionIdArg,
   };
 
   static override flags = { ...apiCommonFlags };

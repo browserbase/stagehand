@@ -1,5 +1,4 @@
-import { Args } from "@oclif/core";
-
+import { projectIdArg } from "../../../lib/cloud/args.js";
 import {
   createBrowserbaseClient,
   outputJson,
@@ -13,7 +12,7 @@ export default class ProjectsGet extends BrowseCommand {
   static override examples = ["browse cloud projects get <project-id>"];
 
   static override args = {
-    id: Args.string({ required: true, description: "Project ID." }),
+    id: projectIdArg,
   };
 
   static override flags = { ...apiCommonFlags };
