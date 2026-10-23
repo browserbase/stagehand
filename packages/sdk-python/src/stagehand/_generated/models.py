@@ -2499,6 +2499,7 @@ class WebMCPAnnotation(WireModel):
     read_only: Optional[StrictBool] = None
     untrusted_content: Optional[StrictBool] = None
     consequential: Optional[StrictBool] = None
+    debugging: Optional[StrictBool] = None
     autosubmit: Optional[StrictBool] = None
 
 

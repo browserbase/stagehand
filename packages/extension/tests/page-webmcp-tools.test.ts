@@ -107,6 +107,7 @@ describe("Page WebMCP tool discovery", () => {
                 readOnly: true,
                 untrustedContent: true,
                 consequential: true,
+                debugging: true,
                 autosubmit: false,
               },
               frameId: "frame-1",
@@ -141,6 +142,7 @@ describe("Page WebMCP tool discovery", () => {
           readOnly: true,
           untrustedContent: true,
           consequential: true,
+          debugging: true,
           autosubmit: false,
         },
         frameId: "frame-1",
@@ -157,6 +159,20 @@ describe("Page WebMCP tool discovery", () => {
 
   it.each([false, undefined])("preserves a %s consequential hint", async (consequential) => {
     const annotations = consequential === undefined ? {} : { consequential };
+    const session = new FakeCDPSession({
+      "WebMCP.enable": (activeSession) => {
+        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          tools: [{ name: "preview", description: "Preview", annotations, frameId: "frame-1" }],
+        });
+      },
+    });
+    const page = createPage(session);
+    const [tool] = await page.listWebMCPTools({ timeout: 0 });
+    expect(tool?.annotations).toStrictEqual(annotations);
+  });
+
+  it.each([false, undefined])("preserves a %s debugging annotation", async (debugging) => {
+    const annotations = debugging === undefined ? {} : { debugging };
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
         activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {

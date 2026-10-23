@@ -2312,6 +2312,9 @@ type WebMCPAnnotation struct {
 	// Consequential corresponds to the JSON schema field "consequential".
 	Consequential *bool `json:"consequential,omitempty,omitzero"`
 
+	// Debugging corresponds to the JSON schema field "debugging".
+	Debugging *bool `json:"debugging,omitempty,omitzero"`
+
 	// ReadOnly corresponds to the JSON schema field "read_only".
 	ReadOnly *bool `json:"read_only,omitempty,omitzero"`
 

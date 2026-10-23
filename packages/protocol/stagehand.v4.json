@@ -4401,6 +4401,9 @@
         "consequential": {
           "type": "boolean"
         },
+        "debugging": {
+          "type": "boolean"
+        },
         "autosubmit": {
           "type": "boolean"
         }
