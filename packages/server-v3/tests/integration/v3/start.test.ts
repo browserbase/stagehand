@@ -357,7 +357,7 @@ async function startKeepAliveFalseLocalSession(baseUrl: string): Promise<{
       method: "POST",
       headers,
       body: JSON.stringify({
-        modelName: "gpt-4.1-nano",
+        modelName: "gpt-4.1-mini",
         keepAlive: false,
         ...LOCAL_BROWSER_BODY,
       }),
@@ -397,7 +397,7 @@ async function startKeepAliveFalseBrowserbaseSession(
       method: "POST",
       headers,
       body: JSON.stringify({
-        modelName: "gpt-4.1-nano",
+        modelName: "gpt-4.1-mini",
         keepAlive: false,
         experimental: true,
         browser: { type: "browserbase" },
@@ -514,7 +514,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
       {
         method: "POST",
         headers: headersWithoutModelKey,
-        body: JSON.stringify({ modelName: "gpt-4.1-nano", ...localBrowser }),
+        body: JSON.stringify({ modelName: "gpt-4.1-mini", ...localBrowser }),
       },
     );
 
@@ -544,7 +544,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ modelName: "gpt-4.1-nano", ...localBrowser }),
+        body: JSON.stringify({ modelName: "gpt-4.1-mini", ...localBrowser }),
       },
     );
 
@@ -571,7 +571,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           experimental: true,
           ...localBrowser,
         }),
@@ -598,7 +598,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
       {
         method: "POST",
         headers: pythonHeaders,
-        body: JSON.stringify({ modelName: "gpt-4.1-nano", ...localBrowser }),
+        body: JSON.stringify({ modelName: "gpt-4.1-mini", ...localBrowser }),
       },
     );
 
@@ -622,7 +622,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           actTimeoutMs: 30000,
           domSettleTimeoutMs: 5000,
           verbose: "2",
@@ -653,7 +653,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           useTouch: true,
           ...localBrowser,
         }),
@@ -681,7 +681,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ modelName: "gpt-4.1-nano", ...localBrowser }),
+        body: JSON.stringify({ modelName: "gpt-4.1-mini", ...localBrowser }),
       },
     );
 
@@ -718,7 +718,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browser: { type: "local", cdpUrl: providedCdpUrl },
         }),
       },
@@ -749,7 +749,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browser: { cdpUrl: "ws://localhost:9222/devtools/browser/test" },
         }),
       },
@@ -769,7 +769,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browser: {
             type: "browserbase",
             cdpUrl: "ws://localhost:9222/devtools/browser/test",
@@ -792,7 +792,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browser: { type: "browserbase" },
         }),
       },
@@ -818,7 +818,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers: bbHeaders,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browser: { type: "browserbase" },
         }),
       },
@@ -855,7 +855,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "us-east-1" as BrowserbaseRegion,
           },
@@ -891,7 +891,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "eu-central-1" as BrowserbaseRegion,
           },
@@ -926,7 +926,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "ap-southeast-1" as BrowserbaseRegion,
           },

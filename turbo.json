@@ -50,6 +50,7 @@
       ]
     },
     "@browserbasehq/stagehand-server-v3#build": {
+      "cache": false,
       "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
@@ -67,9 +68,10 @@
     },
     "@browserbasehq/stagehand-server-v3#build:esm-tests": {
       "dependsOn": ["^build:esm"],
-      "outputs": ["dist/tests/**", "dist/src/**"],
+      "outputs": ["dist/tests/**", "dist/src/**", "dist/scripts/seaBuildRuntime.js"],
       "inputs": [
         "tests/**/*.ts",
+        "scripts/seaBuildRuntime.ts",
         "src/**/*.ts",
         "package.json",
         "tsconfig.tests.json",
@@ -219,6 +221,7 @@
       ]
     },
     "build:sea:esm": {
+      "cache": false,
       "dependsOn": ["^build:esm"],
       "outputs": [
         "dist/sea/**",
@@ -241,6 +244,7 @@
       ]
     },
     "build:sea:cjs": {
+      "cache": false,
       "dependsOn": ["^build:cjs"],
       "outputs": ["dist/sea/**"],
       "env": [

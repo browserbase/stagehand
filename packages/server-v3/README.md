@@ -4,17 +4,19 @@ The Stagehand  is a powerful service that provides a RESTful interface for brows
 
 ## 📋 Prerequisites
 
-To run the Stagehand API locally, ensure you have the following installed:
+To run the Stagehand API from source, ensure you have the following installed:
 
-- Node.js
+- Node.js (we recommend 24.22.1 or a later patched Node 24 release)
 - pnpm
+
+Building a standalone server binary requires Node 22.23.4+, 24.22.1+, or 26.12.1+ within those major lines to include the [October 2026 security fixes](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases). The binary embeds the Node runtime used to build it. Prebuilt binaries do not require a separate Node installation; install the updated binary and restart the server to use its patched runtime.
 
 ## 🛠 Installation
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/browserbase/stagehand/
+git clone --branch v3 https://github.com/browserbase/stagehand/
 cd stagehand/packages/server-v3
 ```
 

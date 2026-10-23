@@ -197,7 +197,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
           input: "click the Learn more link",
           options: {
             model: {
-              modelName: "openai/gpt-4.1-nano",
+              modelName: "openai/gpt-4.1-mini",
               apiKey: openaiApiKey,
             },
           },
@@ -237,7 +237,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
           input: "click the Learn more link",
           options: {
             model: {
-              modelName: "openai/gpt-4.1-nano",
+              modelName: "openai/gpt-4.1-mini",
               apiKey: openaiApiKey,
             },
             timeout: 30000,
@@ -282,7 +282,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
           },
           options: {
             model: {
-              modelName: "openai/gpt-4.1-nano",
+              modelName: "openai/gpt-4.1-mini",
               apiKey: openaiApiKey,
             },
           },
@@ -594,7 +594,7 @@ describe("POST /v1/sessions/:id/act with SSE streaming (V3)", () => {
         input: "click the Learn more link",
         options: {
           model: {
-            modelName: "openai/gpt-4.1-nano",
+            modelName: "openai/gpt-4.1-mini",
             apiKey: openaiApiKey,
           },
         },

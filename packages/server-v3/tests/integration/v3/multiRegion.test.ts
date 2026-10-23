@@ -59,7 +59,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "us-west-2",
           },
@@ -99,7 +99,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "us-east-1",
           },
@@ -137,7 +137,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "eu-central-1",
           },
@@ -175,7 +175,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {
             region: "ap-southeast-1",
           },
@@ -213,7 +213,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           browserbaseSessionCreateParams: {},
           ...localBrowser,
         }),
@@ -249,7 +249,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          modelName: "gpt-4.1-nano",
+          modelName: "gpt-4.1-mini",
           ...localBrowser,
         }),
       },

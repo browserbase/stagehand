@@ -3,6 +3,7 @@
  * Build SEA binary from ESM (test) or CJS (release) bundles.
  *
  * Prereqs:
+ * - Patched Node 22.23.4+, 24.22.1+, or 26.12.1+ within those major lines.
  * - CJS mode: runs core CJS build via Turbo if dist is missing.
  * - ESM mode: core dist/esm available (pnpm run build:esm).
  * - postject installed; tar available for non-Windows downloads.
@@ -21,6 +22,7 @@ import https from "node:https";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 import { getRepoRootDir } from "./runtimePaths.js";
+import { assertSeaBuildRuntime } from "./seaBuildRuntime.js";
 
 const repoDir = getRepoRootDir();
 const seaFuse = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
@@ -474,6 +476,7 @@ if (needsWrite) {
 };
 
 const main = async () => {
+  assertSeaBuildRuntime();
   fs.mkdirSync(`${repoDir}/packages/server-v3/dist/sea`, { recursive: true });
 
   let mainPath: string;
@@ -494,7 +497,7 @@ const main = async () => {
     execArgvExtension,
   );
 
-  run("node", ["--experimental-sea-config", seaConfigPath], {
+  run(process.execPath, ["--experimental-sea-config", seaConfigPath], {
     cwd: `${repoDir}/packages/server-v3`,
   });
   if (!fs.existsSync(`${repoDir}/packages/server-v3/dist/sea/sea-prep.blob`)) {
