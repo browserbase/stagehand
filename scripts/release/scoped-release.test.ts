@@ -35,9 +35,6 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" | "none" = "bot
       baseBranch: "main",
       access: "public",
       changelog: false,
-      ignore: JSON.parse(
-        await readFile(path.resolve(".changeset/config.json"), "utf8"),
-      ).ignore.filter((name: string) => name === "@browserbasehq/stagehand-go"),
       privatePackages: { version: true, tag: false },
       snapshot: { useCalculatedVersion: true, prereleaseTemplate: "alpha-{commit}" },
     }),
@@ -46,7 +43,6 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" | "none" = "bot
     cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "workspace:*" } },
     sdk: { name: "sdk", version: "4.1.0" },
     python: { name: "python", version: "4.1.0", private: true },
-    go: { name: "@browserbasehq/stagehand-go", version: "4.1.0", private: true },
   })) {
     await mkdir(path.join(root, "packages", directory), { recursive: true });
     await writeFile(
@@ -84,11 +80,9 @@ const manifest = async (root: string, name: string) =>
 
 describe("independent release scopes using the real Changesets engine", () => {
   it.each([false, true])(
-    "keeps Go unchanged during SDK versioning (snapshot=%s)",
+    "versions active SDKs without a Go package (snapshot=%s)",
     async (snapshot) => {
       const root = await fixture("sdk");
-      const file = path.join(root, "packages/go/package.json");
-      const original = await readFile(file, "utf8");
       const plan = await versionScope(root, "sdk", snapshot);
       expect(plan.releases.some(({ name }) => name === "@browserbasehq/stagehand-go")).toBe(false);
       expect(
@@ -103,13 +97,12 @@ describe("independent release scopes using the real Changesets engine", () => {
       expect((await manifest(root, "python")).version).toMatch(
         snapshot ? /^4\.1\.1-alpha-/ : /^4\.1\.1$/,
       );
-      expect(await readFile(file, "utf8")).toBe(original);
-      expect(await readdir(path.join(root, "packages/go"))).toEqual(["package.json"]);
+      expect((await readdir(path.join(root, "packages"))).sort()).toEqual(["cli", "python", "sdk"]);
       expect(await scopedChangesets(root, "sdk")).toEqual([]);
     },
   );
 
-  it("leaves an empty release unchanged with the Go proxy present", async () => {
+  it("leaves an empty release unchanged without a Go package", async () => {
     const root = await fixture("none");
     for (const scope of ["sdk", "cli"] as const) {
       expect(belongsToScope("@browserbasehq/stagehand-go", scope)).toBe(false);
