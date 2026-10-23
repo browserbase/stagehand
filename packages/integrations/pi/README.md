@@ -1,6 +1,6 @@
 # Pi + Stagehand over MCP/stdio
 
-This example uses Pi 1.3.0's built-in MCP support to mount Stagehand's `run`,
+This example uses Pi 1.4.0's built-in MCP support to mount Stagehand's `run`,
 `snapshot`, and `screenshot` tools. The project `.pi/mcp.json` sets `exposure` to
 `direct`, so Pi declares the tools as `mcp__stagehand__*` rather than requiring
 Pi's default codemode scripts.

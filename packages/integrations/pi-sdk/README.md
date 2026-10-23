@@ -1,6 +1,6 @@
 # Pi SDK adapter
 
-The adapter uses Pi 1.3.0's built-in MCP extension for stdio mounts. Servers use
+The adapter uses Pi 1.4.0's built-in MCP extension for stdio mounts. Servers use
 `direct` exposure so their tools are declared to the model. Code surfaces keep
 an in-process `run` tool. Browser calls execute sequentially, with Pi's file and
 shell tools disabled and its `codemode` extension unloaded.

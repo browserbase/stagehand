@@ -61,7 +61,7 @@ prelude and epilogue. `sha256` covers the UTF-8 canonical JSON of
 `{ sources, contract }`: keys sorted, no whitespace, and `JSON.stringify` string
 escaping, so non-ASCII characters are not escaped.
 
-`python/` is the Python host, `stagehand-integrations` (`stagehand_integrations.facade`).
+`python/` is the Python host, `stagehand-middleware` (`stagehand_middleware.facade`).
 It ships a copy of the bundle; run `pnpm run sync:python` after building to refresh
 it, and `tests/facade-python-bundle.test.ts` fails while the copy is stale.
 
