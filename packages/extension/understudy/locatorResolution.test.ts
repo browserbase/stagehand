@@ -224,6 +224,23 @@ describe("locator resolution deadlines", () => {
       expect(root.send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
   });
 
+  it.each([
+    ["button", "resolveCssSelector", '"button", 1'],
+    ["text=Submit", "resolveTextSelector", '"Submit", 1'],
+    ["xpath=//button", "resolveXPathMainWorld", '"//button", 1'],
+  ] as const)("resolves %s with one indexed evaluation", async (selector, helper, args) => {
+    const { frame, send } = createFrame("root");
+    await expect(
+      frame.locator(selector).nth(1).resolveNode(createProgress()),
+    ).resolves.toMatchObject({ objectId: "node" });
+    const evaluations = send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
+    expect(evaluations).toHaveLength(1);
+    const expression =
+      (evaluations[0]?.[1] as { expression?: string } | undefined)?.expression ?? "";
+    expect(expression).toContain(helper);
+    expect(expression).toContain(args);
+  });
+
   it("releases earlier matches when a later selector lookup times out", async () => {
     const { frame, send, respond } = createFrame("root");
     const gate = deferred();
@@ -235,7 +252,13 @@ describe("locator resolution deadlines", () => {
           : Promise.resolve({ result: { objectId: "first" } })
         : respond(method, params),
     );
-    const pending = frame.locator("button").nth(1).resolveNode(createProgress());
+    const pending = frame
+      .locator("button")
+      .selectorResolver.resolveAll(
+        { kind: "css", value: "button" },
+        { limit: 2 },
+        createProgress(),
+      );
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -245,32 +268,33 @@ describe("locator resolution deadlines", () => {
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "second" });
   });
 
-  it("reports expiry without waiting for a second stalled cleanup", async () => {
+  it("releases only the indexed lookup when its evaluation times out", async () => {
     const { frame, send, respond } = createFrame("root");
     const resolver = frame.locator("button").selectorResolver;
-    vi.spyOn(resolver, "resolveAll").mockResolvedValue([
-      { objectId: "unselected", nodeId: 1 },
-      { objectId: "selected", nodeId: 2 },
-    ]);
+    const resolveAll = vi.spyOn(resolver, "resolveAll");
     const gate = deferred();
-    send.mockImplementation((method, params) =>
-      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
-    );
+    send.mockImplementation((method, params) => {
+      if (method !== "Runtime.evaluate") return respond(method, params);
+      const expression = (params as { expression?: string } | undefined)?.expression ?? "";
+      if (!expression.includes("resolveCssSelector")) return respond(method, params);
+      return gate.promise;
+    });
     const settled = vi.fn();
     const pending = resolver.resolveAtIndex({ kind: "css", value: "button" }, 1, createProgress());
     void pending.then(settled, settled);
 
     try {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(100);
       expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
-      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
-        ["Runtime.releaseObject", { objectId: "unselected" }],
-        ["Runtime.releaseObject", { objectId: "selected" }],
-      ]);
+      expect(resolveAll).not.toHaveBeenCalled();
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([]);
     } finally {
-      gate.resolve({});
+      gate.resolve({ result: { objectId: "selected" } });
       await vi.advanceTimersByTimeAsync(0);
     }
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+      ["Runtime.releaseObject", { objectId: "selected" }],
+    ]);
   });
 
   it("removes the main-world listener & timer when its caller expires", async () => {
