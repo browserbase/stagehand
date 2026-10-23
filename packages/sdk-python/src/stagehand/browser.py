@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import errno
 import json
 import math
@@ -114,6 +115,10 @@ async def _invoke_close(callback: Callable[[], Awaitable[None]]) -> None:
     await callback()
 
 
+async def _noop() -> None:
+    return None
+
+
 @dataclass(frozen=True)
 class _ChromeProfile:
     path: Path
@@ -125,8 +130,12 @@ class StagehandBrowser:
         "_attachment",
         "_claimed",
         "_close_callback",
+        "_disconnect_callback",
         "_invalidate_callback",
-        "_terminal_task",
+        "_release_owned_callback",
+        "_state",
+        "_disconnect_task",
+        "_close_task",
         "_context",
         "_origin",
         "_provider",
@@ -141,6 +150,8 @@ class StagehandBrowser:
         close: Callable[[], Awaitable[None]],
         *,
         invalidate: Callable[[], Awaitable[None]] | None = None,
+        disconnect: Callable[[], Awaitable[None]] | None = None,
+        release_owned: Callable[[], Awaitable[None]] | None = None,
         session_id: str | None = None,
         _token: object | None = None,
     ) -> None:
@@ -151,8 +162,13 @@ class StagehandBrowser:
         self._attachment = attachment
         self._close_callback = close
         self._invalidate_callback = invalidate or close
+        self._disconnect_callback = disconnect or _noop
+        # close() after disconnect() releases what Stagehand owns, without the connection.
+        self._release_owned_callback = release_owned or _noop
         self._claimed = False
-        self._terminal_task: asyncio.Task[None] | None = None
+        self._state: Literal["open", "disconnected", "closed"] = "open"
+        self._disconnect_task: asyncio.Task[None] | None = None
+        self._close_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
         self._session_id = session_id
 
@@ -171,7 +187,7 @@ class StagehandBrowser:
 
     @property
     def closed(self) -> bool:
-        return self._terminal_task is not None
+        return self._state != "open"
 
     @property
     def context(self) -> BrowserContext:
@@ -183,12 +199,38 @@ class StagehandBrowser:
         return self._context
 
     def close(self) -> Awaitable[None]:
-        if self._terminal_task is None:
-            self._terminal_task = asyncio.create_task(
-                _run_browser_terminal_callback(self._close_callback),
-                name="stagehand-browser-close",
+        if self._close_task is None:
+            if self._state == "disconnected" and self._disconnect_task is not None:
+                self._close_task = asyncio.create_task(
+                    _release_after_disconnect(self._disconnect_task, self._release_owned_callback),
+                    name="stagehand-browser-close",
+                )
+            else:
+                self._close_task = asyncio.create_task(
+                    _run_browser_terminal_callback(self._close_callback),
+                    name="stagehand-browser-close",
+                )
+            self._state = "closed"
+        return asyncio.shield(self._close_task)
+
+    def disconnect(self) -> Awaitable[None]:
+        """Close Stagehand's connection to the browser and leave the browser running.
+
+        Unlike ``close()``, this never closes the browser or its Browserbase session.
+        The handle cannot be attached again. A later ``close()`` still releases what
+        Stagehand launched (the local Chrome process and profile, or the Browserbase
+        session) and does nothing for a browser you connected to; repeated
+        ``disconnect()`` calls, or ``disconnect()`` after ``close()``, do nothing.
+        """
+        if self._state == "closed" and self._close_task is not None:
+            return asyncio.shield(self._close_task)
+        if self._disconnect_task is None:
+            self._state = "disconnected"
+            self._disconnect_task = asyncio.create_task(
+                _run_browser_terminal_callback(self._disconnect_callback),
+                name="stagehand-browser-disconnect",
             )
-        return asyncio.shield(self._terminal_task)
+        return asyncio.shield(self._disconnect_task)
 
 
 def _claim_browser(browser: object) -> _ClaimedBrowser:
@@ -211,18 +253,30 @@ def _release_browser(browser: StagehandBrowser) -> None:
 def _invalidate_browser(browser: StagehandBrowser) -> Awaitable[None]:
     if not isinstance(browser, StagehandBrowser):
         raise TypeError("browser must be created by local_browser or browserbase")
-    if browser._terminal_task is None:
-        browser._terminal_task = asyncio.create_task(
-            _run_browser_terminal_callback(browser._invalidate_callback),
-            name="stagehand-browser-invalidate",
-        )
-    return asyncio.shield(browser._terminal_task)
+    existing = browser._close_task or browser._disconnect_task
+    if existing is not None:
+        return asyncio.shield(existing)
+    browser._state = "closed"
+    browser._close_task = asyncio.create_task(
+        _run_browser_terminal_callback(browser._invalidate_callback),
+        name="stagehand-browser-invalidate",
+    )
+    return asyncio.shield(browser._close_task)
 
 
 async def _run_browser_terminal_callback(
     callback: Callable[[], Awaitable[None]],
 ) -> None:
     await callback()
+
+
+async def _release_after_disconnect(
+    disconnected: asyncio.Task[None], release_owned: Callable[[], Awaitable[None]]
+) -> None:
+    # The connection is already closing; a failure there must not skip the release.
+    with contextlib.suppress(Exception):
+        await asyncio.shield(disconnected)
+    await release_owned()
 
 
 def _attach_browser_context(
@@ -391,6 +445,11 @@ async def _connect_browser(
         ),
         close,
         invalidate=invalidate,
+        # Never closes the browser or its session, even one Stagehand launched.
+        disconnect=connected_client.close,
+        # close() after disconnect(): release a browser or session Stagehand launched,
+        # never one it connected to.
+        release_owned=source.close if origin == "launched" else None,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
         ),
