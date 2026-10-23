@@ -26,7 +26,6 @@
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
     "generate:python": "uv --directory packages/sdk-python run --locked python scripts/generate.py",
-    "generate:go": "go -C packages/sdk-go generate ./...",
     "build:wheel": "uv --directory packages/sdk-python run --locked python scripts/build.py"
   },
   "devDependencies": {
