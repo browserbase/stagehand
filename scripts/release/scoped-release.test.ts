@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { scopedChangesets } from "./release-scope.ts";
+import { belongsToScope, scopedChangesets } from "./release-scope.ts";
 import {
   assertCliAlphaVersion,
   assertPublishedCliDependencies,
@@ -20,7 +20,7 @@ afterEach(async () => {
   );
 });
 
-async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
+async function fixture(changes: "both" | "cli" | "sdk" | "mixed" | "none" = "both") {
   const root = await mkdtemp(path.join(os.tmpdir(), "scoped-release-"));
   directories.push(root);
   await mkdir(path.join(root, ".changeset"));
@@ -35,6 +35,9 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
       baseBranch: "main",
       access: "public",
       changelog: false,
+      ignore: JSON.parse(
+        await readFile(path.resolve(".changeset/config.json"), "utf8"),
+      ).ignore.filter((name: string) => name === "@browserbasehq/stagehand-go"),
       privatePackages: { version: true, tag: false },
       snapshot: { useCalculatedVersion: true, prereleaseTemplate: "alpha-{commit}" },
     }),
@@ -43,6 +46,7 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
     cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "workspace:*" } },
     sdk: { name: "sdk", version: "4.1.0" },
     python: { name: "python", version: "4.1.0", private: true },
+    go: { name: "@browserbasehq/stagehand-go", version: "4.1.0", private: true },
   })) {
     await mkdir(path.join(root, "packages", directory), { recursive: true });
     await writeFile(
@@ -79,6 +83,88 @@ const manifest = async (root: string, name: string) =>
   JSON.parse(await readFile(path.join(root, "packages", name, "package.json"), "utf8"));
 
 describe("independent release scopes using the real Changesets engine", () => {
+  it.each([false, true])(
+    "keeps Go unchanged during SDK versioning (snapshot=%s)",
+    async (snapshot) => {
+      const root = await fixture("sdk");
+      const file = path.join(root, "packages/go/package.json");
+      const original = await readFile(file, "utf8");
+      const plan = await versionScope(root, "sdk", snapshot);
+      expect(plan.releases.some(({ name }) => name === "@browserbasehq/stagehand-go")).toBe(false);
+      expect(
+        plan.releases
+          .filter(({ type }) => type !== "none")
+          .map(({ name }) => name)
+          .sort(),
+      ).toEqual(["python", "sdk"]);
+      expect((await manifest(root, "sdk")).version).toMatch(
+        snapshot ? /^4\.2\.0-alpha-/ : /^4\.2\.0$/,
+      );
+      expect((await manifest(root, "python")).version).toMatch(
+        snapshot ? /^4\.1\.1-alpha-/ : /^4\.1\.1$/,
+      );
+      expect(await readFile(file, "utf8")).toBe(original);
+      expect(await readdir(path.join(root, "packages/go"))).toEqual(["package.json"]);
+      expect(await scopedChangesets(root, "sdk")).toEqual([]);
+    },
+  );
+
+  it("leaves an empty release unchanged with the Go proxy present", async () => {
+    const root = await fixture("none");
+    for (const scope of ["sdk", "cli"] as const) {
+      expect(belongsToScope("@browserbasehq/stagehand-go", scope)).toBe(false);
+      expect(await scopedChangesets(root, scope)).toEqual([]);
+      for (const snapshot of [false, true]) {
+        expect((await versionScope(root, scope, snapshot)).releases).toEqual([]);
+      }
+    }
+    expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe(
+      "",
+    );
+  });
+
+  it.each([false, true])(
+    "rejects Go notes before status, versioning, or hiding changesets (mixed=%s)",
+    async (mixed) => {
+      const root = await fixture("cli");
+      const file = path.join(root, ".changeset/go.md");
+      const contents = `---\n"@browserbasehq/stagehand-go": patch\n${mixed ? '"sdk": minor\n' : ""}---\nPreserve these release notes.\n`;
+      await writeFile(file, contents);
+      const before = execFileSync("git", ["status", "--porcelain"], {
+        cwd: root,
+        encoding: "utf8",
+      });
+      for (const scope of ["sdk", "cli"] as const) {
+        await expect(scopedChangesets(root, scope)).rejects.toThrow("prepare Go patches on v4-go");
+        for (const snapshot of [false, true]) {
+          await expect(versionScope(root, scope, snapshot)).rejects.toThrow(
+            "prepare Go patches on v4-go",
+          );
+        }
+      }
+      for (const [script, args] of [
+        ["scoped-release.ts", ["status", "sdk"]],
+        ["sdk-action-changesets.ts", ["hide"]],
+      ] as const) {
+        const result = spawnSync(
+          process.execPath,
+          ["--import", import.meta.resolve("tsx"), path.join(import.meta.dirname, script), ...args],
+          { cwd: root, encoding: "utf8" },
+        );
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("prepare Go patches on v4-go");
+        expect(result.stdout).toBe("");
+      }
+      expect(await readFile(file, "utf8")).toBe(contents);
+      expect(await readFile(path.join(root, ".changeset/browse.md"), "utf8")).toContain(
+        "CLI improvement",
+      );
+      expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe(
+        before,
+      );
+    },
+  );
+
   it("allows only a Browse alpha for the checked-out commit, preserving pending notes", async () => {
     const root = await fixture();
     await expect(assertCliAlphaVersion(root)).rejects.toThrow("Prepare a Browse alpha");
