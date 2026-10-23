@@ -22,6 +22,7 @@ check: check-go-examples
     pnpm exec tsx scripts/release/sync-python-version.ts --check
     pnpm check
     uv --directory {{python_dir}} lock --check
+    uv --directory {{integrations_python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
     uv --directory {{python_dir}} run --locked ruff format --check .
     uv --directory {{python_dir}} run --locked ruff check .
