@@ -70,9 +70,6 @@ export interface Testcase
       provider?: string;
       toolSurface?: string;
       startupProfile?: string;
-      toolCommand?: string;
-      browseCliVersion?: string;
-      browseCliEntrypoint?: string;
       agentMode?: AgentToolMode;
     }
   > {
@@ -97,9 +94,6 @@ export interface Testcase
     provider?: string;
     toolSurface?: string;
     startupProfile?: string;
-    toolCommand?: string;
-    browseCliVersion?: string;
-    browseCliEntrypoint?: string;
     agentMode?: AgentToolMode;
   };
   expected: unknown;

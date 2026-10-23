@@ -60,13 +60,17 @@ export function isAnthropicFable5Model(modelId: string): boolean {
 }
 
 /**
- * True for models that reject forced tool use
- * (`tool_choice: { type: "tool" }`). Forced tool choice is incompatible with
- * active extended thinking, and on Fable 5 thinking is always on — so the
- * rejection is a certainty there, not a transient quirk.
+ * Models that require automatic tool choice for the final agent assessment.
  */
+const MODELS_WITHOUT_FORCED_TOOL_USE = new Set<string>([
+  "claude-fable-5",
+  "claude-fable-5-1",
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+]);
+
 export function rejectsForcedToolUse(modelId: string): boolean {
-  return isAnthropicFable5Model(modelId);
+  return MODELS_WITHOUT_FORCED_TOOL_USE.has(stripModelProvider(modelId));
 }
 
 const VALID_EFFORTS: ReadonlySet<string> = new Set([

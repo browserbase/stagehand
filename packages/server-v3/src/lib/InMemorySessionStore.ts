@@ -236,6 +236,7 @@ export class InMemorySessionStore implements SessionStore {
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,
+      waitForCaptchaSolves: params.waitForCaptchaSolves,
       useTouch: params.useTouch,
       domSettleTimeout: params.domSettleTimeoutMs,
       experimental: params.experimental,
@@ -247,17 +248,21 @@ export class InMemorySessionStore implements SessionStore {
       },
     };
 
+    if (params.browserbaseSessionCreateParams) {
+      options.browserbaseSessionCreateParams = {
+        ...params.browserbaseSessionCreateParams,
+      };
+      if (!isBrowserbase) {
+        delete options.browserbaseSessionCreateParams.keepAlive;
+      }
+    }
+
     if (isBrowserbase) {
       options.apiKey = params.browserbaseApiKey;
       options.projectId = params.browserbaseProjectId;
 
       if (params.browserbaseSessionID) {
         options.browserbaseSessionID = params.browserbaseSessionID;
-      }
-
-      if (params.browserbaseSessionCreateParams) {
-        options.browserbaseSessionCreateParams =
-          params.browserbaseSessionCreateParams;
       }
     } else if (params.localBrowserLaunchOptions) {
       options.localBrowserLaunchOptions = params.localBrowserLaunchOptions;

@@ -1,5 +1,17 @@
 # @browserbasehq/stagehand
 
+## 3.7.4
+
+### Patch Changes
+
+- [#3150](https://github.com/browserbase/stagehand/pull/3150) [`69c2440`](https://github.com/browserbase/stagehand/commit/69c2440b7a69b4ac561d088b093b82a278e430a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix OpenAI strict-schema rejection of the nullable `act` action while still stripping unknown keys when parsing.
+
+- [#3114](https://github.com/browserbase/stagehand/pull/3114) [`f6b3d85`](https://github.com/browserbase/stagehand/commit/f6b3d851d844052a71953b7e61e727eb4f96d890) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix CAPTCHA awareness options for local Browserbase attachments and forward them through the API.
+
+- [#3132](https://github.com/browserbase/stagehand/pull/3132) [`09063f6`](https://github.com/browserbase/stagehand/commit/09063f63d6ce26445737302ec5a110d45d9db53c) Thanks [@shubh24](https://github.com/shubh24)! - Use automatic tool choice for the final agent `done` call with Claude Sonnet 5.5, Opus 5.5, and Fable 5.1.
+
+- [#3287](https://github.com/browserbase/stagehand/pull/3287) [`27ee07c`](https://github.com/browserbase/stagehand/commit/27ee07cf07405420166a5bf46ff120446516e213) Thanks [@akeimach](https://github.com/akeimach)! - Fix XPath resolution for light DOM elements when the page has a shadow root and a host element overrides `children`.
+
 ## 3.7.3
 
 ### Patch Changes
