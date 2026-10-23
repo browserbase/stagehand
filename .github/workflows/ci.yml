@@ -245,7 +245,7 @@ jobs:
         with:
           use-prebuilt-artifacts: "true"
           restore-turbo-cache: "false"
-          node-version: 20.x
+          node-version: "24.22.1"
 
       - name: Run Lint
         run: pnpm exec turbo run lint
@@ -277,7 +277,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "false"
-          node-version: 20.x
+          node-version: "24.22.1"
 
       - name: Run Build
         run: pnpm exec turbo run build
@@ -446,7 +446,7 @@ jobs:
         ]
       use-prebuilt-artifacts: "true"
       restore-turbo-cache: "false"
-      node-version: "20.x"
+      node-version: "24.22.1"
       upload-only-binary: stagehand-server-v3-linux-x64-sourcemap
 
   server-integration-tests:
