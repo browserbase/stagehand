@@ -3,7 +3,9 @@ name = "stagehand-agno-example"
 version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-  "agno[mcp]>=3.1.5,<4",
+  "agno>=3.1.5,<4",
+  "stagehand-middleware>=0.1.0,<0.2",
+  "jsonschema>=4.23,<5",
   "openai>=2,<3",
 ]
 

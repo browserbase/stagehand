@@ -1,18 +1,16 @@
 ---
 title: "Agno"
-description: "Give an Agno agent persistent Stagehand browser tools over MCP/stdio."
+description: "Give an Agno agent persistent browser tools with stagehand-middleware."
 ---
 
-The Agno integration connects a Python agent to the Stagehand facade MCP server using Agno's native `MCPTools` adapter. One server process owns the browser across `run`, `snapshot`, and `screenshot` calls.
+The Agno integration registers native browser tools from `stagehand-middleware`. One browser stays open across `run`, `snapshot`, and `screenshot` calls. The middleware supplies the instructions, tool schemas, and browser behavior. Screenshots return native image content.
 
 <Note>
-This experimental integration runs from the Stagehand repository. The example is tested with Agno 3.1.5.
+The example is tested with Agno 3.1.5.
 </Note>
 
 ## Prerequisites
 
-- Node.js 24 or newer
-- pnpm 11.11.0
 - Python 3.11–3.13
 - [uv](https://docs.astral.sh/uv/)
 - An OpenAI API key for the agent model
@@ -21,20 +19,18 @@ This experimental integration runs from the Stagehand repository. The example is
 ## Quickstart
 
 <Steps>
-  <Step title="Clone and build Stagehand">
+  <Step title="Install dependencies">
+Create a Python project and install Agno and the browser middleware:
+
 ```bash
-git clone https://github.com/browserbase/stagehand.git
-cd stagehand
-pnpm install --frozen-lockfile
-pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations
+mkdir agno-browser
+cd agno-browser
+uv init --python 3.11
+uv add "agno>=3.1.5,<4" "openai>=2,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
 ```
   </Step>
-  <Step title="Install the Agno example">
-```bash
-cd packages/integrations/agno
-uv sync --locked
-```
+  <Step title="Save the example">
+Copy [agent.py](https://github.com/browserbase/stagehand/blob/main/packages/integrations/agno/agent.py) into your project. It registers the browser tools with Agno and manages the browser session.
   </Step>
   <Step title="Configure the agent model">
 ```bash
@@ -64,18 +60,19 @@ uv run python agent.py \
 | Variable | Purpose |
 | --- | --- |
 | `AGNO_MODEL` | OpenAI model ID for the Agno agent. |
-| `OPENAI_API_KEY` | Agent model credential. The integration does not forward it to the MCP child. |
+| `OPENAI_API_KEY` | Agent model credential. |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible gateway endpoint. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. When set, Browserbase is the default browser. |
-| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
-| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
+| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
+| `STAGEHAND_MODEL` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL`. |
 
 ## Screenshots and session lifetime
 
-Agno's MCP adapter converts screenshot image blocks into images for the agent model. No temporary-file adapter is needed.
+The screenshot tool returns an Agno `ToolResult` containing an `Image` for the model to inspect.
 
-The example keeps one MCP connection open around the complete agent run. Keep that lifetime when adapting it: starting a new server for each tool call loses the browser and invalidates prior snapshot IDs.
+The example creates one Stagehand session and middleware instance around the complete agent run. Keep that lifetime when adapting it so snapshot IDs and page state survive across calls. Browser tools execute sequentially. The session and browser close when the run finishes or fails.
 
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).
