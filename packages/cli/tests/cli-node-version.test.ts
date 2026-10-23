@@ -27,7 +27,7 @@ function runWithNodeVersion(version: string) {
 }
 
 describe("Node.js runtime requirement", () => {
-  it.each(["20.20.2", "22.12.0", "22.17.0"])(
+  it.each(["20.20.2", "22.18.0", "22.23.3", "24.22.0", "25.9.0", "26.12.0"])(
     "rejects Node.js %s with an upgrade message before loading commands",
     (version) => {
       const result = runWithNodeVersion(version);
@@ -35,12 +35,12 @@ describe("Node.js runtime requirement", () => {
       expect(result.status).toBe(1);
       expect(result.stdout).toBe("");
       expect(result.stderr).toBe(
-        `[browse] Node.js >=22.18.0 is required; found ${version}. Upgrade Node.js and rerun browse.\n`,
+        `[browse] Node.js ^22.23.4 || ^24.22.1 || >=26.12.1 is required; found ${version}. Upgrade Node.js and rerun browse.\n`,
       );
     },
   );
 
-  it.each(["22.18.0", "22.23.3", "24.18.0"])(
+  it.each(["22.23.4", "24.22.1", "26.12.1"])(
     "runs commands on supported Node.js %s",
     (version) => {
       const result = runWithNodeVersion(version);

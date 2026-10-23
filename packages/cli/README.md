@@ -29,7 +29,7 @@ npm install -g browse
 
 ## Quick start
 
-Requires Node.js 22.18+.
+Requires Node.js 22.23.4+ or 24.22.1+.
 
 ```bash
 npm install -g browse

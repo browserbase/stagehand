@@ -9,7 +9,7 @@ carrying the facade usage guidance.
 
 ## Setup
 
-Use Node.js 24 or newer. From the repository root, build the integrations package first:
+Use Node.js 24.22.1 or newer. From the repository root, build the integrations package first:
 
 ```bash
 pnpm install

@@ -90,7 +90,7 @@
   },
   "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
   "engines": {
-    "node": ">=22.18.0"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "scripts": {
     "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
