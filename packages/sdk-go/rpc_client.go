@@ -434,6 +434,7 @@ func registerTypedNotification[Notification any](c *rpcClient, method string, ha
 		c.mu.Unlock()
 		return func() {}
 	}
+	active := true
 	registration := registeredNotificationHandler{
 		control: control,
 		id:      c.nextRegistrationID,
@@ -445,7 +446,14 @@ func registerTypedNotification[Notification any](c *rpcClient, method string, ha
 			return notification, nil
 		},
 		handler: func(notification any) {
-			handler(notification.(Notification))
+			// Queued deliveries can outlive their registration. Admit them under
+			// the same mutex as removal, but never hold it during user callbacks.
+			c.mu.Lock()
+			deliver := active && !c.closed
+			c.mu.Unlock()
+			if deliver {
+				handler(notification.(Notification))
+			}
 		},
 	}
 	c.nextRegistrationID++
@@ -476,6 +484,7 @@ func registerTypedNotification[Notification any](c *rpcClient, method string, ha
 
 	return func() {
 		c.mu.Lock()
+		active = false
 		handlers := c.notificationHandlers[method]
 		for index, current := range handlers {
 			if current.id != registration.id {
