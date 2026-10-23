@@ -1,40 +1,16 @@
 from __future__ import annotations
 
-import asyncio
+import base64
 import json
 import os
-import re
 from dataclasses import dataclass
-from importlib.resources import files
 from typing import Any, Literal
 
 from stagehand import Page, Stagehand, StagehandBrowser, browserbase, local_browser
+from stagehand_middleware.facade import StagehandFacadeTools
 
 BrowserProvider = Literal["local", "browserbase"]
 ImageType = Literal["png", "jpeg"]
-
-_ACTION_SOURCE = """async (stagehand, input) => {
-  let completed = 0;
-  for (const action of input.actions) {
-    const locator = stagehand.page.locator(action.selector);
-    switch (action.op) {
-      case "click": await locator.click(); break;
-      case "hover": await locator.hover(); break;
-      case "fill": await locator.fill(action.value); break;
-      case "type": await locator.type(
-        action.text,
-        action.delay === undefined ? undefined : { delay: action.delay },
-      ); break;
-      case "press": await locator.click(); await stagehand.page.keyPress(action.key); break;
-      case "select": await locator.selectOption(action.values); break;
-      default: throw new Error("Unsupported ref action: " + String(action.op));
-    }
-    completed += 1;
-  }
-  return { completed };
-}"""
-
-_TEXT_NODE_SUFFIX = re.compile(r"/text\(\)(?:\[\d+\])?$")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -42,16 +18,6 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.lower() in {"1", "true", "yes", "on"}
-
-
-def _env_positive_int(name: str, default: int) -> int:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    parsed = int(value)
-    if parsed <= 0:
-        raise ValueError(f"{name} must be a positive integer")
-    return parsed
 
 
 @dataclass(frozen=True)
@@ -63,7 +29,12 @@ class RuntimeConfig:
     stagehand_model_api_key: str | None = None
     stagehand_api_url: str | None = None
     browserbase_api_key: str | None = None
-    run_timeout_ms: int = 60_000
+    # Experimental: page.waitForTimeout(ms) in run code returns once the page is
+    # quiet, never later than ms (STAGEHAND_FACADE_QUIET_WAIT).
+    quiet_wait: bool = False
+    # Where screenshots that run code saves with a path are written; None is the
+    # current directory (STAGEHAND_ARTIFACT_ROOT).
+    artifact_root: str | None = None
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -82,17 +53,14 @@ class RuntimeConfig:
             stagehand_model_api_key=stagehand_model_api_key,
             stagehand_api_url=os.environ.get("STAGEHAND_API_URL") or None,
             browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY") or None,
-            run_timeout_ms=_env_positive_int("STAGEHAND_RUN_TIMEOUT_MS", 60_000),
+            quiet_wait=_env_bool("STAGEHAND_FACADE_QUIET_WAIT", False),
+            artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
         )
 
 
-@dataclass(frozen=True)
-class _SnapshotState:
-    url: str
-    xpath_by_id: dict[str, str]
-
-
 class BrowserTools:
+    """The facade's run, snapshot and screenshot tools over a launched browser."""
+
     def __init__(
         self,
         *,
@@ -103,8 +71,13 @@ class BrowserTools:
         self._stagehand = stagehand
         self._browser = browser
         self._config = config
-        self._snapshots_by_page: dict[str, _SnapshotState] = {}
-        self._lock = asyncio.Lock()
+        self._facade = StagehandFacadeTools(
+            stagehand,
+            artifact_root=config.artifact_root,
+            # Also runs when run code calls browser.close(); the facade runs it once.
+            on_close_requested=self._shutdown,
+            quiet_wait=config.quiet_wait,
+        )
         self._closed = False
 
     @classmethod
@@ -145,8 +118,9 @@ class BrowserTools:
         return tools
 
     async def close(self) -> None:
-        if self._closed:
-            return
+        await self._facade.close()
+
+    async def _shutdown(self) -> None:
         self._closed = True
         try:
             await self._stagehand.close()
@@ -154,14 +128,7 @@ class BrowserTools:
             await self._browser.close()
 
     async def snapshot(self, *, include_iframes: bool = True) -> str:
-        async with self._lock:
-            page = await self._active_page()
-            snapshot = await page.snapshot(include_iframes=include_iframes)
-            self._snapshots_by_page[page.page_id] = _SnapshotState(
-                url=await page.url(),
-                xpath_by_id=dict(snapshot.xpath_map),
-            )
-            return snapshot.formatted_tree
+        return await self._facade.snapshot(include_iframes=include_iframes)
 
     async def screenshot(
         self,
@@ -170,16 +137,12 @@ class BrowserTools:
         type: ImageType = "png",
         quality: int | None = None,
     ) -> tuple[bytes, str]:
-        if quality is not None:
-            if not 0 <= quality <= 100:
-                raise ValueError("quality must be between 0 and 100")
-            quality = round(quality)
+        if quality is not None and not 0 <= quality <= 100:
+            raise ValueError("quality must be between 0 and 100")
         if type == "png" and quality is not None:
             raise ValueError("quality is only valid for jpeg screenshots")
-        async with self._lock:
-            page = await self._active_page()
-            image = await page.screenshot(full_page=full_page, type=type, quality=quality)
-            return image, "image/jpeg" if type == "jpeg" else "image/png"
+        image = await self._facade.screenshot(full_page=full_page, type=type, quality=quality)
+        return base64.b64decode(image["data"]), image["mimeType"]
 
     async def run(
         self,
@@ -187,115 +150,7 @@ class BrowserTools:
         code: str | None = None,
         actions: list[dict[str, Any]] | None = None,
     ) -> object:
-        if (code is None) == (actions is None):
-            raise ValueError("run requires exactly one of code or actions")
-        if code is not None and not code.strip():
-            raise ValueError("run code must not be empty")
-        if actions is not None and not actions:
-            raise ValueError("run actions must not be empty")
-
-        async with self._lock:
-            page = await self._active_page()
-            if code is not None:
-                return await self._run_code(page=page, code=code)
-            return await self._run_actions(page=page, actions=actions or [])
-
-    async def _run_code(self, *, page: Page, code: str) -> object:
-        facade_source = (
-            files("stagehand_deepagents")
-            .joinpath("_assets/playwright_facade.js")
-            .read_text(encoding="utf-8")
-        )
-        source = f"""async (batchStagehand, input) => {{
-  "use strict";
-  const __stagehandCompatIdentity = (target) => target;
-  for (let index = 0; index <= 32; index += 1) {{
-    globalThis[index === 0 ? "__name" : "__name" + index] = __stagehandCompatIdentity;
-  }}
-  {facade_source}
-  const runtime = await createPlaywrightCompatRuntime(batchStagehand);
-  const page = runtime.page;
-  const context = runtime.context;
-  const browser = runtime.browser;
-  const startUrl = input.startUrl;
-  const task = input.task;
-  return await (async () => {{
-    {code}
-  }})();
-}}"""
-        return await self._stagehand.experimental_batch(
-            source,
-            {"startUrl": self._config.start_url or "", "task": {}},
-            page=page,
-            timeout=self._config.run_timeout_ms,
-        )
-
-    async def _run_actions(self, *, page: Page, actions: list[dict[str, Any]]) -> object:
-        snapshot = self._snapshots_by_page.get(page.page_id)
-        if snapshot is None:
-            raise ValueError("No hydrated snapshot exists for the active page; call snapshot first")
-        current_url = await page.url()
-        if current_url != snapshot.url:
-            self._snapshots_by_page.pop(page.page_id, None)
-            raise ValueError("The active page navigated after its snapshot; call snapshot again")
-
-        hydrated = [self._hydrate_action(action, snapshot) for action in actions]
-        result = await self._stagehand.experimental_batch(
-            _ACTION_SOURCE,
-            {"actions": hydrated},
-            page=page,
-            timeout=self._config.run_timeout_ms,
-        )
-        completed = (
-            result.get("completed", len(hydrated)) if isinstance(result, dict) else len(hydrated)
-        )
-        return {"completed": completed, "url": await page.url()}
-
-    def _hydrate_action(
-        self,
-        action: dict[str, Any],
-        snapshot: _SnapshotState,
-    ) -> dict[str, Any]:
-        if not isinstance(action, dict):
-            raise TypeError("each action must be an object")
-        op = action.get("op")
-        identifier = action.get("id")
-        if op not in {"click", "hover", "fill", "type", "press", "select"}:
-            raise ValueError(f"Unsupported ref action: {op!r}")
-        if not isinstance(identifier, str) or not identifier:
-            raise ValueError('each action requires a non-empty string "id"')
-        self._validate_action_fields(op, action)
-        xpath = snapshot.xpath_by_id.get(identifier)
-        if xpath is None:
-            raise ValueError(
-                f'Snapshot ID "{identifier}" is stale or not actionable; snapshot again'
-            )
-        return {**action, "selector": f"xpath={_TEXT_NODE_SUFFIX.sub('', xpath)}"}
-
-    @staticmethod
-    def _validate_action_fields(op: object, action: dict[str, Any]) -> None:
-        required = {
-            "fill": ("value", str),
-            "type": ("text", str),
-            "press": ("key", str),
-        }
-        requirement = required.get(op)
-        if requirement is not None:
-            name, expected = requirement
-            if not isinstance(action.get(name), expected):
-                raise ValueError(f'{op} requires string field "{name}"')
-        if op == "select":
-            values = action.get("values")
-            valid = isinstance(values, str) or (
-                isinstance(values, list)
-                and bool(values)
-                and all(isinstance(value, str) for value in values)
-            )
-            if not valid:
-                raise ValueError('select requires "values" as a string or non-empty string list')
-        delay = action.get("delay")
-        if delay is not None and (not isinstance(delay, int | float) or delay < 0):
-            raise ValueError("action delay must be a non-negative number")
+        return await self._facade.run(code=code, actions=actions)
 
     async def _active_page(self) -> Page:
         if self._closed:
