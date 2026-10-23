@@ -36,7 +36,7 @@ def parse_bundle(text: str) -> dict[str, Any]:
     if digest != bundle.get("sha256"):
         raise StagehandFacadeBundleError(
             f"Facade bundle content does not match its sha256 (expected {bundle.get('sha256')}, "
-            f"computed {digest}); reinstall stagehand-integrations or re-sync _bundle.json."
+            f"computed {digest}); reinstall stagehand-middleware or re-sync _bundle.json."
         )
     return bundle
 
@@ -45,7 +45,7 @@ def parse_bundle(text: str) -> dict[str, Any]:
 def _bundle() -> dict[str, Any]:
     """The vendored bundle, parsed and checked once; the host's own read-only copy."""
     return parse_bundle(
-        files("stagehand_integrations.facade").joinpath("_bundle.json").read_text(encoding="utf-8")
+        files("stagehand_middleware.facade").joinpath("_bundle.json").read_text(encoding="utf-8")
     )
 
 
