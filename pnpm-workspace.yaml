@@ -1,6 +1,5 @@
 packages:
   - "packages/core"
-  - "packages/cli"
   - "packages/evals"
   - "packages/server-v3"
   - "packages/server-v4"

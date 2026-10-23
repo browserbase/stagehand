@@ -21,8 +21,7 @@ export type ToolSurface =
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"
-  | "chrome_devtools_mcp"
-  | "browse_cli";
+  | "chrome_devtools_mcp";
 
 export type StartupProfile =
   | "runner_provided_local_cdp"

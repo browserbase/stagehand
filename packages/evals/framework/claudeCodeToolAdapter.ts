@@ -1,13 +1,10 @@
-import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import matter from "gray-matter";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import { getRepoRootDir } from "../runtimePaths.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
@@ -36,83 +33,6 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   cleanup: () => Promise<void>;
 }
-
-export interface PreparedBrowseCliHarnessAdapter {
-  toolSurface: "browse_cli";
-  startupProfile: StartupProfile;
-  cwd: string;
-  env: Record<string, string>;
-  promptInstructions: string;
-  metadata: BrowseCliToolMetadata;
-  cleanup: () => Promise<void>;
-}
-
-export interface BrowseCliHarnessAdapterInput {
-  startupProfile: StartupProfile;
-  environment: "LOCAL" | "BROWSERBASE";
-  plan: ExternalHarnessTaskPlan;
-  logger: EvalLogger;
-  logCategory: string;
-}
-
-const BROWSE_CLI_ENTRYPOINT = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "bin",
-  "run.js",
-);
-const BROWSE_CLI_BUILD_ARTIFACTS = [
-  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
-  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
-];
-const BROWSE_CLI_PACKAGE_JSON = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "package.json",
-);
-const BROWSE_SKILL_SOURCE = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "skills",
-  "browse",
-  "SKILL.md",
-);
-// The CLI skill below is written for interactive use and covers surface
-// (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
-// does not apply inside the eval harness. This addendum is inserted right
-// after the CLI skill's frontmatter — before the model reads any of the
-// conflicting examples in the body — at install time, so the harness ships
-// one source of truth (the real, maintained browse skill) instead of a
-// second copy that drifts.
-const EVAL_HARNESS_ADDENDUM = `
-## Eval Harness Addendum
-
-This skill is installed by the Stagehand eval harness, which overrides some of
-the guidance below:
-
-- \`browse\` is already installed and pinned by the harness to this eval's
-  session and environment. Never run \`npm install -g browse\` or otherwise
-  install/upgrade it. Never pass \`--local\`, \`--remote\`, or \`--session\` —
-  the harness's wrapper appends the correct environment and session flags to
-  every command automatically.
-- Run exactly one \`browse ...\` command per Bash tool call. Shell operators
-  (\`|\`, \`&&\`, \`;\`, backticks, \`$()\`, and redirection) are rejected by the
-  harness, so chained or piped commands will fail.
-- Ignore the sections below about installing \`browse\`, Browse.sh skill
-  discovery/installation (\`browse skills ...\`), Browserbase cloud/session/
-  context/extension management (\`browse cloud ...\`), Functions
-  (\`browse functions ...\`), and Templates (\`browse templates ...\`) — all out
-  of scope during evals. Do not run those commands even though they are
-  documented below.
-- Do not edit repository files. Do not use network or web tools other than
-  \`browse\`.
-- When finished, report the result in the exact \`EVAL_RESULT\` format
-  requested by the harness prompt.
-`;
-const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const RUN_TOOL_SERVER = "stagehand_browser";
 const RUN_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__run`;
 
@@ -172,28 +92,6 @@ type CdpRuntime = {
   wait(ms: number): Promise<void>;
 };
 
-export interface BrowseCliToolMetadata {
-  toolCommand: "browse";
-  browseCliEntrypoint: string;
-  browseCliVersion?: string;
-}
-
-export function getBrowseCliToolMetadata(): BrowseCliToolMetadata {
-  return {
-    toolCommand: "browse",
-    browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
-    ...readBrowseCliVersion(),
-  };
-}
-
-export function allowUnsandboxedLocalClaudeCode(): boolean {
-  return process.env[ALLOW_UNSANDBOXED_LOCAL_ENV] === "true";
-}
-
-export function getBrowseCliAllowedTools(): string[] {
-  return allowUnsandboxedLocalClaudeCode() ? ["Skill", "Bash"] : ["Skill"];
-}
-
 export async function prepareClaudeCodeToolAdapter(
   input: ClaudeCodeToolAdapterInput,
 ): Promise<PreparedClaudeCodeToolAdapter> {
@@ -205,12 +103,6 @@ export async function prepareClaudeCodeToolAdapter(
   );
 
   switch (toolSurface) {
-    case "browse_cli":
-      return prepareBrowseCliAdapter({
-        ...input,
-        toolSurface,
-        startupProfile,
-      });
     case "playwright_code":
       return preparePlaywrightCodeAdapter({
         ...input,
@@ -225,7 +117,7 @@ export async function prepareClaudeCodeToolAdapter(
       });
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool playwright_code or cdp_code for execution right now; received "${toolSurface}".`,
       );
   }
 }
@@ -233,16 +125,12 @@ export async function prepareClaudeCodeToolAdapter(
 export function resolveClaudeCodeToolSurface(
   requested?: ToolSurface,
 ): ToolSurface {
-  if (!requested) return "browse_cli";
-  if (
-    requested === "browse_cli" ||
-    requested === "playwright_code" ||
-    requested === "cdp_code"
-  ) {
+  if (!requested) return "playwright_code";
+  if (requested === "playwright_code" || requested === "cdp_code") {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool playwright_code or cdp_code for execution right now; received "${requested}".`,
   );
 }
 
@@ -252,12 +140,6 @@ export function resolveClaudeCodeStartupProfile(
   requested?: StartupProfile,
 ): StartupProfile {
   if (requested) return requested;
-
-  if (toolSurface === "browse_cli") {
-    return environment === "BROWSERBASE"
-      ? "tool_create_browserbase"
-      : "tool_launch_local";
-  }
   if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
     return environment === "BROWSERBASE"
       ? "runner_provided_browserbase_cdp"
@@ -267,138 +149,6 @@ export function resolveClaudeCodeStartupProfile(
   throw new EvalsError(
     `No Claude Code startup profile default for tool "${toolSurface}" in ${environment}.`,
   );
-}
-
-async function prepareBrowseCliAdapter(
-  input: ClaudeCodeToolAdapterInput & {
-    toolSurface: "browse_cli";
-    startupProfile: StartupProfile;
-  },
-): Promise<PreparedClaudeCodeToolAdapter> {
-  const adapter = await prepareBrowseCliHarnessAdapter({
-    startupProfile: input.startupProfile,
-    environment: input.environment,
-    plan: input.plan,
-    logger: input.logger,
-    logCategory: "claude_code",
-  });
-
-  if (allowUnsandboxedLocalClaudeCode()) {
-    input.logger.warn({
-      category: "claude_code",
-      message: `${ALLOW_UNSANDBOXED_LOCAL_ENV}=true: raw Bash auto-approval is enabled for Claude Code. Use only in an isolated checkout/container.`,
-      level: 0,
-    });
-  }
-
-  return {
-    ...adapter,
-    allowedTools: getBrowseCliAllowedTools(),
-    settingSources: ["project"],
-    canUseTool: async (toolName, commandInput) => {
-      if (toolName === "Skill") {
-        return { behavior: "allow", updatedInput: commandInput };
-      }
-      if (toolName !== "Bash") {
-        return {
-          behavior: "deny",
-          message: "Only Skill and Bash are allowed.",
-        };
-      }
-
-      const command = readCommand(commandInput);
-      if (!isAllowedBrowseCommand(command)) {
-        return {
-          behavior: "deny",
-          message: "Only browse commands are allowed for this eval harness.",
-        };
-      }
-
-      return { behavior: "allow", updatedInput: commandInput };
-    },
-  };
-}
-
-export async function prepareBrowseCliHarnessAdapter(
-  input: BrowseCliHarnessAdapterInput,
-): Promise<PreparedBrowseCliHarnessAdapter> {
-  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
-    (artifact) => !fs.existsSync(artifact),
-  );
-  if (missingArtifact) {
-    throw new EvalsError(
-      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
-    );
-  }
-
-  if (
-    (input.environment === "LOCAL" &&
-      input.startupProfile !== "tool_launch_local") ||
-    (input.environment === "BROWSERBASE" &&
-      input.startupProfile !== "tool_create_browserbase")
-  ) {
-    throw new EvalsError(
-      `browse_cli startup profile "${input.startupProfile}" is not valid for environment "${input.environment}".`,
-    );
-  }
-
-  const session = createBrowseSessionName();
-  const cwd = await fsp.mkdtemp(
-    path.join(os.tmpdir(), "stagehand-evals-claude-browse-"),
-  );
-  const wrapperPath = path.join(cwd, "browse");
-  await installBrowseSkill(cwd);
-  input.logger.log({
-    category: input.logCategory,
-    message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
-    level: 1,
-  });
-  const env = {
-    ...process.env,
-    BROWSE_SESSION: session,
-    PATH: `${cwd}${path.delimiter}${process.env.PATH ?? ""}`,
-  } as Record<string, string>;
-
-  const modeFlag = input.environment === "BROWSERBASE" ? "--remote" : "--local";
-  await fsp.writeFile(
-    wrapperPath,
-    [
-      "#!/usr/bin/env bash",
-      "set -euo pipefail",
-      // The mode flag (--local/--remote) selects the environment when the daemon
-      // is first started and must be explicit so a set BROWSERBASE_API_KEY does
-      // not silently auto-select remote. It is only accepted by the driver
-      // commands, so skip it for the few subcommands that reject it (stop,
-      // status). The session name is safe on every command.
-      "cmd=${1:-}",
-      "mode=()",
-      'if [[ "$cmd" != "stop" && "$cmd" != "status" ]]; then',
-      `  mode=(${JSON.stringify(modeFlag)})`,
-      "fi",
-      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(BROWSE_CLI_ENTRYPOINT)} "$@" "\${mode[@]+\${mode[@]}}" --session ${JSON.stringify(session)}`,
-      "",
-    ].join("\n"),
-    { mode: 0o755 },
-  );
-
-  return {
-    toolSurface: "browse_cli",
-    startupProfile: input.startupProfile,
-    cwd,
-    env,
-    promptInstructions: buildBrowseCliPromptInstructions(input.plan),
-    metadata: getBrowseCliToolMetadata(),
-    cleanup: async () => {
-      await runBrowseCommand(
-        wrapperPath,
-        ["stop", "--force"],
-        input.logger,
-        env,
-        cwd,
-      ).catch((): undefined => undefined);
-      await fsp.rm(cwd, { recursive: true, force: true });
-    },
-  };
 }
 
 async function preparePlaywrightCodeAdapter(
@@ -1112,90 +862,6 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
   ].join("\n");
 }
 
-function buildBrowseCliPromptInstructions(
-  plan: ExternalHarnessTaskPlan,
-): string {
-  void plan;
-  return [
-    "Browser tool surface: browse_cli.",
-    "A project skill named browse is available. Use the Skill tool to load it before using browse.",
-    "Use Bash only to run the browse command. It is already on PATH and pinned to this eval session.",
-    "Do not use network/web tools outside browse. Do not edit repository files.",
-    "The benchmark start URL is provided above.",
-  ].join("\n");
-}
-
-export async function installBrowseSkill(cwd: string): Promise<void> {
-  const targetDir = path.join(cwd, ".claude", "skills", "browse");
-  await fsp.mkdir(targetDir, { recursive: true });
-  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
-  await fsp.writeFile(
-    path.join(targetDir, "SKILL.md"),
-    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
-  );
-}
-
-// Inserts `addition` immediately after the skill's YAML frontmatter (so
-// frontmatter parsing is unaffected) and before the rest of the body, so the
-// eval-harness rules are the first thing the model reads rather than a
-// caveat appended after conflicting examples.
-//
-// Frontmatter *boundary detection* is delegated to gray-matter rather than a
-// hand-rolled regex: the regex here already needed a CRLF patch and still
-// fails silently on BOM-prefixed files or a `---` line embedded inside a
-// YAML multiline string, corrupting the installed skill by prepending the
-// addendum before the frontmatter instead of after it.
-//
-// We deliberately do NOT use `matter.stringify()` to rebuild the file: it
-// re-serializes the parsed data through js-yaml, which can reformat the
-// frontmatter (e.g. collapsing/re-wrapping a folded `description: >` block)
-// and would silently rewrite the shipped skill on every install. Instead we
-// only use gray-matter to find the frontmatter/body boundary, then
-// reassemble from the ORIGINAL raw string so the frontmatter block that
-// ships is byte-identical to the frontmatter block in the source file.
-export function insertAfterFrontmatter(
-  markdown: string,
-  addition: string,
-): string {
-  let parsed: matter.GrayMatterFile<string>;
-  try {
-    parsed = matter(markdown);
-  } catch {
-    // Unterminated/invalid YAML frontmatter -- fall back to the same
-    // no-frontmatter behavior below instead of throwing during skill
-    // install.
-    return `${addition}\n${markdown}`;
-  }
-
-  // gray-matter never rebuilds the body string -- `parsed.content` is
-  // always a raw suffix of `markdown` (it locates the frontmatter block and
-  // slices it off). That makes `markdown.length - parsed.content.length`
-  // the exact length, in the original source bytes, of everything before
-  // the body: any leading BOM, the delimiters, and the source's own line
-  // endings -- all preserved as-is. We don't rely on `parsed.matter` for
-  // this, since it strips delimiters and can normalize newlines. When there
-  // is no frontmatter, gray-matter returns `content` unchanged, so this
-  // offset is 0.
-  const frontmatterLength = markdown.length - parsed.content.length;
-  if (frontmatterLength <= 0) return `${addition}\n${markdown}`;
-
-  const frontmatter = markdown.slice(0, frontmatterLength);
-  const body = parsed.content;
-  return `${frontmatter}${addition}\n${body}`;
-}
-
-export function isAllowedBrowseCommand(command: string): boolean {
-  const trimmed = command.trim();
-  if (/[\r\n]/.test(trimmed)) return false;
-  if (trimmed !== "browse" && !trimmed.startsWith("browse ")) return false;
-  return !/[;&|`$<>]/.test(trimmed);
-}
-
-function readCommand(input: Record<string, unknown>): string {
-  const command = input.command ?? input.cmd;
-  return typeof command === "string" ? command : "";
-}
-
 function readPositiveIntEnv(key: string, fallback: number): number {
   const raw = process.env[key];
   if (!raw) return fallback;
@@ -1254,60 +920,4 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
     "catch" in value &&
     typeof (value as { catch?: unknown }).catch === "function"
   );
-}
-
-function createBrowseSessionName(): string {
-  return `evals-claude-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function runBrowseCommand(
-  wrapperPath: string,
-  args: string[],
-  logger: EvalLogger,
-  env: Record<string, string>,
-  cwd: string,
-): Promise<void> {
-  const { spawn } = await import("node:child_process");
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(wrapperPath, args, {
-      cwd,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      logger.log({ category: "browse_cli", message: chunk, level: 1 });
-    });
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-      logger.log({ category: "browse_cli", message: chunk, level: 1 });
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(
-        new EvalsError(
-          `browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`,
-        ),
-      );
-    });
-  });
-}
-
-function readBrowseCliVersion(): { browseCliVersion?: string } {
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8"),
-    ) as { version?: unknown };
-    return typeof parsed.version === "string"
-      ? { browseCliVersion: parsed.version }
-      : {};
-  } catch {
-    return {};
-  }
 }

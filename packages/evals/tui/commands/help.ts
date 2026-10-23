@@ -92,7 +92,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray("(stagehand | claude_code)")}`,
     ),
     row(
       `${cyan("--agent-mode")} ${dim("<mode>")}`,
@@ -209,7 +209,7 @@ export function printConfigHelp(): void {
     ),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp")}`,
     "",
     `  ${bold("Examples:")}`,
     "",
@@ -242,7 +242,7 @@ export function printConfigCoreHelp(): void {
     ),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp")}`,
     "",
     `  ${bold("Examples:")}`,
     "",

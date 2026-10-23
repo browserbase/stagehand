@@ -1,20 +1,18 @@
 import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 
-export type Harness = "stagehand" | "claude_code" | "codex";
+export type Harness = "stagehand" | "claude_code";
 
 export const DEFAULT_BENCH_HARNESS: Harness = "stagehand";
 
 export const SUPPORTED_BENCH_HARNESSES = [
   "stagehand",
   "claude_code",
-  "codex",
 ] as const satisfies readonly Harness[];
 
 export const EXECUTABLE_BENCH_HARNESSES = [
   "stagehand",
   "claude_code",
-  "codex",
 ] as const satisfies readonly Harness[];
 
 export function isBenchHarness(value: string): value is Harness {
@@ -68,14 +66,9 @@ export interface ClaudeCodeHarnessConfig extends ExternalHarnessConfig {
   harness: "claude_code";
 }
 
-export interface CodexHarnessConfig extends ExternalHarnessConfig {
-  harness: "codex";
-}
-
 export type BenchHarnessConfig =
   | StagehandHarnessConfig
-  | ClaudeCodeHarnessConfig
-  | CodexHarnessConfig;
+  | ClaudeCodeHarnessConfig;
 
 export interface BenchMatrixRow {
   harness: Harness;

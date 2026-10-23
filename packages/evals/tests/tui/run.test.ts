@@ -271,79 +271,16 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "anthropic/claude-sonnet-4-20250514",
       harness: "claude_code",
-      toolSurface: "browse_cli",
-      startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
+      toolSurface: "playwright_code",
+      startupProfile: "runner_provided_browserbase_cdp",
       agentMode: null,
       harnessConfig: {
         harness: "claude_code",
         model: "anthropic/claude-sonnet-4-20250514",
         environment: "BROWSERBASE",
         useApi: false,
-        toolSurface: "browse_cli",
-        startupProfile: "tool_create_browserbase",
-        dataset: "webvoyager",
-      },
-    });
-  });
-
-  it("prints codex dry-run matrices with browse_cli metadata", async () => {
-    const registry = makeRegistry([
-      makeTask({
-        name: "agent/webvoyager",
-        primaryCategory: "agent",
-        categories: ["external_agent_benchmarks"],
-      }),
-    ]);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await runCommand(
-      {
-        target: "b:webvoyager",
-        normalizedTarget: "agent/webvoyager",
-        trials: 1,
-        concurrency: 1,
-        environment: "BROWSERBASE",
-        model: "openai/gpt-5.4-mini",
-        useApi: false,
-        harness: "codex",
-        agentModes: ["dom", "hybrid"],
-        datasetFilter: "webvoyager",
-        envOverrides: {
-          EVAL_MAX_K: "1",
-          EVAL_WEBVOYAGER_LIMIT: "1",
-        },
-        dryRun: true,
-        preview: false,
-        successMode: "outcome",
-        verbose: false,
-      },
-      registry,
-    );
-
-    const payload = JSON.parse(String(log.mock.calls[0][0]));
-    expect(payload.matrix).toHaveLength(1);
-    expect(payload.matrix[0]).toMatchObject({
-      tier: "bench",
-      task: "agent/webvoyager",
-      dataset: "webvoyager",
-      model: "openai/gpt-5.4-mini",
-      harness: "codex",
-      toolSurface: "browse_cli",
-      startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
-      agentMode: null,
-      harnessConfig: {
-        harness: "codex",
-        model: "openai/gpt-5.4-mini",
-        environment: "BROWSERBASE",
-        useApi: false,
-        toolSurface: "browse_cli",
-        startupProfile: "tool_create_browserbase",
+        toolSurface: "playwright_code",
+        startupProfile: "runner_provided_browserbase_cdp",
         dataset: "webvoyager",
       },
     });
@@ -418,7 +355,6 @@ describe("deriveCategoryFilter", () => {
   it("allows executable harnesses without env gates", () => {
     expect(canExecuteBenchHarness("stagehand")).toBe(true);
     expect(canExecuteBenchHarness("claude_code")).toBe(true);
-    expect(canExecuteBenchHarness("codex")).toBe(true);
   });
 
   it("prints expanded plan dimensions in the run heading", async () => {

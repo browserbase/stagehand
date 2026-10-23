@@ -86,6 +86,12 @@ describe("resolveRunOptions", () => {
     ).toThrow(/Unknown harness/);
   });
 
+  it("rejects the removed Browse-only Codex harness", () => {
+    expect(() => resolveRunOptions({ harness: "codex" }, {}, {})).toThrow(
+      'Unknown harness "codex"',
+    );
+  });
+
   it("supports active unified benchmark shorthands", () => {
     const resolved = applyBenchmarkShorthand("b:webvoyager", { limit: 5 });
     expect(resolved.target).toBe("agent/webvoyager");

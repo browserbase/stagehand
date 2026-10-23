@@ -21,11 +21,6 @@ import {
   prepareClaudeCodeToolAdapter,
   type PreparedClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
-import { runCodexAgent } from "./codexRunner.js";
-import {
-  prepareCodexToolAdapter,
-  type PreparedCodexToolAdapter,
-} from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
@@ -82,7 +77,7 @@ function isAgentTask(task: DiscoveredTask): boolean {
  * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
  *
  * The model is deliberately left at V3's default: the harness model can be a
- * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
+ * runner-only alias that V3's provider map rejects at
  * construction, and V3Evaluator selects its own verifier model regardless.
  */
 function buildVerifierCarrierV3(logger: EvalLogger): V3 {
@@ -282,66 +277,9 @@ export const claudeCodeHarness: BenchHarness = {
   },
 };
 
-export const codexHarness: BenchHarness = {
-  harness: "codex",
-  supportedTaskKinds: ["agent", "suite"],
-  supportsApi: false,
-  async execute({
-    input,
-    row,
-    logger,
-    signal,
-  }: BenchHarnessExecuteInput): Promise<TaskResult> {
-    const plan = buildExternalHarnessTaskPlan(input);
-    if (row.config.harness !== "codex") {
-      throw new EvalsError(
-        `Expected codex harness config, received "${row.config.harness}".`,
-      );
-    }
-    // Everything past carrier construction runs inside one try/finally so a
-    // failure at any point — adapter preparation included — cleans up both
-    // the adapter and the carrier.
-    const carrierV3 = buildVerifierCarrierV3(logger);
-    let toolAdapter: PreparedCodexToolAdapter | undefined;
-    try {
-      toolAdapter = await prepareCodexToolAdapter({
-        toolSurface: row.config.toolSurface,
-        startupProfile: row.config.startupProfile,
-        environment: row.config.environment,
-        plan,
-        logger,
-      });
-      return await runCodexAgent({
-        plan,
-        model: input.modelName,
-        logger,
-        toolAdapter,
-        signal,
-        verifier: {
-          v3: carrierV3,
-          taskSpec: buildExternalHarnessTaskSpec(plan, input),
-          dataset: plan.dataset,
-        },
-      });
-    } finally {
-      await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
-    }
-  },
-  async start(): Promise<StartedBenchHarness> {
-    throw new EvalsError(
-      "Codex harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness codex.",
-    );
-  },
-};
-
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
-  ["codex", codexHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {

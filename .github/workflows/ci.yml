@@ -46,7 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
-      cli: ${{ steps.filter.outputs.cli }}
       evals: ${{ steps.filter.outputs.evals }}
       server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
@@ -90,11 +89,6 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
-            cli:
-              - 'packages/cli/**'
-              - 'packages/core/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
             evals:
               - 'packages/evals/**'
               - 'package.json'
@@ -307,40 +301,12 @@ jobs:
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
-            packages/cli/dist/**
-            packages/cli/oclif.manifest.json
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
             packages/server-v4/dist/**
             packages/server-v4/openapi.v4.yaml
           retention-days: 1
-
-  run-cli-tests:
-    name: CLI Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: [run-build, determine-changes]
-    if: needs.determine-changes.outputs.cli == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-          restore-turbo-cache: "false"
-
-      # Runs the full CLI suite on each OS. POSIX-only tests opt out at the test
-      # site via the itPosix/describePosix helpers (tests/helpers/platform.ts),
-      # so coverage is on by default — a new test runs on every OS unless it
-      # explicitly skips. No test-name knowledge lives in this workflow.
-      - name: Run CLI Tests
-        run: pnpm exec turbo run test:cli --filter=browse
 
   run-evals-unit-tests:
     name: Evals Unit Tests
