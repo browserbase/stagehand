@@ -745,7 +745,13 @@ export class Locator {
         }),
       );
 
-      return (res.result.value as string[]) ?? [];
+      const selected = res.result.value as string[] | null | undefined;
+      if (selected === null) {
+        throw new Error(
+          `Failed to select option (no option matches ${JSON.stringify(desired)}) for selector: ${this.selector}`,
+        );
+      }
+      return selected ?? [];
     } finally {
       const release = () => session.send<never>("Runtime.releaseObject", { objectId });
       if (progress) await progress.cleanup(release);
