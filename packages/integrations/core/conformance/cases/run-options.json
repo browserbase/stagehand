@@ -1,0 +1,134 @@
+{
+  "cases": [
+    {
+      "name": "run sends no options by default",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.waitForTimeout(5000); return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": 1,
+                "telemetry": {
+                  "calls": {
+                    "page.waitForTimeout": 1
+                  },
+                  "misses": {},
+                  "waits": {
+                    "count": 1,
+                    "requestedMs": 5000,
+                    "waitedMs": 5000,
+                    "earlyReturns": 0
+                  }
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 5001
+              }
+            }
+          ],
+          "expect": {
+            "result": 1
+          },
+          "sent": [
+            {
+              "callback": "run",
+              "code": "await page.waitForTimeout(5000); return 1;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "run sends quietWait when the host turns it on",
+      "host": {
+        "quietWait": true
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.waitForTimeout(5000); return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": 1,
+                "telemetry": {
+                  "calls": {
+                    "page.waitForTimeout": 1
+                  },
+                  "misses": {},
+                  "waits": {
+                    "count": 1,
+                    "requestedMs": 5000,
+                    "waitedMs": 450,
+                    "earlyReturns": 1
+                  }
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 451
+              }
+            }
+          ],
+          "expect": {
+            "result": 1
+          },
+          "sent": [
+            {
+              "callback": "run",
+              "code": "await page.waitForTimeout(5000); return 1;",
+              "input": {
+                "quietWait": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "run sends no options when the host turns quietWait off",
+      "host": {
+        "quietWait": false
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 1;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": 1,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": 1
+          },
+          "sent": [
+            {
+              "callback": "run",
+              "code": "return 1;"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

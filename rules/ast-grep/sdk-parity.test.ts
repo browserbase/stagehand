@@ -1,34 +1,23 @@
-import { readdir, readFile } from "node:fs/promises";
-import go from "@ast-grep/lang-go";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ python });
 
 const sdkObjects = [
-  ["Stagehand", "stagehand.ts", "stagehand.py", "stagehand.go", "Stagehand"],
-  [
-    "BrowserContext",
-    "browserContext.ts",
-    "browser_context.py",
-    "browser_context.go",
-    "BrowserContext",
-  ],
-  [
-    "BrowserClipboard",
-    "browserClipboard.ts",
-    "browser_clipboard.py",
-    "browser_clipboard.go",
-    "BrowserClipboard",
-  ],
-  ["Page", "page.ts", "page.py", "page.go", "Page"],
-  ["Locator", "locator.ts", "locator.py", "locator.go", "PageLocator"],
+  ["Stagehand", "stagehand.ts", "stagehand.py"],
+  ["BrowserContext", "browserContext.ts", "browser_context.py"],
+  ["BrowserClipboard", "browserClipboard.ts", "browser_clipboard.py"],
+  ["Page", "page.ts", "page.py"],
+  ["Locator", "locator.ts", "locator.py"],
 ] as const;
 
 const typescriptSource = new URL("../../packages/sdk-ts/src/", import.meta.url);
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
-const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const extensionRouterUrl = new URL("../../packages/extension/rpcRouter.ts", import.meta.url);
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
@@ -40,7 +29,7 @@ const pythonWireResultModels: Readonly<Record<string, string>> = {
   "stagehand.extract": "_ExtractWireResult",
 };
 
-type SdkLanguage = "go" | "typescript" | "python";
+type SdkLanguage = "typescript" | "python";
 
 type ProtocolMethod = {
   properties: {
@@ -84,23 +73,13 @@ type PythonRpcCall = {
   scope: SgNode;
 };
 
-type GoRpcCall = PythonRpcCall;
-
-const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
-  Stagehand: new Set(["Browser", "Initialized"]),
-  BrowserContext: new Set(["Clipboard"]),
-  BrowserClipboard: new Set(),
-  Page: new Set(["PageID", "Ref"]),
-  PageLocator: new Set(["Descriptor"]),
-};
-
-// Browser lifecycle construction is language-specific only in surface syntax now that all three
+// Browser lifecycle construction is language-specific only in surface syntax now that both active
 // v4 clients use create(); the legacy init() lifecycles are gone. RPC-backed
 // feature methods remain subject to strict cross-language parity below.
 const stagehandLifecycleMethods = new Set(["create", "init"]);
 const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
 
-describe("All language SDK operations remain in sync", () => {
+describe("TypeScript and Python SDK operations remain in sync", () => {
   it("sends protocol version and client identity in stagehand.init", async () => {
     const configurations = [
       {
@@ -111,12 +90,6 @@ describe("All language SDK operations remain in sync", () => {
           "protocolVersion:STAGEHAND_PROTOCOL_VERSION",
           "clientInfo:STAGEHAND_SDK_CLIENT_INFO",
         ],
-      },
-      {
-        language: "go",
-        file: new URL("stagehand.go", goSource),
-        pattern: "StagehandInitParams{$$$FIELDS}",
-        fields: ["ProtocolVersion:stagehandProtocolVersion", "ClientInfo:ImplementationInfo{"],
       },
     ] as const;
 
@@ -157,20 +130,7 @@ describe("All language SDK operations remain in sync", () => {
 
   it("references every registered protocol operation in each client", async () => {
     const registry = await stagehandMethodNames();
-    const registeredOperations = [...registry.values()].sort();
-
-    expect(
-      await protocolOperations("typescript", typescriptSource, registry),
-      "TypeScript must reference every StagehandMethods operation",
-    ).toStrictEqual(registeredOperations);
-    expect(
-      await protocolOperations("python", pythonSource, registry),
-      "Python must reference every StagehandMethods operation",
-    ).toStrictEqual(registeredOperations);
-    expect(
-      await protocolOperations("go", goSource, registry),
-      "Go must reference every StagehandMethods operation",
-    ).toStrictEqual(registeredOperations);
+    await assertOperationCoverage(registry, { typescript: typescriptSource, python: pythonSource });
   });
 
   it("routes every protocol operation to exactly one receiving endpoint", async () => {
@@ -197,7 +157,6 @@ describe("All language SDK operations remain in sync", () => {
     for (const [language, source] of [
       ["typescript", typescriptSource],
       ["python", pythonSource],
-      ["go", goSource],
     ] as const) {
       expect(
         await protocolOperations(language, source, registry, "outbound"),
@@ -228,10 +187,6 @@ describe("All language SDK operations remain in sync", () => {
     expect(
       await clientProtocolNotifications("python", pythonSource, registry),
       "Python must handle every StagehandNotifications entry",
-    ).toStrictEqual(registeredNotifications);
-    expect(
-      await clientProtocolNotifications("go", goSource, registry),
-      "Go must handle every StagehandNotifications entry",
     ).toStrictEqual(registeredNotifications);
 
     for (const binding of await pythonNotificationBindings()) {
@@ -272,7 +227,7 @@ describe("All language SDK operations remain in sync", () => {
   it("exposes the same RPC-backed operations in every SDK", async () => {
     const registry = await stagehandMethodNames();
 
-    for (const [className, typescriptFile, pythonFile, goFile, goType] of sdkObjects) {
+    for (const [className, typescriptFile, pythonFile] of sdkObjects) {
       const typescript = await publicOperations(
         "typescript",
         new URL(typescriptFile, typescriptSource),
@@ -285,15 +240,10 @@ describe("All language SDK operations remain in sync", () => {
         className,
         registry,
       );
-      const goClient = await publicOperations("go", new URL(goFile, goSource), goType, registry);
 
       expect(python, `${className} must expose the same RPC-backed operations`).toStrictEqual(
         typescript,
       );
-      expect(
-        goClient,
-        `${className} must expose the same RPC-backed operations in Go`,
-      ).toStrictEqual(typescript);
       expect(
         typescript.length,
         `${className} must expose at least one RPC operation`,
@@ -302,7 +252,7 @@ describe("All language SDK operations remain in sync", () => {
   });
 
   it("exposes the same public callable surface in every SDK", async () => {
-    for (const [className, typescriptFile, pythonFile, goFile, goType] of sdkObjects) {
+    for (const [className, typescriptFile, pythonFile] of sdkObjects) {
       const typescript = await publicCallableMethods(
         "typescript",
         new URL(typescriptFile, typescriptSource),
@@ -313,52 +263,28 @@ describe("All language SDK operations remain in sync", () => {
         new URL(pythonFile, pythonSource),
         className,
       );
-      const goClient = await publicCallableMethods("go", new URL(goFile, goSource), goType);
 
       expect(python, `${className} public methods must remain in sync`).toStrictEqual(typescript);
-      expect(goClient, `${className} Go public methods must remain in sync`).toStrictEqual(
-        typescript,
-      );
       expect(typescript.length, `${className} must expose public methods`).toBeGreaterThan(0);
     }
   });
 
-  it("keeps Stagehand accessors aligned and every declared Go accessor present", async () => {
-    const [className, typescriptFile, pythonFile, goFile, goType] = sdkObjects[0];
+  it("keeps Stagehand accessors aligned", async () => {
+    const [className, typescriptFile, pythonFile] = sdkObjects[0];
     const typescript = await publicAccessors(
       "typescript",
       new URL(typescriptFile, typescriptSource),
       className,
     );
     const python = await publicAccessors("python", new URL(pythonFile, pythonSource), className);
-    const goClient = await publicAccessors("go", new URL(goFile, goSource), goType);
 
     expect(python, "Stagehand Python accessors must remain in sync").toStrictEqual(typescript);
-    expect(goClient, "Stagehand Go accessors must remain in sync").toStrictEqual(typescript);
     expect(typescript.length, "Stagehand must expose public accessors").toBeGreaterThan(0);
     for (const [language, accessors] of [
       ["TypeScript", typescript],
       ["Python", python],
-      ["Go", goClient],
     ] as const) {
       expect(accessors, `${language} Stagehand must not expose context`).not.toContain("context");
-    }
-
-    for (const [, , , goFile, goType] of sdkObjects) {
-      const root = parse("go", await readFile(new URL(goFile, goSource), "utf8")).root();
-      const classNode = findClass(root, "go", goType);
-
-      expect(classNode, `${goType} must exist`).toBeDefined();
-      if (!classNode) continue;
-      const methods = new Set(
-        directClassMethods(classNode, "go", goType).flatMap((method) => {
-          const name = methodName(method.node, "go");
-          return name ? [name.text()] : [];
-        }),
-      );
-      for (const accessor of goAccessors[goType] ?? []) {
-        expect(methods.has(accessor), `${goType}.${accessor} accessor must exist`).toBe(true);
-      }
     }
   });
 
@@ -366,7 +292,7 @@ describe("All language SDK operations remain in sync", () => {
     const [protocol, registry] = await Promise.all([protocolDocument(), stagehandMethodNames()]);
     const mismatches: string[] = [];
 
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of ["typescript", "python"] as const) {
       for (const binding of await publicRpcMethods(language, registry)) {
         const protocolMethod = protocol.properties.methods.properties[binding.wireMethod];
         if (!protocolMethod) continue;
@@ -394,9 +320,7 @@ describe("All language SDK operations remain in sync", () => {
               ? "page"
               : language === "typescript"
                 ? camelCase(optionName)
-                : language === "python"
-                  ? snakeCase(optionName)
-                  : exportedGoName(optionName);
+                : snakeCase(optionName);
           const parameterType = parameters.get(publicName);
           if (parameterType === undefined) {
             mismatches.push(`${language} ${binding.wireMethod}: missing ${publicName}`);
@@ -417,7 +341,7 @@ describe("All language SDK operations remain in sync", () => {
     const [protocol, registry] = await Promise.all([protocolDocument(), stagehandMethodNames()]);
     const mismatches: string[] = [];
 
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of ["typescript", "python"] as const) {
       for (const binding of await publicRpcMethods(language, registry)) {
         const protocolMethod = protocol.properties.methods.properties[binding.wireMethod];
         if (!protocolMethod) continue;
@@ -434,12 +358,7 @@ describe("All language SDK operations remain in sync", () => {
         )) {
           const expected = publicPrimitiveType(schema, language);
           if (!expected) continue;
-          const publicName =
-            language === "typescript"
-              ? camelCase(wireName)
-              : language === "python"
-                ? snakeCase(wireName)
-                : exportedGoName(wireName);
+          const publicName = language === "typescript" ? camelCase(wireName) : snakeCase(wireName);
           const actual = parameters.get(publicName);
           if (actual && !typeCompatibleWithPrimitive(actual, expected, schema)) {
             mismatches.push(
@@ -457,27 +376,19 @@ describe("All language SDK operations remain in sync", () => {
   });
 
   it("keeps low-level RPC clients out of public SDK exports", async () => {
-    const [typescript, python, goClient] = await Promise.all([
+    const [typescript, python] = await Promise.all([
       readFile(new URL("index.ts", typescriptSource), "utf8"),
       readFile(new URL("__init__.py", pythonSource), "utf8"),
-      readFile(new URL("client.go", goSource), "utf8"),
     ]);
 
     expect(typescript).not.toMatch(/export\s*\{[^}]*\bRPCClient\b/u);
     expect(python).not.toMatch(/["']RPCClient["']/u);
-    expect(goClient).not.toMatch(/type\s+(?:RPCClient|ProtocolClient)\b/u);
   });
 
   it("only calls methods declared by the generated protocol", async () => {
     const methods = await protocolMethods();
 
     for (const call of await pythonRpcCalls()) {
-      expect(
-        methods[call.method],
-        `${call.file} calls undeclared protocol method ${call.method}`,
-      ).toBeDefined();
-    }
-    for (const call of await goRpcCalls()) {
       expect(
         methods[call.method],
         `${call.file} calls undeclared protocol method ${call.method}`,
@@ -517,113 +428,56 @@ describe("All language SDK operations remain in sync", () => {
 
     expect(staticallyVisibleParams).toBeGreaterThan(0);
   });
-
-  it("uses the protocol parameter and result models at Go RPC boundaries", async () => {
-    const methods = await protocolMethods();
-    let staticallyVisibleParams = 0;
-
-    for (const call of await goRpcCalls()) {
-      const protocolMethod = methods[call.method];
-      expect(
-        protocolMethod,
-        `${call.method} must be declared before checking its models`,
-      ).toBeDefined();
-      if (!protocolMethod) continue;
-
-      const expectedParams = referencedGoModel(protocolMethod.properties.params.$ref);
-      const expectedResult = referencedGoModel(protocolMethod.properties.result.$ref);
-      const paramsModel = goModelName(call.params, call.scope, call.module);
-      const resultModel = goModelName(call.result, call.scope, call.module);
-
-      if (paramsModel) {
-        staticallyVisibleParams += 1;
-        expect(paramsModel, `${call.file} must send ${call.method} with ${expectedParams}`).toBe(
-          expectedParams,
-        );
-      }
-      expect(resultModel, `${call.file} must decode ${call.method} with ${expectedResult}`).toBe(
-        expectedResult,
-      );
-    }
-
-    expect(staticallyVisibleParams).toBeGreaterThan(0);
-  });
-
-  it("returns full Go Stagehand result envelopes", async () => {
-    const root = parse("go", await readFile(new URL("stagehand.go", goSource), "utf8")).root();
-    const stagehand = findClass(root, "go", "Stagehand");
-
-    expect(stagehand, "Go Stagehand must exist").toBeDefined();
-    if (!stagehand) return;
-
-    for (const [methodNameText, resultType] of [
-      ["Act", "ActResult"],
-      ["Observe", "ObserveResult"],
-    ] as const) {
-      const method = directClassMethods(stagehand, "go", "Stagehand").find(
-        (candidate) => methodName(candidate.node, "go")?.text() === methodNameText,
-      )?.node;
-      expect(method, `Go Stagehand.${methodNameText} must exist`).toBeDefined();
-      if (!method) continue;
-
-      expect(method.field("result")?.text(), `Go Stagehand.${methodNameText} result type`).toBe(
-        `(${resultType}, error)`,
-      );
-      const dataOnlyReturns = method
-        .findAll({ rule: { kind: "return_statement" } })
-        .filter((statement) => /\bresult\.Data\b/u.test(statement.text()));
-      expect(
-        dataOnlyReturns,
-        `Go Stagehand.${methodNameText} must preserve result metadata`,
-      ).toEqual([]);
-    }
-  });
-
-  it("keeps Go act input typed and generic extract metadata intact", async () => {
-    const stagehandRoot = parse(
-      "go",
-      await readFile(new URL("stagehand.go", goSource), "utf8"),
-    ).root();
-    const stagehand = findClass(stagehandRoot, "go", "Stagehand");
-
-    expect(stagehand, "Go Stagehand must exist").toBeDefined();
-    if (!stagehand) return;
-
-    const act = directClassMethods(stagehand, "go", "Stagehand").find(
-      (candidate) => methodName(candidate.node, "go")?.text() === "Act",
-    )?.node;
-    expect(act, "Go Stagehand.Act must exist").toBeDefined();
-    expect(
-      act ? publicParameterTypes(act, "go").get("instruction") : undefined,
-      "Go Stagehand.Act must accept the generated instruction union",
-    ).toBe("ActInstructionValue");
-
-    const extractRoot = parse("go", await readFile(new URL("extract.go", goSource), "utf8")).root();
-    const extract = extractRoot
-      .findAll({ rule: { kind: "function_declaration" } })
-      .find((function_) =>
-        namedChildren(function_).some(
-          (child) => child.kind() === "identifier" && child.text() === "Extract",
-        ),
-      );
-    expect(extract, "Go generic Extract must exist").toBeDefined();
-    expect(extract?.field("result")?.text(), "Go Extract result type").toBe(
-      "(TypedExtractResult[T], error)",
-    );
-    expect(
-      extract
-        ?.findAll({ rule: { kind: "return_statement" } })
-        .some((statement) => /\btypedResult\b/u.test(statement.text())),
-      "Go Extract must return its typed result envelope",
-    ).toBe(true);
-    expect(
-      extract
-        ?.findAll({ rule: { kind: "assignment_statement" } })
-        .some((assignment) => assignment.text() === "typedResult.Metadata = result.Metadata"),
-      "Go Extract must preserve protocol result metadata",
-    ).toBe(true);
-  });
 });
+
+describe("active SDK operation coverage regressions", () => {
+  it.each(["none", "typescript", "python"] as const)(
+    "checks a TS/Python-only operation with missing SDK: %s",
+    async (missing) => {
+      const directory = await mkdtemp(join(tmpdir(), "sdk-operation-parity-"));
+      try {
+        const sources = {
+          typescript: pathToFileURL(`${join(directory, "typescript")}/`),
+          python: pathToFileURL(`${join(directory, "python")}/`),
+        };
+        for (const source of Object.values(sources)) await mkdir(source);
+        await writeFile(
+          new URL("page.ts", sources.typescript),
+          missing === "typescript"
+            ? ""
+            : "class Page { fresh() { return this.client.send(StagehandMethods.fresh, {}); } }",
+        );
+        await writeFile(
+          new URL("page.py", sources.python),
+          missing === "python"
+            ? ""
+            : 'class Page:\n    def fresh(self):\n        return self._client.send("page.fresh", {})\n',
+        );
+        const check = assertOperationCoverage(new Map([["fresh", "page.fresh"]]), sources);
+        if (missing !== "none")
+          await expect(check).rejects.toThrow(
+            `${missing} must reference every StagehandMethods operation`,
+          );
+        else await expect(check).resolves.toBeUndefined();
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+async function assertOperationCoverage(
+  registry: ReadonlyMap<string, string>,
+  sources: Record<SdkLanguage, URL>,
+): Promise<void> {
+  const registeredOperations = [...registry.values()].sort();
+  for (const language of ["typescript", "python"] as const) {
+    expect(
+      await protocolOperations(language, sources[language], registry),
+      `${language} must reference every StagehandMethods operation`,
+    ).toStrictEqual(registeredOperations);
+  }
+}
 
 async function publicOperations(
   language: SdkLanguage,
@@ -646,7 +500,7 @@ async function publicOperations(
       if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {
-        const methodNode = protocolMethodNode(call, language);
+        const methodNode = protocolMethodNode(call);
         if (!methodNode) throw new Error(`${publicMethod.text()} has an RPC call without a method`);
 
         const wireMethod = wireMethodForCall(methodNode, language, registry);
@@ -657,24 +511,6 @@ async function publicOperations(
         };
       });
     });
-  if (language === "go" && className === "Stagehand") {
-    const extract = await goExtractFunction();
-    if (extract) {
-      operations.push(
-        ...protocolCalls(extract, "go").flatMap((call) => {
-          const methodNode = protocolMethodNode(call, "go");
-          return methodNode
-            ? [
-                {
-                  publicMethod: "extract",
-                  wireMethod: wireMethodForCall(methodNode, "go", registry),
-                },
-              ]
-            : [];
-        }),
-      );
-    }
-  }
 
   return operations.sort((left, right) =>
     `${left.publicMethod}:${left.wireMethod}`.localeCompare(
@@ -708,21 +544,7 @@ async function publicCallableMethods(
         }),
     ),
   ];
-  if (language === "go" && className === "Stagehand" && (await goExtractFunction())) {
-    methods.push("extract");
-  }
   return [...new Set(methods)].sort();
-}
-
-async function goExtractFunction(): Promise<SgNode | undefined> {
-  const root = parse("go", await readFile(new URL("extract.go", goSource), "utf8")).root();
-  return root
-    .findAll({ rule: { kind: "function_declaration" } })
-    .find((function_) =>
-      namedChildren(function_).some(
-        (child) => child.kind() === "identifier" && child.text() === "Extract",
-      ),
-    );
 }
 
 function participatesInSurfaceParity(
@@ -749,7 +571,6 @@ async function publicAccessors(
     .filter((method) => {
       const name = methodName(method.node, language);
       if (!name) return false;
-      if (language === "go") return goAccessors[className]?.has(name.text()) === true;
       if (language === "python") {
         return (
           !name.text().startsWith("_") &&
@@ -779,7 +600,7 @@ async function protocolOperations(
   registry: ReadonlyMap<string, string>,
   boundary?: RequestBoundary,
 ): Promise<string[]> {
-  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
+  const extension = language === "typescript" ? ".ts" : ".py";
   const files = (await readdir(source, { recursive: true }))
     .filter(
       (file) =>
@@ -794,7 +615,7 @@ async function protocolOperations(
   for (const file of files) {
     const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
     for (const call of protocolCalls(root, language, boundary)) {
-      const method = protocolMethodNode(call, language);
+      const method = protocolMethodNode(call);
       if (method) operations.add(wireMethodForCall(method, language, registry));
     }
   }
@@ -858,7 +679,7 @@ async function clientProtocolNotifications(
   source: URL,
   registry: ReadonlyMap<string, string>,
 ): Promise<string[]> {
-  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
+  const extension = language === "typescript" ? ".ts" : ".py";
   const files = (await readdir(source, { recursive: true }))
     .filter((file) => file.endsWith(extension))
     .sort();
@@ -872,23 +693,6 @@ async function clientProtocolNotifications(
         const registryKey = member.text().slice("StagehandNotifications.".length);
         const wireName = registry.get(registryKey);
         if (wireName) notifications.add(wireName);
-      }
-      continue;
-    }
-
-    if (language === "go") {
-      for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
-        const calledFunction = namedChildren(call)[0]?.text();
-        const arguments_ = callArguments(call);
-        const notification = calledFunction?.endsWith(".onNotification")
-          ? arguments_[0]
-          : calledFunction === "registerNotification" ||
-              calledFunction === "registerControlNotification"
-            ? arguments_[1]
-            : undefined;
-        if (notification?.kind() === "interpreted_string_literal") {
-          notifications.add(stringLiteral(notification));
-        }
       }
       continue;
     }
@@ -947,43 +751,22 @@ async function publicRpcMethods(
 ): Promise<PublicRpcMethod[]> {
   const methods: PublicRpcMethod[] = [];
 
-  for (const [className, typescriptFile, pythonFile, goFile, goType] of sdkObjects) {
-    const file =
-      language === "typescript" ? typescriptFile : language === "python" ? pythonFile : goFile;
-    const source =
-      language === "typescript"
-        ? typescriptSource
-        : language === "python"
-          ? pythonSource
-          : goSource;
-    const typeName = language === "go" ? goType : className;
+  for (const [className, typescriptFile, pythonFile] of sdkObjects) {
+    const file = language === "typescript" ? typescriptFile : pythonFile;
+    const source = language === "typescript" ? typescriptSource : pythonSource;
     const fileUrl = new URL(file, source);
     const root = parse(language, await readFile(fileUrl, "utf8")).root();
-    const classNode = findClass(root, language, typeName);
+    const classNode = findClass(root, language, className);
     if (!classNode) continue;
 
-    for (const candidate of directClassMethods(classNode, language, typeName)) {
+    for (const candidate of directClassMethods(classNode, language, className)) {
       if (!isPublicCallable(candidate, language)) continue;
       for (const call of protocolCalls(candidate.node, language)) {
-        const methodNode = protocolMethodNode(call, language);
+        const methodNode = protocolMethodNode(call);
         if (!methodNode) continue;
         methods.push({
           method: candidate.node,
           wireMethod: wireMethodForCall(methodNode, language, registry),
-        });
-      }
-    }
-  }
-
-  if (language === "go") {
-    const extract = await goExtractFunction();
-    if (extract) {
-      for (const call of protocolCalls(extract, "go")) {
-        const methodNode = protocolMethodNode(call, "go");
-        if (!methodNode) continue;
-        methods.push({
-          method: extract,
-          wireMethod: wireMethodForCall(methodNode, "go", registry),
         });
       }
     }
@@ -1012,43 +795,6 @@ async function pythonRpcCalls(): Promise<PythonRpcCall[]> {
   return calls;
 }
 
-async function goRpcCalls(): Promise<GoRpcCall[]> {
-  const files = (await readdir(goSource, { recursive: true }))
-    .filter((file) => file.endsWith(".go") && !file.endsWith("_test.go"))
-    .sort();
-  const calls: GoRpcCall[] = [];
-
-  for (const file of files) {
-    const root = parse("go", await readFile(new URL(file, goSource), "utf8")).root();
-    for (const call of protocolCalls(root, "go")) {
-      const arguments_ = callArguments(call);
-      const methodNode = protocolMethodNode(call, "go");
-      const calledFunction = namedChildren(call)[0]?.text();
-      if (!calledFunction?.endsWith(".call")) continue;
-      const params = arguments_[2];
-      const result = arguments_[3];
-      const scope = call
-        .ancestors()
-        .find(
-          (ancestor) =>
-            ancestor.kind() === "method_declaration" || ancestor.kind() === "function_declaration",
-        );
-      if (!methodNode || !params || !result || !scope) continue;
-
-      calls.push({
-        file,
-        method: stringLiteral(methodNode),
-        module: root,
-        params,
-        result,
-        scope,
-      });
-    }
-  }
-
-  return calls;
-}
-
 function protocolCalls(node: SgNode, language: SdkLanguage, boundary?: RequestBoundary): SgNode[] {
   const callKind = language === "python" ? "call" : "call_expression";
   return node.findAll({ rule: { kind: callKind } }).filter((call) => {
@@ -1058,12 +804,10 @@ function protocolCalls(node: SgNode, language: SdkLanguage, boundary?: RequestBo
       : matchesProtocolBoundary(calledFunction, language, "outbound") ||
         matchesProtocolBoundary(calledFunction, language, "inbound");
     if (!isProtocolBoundary) return false;
-    const method = protocolMethodNode(call, language);
+    const method = protocolMethodNode(call);
     return language === "typescript"
       ? method?.text().startsWith("StagehandMethods.") === true
-      : language === "python"
-        ? method?.kind() === "string"
-        : method?.kind() === "interpreted_string_literal";
+      : method?.kind() === "string";
   });
 }
 
@@ -1073,17 +817,15 @@ function matchesProtocolBoundary(
   boundary: RequestBoundary,
 ): boolean {
   if (boundary === "outbound") {
-    return language === "go"
-      ? calledFunction?.endsWith(".call") === true
-      : calledFunction?.endsWith(".send") === true || calledFunction?.endsWith("?.send") === true;
+    return (
+      calledFunction?.endsWith(".send") === true || calledFunction?.endsWith("?.send") === true
+    );
   }
   return language === "typescript"
     ? calledFunction?.endsWith(".onRequest") === true ||
         calledFunction?.endsWith("?.onRequest") === true
-    : language === "python"
-      ? calledFunction?.endsWith(".on_request") === true ||
-        calledFunction?.endsWith(".on_request_with_context") === true
-      : calledFunction?.endsWith(".onRequest") === true;
+    : calledFunction?.endsWith(".on_request") === true ||
+        calledFunction?.endsWith(".on_request_with_context") === true;
 }
 
 type DirectClassMethod = {
@@ -1093,13 +835,6 @@ type DirectClassMethod = {
 };
 
 function findClass(root: SgNode, language: SdkLanguage, className: string): SgNode | undefined {
-  if (language === "go") {
-    const declaration = root.findAll({ rule: { kind: "type_spec" } }).find((node) => {
-      const name = namedChildren(node)[0];
-      return name?.text() === className;
-    });
-    return declaration ? root : undefined;
-  }
   const classKind = language === "typescript" ? "class_declaration" : "class_definition";
   return root
     .findAll({ rule: { kind: classKind } })
@@ -1111,15 +846,6 @@ function directClassMethods(
   language: SdkLanguage,
   className: string,
 ): DirectClassMethod[] {
-  if (language === "go") {
-    return namedChildren(classNode)
-      .filter((child) => child.kind() === "method_declaration")
-      .filter((method) => {
-        const receiver = namedChildren(method)[0]?.text() ?? "";
-        return new RegExp(`\\*?${className}\\b`, "u").test(receiver);
-      })
-      .map((node) => ({ node, className }));
-  }
   const bodyKind = language === "typescript" ? "class_body" : "block";
   const methodKind = language === "typescript" ? "method_definition" : "function_definition";
   const body = namedChildren(classNode).find((child) => child.kind() === bodyKind);
@@ -1134,12 +860,7 @@ function directClassMethods(
 }
 
 function methodName(method: SgNode, language: SdkLanguage): SgNode | undefined {
-  const nameKind =
-    language === "typescript"
-      ? "property_identifier"
-      : language === "python"
-        ? "identifier"
-        : "field_identifier";
+  const nameKind = language === "typescript" ? "property_identifier" : "identifier";
   return namedChildren(method).find((child) => child.kind() === nameKind);
 }
 
@@ -1151,10 +872,7 @@ function publicParameterTypes(method: SgNode, language: SdkLanguage): Map<string
     namedChildren(parameters).flatMap((parameter) => {
       const name = parameterName(parameter, language);
       if (!name || name === "self" || name === "cls") return [];
-      const type =
-        language === "go"
-          ? (namedChildren(parameter).at(-1)?.text() ?? "")
-          : (parameter.field("type")?.text().replace(/^:\s*/u, "") ?? "");
+      const type = parameter.field("type")?.text().replace(/^:\s*/u, "") ?? "";
       return [[name, type] as const];
     }),
   );
@@ -1165,11 +883,6 @@ function parameterName(parameter: SgNode, language: SdkLanguage): string | undef
     const pattern = parameter.field("pattern") ?? parameter.field("name");
     if (pattern?.kind() === "identifier") return pattern.text();
     return parameter.kind() === "identifier" ? parameter.text() : undefined;
-  }
-
-  if (language === "go") {
-    const name = namedChildren(parameter)[0];
-    return name?.kind() === "identifier" ? name.text() : undefined;
   }
 
   if (parameter.kind() === "identifier") return parameter.text();
@@ -1185,13 +898,6 @@ function publicPrimitiveType(schema: JsonSchema, language: SdkLanguage): string 
     if (schema.type === "number" || schema.type === "integer") return "number";
     if (schema.type === "string") return "string";
     if (schema.type === "boolean") return "boolean";
-    return undefined;
-  }
-  if (language === "go") {
-    if (schema.type === "number") return "float64";
-    if (schema.type === "integer") return "int";
-    if (schema.type === "string") return "string";
-    if (schema.type === "boolean") return "bool";
     return undefined;
   }
   if (schema.type === "number") return "float";
@@ -1218,10 +924,6 @@ function isPublicCallable(method: DirectClassMethod, language: SdkLanguage): boo
   const name = methodName(method.node, language);
   if (!name) return false;
 
-  if (language === "go") {
-    return /^[A-Z]/u.test(name.text()) && !goAccessors[method.className]?.has(name.text());
-  }
-
   if (language === "python") {
     return (
       !name.text().startsWith("_") && !method.decoratedDefinition?.text().startsWith("@property")
@@ -1242,7 +944,7 @@ function wireMethodForCall(
   language: SdkLanguage,
   registry: ReadonlyMap<string, string>,
 ): string {
-  if (language === "python" || language === "go") return stringLiteral(method);
+  if (language === "python") return stringLiteral(method);
 
   const registryKey = method.text().slice("StagehandMethods.".length);
   const wireMethod = registry.get(registryKey);
@@ -1255,11 +957,8 @@ function callArguments(call: SgNode): SgNode[] {
   return argumentsNode ? namedChildren(argumentsNode) : [];
 }
 
-function protocolMethodNode(call: SgNode, language: SdkLanguage): SgNode | undefined {
-  const arguments_ = callArguments(call);
-  if (language !== "go") return arguments_[0];
-  const calledFunction = namedChildren(call)[0]?.text();
-  return calledFunction?.endsWith(".call") ? arguments_[1] : arguments_[0];
+function protocolMethodNode(call: SgNode): SgNode | undefined {
+  return callArguments(call)[0];
 }
 
 function pythonModelName(
@@ -1305,69 +1004,10 @@ function pythonModelName(
   return assignedValue ? pythonModelName(assignedValue, scope, module, seen) : undefined;
 }
 
-function goModelName(
-  expression: SgNode,
-  scope: SgNode,
-  module: SgNode,
-  seen = new Set<string>(),
-): string | undefined {
-  if (expression.kind() === "unary_expression" || expression.kind() === "expression_list") {
-    const nested = namedChildren(expression)[0];
-    return nested ? goModelName(nested, scope, module, seen) : undefined;
-  }
-
-  if (expression.kind() === "composite_literal") {
-    const type = namedChildren(expression)[0];
-    return type?.kind() === "type_identifier" ? type.text() : undefined;
-  }
-
-  if (expression.kind() !== "identifier") return undefined;
-  if (/^[A-Z]/u.test(expression.text())) return expression.text();
-  if (seen.has(expression.text())) return undefined;
-  seen.add(expression.text());
-
-  const variable = scope
-    .findAll({ rule: { kind: "var_spec" } })
-    .find((candidate) => namedChildren(candidate)[0]?.text() === expression.text());
-  if (variable) {
-    const type = namedChildren(variable)[1];
-    return type?.text();
-  }
-
-  const assignment = [
-    ...scope.findAll({ rule: { kind: "short_var_declaration" } }),
-    ...module
-      .findAll({ rule: { kind: "short_var_declaration" } })
-      .filter(
-        (candidate) =>
-          !candidate
-            .ancestors()
-            .some(
-              (ancestor) =>
-                ancestor.kind() === "method_declaration" ||
-                ancestor.kind() === "function_declaration",
-            ),
-      ),
-  ].find((candidate) => {
-    const names = namedChildren(candidate)[0];
-    return namedChildren(names).some((name) => name.text() === expression.text());
-  });
-  const assignedValues = assignment && namedChildren(assignment)[1];
-  const assignedValue = assignedValues && namedChildren(assignedValues)[0];
-  return assignedValue ? goModelName(assignedValue, scope, module, seen) : undefined;
-}
-
 function referencedModel(reference: string): string {
   const model = reference.split("/").at(-1);
   if (!model) throw new Error(`Invalid local JSON Schema reference: ${reference}`);
   return model;
-}
-
-function referencedGoModel(reference: string): string {
-  return referencedModel(reference)
-    .replaceAll("Html", "HTML")
-    .replaceAll("Url", "URL")
-    .replaceAll("Id", "ID");
 }
 
 function stringLiteral(node: SgNode): string {
@@ -1388,16 +1028,6 @@ function snakeCase(name: string): string {
 
 function camelCase(name: string): string {
   return name.replace(/_([a-z])/gu, (_, letter: string) => letter.toUpperCase());
-}
-
-function exportedGoName(name: string): string {
-  return name
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("")
-    .replaceAll("Html", "HTML")
-    .replaceAll("Url", "URL")
-    .replaceAll("Id", "ID");
 }
 
 function namedChildren(node: SgNode): SgNode[] {

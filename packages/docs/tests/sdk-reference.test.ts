@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 registerDynamicLanguage({ python });
 
-type Language = "Go" | "Python" | "TypeScript";
+type Language = "Python" | "TypeScript";
 
 type MdxAttribute = {
   name?: string;
@@ -122,21 +122,8 @@ type ProtocolDocument = JsonSchema & {
 type SdkObject = {
   className: string;
   classSlug: string;
-  goClassName: string;
   pythonFile: string;
   typescriptFile: string;
-};
-
-type GoParameter = {
-  name: string;
-  type: string;
-};
-
-type GoFunctionDeclaration = {
-  name: string;
-  parameters: GoParameter[];
-  receiverType?: string;
-  returnType: string;
 };
 
 const DOCS_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -144,16 +131,16 @@ const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
-const GO_ROOT = fileURLToPath(new URL("../../sdk-go", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
-const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
+const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+const DOCUMENTATION_LANGUAGES = [...LANGUAGES, "Go"] as const;
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
-const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
+const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
@@ -166,6 +153,7 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.cookies:TypeScript:result.sameSite", "Cookie['sameSite']"],
   ["context.cookies:Python:result.same_site", "Literal['Strict', 'Lax', 'None']"],
   ["page.wait_for_selector:TypeScript:options.state", "PageWaitForSelectorOptions['state']"],
+  ["page.wait_for_function:TypeScript:options.polling", "PageWaitForFunctionOptions['polling']"],
   ["page.screenshot:TypeScript:options.animations", "ScreenshotOptions['animations']"],
   ["page.screenshot:TypeScript:options.caret", "ScreenshotOptions['caret']"],
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
@@ -177,35 +165,30 @@ const SDK_OBJECTS = [
   {
     className: "Stagehand",
     classSlug: "stagehand",
-    goClassName: "Stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
   },
   {
     className: "BrowserContext",
     classSlug: "context",
-    goClassName: "BrowserContext",
     typescriptFile: "browserContext.ts",
     pythonFile: "browser_context.py",
   },
   {
     className: "BrowserClipboard",
     classSlug: "clipboard",
-    goClassName: "BrowserClipboard",
     typescriptFile: "browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
   },
   {
     className: "Page",
     classSlug: "page",
-    goClassName: "Page",
     typescriptFile: "page.ts",
     pythonFile: "page.py",
   },
   {
     className: "Locator",
     classSlug: "locator",
-    goClassName: "PageLocator",
     typescriptFile: "locator.ts",
     pythonFile: "locator.py",
   },
@@ -216,11 +199,10 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
 );
 
 describe("SDK reference surface", () => {
-  it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
+  it("keeps every public callable in sync across TypeScript, Python, and reference pages", async () => {
+    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
-      readGoMethods(),
       readReferencePages(),
     ]);
 
@@ -233,10 +215,6 @@ describe("SDK reference surface", () => {
       operationBindings(pythonMethods),
       "Equivalent TypeScript and Python callables must bind the same protocol operation",
     ).toStrictEqual(operationBindings(typescriptMethods));
-    expect(
-      methodKeys(sharedSurfaceMethods(goMethods, expected)),
-      "Go public callables must cover the shared SDK surface",
-    ).toStrictEqual(expected);
     for (const language of LANGUAGES) {
       expect(
         documentedMethods(referencePages, language)
@@ -246,6 +224,60 @@ describe("SDK reference surface", () => {
       ).toStrictEqual(expected);
     }
   }, 30_000);
+
+  it("ignores Go API headings while parsing active SDK reference methods", () => {
+    const tree = createProcessor({ format: "mdx" }).parse(`
+<Tabs>
+<Tab title="TypeScript">
+
+## freshFeature()
+
+<ParamField path="value" type="string" />
+</Tab>
+<Tab title="Python">
+
+## fresh_feature()
+
+<ParamField path="value" type="str" />
+</Tab>
+<Tab title="Go">
+
+## Existing Go content
+
+This tab does not describe the active SDK API.
+</Tab>
+</Tabs>
+`) as MdxNode;
+    const tabs = findLanguageTabs(tree).map((view) => readReferenceTab(view, "fixture.mdx"));
+    expect(
+      tabs.map(({ title, methods }) => [title, methods.map(({ methodName }) => methodName)]),
+    ).toEqual([
+      ["TypeScript", ["freshFeature"]],
+      ["Python", ["fresh_feature"]],
+      ["Go", []],
+    ]);
+    expect(tabs[0]?.methods[0]?.paramFields).toEqual([
+      { key: "value", type: "string", optional: false },
+    ]);
+    expect(tabs[1]?.methods[0]?.paramFields).toEqual([
+      { key: "value", type: "str", optional: false },
+    ]);
+  });
+
+  it.each(LANGUAGES)("still rejects invalid %s API headings", (language) => {
+    const tree = createProcessor({ format: "mdx" }).parse(`
+<Tab title="${language}">
+
+## Not a method signature
+
+</Tab>
+`) as MdxNode;
+    const tab = findLanguageTabs(tree)[0];
+    expect(tab).toBeDefined();
+    expect(() => readReferenceTab(tab as MdxNode, "fixture.mdx")).toThrow(
+      "exact method name ending in ()",
+    );
+  });
 
   it("has exactly one reference page for every documented SDK object", async () => {
     const pageSlugs = (await readReferencePages()).map(({ classSlug }) => classSlug).sort();
@@ -263,16 +295,14 @@ describe("SDK reference surface", () => {
     const views = new Map(
       findLanguageTabs(tree).map((view) => [stringAttribute(view, "title"), view]),
     );
-    const [typescriptMembers, pythonMembers, goMembers] = await Promise.all([
+    const [typescriptMembers, pythonMembers] = await Promise.all([
       readTypescriptResponseMembers(),
       readPythonResponseMembers(),
-      readGoResponseMembers(),
     ]);
 
     for (const [language, expected] of [
       ["TypeScript", typescriptMembers],
       ["Python", pythonMembers],
-      ["Go", goMembers],
     ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
       const view = views.get(language);
       expect(view, `response.mdx must contain one ${language} tab`).toBeDefined();
@@ -342,20 +372,10 @@ describe("SDK reference surface", () => {
     const cases = [
       ["page", "TypeScript", '"load"', '"domcontentloaded"', '"networkidle"'],
       ["page", "Python", '"load"', '"domcontentloaded"', '"networkidle"'],
-      ["page", "Go", "LoadStateLoad", "LoadStateDOMContentLoaded", "LoadStateNetworkIdle"],
       ["locator", "TypeScript", '"left"', '"middle"', '"right"'],
       ["locator", "Python", '"left"', '"middle"', '"right"'],
-      ["locator", "Go", "MouseButtonLeft", "MouseButtonMiddle", "MouseButtonRight"],
       ["page", "TypeScript", '"attached"', '"detached"', '"visible"', '"hidden"'],
       ["page", "Python", '"attached"', '"detached"', '"visible"', '"hidden"'],
-      [
-        "page",
-        "Go",
-        "PageWaitForSelectorOptionsStateAttached",
-        "PageWaitForSelectorOptionsStateDetached",
-        "PageWaitForSelectorOptionsStateVisible",
-        "PageWaitForSelectorOptionsStateHidden",
-      ],
       [
         "page",
         "TypeScript",
@@ -380,39 +400,12 @@ describe("SDK reference surface", () => {
         '"png"',
         '"jpeg"',
       ],
-      [
-        "page",
-        "Go",
-        "PageScreenshotOptionsAnimationsDisabled",
-        "PageScreenshotOptionsAnimationsAllow",
-        "PageScreenshotOptionsCaretHide",
-        "PageScreenshotOptionsCaretInitial",
-        "PageScreenshotOptionsScaleCSS",
-        "PageScreenshotOptionsScaleDevice",
-        "PageScreenshotOptionsTypePNG",
-        "PageScreenshotOptionsTypeJPEG",
-      ],
       ["context", "TypeScript", '"Strict"', '"Lax"', '"None"'],
       ["context", "Python", '"Strict"', '"Lax"', '"None"'],
-      [
-        "context",
-        "Go",
-        "CookieParamSameSiteStrict",
-        "CookieParamSameSiteLax",
-        "CookieParamSameSiteNone",
-      ],
       ["stagehand", "TypeScript", '"HIT"', '"MISS"', '"DISABLED"'],
       ["stagehand", "Python", '"HIT"', '"MISS"', '"DISABLED"'],
-      ["stagehand", "Go", "CacheStatusHIT", "CacheStatusMISS", "CacheStatusDISABLED"],
       ["webmcp", "TypeScript", '"Completed"', '"Canceled"', '"Error"'],
       ["webmcp", "Python", '"Completed"', '"Canceled"', '"Error"'],
-      [
-        "webmcp",
-        "Go",
-        "WebMCPInvocationStatusCompleted",
-        "WebMCPInvocationStatusCanceled",
-        "WebMCPInvocationStatusError",
-      ],
     ] as const;
     const problems: string[] = [];
     for (const [slug, language, ...values] of cases) {
@@ -467,12 +460,11 @@ describe("SDK reference surface", () => {
   it("documents callable helper members as methods and metadata as properties", async () => {
     const webmcpPath = resolve(REFERENCE_ROOT, "webmcp.mdx");
     const pagePath = resolve(REFERENCE_ROOT, "page.mdx");
-    const [webmcpDocs, pageDocs, typescriptSource, pythonSource, goSource] = await Promise.all([
+    const [webmcpDocs, pageDocs, typescriptSource, pythonSource] = await Promise.all([
       readFile(webmcpPath, "utf8"),
       readFile(pagePath, "utf8"),
       readFile(resolve(TYPESCRIPT_ROOT, "webmcp.ts"), "utf8"),
       readFile(resolve(PYTHON_ROOT, "webmcp.py"), "utf8"),
-      readFile(resolve(GO_ROOT, "webmcp.go"), "utf8"),
     ]);
     const surfaces = new Map<Language, ResponseReferenceMember[]>([
       [
@@ -486,21 +478,6 @@ describe("SDK reference surface", () => {
         ["WebMCPTool", "WebMCPInvocation"].flatMap((className) =>
           readPythonClassMembers(pythonSource, className, webmcpPath),
         ),
-      ],
-      [
-        "Go",
-        parseGoFunctions(goSource)
-          .filter(
-            ({ name, receiverType }) =>
-              /^[A-Z]/u.test(name) &&
-              (receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation"),
-          )
-          .map(({ name, parameters, returnType }) => ({
-            isProperty: false,
-            name,
-            parameters: parameters.map(({ name: parameter }) => parameter),
-            returnType,
-          })),
       ],
     ]);
     const problems: string[] = [];
@@ -548,19 +525,6 @@ describe("SDK reference surface", () => {
           pagePath,
         ),
       ],
-      [
-        "Go",
-        parseGoFunctions(await readFile(resolve(GO_ROOT, "page.go"), "utf8"))
-          .filter(
-            ({ name, receiverType }) => receiverType === "CDPSubscription" && /^[A-Z]/u.test(name),
-          )
-          .map(({ name, parameters, returnType }) => ({
-            isProperty: false,
-            name,
-            parameters: parameters.map(({ name: parameter }) => parameter),
-            returnType,
-          })),
-      ],
     ]);
     for (const [language, members] of cdpMembers) {
       const tab = languageTabSource(pageDocs, language);
@@ -577,10 +541,9 @@ describe("SDK reference surface", () => {
   });
 
   it("uses the exact language-specific public method names as headings", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
-      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -588,7 +551,6 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
-      ["Go", sharedSurfaceMethods(goMethods, methodKeys(typescriptMethods))],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
@@ -607,25 +569,57 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
-  it("uses exactly one tab per SDK language on every reference page", async () => {
-    const invalidPages = (await readReferencePages()).flatMap((page) => {
-      const titles = page.views.map(({ title }) => title ?? "<missing title>").sort();
-      return arraysEqual(titles, [...LANGUAGES].sort())
-        ? []
-        : [`${page.filePath}: ${titles.join(", ")}`];
-    });
+  it("requires one TypeScript and Python tab per reference page, with Go optional", async () => {
+    const invalidPages = (await readReferencePages()).flatMap(referenceTabProblems);
 
     expect(
       invalidPages,
-      "Each reference page must contain exactly one TypeScript, Python, and Go tab",
+      "Each reference page must contain exactly one TypeScript and Python tab, with no duplicate language tabs",
     ).toEqual([]);
   });
 
+  it.each([
+    ["active SDKs only", ["TypeScript", "Python"], true],
+    ["optional Go content", ["TypeScript", "Python", "Go"], true],
+    ["missing TypeScript", ["Python", "Go"], false],
+    ["missing Python", ["TypeScript", "Go"], false],
+    ["Go only", ["Go"], false],
+    ["no language tabs", [], false],
+    ["duplicate TypeScript", ["TypeScript", "TypeScript", "Python"], false],
+    ["duplicate Python", ["TypeScript", "Python", "Python"], false],
+    ["duplicate Go", ["TypeScript", "Python", "Go", "Go"], false],
+  ] as const)("validates reference coverage with %s", (_name, titles, valid) => {
+    const source = `<Tabs>
+${titles
+  .map(
+    (title) => `<Tab title="${title}">
+
+## freshFeature()
+
+</Tab>`,
+  )
+  .join("\n")}
+</Tabs>`;
+    const tree = createProcessor({ format: "mdx" }).parse(source) as MdxNode;
+    const page: ReferencePage = {
+      classSlug: "fresh-object",
+      filePath: "v4/reference/fresh-object.mdx",
+      views: findLanguageTabs(tree).map((view) => readReferenceTab(view, "fixture.mdx")),
+    };
+    expect(referenceTabProblems(page).length === 0).toBe(valid);
+    if (valid) {
+      for (const language of LANGUAGES) {
+        expect(documentedMethods([page], language).map(({ method }) => method.methodName)).toEqual([
+          "freshFeature",
+        ]);
+      }
+    }
+  });
+
   it("documents the exact direct signature parameters inside each language tab", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
-      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -633,7 +627,6 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
-      ["Go", goMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documentedByMethod = documentedMethodMap(referencePages, language);
       for (const method of methods) {
@@ -719,96 +712,6 @@ describe("SDK reference surface", () => {
     expect(
       differences,
       "Top-level ParamField types must match their public SDK parameter annotations",
-    ).toEqual([]);
-  });
-
-  it("uses the exact Go SDK type for every direct documented parameter", async () => {
-    // TypeScript and Python parameter types are checked against the protocol
-    // schema projection. Go's option structs are generated from that same
-    // protocol, so the declared signature type is itself canonical and the
-    // documented type must reproduce it verbatim.
-    const [goMethods, referencePages] = await Promise.all([readGoMethods(), readReferencePages()]);
-    const differences: string[] = [];
-
-    const documentedByMethod = documentedMethodMap(referencePages, "Go");
-    for (const method of goMethods) {
-      const reference = documentedByMethod.get(methodKey(method));
-      if (!reference) continue;
-      const documented = new Map(
-        reference.method.paramFields
-          .filter(({ key }) => key !== undefined && !key.includes("."))
-          .map((field) => [field.key as string, field]),
-      );
-      for (const parameter of method.parameters) {
-        const field = documented.get(parameter);
-        const expected = method.parameterTypes[parameter];
-        if (!field || !expected) continue;
-        const actual = field.type?.replace(/\s+/gu, " ").trim() ?? "";
-        if (actual !== expected) {
-          differences.push(
-            `${methodKey(method)} Go ${parameter}: expected ${expected}, received ${actual || "<missing>"}`,
-          );
-        }
-      }
-    }
-
-    expect(differences, "Go ParamField types must match the declared Go signature types").toEqual(
-      [],
-    );
-  });
-
-  it("documents every exported field of each Go parameter struct", async () => {
-    // Nested TypeScript and Python fields are checked against the protocol
-    // projection. Go parameter structs declare the same surface directly, so
-    // the documented nested paths and types must match the struct fields
-    // verbatim. Handle and union types export no fields, so recursion stops
-    // at them, and parameters of such types are skipped entirely.
-    const [goMethods, referencePages, goStructs] = await Promise.all([
-      readGoMethods(),
-      readReferencePages(),
-      readGoStructs(),
-    ]);
-    const differences: string[] = [];
-
-    const documentedByMethod = documentedMethodMap(referencePages, "Go");
-    for (const method of goMethods) {
-      const reference = documentedByMethod.get(methodKey(method));
-      if (!reference) continue;
-      for (const parameter of method.parameters) {
-        const expected = new Map(
-          exportedGoFieldPaths(parameter, method.parameterTypes[parameter] ?? "", goStructs).map(
-            ({ key, type }) => [key, type],
-          ),
-        );
-        if (expected.size === 0) continue;
-        const documented = new Map(
-          reference.method.paramFields
-            .filter(({ key }) => key !== undefined && key.startsWith(`${parameter}.`))
-            .map((field) => [field.key as string, field.type ?? "<missing>"]),
-        );
-        for (const [key, type] of expected) {
-          const actual = documented.get(key);
-          if (actual === undefined) {
-            differences.push(`${methodKey(method)} Go ${key}: missing ParamField of type ${type}`);
-          } else if (actual !== type) {
-            differences.push(
-              `${methodKey(method)} Go ${key}: expected type ${type}, received ${actual}`,
-            );
-          }
-        }
-        for (const key of documented.keys()) {
-          if (!expected.has(key)) {
-            differences.push(
-              `${methodKey(method)} Go ${key}: documents a field the Go SDK does not declare`,
-            );
-          }
-        }
-      }
-    }
-
-    expect(
-      differences,
-      "Nested Go ParamFields must exactly match the exported Go struct fields",
     ).toEqual([]);
   });
 
@@ -1345,7 +1248,46 @@ describe("Mintlify customization boundary", () => {
       [["TypeScript", "TypeScript"]],
       false,
     ],
-    ["core guide missing Go", "v4/guides/example.mdx", [["TypeScript", "Python"]], false],
+    ["core guide without Go", "v4/guides/example.mdx", [["TypeScript", "Python"]], true],
+    ["core guide missing TypeScript", "v4/guides/example.mdx", [["Python", "Go"]], false],
+    ["core guide missing Python", "v4/guides/example.mdx", [["TypeScript", "Go"]], false],
+    ["core guide with only Go", "v4/guides/example.mdx", [["Go"]], false],
+    [
+      "core guide with optional Go in only one group",
+      "v4/guides/example.mdx",
+      [
+        ["TypeScript", "Python", "Go"],
+        ["TypeScript", "Python"],
+      ],
+      true,
+    ],
+    [
+      "integration with optional Go in only one group",
+      "v4/integrations/example.mdx",
+      [["TypeScript", "Go"], ["TypeScript"]],
+      true,
+    ],
+    [
+      "core guide missing an active SDK in a later group",
+      "v4/guides/example.mdx",
+      [
+        ["TypeScript", "Python"],
+        ["TypeScript", "Go"],
+      ],
+      false,
+    ],
+    [
+      "duplicate core guide tabs",
+      "v4/guides/example.mdx",
+      [["TypeScript", "Python", "Python"]],
+      false,
+    ],
+    [
+      "duplicate optional tabs",
+      "v4/guides/example.mdx",
+      [["TypeScript", "Python", "Go", "Go"]],
+      false,
+    ],
     ["complete core guide", "v4/guides/example.mdx", [["TypeScript", "Python", "Go"]], true],
   ] as const)("validates language groups for %s", (_name, pagePath, groups, valid) => {
     const source = groups
@@ -1358,7 +1300,7 @@ describe("Mintlify customization boundary", () => {
     expect(languageTabGroupProblems(pagePath, tree).length === 0).toBe(valid);
   });
 
-  it("gives every language tab group the complete language set for its page", async () => {
+  it("gives every language tab group the required active SDK coverage for its page", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
@@ -1405,7 +1347,7 @@ describe("Mintlify customization boundary", () => {
 
     expect(
       problems,
-      "Every language tab group must offer the languages supported by its page, so switching never hides a snippet",
+      "Every language tab group must cover its required active SDKs; Go content is optional",
     ).toEqual([]);
   });
 
@@ -1810,143 +1752,6 @@ function readPythonClassMembers(
   });
 }
 
-async function readGoMethods(): Promise<SdkMethod[]> {
-  const methods: SdkMethod[] = [];
-  for (const filePath of await listFiles(GO_ROOT, () => false)) {
-    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
-    for (const declaration of parseGoFunctions(await readFile(filePath, "utf8"))) {
-      if (!/^[A-Z]/u.test(declaration.name)) continue;
-      const sdkObject = goDeclarationObject(declaration);
-      if (!sdkObject) continue;
-      // Every Go call threads context.Context, so it is not a documentable
-      // parameter. Object handles taken by package-level callables such as
-      // Extract are documented like any other parameter.
-      const parameters = declaration.parameters.filter(({ type }) => type !== "context.Context");
-      methods.push(
-        sdkMethod(
-          sdkObject.classSlug,
-          declaration.name,
-          parameters.map(({ name }) => name),
-          undefined,
-          declaration.returnType,
-          Object.fromEntries(parameters.map(({ name, type }) => [name, type])),
-        ),
-      );
-    }
-  }
-  return deduplicateMethods(methods, "Go");
-}
-
-// A package-level function belongs to the object it constructs or extends,
-// such as Create returning *Stagehand or the generic Extract taking one.
-function goDeclarationObject(declaration: GoFunctionDeclaration): SdkObject | undefined {
-  if (declaration.receiverType !== undefined) {
-    return SDK_OBJECTS.find(({ goClassName }) => goClassName === declaration.receiverType);
-  }
-  return SDK_OBJECTS.find(({ goClassName }) => {
-    const pointer = new RegExp(`\\*${goClassName}\\b`, "u");
-    return (
-      declaration.parameters.some(({ type }) => pointer.test(type)) ||
-      pointer.test(declaration.returnType)
-    );
-  });
-}
-
-// The Go SDK also exports Go-specific surface: handle accessors such as
-// Stagehand.Browser(), union constructors, and generic helpers such as
-// EvaluateAs. Reference parity is judged on the surface shared with TypeScript.
-function sharedSurfaceMethods(methods: SdkMethod[], expected: readonly string[]): SdkMethod[] {
-  const surface = new Set(expected);
-  return methods.filter((method) => surface.has(methodKey(method)));
-}
-
-async function readGoResponseMembers(): Promise<ResponseReferenceMember[]> {
-  const filePath = resolve(GO_ROOT, "response.go");
-  return parseGoFunctions(await readFile(filePath, "utf8"))
-    .filter(
-      (declaration) => declaration.receiverType === "Response" && /^[A-Z]/u.test(declaration.name),
-    )
-    .map((declaration) => ({
-      isProperty: false,
-      name: declaration.name,
-      parameters: declaration.parameters.map(({ name }) => name),
-      returnType: declaration.returnType,
-    }));
-}
-
-// Parses gofmt-formatted Go struct declarations into their exported fields.
-// Comment lines, unexported fields, and struct tags are dropped.
-async function readGoStructs(): Promise<Map<string, GoParameter[]>> {
-  const structs = new Map<string, GoParameter[]>();
-  for (const filePath of await listFiles(GO_ROOT, () => false)) {
-    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
-    const source = await readFile(filePath, "utf8");
-    for (const match of source.matchAll(/^type (\w+)(?:\[[^\]]*\])? struct \{\n([\s\S]*?)^\}/gmu)) {
-      const fields = (match[2] as string).split("\n").flatMap((line): GoParameter[] => {
-        const field = line.match(/^\t([A-Z]\w*)\s+(.+?)(?:\s+`[^`]*`)?$/u);
-        return field ? [{ name: field[1] as string, type: field[2] as string }] : [];
-      });
-      structs.set(match[1] as string, fields);
-    }
-  }
-  return structs;
-}
-
-// Expands a Go parameter into the `parameter.Field` paths a reference page
-// must document: the exported fields of its struct type, recursing while the
-// field type is itself a locally declared struct with exported fields.
-function exportedGoFieldPaths(
-  prefix: string,
-  type: string,
-  structs: ReadonlyMap<string, GoParameter[]>,
-  seen: ReadonlySet<string> = new Set(),
-): Array<{ key: string; type: string }> {
-  const base = type.replace(/^(?:\.\.\.|\*|\[\])+/u, "");
-  const fields = structs.get(base);
-  if (!fields || seen.has(base)) return [];
-  const nextSeen = new Set([...seen, base]);
-  return fields.flatMap((field) => [
-    { key: `${prefix}.${field.name}`, type: field.type },
-    ...exportedGoFieldPaths(`${prefix}.${field.name}`, field.type, structs, nextSeen),
-  ]);
-}
-
-// Parses gofmt-formatted Go function and method declarations. The SDK's
-// signatures never nest braces or comments inside a declaration, so balanced
-// scanning is enough; documented signatures in MDX code fences parse the same
-// way because they end at a newline instead of a body brace.
-function parseGoFunctions(source: string): GoFunctionDeclaration[] {
-  const declarations: GoFunctionDeclaration[] = [];
-  const starts =
-    /^func (?:\((?:\w+ )?\*?(\w+)(?:\[[^\]]*\])?\) )?([A-Za-z_]\w*)(?:\[[^\]]*\])?\(/gmu;
-  for (const match of source.matchAll(starts)) {
-    const parameterStart = match.index + match[0].length;
-    const parameterEnd = matchingParenthesis(source, parameterStart - 1);
-    declarations.push({
-      name: match[2] as string,
-      parameters: parseGoParameters(source.slice(parameterStart, parameterEnd)),
-      receiverType: match[1],
-      returnType: source
-        .slice(parameterEnd + 1, goDeclarationEnd(source, parameterEnd + 1))
-        .replace(/\s+/gu, " ")
-        .trim(),
-    });
-  }
-  return declarations;
-}
-
-function matchingParenthesis(source: string, openIndex: number): number {
-  let depth = 0;
-  for (let index = openIndex; index < source.length; index += 1) {
-    if (source[index] === "(") depth += 1;
-    if (source[index] === ")") {
-      depth -= 1;
-      if (depth === 0) return index;
-    }
-  }
-  throw new Error(`Unbalanced Go declaration: ${source.slice(openIndex, openIndex + 80)}`);
-}
-
 function matchingBrace(source: string, openIndex: number): number {
   let depth = 0;
   for (let index = openIndex; index < source.length; index += 1) {
@@ -1959,71 +1764,10 @@ function matchingBrace(source: string, openIndex: number): number {
   throw new Error(`Unbalanced TypeScript class: ${source.slice(openIndex, openIndex + 80)}`);
 }
 
-// A return type ends at the body brace (SDK source) or at the end of the
-// line (documented signatures carry no body).
-function goDeclarationEnd(source: string, start: number): number {
-  let depth = 0;
-  for (let index = start; index < source.length; index += 1) {
-    const character = source[index];
-    if (character === "(" || character === "[") depth += 1;
-    if (character === ")" || character === "]") depth -= 1;
-    if ((character === "{" || character === "\n") && depth === 0) return index;
-  }
-  return source.length;
-}
-
-function parseGoParameters(text: string): GoParameter[] {
-  const parameters = splitTopLevelGo(text)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part): GoParameter => {
-      const space = part.indexOf(" ");
-      return space < 0
-        ? { name: part, type: "" }
-        : { name: part.slice(0, space), type: part.slice(space + 1).replace(/\s+/gu, " ") };
-    });
-  // Grouped parameters (`a, b string`) take the next declared type.
-  for (let index = parameters.length - 2; index >= 0; index -= 1) {
-    const parameter = parameters[index] as GoParameter;
-    if (!parameter.type) parameter.type = (parameters[index + 1] as GoParameter).type;
-  }
-  return parameters;
-}
-
-function splitTopLevelGo(text: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (character === "(" || character === "[" || character === "{") depth += 1;
-    if (character === ")" || character === "]" || character === "}") depth -= 1;
-    if (character === "," && depth === 0) {
-      parts.push(text.slice(start, index));
-      start = index + 1;
-    }
-  }
-  parts.push(text.slice(start));
-  return parts;
-}
-
 function readDocumentedResponseMembers(
   view: MdxNode,
   language: Language,
 ): ResponseReferenceMember[] {
-  if (language === "Go") {
-    return findNodeValues(view, "code").flatMap((value) =>
-      parseGoFunctions(value)
-        .filter((declaration) => declaration.receiverType === "Response")
-        .map((declaration) => ({
-          isProperty: false,
-          name: declaration.name,
-          parameters: declaration.parameters.map(({ name }) => name),
-          returnType: declaration.returnType,
-        })),
-    );
-  }
-
   const members: ResponseReferenceMember[] = [];
   for (const line of findNodeValues(view, "code").flatMap((value) => value.split("\n"))) {
     const trimmed = line.trim();
@@ -2118,18 +1862,6 @@ function referenceAnchor(heading: string): string {
 }
 
 function readDocumentedHelperMethods(tab: string, language: Language): ResponseReferenceMember[] {
-  if (language === "Go") {
-    return parseGoFunctions(tab)
-      .filter(
-        ({ receiverType }) => receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation",
-      )
-      .map(({ name, parameters, returnType }) => ({
-        isProperty: false,
-        name,
-        parameters: parameters.map(({ name: parameter }) => parameter),
-        returnType,
-      }));
-  }
   if (language === "TypeScript") {
     return [...tab.matchAll(/^([A-Za-z_$][A-Za-z0-9_$]*)\(([^)]*)\):\s*(.+)$/gmu)].map((match) => ({
       isProperty: false,
@@ -2392,12 +2124,7 @@ async function readReferencePages(): Promise<ReferencePage[]> {
         const tree = createProcessor({ format: "mdx" }).parse(
           await readFile(filePath, "utf8"),
         ) as MdxNode;
-        const views = findLanguageTabs(tree).map((view): ReferenceTab => {
-          return {
-            title: stringAttribute(view, "title"),
-            methods: readReferenceMethods(view, filePath),
-          };
-        });
+        const views = findLanguageTabs(tree).map((view) => readReferenceTab(view, filePath));
 
         return {
           classSlug,
@@ -2406,6 +2133,24 @@ async function readReferencePages(): Promise<ReferencePage[]> {
         };
       }),
   );
+}
+
+function referenceTabProblems(page: ReferencePage): string[] {
+  const titles = page.views.map(({ title }) => title ?? "<missing title>");
+  const valid =
+    LANGUAGES.every((language) => titles.includes(language)) &&
+    titles.every((title) => LANGUAGE_TAB_TITLES.has(title)) &&
+    new Set(titles).size === titles.length;
+  return valid ? [] : [`${page.filePath}: ${titles.join(", ")}`];
+}
+
+function readReferenceTab(view: MdxNode, filePath: string): ReferenceTab {
+  const title = stringAttribute(view, "title");
+  return {
+    title,
+    // Go content remains part of the MDX page, but has no SDK API validation on main.
+    methods: title === "Go" ? [] : readReferenceMethods(view, filePath),
+  };
 }
 
 // Sections of a reference page that document something other than a method, so
@@ -2497,8 +2242,8 @@ function isLanguageTab(node: MdxNode): boolean {
   return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
 }
 
-// Integrations follow their upstream SDKs. Core docs cover all Stagehand SDKs.
-// Within a page, each language group must still offer the same choices.
+// Integrations require the active SDK languages used elsewhere on their page.
+// Core docs require both active SDKs. Go is recognized but never required.
 function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   const present = new Set(findLanguageTabs(tree).map((tab) => stringAttribute(tab, "title")));
   const required = pagePath.startsWith("v4/integrations/")

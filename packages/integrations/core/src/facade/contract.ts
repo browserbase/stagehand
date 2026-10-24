@@ -230,6 +230,57 @@ export function staleSnapshotIdError(id: string): string {
   return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
 }
 
+export const SCREENSHOT_ARTIFACT_PATH_ERROR =
+  "Screenshot artifact path must stay within artifactRoot.";
+export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
+  "Screenshot artifact directory must not be a symlink.";
+export const SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR =
+  "Screenshot artifact file must not be a symlink.";
+export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
+
+/**
+ * Part of the error a Stagehand SDK raises from `context.activePage()` when the
+ * focused window's active tab is not one Stagehand registered (another window
+ * has focus). Hosts then act on the newest registered tab instead of failing.
+ */
+export const UNMANAGED_ACTIVE_PAGE_ERROR_MARKER = "active target not registered";
+
+const MB = 1024 * 1024;
+
+/**
+ * Caps on what one `run` batch may hand back to its host. They bound memory and
+ * disk use against a runaway or hostile batch, and sit far above any real agent
+ * run: a full-page PNG is a few MB, and a 10 MB value is already far more than a
+ * model can read. Value size is the UTF-8 length of the value's compact JSON.
+ */
+export const RUN_RESULT_LIMITS = Object.freeze({
+  maxArtifacts: 32,
+  maxArtifactBytes: 25 * MB,
+  maxTotalArtifactBytes: 100 * MB,
+  maxValueBytes: 10 * MB,
+} as const);
+
+/**
+ * Run options a host passes in the `run` batch input; all are off unless the
+ * host turns them on. `quietWait`: page.waitForTimeout(ms) returns once the
+ * page is quiet (readyState past "loading", no mutation in the main document
+ * for `windowMs`; shadow roots and iframes are not observed), checked in the
+ * page every `pollMs` through page.waitForFunction, never later than ms; at or
+ * below `windowMs` it just sleeps, as it does on pages without waitForFunction. The runtime (src/facade/runtime.ts) holds the same numbers.
+ */
+export const RUN_OPTIONS = {
+  quietWait: { default: false, windowMs: 400, pollMs: 100 },
+} as const;
+
+export const RUN_RESULT_MALFORMED_ERROR = "The run batch returned a malformed result.";
+export const SCREENSHOT_ARTIFACT_COUNT_ERROR = `A run can save at most ${RUN_RESULT_LIMITS.maxArtifacts} screenshot artifacts.`;
+export const SCREENSHOT_ARTIFACT_SIZE_ERROR = `A screenshot artifact can be at most ${RUN_RESULT_LIMITS.maxArtifactBytes / MB} MB.`;
+export const SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR = `A run's screenshot artifacts can total at most ${RUN_RESULT_LIMITS.maxTotalArtifactBytes / MB} MB.`;
+export const RUN_VALUE_SIZE_ERROR = `A run can return at most ${RUN_RESULT_LIMITS.maxValueBytes / MB} MB of JSON; return less data.`;
+
+export const SCREENSHOT_CAPTURED_MESSAGE = "Screenshot captured.";
+export const SCREENSHOT_COMPRESSED_MESSAGE = "Screenshot captured with transport-safe compression.";
+
 /**
  * Prefix of the terminal error every facade tool returns once the browser
  * session is gone. Harnesses match on it to tell consequences from agent errors.

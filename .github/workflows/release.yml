@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -100,7 +100,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -161,7 +161,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -213,7 +213,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
@@ -256,7 +256,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -295,7 +295,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -318,41 +318,3 @@ jobs:
     with:
       alpha: true
     secrets: inherit
-
-  publish-go:
-    name: Release Go SDK
-    needs: release-typescript
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: "24"
-
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: "11.11.0"
-          run_install: false
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Check Go release status
-        id: status
-        run: pnpm exec tsx scripts/release/go-publish-status.ts >> "$GITHUB_OUTPUT"
-
-      - name: Tag Go release
-        if: steps.status.outputs.should-tag == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.status.outputs.tag }}
-        run: |
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$TAG" \
-            -f sha="$GITHUB_SHA"

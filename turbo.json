@@ -41,7 +41,7 @@
     },
     "@browserbasehq/stagehand-integrations#build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!python/**"],
       "outputs": ["dist/**"]
     },
     "@browserbasehq/eve#build": {
@@ -108,18 +108,6 @@
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
       "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/src/stagehand/_generated/**"],
       "outputs": ["packages/sdk-python/src/stagehand/_generated/**"]
-    },
-    "//#generate:go": {
-      "dependsOn": [
-        "@browserbasehq/stagehand-protocol#build",
-        "@browserbasehq/stagehand-extension#build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!packages/sdk-go/models.gen.go",
-        "!packages/sdk-go/internal/extensionassets/**"
-      ],
-      "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
     },
     "//#build:wheel": {
       "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-extension#build"],
@@ -408,7 +396,6 @@
         "tests/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/protocol/**",
-        "$TURBO_ROOT$/packages/sdk-go/*.go",
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
