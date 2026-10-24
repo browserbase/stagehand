@@ -267,7 +267,7 @@ describe("resolveBilledCost", () => {
   });
 
   it("computes direct-provider harnesses at list price when nothing was reported", () => {
-    for (const harness of ["codex", "mastra", "deepagents", "eve", "pi"]) {
+    for (const harness of ["codex", "mastra", "deepagents", "pydantic_ai", "eve", "pi"]) {
       expect(
         resolveBilledCost({ harness, model: "openai/gpt-5.4-mini", usage, priceMap }),
         harness,
