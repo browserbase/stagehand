@@ -1,0 +1,83 @@
+---
+title: "Agno"
+description: "Give an Agno agent persistent browser tools with stagehand-middleware."
+---
+
+The Agno integration registers native browser tools from `stagehand-middleware`. One browser stays open across `run`, `snapshot`, and `screenshot` calls. The middleware supplies the instructions, tool schemas, and browser behavior. Screenshots return native image content.
+
+<Note>
+The example is tested with Agno 3.1.5.
+</Note>
+
+## Prerequisites
+
+- Python 3.11–3.13
+- [uv](https://docs.astral.sh/uv/)
+- An OpenAI API key for the agent model
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Install dependencies">
+Create a Python project and install Agno and the browser middleware:
+
+```bash
+mkdir agno-browser
+cd agno-browser
+uv init --python 3.11
+uv add "agno>=3.1.5,<4" "openai>=2,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
+```
+  </Step>
+  <Step title="Save the example">
+Copy [agent.py](https://github.com/browserbase/stagehand/blob/main/packages/integrations/agno/agent.py) into your project. It registers the browser tools with Agno and manages the browser session.
+  </Step>
+  <Step title="Configure the agent model">
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+The example uses OpenAI's `gpt-6-luna` by default. Set `AGNO_MODEL` to another OpenAI model ID. Use a vision-capable model when inspecting screenshots.
+  </Step>
+  <Step title="Choose the browser">
+The integration uses Browserbase when `BROWSERBASE_API_KEY` is set, otherwise local Chrome. To select Browserbase explicitly:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+uv run python agent.py \
+  "Open https://example.com and report the page title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `AGNO_MODEL` | OpenAI model ID for the Agno agent. |
+| `OPENAI_API_KEY` | Agent model credential. |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible gateway endpoint. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. When set, Browserbase is the default browser. |
+| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
+| `STAGEHAND_MODEL` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL`. |
+
+## Screenshots and session lifetime
+
+The screenshot tool returns an Agno `ToolResult` containing an `Image` for the model to inspect.
+
+The example creates one Stagehand session and middleware instance around the complete agent run. Keep that lifetime when adapting it so snapshot IDs and page state survive across calls. Browser tools execute sequentially. The session and browser close when the run finishes or fails.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).
+</Warning>
+
+<Card title="Agno integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/agno">
+  Read the agent example and contract tests.
+</Card>
