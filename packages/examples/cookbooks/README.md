@@ -10,6 +10,16 @@ Browser jobs you can run, adapt, and combine. Each has a [docs page](https://doc
 | [Form approval](approve-form-submission) | TypeScript, Python, Go | Submission or rejection; TypeScript receipt |
 | [Research agent](ai-sdk-research-agent)  | TypeScript             | Report citing approved sources              |
 
+## Durable agents
+
+Independent TypeScript CLI recipes for browser work that waits for a human or resumes after a process exits. Each uses Browserbase and a 30-minute keep-alive browser. Persisted agent state does not extend the browser's lifetime.
+
+| Cookbook                                      | Agent                         | Output                                        |
+| --------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| [Approve an order later](pi-durable-approval) | Native Pi Durable with SQLite | Saved proposal, approval and matching receipt |
+| [Collect receipts](libfx-receipts)            | Native libfx                  | Receipt metadata and completeness manifest    |
+| [Recover a submission](opencode-submission)   | OpenCode on durable-harness   | Confirmed or uncertain submission outcome     |
+
 ## Run
 
 ```bash
@@ -18,9 +28,19 @@ cd stagehand
 git sparse-checkout set packages/examples/cookbooks/<cookbook-name>
 ```
 
-Follow the selected README. Each language folder has its own environment template and lockfile. Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, print a session link, and limit browser lifetime to five minutes. Page and step limits bound work, not cost.
+Follow the selected README and `.env.example` for setup. Each language folder has its own lockfile. Browserbase examples require `BROWSERBASE_API_KEY` and print a session link. Browser sessions last five minutes, or 30 minutes in the durable examples.
 
-From a full checkout, `just cookbook <slug>` runs an installed TypeScript cookbook. Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.\n
+The durable examples use these model keys:
+
+| Cookbook       | Model keys                                                                    |
+| -------------- | ----------------------------------------------------------------------------- |
+| Pi Durable     | `OPENAI_API_KEY` for the agent                                                |
+| libfx receipts | `AI_GATEWAY_API_KEY` for the agent; `OPENAI_API_KEY` for Stagehand extraction |
+| OpenCode       | `AI_GATEWAY_API_KEY` for the agent                                            |
+
+Page and step limits bound work. They do not set a spending limit.
+
+From a full checkout, `just cookbook <slug>` runs an installed TypeScript cookbook. Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
 
 ## Contribute
 

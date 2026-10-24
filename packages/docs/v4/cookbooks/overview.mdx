@@ -13,7 +13,7 @@ Cookbooks are runnable browser jobs with a source folder, an agent prompt, defin
 | [Showcase](https://stagehand.dev/showcase) | Recorded jobs on real sites, with benchmark results |
 | [Functions](/v4/best-practices/deployments) | Deployment instructions and CLI templates |
 
-Cloud recipes print a Browserbase session link and limit browser lifetime to five minutes. Model calls and integrations can add charges. Page and step limits bound work, not a fixed dollar amount. See [model configuration](/v4/configuration/models).
+Cloud recipes print a Browserbase session link and limit browser lifetime to five minutes, or 30 minutes for durable agents. Model calls and integrations can add charges. Page and step limits bound work, not a fixed dollar amount. See [model configuration](/v4/configuration/models).
 
 | Cookbook | Use it when | Inputs | Output | Stagehand methods | Languages |
 | --- | --- | --- | --- | --- | --- |
@@ -22,6 +22,30 @@ Cloud recipes print a Browserbase session link and limit browser lifetime to fiv
 | [Save extracted files to a bucket](/v4/cookbooks/files-to-bucket) | Extracted page data and downloaded bytes must reach object storage | Target page, optional S3 bucket | Local JSON and cover, optional bucket objects | `extract()` | TypeScript |
 | [Approve a form submission](/v4/cookbooks/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
 | [Build an AI SDK research agent](/v4/cookbooks/ai-sdk-research-agent) | An agent must research approved pages and cite sources | Research question, approved URLs | Typed report with source URLs | `extract()` | TypeScript |
+
+## Durable agents
+
+Use these when browser work must wait for a human, preserve completed results, or reconcile an action after a crash. Each is an independent TypeScript CLI project. The agent's state survives process exit; browser sessions and verification codes still expire.
+
+| Cookbook | What survives a restart | What happens next |
+| --- | --- | --- |
+| [Order approval with Pi Durable](/v4/cookbooks/pi-durable-approval) | Exact proposal and human decision in SQLite | The human submits through Live View; Pi verifies the result |
+| [Receipt collection with durable libfx](/v4/cookbooks/libfx-receipts) | Completed sources and pending login handoff | libfx continues incomplete sources and reuses saved records |
+| [Submission recovery with durable OpenCode](/v4/cookbooks/opencode-submission) | Approval and a marker saved before submission | Recovery checks confirmation without submitting again |
+
+After stopping a run, `pnpm start status` reads its saved state and reports a `progress` summary with the next action. It does not call a model or reconnect the browser. These examples make different recovery decisions from stored evidence; a saved conversation alone cannot establish whether a website action succeeded.
+
+## Storage and hosting options
+
+These examples run locally. Other options depend on the agent framework:
+
+- **SQLite or JSONL:** native Pi Durable storage on a machine with persistent disk.
+- **Cloudflare Durable Objects:** Pi Durable with its Cloudflare SQLite storage adapter.
+- **Local files:** Workflow's local World, or libfx's local durability backend.
+- **Vercel Workflows:** hosted World storage for durable-harness and libfx.
+- **Postgres:** a self-hosted Workflow World for durable-harness and libfx.
+
+See [Pi Durable storage](https://earendil.com/posts/pi-durable/) and [Workflow hosting options](https://vercel.com/docs/agent-harnesses/self-hosting). These CLIs resume when invoked; cloud deployment needs the selected framework's hosting and wake-up setup. Agent storage does not extend a Browserbase session.
 
 ## Run a cookbook
 

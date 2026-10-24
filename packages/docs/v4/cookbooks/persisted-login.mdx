@@ -100,7 +100,7 @@ Fill in `.env` before the first run. Run sequentially so context persistence fin
 ```typescript TypeScript
 const browser = await browserbase.launch({
   apiKey,
-  timeout: 300,
+  api_timeout: 300,
   browserSettings: { context: { id: contextId, persist: true } },
 });
 
