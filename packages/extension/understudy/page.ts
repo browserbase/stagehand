@@ -98,6 +98,42 @@ export const PAGE_TO_CDP_EVENTS: Record<PageEventName, PageCDPEventMethod> = {
   ["console"]: "Runtime.consoleAPICalled",
 };
 
+const PRINTABLE_PUNCTUATION: Record<string, { code: string; vk: number }> = {
+  ";": { code: "Semicolon", vk: 186 },
+  ":": { code: "Semicolon", vk: 186 },
+  "=": { code: "Equal", vk: 187 },
+  "+": { code: "Equal", vk: 187 },
+  ",": { code: "Comma", vk: 188 },
+  "<": { code: "Comma", vk: 188 },
+  "-": { code: "Minus", vk: 189 },
+  _: { code: "Minus", vk: 189 },
+  ".": { code: "Period", vk: 190 },
+  ">": { code: "Period", vk: 190 },
+  "/": { code: "Slash", vk: 191 },
+  "?": { code: "Slash", vk: 191 },
+  "`": { code: "Backquote", vk: 192 },
+  "~": { code: "Backquote", vk: 192 },
+  "[": { code: "BracketLeft", vk: 219 },
+  "{": { code: "BracketLeft", vk: 219 },
+  "\\": { code: "Backslash", vk: 220 },
+  "|": { code: "Backslash", vk: 220 },
+  "]": { code: "BracketRight", vk: 221 },
+  "}": { code: "BracketRight", vk: 221 },
+  "'": { code: "Quote", vk: 222 },
+  '"': { code: "Quote", vk: 222 },
+  // Shifted digits on US keyboard layout
+  ")": { code: "Digit0", vk: 48 },
+  "!": { code: "Digit1", vk: 49 },
+  "@": { code: "Digit2", vk: 50 },
+  "#": { code: "Digit3", vk: 51 },
+  $: { code: "Digit4", vk: 52 },
+  "%": { code: "Digit5", vk: 53 },
+  "^": { code: "Digit6", vk: 54 },
+  "&": { code: "Digit7", vk: 55 },
+  "*": { code: "Digit8", vk: 56 },
+  "(": { code: "Digit9", vk: 57 },
+};
+
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -2164,42 +2200,22 @@ export class Page {
 
       // Printable character: include key, code, and text for maximum compatibility
       // Some sites (like Wordle) check event.key rather than relying on text input
-      const isLetter = /^[a-zA-Z]$/.test(ch);
-      const isDigit = /^[0-9]$/.test(ch);
-
-      let key = ch;
-      let code = "";
-      let windowsVirtualKeyCode: number | undefined;
-
-      if (isLetter) {
-        // For letters, key is the character, code is KeyX where X is uppercase
-        key = ch;
-        code = `Key${ch.toUpperCase()}`;
-        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
-      } else if (isDigit) {
-        key = ch;
-        code = `Digit${ch}`;
-        windowsVirtualKeyCode = ch.charCodeAt(0);
-      } else if (ch === " ") {
-        key = " ";
-        code = "Space";
-        windowsVirtualKeyCode = 32;
-      }
+      const desc = this.describePrintableKey(ch);
 
       const down: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
-        key,
-        code: code || undefined,
+        key: desc.key,
+        code: desc.code,
         text: ch,
         unmodifiedText: ch,
-        windowsVirtualKeyCode,
+        windowsVirtualKeyCode: desc.vk,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
-        key,
-        code: code || undefined,
-        windowsVirtualKeyCode,
+        key: desc.key,
+        code: desc.code,
+        windowsVirtualKeyCode: desc.vk,
       } as Protocol.Input.DispatchKeyEventRequest);
     };
 
@@ -2379,10 +2395,14 @@ export class Page {
         await this.mainSession.send("Input.dispatchKeyEvent", req);
       } else {
         // Typing path (no non-Shift modifiers): send text to generate input
+        const desc = this.describePrintableKey(normalizedKey);
         await this.mainSession.send("Input.dispatchKeyEvent", {
           type: "keyDown",
           text: normalizedKey,
           unmodifiedText: normalizedKey,
+          key: desc.key,
+          ...(desc.code ? { code: desc.code } : {}),
+          ...(typeof desc.vk === "number" ? { windowsVirtualKeyCode: desc.vk } : {}),
           modifiers,
         } as Protocol.Input.DispatchKeyEventRequest);
       }
@@ -2441,8 +2461,8 @@ export class Page {
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
         key: desc.key,
-        code: desc.code,
-        windowsVirtualKeyCode: typeof desc.vk === "number" ? desc.vk : undefined,
+        ...(desc.code ? { code: desc.code } : {}),
+        ...(typeof desc.vk === "number" ? { windowsVirtualKeyCode: desc.vk } : {}),
         modifiers,
       } as Protocol.Input.DispatchKeyEventRequest);
       return;
@@ -2579,8 +2599,8 @@ export class Page {
   }
 
   /**
-   * Minimal description for printable keys (letters/digits/space) to provide code and VK.
-   * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
+   * Minimal description for printable keys (letters/digits/space/punctuation) to provide code and VK.
+   * Used for typing and accelerators to ensure key identity without causing command collisions.
    */
   describePrintableKey(ch: string): {
     key: string;
@@ -2594,7 +2614,7 @@ export class Page {
     if (isLetter) {
       const upper = ch.toUpperCase();
       return {
-        key: shiftDown ? upper : upper.toLowerCase(),
+        key: shiftDown || ch === upper ? upper : upper.toLowerCase(),
         code: `Key${upper}`,
         vk: upper.charCodeAt(0), // 'A'..'Z' => 65..90
       };
@@ -2612,10 +2632,18 @@ export class Page {
       return { key: " ", code: "Space", vk: 32 };
     }
 
-    // Fallback: just return the character as-is; VK best-effort from ASCII
+    const punct = PRINTABLE_PUNCTUATION[ch];
+    if (punct) {
+      return {
+        key: ch,
+        code: punct.code,
+        vk: punct.vk,
+      };
+    }
+
+    // Fallback: return the character as-is without a synthetic VK to prevent collisions
     return {
       key: shiftDown ? ch.toUpperCase() : ch,
-      vk: ch.toUpperCase().charCodeAt(0),
     };
   }
 
