@@ -183,7 +183,7 @@ def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None
     }
 
 
-@pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "groq", "cerebras"])
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "google"])
 def test_unknown_model_ids_round_trip(provider: str) -> None:
     model_name = f"{provider}/vendor/future-model-v1"
     model = models.ModelConfig.model_validate({"model_name": model_name})
@@ -263,3 +263,9 @@ def test_init_browserbase_metadata_dependency(options: dict[str, object], valid:
     else:
         with pytest.raises(ValidationError):
             models.StagehandInitParams.model_validate(params)
+
+
+@pytest.mark.parametrize("provider", ["groq", "cerebras"])
+def test_removed_model_providers_are_rejected(provider: str) -> None:
+    with pytest.raises(ValidationError):
+        models.ModelConfig.model_validate({"model_name": f"{provider}/future-model-v1"})

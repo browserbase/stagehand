@@ -11,9 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/cerebras": "catalog:",
     "@ai-sdk/google": "catalog:",
-    "@ai-sdk/groq": "catalog:",
     "@ai-sdk/openai": "catalog:",
     "@ai-sdk/provider": "catalog:",
     "@opentelemetry/api": "catalog:",
