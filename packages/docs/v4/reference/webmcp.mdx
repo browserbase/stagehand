@@ -160,8 +160,8 @@ func (t *WebMCPTool) Descriptor() WebMCPToolDescriptor
 ```
 
 The returned descriptor contains `Name`, `Description`, `InputSchema`, `Annotations`, `FrameID`,
-and optional `BackendNodeID`. `Annotations` may contain `ReadOnly`, `UntrustedContent`,
-`Consequential`, and `Autosubmit` pointers.
+and optional `BackendNodeID`. `Annotations` may contain `ReadOnly`, `UntrustedContent`, and
+`Autosubmit` pointers.
 
 ### Invoke()
 
@@ -174,9 +174,6 @@ func (t *WebMCPTool) Invoke(
 
 `WebMCPInput` is a `map[string]any`; `nil` is sent as an empty JSON object. Values must be JSON
 encodable. The helper supplies its own page, frame, and tool name.
-
-`Invoke()` does not ask the user for confirmation. If `Annotations.Consequential` points to `true`,
-confirm the action and input with the user before invoking the tool.
 
 ## WebMCPInvocation
 

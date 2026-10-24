@@ -121,7 +121,7 @@ for _, tool := range tools {
 	descriptor := tool.Descriptor()
 	fmt.Println(descriptor.Name, descriptor.Description)
 	fmt.Println(descriptor.InputSchema)  // JSON Schema for Invoke input
-	fmt.Println(descriptor.Annotations)  // tool safety hints
+	fmt.Println(descriptor.Annotations)  // ReadOnly / UntrustedContent / Autosubmit
 	fmt.Println(descriptor.FrameID)      // the frame that registered the tool
 }
 ```
