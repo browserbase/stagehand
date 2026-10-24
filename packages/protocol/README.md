@@ -18,7 +18,7 @@ a request object without an `id`, so it does not receive a response.
 1. `schemas.ts` defines protocol data with Zod.
 2. `schema-registry.ts` assigns those schemas to JSON-RPC methods and notifications.
 3. `json-rpc/build-json-rpc-schema.ts` derives one in-memory Zod document from those catalogs, converts it to JSON Schema, renames API-facing keys to their wire names, and writes `stagehand.v4.json`.
-4. TypeScript uses the original Zod schemas directly. `just generate` uses `stagehand.v4.json` to generate the Python models and Go structs.
+4. TypeScript uses the original Zod schemas directly. `just generate` uses `stagehand.v4.json` to generate the Python models.
 
 ## Where schemas go
 
@@ -26,7 +26,7 @@ a request object without an `id`, so it does not receive a response.
   - Put it in `schemas.ts` and infer its type with `z.infer` in `types.ts`.
   - The Zod schema is the source of truth.
 - Is it used only by the SDKs?
-  - Put it in `../sdk-ts/src/clientSchemas.ts`, `../sdk-python/src/stagehand/client_types.py` and `client_models.py`, and `../sdk-go/client_options.go`.
+  - Put it in `../sdk-ts/src/clientSchemas.ts`, `../sdk-python/src/stagehand/client_types.py` and `client_models.py`.
   - Extend or reuse the protocol type when possible.
 
 ## Adding or changing a method
@@ -37,10 +37,9 @@ a request object without an `id`, so it does not receive a response.
 4. Implement and route the method in the extension.
    - Add it to the appropriate controller in `../extension/controllers`, creating a controller if needed.
    - Put the underlying behavior in the appropriate service in `../extension/services`, then route the method in `../extension/rpcRouter.ts`.
-5. Add or update the method in all three SDKs.
+5. Add or update the method in the TypeScript and Python SDKs.
    - TypeScript: update the appropriate class in `../sdk-ts/src`.
    - Python: update the corresponding class in `../sdk-python/src/stagehand`.
-   - Go: update the corresponding type in `../sdk-go`.
 6. Update the matching `../docs/v4/reference/<object>.mdx` page and any affected guide.
 7. Add focused tests, then run `just check` and `just test`.
 
