@@ -723,14 +723,14 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
-const browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
-const stagehand = await Stagehand.create({ browser });
+let browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+let stagehand = await Stagehand.create({ browser });
 // ...
 await browser.disconnect(); // closes stagehand; Chrome and its tabs keep running
 
 // Later, attach again to the same Chrome
-const browser2 = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
-const stagehand2 = await Stagehand.create({ browser: browser2 });
+browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+stagehand = await Stagehand.create({ browser });
 ```
 </Tab>
 
@@ -742,8 +742,8 @@ stagehand = await Stagehand.create(browser=browser)
 await browser.disconnect()  # closes stagehand; Chrome and its tabs keep running
 
 # Later, attach again to the same Chrome
-browser2 = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
-stagehand2 = await Stagehand.create(browser=browser2)
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
 ```
 </Tab>
 
@@ -752,7 +752,7 @@ stagehand2 = await Stagehand.create(browser=browser2)
 </Tab>
 </Tabs>
 
-After `disconnect()` you can't reattach the handle, and repeated `disconnect()` calls do nothing. A local browser Stagehand launched keeps running too, as does a Browserbase session with `keepAlive: true`. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
+After `disconnect()` you can't reattach the handle itself, so call `connect()` again for a new one, and repeated `disconnect()` calls do nothing. A local browser Stagehand launched keeps running too, as does a Browserbase session with `keepAlive: true`. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
 
 | Browser | After `browser.disconnect()` | Later `browser.close()` |
 | --- | --- | --- |
