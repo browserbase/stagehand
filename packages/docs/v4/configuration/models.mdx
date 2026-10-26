@@ -948,6 +948,19 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 <Accordion title="OpenAI-compatible SDKs">
 
+For a custom endpoint such as DemonRoute, configure the OpenAI client with your endpoint and key:
+
+```typescript
+import OpenAI from "openai";
+
+const demonroute = new OpenAI({
+  baseURL: "https://api.demonroute.com/v1",
+  apiKey: process.env.DEMONROUTE_API_KEY,
+});
+```
+
+Use this client inside your generate callback, choosing a model ID from DemonRoute's available models. Adapt the request to the API and structured-output capabilities supported by that model; the example below uses OpenAI's Responses API. Pass your callback to `Stagehand.create()` as `model: { generate: yourCallback }`. The custom `baseURL` belongs on the OpenAI client, not on Stagehand's model configuration.
+
 <Steps>
 <Step title="Install dependencies">
 Install your provider's SDK.
