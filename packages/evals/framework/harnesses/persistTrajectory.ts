@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { shouldPersistTrajectory, writeTrajectoryDir } from "stagehand-v3";
+import { shouldPersistTrajectory, writeTrajectoryDir } from "@browserbasehq/stagehand-evaluator";
 import {
   reserveTrajectoryDir,
   resolveTrajectoryDir,
   resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
-import type { EvaluationResult, TaskSpec } from "stagehand-v3";
+import type { EvaluationResult, TaskSpec } from "@browserbasehq/stagehand-evaluator";
 import type { HarnessTrajectory } from "./trajectoryAdapter.js";
 import type { UngradedVerifierResult } from "../verifierAdapter.js";
 

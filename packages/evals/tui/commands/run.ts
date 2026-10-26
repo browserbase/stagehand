@@ -182,7 +182,7 @@ export function trajectoryPersistence(env: NodeJS.ProcessEnv): { on: boolean; wh
 }
 
 /**
- * `Judge: google/gemini-3.5-flash  Success: outcome  Trajectories: on (.trajectories)`
+ * `Judge: google/gemini-3.8-flash  Success: outcome  Trajectories: on (.trajectories)`
  * — the verifier settings a bench run will grade with. Resolved over the
  * run's env overrides, so `verifier.model` from config shows up here exactly
  * as the runner will see it.

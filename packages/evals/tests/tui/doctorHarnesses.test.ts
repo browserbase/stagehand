@@ -161,7 +161,7 @@ describe("buildHarnessMatrix", () => {
     const fetchImpl = fetchStub({
       "https://api.anthropic.com/v1/models?limit=1": 401,
       "https://api.openai.com/v1/models?limit=1": 200,
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash": 200,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash": 200,
       "https://api.browserbase.com/v1/projects/proj": 200,
     });
     const envFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "doctor-env-")), ".env");
@@ -221,7 +221,7 @@ describe("buildHarnessMatrix", () => {
     expect(matrix.verifier.probes[1]).toMatchObject({
       status: "fail",
       label: "model not found",
-      fix: "evals config verifier set model google/gemini-3.5-flash",
+      fix: "evals config verifier set model google/gemini-3.8-flash",
     });
     expect(matrix.verifier.probes[1].detail).toContain("Fused judgment call failed");
   });

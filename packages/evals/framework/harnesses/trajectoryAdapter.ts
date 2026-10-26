@@ -5,7 +5,7 @@ import type {
   TaskSpec,
   Trajectory,
   TrajectoryStep,
-} from "stagehand-v3";
+} from "@browserbasehq/stagehand-evaluator";
 
 /**
  * Why a run stopped. `status` on the Trajectory only says whether it ended

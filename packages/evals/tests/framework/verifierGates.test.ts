@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { CriterionScore, EvaluationResult, TrajectoryStep } from "stagehand-v3";
+import type {
+  CriterionScore,
+  EvaluationResult,
+  TrajectoryStep,
+} from "@browserbasehq/stagehand-evaluator";
 
 import {
   applyVerdictGates,
@@ -702,4 +706,74 @@ describe("evidence rows from the 2026-08-31 audit", () => {
     });
     expect(gates.outcomeGates).toEqual(["ungrounded_answer"]);
   });
+});
+
+it("preserves proven completion when final evidence capture disconnects", () => {
+  const gates = applyVerdictGates({
+    evaluation: {
+      ...passingJudge,
+      outcomeState: "supported",
+      health: { schemaVersion: 1, status: "healthy", errors: [] },
+    },
+    trajectory: {
+      steps: [step({ output: "Cart: blue widget" })],
+      status: "error",
+      finalAnswer: "",
+    },
+    isFacadeTool,
+    requireGrounding: false,
+  });
+  expect(gates.outcomeSuccess).toBe(true);
+  expect(gates.outcomeGates).toEqual([]);
+});
+
+it("requires recorded browser use even when the judge reports supported", () => {
+  const gates = applyVerdictGates({
+    evaluation: {
+      ...passingJudge,
+      outcomeState: "supported",
+      health: { schemaVersion: 1, status: "healthy", errors: [] },
+    },
+    trajectory: {
+      steps: [step({ action: "web_fetch", output: "Price: $12" })],
+      status: "complete",
+      finalAnswer: "$12",
+    },
+    isFacadeTool,
+    requireGrounding: false,
+  });
+  expect(gates.judgeOutcomeSuccess).toBe(true);
+  expect(gates.outcomeSuccess).toBe(false);
+  expect(gates.outcomeGates).toEqual(["no_browser_use"]);
+});
+
+it("recognizes Cursor mcp server identity even when the legacy name matcher rejects it", () => {
+  const cursor = step({ action: "mcp", output: "Price: $12" });
+  cursor.actionArgs = { providerIdentifier: "stagehand", toolName: "run" };
+  const gates = applyVerdictGates({
+    evaluation: passingJudge,
+    trajectory: { steps: [cursor], status: "complete", finalAnswer: "$12" },
+    isFacadeTool,
+    requireGrounding: false,
+  });
+  expect(gates.outcomeSuccess).toBe(true);
+  expect(gates.outcomeGates).toEqual([]);
+});
+
+it("counts a successful matcher-recognized call the detector does not know (Mastra)", () => {
+  const isMastraTool = (name: string) => name === "stagehand_browser_run";
+  const run = (ok: boolean) =>
+    applyVerdictGates({
+      evaluation: passingJudge,
+      trajectory: {
+        steps: [step({ action: "stagehand_browser_run", output: "Price: $12", ok })],
+        status: "complete",
+        finalAnswer: "$12",
+      },
+      isFacadeTool: isMastraTool,
+      requireGrounding: false,
+    });
+  expect(run(true).outcomeGates).toEqual([]);
+  expect(run(true).outcomeSuccess).toBe(true);
+  expect(run(false).outcomeGates).toEqual(["no_browser_use"]);
 });
