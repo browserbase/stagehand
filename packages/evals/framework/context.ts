@@ -2,23 +2,26 @@
  * Context builders for each tier.
  *
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
- * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
+ * - buildAgentBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-import type {
-  AvailableModel,
-  ClientOptions,
-  LLMClient,
-} from "@browserbasehq/stagehand";
+import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
 import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
-import { getCoreTool } from "../core/tools/registry.js";
+import {
+  getCoreTool,
+  isAgentMountOnlyToolSurface,
+  listCoreRunnableTools,
+} from "../core/tools/registry.js";
 import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
+import { EvalsError } from "../errors.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import type { BenchTaskContext, CoreTaskContext } from "./types.js";
+import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
+import { resolveStartupProfile } from "./harnesses/toolSurfaceResolution.js";
+import { formatBenchHarnessFlags, listBenchHarnessesForToolSurface } from "./benchHarness.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -36,25 +39,25 @@ export function resolveDefaultCoreStartupProfile(
   toolSurface: ToolSurface,
   environment: "LOCAL" | "BROWSERBASE",
 ): StartupProfile {
-  switch (toolSurface) {
-    case "browse_cli":
-      return environment === "BROWSERBASE"
-        ? "tool_create_browserbase"
-        : "tool_launch_local";
-    case "understudy_code":
-    case "playwright_code":
-    case "cdp_code":
-    case "playwright_mcp":
-    case "chrome_devtools_mcp":
-      return environment === "BROWSERBASE"
-        ? "runner_provided_browserbase_cdp"
-        : "runner_provided_local_cdp";
-    default:
-      break;
-  }
+  rejectAgentMountOnlyCoreTool(toolSurface);
+  // Intentionally use the shared resolver for every core-runnable surface,
+  // including stagehand_code, so harnesses agree on startup defaults.
+  return resolveStartupProfile(toolSurface, environment);
+}
 
-  throw new Error(
-    `No default startup profile for tool "${toolSurface}" in environment "${environment}"`,
+/**
+ * Agent-mount-only surfaces (stagehand_facade) have no runner-driven session, so
+ * `evals core` rejects them up front with guidance instead of failing later on
+ * activePage(). Shared by the core context builder and the run planner.
+ */
+export function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
+  if (!isAgentMountOnlyToolSurface(toolSurface)) return;
+  const harnesses = listBenchHarnessesForToolSurface(toolSurface);
+  const guidance = harnesses.length
+    ? `Use ${formatBenchHarnessFlags(harnesses)} with --tool ${toolSurface}`
+    : "No registered harness mounts this surface";
+  throw new EvalsError(
+    `Tool surface "${toolSurface}" is available only as an agent harness mount and cannot run under evals core. ${guidance}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
   );
 }
 
@@ -70,10 +73,10 @@ export async function buildCoreContext(
   const logger = options.logger ?? new EvalLogger();
   const environment = options.environment ?? "LOCAL";
   const toolSurface = options.toolSurface ?? "understudy_code";
+  rejectAgentMountOnlyCoreTool(toolSurface);
   const tool = getCoreTool(toolSurface);
   const startupProfile =
-    options.startupProfile ??
-    resolveDefaultCoreStartupProfile(toolSurface, environment);
+    options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);
 
   if (!tool.supportedStartupProfiles.includes(startupProfile)) {
     throw new Error(
@@ -109,7 +112,7 @@ export async function buildCoreContext(
       surface: tool.surface,
       metadata: {
         ...toolResult.metadata,
-        ...(targetResult.metadata ?? {}),
+        ...targetResult.metadata,
       },
     },
     assert: createAssertHelpers(),
@@ -129,7 +132,7 @@ export async function buildCoreContext(
   };
 }
 
-export interface BenchContextOptions {
+export interface AgentBenchContextOptions {
   modelName: AvailableModel;
   logger?: EvalLogger;
   llmClient?: LLMClient;
@@ -144,21 +147,21 @@ export interface BenchContextOptions {
   };
 }
 
-export interface BenchContextResult {
-  ctx: BenchTaskContext;
+export interface AgentBenchContextResult {
+  ctx: AgentBenchTaskContext;
   /** The V3 instance — caller is responsible for closing it. */
   v3Result: V3InitResult;
 }
 
 /**
- * Build a BenchTaskContext for agent benchmark (tier 3) tasks.
+ * Build an AgentBenchTaskContext for agent benchmark (tier 3) tasks.
  *
  * Wraps the existing initV3 logic, providing the same shape that
  * legacy EvalFunction tasks expect.
  */
-export async function buildBenchContext(
-  options: BenchContextOptions,
-): Promise<BenchContextResult> {
+export async function buildAgentBenchContext(
+  options: AgentBenchContextOptions,
+): Promise<AgentBenchContextResult> {
   const logger = options.logger ?? new EvalLogger();
   const v3Result = await initV3({
     logger,
@@ -170,7 +173,7 @@ export async function buildBenchContext(
   });
 
   const page = v3Result.v3.context.pages()[0];
-  const ctx: BenchTaskContext = {
+  const ctx: AgentBenchTaskContext = {
     v3: v3Result.v3,
     agent: v3Result.agent,
     page,

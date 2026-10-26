@@ -4,16 +4,25 @@ import type { DriverCommandName } from "./commands/types.js";
 import {
   autoConnectFlag,
   cdpFlag,
+  chromeArgFlag,
   headedFlag,
   headlessFlag,
+  ignoreDefaultChromeArgFlag,
   localFlag,
+  noDefaultChromeArgsFlag,
+  proxiesFlag,
   remoteFlag,
   sessionFlag,
   sessionName,
   targetIdFlag,
+  verifiedFlag,
 } from "./flags.js";
 import { getDriverStatus } from "./daemon/client.js";
-import { resolveConnectionTarget, type DriverModeFlags } from "./mode.js";
+import {
+  hasChromeArgFlags,
+  resolveConnectionTarget,
+  type DriverModeFlags,
+} from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
@@ -21,12 +30,17 @@ import { runDriverCommandWithTarget } from "./runtime.js";
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
   cdp: cdpFlag,
+  "chrome-arg": chromeArgFlag,
   headed: headedFlag,
   headless: headlessFlag,
+  "ignore-default-chrome-arg": ignoreDefaultChromeArgFlag,
   local: localFlag,
+  "no-default-chrome-args": noDefaultChromeArgsFlag,
+  proxies: proxiesFlag,
   remote: remoteFlag,
   session: sessionFlag,
   "target-id": targetIdFlag,
+  verified: verifiedFlag,
 };
 
 export const waitUntilFlag = Flags.string({
@@ -89,9 +103,12 @@ export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
       flags.remote ||
       flags["auto-connect"] ||
       flags.cdp ||
+      hasChromeArgFlags(flags) ||
       flags["target-id"] ||
       flags.headed ||
-      flags.headless,
+      flags.headless ||
+      flags.verified ||
+      flags.proxies,
   );
 }
 
@@ -100,9 +117,12 @@ function hasModeOnlyFlag(flags: DriverFlags): boolean {
     (flags.local || flags.remote) &&
       !flags["auto-connect"] &&
       !flags.cdp &&
+      !hasChromeArgFlags(flags) &&
       !flags["target-id"] &&
       !flags.headed &&
       !flags.headless &&
+      !flags.verified &&
+      !flags.proxies &&
       flags.local !== flags.remote,
   );
 }

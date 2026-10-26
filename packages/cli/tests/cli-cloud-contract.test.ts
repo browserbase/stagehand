@@ -380,42 +380,148 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("search sends the expected POST body and prints JSON", async () => {
+  it.each([
+    { name: "server defaults", args: [], options: {} },
+    {
+      name: "Parallel fast mode",
+      args: ["--provider", "parallel", "--mode", "fast"],
+      options: { provider: "parallel", mode: "fast" },
+    },
+    {
+      name: "Parallel advanced mode",
+      args: ["--provider", "parallel", "--mode", "advanced"],
+      options: { provider: "parallel", mode: "advanced" },
+    },
+    {
+      name: "Parallel with the server's default mode",
+      args: ["--provider", "parallel"],
+      options: { provider: "parallel" },
+    },
+    {
+      name: "Exa",
+      args: ["--provider", "exa"],
+      options: { provider: "exa" },
+    },
+    {
+      name: "fast mode with the server's default provider",
+      args: ["--mode", "fast"],
+      options: { mode: "fast" },
+    },
+    {
+      name: "advanced mode with the server's default provider",
+      args: ["--mode", "advanced"],
+      options: { mode: "advanced" },
+    },
+  ])(
+    "search sends the expected POST body and prints JSON: $name",
+    async ({ args, options }) => {
+      await withServer(
+        async (_request, response) => {
+          jsonResponse(
+            response,
+            200,
+            makeSearchResponse("test query", [
+              { id: "res_1", url: "https://example.com", title: "Example" },
+            ]),
+          );
+        },
+        async ({ baseUrl, requests }) => {
+          const result = await runCli([
+            "cloud",
+            "search",
+            "test query",
+            ...args,
+            "--num-results",
+            "5",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ]);
+
+          expect(result.exitCode).toBe(0);
+          const output = JSON.parse(result.stdout) as {
+            query: string;
+            results: unknown[];
+          };
+          expect(output.query).toBe("test query");
+          expect(output.results).toHaveLength(1);
+          expect(requests).toHaveLength(1);
+          expectRequest(requests[0], "POST", "/v1/search", "test-key");
+          expect(requests[0]?.jsonBody).toEqual({
+            query: "test query",
+            numResults: 5,
+            ...options,
+          });
+        },
+      );
+    },
+  );
+
+  it.each([
+    { flag: "--provider", value: "unknown-provider" },
+    { flag: "--mode", value: "unknown-mode" },
+  ])(
+    "search rejects invalid $flag before calling the API",
+    async ({ flag, value }) => {
+      await withServer(
+        async (_request, response) => {
+          jsonResponse(response, 200, makeSearchResponse("test query", []));
+        },
+        async ({ baseUrl, requests }) => {
+          const result = await runCli([
+            "cloud",
+            "search",
+            "test query",
+            flag,
+            value,
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ]);
+
+          expect(result.exitCode).toBe(2);
+          expect(result.stderr).toContain(flag);
+          expect(result.stderr).toContain(value);
+          expect(requests).toHaveLength(0);
+        },
+      );
+    },
+  );
+
+  it("search surfaces API errors for unsupported provider and mode combinations", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(
-          response,
-          200,
-          makeSearchResponse("test query", [
-            { id: "res_1", url: "https://example.com", title: "Example" },
-          ]),
-        );
+        jsonResponse(response, 400, {
+          message: "mode is only supported by the parallel provider",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
           "cloud",
           "search",
           "test query",
-          "--num-results",
-          "5",
+          "--provider",
+          "exa",
+          "--mode",
+          "fast",
           "--api-key",
           "test-key",
           "--base-url",
           baseUrl,
         ]);
 
-        expect(result.exitCode).toBe(0);
-        const output = JSON.parse(result.stdout) as {
-          query: string;
-          results: unknown[];
-        };
-        expect(output.query).toBe("test query");
-        expect(output.results).toHaveLength(1);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain(
+          "mode is only supported by the parallel provider",
+        );
         expect(requests).toHaveLength(1);
         expectRequest(requests[0], "POST", "/v1/search", "test-key");
-        expect(requests[0]?.jsonBody).toMatchObject({
+        expect(requests[0]?.jsonBody).toEqual({
           query: "test query",
-          numResults: 5,
+          provider: "exa",
+          mode: "fast",
         });
       },
     );
@@ -669,6 +775,93 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("warns on stderr when auto-loading .env variables with BROWSE_LOAD_DOTENV unset", async () => {
+    const cwd = await createTempDir("browse-dotenv-warn-");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, [{ id: "proj_123", name: "Demo" }]);
+      },
+      async ({ baseUrl, requests }) => {
+        await writeFile(
+          join(cwd, ".env"),
+          [
+            "BROWSERBASE_API_KEY=test-key",
+            `BROWSERBASE_BASE_URL=${baseUrl}`,
+          ].join("\n"),
+        );
+
+        const result = await runCli(["cloud", "projects", "list"], {
+          cwd,
+          env: {
+            BROWSERBASE_API_KEY: undefined,
+            BROWSERBASE_BASE_URL: undefined,
+            BROWSE_LOAD_DOTENV: undefined,
+          },
+        });
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "GET", "/v1/projects", "test-key");
+        expect(result.stderr).toContain("deprecated");
+        expect(result.stderr).toContain("BROWSERBASE_API_KEY");
+      },
+    );
+  });
+
+  it("does not warn when BROWSE_LOAD_DOTENV=1 is explicitly set", async () => {
+    const cwd = await createTempDir("browse-dotenv-optin-");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, [{ id: "proj_123", name: "Demo" }]);
+      },
+      async ({ baseUrl, requests }) => {
+        await writeFile(
+          join(cwd, ".env"),
+          [
+            "BROWSERBASE_API_KEY=test-key",
+            `BROWSERBASE_BASE_URL=${baseUrl}`,
+          ].join("\n"),
+        );
+
+        const result = await runCli(["cloud", "projects", "list"], {
+          cwd,
+          env: {
+            BROWSERBASE_API_KEY: undefined,
+            BROWSERBASE_BASE_URL: undefined,
+            BROWSE_LOAD_DOTENV: "1",
+          },
+        });
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "GET", "/v1/projects", "test-key");
+        expect(result.stderr).not.toContain("deprecated");
+      },
+    );
+  });
+
+  it.each(["0", "false", "no", "FALSE", "NO"])(
+    "does not auto-load .env when BROWSE_LOAD_DOTENV=%s",
+    async (optOutValue) => {
+      const cwd = await createTempDir("browse-dotenv-optout-");
+
+      await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=test-key\n");
+
+      const result = await runCli(["cloud", "projects", "list"], {
+        cwd,
+        env: {
+          BROWSERBASE_API_KEY: undefined,
+          BROWSERBASE_BASE_URL: undefined,
+          BROWSE_LOAD_DOTENV: optOutValue,
+        },
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Missing Browserbase API key");
+      expect(result.stderr).not.toContain("deprecated");
+    },
+  );
+
   it.each([
     {
       args: ["cloud", "contexts", "create", "--body", '{"region":"us-west-2"}'],
@@ -678,23 +871,43 @@ describe("cloud API contracts", () => {
       responseBody: { id: "ctx_123" },
     },
     {
-      args: ["cloud", "contexts", "get", "ctx_123"],
+      // Pass a context id (UUID) so resolution hits the id-passthrough path
+      // regardless of any locally-saved names.
+      args: [
+        "cloud",
+        "contexts",
+        "get",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
-      responseBody: { id: "ctx_123" },
+      responseBody: { id: "00000000-0000-4000-8000-000000000000" },
     },
     {
-      args: ["cloud", "contexts", "update", "ctx_123"],
+      args: [
+        "cloud",
+        "contexts",
+        "update",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "PUT",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
-      responseBody: { id: "ctx_123", uploadUrl: "https://example.com/upload" },
+      responseBody: {
+        id: "00000000-0000-4000-8000-000000000000",
+        uploadUrl: "https://example.com/upload",
+      },
     },
     {
-      args: ["cloud", "contexts", "delete", "ctx_123"],
+      args: [
+        "cloud",
+        "contexts",
+        "delete",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "DELETE",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
       responseBody: null,
     },
@@ -1137,6 +1350,121 @@ describe("cloud API contracts", () => {
             verified: true,
           },
         });
+      },
+    );
+  });
+
+  it("sessions create tags userMetadata with browse_cli, cli_version, and install_id", async () => {
+    const idDir = await createTempDir("browse-create-install-id-");
+    const installIdFile = join(idDir, "telemetry-id");
+    await writeFile(installIdFile, "create-install-uuid-123\n", "utf8");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: installIdFile } },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        expect(body.userMetadata).toBeDefined();
+        expect(body.userMetadata?.browse_cli).toBe("true");
+        // Seeded from oclif Config.version in BrowseCommand.init(); never "unknown".
+        expect(body.userMetadata?.cli_version).toBeDefined();
+        expect(body.userMetadata?.cli_version).not.toBe("unknown");
+        expect(body.userMetadata?.install_id).toBe("create-install-uuid-123");
+      },
+    );
+  });
+
+  it("sessions create preserves user-supplied metadata but keeps attribution keys authoritative", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          // User-supplied metadata: a custom key is kept; an attempt to override
+          // browse_cli must lose to our authoritative attribution value.
+          "--body",
+          '{"userMetadata":{"env":"staging","browse_cli":"false"}}',
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        // User's custom key survives.
+        expect(body.userMetadata?.env).toBe("staging");
+        // Attribution keys are authoritative — caller cannot spoof browse_cli.
+        expect(body.userMetadata?.browse_cli).toBe("true");
+        expect(body.userMetadata?.cli_version).not.toBe("unknown");
+      },
+    );
+  });
+
+  it("sessions create strips caller-supplied install_id to prevent spoofing", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--body",
+            '{"userMetadata":{"install_id":"spoofed-id","env":"test"}}',
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          // Override install-id resolution to a throwaway path with no
+          // pre-existing id: resolveInstallId just creates it and returns a
+          // fresh UUID. The point of this test is that the caller-supplied
+          // install_id is stripped regardless and never survives as the spoof.
+          {
+            env: {
+              BROWSERBASE_TELEMETRY_INSTALL_ID_FILE:
+                "/tmp/no-such-file-browse-test",
+            },
+          },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        // User's non-attribution key survives.
+        expect(body.userMetadata?.env).toBe("test");
+        // Caller cannot spoof install_id when resolution fails — it must not be "spoofed-id".
+        expect(body.userMetadata?.install_id).not.toBe("spoofed-id");
       },
     );
   });

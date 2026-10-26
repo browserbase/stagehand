@@ -15,13 +15,27 @@ runs:
     - name: Normalize inputs
       id: normalize
       shell: bash
+      # Inputs arrive through env rather than `${{ }}` interpolation: expression results are
+      # pasted into the script before bash parses it, so a crafted value would run as code.
+      # These names derive from discovered test filenames, which a pull request controls.
+      env:
+        INPUT_NAME: ${{ inputs.name }}
+        INPUT_PATH: ${{ inputs.path }}
       run: |
-        name="${{ inputs.name }}"
-        echo "name=${name//\//-}" >> "$GITHUB_OUTPUT"
-        if [ -n "${{ inputs.path }}" ]; then
-          echo "path=${{ inputs.path }}" >> "$GITHUB_OUTPUT"
+        if [[ "$INPUT_NAME" == *$'\r'* || "$INPUT_NAME" == *$'\n'* ]]; then
+          echo "::error::Input 'name' must not contain carriage returns or line feeds."
+          exit 1
+        fi
+        if [[ "$INPUT_PATH" == *$'\r'* || "$INPUT_PATH" == *$'\n'* ]]; then
+          echo "::error::Input 'path' must not contain carriage returns or line feeds."
+          exit 1
+        fi
+        set -euo pipefail
+        echo "name=${INPUT_NAME//\//-}" >> "$GITHUB_OUTPUT"
+        if [ -n "$INPUT_PATH" ]; then
+          echo "path=$INPUT_PATH" >> "$GITHUB_OUTPUT"
         else
-          echo "path=${{ inputs.name }}" >> "$GITHUB_OUTPUT"
+          echo "path=$INPUT_NAME" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Upload CTRF report artifact

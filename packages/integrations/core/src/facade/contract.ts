@@ -1,0 +1,350 @@
+import { z } from "zod/v4";
+
+/**
+ * This file intentionally carries the same contract twice:
+ *
+ * - The JSON-schema literals below are the WIRE contract — the exact bytes
+ *   advertised to MCP clients via tools/list. They are hand-written because
+ *   they cannot be generated from the zod schemas: the `const`-typed `op`
+ *   discriminators and the per-property guidance descriptions do not survive
+ *   zod-to-JSON-schema conversion, and `.refine()` emits nothing at all.
+ *   Their wording is pinned string-exact to the reference contract (models
+ *   are prompted against these descriptions) — see
+ *   tests/facade-contract.test.ts. One deliberate deviation is documented on
+ *   RUN_INPUT_SCHEMA below.
+ *
+ * - The zod schemas at the bottom are the RUNTIME validators: they parse
+ *   tools/call arguments into typed values and enforce what the wire schema
+ *   states (e.g. the code/actions exclusivity via `.refine`).
+ *
+ * If you change one half, change the other; the contract test exists to
+ * catch drift between them.
+ */
+const actionSchema = (op: string, extra: Record<string, Record<string, unknown>> = {}) => ({
+  type: "object",
+  properties: {
+    op: {
+      const: op,
+      description: `Action operation. Use "op": "${op}"; never use a "kind" field.`,
+    },
+    id: {
+      type: "string",
+      description:
+        'Bracketed ID copied from the latest snapshot, as a string. Use "id"; never use "ref".',
+    },
+    ...extra,
+  },
+  required: ["op", "id", ...Object.keys(extra).filter((key) => key !== "delay")],
+  additionalProperties: false,
+});
+
+export const RUN_TOOL_DESCRIPTION =
+  'Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+
+/**
+ * Run-tool description of the pre-Playwright-idiom facade surface, kept
+ * byte-identical so `--surface=legacy` hosts reproduce the earlier contract.
+ */
+export const LEGACY_RUN_TOOL_DESCRIPTION =
+  'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+
+export const SNAPSHOT_TOOL_DESCRIPTION =
+  "Capture the active page's Stagehand accessibility tree and hydrate its displayed IDs for subsequent run actions. Every call replaces the active page's ID map.";
+
+/**
+ * Runner-side tool, deliberately absent from tools/list. Launches the browser
+ * if needed and reports `{ provider, sessionId? }` so the harness can log the
+ * Browserbase session before the agent's first call.
+ */
+export const SESSION_INFO_TOOL_NAME = "session_info";
+
+export const SCREENSHOT_TOOL_DESCRIPTION =
+  'Capture a screenshot of the active page. For size-constrained MCP clients, prefer a viewport JPEG: {"type":"jpeg","quality":40,"fullPage":false}.';
+
+export const RUN_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    code: { type: "string", minLength: 1 },
+    actions: {
+      type: "array",
+      description:
+        'Snapshot actions with the exact fields "op" and "id". Do not use "kind" or "ref".',
+      items: {
+        oneOf: [
+          actionSchema("click"),
+          actionSchema("hover"),
+          actionSchema("fill", { value: { type: "string" } }),
+          actionSchema("type", {
+            text: { type: "string" },
+            delay: { type: "number", minimum: 0 },
+          }),
+          actionSchema("press", { key: { type: "string" } }),
+          actionSchema("select", {
+            values: {
+              oneOf: [
+                { type: "string" },
+                { type: "array", items: { type: "string" }, minItems: 1 },
+              ],
+            },
+          }),
+        ],
+      },
+      minItems: 1,
+    },
+  },
+  // Deliberate deviation from the reference contract: no top-level
+  // `oneOf: [{required:["code"]},{required:["actions"]}]` here. AI-SDK-based
+  // MCP clients (Eve, Vercel AI SDK) reject tool input schemas with a
+  // top-level oneOf, failing every `run` call client-side before it reaches
+  // the server. The code/actions exclusivity is stated in the description
+  // and enforced at runtime by CodeModeRunInputSchema's `.refine`.
+  additionalProperties: false,
+} as const;
+
+export const SNAPSHOT_INPUT_SCHEMA = {
+  type: "object",
+  properties: { includeIframes: { type: "boolean", default: true } },
+  additionalProperties: false,
+} as const;
+
+export const SCREENSHOT_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    fullPage: { type: "boolean" },
+    type: { type: "string", enum: ["png", "jpeg"] },
+    quality: { type: "number", minimum: 0, maximum: 100 },
+  },
+  additionalProperties: false,
+} as const;
+
+export const FACADE_TOOLS = [
+  { name: "run", description: RUN_TOOL_DESCRIPTION, inputSchema: RUN_INPUT_SCHEMA },
+  {
+    name: "snapshot",
+    description: SNAPSHOT_TOOL_DESCRIPTION,
+    inputSchema: SNAPSHOT_INPUT_SCHEMA,
+  },
+  {
+    name: "screenshot",
+    description: SCREENSHOT_TOOL_DESCRIPTION,
+    inputSchema: SCREENSHOT_INPUT_SCHEMA,
+  },
+] as const;
+
+export const FACADE_LEGACY_TOOLS = [
+  { name: "run", description: LEGACY_RUN_TOOL_DESCRIPTION, inputSchema: RUN_INPUT_SCHEMA },
+  FACADE_TOOLS[1],
+  FACADE_TOOLS[2],
+] as const;
+
+export type FacadeSurface = "playwright" | "legacy";
+
+const SURFACE_FLAG = "--surface=";
+
+/** `--surface=legacy` selects the pre-Playwright-idiom run description; default is "playwright". */
+export function facadeSurfaceFromArgs(args: string[]): FacadeSurface {
+  const value = args.find((arg) => arg.startsWith(SURFACE_FLAG));
+  if (value === undefined) return "playwright";
+  const surface = value.slice(SURFACE_FLAG.length);
+  if (surface !== "playwright" && surface !== "legacy") {
+    throw new Error(`${SURFACE_FLAG} must be "playwright" or "legacy".`);
+  }
+  return surface;
+}
+
+export function facadeToolsForSurface(surface: FacadeSurface) {
+  return surface === "legacy" ? FACADE_LEGACY_TOOLS : FACADE_TOOLS;
+}
+
+/**
+ * Prompt-only variant (env EXPLICIT_SNAPSHOT_ACTIONS=1): same tools and
+ * runtime, but the instructions and tool descriptions route simple
+ * interactions through snapshot IDs and ask for a screenshot before
+ * reporting. Without it the Playwright-idiom text leads agents to code-mode
+ * for ~99% of run calls (measured 2026-08-31: 16 ref-action calls in 1,199).
+ */
+export const SNAPSHOT_ACTIONS_WORKFLOW = `Workflow: after navigating or whenever the page changes, call snapshot first and read the tree. For simple interactions on visible elements — click, fill, select, press — act by snapshot ID through run "actions" (one round trip, no selector guessing). Use run "code" for multi-step logic, data extraction, waits, or anything the snapshot does not expose. Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation. Call screenshot before declaring success and whenever layout or images matter to the task.`;
+
+export const SNAPSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SNAPSHOT_TOOL_DESCRIPTION} Call it after every navigation or page change and before acting by ID.`;
+export const SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SCREENSHOT_TOOL_DESCRIPTION} Use it to verify the visible state before reporting done, on visual or canvas content, and when text evidence is ambiguous.`;
+export const RUN_TOOL_DESCRIPTION_EXPLICIT = `${RUN_TOOL_DESCRIPTION} Prefer "actions" with snapshot IDs for simple clicks/fills/selects on visible elements; use "code" for multi-step logic and extraction.`;
+
+/** Environment variables as read by the facade; `process.env` satisfies it. */
+export type FacadeEnv = Readonly<Record<string, string | undefined>>;
+
+export function explicitSnapshotActionsEnabled(env: FacadeEnv = process.env): boolean {
+  const v = env.EXPLICIT_SNAPSHOT_ACTIONS?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
+export const FACADE_TOOLS_EXPLICIT_SNAPSHOT = FACADE_TOOLS.map((tool) => ({
+  ...tool,
+  description:
+    tool.name === "run"
+      ? RUN_TOOL_DESCRIPTION_EXPLICIT
+      : tool.name === "snapshot"
+        ? SNAPSHOT_TOOL_DESCRIPTION_EXPLICIT
+        : SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT,
+})) as unknown as typeof FACADE_TOOLS;
+
+export function facadeToolsFor(surface: FacadeSurface, env: FacadeEnv = process.env) {
+  if (surface === "legacy") return FACADE_LEGACY_TOOLS;
+  return explicitSnapshotActionsEnabled(env) ? FACADE_TOOLS_EXPLICIT_SNAPSHOT : FACADE_TOOLS;
+}
+
+export function facadeAgentInstructions(env: FacadeEnv = process.env): string {
+  return explicitSnapshotActionsEnabled(env)
+    ? `${FACADE_AGENT_INSTRUCTIONS}\n\n${SNAPSHOT_ACTIONS_WORKFLOW}`
+    : FACADE_AGENT_INSTRUCTIONS;
+}
+
+/**
+ * Canonical agent system prompt for the facade tool surface. Host examples
+ * (Eve, Vercel AI SDK, deepagents) should use this text rather than authoring
+ * their own so agent guidance stays identical across frameworks.
+ */
+export const FACADE_AGENT_INSTRUCTIONS = `Browser tool surface: Stagehand Playwright facade.
+You control one persistent browser through exactly three tools:
+- run: execute JavaScript against an initialized Playwright page, context, and browser (page.goto, page.locator(selector).click()/fill(), page.getByRole(...), page.evaluate(...), page.waitForURL(...), and the supported Playwright-shaped API). Use await directly and return JSON-serializable values so you can inspect progress. Alternatively, pass snapshot actions.
+- snapshot: inspect the active page's accessibility tree and hydrate bracketed element IDs for run actions.
+- screenshot: inspect the rendered page visually.
+
+Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. The first browser action should usually be: await page.goto(url, { waitUntil: 'domcontentloaded' }). Do not launch another browser or create a separate browser process.`;
+
+/**
+ * Agent instructions of the pre-Playwright-idiom facade surface, kept
+ * byte-identical for `--surface=legacy` hosts.
+ */
+export const LEGACY_FACADE_AGENT_INSTRUCTIONS = `You control one persistent browser through exactly three tools:
+- snapshot: inspect the active page and hydrate bracketed element IDs.
+- run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
+- screenshot: inspect the rendered page visually.
+
+Use snapshot actions for simple interactions and run code for multi-step workflows. Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. Do not launch another browser.`;
+
+export const NO_HYDRATED_SNAPSHOT_ERROR =
+  "No hydrated snapshot exists for the active page; call snapshot first.";
+export const NAVIGATED_SNAPSHOT_ERROR =
+  "The active page navigated after its snapshot; call snapshot again.";
+export const STALE_SNAPSHOT_ID_ERROR =
+  'Snapshot ID "${id}" is stale or not actionable; call snapshot again.';
+
+export function staleSnapshotIdError(id: string): string {
+  return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
+}
+
+export const SCREENSHOT_ARTIFACT_PATH_ERROR =
+  "Screenshot artifact path must stay within artifactRoot.";
+export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
+  "Screenshot artifact directory must not be a symlink.";
+export const SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR =
+  "Screenshot artifact file must not be a symlink.";
+export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
+
+/**
+ * Part of the error a Stagehand SDK raises from `context.activePage()` when the
+ * focused window's active tab is not one Stagehand registered (another window
+ * has focus). Hosts then act on the newest registered tab instead of failing.
+ */
+export const UNMANAGED_ACTIVE_PAGE_ERROR_MARKER = "active target not registered";
+
+const MB = 1024 * 1024;
+
+/**
+ * Caps on what one `run` batch may hand back to its host. They bound memory and
+ * disk use against a runaway or hostile batch, and sit far above any real agent
+ * run: a full-page PNG is a few MB, and a 10 MB value is already far more than a
+ * model can read. Value size is the UTF-8 length of the value's compact JSON.
+ */
+export const RUN_RESULT_LIMITS = Object.freeze({
+  maxArtifacts: 32,
+  maxArtifactBytes: 25 * MB,
+  maxTotalArtifactBytes: 100 * MB,
+  maxValueBytes: 10 * MB,
+} as const);
+
+/**
+ * Run options a host passes in the `run` batch input; all are off unless the
+ * host turns them on. `quietWait`: page.waitForTimeout(ms) returns once the
+ * page is quiet (readyState past "loading", no mutation in the main document
+ * for `windowMs`; shadow roots and iframes are not observed), checked in the
+ * page every `pollMs` through page.waitForFunction, never later than ms; at or
+ * below `windowMs` it just sleeps, as it does on pages without waitForFunction. The runtime (src/facade/runtime.ts) holds the same numbers.
+ */
+export const RUN_OPTIONS = {
+  quietWait: { default: false, windowMs: 400, pollMs: 100 },
+} as const;
+
+export const RUN_RESULT_MALFORMED_ERROR = "The run batch returned a malformed result.";
+export const SCREENSHOT_ARTIFACT_COUNT_ERROR = `A run can save at most ${RUN_RESULT_LIMITS.maxArtifacts} screenshot artifacts.`;
+export const SCREENSHOT_ARTIFACT_SIZE_ERROR = `A screenshot artifact can be at most ${RUN_RESULT_LIMITS.maxArtifactBytes / MB} MB.`;
+export const SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR = `A run's screenshot artifacts can total at most ${RUN_RESULT_LIMITS.maxTotalArtifactBytes / MB} MB.`;
+export const RUN_VALUE_SIZE_ERROR = `A run can return at most ${RUN_RESULT_LIMITS.maxValueBytes / MB} MB of JSON; return less data.`;
+
+export const SCREENSHOT_CAPTURED_MESSAGE = "Screenshot captured.";
+export const SCREENSHOT_COMPRESSED_MESSAGE = "Screenshot captured with transport-safe compression.";
+
+/**
+ * Prefix of the terminal error every facade tool returns once the browser
+ * session is gone. Harnesses match on it to tell consequences from agent errors.
+ */
+export const BROWSER_SESSION_LOST_ERROR_PREFIX = "Browser session lost (";
+export const BROWSER_SESSION_LOST_ERROR =
+  "Browser session lost (${cause}). The task cannot continue; report your final result now.";
+/** Stderr telemetry line the stdio server emits once when the session is lost. */
+export const SESSION_LOST_TELEMETRY_PREFIX = "stagehand_facade_session_lost ";
+
+export function browserSessionLostError(cause: string): string {
+  return BROWSER_SESSION_LOST_ERROR.replace("${cause}", cause);
+}
+
+export function isBrowserSessionLostError(message: string): boolean {
+  return message.startsWith(BROWSER_SESSION_LOST_ERROR_PREFIX);
+}
+
+export type FacadeSessionLoss = {
+  cause: string;
+  /** Tool call that first observed the loss. */
+  tool: string;
+  at: string;
+};
+
+export const RefActionSchema = z.discriminatedUnion("op", [
+  z.strictObject({ op: z.literal("click"), id: z.string().min(1) }),
+  z.strictObject({ op: z.literal("hover"), id: z.string().min(1) }),
+  z.strictObject({ op: z.literal("fill"), id: z.string().min(1), value: z.string() }),
+  z.strictObject({
+    op: z.literal("type"),
+    id: z.string().min(1),
+    text: z.string(),
+    delay: z.number().nonnegative().optional(),
+  }),
+  z.strictObject({ op: z.literal("press"), id: z.string().min(1), key: z.string().min(1) }),
+  z.strictObject({
+    op: z.literal("select"),
+    id: z.string().min(1),
+    values: z.union([z.string(), z.array(z.string()).min(1)]),
+  }),
+]);
+
+export const CodeModeRunInputSchema = z
+  .strictObject({
+    code: z.string().min(1).optional(),
+    actions: z.array(RefActionSchema).min(1).optional(),
+  })
+  .refine((input) => (input.code === undefined) !== (input.actions === undefined), {
+    message: "run requires exactly one of code or actions",
+  });
+
+export const SnapshotInputSchema = z.strictObject({
+  includeIframes: z.boolean().optional(),
+});
+
+export const ScreenshotInputSchema = z.strictObject({
+  fullPage: z.boolean().optional(),
+  type: z.enum(["png", "jpeg"]).optional(),
+  quality: z.number().min(0).max(100).optional(),
+});
+
+export type RefAction = z.infer<typeof RefActionSchema>;
+export type CodeModeRunInput = z.infer<typeof CodeModeRunInputSchema>;

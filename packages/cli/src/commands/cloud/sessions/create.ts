@@ -7,8 +7,14 @@ import {
   resolveBody,
   withBrowserbaseApi,
 } from "../../../lib/cloud/api.js";
+import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
+import {
+  getCliVersion,
+  resolveInstallId,
+  toMetadataValue,
+} from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
 
 const REGIONS = [
@@ -86,6 +92,49 @@ function buildSessionCreateBody(
   return body;
 }
 
+/**
+ * Stamp anonymous CLI attribution onto the session-create `userMetadata` so
+ * every CLI-created cloud session is attributable to the CLI (matching the
+ * driver `open --remote` path). Any user-supplied `userMetadata` (via --body or
+ * --stdin) is preserved; our attribution keys (browse_cli/install_id/
+ * cli_version) are authoritative and override caller values for those keys.
+ *
+ * Resolving the install id is best-effort and never throws; if it can't be
+ * resolved we still send browse_cli + cli_version. Values are run through
+ * toMetadataValue() so the session-create validator never 400s on a stray
+ * character or an over-length value.
+ */
+async function applyCliAttribution(
+  body: Record<string, unknown>,
+): Promise<void> {
+  const rawExisting =
+    body.userMetadata && typeof body.userMetadata === "object"
+      ? (body.userMetadata as Record<string, unknown>)
+      : {};
+
+  // Strip any caller-supplied install_id before merging so it cannot be
+  // spoofed when resolution fails (our authoritative value is set below).
+  const existing = Object.fromEntries(
+    Object.entries(rawExisting).filter(([k]) => k !== "install_id"),
+  );
+
+  const userMetadata: Record<string, unknown> = {
+    ...existing,
+    browse_cli: "true",
+    cli_version: toMetadataValue(getCliVersion()),
+  };
+
+  const installId = await resolveInstallId(process.env).catch(() => undefined);
+  if (installId) {
+    const sanitized = toMetadataValue(installId);
+    if (sanitized) {
+      userMetadata.install_id = sanitized;
+    }
+  }
+
+  body.userMetadata = userMetadata;
+}
+
 export default class SessionsCreate extends BrowseCommand {
   static override description =
     "Create a new browser session. Use flags for common options, or --body/--stdin for the full API.";
@@ -137,8 +186,9 @@ export default class SessionsCreate extends BrowseCommand {
       helpValue: "<seconds>",
     }),
     "context-id": Flags.string({
-      description: "Browserbase context ID for persistent state.",
-      helpValue: "<id>",
+      description:
+        "Browserbase context ID, or a name saved with 'contexts create --name', for persistent state.",
+      helpValue: "<id|name>",
     }),
     persist: Flags.boolean({
       description: "Persist context changes after session ends.",
@@ -164,6 +214,11 @@ export default class SessionsCreate extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SessionsCreate);
+    // Allow --context-id to be a locally-saved name; resolve it to a real id.
+    // A context id passes through; an unknown name fails with a helpful message.
+    if (flags["context-id"]) {
+      flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
+    }
     await withBrowserbaseApi("sessions", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
       const jsonBody = await resolveBody({
@@ -172,6 +227,7 @@ export default class SessionsCreate extends BrowseCommand {
       });
       const flagBody = buildSessionCreateBody(flags);
       const body = deepMerge(jsonBody, flagBody);
+      await applyCliAttribution(body);
       outputJson(await client.sessions.create(body));
     });
   }

@@ -12,7 +12,14 @@ export const keyboardHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    await page.type(text, { delay, withMistakes: mistakes });
+    const options = {
+      ...(delay === undefined ? {} : { delay }),
+      ...(mistakes === undefined ? {} : { withMistakes: mistakes }),
+    };
+    await page.type(
+      text,
+      Object.keys(options).length === 0 ? undefined : options,
+    );
     return { typed: true };
   },
 

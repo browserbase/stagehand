@@ -1,0 +1,134 @@
+"""Public dictionary inputs owned by the Python SDK rather than the wire protocol."""
+
+from collections.abc import Awaitable, Callable
+from typing import Literal, NotRequired, TypedDict
+
+import httpx
+
+from ._generated.input_types import (
+    ModelConfig,
+    TelemetryConfig,
+)
+from ._generated.models import (
+    LLMMessageGenerateParams,
+    LLMMessageGenerateResult,
+    LLMStructuredGenerateParams,
+    LLMStructuredGenerateResult,
+    StagehandLog,
+)
+
+LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
+LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
+LLMGenerateCallback = Callable[[LLMGenerateInput], Awaitable[LLMGenerateOutput]]
+StagehandOnLog = Callable[[StagehandLog], None | Awaitable[None]]
+
+
+class LocalProxyConfig(TypedDict):
+    server: str
+    bypass: NotRequired[str]
+    username: NotRequired[str]
+    password: NotRequired[str]
+
+
+class CacheOptions(TypedDict, total=False):
+    threshold: int
+
+
+Cache = bool | CacheOptions
+
+
+class LocalViewport(TypedDict):
+    width: int
+    height: int
+
+
+class LocalBrowserLaunchOptions(TypedDict, total=False):
+    args: NotRequired[list[str]]
+    executable_path: NotRequired[str]
+    port: NotRequired[int]
+    user_data_dir: NotRequired[str]
+    preserve_user_data_dir: NotRequired[bool]
+    headless: NotRequired[bool]
+    devtools: NotRequired[bool]
+    chromium_sandbox: NotRequired[bool]
+    ignore_default_args: NotRequired[bool | list[str]]
+    proxy: NotRequired[LocalProxyConfig]
+    locale: NotRequired[str]
+    viewport: NotRequired[LocalViewport]
+    device_scale_factor: NotRequired[float]
+    has_touch: NotRequired[bool]
+    ignore_https_errors: NotRequired[bool]
+    downloads_path: NotRequired[str]
+    accept_downloads: NotRequired[bool]
+    keep_alive: NotRequired[bool]
+
+
+class LocalBrowserConnectOptions(TypedDict):
+    cdp_url: str
+    extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+    extension_cdp_url: NotRequired[str]
+    """Browser-level CDP WebSocket the extension dials, when it differs from `cdp_url`."""
+    headers: NotRequired[dict[str, str]]
+    """HTTP headers sent with the CDP connection, e.g. a gateway's credentials."""
+
+
+class BrowserbaseClientOptions(TypedDict, total=False):
+    """HTTP settings for the Browserbase client Stagehand creates for session management."""
+
+    timeout: float
+    max_retries: int
+    default_headers: dict[str, str]
+    default_query: dict[str, str]
+    http_client: httpx.AsyncClient
+    """Caller-owned; Stagehand never closes it. Keep it open until `browser.close()` returns."""
+
+
+class BrowserbaseConnectOptions(TypedDict):
+    api_key: str
+    base_url: NotRequired[str]
+    client_options: NotRequired[BrowserbaseClientOptions]
+    session_id: str
+    extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+
+
+class ClientLLM(TypedDict):
+    generate: LLMGenerateCallback
+
+
+class StagehandClientLoggingConfig(TypedDict, total=False):
+    level: Literal["off", "error", "warn", "info", "debug"]
+    format: Literal["pretty", "json"]
+    on_log: StagehandOnLog
+
+
+class StagehandClientCreateConfig(TypedDict, total=False):
+    api_key: str
+    api_url: str
+    model: ModelConfig | ClientLLM
+    telemetry: TelemetryConfig
+    system_prompt: str
+    self_heal: bool
+    dom_settle_timeout_ms: int
+    cache: Cache
+    logging: StagehandClientLoggingConfig
+
+
+__all__ = [
+    "BrowserbaseClientOptions",
+    "BrowserbaseConnectOptions",
+    "Cache",
+    "CacheOptions",
+    "ClientLLM",
+    "LLMGenerateCallback",
+    "LLMGenerateInput",
+    "LLMGenerateOutput",
+    "LocalBrowserConnectOptions",
+    "LocalBrowserLaunchOptions",
+    "LocalProxyConfig",
+    "LocalViewport",
+    "StagehandClientCreateConfig",
+    "StagehandClientLoggingConfig",
+    "StagehandOnLog",
+]

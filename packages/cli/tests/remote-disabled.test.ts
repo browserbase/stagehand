@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   autoSelectRemoteTarget,
+  forwardedEnvKeys,
+  launchRemoteBrowser,
+  remoteBrowserbaseIdentity,
   remoteDoctorCheck,
   remoteStagehandOptions,
   resolveExplicitRemoteTarget,
@@ -19,14 +22,26 @@ describe("remote.disabled (local-only capability)", () => {
     expect(() => resolveExplicitRemoteTarget()).toThrow(/disabled/i);
   });
 
-  it("refuses to build remote Stagehand options", () => {
-    expect(() => remoteStagehandOptions()).toThrow(/disabled/i);
+  it("refuses to build remote Stagehand options", async () => {
+    await expect(remoteStagehandOptions()).rejects.toThrow(/disabled/i);
+  });
+
+  it("refuses to launch a remote browser", async () => {
+    await expect(launchRemoteBrowser()).rejects.toThrow(/disabled/i);
   });
 
   it("reports remote as disabled in doctor without reading any key", () => {
     const result = remoteDoctorCheck();
     expect(result.ok).toBe(true);
     expect(result.message).toMatch(/disabled/i);
+  });
+
+  it("forwards no env keys (local-only never reaches the cloud)", () => {
+    expect(forwardedEnvKeys()).toEqual([]);
+  });
+
+  it("does not resolve Browserbase identity", async () => {
+    await expect(remoteBrowserbaseIdentity()).resolves.toEqual({});
   });
 
   it("contains no BROWSERBASE_API_KEY reference in its source", async () => {

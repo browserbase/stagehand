@@ -215,17 +215,30 @@ function ensureArchiveLockfile(
 
   const tempDir = join(tmpdir(), `bb-functions-lockgen-${randomUUID()}`);
   mkdirSync(tempDir, { recursive: true });
-  copyFileSync(join(root, "package.json"), join(tempDir, "package.json"));
+  // Copy the files that publish uploads, so npm resolves local dependencies the same way the build does.
+  for (const entry of entries) {
+    const target = join(tempDir, entry);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(root, entry), target);
+  }
 
-  const result = spawnSync("npm", ["install", "--package-lock-only"], {
-    cwd: tempDir,
-    stdio: "pipe",
-  });
+  // Omit resolved URLs so the builder installs from its own registry rather than the one on your machine.
+  const result = spawnSync(
+    "npm",
+    ["install", "--package-lock-only", "--omit-lockfile-registry-resolved"],
+    {
+      cwd: tempDir,
+      stdio: "pipe",
+    },
+  );
 
   if (result.status !== 0) {
     rmSync(tempDir, { recursive: true, force: true });
+    const npmOutput = result.error
+      ? result.error.message
+      : result.stderr.toString().trim();
     fail(
-      "Failed to generate package-lock.json for the Functions build archive.",
+      `Failed to generate package-lock.json for the Functions build archive.${npmOutput ? `\n${npmOutput}` : ""}`,
     );
   }
 

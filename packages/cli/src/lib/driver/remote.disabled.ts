@@ -1,8 +1,11 @@
 import type {
+  DriverInitHints,
+  RemoteBrowserLaunch,
   RemoteDoctorResult,
-  StagehandConstructorOptions,
+  RemoteInitErrorClassification,
+  RemoteStagehandOptions,
 } from "./remote-types.js";
-import type { ConnectionTarget } from "./types.js";
+import type { BrowserbaseIdentity, ConnectionTarget } from "./types.js";
 
 /**
  * Stub Browserbase capability used by `build:local-only`. It contains no API
@@ -21,8 +24,45 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return null;
 }
 
-export function remoteStagehandOptions(): StagehandConstructorOptions {
+export function forwardedEnvKeys(): readonly string[] {
+  // The local-only build never reaches the cloud, so there is nothing to
+  // forward — and no API-key names may appear in this artifact.
+  return [];
+}
+
+export async function remoteStagehandOptions(): Promise<RemoteStagehandOptions> {
+  // Accepts the forwarded-env arg structurally (fewer params is
+  // assignable) without naming it, keeping this stub key-name-free.
   throw new Error(DISABLED_MESSAGE);
+}
+
+export async function launchRemoteBrowser(): Promise<RemoteBrowserLaunch> {
+  throw new Error(DISABLED_MESSAGE);
+}
+
+export async function remoteBrowserbaseIdentity(): Promise<BrowserbaseIdentity> {
+  return {};
+}
+
+export function classifyRemoteInitError(
+  error: unknown,
+): RemoteInitErrorClassification {
+  // Remote targets cannot be selected in a local-only build, so this is only
+  // reachable if a remote error somehow surfaces anyway; preserve it as-is.
+  return {
+    code: "remote_session_create_failed",
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+export function driverInitHints(): DriverInitHints {
+  // Key-free variants: a local-only artifact must not mention the API key.
+  return {
+    chromeNotFound:
+      "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set) or attach to a running browser with --cdp <port>.",
+    repeatedInitFailure:
+      " (failing repeatedly — check your browser setup or run browse doctor)",
+  };
 }
 
 export function remoteDoctorCheck(): RemoteDoctorResult {

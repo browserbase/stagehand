@@ -1,0 +1,399 @@
+import { describe, expect, it } from "vitest";
+import {
+  PageAddInitScriptParamsSchema,
+  PageClickParamsSchema,
+  PageDragAndDropParamsSchema,
+  PageEvaluateParamsSchema,
+  PageEvaluateResultSchema,
+  PageGoBackParamsSchema,
+  PageGoForwardParamsSchema,
+  PageHoverParamsSchema,
+  PageKeyPressParamsSchema,
+  PagePDFParamsSchema,
+  PagePDFResultSchema,
+  PageReloadParamsSchema,
+  PageScreenshotParamsSchema,
+  PageScreenshotResultSchema,
+  PageScrollParamsSchema,
+  PageSetExtraHTTPHeadersParamsSchema,
+  PageSetViewportSizeParamsSchema,
+  PageSnapshotParamsSchema,
+  PageTypeParamsSchema,
+  PageWaitForLoadStateParamsSchema,
+  PageWaitForSelectorParamsSchema,
+  PageWaitForSelectorResultSchema,
+  PageWaitForTimeoutParamsSchema,
+  PageWaitForFunctionParamsSchema,
+  PageWaitForFunctionResultSchema,
+} from "../../schemas.js";
+
+const pageId = "page-1";
+
+describe("page command schemas", () => {
+  it("validates function wait polling and deadlines without changing returned JSON", () => {
+    for (const polling of [undefined, "raf", 0.5, 100, 2_147_483_647]) {
+      expect(
+        PageWaitForFunctionParamsSchema.parse({
+          pageId,
+          expression: "window.ready",
+          options: { polling, timeout: 0 },
+        }),
+      ).toEqual({ pageId, expression: "window.ready", options: { polling, timeout: 0 } });
+    }
+    for (const polling of [0, -1, Infinity, 2_147_483_648, "mutation"]) {
+      expect(
+        PageWaitForFunctionParamsSchema.safeParse({
+          pageId,
+          expression: "true",
+          options: { polling },
+        }).success,
+      ).toBe(false);
+    }
+    for (const timeout of [-1, 0.5, Infinity]) {
+      expect(
+        PageWaitForFunctionParamsSchema.safeParse({
+          pageId,
+          expression: "true",
+          options: { timeout },
+        }).success,
+      ).toBe(false);
+    }
+    const result = { value: { nested_value: { camelCase: [true, 3] } } };
+    expect(PageWaitForFunctionResultSchema.parse(result)).toEqual(result);
+  });
+  it("defines navigation params", () => {
+    expect(
+      PageReloadParamsSchema.parse({
+        pageId,
+        options: { waitUntil: "load", timeout: 5_000, ignoreCache: true },
+      }),
+    ).toStrictEqual({
+      pageId,
+      options: { waitUntil: "load", timeout: 5_000, ignoreCache: true },
+    });
+    expect(PageGoBackParamsSchema.parse({ pageId })).toStrictEqual({ pageId });
+    expect(
+      PageGoForwardParamsSchema.parse({
+        pageId,
+        options: { waitUntil: "networkidle" },
+      }),
+    ).toStrictEqual({ pageId, options: { waitUntil: "networkidle" } });
+    expect(() =>
+      PageGoBackParamsSchema.parse({ pageId, options: { ignoreCache: true } }),
+    ).toThrow();
+  });
+
+  it("defines coordinate interaction params", () => {
+    expect(
+      PageClickParamsSchema.parse({
+        pageId,
+        x: 10,
+        y: 20,
+        options: { button: "right", clickCount: 2 },
+      }),
+    ).toStrictEqual({
+      pageId,
+      x: 10,
+      y: 20,
+      options: { button: "right", clickCount: 2 },
+    });
+    expect(PageHoverParamsSchema.parse({ pageId, x: -1, y: 0 })).toStrictEqual({
+      pageId,
+      x: -1,
+      y: 0,
+    });
+    expect(
+      PageScrollParamsSchema.parse({
+        pageId,
+        x: 100,
+        y: 200,
+        deltaX: -10,
+        deltaY: 400,
+      }),
+    ).toStrictEqual({
+      pageId,
+      x: 100,
+      y: 200,
+      deltaX: -10,
+      deltaY: 400,
+    });
+    expect(
+      PageDragAndDropParamsSchema.parse({
+        pageId,
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: {
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
+      }),
+    ).toStrictEqual({
+      pageId,
+      fromX: 1,
+      fromY: 2,
+      toX: 3,
+      toY: 4,
+      options: {
+        steps: 5,
+        delay: 10,
+        route: [
+          { x: 1, y: 2 },
+          { x: 2, y: 5 },
+          { x: 3, y: 4 },
+        ],
+      },
+    });
+    expect(() =>
+      PageClickParamsSchema.parse({ pageId, x: 1, y: 2, options: { clickCount: 0 } }),
+    ).toThrow();
+    expect(() =>
+      PageClickParamsSchema.parse({ pageId, x: 1, y: 2, options: { returnXpath: true } }),
+    ).toThrow();
+    expect(() => PageHoverParamsSchema.parse({ pageId, x: 1, y: 2, options: {} })).toThrow();
+    expect(() =>
+      PageScrollParamsSchema.parse({
+        pageId,
+        x: 1,
+        y: 2,
+        deltaX: 3,
+        deltaY: 4,
+        options: {},
+      }),
+    ).toThrow();
+    expect(() =>
+      PageDragAndDropParamsSchema.parse({
+        pageId,
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { returnXpath: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      PageDragAndDropParamsSchema.parse({
+        pageId,
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { route: [{ x: 2, y: 3, duration: 10 }] },
+      }),
+    ).toThrow();
+  });
+
+  it("defines keyboard interaction params with current v3 option names", () => {
+    expect(
+      PageTypeParamsSchema.parse({
+        pageId,
+        text: "hello",
+        options: { delay: 5, withMistakes: true },
+      }),
+    ).toStrictEqual({
+      pageId,
+      text: "hello",
+      options: { delay: 5, withMistakes: true },
+    });
+    expect(PageKeyPressParamsSchema.parse({ pageId, key: "Control+A" })).toStrictEqual({
+      pageId,
+      key: "Control+A",
+    });
+    expect(() =>
+      PageTypeParamsSchema.parse({ pageId, text: "hello", options: { mistakes: true } }),
+    ).toThrow();
+  });
+
+  it("defines normalized script params and JSON evaluation results", () => {
+    expect(
+      PageEvaluateParamsSchema.parse({ pageId, expression: "({ camelCase: true })" }),
+    ).toStrictEqual({ pageId, expression: "({ camelCase: true })" });
+    expect(PageEvaluateResultSchema.parse({ value: { camelCase: true } })).toStrictEqual({
+      value: { camelCase: true },
+    });
+    expect(
+      PageAddInitScriptParamsSchema.parse({ pageId, source: "globalThis.ready = true" }),
+    ).toStrictEqual({ pageId, source: "globalThis.ready = true" });
+    expect(() => PageEvaluateResultSchema.parse({ value: undefined })).toThrow();
+  });
+
+  it("defines headers, viewport, and wait params", () => {
+    expect(
+      PageSetExtraHTTPHeadersParamsSchema.parse({
+        pageId,
+        headers: { "X-Request-ID": "request-1" },
+      }),
+    ).toStrictEqual({ pageId, headers: { "X-Request-ID": "request-1" } });
+    expect(
+      PageSetViewportSizeParamsSchema.parse({
+        pageId,
+        width: 1280,
+        height: 720,
+        options: { deviceScaleFactor: 2 },
+      }),
+    ).toStrictEqual({
+      pageId,
+      width: 1280,
+      height: 720,
+      options: { deviceScaleFactor: 2 },
+    });
+    expect(
+      PageWaitForLoadStateParamsSchema.parse({
+        pageId,
+        state: "domcontentloaded",
+        timeout: 0,
+      }),
+    ).toStrictEqual({ pageId, state: "domcontentloaded", timeout: 0 });
+    expect(PageWaitForTimeoutParamsSchema.parse({ pageId, ms: 250 })).toStrictEqual({
+      pageId,
+      ms: 250,
+    });
+    expect(
+      PageWaitForSelectorParamsSchema.parse({
+        pageId,
+        selector: "button.submit",
+        options: { state: "visible", timeout: 1_000, pierceShadow: false },
+      }),
+    ).toStrictEqual({
+      pageId,
+      selector: "button.submit",
+      options: { state: "visible", timeout: 1_000, pierceShadow: false },
+    });
+    expect(PageWaitForSelectorResultSchema.parse({ matched: true })).toStrictEqual({
+      matched: true,
+    });
+    expect(() =>
+      PageSetViewportSizeParamsSchema.parse({ pageId, width: 0, height: 720 }),
+    ).toThrow();
+  });
+
+  it("defines wire-safe screenshot, PDF, and snapshot params", () => {
+    expect(
+      PageScreenshotParamsSchema.parse({
+        pageId,
+        options: {
+          type: "jpeg",
+          quality: 80,
+          clip: { x: 0, y: 0, width: 640, height: 480 },
+          mask: [{ pageId, selector: "[data-secret]", nth: 0 }],
+        },
+      }),
+    ).toStrictEqual({
+      pageId,
+      options: {
+        type: "jpeg",
+        quality: 80,
+        clip: { x: 0, y: 0, width: 640, height: 480 },
+        mask: [{ pageId, selector: "[data-secret]", nth: 0 }],
+      },
+    });
+    expect(PageScreenshotResultSchema.parse({ data: "iVBORw==" })).toStrictEqual({
+      data: "iVBORw==",
+    });
+    expect(() => PageScreenshotResultSchema.parse({ data: "iVBORw==", type: "png" })).toThrow();
+    expect(
+      PageSnapshotParamsSchema.parse({ pageId, options: { includeIframes: true } }),
+    ).toStrictEqual({ pageId, options: { includeIframes: true } });
+    expect(() =>
+      PageScreenshotParamsSchema.parse({ pageId, options: { type: "png", quality: 80 } }),
+    ).toThrow();
+    expect(() =>
+      PageScreenshotParamsSchema.parse({
+        pageId,
+        options: {
+          fullPage: true,
+          clip: { x: 0, y: 0, width: 640, height: 480 },
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      PageScreenshotParamsSchema.parse({ pageId, options: { path: "screenshot.png" } }),
+    ).toThrow();
+    expect(
+      PagePDFParamsSchema.parse({
+        pageId,
+        options: {
+          landscape: true,
+          printBackground: true,
+          scale: 0.75,
+          width: 8.5,
+          height: 11,
+          margin: { top: 0.25 },
+          pageRanges: "1-3",
+          tagged: true,
+          outline: false,
+        },
+      }),
+    ).toStrictEqual({
+      pageId,
+      options: {
+        landscape: true,
+        printBackground: true,
+        scale: 0.75,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25 },
+        pageRanges: "1-3",
+        tagged: true,
+        outline: false,
+      },
+    });
+    expect(PagePDFResultSchema.parse({ data: "JVBERi0=" })).toStrictEqual({ data: "JVBERi0=" });
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { scale: 2.1 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { width: 0 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { height: 0 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { path: "page.pdf" } })).toThrow();
+  });
+
+  it("preserves omitted PDF settings and accepts partial margins", () => {
+    for (const options of [
+      {},
+      { margin: {} },
+      { margin: { top: 0, right: 0.5 } },
+      { tagged: false, outline: false },
+    ]) {
+      expect(PagePDFParamsSchema.parse({ pageId, options })).toStrictEqual({ pageId, options });
+    }
+  });
+
+  it("rejects invalid PDF margins and raw CDP option names", () => {
+    for (const side of ["top", "bottom", "left", "right"]) {
+      for (const value of [-0.1, NaN, Infinity]) {
+        expect(() =>
+          PagePDFParamsSchema.parse({ pageId, options: { margin: { [side]: value } } }),
+        ).toThrow();
+      }
+    }
+    for (const options of [
+      { margin: { other: 1 } },
+      { paperWidth: 8.5 },
+      { paperHeight: 11 },
+      { marginTop: 0 },
+      { marginBottom: 0 },
+      { marginLeft: 0 },
+      { marginRight: 0 },
+      { generateTaggedPDF: true },
+      { generateDocumentOutline: true },
+    ]) {
+      expect(() => PagePDFParamsSchema.parse({ pageId, options })).toThrow();
+    }
+  });
+
+  it("validates PDF capture deadlines before dispatch", () => {
+    for (const timeout of [0, 0.5, 30_000, 2_147_473_647]) {
+      expect(PagePDFParamsSchema.parse({ pageId, options: { timeout } })).toStrictEqual({
+        pageId,
+        options: { timeout },
+      });
+    }
+    for (const timeout of [-1, NaN, Infinity, 2_147_473_648, 2_147_483_647]) {
+      expect(() => PagePDFParamsSchema.parse({ pageId, options: { timeout } })).toThrow();
+    }
+  });
+});

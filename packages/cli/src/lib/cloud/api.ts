@@ -9,12 +9,34 @@ import { dirname, resolve } from "node:path";
 import { Readable } from "node:stream";
 
 import { CommandFailure, fail } from "../errors.js";
+import { getCliVersion, peekInstallId, resolveInstallId } from "../identity.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
 
 export { outputJson } from "../output.js";
 
 const defaultBrowserbaseApiUrl = "https://api.browserbase.com";
 const browserbaseSettingsUrl = "https://browserbase.com/settings";
+
+// Kick off install-id resolution at module load so the value is usually cached
+// by the time a cloud request runs. Resolution is best-effort and never throws.
+void resolveInstallId(process.env).catch(() => undefined);
+
+/**
+ * Attribution headers stamped onto cloud (Search/Fetch) requests so CLI usage
+ * is attributable to an install. `x-bb-client` is always sent;
+ * `x-bb-install-id` is included only when already resolved (we never block a
+ * request on disk I/O) and never sent as an empty string.
+ */
+function attributionHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "x-bb-client": `browse-cli/${getCliVersion()}`,
+  };
+  const installId = peekInstallId();
+  if (installId) {
+    headers["x-bb-install-id"] = installId;
+  }
+  return headers;
+}
 
 export type BrowserbaseApiCommand =
   | "fetch"
@@ -23,6 +45,7 @@ export type BrowserbaseApiCommand =
   | "contexts"
   | "extensions"
   | "functions"
+  | "secrets"
   | "sessions";
 
 export function resolveApiKey(args: { apiKey?: string }): string {
@@ -61,6 +84,7 @@ export function createBrowserbaseClient(args: {
   return new Browserbase({
     apiKey: resolveApiKey(args),
     baseURL: resolveBaseUrl(args),
+    defaultHeaders: attributionHeaders(),
   });
 }
 
@@ -154,6 +178,7 @@ export async function requestBrowserbase(
       ...init,
       headers: {
         "x-bb-api-key": resolveApiKey(args),
+        ...attributionHeaders(),
         ...(init.headers ?? {}),
       },
     });
@@ -416,6 +441,10 @@ function resolveCommandFromPathname(
 
   if (pathname.startsWith("/v1/extensions")) {
     return "extensions";
+  }
+
+  if (pathname.startsWith("/v1/secrets")) {
+    return "secrets";
   }
 
   if (pathname.startsWith("/v1/functions")) {

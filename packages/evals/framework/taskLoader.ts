@@ -27,16 +27,12 @@ export async function loadTaskModuleFromPath(
   const moduleUrl = pathToFileURL(filePath).href;
   const taskModule = (await import(moduleUrl)) as Record<string, unknown>;
 
-  const defaultExport = taskModule.default as
-    | Partial<LoadedTaskDefinition>
-    | undefined;
+  const defaultExport = taskModule.default as Partial<LoadedTaskDefinition> | undefined;
   if (defaultExport && defaultExport.__taskDefinition === true) {
     return { definition: defaultExport as LoadedTaskDefinition };
   }
 
-  const baseName = taskName.includes("/")
-    ? (taskName.split("/").pop() as string)
-    : taskName;
+  const baseName = taskName.includes("/") ? (taskName.split("/").pop() as string) : taskName;
   if (typeof taskModule[baseName] === "function") {
     return { legacyFn: taskModule[baseName] as LegacyTaskFn };
   }

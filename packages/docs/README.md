@@ -1,32 +1,52 @@
-# Mintlify Starter Kit
+# Stagehand docs
 
-Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including
+This site contains the Stagehand v3 and v4 documentation. V4 is the default version.
 
-- Guide pages
-- Navigation
-- Customizations
-- API Reference pages
-- Use of popular components
+## Local development
 
-### Development
+From the repository root:
 
-Install dependencies with pnpm
-
-```
-pnpm install
+```sh
+just install
+just docs
 ```
 
-Run the following command at the root of your documentation (where mint.json is)
+`just docs` starts the repository-pinned Mint development server. No globally installed Mint or
+Mintlify CLI is required.
 
+## Validation
+
+From the repository root:
+
+```sh
+just check
 ```
-pnpm mintlify dev
-```
 
-### Publishing Changes
+This validates the Mint configuration and OpenAPI definitions, checks links and redirects, and runs
+the documentation accessibility checks.
 
-Install our Github App to auto propagate changes from your repo to your deployment. Changes will be deployed to production automatically after pushing to the default branch. Find the link to install on your dashboard.
+## V3 API reference source
 
-#### Troubleshooting
+The v3 API reference uses the checked-in `v3/openapi.json`, not a live Stainless URL.
+The former source,
+`https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml`,
+returned HTTP 404 and prevented Mint validation from completing.
 
-- Mintlify dev isn't running - Run `mintlify install` it'll re-install dependencies.
-- Page loads as a 404 - Make sure you are running in a folder with `mint.json`
+The snapshot was recovered on September 15, 2026 from the OpenAPI YAML blocks in the
+published `https://docs.stagehand.dev/v3/api-reference/{language}/{page}.md` pages.
+All 32 pages (eight endpoints each for Python, Java, Go, and Ruby) were compared.
+Their common metadata, operations, and shared components agreed. The snapshot
+combines those fragments without changing descriptions, schemas, authentication,
+servers, or code samples: eight endpoints, 67 schemas, and two security schemes.
+The four language sections retain their existing navigation and generated page paths.
+
+Treat this as the versioned v3 documentation source. Future spec updates must be
+reviewed as content changes, including endpoint titles/URLs, request and response
+schemas, authentication, and code samples. Do not replace it with a different
+server-generated spec just to make validation pass. Run the docs checks and
+`pnpm --filter @browserbasehq/stagehand-docs test:unit` after updates.
+
+## Publishing
+
+Documentation is deployed through the Mintlify GitHub integration after changes reach the
+repository's default branch.

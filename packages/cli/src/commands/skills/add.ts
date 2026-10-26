@@ -1,6 +1,7 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
+import { fail } from "../../lib/errors.js";
 import { installSkill } from "../../lib/skills/install.js";
 
 export default class SkillsAdd extends BrowseCommand {
@@ -12,17 +13,23 @@ export default class SkillsAdd extends BrowseCommand {
   ];
 
   static override args = {
+    // Intentionally optional so we can emit actionable guidance instead of
+    // oclif's bare "Missing 1 required arg" error.
     skill: Args.string({
-      required: true,
+      required: false,
       description: "Skill id in the form <domain>/<task>.",
     }),
   };
 
   async run(): Promise<void> {
     const { args } = await this.parse(SkillsAdd);
-    const exitCode = await installSkill(args.skill);
-    if (exitCode !== 0) {
-      this.exit(exitCode);
+    if (!args.skill) {
+      fail(
+        "Missing skill id. Pass a skill in the form <domain>/<task>, e.g. `browse skills add yelp.com/extract-reviews`. Run `browse skills find <query>` to discover skills.",
+        2,
+        { resultCode: "invalid_skill_id" },
+      );
     }
+    await installSkill(args.skill);
   }
 }

@@ -29,11 +29,13 @@ npm install -g browse
 
 ## Quick start
 
+Requires Node.js 22.18+.
+
 ```bash
 npm install -g browse
 
 browse open https://example.com
-browse snapshot --compact
+browse snapshot
 browse click @0-12
 browse fill @0-8 "hello"
 browse get title
@@ -57,10 +59,14 @@ Every driver command accepts the same flags to pick where the browser runs. Mix 
 | `--auto-connect` | Auto-discover and attach to a local Chrome with remote debugging enabled |
 | `--cdp <url\|port>` | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`) |
 | `--target-id <id>` | Select a specific CDP target when attaching to an existing browser |
+| `--chrome-arg <flag>` | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only) |
+| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only) |
+| `--no-default-chrome-args` | Launch without any of Chrome's default args (managed-local only) |
 
 ```bash
 browse open https://example.com                 # default target
 browse open https://example.com --local --headed
+browse open https://example.com --local --headed --chrome-arg=--no-focus-on-navigate
 browse open https://example.com --remote
 browse open https://example.com --auto-connect
 browse open https://example.com --cdp 9222
@@ -80,16 +86,15 @@ browse back           # Navigate backward
 browse forward        # Navigate forward
 ```
 
-### Snapshot & refs
+### Snapshot
 
 The accessibility snapshot is the recommended way for agents to discover elements. It prints a tree of refs like `@0-12` that the element commands accept directly.
 
 ```bash
-browse snapshot                 # Accessibility snapshot + cached refs
-browse snapshot --compact       # Tree only, no ref maps
+browse snapshot                 # Accessibility tree + cached refs (lean by default)
+browse snapshot --full          # Also include the ref maps (xpathMap, urlMap)
 browse snapshot --filter submit # Filter lines by text or /regex/, keeping ancestors
 browse snapshot --max-depth 4   # Trim output deeper than this depth
-browse refs                     # Show refs cached from the last snapshot
 ```
 
 ### Element actions
@@ -108,7 +113,7 @@ browse highlight @0-12                         # Highlight an element (--duratio
 
 ### Mouse (raw coordinates)
 
-Use these when you need pixel coordinates instead of a ref. Add `--return-xpath` to get the XPath under the cursor.
+Use these when you need pixel coordinates instead of a ref.
 
 ```bash
 browse mouse click 240 320      # Click coordinates (--button, --click-count)
@@ -237,9 +242,15 @@ browse cloud extensions delete <extension-id>
 # Fetch & Search APIs
 browse cloud fetch <url>                          # markdown by default
 browse cloud search <query>
+# Requires the Search API upgrade to be deployed:
+browse cloud search "browserbase docs" --provider parallel --mode fast
+browse cloud search "browser automation research" --provider parallel --mode advanced
+browse cloud search "browserbase docs" --provider exa
 ```
 
 `browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
+
+`browse cloud search` accepts `--provider parallel|exa` and `--mode fast|advanced`. Parallel supports both modes; Exa does not accept a mode. Omitted flags are left out of the request so the API chooses its default provider and the provider chooses its default tier. Use `fast` for lower latency and cost, or `advanced` for deeper results.
 
 ## Functions
 
@@ -274,10 +285,19 @@ export BROWSERBASE_API_KEY=bb_live_...
 
 Local driver commands (`--local`) work without an API key.
 
+`browse` also auto-loads a `.env` file from the current directory on startup, and prints a
+one-time deprecation warning to stderr when it actually pulls a variable from `.env` this way.
+This is deprecated because a CLI used across many unrelated projects can silently pick up a
+stale key from the wrong project's `.env`; a future release will disable auto-loading by
+default so `browse` only reads `process.env`. Set `BROWSE_LOAD_DOTENV=0` (or `false`/`no`) to
+opt out of `.env` auto-loading now, ahead of that change, or `BROWSE_LOAD_DOTENV=1` to keep
+auto-loading with no warning.
+
 | Variable | Description |
 |----------|-------------|
 | `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands |
 | `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
+| `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
 ## Links
 

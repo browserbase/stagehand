@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 
 import { z } from "zod";
 
+import { CURSOR_OVERLAY_SCRIPT } from "../cursor-overlay.js";
 import type { DriverCommandHandlers } from "./types.js";
 
 export const runtimeHandlers: DriverCommandHandlers = {
@@ -26,19 +27,21 @@ export const runtimeHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     const buffer = await page.screenshot({
-      animations: options.animations,
-      caret: options.caret,
-      clip: options.clip,
-      fullPage: options.fullPage,
-      quality: options.quality,
+      ...(options.animations === undefined
+        ? {}
+        : { animations: options.animations }),
+      ...(options.caret === undefined ? {} : { caret: options.caret }),
+      ...(options.clip === undefined ? {} : { clip: options.clip }),
+      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
       timeout: 10_000,
-      type: options.type,
+      ...(options.type === undefined ? {} : { type: options.type }),
     });
     if (options.path) {
       await fs.writeFile(options.path, buffer);
       return { saved: options.path };
     }
-    return { base64: buffer.toString("base64") };
+    return { base64: Buffer.from(buffer).toString("base64") };
   },
 
   async viewport(manager, params) {
@@ -88,7 +91,9 @@ export const runtimeHandlers: DriverCommandHandlers = {
 
   async cursor(manager) {
     const page = await manager.activePage();
-    await page.enableCursorOverlay();
+    await page.addInitScript(CURSOR_OVERLAY_SCRIPT);
+    await page.evaluate(CURSOR_OVERLAY_SCRIPT);
+    manager.markCursorOverlayEnabled(page);
     return { cursor: "enabled" };
   },
 };

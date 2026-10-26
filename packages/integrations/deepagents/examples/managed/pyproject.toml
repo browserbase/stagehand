@@ -1,0 +1,20 @@
+[project]
+name = "stagehand-managed-deep-agent"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "httpx>=0.28,<1",
+  "langchain>=1,<2",
+  "langchain-openai>=1,<2",
+  # Requires langgraph-sdk with the authorization fix.
+  "langgraph>=1.2.14,<1.3",
+  "managed-deepagents",
+  "stagehand>=4.3.0,<5",
+  "stagehand-middleware>=0.1.0,<0.2",
+  # Security minimum for transitive HTTP clients.
+  "urllib3>=2.8.0,<3",
+]
+
+[tool.uv]
+package = false
+override-dependencies = ["websockets==15.0.1"]

@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://cubic.dev/schema/cubic-repository-config.schema.json
+
+version: 1
+
+reviews:
+  custom_rules:
+    - name: Stagehand docs prose guide
+      description: Enforce prose style, voice, clarity, and structure for changed Stagehand documentation.
+      file_paths:
+        - .cubic/docs-style-guide.md
+      include:
+        - packages/docs/**

@@ -1,0 +1,32 @@
+[project]
+name = "stagehand-crewai-example"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "crewai>=1.15.24,<2",
+  "crewai-tools[mcp]>=1.15.24,<2",
+  # Security minimums for transitive HTTP and OAuth dependencies.
+  "multidict>=6.9.1,<7",
+  "oauthlib>=4.0.0,<5",
+  # Security minimum for transitive HTTP clients.
+  "urllib3>=2.8.0,<3",
+]
+
+[tool.uv]
+package = false
+# CrewAI 1.15.24 restricts these dependencies below their security fixes.
+# Remove once upstream accepts MCP 1.30.0 and uv 0.13.4 or newer.
+override-dependencies = [
+  "mcp>=1.30.0,<2", # GHSA-84m7-p3x7-pcfv
+  "uv>=0.13.4,<0.14", # GHSA-hq85-5cpj-mr62
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "ruff>=0.15,<1"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ANN", "E", "F", "I", "UP"]

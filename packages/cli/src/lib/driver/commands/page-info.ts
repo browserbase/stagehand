@@ -25,11 +25,11 @@ export const pageInfoHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
 
-    if (what === "url") return { url: page.url() };
+    if (what === "url") return { url: await page.url() };
     if (what === "title") return { title: await page.title() };
 
     const target = manager.resolveSelector(selector ?? "body");
-    const locator = page.deepLocator(target);
+    const locator = page.locator(target);
 
     if (what === "text") return { text: await locator.textContent() };
     if (what === "html") return { html: await locator.innerHtml() };
@@ -53,7 +53,7 @@ export const pageInfoHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    const locator = page.deepLocator(manager.resolveSelector(selector));
+    const locator = page.locator(manager.resolveSelector(selector));
     return check === "visible"
       ? { visible: await locator.isVisible() }
       : { checked: await locator.isChecked() };

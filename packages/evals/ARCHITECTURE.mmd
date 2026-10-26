@@ -4,7 +4,6 @@ flowchart TB
         REPL["tui/repl.ts<br/>interactive shell<br/>Esc abort support"]
         BuildCLI["scripts/build-cli.ts<br/>bundled dist/cli bin"]
         BuildESM["scripts/build-esm.ts<br/>dist/esm + assets + datasets"]
-        LegacyCLI["cli-legacy.ts / index.eval.ts<br/>--legacy escape hatch"]
     end
 
     subgraph TUI["TUI Command Layer"]
@@ -24,7 +23,7 @@ flowchart TB
         Discovery["framework/discovery.ts<br/>filesystem scan<br/>category overrides<br/>lazy/eager metadata"]
         Resolver["resolveTarget()<br/>tier, category, task,<br/>partial name"]
         CoreTasks[("core/tasks/*<br/>deterministic tool tasks")]
-        BenchTasks[("tasks/bench/*<br/>act, extract, observe,<br/>agent, combination, suites")]
+        BenchTasks[("tasks/bench/*<br/>act, extract, observe,<br/>agent, suites")]
         DefineTask["framework/defineTask.ts<br/>defineCoreTask<br/>defineBenchTask"]
     end
 
@@ -33,7 +32,7 @@ flowchart TB
         BenchPlanner["framework/benchPlanner.ts<br/>model matrix<br/>suite expansion<br/>metadata/tags"]
         TaskConfig["taskConfig.ts<br/>default models<br/>agent model entries"]
         Datasets[("datasets/*<br/>WebVoyager<br/>OnlineMind2Web<br/>WebTailBench")]
-        DryRun["dry-run JSON<br/>tasks, skippedTasks,<br/>envOverrides, runOptions"]
+        DryRun["dry-run JSON<br/>target, normalizedTarget, tasks,<br/>envOverrides, runOptions,<br/>matrix, error?"]
     end
 
     subgraph Runner["Unified Runner"]
@@ -48,7 +47,7 @@ flowchart TB
         CoreContext["framework/context.ts<br/>buildCoreContext"]
         FixtureServer["core/fixtures<br/>local deterministic pages"]
         CoreTargets["core/targets<br/>local Chrome<br/>Browserbase CDP"]
-        CoreTools["core/tools registry<br/>understudy_code<br/>playwright_code<br/>cdp_code<br/>playwright_mcp<br/>chrome_devtools_mcp<br/>browse_cli"]
+        CoreTools["core/tools registry<br/>understudy_code<br/>playwright_code<br/>cdp_code<br/>playwright_mcp<br/>chrome_devtools_mcp<br/>stagehand_facade<br/>browse_cli"]
         CoreAssertions["assertions + metrics<br/>adapter-backed results"]
         CoreDeps["core/runtime/coreDeps.ts<br/>browserbase + ws<br/>lazy require"]
     end
@@ -94,7 +93,6 @@ flowchart TB
     REPL --> RunCmd
     BuildCLI --> CLI
     BuildESM --> RuntimePaths
-    LegacyCLI --> LegacyRunner["legacy runner path<br/>pre-refactor behavior"]
 
     %% TUI and config
     ConfigCmd <--> ConfigFile

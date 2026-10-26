@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import { buildExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 
 const modelName = "anthropic/claude-sonnet-4-20250514" as AvailableModel;
@@ -59,6 +59,26 @@ describe("buildExternalHarnessTaskPlan", () => {
       startUrl: "https://www.google.com",
       instruction: "Find the latest pricing page",
     });
+  });
+
+  it("builds HardBench plans without changing task text and with a Google fallback", () => {
+    for (const web of [undefined, "https://example.com/shop"]) {
+      expect(
+        buildExternalHarnessTaskPlan({
+          name: "agent/hardbenchmark",
+          modelName,
+          params: { id: "hb-1", ques: "Find the exact item", web },
+        }),
+      ).toEqual({
+        dataset: "hardbenchmark",
+        taskId: "hb-1",
+        instruction: "Find the exact item",
+        startUrl: web ?? "https://www.google.com",
+      });
+    }
+    expect(() => buildExternalHarnessTaskPlan({ name: "agent/hardbenchmark", modelName })).toThrow(
+      /expected ques/,
+    );
   });
 
   it("rejects unsupported external harness tasks", () => {

@@ -4,10 +4,15 @@ import type { EvalInput } from "../types/evals.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
-import { getBenchHarness, type BenchHarnessContext } from "./benchHarness.js";
+import {
+  formatBenchHarnessFlags,
+  getBenchHarness,
+  type BenchHarnessContext,
+} from "./benchHarness.js";
 import { buildBenchMatrixRow } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+import { reportRowPhase } from "./rowContext.js";
 
 function withBenchSessionUrls(
   result: TaskResult,
@@ -30,14 +35,7 @@ export async function executeBenchTask(
   const logger = new EvalLogger(Boolean(options.verbose));
   const harnessName = options.harness ?? DEFAULT_BENCH_HARNESS;
   const harness = getBenchHarness(harnessName);
-  const row = buildBenchMatrixRow(
-    task,
-    input.modelName,
-    options,
-    input.params,
-    input.isCUA,
-    input.agentMode,
-  );
+  const row = buildBenchMatrixRow(task, input.modelName, options, input.params);
   let cleanup: () => Promise<void> = async () => {};
   let unregisterCleanup: (() => void) | undefined;
   let harnessCtx: BenchHarnessContext | undefined;
@@ -54,6 +52,13 @@ export async function executeBenchTask(
       });
     }
 
+    if (!harness.start) {
+      throw new EvalsError(
+        `Harness "${harnessName}" is registered for dry-run planning only and cannot execute bench tasks. Use ${formatBenchHarnessFlags()} for executable bench runs.`,
+      );
+    }
+
+    reportRowPhase("session");
     const startedHarness = await harness.start({
       task,
       input,
@@ -65,11 +70,14 @@ export async function executeBenchTask(
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
+    reportRowPhase(
+      "agent",
+      harnessCtx.sessionUrl ? { sessionUrl: harnessCtx.sessionUrl } : undefined,
+    );
     const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
-        v3: harnessCtx.v3,
-        agent: harnessCtx.agent,
+        stagehand: harnessCtx.stagehand,
         page: harnessCtx.page,
         logger,
         input,
@@ -77,24 +85,7 @@ export async function executeBenchTask(
         debugUrl: harnessCtx.debugUrl,
         sessionUrl: harnessCtx.sessionUrl,
       };
-      return withBenchSessionUrls(
-        (await taskModule.definition.fn(ctx)) as TaskResult,
-        harnessCtx,
-      );
-    }
-    if (taskModule.legacyFn) {
-      return withBenchSessionUrls(
-        await taskModule.legacyFn({
-          v3: harnessCtx.v3,
-          logger,
-          debugUrl: harnessCtx.debugUrl,
-          sessionUrl: harnessCtx.sessionUrl,
-          modelName: input.modelName,
-          agent: harnessCtx.agent,
-          input,
-        }),
-        harnessCtx,
-      );
+      return withBenchSessionUrls((await taskModule.definition.fn(ctx)) as TaskResult, harnessCtx);
     }
 
     throw new EvalsError(`No valid task export found in ${task.filePath}`);
@@ -117,10 +108,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error:
-          error instanceof Error
-            ? JSON.parse(JSON.stringify(error, null, 2))
-            : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

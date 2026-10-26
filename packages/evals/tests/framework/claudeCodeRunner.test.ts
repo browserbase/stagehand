@@ -1,16 +1,18 @@
 /* eslint-disable require-yield */
 import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { AvailableModel } from "stagehand-v3";
 import {
   buildClaudeCodePrompt,
-  isClaudeCodeMaxTurnsError,
-  normalizeClaudeCodeModel,
   parseClaudeCodeResult,
   runClaudeCodeAgent,
 } from "../../framework/claudeCodeRunner.js";
 import { EvalLogger } from "../../logger.js";
 import type { ClaudeAgentSdk } from "../../framework/claudeCodeRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -20,22 +22,29 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("claude code runner helpers", () => {
-  it("normalizes provider-prefixed models for Claude Code", () => {
-    expect(
-      normalizeClaudeCodeModel(
-        "anthropic/claude-sonnet-4-20250514" as AvailableModel,
-      ),
-    ).toBe("claude-sonnet-4-20250514");
-    expect(normalizeClaudeCodeModel("claude-opus-4-1" as AvailableModel)).toBe(
-      "claude-opus-4-1",
-    );
+  it("appends the shared eval policy to the native system prompt once", async () => {
+    let request: Parameters<ClaudeAgentSdk["query"]>[0] | undefined;
+    await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: {
+        query: async function* (input) {
+          request = input;
+          yield { type: "result", subtype: "success", result: 'EVAL_RESULT: {"success":true}' };
+        },
+      },
+    });
+    expect(request?.prompt).toContain(plan.instruction);
+    expect(request?.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+    const systemPrompt = request?.options?.systemPrompt as { preset: string; append: string };
+    expect(systemPrompt.preset).toBe("claude_code");
+    expect(systemPrompt.append.split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(systemPrompt.append).toContain("Do not edit repository files");
   });
 
   it("builds a browser task prompt with the required result marker", () => {
-    const prompt = buildClaudeCodePrompt(
-      plan,
-      "Use browse only. Discover usage with browse -h.",
-    );
+    const prompt = buildClaudeCodePrompt(plan, "Use browse only. Discover usage with browse -h.");
 
     expect(prompt).toContain("Dataset: webvoyager");
     expect(prompt).toContain("Task ID: wv-1");
@@ -77,16 +86,23 @@ describe("claude code runner helpers", () => {
     });
   });
 
-  it("identifies max-turn SDK errors", () => {
+  it("parses result JSON wrapped in Markdown emphasis", () => {
     expect(
-      isClaudeCodeMaxTurnsError(
-        new Error("Reached maximum number of turns (20)"),
+      parseClaudeCodeResult(
+        '**EVAL_RESULT: {"success":true,"summary":"found {the result}","finalAnswer":"done"}**',
       ),
-    ).toBe(true);
-    expect(isClaudeCodeMaxTurnsError("network failed")).toBe(false);
+    ).toMatchObject({
+      success: true,
+      summary: "found {the result}",
+      finalAnswer: "done",
+    });
   });
 
-  it("returns a normal task result when Claude Code reaches max turns after emitting a result", async () => {
+  it("fails closed when verification fails while preserving the agent report", async ({
+    onTestFinished,
+  }) => {
+    const trajectoryRoot = await mkdtemp(path.join(tmpdir(), "stagehand-runner-test-"));
+    onTestFinished(() => rm(trajectoryRoot, { recursive: true, force: true }));
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
         yield {
@@ -95,12 +111,17 @@ describe("claude code runner helpers", () => {
             content: [
               {
                 type: "text",
-                text: 'EVAL_RESULT: {"success":true,"summary":"already complete","finalAnswer":"done"}',
+                text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
               },
             ],
           },
         };
-        throw new Error("Reached maximum number of turns (20)");
+        yield {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
+        };
       },
     };
 
@@ -109,18 +130,35 @@ describe("claude code runner helpers", () => {
       model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
+      verifier: {
+        trajectoryRoot,
+        v3: {} as never,
+        taskSpec: {
+          id: "wv-1",
+          instruction: plan.instruction,
+          // Malformed rubric — normalizeRubric throws inside the verifier
+          // path, exercising the integration-failure fallback.
+          precomputedRubric: {} as never,
+        },
+        dataset: "webvoyager",
+      },
     });
 
-    expect(result._success).toBe(true);
-    expect(result.error).toBeUndefined();
-    expect(result.claudeCodeStatus).toBe("max_turns");
+    // Verification fails closed while preserving the separate agent report.
+    expect(result._success).toBe(false);
+    expect(result.agentReportedSuccess).toBe(true);
+    expect(result.reasoning).toBe("done");
     expect(result.finalAnswer).toBe("done");
+    expect(String(result.verifierError)).toContain("items array");
+    expect(result.outcomeSuccess).toBeUndefined();
+    expect(result.processScore).toBeUndefined();
   });
 
-  it("returns a failed task result instead of throwing when max turns prevents a result", async () => {
+  it("prefers iteration errors over result text for failed Claude Code runs", async () => {
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
-        throw new Error("Reached maximum number of turns (20)");
+        yield { type: "result", subtype: "error", result: "less useful result text" };
+        throw new Error("specific iteration failure");
       },
     };
 
@@ -132,8 +170,7 @@ describe("claude code runner helpers", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.claudeCodeStatus).toBe("max_turns");
-    expect(String(result.error)).toContain("maximum number of turns");
+    expect(result.error).toBe("specific iteration failure");
   });
 
   it("reports Claude Code token usage as Braintrust metrics", async () => {
@@ -142,8 +179,7 @@ describe("claude code runner helpers", () => {
         yield {
           type: "result",
           subtype: "success",
-          result:
-            'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
           duration_ms: 1234,
           num_turns: 3,
           total_cost_usd: 0.045,
@@ -170,47 +206,39 @@ describe("claude code runner helpers", () => {
     expect(metrics.claude_code_cache_creation_input_tokens.value).toBe(10);
     expect(metrics.claude_code_cache_read_input_tokens.value).toBe(5);
     expect(metrics.claude_code_total_tokens.value).toBe(140);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_cache_creation_input_tokens.value).toBe(10);
+    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_cost_usd.value).toBe(0.045);
+    expect(result.harnessStatus).toBe("completed");
+    expect(result.claudeCodeStatus).toBe("completed");
   });
+});
 
-  it("forwards adapter MCP servers into the Claude Code SDK query", async () => {
-    let capturedOptions: Record<string, unknown> | undefined;
-    const mcpServers = {
-      stagehand_browser: { type: "sdk", name: "stagehand_browser" },
-    };
-    const sdk: ClaudeAgentSdk = {
-      query: async function* (input) {
-        capturedOptions = input.options;
-        yield {
-          type: "result",
-          subtype: "success",
-          result:
-            'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
-        };
-      },
-    };
-
-    await runClaudeCodeAgent({
+it.each([false, true])(
+  "preserves token usage presence through claudeCode grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runClaudeCodeAgent({
       plan,
       model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
       logger: new EvalLogger(false),
-      sdk,
-      toolAdapter: {
-        toolSurface: "playwright_code",
-        startupProfile: "runner_provided_local_cdp",
-        cwd: "/tmp/stagehand-evals-test",
-        env: {},
-        allowedTools: ["Bash", "mcp__stagehand_browser__run"],
-        settingSources: [],
-        promptInstructions: "Use run.",
-        mcpServers,
-        cleanup: async () => {},
+      sdk: {
+        query: async function* () {
+          yield {
+            type: "result",
+            subtype: "success",
+            result: finalAnswer,
+            ...(reported && { usage: { input_tokens: 0, output_tokens: 0 } }),
+          };
+        },
       },
     });
-
-    expect(capturedOptions?.mcpServers).toBe(mcpServers);
-    expect(capturedOptions?.allowedTools).toEqual([
-      "Bash",
-      "mcp__stagehand_browser__run",
-    ]);
-  });
-});
+    expect(result.usageConvention).toBe(reported ? "anthropic_cache_separate" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);

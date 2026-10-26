@@ -1,87 +1,98 @@
 import { z } from "zod";
 
+import { updateCursorOverlayPosition } from "../cursor-overlay.js";
+import type { DriverPage, DriverSessionManager } from "../session-manager.js";
 import type { DriverCommandHandlers } from "./types.js";
 
 const ButtonSchema = z.enum(["left", "right", "middle"]).optional();
 
 export const mouseHandlers: DriverCommandHandlers = {
   async "mouse.click"(manager, params) {
-    const { button, clickCount, returnXPath, x, y } = z
+    const { button, clickCount, x, y } = z
       .object({
         button: ButtonSchema,
         clickCount: z.number().int().positive().optional(),
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
-    const xpath = await page.click(x, y, {
-      button,
-      clickCount,
-      returnXpath: returnXPath,
+    await positionCursorOverlay(manager, page, x, y);
+    await page.click(x, y, {
+      ...(button === undefined ? {} : { button }),
+      ...(clickCount === undefined ? {} : { clickCount }),
     });
-    return returnXPath ? { clicked: true, xpath } : { clicked: true };
+    return { clicked: true };
   },
 
   async "mouse.hover"(manager, params) {
-    const { returnXPath, x, y } = z
+    const { x, y } = z
       .object({
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
-    const xpath = await page.hover(x, y, { returnXpath: returnXPath });
-    return returnXPath ? { hovered: true, xpath } : { hovered: true };
+    await positionCursorOverlay(manager, page, x, y);
+    await page.hover(x, y);
+    return { hovered: true };
   },
 
   async "mouse.scroll"(manager, params) {
-    const { deltaX, deltaY, returnXPath, x, y } = z
+    const { deltaX, deltaY, x, y } = z
       .object({
         deltaX: z.number(),
         deltaY: z.number(),
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
-    const xpath = await page.scroll(x, y, deltaX, deltaY, {
-      returnXpath: returnXPath,
-    });
-    return returnXPath ? { scrolled: true, xpath } : { scrolled: true };
+    await positionCursorOverlay(manager, page, x, y);
+    await page.scroll(x, y, deltaX, deltaY);
+    return { scrolled: true };
   },
 
   async "mouse.drag"(manager, params) {
-    const { button, delay, fromX, fromY, returnXPath, steps, toX, toY } = z
+    const { button, delay, fromX, fromY, steps, toX, toY } = z
       .object({
         button: ButtonSchema,
         delay: z.number().int().nonnegative().optional(),
         fromX: z.number(),
         fromY: z.number(),
-        returnXPath: z.boolean().optional(),
         steps: z.number().int().positive().optional(),
         toX: z.number(),
         toY: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
-    const [fromXpath, toXpath] = await page.dragAndDrop(
-      fromX,
-      fromY,
-      toX,
-      toY,
-      {
-        button,
-        delay,
-        returnXpath: returnXPath,
-        steps,
-      },
-    );
-    return returnXPath
-      ? { dragged: true, fromXpath, toXpath, xpath: fromXpath }
-      : { dragged: true };
+    await positionCursorOverlay(manager, page, fromX, fromY);
+    await page.dragAndDrop(fromX, fromY, toX, toY, {
+      ...(button === undefined ? {} : { button }),
+      ...(delay === undefined ? {} : { delay }),
+      ...(steps === undefined ? {} : { steps }),
+    });
+    await positionCursorOverlay(manager, page, toX, toY);
+    return { dragged: true };
   },
 };
+
+async function positionCursorOverlay(
+  manager: DriverSessionManager,
+  page: DriverPage,
+  x: number,
+  y: number,
+): Promise<void> {
+  if (!manager.isCursorOverlayEnabled(page)) return;
+  // The overlay is visual-only. A navigation can destroy its execution
+  // context, but that must not prevent or invalidate the real mouse action.
+  try {
+    await page.evaluate(updateCursorOverlayPosition, { x, y });
+  } catch {
+    // Best-effort parity with V3's cursor updates.
+  }
+}

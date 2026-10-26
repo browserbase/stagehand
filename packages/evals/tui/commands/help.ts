@@ -1,4 +1,6 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
+// Dependency-free; the harness and tool registries stay lazily imported.
+import { listBenchSuites } from "../../framework/benchSuites.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -16,23 +18,17 @@ export function printHelp(): void {
     `  ${dustyCyanHeader("Commands:")}`,
     "",
     row(`${cyan("run")} ${dim("[target] [options]")}`, "Run evals"),
-    row(
-      `${cyan("list")} ${dim("[tier] [--detailed]")}`,
-      "List tasks and categories",
-    ),
-    row(
-      `${cyan("config")} ${dim("[subcommand]")}`,
-      "Get/set default run configuration",
-    ),
+    row(`${cyan("list")} ${dim("[tier] [--detailed]")}`, "List tasks and categories"),
+    row(`${cyan("config")} ${dim("[subcommand]")}`, "Get/set default run configuration"),
     row(
       `${cyan("experiments")} ${dim("[subcommand]")}`,
       "Inspect and compare Braintrust experiment runs",
     ),
+    row(`${cyan("verify")} ${dim("<trajectory-dir> [options]")}`, "Re-score a saved trajectory"),
+    row(`${cyan("doctor")} ${dim("| health")}`, "Health report"),
+    row(cyan("setup"), "Guided setup for agent benchmarks"),
+    row(cyan("welcome"), "Guided onboarding on a real benchmark task"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
-    row(
-      `${cyan("doctor")} ${dim("[--json]")}`,
-      "Health report (env keys, config, discovery)",
-    ),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
     row(cyan("exit"), "Exit the REPL"),
@@ -42,7 +38,11 @@ export function printHelp(): void {
   ]);
 }
 
-export function printRunHelp(): void {
+export async function printRunHelp(): Promise<void> {
+  const { getBenchHarness, listBenchHarnesses, listBenchHarnessesForTaskKind } =
+    await import("../../framework/benchHarness.js");
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
+  const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
     `  ${dustyCyanHeader("evals run")} ${dim("[target] [options]")}`,
@@ -63,27 +63,21 @@ export function printRunHelp(): void {
       "Benchmark suite shorthand",
     ),
     row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
+    row(cyan("b:hardbenchmark"), "HardBench core38 (EVAL_HARDBENCHMARK_SET: core|extended)"),
     "",
     `  ${bold("Options:")}`,
     "",
     row(`${cyan("-t, --trials")} ${dim("<n>")}`, "Number of trials per task"),
     row(`${cyan("-c, --concurrency")} ${dim("<n>")}`, "Max parallel sessions"),
-    row(
-      `${cyan("-e, --env")} ${dim("<env>")}`,
-      `Environment: ${gray("local | browserbase")}`,
-    ),
+    row(`${cyan("-e, --env")} ${dim("<env>")}`, `Environment: ${gray("local | browserbase")}`),
     row(`${cyan("-m, --model")} ${dim("<model>")}`, "Model override"),
-    row(
-      `${cyan("-p, --provider")} ${dim("<name>")}`,
-      `Provider: ${gray("openai | anthropic | google | ...")}`,
-    ),
     row(cyan("--api"), "Use Stagehand API mode"),
     "",
     `  ${bold("Core options:")}`,
     "",
     row(
       `${cyan("--tool")} ${dim("<surface>")}`,
-      `Core tool surface ${gray("(understudy_code, playwright_code, ...)")}`,
+      `Core tool surface ${gray(`(${listCoreRunnableTools().join(", ")})`)}`,
     ),
     row(`${cyan("--startup")} ${dim("<profile>")}`, "Core startup profile"),
     "",
@@ -91,15 +85,21 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray(`(${listBenchHarnesses().join(" | ")})`)}`,
     ),
     row(
-      `${cyan("--agent-mode")} ${dim("<mode>")}`,
-      `Single Stagehand agent mode ${gray("(dom | hybrid | cua)")}`,
+      `${cyan("--tool")} ${dim("<surface>")}`,
+      `Tool surface the harness mounts ${gray("(default marked *)")}`,
     ),
+    ...buildHarnessToolRows(listBenchHarnesses(), getBenchHarness),
     row(
-      `${cyan("--agent-modes")} ${dim("<csv>")}`,
-      `Stagehand mode matrix ${gray("(dom,hybrid,cua)")}`,
+      "",
+      `${gray("stagehand_facade")} ${dim("— Playwright-batch MCP surface (agent mount only)")}`,
+    ),
+    row(`${cyan("b:<suite>")}`, `Suites: ${gray(listBenchSuites().join(", "))}`),
+    row(
+      `${cyan("--success")} ${dim("<mode>")}`,
+      `Rubric success mode ${gray("(outcome | process | both)")}`,
     ),
     row(`${cyan("-l, --limit")} ${dim("<n>")}`, "Max cases to run"),
     row(`${cyan("-s, --sample")} ${dim("<n>")}`, "Random sample before limit"),
@@ -115,11 +115,21 @@ export function printRunHelp(): void {
       `Print a human-readable plan ${gray("(combinations + tasks)")} and exit`,
     ),
     "",
-    `  ${bold("Escape hatch:")}`,
+    `  ${bold("Output:")}`,
     "",
+    row(`${cyan("-v, --verbose")}`, `Stream every case's log lines above the board`),
     row(
-      cyan("--legacy"),
-      `Spawn the pre-refactor ${dim("index.eval.ts")} runner ${gray("(argv only)")}`,
+      `${cyan("--follow")} ${dim("<id>")}`,
+      `Stream one case's log lines ${gray("(case id prefix)")}`,
+    ),
+    row(
+      cyan("--json"),
+      `Print the summary as JSON on stdout ${gray("(board + logs go to stderr)")}`,
+    ),
+    row(dim("keys"), `${cyan("esc")} stop · ${cyan("v")} logs off → all → one · ${cyan("?")} help`),
+    row(
+      dim("logs"),
+      `One file per case that logs, under ${gray(".trajectories/<run>/logs/")}, streamed or not`,
     ),
     "",
     `  ${bold("Examples:")}`,
@@ -129,9 +139,29 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run agent --preview`,
+    ...(suiteHarness
+      ? [
+          `    ${dim("$")} evals run b:webvoyager --harness ${suiteHarness} --tool stagehand_code -l 3`,
+        ]
+      : []),
     "",
   ]);
+}
+
+/**
+ * One dim row per harness that mounts a tool, listing its surfaces with the
+ * default (first registered) starred: `claude_code: browse_cli* | … | stagehand_facade`.
+ */
+function buildHarnessToolRows(
+  harnesses: string[],
+  getHarness: (harness: string) => { supportedToolSurfaces: readonly string[] },
+): string[] {
+  return harnesses.flatMap((harness) => {
+    const surfaces = getHarness(harness).supportedToolSurfaces;
+    if (surfaces.length === 0) return [];
+    const list = surfaces.map((surface, index) => (index === 0 ? `${surface}*` : surface));
+    return [row("", `${gray(`${harness}:`)} ${dim(list.join(" | "))}`)];
+  });
 }
 
 export function printListHelp(): void {
@@ -171,7 +201,8 @@ export function printNewHelp(): void {
   ]);
 }
 
-export function printConfigHelp(): void {
+export async function printConfigHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config")} ${dim("[subcommand]")}`,
@@ -179,16 +210,30 @@ export function printConfigHelp(): void {
     `  ${bold("Subcommands:")}`,
     "",
     row(dim("(none)"), "Print current defaults + env overrides"),
-    row(cyan("path"), "Print the evals.config.json file path"),
+    row(`${cyan("path")} ${dim("[local]")}`, "Print the tracked (or local) config file path"),
     row(
       `${cyan("set")} ${dim("<key> <value>")}`,
-      `Set a default ${gray("(env/trials/concurrency/provider/model/api/verbose/agentModes)")}`,
+      `Set a default ${gray("(env/trials/concurrency/model/api/verbose/harness/successMode)")}`,
     ),
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or all defaults"),
+    row(`${cyan("core")} ${dim("[...]")}`, "Configure core tier tool + startup defaults"),
+    row(`${cyan("tracing")} ${dim("[...]")}`, "Configure trace transport + sink projects"),
     row(
-      `${cyan("core")} ${dim("[...]")}`,
-      "Configure core tier tool + startup defaults",
+      `${cyan("harnesses")} ${dim("[set <h> models a,b | tool x | reset <h>]")}`,
+      "Per-harness model list + --tool default",
     ),
+    row(
+      `${cyan("providers")} ${dim("[set <p> concurrency n]")}`,
+      "Per-provider concurrency under the global cap",
+    ),
+    row(
+      `${cyan("verifier")} ${dim("[set model <provider/model> | set maxUnverifiableCriteria <n> | reset]")}`,
+      "Judge model + verifiability gate defaults",
+    ),
+    row(`${cyan("campaign")} ${dim("[set tag <v>]")}`, "Campaign tag stamped on experiments"),
+    "",
+    `  ${dim("Writes go to evals.config.local.json (gitignored); add")} ${cyan("--shared")} ${dim("to write the tracked file.")}`,
+    `  ${dim("Precedence: flag → evals.config.local.json → evals.config.json → env for most defaults; env wins for successMode, the browser target and the other sections")}`,
     "",
     `  ${bold("Core subcommands:")} ${dim("(under `evals config core`)")}`,
     "",
@@ -198,25 +243,27 @@ export function printConfigHelp(): void {
       `${cyan("set")} ${dim("<tool|startup> <value>")}`,
       `Set core ${cyan("tool")} or ${cyan("startup")}`,
     ),
-    row(
-      `${cyan("reset")} ${dim("[key]")}`,
-      "Reset one key or the whole core section",
-    ),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",
     `    ${dim("$")} evals config set trials 5`,
     `    ${dim("$")} evals config core set tool understudy_code`,
     `    ${dim("$")} evals config core set startup tool_launch_local`,
+    `    ${dim("$")} evals config tracing set transport otel`,
+    `    ${dim("$")} evals config harnesses set claude_code tool stagehand_facade`,
+    `    ${dim("$")} evals config providers set openai concurrency 6`,
+    `    ${dim("$")} evals config set concurrency 10 --shared`,
     `    ${dim("$")} evals config core reset`,
     "",
   ]);
 }
 
-export function printConfigCoreHelp(): void {
+export async function printConfigCoreHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config core")} ${dim("[subcommand]")}`,
@@ -231,13 +278,10 @@ export function printConfigCoreHelp(): void {
       `${cyan("set")} ${dim("<tool|startup> <value>")}`,
       `Set core ${cyan("tool")} or ${cyan("startup")}`,
     ),
-    row(
-      `${cyan("reset")} ${dim("[key]")}`,
-      "Reset one key or the whole core section",
-    ),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",
@@ -248,9 +292,7 @@ export function printConfigCoreHelp(): void {
   ]);
 }
 
-export function printExperimentsHelp(
-  subcommand?: "list" | "show" | "open" | "compare",
-): void {
+export function printExperimentsHelp(subcommand?: "list" | "show" | "open" | "compare"): void {
   if (subcommand === "list") {
     print([
       "",
@@ -282,10 +324,7 @@ export function printExperimentsHelp(
       "",
       `  ${bold("Options:")}`,
       "",
-      row(
-        `${cyan("--project")} ${dim("<name>")}`,
-        "Restrict lookup to one project",
-      ),
+      row(`${cyan("--project")} ${dim("<name>")}`, "Restrict lookup to one project"),
       row(cyan("--json"), "Emit machine-readable JSON"),
       "",
     ]);
@@ -301,10 +340,7 @@ export function printExperimentsHelp(
       "",
       `  ${bold("Options:")}`,
       "",
-      row(
-        `${cyan("--project")} ${dim("<name>")}`,
-        "Restrict lookup to one project",
-      ),
+      row(`${cyan("--project")} ${dim("<name>")}`, "Restrict lookup to one project"),
       "",
     ]);
     return;
@@ -322,13 +358,10 @@ export function printExperimentsHelp(
       row(`${cyan("--project")} ${dim("<name>")}`, "Braintrust project"),
       row(`${cyan("--title")} ${dim("<text>")}`, "Report title"),
       row(`${cyan("--out")} ${dim("<path>")}`, "Output HTML path"),
-      row(
-        cyan("--headless"),
-        "Write report files and emit machine-readable JSON",
-      ),
+      row(cyan("--headless"), "Write report files and emit machine-readable JSON"),
       "",
       `  ${bold("Project resolution:")} ${gray("If omitted, inferred per experiment across bench/core projects")}`,
-      `  ${bold("Compare modes:")} ${gray("Core compares task/timer rows; bench compares dataset/task/model/agent-mode cases")}`,
+      `  ${bold("Compare modes:")} ${gray("Core compares task/timer rows; bench compares dataset/task/model cases")}`,
       `  ${bold("Mixed modes:")} ${gray("Core + bench comparisons are rejected for now")}`,
       "",
     ]);
@@ -345,10 +378,7 @@ export function printExperimentsHelp(
     "",
     row(cyan("list"), "Show recent runs"),
     row(`${cyan("show")} ${dim("<experiment>")}`, "Show one experiment"),
-    row(
-      `${cyan("open")} ${dim("<experiment>")}`,
-      "Open one experiment in the browser",
-    ),
+    row(`${cyan("open")} ${dim("<experiment>")}`, "Open one experiment in the browser"),
     row(
       `${cyan("compare")} ${dim("<exp1> <exp2> [exp3 ...]")}`,
       "Generate an HTML comparison report",
@@ -364,6 +394,46 @@ export function printExperimentsHelp(
     `    ${dim("$")} evals experiments show observe-90b34916`,
     `    ${dim("$")} evals experiments open extract-a12c91de`,
     `    ${dim("$")} evals experiments compare exp1 exp2 --project stagehand-core-dev`,
+    "",
+  ]);
+}
+
+export function printConfigTracingHelp(): void {
+  print([
+    "",
+    `  ${dustyCyanHeader("evals config tracing")} ${dim("[subcommand]")}`,
+    "",
+    "  Persisted defaults for the trace transport and where traces land.",
+    `  Each key backs one env var; the env var always wins when set.`,
+    "",
+    `  ${bold("Subcommands:")}`,
+    "",
+    row(dim("(none)"), "Print current tracing configuration"),
+    row(cyan("path"), "Print the config file path"),
+    row(`${cyan("set")} ${dim("<key> <value>")}`, "Set one key (see below)"),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole tracing section"),
+    "",
+    `  ${bold("Keys:")}`,
+    "",
+    row(
+      `${cyan("transport")} ${dim("native|otel")}`,
+      `${gray("EVAL_TRACE_TRANSPORT")} — otel fans out to Braintrust + LangSmith`,
+    ),
+    row(
+      `${cyan("braintrustProject")} ${dim("<name>")}`,
+      `${gray("BRAINTRUST_PROJECT_NAME")} — both transports; default stagehand[-core][-dev]`,
+    ),
+    row(
+      `${cyan("langsmithProject")} ${dim("<name>")}`,
+      `${gray("LANGSMITH_PROJECT")} — otel only; needs LANGSMITH_API_KEY + LANGSMITH_TRACING=true`,
+    ),
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals config tracing set transport otel`,
+    `    ${dim("$")} evals config tracing set braintrustProject my-team-evals`,
+    `    ${dim("$")} evals config tracing set langsmithProject stagehand-evals`,
+    `    ${dim("$")} evals config tracing reset`,
     "",
   ]);
 }

@@ -64,6 +64,7 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.result_code).toBe("ok");
       expect(completedPayload.properties.http_status).toBe(null);
       expect(completedPayload.properties.request_had_http_response).toBe(null);
+      expect(completedPayload.properties.skill_id).toBe(null);
     } finally {
       await telemetryServer.close();
     }
@@ -216,6 +217,72 @@ describe("CLI telemetry", () => {
       expect(JSON.stringify(payloads)).not.toContain("sensitive search phrase");
     } finally {
       await apiServer.close();
+      await telemetryServer.close();
+    }
+  });
+
+  it("attaches the validated skill id to completion telemetry for skills add", async () => {
+    const telemetryServer = await startTelemetryServer();
+    const skillsApiServer = await startFakeBrowserbaseServer(
+      (_request, response) => {
+        jsonResponse(response, 404, { error: "not found" });
+      },
+    );
+
+    try {
+      const installIdFile = await tempInstallIdFile(
+        "browse-telemetry-skill-id-",
+      );
+      const result = await runCli(
+        ["skills", "add", "example.com/extract-reviews"],
+        {
+          env: {
+            ...telemetryEnv(telemetryServer, installIdFile),
+            BROWSE_SKILLS_API_BASE_URL: skillsApiServer.baseUrl,
+          },
+        },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("not found in the catalog");
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const completedPayload = findPayload(payloads, "cli.command_completed");
+      expect(completedPayload.properties).toMatchObject({
+        command_path: "skills.add",
+        skill_id: "example.com/extract-reviews",
+        result_code: "skill_not_found",
+        success: false,
+      });
+
+      const invokedPayload = findPayload(payloads, "cli.command_invoked");
+      expect(invokedPayload.properties).not.toHaveProperty("skill_id");
+    } finally {
+      await skillsApiServer.close();
+      await telemetryServer.close();
+    }
+  });
+
+  it("never attaches unvalidated skill arguments to telemetry", async () => {
+    const telemetryServer = await startTelemetryServer();
+
+    try {
+      const installIdFile = await tempInstallIdFile(
+        "browse-telemetry-skill-raw-",
+      );
+      const result = await runCli(
+        ["skills", "add", "../secret-local-path/oops"],
+        { env: telemetryEnv(telemetryServer, installIdFile) },
+      );
+
+      expect(result.exitCode).toBe(1);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const completedPayload = findPayload(payloads, "cli.command_completed");
+      expect(completedPayload.properties.skill_id).toBe(null);
+      expect(completedPayload.properties.result_code).toBe("invalid_skill_id");
+      expect(JSON.stringify(payloads)).not.toContain("secret-local-path");
+    } finally {
       await telemetryServer.close();
     }
   });

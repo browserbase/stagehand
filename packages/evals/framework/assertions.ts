@@ -26,8 +26,7 @@ export function createAssertHelpers(): AssertHelpers {
         deepStrictEqual(actual, expected);
       } catch {
         throw new AssertionError(
-          message ??
-            `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+          message ?? `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
           actual,
           expected,
         );
@@ -71,20 +70,12 @@ export function createAssertHelpers(): AssertHelpers {
     },
     lessThan(actual, expected, message) {
       if (actual >= expected) {
-        throw new AssertionError(
-          message ?? `Expected ${actual} < ${expected}`,
-          actual,
-          expected,
-        );
+        throw new AssertionError(message ?? `Expected ${actual} < ${expected}`, actual, expected);
       }
     },
     greaterThan(actual, expected, message) {
       if (actual <= expected) {
-        throw new AssertionError(
-          message ?? `Expected ${actual} > ${expected}`,
-          actual,
-          expected,
-        );
+        throw new AssertionError(message ?? `Expected ${actual} > ${expected}`, actual, expected);
       }
     },
   };

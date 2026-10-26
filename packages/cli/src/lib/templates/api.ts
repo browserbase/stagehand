@@ -9,6 +9,7 @@ export interface Template {
   description?: string;
   descriptionTitle?: string;
   source?: string;
+  sourcePath?: string;
   category: string[];
   tags: string[];
   commands: string[];
@@ -21,13 +22,20 @@ export interface ListTemplatesOptions {
   tag?: string;
 }
 
+interface TemplatesApiParams extends ListTemplatesOptions {
+  scope?: string;
+}
+
 export type TemplateLanguage = "typescript" | "python";
 
 export async function listTemplates(
   options: ListTemplatesOptions = {},
 ): Promise<Template[]> {
   const payload = await requestTemplatesJson(
-    templatesApiUrl(undefined, options),
+    // The CLI always requests the full template catalog. The templates API defaults to
+    // returning only `playgroundRunnable` templates — a website-playground concept that
+    // does not apply to the CLI — so we always opt out via `scope=all`.
+    templatesApiUrl(undefined, { ...options, scope: "all" }),
   );
   return parseTemplatesResponse(payload);
 }
@@ -50,10 +58,7 @@ export async function getTemplateIfExists(
   return parseTemplateResponse(payload, slug);
 }
 
-function templatesApiUrl(
-  path?: string,
-  params: ListTemplatesOptions = {},
-): URL {
+function templatesApiUrl(path?: string, params: TemplatesApiParams = {}): URL {
   const baseUrl =
     process.env.BROWSERBASE_TEMPLATES_API ?? defaultTemplatesApiUrl;
   const url = path
@@ -172,6 +177,7 @@ function parseTemplate(payload: unknown, context: string): Template {
       "descriptionTitle",
     ),
     source: optionalString(payload.source, context, "source"),
+    sourcePath: optionalString(payload.sourcePath, context, "sourcePath"),
     category: optionalStringArray(payload.category, context, "category"),
     tags: optionalStringArray(payload.tags, context, "tags"),
     commands: optionalStringArray(payload.commands, context, "commands"),
