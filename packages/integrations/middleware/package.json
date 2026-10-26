@@ -1,0 +1,51 @@
+{
+  "name": "stagehand-middleware",
+  "version": "0.1.1",
+  "description": "Stagehand's facade tools (run, snapshot, screenshot) for TypeScript hosts",
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations/middleware"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/middleware/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/middleware/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@browserbasehq/stagehand": ">=4.3.0 <5"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
