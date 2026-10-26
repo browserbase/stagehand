@@ -4,6 +4,8 @@ import {
   createBrowserFactoriesForTest,
   invalidateStagehandBrowser,
 } from "../../src/browser/factories.js";
+import { attachStagehandBrowserContext } from "../../src/browser/index.js";
+import type { BrowserContext } from "../../src/browserContext.js";
 import {
   CDPConnectionClosedError,
   type CDPClient,
@@ -227,6 +229,37 @@ describe("Stagehand browser factories", () => {
         expect(closeSession).not.toHaveBeenCalled();
       },
     );
+
+    it("closes an attached Stagehand instance before the connection", async () => {
+      const calls: string[] = [];
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: async () => fakeCdpClient(vi.fn(() => calls.push("connection"))),
+      });
+      const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+      claimStagehandBrowser(browser);
+      attachStagehandBrowserContext(browser, {} as BrowserContext, async () => {
+        calls.push("stagehand");
+      });
+
+      await browser.disconnect();
+
+      expect(calls).toEqual(["stagehand", "connection"]);
+    });
+
+    it("still closes the connection when closing Stagehand fails", async () => {
+      const closeCdp = vi.fn();
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: async () => fakeCdpClient(closeCdp),
+      });
+      const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+      claimStagehandBrowser(browser);
+      attachStagehandBrowserContext(browser, {} as BrowserContext, async () => {
+        throw new Error("stagehand.close failed");
+      });
+
+      await expect(browser.disconnect()).rejects.toThrow("stagehand.close failed");
+      expect(closeCdp).toHaveBeenCalledOnce();
+    });
 
     it("is terminal for a connected local browser: later calls do nothing", async () => {
       const closeCdp = vi.fn();

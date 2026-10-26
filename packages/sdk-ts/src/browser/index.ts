@@ -46,6 +46,9 @@ export interface StagehandBrowser {
   /**
    * Closes Stagehand's connection to the browser without closing the browser.
    *
+   * It first closes an attached Stagehand instance, including the extension's own
+   * connection to the browser, so a later connect() can create a new instance.
+   *
    * Unlike close(), Stagehand never closes the browser or releases its Browserbase
    * session. Browserbase still ends a session without keepAlive when its CDP
    * connection closes, so only keepAlive sessions survive a disconnect. The
@@ -73,6 +76,8 @@ type BrowserHandleInternals = {
   claimed: boolean;
   attachment: unknown;
   context?: BrowserContext;
+  /** Closes the attached Stagehand instance; disconnect() runs it before dropping the connection. */
+  closeStagehand?: () => Promise<void>;
   close: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
   disconnect: () => Promise<void> | void;
@@ -129,7 +134,14 @@ class StagehandBrowserHandle implements StagehandBrowser {
     if (internals.state === "closed" && internals.closePromise) return internals.closePromise;
     if (!internals.disconnectPromise) {
       internals.state = "disconnected";
-      internals.disconnectPromise = Promise.resolve().then(internals.disconnect);
+      const closeStagehand = internals.closeStagehand;
+      internals.disconnectPromise = Promise.resolve().then(async () => {
+        try {
+          await closeStagehand?.();
+        } finally {
+          await internals.disconnect();
+        }
+      });
     }
     return internals.disconnectPromise;
   }
@@ -198,6 +210,7 @@ export function releaseStagehandBrowserHandle(browser: StagehandBrowser): void {
 export function attachStagehandBrowserContext(
   browser: StagehandBrowser,
   context: BrowserContext,
+  closeStagehand?: () => Promise<void>,
 ): void {
   const internals = requireBrowserHandleInternals(browser);
   if (!internals.claimed) {
@@ -207,12 +220,14 @@ export function attachStagehandBrowserContext(
     throw new Error("This browser already has a Stagehand context");
   }
   internals.context = context;
+  internals.closeStagehand = closeStagehand;
 }
 
 /** @internal */
 export function detachStagehandBrowserContext(browser: StagehandBrowser): void {
   const internals = requireBrowserHandleInternals(browser);
   internals.context = undefined;
+  internals.closeStagehand = undefined;
 }
 
 export function isStagehandBrowser(value: unknown): value is StagehandBrowser {

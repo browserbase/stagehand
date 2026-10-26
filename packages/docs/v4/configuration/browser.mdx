@@ -714,7 +714,7 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 
 #### Disconnecting without closing the browser
 
-`browser.disconnect()` closes Stagehand's connection without closing the browser or releasing its Browserbase session. Use it when the browser holds state you want to keep, such as a signed-in profile. Close the Stagehand instance first:
+`browser.disconnect()` closes Stagehand's connection without closing the browser or releasing its Browserbase session. Use it when the browser holds state you want to keep, such as a signed-in profile. It also closes the attached Stagehand instance, including the extension's own connection to the browser, so you can connect again later and create a new instance:
 
 <Warning>
 **On Browserbase, `keepAlive` controls whether the session survives a disconnect, not `disconnect()`.** With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes. That includes `browser.disconnect()`, a dropped network connection, or your process exiting. To keep a Browserbase session running after you disconnect, create it with `keepAlive: true`.
@@ -726,8 +726,11 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 const browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
 const stagehand = await Stagehand.create({ browser });
 // ...
-await stagehand.close();
-await browser.disconnect(); // Chrome and its tabs keep running
+await browser.disconnect(); // closes stagehand; Chrome and its tabs keep running
+
+// Later, attach again to the same Chrome
+const browser2 = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
 </Tab>
 
@@ -736,8 +739,11 @@ await browser.disconnect(); // Chrome and its tabs keep running
 browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
 stagehand = await Stagehand.create(browser=browser)
 # ...
-await stagehand.close()
-await browser.disconnect()  # Chrome and its tabs keep running
+await browser.disconnect()  # closes stagehand; Chrome and its tabs keep running
+
+# Later, attach again to the same Chrome
+browser2 = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand2 = await Stagehand.create(browser=browser2)
 ```
 </Tab>
 

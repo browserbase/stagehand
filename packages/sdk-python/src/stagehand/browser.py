@@ -129,6 +129,7 @@ class StagehandBrowser:
     __slots__ = (
         "_attachment",
         "_claimed",
+        "_close_stagehand",
         "_close_callback",
         "_disconnect_callback",
         "_invalidate_callback",
@@ -170,6 +171,8 @@ class StagehandBrowser:
         self._disconnect_task: asyncio.Task[None] | None = None
         self._close_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
+        # Closes the attached Stagehand instance; disconnect() runs it before the connection.
+        self._close_stagehand: Callable[[], Awaitable[None]] | None = None
         self._session_id = session_id
 
     @property
@@ -216,6 +219,9 @@ class StagehandBrowser:
     def disconnect(self) -> Awaitable[None]:
         """Close Stagehand's connection to the browser without closing the browser.
 
+        It first closes an attached Stagehand instance, including the extension's own
+        connection to the browser, so a later ``connect()`` can create a new instance.
+
         Unlike ``close()``, Stagehand never closes the browser or releases its Browserbase
         session. Browserbase still ends a session without ``keep_alive`` when its CDP
         connection closes, so only ``keep_alive`` sessions survive a disconnect. The
@@ -229,7 +235,9 @@ class StagehandBrowser:
         if self._disconnect_task is None:
             self._state = "disconnected"
             self._disconnect_task = asyncio.create_task(
-                _run_browser_terminal_callback(self._disconnect_callback),
+                _disconnect_after_closing_stagehand(
+                    self._close_stagehand, self._disconnect_callback
+                ),
                 name="stagehand-browser-disconnect",
             )
         return asyncio.shield(self._disconnect_task)
@@ -272,6 +280,17 @@ async def _run_browser_terminal_callback(
     await callback()
 
 
+async def _disconnect_after_closing_stagehand(
+    close_stagehand: Callable[[], Awaitable[None]] | None,
+    disconnect: Callable[[], Awaitable[None]],
+) -> None:
+    try:
+        if close_stagehand is not None:
+            await close_stagehand()
+    finally:
+        await disconnect()
+
+
 async def _release_after_disconnect(
     disconnected: asyncio.Task[None], release_owned: Callable[[], Awaitable[None]]
 ) -> None:
@@ -284,16 +303,19 @@ async def _release_after_disconnect(
 def _attach_browser_context(
     browser: StagehandBrowser,
     context: BrowserContext,
+    close_stagehand: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     if not browser._claimed:
         raise RuntimeError("Cannot attach a browser context before Stagehand claims the browser")
     if browser._context is not None:
         raise RuntimeError("This browser already has a Stagehand context")
     browser._context = context
+    browser._close_stagehand = close_stagehand
 
 
 def _detach_browser_context(browser: StagehandBrowser) -> None:
     browser._context = None
+    browser._close_stagehand = None
 
 
 def _browser_session_metadata(

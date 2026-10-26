@@ -219,6 +219,42 @@ async def test_disconnect_closes_only_the_connection(
     assert source.close_calls == 0
 
 
+async def test_disconnect_closes_an_attached_stagehand_before_the_connection(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+    order: list[str] = []
+
+    async def close_stagehand() -> None:
+        order.append(f"stagehand (connection closes: {cdp.close_calls})")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), close_stagehand)
+
+    await handle.disconnect()
+
+    assert order == ["stagehand (connection closes: 0)"]
+    assert cdp.close_calls == 1
+
+
+async def test_disconnect_still_closes_the_connection_when_closing_stagehand_fails(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def close_stagehand() -> None:
+        raise RuntimeError("stagehand.close failed")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), close_stagehand)
+
+    with pytest.raises(RuntimeError, match="stagehand.close failed"):
+        await handle.disconnect()
+    assert cdp.close_calls == 1
+
+
 async def test_disconnect_is_terminal_and_later_calls_do_nothing(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
