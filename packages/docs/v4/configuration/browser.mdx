@@ -714,7 +714,11 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 
 #### Disconnecting without closing the browser
 
-`browser.disconnect()` closes Stagehand's connection and leaves the browser running, however you got it. Use it when the browser holds state you want to keep, such as a signed-in profile. Close the Stagehand instance first:
+`browser.disconnect()` closes Stagehand's connection without closing the browser or releasing its Browserbase session. Use it when the browser holds state you want to keep, such as a signed-in profile. Close the Stagehand instance first:
+
+<Warning>
+**On Browserbase, `keepAlive` controls whether the session survives a disconnect, not `disconnect()`.** With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes. That includes `browser.disconnect()`, a dropped network connection, or your process exiting. To keep a Browserbase session running after you disconnect, create it with `keepAlive: true`.
+</Warning>
 
 <Tabs>
 <Tab title="TypeScript">
@@ -742,7 +746,16 @@ await browser.disconnect()  # Chrome and its tabs keep running
 </Tab>
 </Tabs>
 
-After `disconnect()` you can't reattach the handle, and repeated `disconnect()` calls do nothing. A browser Stagehand launched keeps running too. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
+After `disconnect()` you can't reattach the handle, and repeated `disconnect()` calls do nothing. A local browser Stagehand launched keeps running too, as does a Browserbase session with `keepAlive: true`. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
+
+| Browser | After `browser.disconnect()` | Later `browser.close()` |
+| --- | --- | --- |
+| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
+| **Local, `connect()`** | Browser keeps running | Does nothing |
+| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until its timeout | Ends the session |
+| **Browserbase, `launch()`, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to release |
+| **Browserbase, `connect()`, session has `keepAlive: true`** | Session keeps running until its timeout | Does nothing |
+| **Browserbase, `connect()`, session has `keepAlive: false`** | **Browserbase ends the session** | Does nothing |
 
 ## Local environment
 
@@ -1218,11 +1231,16 @@ defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }
 
 #### Behavior by environment
 
+<Warning>
+With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes, including `browser.disconnect()` or your process exiting.
+</Warning>
+
 | Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
 | --- | --- | --- | --- |
-| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until `browser.close()` or its timeout |
+| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until `browser.close()` or its timeout |
+| **Browserbase, `launch()`, `keepAlive: false`** | Session keeps running while the connection stays open | Ends the session | **Browserbase ends the session** |
 | **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile | Chrome keeps running until `browser.close()` |
-| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running; a later `browser.close()` does nothing |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running only if it has `keepAlive: true`; a later `browser.close()` does nothing |
 | **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running; a later `browser.close()` does nothing |
 
 #### Local environment

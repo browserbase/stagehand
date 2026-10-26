@@ -44,10 +44,12 @@ export interface StagehandBrowser {
   readonly closed: boolean;
   close(): Promise<void>;
   /**
-   * Closes Stagehand's connection to the browser and leaves the browser running.
+   * Closes Stagehand's connection to the browser without closing the browser.
    *
-   * Unlike close(), this never closes the browser or its Browserbase session.
-   * The handle cannot be attached again. A later close() still releases what
+   * Unlike close(), Stagehand never closes the browser or releases its Browserbase
+   * session. Browserbase still ends a session without keepAlive when its CDP
+   * connection closes, so only keepAlive sessions survive a disconnect. The
+   * handle cannot be attached again. A later close() still releases what
    * Stagehand launched (the local Chrome process and profile, or the Browserbase
    * session) and does nothing for a browser you connected to; repeated
    * disconnect() calls, or disconnect() after close(), do nothing.

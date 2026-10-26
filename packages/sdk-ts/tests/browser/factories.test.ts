@@ -200,7 +200,7 @@ describe("Stagehand browser factories", () => {
       { origin: "launched" as const, keepAlive: true },
       { origin: "connected" as const, keepAlive: true },
     ])(
-      "leaves a $origin Browserbase session running with keepAlive=$keepAlive",
+      "does not release a $origin Browserbase session with keepAlive=$keepAlive",
       async ({ origin, keepAlive }) => {
         const closeSession = vi.fn();
         const session = {

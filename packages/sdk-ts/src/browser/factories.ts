@@ -323,7 +323,8 @@ async function connectBrowser(options: {
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,
-      // Never closes the browser or its session, even one Stagehand launched.
+      // Never closes the browser or releases its session. Browserbase still ends a
+      // session without keepAlive once this connection closes.
       disconnect: () => connectedClient.close(),
       // close() after disconnect(): release a browser or session Stagehand launched,
       // never one it connected to.

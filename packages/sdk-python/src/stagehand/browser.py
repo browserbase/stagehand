@@ -214,10 +214,12 @@ class StagehandBrowser:
         return asyncio.shield(self._close_task)
 
     def disconnect(self) -> Awaitable[None]:
-        """Close Stagehand's connection to the browser and leave the browser running.
+        """Close Stagehand's connection to the browser without closing the browser.
 
-        Unlike ``close()``, this never closes the browser or its Browserbase session.
-        The handle cannot be attached again. A later ``close()`` still releases what
+        Unlike ``close()``, Stagehand never closes the browser or releases its Browserbase
+        session. Browserbase still ends a session without ``keep_alive`` when its CDP
+        connection closes, so only ``keep_alive`` sessions survive a disconnect. The
+        handle cannot be attached again. A later ``close()`` still releases what
         Stagehand launched (the local Chrome process and profile, or the Browserbase
         session) and does nothing for a browser you connected to; repeated
         ``disconnect()`` calls, or ``disconnect()`` after ``close()``, do nothing.
@@ -445,7 +447,8 @@ async def _connect_browser(
         ),
         close,
         invalidate=invalidate,
-        # Never closes the browser or its session, even one Stagehand launched.
+        # Never closes the browser or releases its session. Browserbase still ends a
+        # session without keep_alive once this connection closes.
         disconnect=connected_client.close,
         # close() after disconnect(): release a browser or session Stagehand launched,
         # never one it connected to.
