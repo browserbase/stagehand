@@ -455,7 +455,7 @@ console.log(fetched.content);
     <td>CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
   </tr>
   <tr>
-    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="./packages/sdk-go/README.md">Go SDK</a></td>
+    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="https://github.com/browserbase/stagehand/blob/v4-go/packages/sdk-go/README.md">Go SDK</a></td>
     <td>Language-specific guides</td>
   </tr>
   <tr>
