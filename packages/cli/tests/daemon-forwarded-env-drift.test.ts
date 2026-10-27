@@ -41,6 +41,9 @@ const DAEMON_LOCAL_ENV = new Set<string>([
   "BROWSE_SESSION",
 ]);
 
+// The client resolves the preference into the target sent to the daemon.
+const CLIENT_RESOLVED_ENV = new Set<string>(["BROWSE_BROWSER"]);
+
 /** Matches `process.env.NAME`, `process.env["NAME"]`, and `process.env['NAME']`. */
 const ENV_READ =
   /process\.env(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[\s*(["'])([A-Za-z_][A-Za-z0-9_]*)\2\s*\])/g;
@@ -86,9 +89,9 @@ describe("daemon forwarded-env drift guard", () => {
     expect([...FORWARDED_ENV].sort()).toEqual([...forwardedEnvKeys()].sort());
   });
 
-  it("declares the two sets as disjoint", () => {
-    const overlap = [...FORWARDED_ENV].filter((name) =>
-      DAEMON_LOCAL_ENV.has(name),
+  it("does not forward process configuration or resolved preferences", () => {
+    const overlap = [...FORWARDED_ENV].filter(
+      (name) => DAEMON_LOCAL_ENV.has(name) || CLIENT_RESOLVED_ENV.has(name),
     );
     expect(overlap).toEqual([]);
   });
@@ -100,7 +103,10 @@ describe("daemon forwarded-env drift guard", () => {
 
     const uncategorized = [...reads.entries()]
       .filter(
-        ([name]) => !FORWARDED_ENV.has(name) && !DAEMON_LOCAL_ENV.has(name),
+        ([name]) =>
+          !FORWARDED_ENV.has(name) &&
+          !DAEMON_LOCAL_ENV.has(name) &&
+          !CLIENT_RESOLVED_ENV.has(name),
       )
       .map(([name, files]) => `${name} (read in: ${files.join(", ")})`);
 
@@ -120,6 +126,7 @@ describe("daemon forwarded-env drift guard", () => {
             "    sync via the assertion above).",
             "  • If it is daemon-local process config that must NOT be forwarded,",
             "    add it to DAEMON_LOCAL_ENV in this test.",
+            "  • If the client resolves it into the daemon request, add it to CLIENT_RESOLVED_ENV.",
           ].join("\n"),
     ).toEqual([]);
   });

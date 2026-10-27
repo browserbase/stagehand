@@ -1,6 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "exclude": [
+    "src/lib/mcp",
+    "src/commands/setup.ts",
+    "src/lib/setup",
     "src/commands/cloud",
     "src/commands/functions",
     "src/commands/skills",
