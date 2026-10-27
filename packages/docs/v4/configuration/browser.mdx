@@ -709,7 +709,7 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 
 
 <Note>
-`browser.close()` closes the browser, including one you attached to with `localBrowser.connect()`. To detach and leave the browser running, call `browser.disconnect()`.
+`browser.close()` closes the browser, including one you attached to with `localBrowser.connect()`. To detach without closing it, call `browser.disconnect()`.
 </Note>
 
 #### Disconnecting without closing the browser
@@ -758,7 +758,7 @@ After `disconnect()` the handle is finished: repeated `disconnect()` calls do no
 | --- | --- | --- |
 | **Local, `launch()`** | Chrome keeps running | `localBrowser.connect({ cdpUrl })`, then `close()`. The temporary profile stays on disk |
 | **Local, `connect()`** | Browser keeps running | `localBrowser.connect({ cdpUrl })`, then `close()` |
-| **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ sessionId })`, then `close()` |
+| **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ apiKey, sessionId })`, then `close()` |
 | **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
 
 If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.close()` still releases a Browserbase session through the Browserbase API and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:

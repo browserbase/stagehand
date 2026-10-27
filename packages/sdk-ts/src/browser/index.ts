@@ -133,9 +133,18 @@ class StagehandBrowserHandle implements StagehandBrowser {
       return Promise.reject(new Error(BROWSER_DISCONNECTED_MESSAGE));
     }
     internals.state = "closed";
-    internals.closePromise = Promise.resolve().then(
-      internals.connected() ? internals.close : internals.closeWithoutConnection,
-    );
+    if (internals.connected()) {
+      internals.closePromise = Promise.resolve().then(internals.close);
+    } else {
+      const closePromise = Promise.resolve()
+        .then(internals.closeWithoutConnection)
+        .catch((error: unknown) => {
+          // Releasing over the Browserbase API can fail transiently: allow a retry.
+          if (internals.closePromise === closePromise) internals.closePromise = undefined;
+          throw error;
+        });
+      internals.closePromise = closePromise;
+    }
     return internals.closePromise;
   }
 

@@ -305,22 +305,29 @@ async function connectBrowser(options: {
       }
     };
     const close = async () => {
+      const errors: unknown[] = [];
       try {
         if (options.provider === "local") {
           try {
             await connectedClient.sendCommand("Browser.close");
           } catch (error) {
-            if (!(error instanceof CDPConnectionClosedError)) throw error;
+            if (!(error instanceof CDPConnectionClosedError)) errors.push(error);
           }
         }
-        // A launched local browser is also terminated if Browser.close left it running,
-        // and its profile removed unless preserved; a Browserbase session is released.
+        // A launched local browser is also terminated if Browser.close failed or left it
+        // running, and its profile removed unless preserved; a Browserbase session is released.
         if (options.provider === "browserbase" || options.origin === "launched") {
-          await closeSource(options.source);
+          try {
+            await closeSource(options.source);
+          } catch (error) {
+            errors.push(error);
+          }
         }
       } finally {
         connectedClient.close();
       }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, "Browser close failed");
     };
     return createStagehandBrowserHandle({
       provider: options.provider,

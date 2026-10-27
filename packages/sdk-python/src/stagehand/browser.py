@@ -229,13 +229,21 @@ class StagehandBrowser:
             if self._state == "disconnected":
                 raise RuntimeError(_BROWSER_DISCONNECTED_MESSAGE)
             self._close_task = asyncio.create_task(
-                _run_browser_terminal_callback(
-                    self._close_callback if self._connected() else self._close_without_connection
-                ),
+                _run_browser_terminal_callback(self._close_callback)
+                if self._connected()
+                else self._close_without_connection_retryable(),
                 name="stagehand-browser-close",
             )
             self._state = "closed"
         return asyncio.shield(self._close_task)
+
+    async def _close_without_connection_retryable(self) -> None:
+        try:
+            await self._close_without_connection()
+        except BaseException:
+            # Releasing over the Browserbase API can fail transiently: allow a retry.
+            self._close_task = None
+            raise
 
     def disconnect(self) -> Awaitable[None]:
         """Close the attached Stagehand instance, then Stagehand's connection.
@@ -470,9 +478,12 @@ async def _connect_browser(
                     await connected_client.send_command("Browser.close")
                 except CDPConnectionClosedError:
                     pass
-            # A launched local browser is also terminated if Browser.close left it
-            # running, and its profile removed unless preserved; a Browserbase session
-            # is released.
+        except BaseException as error:
+            errors.append(error)
+        try:
+            # A launched local browser is also terminated if Browser.close failed or
+            # left it running, and its profile removed unless preserved; a Browserbase
+            # session is released.
             if provider == "browserbase" or origin == "launched":
                 await source.close()
         except BaseException as error:
