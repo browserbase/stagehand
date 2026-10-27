@@ -108,7 +108,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.14.0",
+    "@browserbasehq/sdk": "^2.23.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@hpke/core": "^1.9.0",
     "@hpke/dhkem-x25519": "^1.8.0",

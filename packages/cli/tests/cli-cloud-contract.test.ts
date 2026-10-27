@@ -15,6 +15,7 @@ import {
 import { runCli } from "./helpers/run-cli.js";
 
 const cleanupPaths: string[] = [];
+const FETCH_CONTEXT_ID = "00000000-0000-4000-8000-0000000000aa";
 
 afterEach(async () => {
   while (cleanupPaths.length > 0) {
@@ -58,11 +59,12 @@ describe("cloud API contracts", () => {
           format: "markdown",
           proxies: true,
         });
+        expect(requests[0]?.jsonBody).not.toHaveProperty("contextId");
       },
     );
   });
 
-  it("fetch can request raw output", async () => {
+  it("fetch can request raw output with a context ID", async () => {
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, makeFetchResponse("<html>ok</html>"));
@@ -74,6 +76,8 @@ describe("cloud API contracts", () => {
           "http://example.com",
           "--format",
           "raw",
+          "--context-id",
+          FETCH_CONTEXT_ID,
           "--api-key",
           "test-key",
           "--base-url",
@@ -81,16 +85,18 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
+        expect(JSON.parse(result.stdout).content).toBe("<html>ok</html>");
         expectRequest(requests[0], "POST", "/v1/fetch", "test-key");
         expect(requests[0]?.jsonBody).toMatchObject({
           url: "http://example.com",
+          contextId: FETCH_CONTEXT_ID,
           format: "raw",
         });
       },
     );
   });
 
-  it("fetch can request markdown output explicitly", async () => {
+  it("fetch can request markdown output explicitly with a context ID", async () => {
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, makeFetchResponse("# Example"));
@@ -102,6 +108,8 @@ describe("cloud API contracts", () => {
           "http://example.com",
           "--format",
           "markdown",
+          "--context-id",
+          FETCH_CONTEXT_ID,
           "--api-key",
           "test-key",
           "--base-url",
@@ -114,13 +122,14 @@ describe("cloud API contracts", () => {
         expectRequest(requests[0], "POST", "/v1/fetch", "test-key");
         expect(requests[0]?.jsonBody).toMatchObject({
           url: "http://example.com",
+          contextId: FETCH_CONTEXT_ID,
           format: "markdown",
         });
       },
     );
   });
 
-  it("fetch sends schemas for JSON output", async () => {
+  it("fetch sends schemas and a context ID for JSON output", async () => {
     const schema = {
       type: "object",
       properties: {
@@ -146,6 +155,8 @@ describe("cloud API contracts", () => {
           "json",
           "--schema",
           JSON.stringify(schema),
+          "--context-id",
+          FETCH_CONTEXT_ID,
           "--api-key",
           "test-key",
           "--base-url",
@@ -160,6 +171,7 @@ describe("cloud API contracts", () => {
         expectRequest(requests[0], "POST", "/v1/fetch", "test-key");
         expect(requests[0]?.jsonBody).toMatchObject({
           url: "http://example.com",
+          contextId: FETCH_CONTEXT_ID,
           format: "json",
           schema,
         });
@@ -167,7 +179,7 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("fetch writes content to an output file", async () => {
+  it("fetch with a context writes content to an output file", async () => {
     const outputDir = await createTempDir("browse-fetch-output-");
     const outputPath = join(outputDir, "page.html");
 
@@ -179,13 +191,15 @@ describe("cloud API contracts", () => {
           makeFetchResponse("<html>hello</html>", "text/html"),
         );
       },
-      async ({ baseUrl }) => {
+      async ({ baseUrl, requests }) => {
         const result = await runCli([
           "cloud",
           "fetch",
           "http://example.com",
           "--output",
           outputPath,
+          "--context-id",
+          FETCH_CONTEXT_ID,
           "--api-key",
           "test-key",
           "--base-url",
@@ -193,6 +207,10 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toHaveProperty(
+          "contextId",
+          FETCH_CONTEXT_ID,
+        );
         expect(JSON.parse(result.stdout)).toMatchObject({
           ok: true,
           outputPath,
@@ -204,7 +222,7 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("fetch writes JSON content objects to an output file", async () => {
+  it("fetch with a context writes JSON content objects to an output file", async () => {
     const outputDir = await createTempDir("browse-fetch-output-");
     const outputPath = join(outputDir, "page.json");
     const schema = {
@@ -223,7 +241,7 @@ describe("cloud API contracts", () => {
           makeFetchResponse({ title: "Example" }, "application/json"),
         );
       },
-      async ({ baseUrl }) => {
+      async ({ baseUrl, requests }) => {
         const result = await runCli([
           "cloud",
           "fetch",
@@ -234,6 +252,8 @@ describe("cloud API contracts", () => {
           JSON.stringify(schema),
           "--output",
           outputPath,
+          "--context-id",
+          FETCH_CONTEXT_ID,
           "--api-key",
           "test-key",
           "--base-url",
@@ -241,6 +261,10 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toHaveProperty(
+          "contextId",
+          FETCH_CONTEXT_ID,
+        );
         expect(JSON.parse(result.stdout)).toMatchObject({
           ok: true,
           outputPath,
