@@ -16,7 +16,7 @@ Stagehand ships this experimental integration from the repository rather than pu
 
 ## Run locally
 
-The local example requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), a provider credential for the Deep Agent, and a current Google Chrome installation for local browser mode.
+The local example requires Python 3.11+, [uv](https://docs.astral.sh/uv/), a provider credential for the Deep Agent, and a current Google Chrome installation for local browser mode.
 
 <Steps>
   <Step title="Clone Stagehand and install the Python projects">
@@ -72,7 +72,7 @@ uv run --project examples/local --locked \
 | `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and snapshot-action batches. |
 | `BROWSERBASE_API_KEY` | Unset | Required for Browserbase. |
 
-The server and client use separate Python environments. Stagehand and the current LangGraph SDK require incompatible `websockets` versions, so stdio keeps their dependency sets isolated.
+The server and client communicate over stdio and use separate Python environments.
 
 <Warning>
 Keep one persistent MCP `ClientSession`. Stateless tool loading starts a new stdio process for each call, which loses the browser and snapshot IDs.
