@@ -12,6 +12,7 @@ import asyncio
 import base64
 import json
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any, Literal, TypeVar
 
 from langchain.agents.middleware import AgentMiddleware, AgentState, ModelRequest, ModelResponse
@@ -27,7 +28,7 @@ from stagehand_middleware.facade import (
 )
 from stagehand_middleware.facade.tools import sanitize_error_message
 
-from .runtime import BrowserTools, RuntimeConfig
+from .runtime import BrowserProvider, BrowserTools, RuntimeConfig
 
 T = TypeVar("T")
 
@@ -35,20 +36,45 @@ T = TypeVar("T")
 class StagehandMiddleware(AgentMiddleware):
     """Give the agent a Stagehand browser through ``run``, ``snapshot`` and ``screenshot``.
 
+    An option left unset is read from the environment, as the MCP server reads it
+    (``STAGEHAND_BROWSER``, ``STAGEHAND_HEADLESS`` and so on).
+
     Args:
-        config: Which browser to launch (local Chrome or Browserbase) and how. Defaults
-            to `RuntimeConfig.from_env()`, which reads ``STAGEHAND_*`` and
-            ``BROWSERBASE_API_KEY``.
+        browser: ``"local"`` for Chrome on this machine (the default), or
+            ``"browserbase"`` for a Browserbase session.
+        headless: Run local Chrome without a window.
+        browserbase_api_key: Defaults to ``BROWSERBASE_API_KEY``.
+        start_url: A page to open when the browser starts.
+        model: The model for Stagehand's AI methods called from ``run`` code.
+        model_api_key: The API key for ``model``.
         close_after_run: Close the thread's browser when the agent's run ends. Pass
             ``False`` to keep it, and its open pages, for the thread's next run; then
             call `aclose` when done.
     """
 
     def __init__(
-        self, config: RuntimeConfig | None = None, *, close_after_run: bool = True
+        self,
+        browser: BrowserProvider | None = None,
+        *,
+        headless: bool | None = None,
+        browserbase_api_key: str | None = None,
+        start_url: str | None = None,
+        model: str | None = None,
+        model_api_key: str | None = None,
+        close_after_run: bool = True,
     ) -> None:
         super().__init__()
-        self.config = config or RuntimeConfig.from_env()
+        options = {
+            "provider": browser,
+            "headless": headless,
+            "browserbase_api_key": browserbase_api_key,
+            "start_url": start_url,
+            "stagehand_model": model,
+            "stagehand_model_api_key": model_api_key,
+        }
+        self.config = replace(
+            RuntimeConfig.from_env(), **{k: v for k, v in options.items() if v is not None}
+        )
         self.close_after_run = close_after_run
         self.tools = self._tools()
         self._instructions = facade_instructions()

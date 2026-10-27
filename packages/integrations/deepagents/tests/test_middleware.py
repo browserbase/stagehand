@@ -75,14 +75,25 @@ async def invoke(
     return [m for m in result["messages"] if isinstance(m, ToolMessage)], model
 
 
-def test_tools_are_the_facade_surface_prefixed() -> None:
-    tools = StagehandMiddleware(RuntimeConfig()).tools
+def test_options_override_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STAGEHAND_BROWSER", "local")
+    monkeypatch.setenv("STAGEHAND_HEADLESS", "true")
+    monkeypatch.setenv("BROWSERBASE_API_KEY", "from-env")
+    config = StagehandMiddleware(browser="browserbase", model="openai/gpt-5.4-mini").config
+    assert config.provider == "browserbase"
+    assert config.headless  # unset, so from the environment
+    assert config.browserbase_api_key == "from-env"
+    assert config.stagehand_model == "openai/gpt-5.4-mini"
+
+
+def test_tools_are_the_facade_surface() -> None:
+    tools = StagehandMiddleware().tools
     names = [tool.name for tool in tools]
     assert names == ["run", "snapshot", "screenshot"]
 
 
 async def test_tools_drive_one_browser_per_run(browsers: list[FakeBrowser]) -> None:
-    middleware = StagehandMiddleware(RuntimeConfig())
+    middleware = StagehandMiddleware()
     results, model = await invoke(
         middleware,
         ("run", {"code": "return 1"}),
@@ -101,7 +112,7 @@ async def test_tools_drive_one_browser_per_run(browsers: list[FakeBrowser]) -> N
 
 async def test_errors_go_to_the_model(browsers: list[FakeBrowser]) -> None:
     results, _ = await invoke(
-        StagehandMiddleware(RuntimeConfig()),
+        StagehandMiddleware(),
         ("run", {"code": "throw"}),
         ("snapshot", {"include_iframes": True}),
     )
@@ -114,13 +125,13 @@ async def test_launch_errors_are_redacted(monkeypatch: pytest.MonkeyPatch) -> No
         raise RuntimeError("wss://connect.browserbase.com?apiKey=bb_live_secretsecret")
 
     monkeypatch.setattr(BrowserTools, "start", staticmethod(start))
-    results, _ = await invoke(StagehandMiddleware(RuntimeConfig()), ("snapshot", {}))
+    results, _ = await invoke(StagehandMiddleware(), ("snapshot", {}))
     assert "secretsecret" not in results[0].content
     assert results[0].content.startswith("error: RuntimeError:")
 
 
 async def test_browser_can_outlive_the_run(browsers: list[FakeBrowser]) -> None:
-    middleware = StagehandMiddleware(RuntimeConfig(), close_after_run=False)
+    middleware = StagehandMiddleware(close_after_run=False)
     await invoke(middleware, ("snapshot", {}))
     await invoke(middleware, ("snapshot", {}))
     await invoke(middleware, ("snapshot", {}), thread="t2")

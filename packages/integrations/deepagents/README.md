@@ -6,20 +6,23 @@ It also adds the tools' instructions to the system prompt.
 
 ```python
 from deepagents import create_deep_agent
-from stagehand_deepagents import RuntimeConfig, StagehandMiddleware
+from stagehand_deepagents import StagehandMiddleware
 
 agent = create_deep_agent(
     model="openai:gpt-5.6-luna",
-    middleware=[StagehandMiddleware(RuntimeConfig(provider="browserbase"))],
+    middleware=[StagehandMiddleware(browser="browserbase")],
 )
 result = await agent.ainvoke({"messages": [{"role": "user", "content": "..."}]})
 ```
 
-`RuntimeConfig` chooses the browser: `provider="local"` (the default) launches Chrome on this machine,
-`provider="browserbase"` a Browserbase session (`BROWSERBASE_API_KEY`). Without a config the
-middleware reads the [environment variables](#configuration) below. Each thread gets its own
-browser, launched on its first browser call and closed when the agent's run ends; pass
-`close_after_run=False` to keep it for the thread's next run, then `await middleware.aclose()`.
+`browser="local"` (the default) launches Chrome on this machine, and `browser="browserbase"` a
+Browserbase session (`BROWSERBASE_API_KEY`). The middleware also takes `headless`,
+`browserbase_api_key`, `start_url`, and `model` and `model_api_key` for Stagehand's AI methods. An
+option left unset is read from the [environment variables](#configuration) below.
+
+Each thread gets its own browser, launched on its first browser call and closed when the agent's
+run ends. Pass `close_after_run=False` to keep it for the thread's next run, then
+`await middleware.aclose()`.
 
 The tools are async: call the agent with `ainvoke` or `astream`.
 
