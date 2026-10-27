@@ -5,7 +5,8 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "pnpm run test:unit",
+    "test:unit": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
