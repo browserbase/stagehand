@@ -391,6 +391,12 @@ export class StagehandRuntime {
     }
   }
 
+  async ensureBrowserConnection(cdpUrl: string): Promise<void> {
+    if (!this.browserSession?.connected || this.browserSessionCdpUrl !== cdpUrl) {
+      await this.replaceBrowserConnection({ cdpUrl });
+    }
+  }
+
   async initialize(
     params: StagehandInitParams,
     logger: StagehandLogger = this.logger,

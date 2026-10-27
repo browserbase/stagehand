@@ -43,6 +43,8 @@ export type CDPClientOptions = {
   serviceWorkerUrlIncludes?: string;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
+  /** Factory-owned lifecycle policy; never infer process ownership from a CDP URL. */
+  clientLifecycle?: { closeBrowserOnDisconnect: boolean; extensionCdpUrl?: string };
   signal: AbortSignal;
 };
 
@@ -230,6 +232,7 @@ export class CDPClient {
   sessionId: string | undefined;
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
+  private clientTargetId?: string;
   private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private heartbeatAbort?: AbortController;
@@ -426,6 +429,9 @@ export class CDPClient {
         allowFallbackInstall: options.allowFallbackInstall,
         signal,
       });
+      if (options.clientLifecycle) {
+        await client.registerClient(options.clientLifecycle, signal);
+      }
       return client;
     } catch (error) {
       client.close();
@@ -438,6 +444,64 @@ export class CDPClient {
       throw new Error("Stagehand service worker is not attached");
     }
     return this.attachedServiceWorker;
+  }
+
+  private async registerClient(
+    policy: NonNullable<CDPClientOptions["clientLifecycle"]>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const { targetId } = await this.sendCommand<{ targetId: string }>(
+      "Target.createTarget",
+      { url: "about:blank#stagehand-client-connection", hidden: true, background: true },
+      undefined,
+      signal,
+    );
+    await this.clientLifecycleCommand(
+      {
+        action: "attach",
+        targetId,
+        cdpUrl: policy.extensionCdpUrl ?? this.webSocketDebuggerUrl,
+        closeBrowserOnDisconnect: policy.closeBrowserOnDisconnect,
+      },
+      signal,
+    );
+    this.clientTargetId = targetId;
+  }
+
+  /** Acknowledged intentional detach, before the client's socket/marker disappears. */
+  async detachClient(): Promise<void> {
+    if (!this.clientTargetId || this.closed) return;
+    await this.clientLifecycleCommand(
+      { action: "detach", targetId: this.clientTargetId },
+      AbortSignal.timeout(10_000),
+    );
+    this.clientTargetId = undefined;
+  }
+
+  private async clientLifecycleCommand(params: JsonObject, signal: AbortSignal): Promise<void> {
+    const result = await this.sendCommand<RuntimeEvaluateResult>(
+      "Runtime.evaluate",
+      {
+        expression: `(async () => {
+          if (typeof globalThis.__stagehandClientLifecycle !== "function") {
+            throw new Error("Stagehand runtime does not support client disconnect cleanup; upgrade the extension");
+          }
+          await globalThis.__stagehandClientLifecycle(${JSON.stringify(params)});
+          return true;
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      this.sessionId,
+      signal,
+    );
+    if (result.exceptionDetails || result.result?.value !== true) {
+      throw new Error(
+        result.exceptionDetails?.exception?.description ??
+          result.exceptionDetails?.text ??
+          "Stagehand client lifecycle registration failed",
+      );
+    }
   }
 
   async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {

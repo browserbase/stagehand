@@ -279,6 +279,10 @@ async function connectBrowser(options: {
       ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
+      clientLifecycle: {
+        closeBrowserOnDisconnect: options.provider === "local" && ownsSource,
+        extensionCdpUrl: options.workerInitMetadata.browserCdpUrl,
+      },
       signal: options.signal,
     });
     try {
@@ -301,10 +305,20 @@ async function connectBrowser(options: {
     const close = async () => {
       try {
         if (options.provider === "local" && options.origin === "connected") {
+          const client = connectedClient.closed
+            ? await options.connectCdp({
+                cdpUrl: options.source.cdpUrl,
+                headers: options.headers,
+                ...options.extension,
+                signal: AbortSignal.timeout(10_000),
+              })
+            : connectedClient;
           try {
-            await connectedClient.sendCommand("Browser.close");
+            await client.sendCommand("Browser.close");
           } catch (error) {
             if (!(error instanceof CDPConnectionClosedError)) throw error;
+          } finally {
+            if (client !== connectedClient) client.close();
           }
         } else {
           await closeSource(options.source);
@@ -323,6 +337,10 @@ async function connectBrowser(options: {
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,
+      disconnect: async () => {
+        await connectedClient.detachClient();
+        connectedClient.close();
+      },
     });
   } catch (error) {
     cdpClient?.close();

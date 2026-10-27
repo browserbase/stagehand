@@ -11,7 +11,7 @@ import {
 } from "../../src/cdpClient.js";
 
 function fakeCdpClient(close = vi.fn(), sendCommand = vi.fn(async () => ({}))) {
-  return { close, sendCommand } as unknown as CDPClient;
+  return { close, sendCommand, detachClient: vi.fn(async () => {}) } as unknown as CDPClient;
 }
 
 function deferred<T>() {
@@ -23,6 +23,52 @@ function deferred<T>() {
 }
 
 describe("Stagehand browser factories", () => {
+  it.each([
+    ["local", "launched", false, true],
+    ["local", "launched", true, false],
+    ["local", "connected", false, false],
+    ["browserbase", "launched", false, false],
+    ["browserbase", "connected", false, false],
+  ] as const)(
+    "client-loss policy: %s/%s keepAlive=%s",
+    async (provider, origin, keepAlive, terminate) => {
+      const cdp = fakeCdpClient();
+      const connectCdp = vi.fn(async (_options: CDPClientOptions) => cdp);
+      const source = { cdpUrl: "ws://browser", sessionId: "session", close: vi.fn() };
+      const factories = createBrowserFactoriesForTest({
+        connectCdp,
+        launchLocalBrowser: async () => source,
+        createBrowserbaseSessionClient: () => ({
+          createSession: async () => source,
+          connectSession: async () => source,
+        }),
+      });
+      const browser =
+        provider === "local"
+          ? origin === "launched"
+            ? await factories.localBrowser.launch({ keepAlive })
+            : await factories.localBrowser.connect({ cdpUrl: source.cdpUrl })
+          : origin === "launched"
+            ? await factories.browserbase.launch({ apiKey: "key", projectId: "project", keepAlive })
+            : await factories.browserbase.connect({ apiKey: "key", sessionId: "session" });
+      expect(connectCdp.mock.calls[0]?.[0].clientLifecycle?.closeBrowserOnDisconnect).toBe(
+        terminate,
+      );
+      await Promise.all([browser.disconnect(), browser.disconnect()]);
+      expect(cdp.detachClient).toHaveBeenCalledOnce();
+      expect(cdp.close).toHaveBeenCalledOnce();
+      expect(source.close).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not close the socket when intentional detach is not acknowledged", async () => {
+    const cdp = fakeCdpClient();
+    vi.mocked(cdp.detachClient).mockRejectedValue(new Error("detach failed"));
+    const { localBrowser } = createBrowserFactoriesForTest({ connectCdp: async () => cdp });
+    const browser = await localBrowser.connect({ cdpUrl: "ws://browser" });
+    await expect(browser.disconnect()).rejects.toThrow("detach failed");
+    expect(cdp.close).not.toHaveBeenCalled();
+  });
   describe.each<Record<string, string> | undefined>([
     undefined,
     {},

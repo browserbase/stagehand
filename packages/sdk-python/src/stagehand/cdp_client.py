@@ -253,6 +253,7 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._client_target_id: str | None = None
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
@@ -267,6 +268,8 @@ class CDPClient:
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
         headers: Mapping[str, str] | None = None,
+        close_browser_on_disconnect: bool | None = None,
+        extension_cdp_url: str | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -338,6 +341,23 @@ class CDPClient:
                 session_id=session_id,
             )
             await client._wait_for_runtime_receiver(session_id)
+            if close_browser_on_disconnect is not None:
+                marker = await client.send_command(
+                    "Target.createTarget",
+                    {
+                        "url": "about:blank#stagehand-client-connection",
+                        "hidden": True,
+                        "background": True,
+                    },
+                )
+                target_id = _required_string(marker, "targetId", "Target.createTarget")
+                await client._client_lifecycle_command({
+                    "action": "attach",
+                    "targetId": target_id,
+                    "cdpUrl": extension_cdp_url or web_socket_debugger_url,
+                    "closeBrowserOnDisconnect": close_browser_on_disconnect,
+                })
+                client._client_target_id = target_id
             return client
         except BaseException:
             await asyncio.shield(client.close())
@@ -348,6 +368,41 @@ class CDPClient:
         if self._service_worker is None:
             raise RuntimeError("Stagehand service worker is not attached")
         return self._service_worker
+
+    async def detach_client(self) -> None:
+        """Acknowledge intentional detach before the socket/hidden target disappears."""
+        if self._client_target_id is None or self._closed:
+            return
+        async with asyncio.timeout(10):
+            await self._client_lifecycle_command({
+                "action": "detach",
+                "targetId": self._client_target_id,
+            })
+        self._client_target_id = None
+
+    async def _client_lifecycle_command(self, params: dict[str, object]) -> None:
+        expression = (
+            "(async () => { "
+            'if (typeof globalThis.__stagehandClientLifecycle !== "function") { '
+            'throw new Error("Stagehand runtime does not support client disconnect cleanup; '
+            'upgrade the extension"); } '
+            f"await globalThis.__stagehandClientLifecycle({json.dumps(params)}); "
+            "return true; })()"
+        )
+        result = await self.send_command(
+            "Runtime.evaluate",
+            {"expression": expression, "awaitPromise": True, "returnByValue": True},
+            session_id=self._session_id,
+        )
+        value = result.get("result")
+        if (
+            result.get("exceptionDetails")
+            or not isinstance(value, dict)
+            or value.get("value") is not True
+        ):
+            raise RuntimeError(
+                f"Stagehand client lifecycle failed: {result.get('exceptionDetails')}"
+            )
 
     async def send(
         self,

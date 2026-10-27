@@ -43,6 +43,12 @@ export interface StagehandBrowser {
   readonly context: BrowserContext;
   readonly closed: boolean;
   close(): Promise<void>;
+  /**
+   * Releases the client session and both CDP connections without requesting
+   * browser termination. Browserbase requires keepAlive to survive disconnect;
+   * arbitrary CDP hosts apply their own policy. Reconnect with a new handle.
+   */
+  disconnect(): Promise<void>;
 }
 
 export interface LocalBrowser {
@@ -63,7 +69,10 @@ type BrowserHandleInternals = {
   context?: BrowserContext;
   close: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
+  disconnect: () => Promise<void> | void;
   terminalPromise?: Promise<void>;
+  disconnectPromise?: Promise<void>;
+  closePromise?: Promise<void>;
 };
 
 const browserHandleInternals = new WeakMap<StagehandBrowser, BrowserHandleInternals>();
@@ -96,8 +105,19 @@ class StagehandBrowserHandle implements StagehandBrowser {
 
   close(): Promise<void> {
     const internals = requireBrowserHandleInternals(this);
-    internals.terminalPromise ??= Promise.resolve().then(internals.close);
-    return internals.terminalPromise;
+    internals.closePromise ??= (internals.disconnectPromise ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(internals.close);
+    internals.terminalPromise = internals.closePromise;
+    return internals.closePromise;
+  }
+
+  disconnect(): Promise<void> {
+    const internals = requireBrowserHandleInternals(this);
+    if (internals.closePromise) return internals.closePromise;
+    internals.disconnectPromise ??= Promise.resolve().then(internals.disconnect);
+    internals.terminalPromise = internals.disconnectPromise;
+    return internals.disconnectPromise;
   }
 }
 
@@ -108,6 +128,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   attachment: Attachment;
   close: () => Promise<void> | void;
   invalidate?: () => Promise<void> | void;
+  disconnect?: () => Promise<void> | void;
   sessionId?: string;
 }): StagehandBrowser {
   return new StagehandBrowserHandle(
@@ -118,6 +139,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
       attachment: options.attachment,
       close: options.close,
       invalidate: options.invalidate ?? options.close,
+      disconnect: options.disconnect ?? (() => undefined),
     },
     options.sessionId,
   );
@@ -140,6 +162,7 @@ export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowse
 export function invalidateStagehandBrowserHandle(browser: StagehandBrowser): Promise<void> {
   const internals = requireBrowserHandleInternals(browser);
   internals.terminalPromise ??= Promise.resolve().then(internals.invalidate);
+  internals.closePromise ??= internals.terminalPromise;
   return internals.terminalPromise;
 }
 
