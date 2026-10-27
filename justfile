@@ -73,9 +73,7 @@ _version:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk
     pnpm exec tsx scripts/release/consolidate-changelogs.ts
     pnpm exec tsx scripts/release/sync-python-version.ts
-    uv --directory "{{python_dir}}" lock
-    # Its lockfile pins the editable sdk-python, whose version just changed.
-    uv --directory "{{integrations_python_dir}}" lock
+    uv lock
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
@@ -102,5 +100,5 @@ _publish-typescript-alpha:
 _version-python-alpha:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
     pnpm exec tsx scripts/release/python-alpha-version.ts
-    uv --directory "{{python_dir}}" lock
+    uv lock
     uv --directory "{{python_dir}}" run --locked python scripts/generate.py

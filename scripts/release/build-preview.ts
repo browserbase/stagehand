@@ -14,6 +14,7 @@ import {
   parsePreviewPythonProject,
   updatePreviewPythonProjectVersion,
 } from "./preview-python-project.js";
+import { pinPythonWorkspaceSdkVersion } from "./python-workspace.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
@@ -76,7 +77,8 @@ try {
     updatePreviewPythonProjectVersion(pythonProjectContents, pythonVersion),
   );
 
-  await run("uv", ["--directory", "packages/sdk-python", "lock"], checkout);
+  await pinPythonWorkspaceSdkVersion(checkout, pythonVersion);
+  await run("uv", ["lock"], checkout);
   await run("just", ["install"], checkout);
   await run("just", ["build"], checkout);
   await mkdir(outputDirectory, { recursive: true });
