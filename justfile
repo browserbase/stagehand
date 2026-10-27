@@ -3,7 +3,7 @@ integrations_python_dir := "packages/integrations/core/python"
 
 install:
     pnpm install
-    uv --directory {{python_dir}} sync --locked
+    uv sync --all-packages --locked
 
 generate:
     pnpm --filter ./packages/protocol build
@@ -16,17 +16,21 @@ check:
     pnpm exec tsx scripts/release/consolidate-changelogs.ts --check
     pnpm exec tsx scripts/release/sync-python-version.ts --check
     pnpm check
-    uv --directory {{python_dir}} lock --check
-    uv --directory {{integrations_python_dir}} lock --check
+    uv lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
     uv --directory {{python_dir}} run --locked ruff format --check .
     uv --directory {{python_dir}} run --locked ruff check .
     uv --directory {{python_dir}} run --locked ty check
+    uv --directory {{integrations_python_dir}} run --locked ruff format --check .
+    uv --directory {{integrations_python_dir}} run --locked ruff check .
+    uv --directory {{integrations_python_dir}} run --locked ty check
     pnpm --filter ./packages/extension build
 
 test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
+    uv --directory {{integrations_python_dir}} run --locked pytest
+    uv --directory packages/examples/cookbooks/paginated-catalog/python run --locked python -m unittest
 
 docs:
     pnpm run docs
@@ -51,10 +55,16 @@ cookbook slug:
     pnpm exec turbo run build --filter=@browserbasehq/stagehand
     pnpm --dir "packages/examples/cookbooks/{{slug}}/typescript" start
 
+cookbook-python slug:
+    pnpm --filter ./packages/extension build
+    uv --directory "packages/examples/cookbooks/{{slug}}/python" run --locked python main.py
+
 fmt:
     pnpm fmt
     uv --directory {{python_dir}} run --locked ruff check --fix .
     uv --directory {{python_dir}} run --locked ruff format .
+    uv --directory {{integrations_python_dir}} run --locked ruff check --fix .
+    uv --directory {{integrations_python_dir}} run --locked ruff format .
 
 build:
     pnpm build
