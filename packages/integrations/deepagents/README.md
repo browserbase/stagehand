@@ -41,9 +41,7 @@ uv run --project examples/local python examples/local/agent.py
 
 Browserbase sessions use a 1280 × 720 viewport by default.
 
-The server and client intentionally use separate Python environments. Stagehand currently requires
-`websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`.
-The stdio transport isolates those dependency sets.
+The server and client communicate over stdio and use separate Python environments.
 
 The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
 `MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
@@ -75,10 +73,8 @@ The managed example lives in `examples/managed`. Its authored LangChain tools wr
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
 exposed to the model.
 
-The current LangGraph SDK requires `websockets<16`, while Stagehand declares `websockets>=16.1.1`.
-For this spike, the managed project overrides the shared dependency to `websockets==15.0.1`. Remove
-the override once the SDK ranges converge. Browser continuity is guaranteed while the managed
-worker remains warm; durable reconnection after worker replacement is future work.
+Browser continuity is guaranteed while the managed worker remains warm; durable reconnection
+after worker replacement is future work.
 
 ### Develop and deploy the managed agent
 
