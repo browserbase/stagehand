@@ -279,6 +279,12 @@ async function connectBrowser(options: {
       ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
+      // Only a local browser Stagehand launched without keepAlive is shut down when this
+      // client disappears; Browserbase applies its own keepAlive policy.
+      clientLifecycle: {
+        closeBrowserOnDisconnect: options.provider === "local" && ownsSource,
+        extensionCdpUrl: options.workerInitMetadata.browserCdpUrl,
+      },
       signal: options.signal,
     });
     try {
@@ -328,8 +334,13 @@ async function connectBrowser(options: {
       close,
       invalidate,
       // Never closes the browser or releases its session. Browserbase still ends a
-      // session without keepAlive once this connection closes.
-      disconnect: () => connectedClient.close(),
+      // session without keepAlive once this connection closes. Detaching first disarms
+      // the extension's watchdog; without that acknowledgement the socket stays open,
+      // since closing it would read as a lost client and could shut the browser down.
+      disconnect: async () => {
+        await connectedClient.detachClient();
+        connectedClient.close();
+      },
       connected: () => !connectedClient.closed,
       // After an unexpected loss, a Browserbase session can still be released over its
       // API; a local browser is left alone.

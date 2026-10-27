@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import warnings
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -239,6 +240,23 @@ class CDPConnectionClosedError(RuntimeError):
         super().__init__("CDP connection closed")
 
 
+_CLIENT_TARGET_URL = "about:blank#stagehand-client-connection"
+_client_watchdog_warned = False
+
+
+def _warn_client_watchdog_unavailable(reason: str) -> None:
+    global _client_watchdog_warned
+    if _client_watchdog_warned:
+        return
+    _client_watchdog_warned = True
+    warnings.warn(
+        f"Stagehand cannot watch for a lost connection because {reason}; a browser it "
+        "launched keeps running if this process exits unexpectedly.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
+
 class CDPClient:
     def __init__(
         self,
@@ -253,6 +271,7 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._client_target_id: str | None = None
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
@@ -267,6 +286,8 @@ class CDPClient:
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
         headers: Mapping[str, str] | None = None,
+        close_browser_on_disconnect: bool | None = None,
+        extension_cdp_url: str | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -338,6 +359,11 @@ class CDPClient:
                 session_id=session_id,
             )
             await client._wait_for_runtime_receiver(session_id)
+            if close_browser_on_disconnect is not None:
+                await client._register_client(
+                    close_browser_on_disconnect,
+                    extension_cdp_url or web_socket_debugger_url,
+                )
             return client
         except BaseException:
             await asyncio.shield(client.close())
@@ -352,6 +378,67 @@ class CDPClient:
         if self._service_worker is None:
             raise RuntimeError("Stagehand service worker is not attached")
         return self._service_worker
+
+    async def _register_client(self, close_browser_on_disconnect: bool, cdp_url: str) -> None:
+        marker = await self.send_command(
+            "Target.createTarget",
+            {"url": _CLIENT_TARGET_URL, "hidden": True, "background": True},
+        )
+        target_id = _required_string(marker, "targetId", "Target.createTarget")
+        # Chrome accepts unknown parameters: a build without hidden targets opens an
+        # ordinary tab that outlives this connection and would never signal its loss.
+        info = await self.send_command("Target.getTargetInfo", {"targetId": target_id})
+        target_info = info.get("targetInfo")
+        unavailable: str | None = None
+        if isinstance(target_info, dict) and target_info.get("type") == "page":
+            unavailable = "this browser does not support hidden targets"
+        elif not await self._client_lifecycle_command({
+            "action": "attach",
+            "targetId": target_id,
+            "cdpUrl": cdp_url,
+            "closeBrowserOnDisconnect": close_browser_on_disconnect,
+        }):
+            unavailable = "the Stagehand extension predates it"
+        if unavailable is not None:
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            _warn_client_watchdog_unavailable(unavailable)
+            return
+        self._client_target_id = target_id
+
+    async def detach_client(self) -> None:
+        """Acknowledge intentional detach before the socket/hidden target disappears."""
+        if self._client_target_id is None or self._closed:
+            return
+        async with asyncio.timeout(10):
+            await self._client_lifecycle_command({
+                "action": "detach",
+                "targetId": self._client_target_id,
+            })
+        self._client_target_id = None
+
+    async def _client_lifecycle_command(self, params: dict[str, object]) -> bool:
+        """Return False when the extension has no client lifecycle support."""
+        expression = (
+            "(async () => { "
+            'if (typeof globalThis.__stagehandClientLifecycle !== "function") return false; '
+            f"await globalThis.__stagehandClientLifecycle({json.dumps(params)}); "
+            "return true; })()"
+        )
+        result = await self.send_command(
+            "Runtime.evaluate",
+            {"expression": expression, "awaitPromise": True, "returnByValue": True},
+            session_id=self._session_id,
+        )
+        value = result.get("result")
+        if (
+            result.get("exceptionDetails")
+            or not isinstance(value, dict)
+            or not isinstance(value.get("value"), bool)
+        ):
+            raise RuntimeError(
+                f"Stagehand client lifecycle failed: {result.get('exceptionDetails')}"
+            )
+        return bool(value["value"])
 
     async def send(
         self,

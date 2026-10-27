@@ -107,9 +107,14 @@ export class ClientLifecycle {
       }
       return;
     }
-    // Preserve B and the browser, but release the old client session so a later
-    // SDK can initialize using the existing runtime and tabs.
-    await this.options.releaseClient();
+    // Keep the browser, but release the old client session and close B so the
+    // runtime holds no connection of its own: Browserbase then applies its keepAlive
+    // policy, and a later SDK re-attaches with a fresh B.
+    try {
+      await this.options.releaseClient();
+    } finally {
+      await this.options.closeConnection();
+    }
   }
 
   private removeAttachment(): void {

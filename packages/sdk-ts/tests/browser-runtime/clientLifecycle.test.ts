@@ -127,12 +127,12 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
 
   it("intentional disconnect preserves an owned keepAlive=false browser", async () => {
     const browser = await localBrowser.launch({ headless: true });
-    const stagehand = await Stagehand.create({ browser, logging: { level: "off" } });
     try {
-      const url = stagehand.rpcClient!.cdp.webSocketDebuggerUrl;
-      if (!url) throw new Error("Missing CDP URL");
+      await Stagehand.create({ browser, logging: { level: "off" } });
       await browser.disconnect();
-      const reconnected = await localBrowser.connect({ cdpUrl: url });
+      await expect(browser.close()).rejects.toThrow("connect() again to close it");
+      // The new handle owns closing it: Browser.close over its own connection.
+      const reconnected = await localBrowser.connect({ cdpUrl: browser.cdpUrl! });
       try {
         const next = await Stagehand.create({ browser: reconnected, logging: { level: "off" } });
         expect((await reconnected.context.pages()).length).toBeGreaterThan(0);
@@ -141,7 +141,7 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
         await reconnected.close();
       }
     } finally {
-      await browser.close();
+      if (!browser.closed) await browser.close();
     }
   }, 45_000);
 
@@ -161,9 +161,8 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
         expect((await browser.context.pages()).length).toBeGreaterThan(0);
         await stagehand.close();
         await browser.disconnect();
-        await browser.close();
       } finally {
-        await browser.close();
+        if (!browser.closed) await browser.disconnect();
       }
     } finally {
       child.kill("SIGKILL");

@@ -46,14 +46,24 @@ describe("client connection ownership", () => {
     expect(f.options.releaseClient).not.toHaveBeenCalled();
   });
 
-  it("releases the client session, keeps B, and permits fresh attachment", async () => {
+  it("releases the client session, closes B, and permits fresh attachment", async () => {
     const f = fixture();
     await f.attach();
     f.destroy("client-a");
     await f.attach("client-b");
     expect(f.options.releaseClient).toHaveBeenCalledOnce();
-    expect(f.options.closeConnection).not.toHaveBeenCalled();
+    expect(f.options.closeConnection).toHaveBeenCalledOnce();
+    expect(f.options.connection).toHaveBeenCalledTimes(2);
     expect(f.connection.send).not.toHaveBeenCalled();
+  });
+
+  it("still closes B when releasing a lost client fails", async () => {
+    const f = fixture();
+    f.options.releaseClient.mockRejectedValue(new Error("disposal failed"));
+    await f.attach();
+    f.destroy("client-a");
+    await vi.waitFor(() => expect(f.options.closeConnection).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(f.options.onError).toHaveBeenCalledOnce());
   });
 
   it("disarms owned-browser termination before intentional detach", async () => {

@@ -82,19 +82,20 @@ async def test_client_death_and_reconnection(keep_alive: bool, tmp_path: Path) -
 
 async def test_intentional_disconnect_preserves_owned_browser() -> None:
     browser = await local_browser.launch(headless=True)
-    await Stagehand.create(browser=browser, logging={"level": "off"})
-    cdp_url = browser._attachment.cdp_client.web_socket_debugger_url
     try:
+        await Stagehand.create(browser=browser, logging={"level": "off"})
         await browser.disconnect()
-        connected = await local_browser.connect(cdp_url=cdp_url)
+        with pytest.raises(RuntimeError, match=r"connect\(\) again to close it"):
+            await browser.close()
+        assert browser.cdp_url is not None
+        # The new handle owns closing it: Browser.close over its own connection.
+        connected = await local_browser.connect(cdp_url=browser.cdp_url)
         try:
             fresh = await Stagehand.create(browser=connected, logging={"level": "off"})
             assert await connected.context.pages()
             await fresh.close()
-            await connected.disconnect()
-            # Explicit termination still works after a connected handle detached.
-            await connected.close()
         finally:
             await connected.close()
     finally:
-        await browser.close()
+        if not browser.closed:
+            await browser.close()
