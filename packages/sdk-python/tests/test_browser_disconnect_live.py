@@ -59,8 +59,10 @@ async def test_disconnect_closes_the_attached_stagehand_so_a_new_connection_can_
         chrome = await _launch_local_browser(
             LocalBrowserLaunchOptions.model_validate({"headless": True})
         )
+        handles = []
         try:
             browser = await local_browser.connect(cdp_url=chrome.cdp_url)
+            handles.append(browser)
             stagehand = await Stagehand.create(browser=browser)
 
             # No stagehand.close(): disconnect() must close the instance and the worker's loopback.
@@ -69,6 +71,7 @@ async def test_disconnect_closes_the_attached_stagehand_so_a_new_connection_can_
             await stagehand.close()
 
             browser2 = await local_browser.connect(cdp_url=chrome.cdp_url)
+            handles.append(browser2)
             stagehand2 = await Stagehand.create(browser=browser2)
             page = await browser2.context.new_page()
             await page.goto("data:text/html,<title>reattached</title>", wait_until="load")
@@ -76,4 +79,7 @@ async def test_disconnect_closes_the_attached_stagehand_so_a_new_connection_can_
             await stagehand2.close()
             await browser2.disconnect()
         finally:
+            for handle in handles:
+                if not handle.closed:
+                    await handle.disconnect()
             await chrome.close()

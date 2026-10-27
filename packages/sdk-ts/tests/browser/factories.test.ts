@@ -427,6 +427,52 @@ describe("Stagehand browser factories", () => {
     expect(calls).toEqual(["Browser.close", "terminate", "disconnect"]);
   });
 
+  it("still terminates a launched local browser when Browser.close fails", async () => {
+    const closeSource = vi.fn();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      launchLocalBrowser: async () => ({ cdpUrl: "http://127.0.0.1:9222", close: closeSource }),
+      connectCdp: async () =>
+        fakeCdpClient(
+          vi.fn(),
+          vi.fn(async () => {
+            throw new Error("dispatch failed");
+          }),
+        ),
+    });
+    const browser = await localBrowser.launch();
+
+    await expect(browser.close()).rejects.toThrow("dispatch failed");
+    expect(closeSource).toHaveBeenCalledOnce();
+  });
+
+  it("retries a failed Browserbase release after the connection is lost", async () => {
+    const closeSession = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("release failed"))
+      .mockResolvedValueOnce(undefined);
+    const session = {
+      sessionId: "session_123",
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      close: closeSession,
+    };
+    const client = fakeCdpClient();
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: () => ({
+        createSession: vi.fn(async () => session),
+        connectSession: vi.fn(async () => session),
+      }),
+      connectCdp: async () => client,
+    });
+    const browser = await browserbase.launch({ apiKey: "bb_key", keepAlive: true });
+    (client as { closed: boolean }).closed = true;
+
+    await expect(browser.close()).rejects.toThrow("release failed");
+    await browser.close();
+    await browser.close();
+
+    expect(closeSession).toHaveBeenCalledTimes(2);
+  });
+
   it("exposes the CDP URL of local browsers only", async () => {
     const session = {
       sessionId: "session_123",

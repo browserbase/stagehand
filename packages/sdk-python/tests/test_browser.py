@@ -1998,3 +1998,49 @@ def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) 
     )
 
     assert "--window-size=1280,800" not in flags
+
+
+async def test_launched_local_close_still_terminates_when_browser_close_fails(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    async def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise RuntimeError("dispatch failed")
+
+    monkeypatch.setattr(cdp, "send_command", fail)
+
+    with pytest.raises(RuntimeError, match="dispatch failed"):
+        await handle.close()
+    assert source.close_calls == 1
+
+
+async def test_failed_browserbase_release_after_lost_connection_can_be_retried(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=True, close_error=RuntimeError("release failed"))
+    handle = await _connect_browser(
+        provider="browserbase",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    fake_cdp.instances[-1].closed = True
+
+    with pytest.raises(RuntimeError, match="release failed"):
+        await handle.close()
+    source.close_error = None
+    await handle.close()
+    await handle.close()
+
+    assert source.close_calls == 2
