@@ -2198,3 +2198,20 @@ async def test_connected_and_closed_are_reported_separately(
     assert (handle.connected, handle.closed) == (False, False)
     await handle.disconnect()
     assert (handle.connected, handle.closed) == (False, True)
+
+
+async def test_disconnect_reports_a_timeout_raised_by_stagehand_close(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def fail() -> None:
+        raise TimeoutError("stagehand.close timed out")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), fail)
+
+    with pytest.raises(TimeoutError, match="stagehand.close timed out"):
+        await handle.disconnect()
+    assert cdp.close_calls == 1

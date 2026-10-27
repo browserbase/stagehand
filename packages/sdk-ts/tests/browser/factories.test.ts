@@ -282,7 +282,9 @@ describe("Stagehand browser factories", () => {
         attachStagehandBrowserContext(browser, {} as BrowserContext, () => new Promise(() => {}));
 
         const disconnecting = browser.disconnect();
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(9_999);
+        expect(closeCdp).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
         await disconnecting;
 
         expect(closeCdp).toHaveBeenCalledOnce();
