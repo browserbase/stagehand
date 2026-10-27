@@ -477,7 +477,7 @@ export class CDPClient {
       signal,
     );
     const unavailable =
-      targetInfo.type === "page"
+      targetInfo.type !== "other"
         ? "this browser does not support hidden targets"
         : (await this.clientLifecycleCommand(
               {
@@ -501,10 +501,11 @@ export class CDPClient {
   /** Acknowledged intentional detach, before the client's socket/marker disappears. */
   async detachClient(): Promise<void> {
     if (!this.clientTargetId || this.closed) return;
-    await this.clientLifecycleCommand(
+    const acknowledged = await this.clientLifecycleCommand(
       { action: "detach", targetId: this.clientTargetId },
       AbortSignal.timeout(10_000),
     );
+    if (!acknowledged) throw new Error("The Stagehand extension did not acknowledge the detach");
     this.clientTargetId = undefined;
   }
 

@@ -111,16 +111,17 @@ export function startStagehandServiceWorker(
     },
   });
   scope.__stagehandClientLifecycle = async (input) => {
-    await lifecycle.handle(input);
-    // Only a successful attach may serve a new client's reverse requests.
-    if (
-      typeof input === "object" &&
-      input !== null &&
-      "action" in input &&
-      input.action === "attach"
-    ) {
-      rpcClient?.acceptClient();
+    const action =
+      typeof input === "object" && input !== null && "action" in input ? input.action : undefined;
+    try {
+      await lifecycle.handle(input);
+    } catch (error) {
+      // A failed detach leaves the SDK handle open: keep serving its reverse requests.
+      if (action === "detach") rpcClient?.acceptClient();
+      throw error;
     }
+    // Only a successful attach may serve a new client's reverse requests.
+    if (action === "attach") rpcClient?.acceptClient();
   };
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,

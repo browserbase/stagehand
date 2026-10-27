@@ -34,6 +34,12 @@ asyncio.run(main())
 
 @pytest.mark.parametrize("keep_alive", [False, True])
 async def test_client_death_and_reconnection(keep_alive: bool, tmp_path: Path) -> None:
+    # Bounded like the neighboring live tests; pytest has no default per-test timeout.
+    async with asyncio.timeout(60):
+        await _client_death_and_reconnection(keep_alive, tmp_path)
+
+
+async def _client_death_and_reconnection(keep_alive: bool, tmp_path: Path) -> None:
     child = await asyncio.create_subprocess_exec(
         sys.executable,
         "-c",
@@ -80,8 +86,15 @@ async def test_client_death_and_reconnection(keep_alive: bool, tmp_path: Path) -
         await child.wait()
 
 
-async def test_intentional_disconnect_preserves_owned_browser() -> None:
-    browser = await local_browser.launch(headless=True)
+async def test_intentional_disconnect_preserves_owned_browser(tmp_path: Path) -> None:
+    async with asyncio.timeout(60):
+        await _intentional_disconnect_preserves_owned_browser(tmp_path)
+
+
+async def _intentional_disconnect_preserves_owned_browser(tmp_path: Path) -> None:
+    # A named profile: the reconnected handle closes Chrome but cannot remove the
+    # original launch's temporary profile, so pytest's tmp_path owns it.
+    browser = await local_browser.launch(headless=True, user_data_dir=str(tmp_path / "chrome"))
     try:
         await Stagehand.create(browser=browser, logging={"level": "off"})
         await browser.disconnect()

@@ -390,7 +390,7 @@ class CDPClient:
         info = await self.send_command("Target.getTargetInfo", {"targetId": target_id})
         target_info = info.get("targetInfo")
         unavailable: str | None = None
-        if isinstance(target_info, dict) and target_info.get("type") == "page":
+        if not isinstance(target_info, dict) or target_info.get("type") != "other":
             unavailable = "this browser does not support hidden targets"
         elif not await self._client_lifecycle_command({
             "action": "attach",
@@ -410,10 +410,12 @@ class CDPClient:
         if self._client_target_id is None or self._closed:
             return
         async with asyncio.timeout(10):
-            await self._client_lifecycle_command({
+            acknowledged = await self._client_lifecycle_command({
                 "action": "detach",
                 "targetId": self._client_target_id,
             })
+        if not acknowledged:
+            raise RuntimeError("The Stagehand extension did not acknowledge the detach")
         self._client_target_id = None
 
     async def _client_lifecycle_command(self, params: dict[str, object]) -> bool:

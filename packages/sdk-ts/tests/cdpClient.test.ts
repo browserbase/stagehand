@@ -611,3 +611,72 @@ describe("local extension resolution", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("client lifecycle registration", () => {
+  function lifecycleClient(options: { targetType: string; attach: boolean; detach?: boolean }) {
+    const socket = new FakeWebSocket();
+    socket.open();
+    const client = new CDPClient(socket as never, "ws://localhost/test");
+    const calls: string[] = [];
+    vi.spyOn(client, "sendCommand").mockImplementation(async (method, params) => {
+      const expression = String((params as { expression?: string } | undefined)?.expression);
+      const action = expression.includes('"detach"') ? "detach" : "attach";
+      calls.push(method === "Runtime.evaluate" ? action : method);
+      if (method === "Target.createTarget") return { targetId: "marker" };
+      if (method === "Target.getTargetInfo") return { targetInfo: { type: options.targetType } };
+      if (method === "Runtime.evaluate")
+        return { result: { value: action === "detach" ? (options.detach ?? true) : options.attach } };
+      return {};
+    });
+    const register = () =>
+      (
+        client as unknown as {
+          registerClient(
+            policy: { closeBrowserOnDisconnect: boolean },
+            signal: AbortSignal,
+          ): Promise<void>;
+        }
+      ).registerClient({ closeBrowserOnDisconnect: true }, new AbortController().signal);
+    return { client, calls, register };
+  }
+
+  it.each(["page", "iframe", "worker"])(
+    "closes a marker of type %s and arms no watchdog",
+    async (targetType) => {
+      const { client, calls, register } = lifecycleClient({ targetType, attach: true });
+      await register();
+      await client.detachClient();
+      expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]);
+    },
+  );
+
+  it("closes the marker and arms no watchdog when the extension predates it", async () => {
+    const { client, calls, register } = lifecycleClient({ targetType: "other", attach: false });
+    await register();
+    await client.detachClient();
+    expect(calls).toEqual([
+      "Target.createTarget",
+      "Target.getTargetInfo",
+      "attach",
+      "Target.closeTarget",
+    ]);
+  });
+
+  it("detaches an armed watchdog once", async () => {
+    const { client, calls, register } = lifecycleClient({ targetType: "other", attach: true });
+    await register();
+    await client.detachClient();
+    await client.detachClient();
+    expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]);
+  });
+
+  it("rejects a detach the extension does not acknowledge", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: false,
+    });
+    await register();
+    await expect(client.detachClient()).rejects.toThrow("did not acknowledge the detach");
+  });
+});

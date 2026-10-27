@@ -994,3 +994,78 @@ async def test_local_loading_failure_closes_connection_without_retrying(
         "Extensions.getExtensions",
         "Extensions.loadUnpacked",
     ]
+
+
+def _lifecycle_client(
+    target_type: str, *, attach: bool, detach: bool = True
+) -> tuple[CDPClient, list[str]]:
+    calls: list[str] = []
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = cast(str, message["method"])
+        params = cast(dict[str, object], message.get("params") or {})
+        if method == "Runtime.evaluate":
+            action = "detach" if '"detach"' in str(params.get("expression")) else "attach"
+            calls.append(action)
+            return {"result": {"result": {"value": detach if action == "detach" else attach}}}
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"result": {"targetId": "marker"}}
+        if method == "Target.getTargetInfo":
+            return {"result": {"targetInfo": {"type": target_type}}}
+        return {"result": {}}
+
+    client = CDPClient(FakeWebSocket(response_for), "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    return client, calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["page", "iframe", "worker"])
+async def test_client_registration_closes_a_marker_that_is_not_hidden(target_type: str) -> None:
+    client, calls = _lifecycle_client(target_type, attach=True)
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_registration_skips_an_extension_without_lifecycle_support() -> None:
+    client, calls = _lifecycle_client("other", attach=False)
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        assert calls == [
+            "Target.createTarget",
+            "Target.getTargetInfo",
+            "attach",
+            "Target.closeTarget",
+        ]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_runs_once_when_acknowledged() -> None:
+    client, calls = _lifecycle_client("other", attach=True)
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_when_not_acknowledged() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=False)
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="did not acknowledge the detach"):
+            await client.detach_client()
+    finally:
+        await client.close()

@@ -126,7 +126,10 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
   );
 
   it("intentional disconnect preserves an owned keepAlive=false browser", async () => {
-    const browser = await localBrowser.launch({ headless: true });
+    // A named profile: the reconnected handle closes Chrome but cannot remove the
+    // original launch's temporary profile.
+    const profile = await mkdtemp(path.join(tmpdir(), "stagehand-lifecycle-"));
+    const browser = await localBrowser.launch({ headless: true, userDataDir: profile });
     try {
       await Stagehand.create({ browser, logging: { level: "off" } });
       await browser.disconnect();
@@ -142,6 +145,7 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
       }
     } finally {
       if (!browser.closed) await browser.close();
+      await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   }, 45_000);
 

@@ -763,8 +763,11 @@ After `disconnect()` the handle is finished: repeated `disconnect()` calls do no
 
 If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.close()` still releases a Browserbase session through the Browserbase API and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:
 
-- A local browser Stagehand launched without `keepAlive` is shut down, so it doesn't outlive your process.
-- Any other browser keeps running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance. On Browserbase, the session then follows its `keepAlive` setting.
+- Stagehand closes a local browser it launched without `keepAlive`, so the browser doesn't outlive your process.
+- Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.
+- On Browserbase, the extension releases the instance and its own connection, and the session follows its `keepAlive` setting: with `keepAlive: true` it keeps running and you can connect again; otherwise Browserbase ends it.
+
+This needs an extension that supports it and a Chrome build with hidden targets. Without them, Stagehand warns once when it connects, a launched browser can outlive your process, and a new client can't attach until the browser restarts.
 
 Only one Stagehand client can be attached to a browser at a time. Connecting a second client while the first is still connected fails with `A Stagehand client is already connected`.
 

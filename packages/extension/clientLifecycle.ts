@@ -42,14 +42,17 @@ export class ClientLifecycle {
     const request = RequestSchema.parse(input);
     return this.enqueue(async () => {
       if (request.action === "detach") {
-        if (this.attachment?.targetId !== request.targetId) {
+        const attachment = this.attachment;
+        if (attachment?.targetId !== request.targetId) {
           throw new Error("Stagehand client attachment is no longer active");
         }
         // Disarm before closing B or allowing A to close. A failed cleanup must
         // never turn an intentional detach into an instruction to kill Chrome.
-        this.removeAttachment();
+        attachment.closeBrowserOnDisconnect = false;
         await this.options.releaseClient();
         await this.options.closeConnection();
+        // Forget the client only once cleanup succeeded, so a failed detach can be retried.
+        this.removeAttachment();
         return;
       }
       if (this.attachment) {
@@ -107,13 +110,14 @@ export class ClientLifecycle {
       }
       return;
     }
-    // Keep the browser, but release the old client session and close B so the
+    // Keep the browser, but close B and release the old client session so the
     // runtime holds no connection of its own: Browserbase then applies its keepAlive
-    // policy, and a later SDK re-attaches with a fresh B.
+    // policy, and a later SDK re-attaches with a fresh B. B closes first because
+    // releasing waits for in-flight work, which must not keep a session alive.
     try {
-      await this.options.releaseClient();
-    } finally {
       await this.options.closeConnection();
+    } finally {
+      await this.options.releaseClient();
     }
   }
 

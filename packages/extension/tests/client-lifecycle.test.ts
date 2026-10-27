@@ -5,18 +5,23 @@ import type { CdpConnection } from "../understudy/cdp.js";
 function fixture() {
   const targets = new Set(["client-a", "client-b"]);
   const handlers = new Set<(event: { targetId: string }) => void>();
-  const connection = {
+  let targetUrl = CLIENT_TARGET_URL;
+  const createConnection = () => ({
     connected: true,
-    getTargets: vi.fn(async () =>
-      [...targets].map((targetId) => ({ targetId, url: CLIENT_TARGET_URL })),
-    ),
+    getTargets: vi.fn(async () => [...targets].map((targetId) => ({ targetId, url: targetUrl }))),
     send: vi.fn(async (_method: string) => ({})),
     on: (_event: string, handler: (event: { targetId: string }) => void) => handlers.add(handler),
     off: (_event: string, handler: (event: { targetId: string }) => void) =>
       handlers.delete(handler),
-  };
+  });
+  // Each attachment opens its own B, so a reconnect must not reuse a closed one.
+  const connections: ReturnType<typeof createConnection>[] = [];
   const options = {
-    connection: vi.fn(async () => connection as unknown as CdpConnection),
+    connection: vi.fn(async () => {
+      const connection = createConnection();
+      connections.push(connection);
+      return connection as unknown as CdpConnection;
+    }),
     releaseClient: vi.fn(async () => {}),
     closeConnection: vi.fn(async () => {}),
     onError: vi.fn(),
@@ -33,7 +38,20 @@ function fixture() {
     targets.delete(targetId);
     for (const handler of handlers) handler({ targetId });
   };
-  return { lifecycle, options, connection, targets, attach, destroy };
+  return {
+    lifecycle,
+    options,
+    connections,
+    get connection() {
+      return connections.at(-1)!;
+    },
+    targets,
+    setTargetUrl: (url: string) => {
+      targetUrl = url;
+    },
+    attach,
+    destroy,
+  };
 }
 
 describe("client connection ownership", () => {
@@ -53,7 +71,47 @@ describe("client connection ownership", () => {
     await f.attach("client-b");
     expect(f.options.releaseClient).toHaveBeenCalledOnce();
     expect(f.options.closeConnection).toHaveBeenCalledOnce();
-    expect(f.options.connection).toHaveBeenCalledTimes(2);
+    expect(f.connections).toHaveLength(2);
+    expect(f.connections[1]).not.toBe(f.connections[0]);
+    expect(f.connections[1]?.getTargets).toHaveBeenCalled();
+    for (const connection of f.connections) expect(connection.send).not.toHaveBeenCalled();
+  });
+
+  it("closes B on loss without waiting for in-flight work to drain", async () => {
+    const f = fixture();
+    f.options.releaseClient.mockImplementation(() => new Promise(() => {}));
+    await f.attach();
+    f.destroy("client-a");
+    await vi.waitFor(() => expect(f.options.closeConnection).toHaveBeenCalledOnce());
+    expect(f.connection.send).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed detach disarmed and retryable", async () => {
+    const f = fixture();
+    await f.attach("client-a", true);
+    f.options.releaseClient.mockRejectedValueOnce(new Error("disposal failed"));
+    await expect(f.lifecycle.handle({ action: "detach", targetId: "client-a" })).rejects.toThrow(
+      "disposal failed",
+    );
+
+    await f.lifecycle.handle({ action: "detach", targetId: "client-a" });
+    f.destroy("client-a");
+
+    expect(f.options.closeConnection).toHaveBeenCalledOnce();
+    expect(f.connection.send).not.toHaveBeenCalled();
+  });
+
+  it("never shuts the browser down when the client dies after a failed detach", async () => {
+    const f = fixture();
+    await f.attach("client-a", true);
+    f.options.releaseClient.mockRejectedValueOnce(new Error("disposal failed"));
+    await expect(f.lifecycle.handle({ action: "detach", targetId: "client-a" })).rejects.toThrow(
+      "disposal failed",
+    );
+
+    f.destroy("client-a");
+
+    await vi.waitFor(() => expect(f.options.closeConnection).toHaveBeenCalled());
     expect(f.connection.send).not.toHaveBeenCalled();
   });
 
@@ -99,7 +157,7 @@ describe("client connection ownership", () => {
 
   it("does not arm ownership using an ordinary page", async () => {
     const f = fixture();
-    f.connection.getTargets.mockResolvedValue([{ targetId: "client-a", url: "about:blank" }]);
+    f.setTargetUrl("about:blank");
     await expect(f.attach("client-a", true)).rejects.toThrow("Invalid Stagehand");
     f.destroy("client-a");
     expect(f.connection.send).not.toHaveBeenCalled();
