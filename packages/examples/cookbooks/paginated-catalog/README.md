@@ -4,8 +4,16 @@ Extract book records, save each page to `out/checkpoint.json`, and write `out/ca
 
 Copy `.env.example` to `.env` in a language folder and add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`.
 
-- TypeScript: `pnpm install --frozen-lockfile`, then `pnpm start`.
-- Python: `uv sync --locked`, then `uv run --locked python main.py`.
+Follow the [repository setup](../README.md#run), then run these commands from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/paginated-catalog/typescript/.env.example packages/examples/cookbooks/paginated-catalog/typescript/.env
+```
+
+Fill in the TypeScript `.env`, then run `just cookbook paginated-catalog` from the repository root. It builds the local SDK and extension before starting the recipe.
+
+For Python, run `uv sync --locked`, then `uv run --locked python main.py` from this cookbook's `python/` directory.
 
 The default target is a two-page category. `MAX_PAGES` defaults to 2 and allows up to 100. Adapt `CATALOG_URL`, the record schema, and `NEXT_SELECTOR` together. Browser lifetime is five minutes.
 
@@ -13,4 +21,4 @@ Rerun with the same source and `OUT_DIR` to resume. A failed run keeps its check
 
 Records are deduplicated by title, price, and availability. Use stable product IDs for catalogs where those fields are not unique. Saved pages retain their earlier values.
 
-Run `pnpm typecheck` and `pnpm test` in `typescript/`, or `uv run --locked python -m unittest` in `python/`.
+Run `pnpm exec turbo run typecheck test:unit --filter=stagehand-cookbook-paginated-catalog` from the repository root, or `uv run --locked python -m unittest` in `python/`.

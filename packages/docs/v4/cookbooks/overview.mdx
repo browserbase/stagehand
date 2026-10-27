@@ -25,15 +25,18 @@ Cloud recipes print a Browserbase session link and limit browser lifetime to fiv
 
 ## Run a cookbook
 
-Choose a cookbook folder in [`packages/examples/cookbooks`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks), then check out that folder:
+Choose a cookbook in [`packages/examples/cookbooks`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks), then clone the repository:
 
 ```bash
-git clone --depth 1 --sparse https://github.com/browserbase/stagehand.git
+git clone --depth 1 https://github.com/browserbase/stagehand.git
 cd stagehand
-git sparse-checkout set packages/examples/cookbooks/<cookbook-name>
 ```
 
-Open the cookbook's README or docs page for its supported languages, required keys, install steps, and run command. Each cookbook folder contains its own source and configuration.
+For TypeScript, use Node.js 22.18+, pnpm, and [just](https://just.systems/). Run `pnpm install --frozen-lockfile` once from the repository root. Copy the selected cookbook's `typescript/.env.example` to `typescript/.env`, fill in its keys, then run `just cookbook <slug>` from the root. Replace `<slug>` with the cookbook's folder name, such as `paginated-catalog`. The command builds the local SDK and extension and starts the recipe in its TypeScript directory, where `.env` and `out/` live. All TypeScript cookbooks share the root workspace and lockfile.
+
+For Python, use Python 3.11+ and uv. Each cookbook retains its own `pyproject.toml` and `uv.lock` and uses a published Python SDK. Install and run from its `python/` directory using the recipe's commands.
+
+Open the cookbook's README or docs page for required keys, inputs, and output checks.
 
 For recorded data-collection and QA jobs, see the [showcase](https://stagehand.dev/showcase).
 

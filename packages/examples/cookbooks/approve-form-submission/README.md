@@ -4,15 +4,18 @@ Fill a test form, show its actual values, and require human approval before Subm
 
 ## TypeScript
 
+Follow the [repository setup](../README.md#run), then run these commands from the repository root:
+
 ```bash
-cd typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/approve-form-submission/typescript/.env.example packages/examples/cookbooks/approve-form-submission/typescript/.env
 ```
 
-Fill in `.env`, then run `pnpm start`. TypeScript uses AI SDK approval and a code guard. The approval prompt expires after 60 seconds.
+Fill in `.env`, then run `just cookbook approve-form-submission` from the repository root. TypeScript uses AI SDK approval and a code guard. The approval prompt expires after 60 seconds.
 
 ## Python
+
+From this cookbook's directory:
 
 ```bash
 cd python
@@ -26,4 +29,4 @@ Python uses a CLI approval gate. Answer `y` or `n`. Each implementation rechecks
 
 TypeScript writes `out/approval.json`. A `submission-attempted` receipt may mean the server received the form; inspect the session before rerunning. The receipt does not support approval across process restarts. Use one writer per output directory.
 
-Run `pnpm typecheck` and `pnpm test` in `typescript/`.
+Run `pnpm exec turbo run typecheck test:unit --filter=stagehand-cookbook-approve-form-submission` from the repository root.

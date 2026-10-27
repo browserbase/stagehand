@@ -33,19 +33,20 @@ Run local checks and verify completion, budget exhaustion, and resume through te
 
 - Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. The TypeScript runner can also use a local browser by setting `BROWSER_ENV=LOCAL`.
 - `CATALOG_URL` defaults to the two-page mystery category on Books to Scrape. `MAX_PAGES` defaults to 2 and accepts 1 through 100. The default completes a small category. For the full catalog, set `CATALOG_URL=https://books.toscrape.com/` and raise `MAX_PAGES` to 50. `NEXT_SELECTOR` defaults to `li.next a`; change it when adapting the target. `OUT_DIR` defaults to `out`.
-- TypeScript needs Node.js 22.18+ and pnpm; Python needs Python 3.11+ and uv.
+- TypeScript needs Node.js 22.18+, pnpm, and just; Python needs Python 3.11+ and uv.
 
 ## Check out and run
 
-The source is [`packages/examples/cookbooks/paginated-catalog`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/paginated-catalog). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then run one version:
+The source is [`packages/examples/cookbooks/paginated-catalog`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/paginated-catalog). Clone the repository with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then run one version:
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-cd packages/examples/cookbooks/paginated-catalog/typescript
-cp .env.example .env
+# From the repository root
 pnpm install --frozen-lockfile
-pnpm start
+cp packages/examples/cookbooks/paginated-catalog/typescript/.env.example packages/examples/cookbooks/paginated-catalog/typescript/.env
+# Add the required keys to the TypeScript .env before running
+just cookbook paginated-catalog
 ```
 </Tab>
 <Tab title="Python">
@@ -127,7 +128,7 @@ A completed run prints `Saved N books from P pages to out/catalog.json`. The fil
 | Corrupt checkpoint or changed source | Use a fresh `OUT_DIR`; keep the original checkpoint for investigation |
 | Redirect or pagination cycle | Fix the target before rerunning; do not disable the origin and cycle checks |
 
-Run credential-free recovery tests with `pnpm test` or `uv run --locked python -m unittest` from the matching language folder.
+Run credential-free recovery tests with `pnpm exec turbo run test:unit --filter=stagehand-cookbook-paginated-catalog` from the repository root, or `uv run --locked python -m unittest` from the Python directory.
 
 ## Adapt to your site
 

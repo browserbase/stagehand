@@ -33,19 +33,20 @@ Run local checks. Use a test form for approval and rejection; verify changed val
 
 Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. Each language uses OpenAI for Stagehand; TypeScript also uses it for the AI SDK agent. See [model configuration](/v4/configuration/models).
 
-TypeScript requires Node.js 22.18+ and pnpm; Python requires Python 3.11+ and uv. The form uses test customer data. Change it with the form checks when adapting the job.
+TypeScript requires Node.js 22.18+, pnpm, and just; Python requires Python 3.11+ and uv. The form uses test customer data. Change it with the form checks when adapting the job.
 
 ## Check out and run
 
-The source is [`packages/examples/cookbooks/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/approve-form-submission). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then use one language:
+The source is [`packages/examples/cookbooks/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/approve-form-submission). Clone the repository with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then use one language:
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-cd packages/examples/cookbooks/approve-form-submission/typescript
-cp .env.example .env
+# From the repository root
 pnpm install --frozen-lockfile
-pnpm start
+cp packages/examples/cookbooks/approve-form-submission/typescript/.env.example packages/examples/cookbooks/approve-form-submission/typescript/.env
+# Add the required keys to the TypeScript .env before running
+just cookbook approve-form-submission
 ```
 </Tab>
 <Tab title="Python">
