@@ -36,7 +36,7 @@
     </picture>
   </a>
   <a href="https://deepwiki.com/browserbase/stagehand">
-    <img alt="Ask DeepWiki" src="./media/deepwiki.svg" width="156" height="32" />
+    <img alt="Ask DeepWiki" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/deepwiki.svg" width="156" height="32" />
   </a>
 </p>
 
