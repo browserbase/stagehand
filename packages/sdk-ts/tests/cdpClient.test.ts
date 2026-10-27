@@ -625,7 +625,9 @@ describe("client lifecycle registration", () => {
       if (method === "Target.createTarget") return { targetId: "marker" };
       if (method === "Target.getTargetInfo") return { targetInfo: { type: options.targetType } };
       if (method === "Runtime.evaluate")
-        return { result: { value: action === "detach" ? (options.detach ?? true) : options.attach } };
+        return {
+          result: { value: action === "detach" ? (options.detach ?? true) : options.attach },
+        };
       return {};
     });
     const register = () =>
