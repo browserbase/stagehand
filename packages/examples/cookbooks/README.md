@@ -2,13 +2,13 @@
 
 Browser jobs you can run, adapt, and combine. Each has a [docs page](https://docs.stagehand.dev/v4/cookbooks/overview), source folder, and coding-agent prompt.
 
-| Cookbook                                 | Languages              | Output                                      |
-| ---------------------------------------- | ---------------------- | ------------------------------------------- |
-| [Persisted login](persisted-login)       | TypeScript, Python, Go | Authentication and reuse receipt            |
-| [Paginated catalog](paginated-catalog)   | TypeScript, Python, Go | Checkpoint and complete catalog             |
-| [Files to bucket](files-to-bucket)       | TypeScript             | JSON and JPEG; optional S3 upload           |
-| [Form approval](approve-form-submission) | TypeScript, Python, Go | Submission or rejection; TypeScript receipt |
-| [Research agent](ai-sdk-research-agent)  | TypeScript             | Report citing approved sources              |
+| Cookbook                                 | Languages          | Output                                      |
+| ---------------------------------------- | ------------------ | ------------------------------------------- |
+| [Persisted login](persisted-login)       | TypeScript, Python | Authentication and reuse receipt            |
+| [Paginated catalog](paginated-catalog)   | TypeScript, Python | Checkpoint and complete catalog             |
+| [Files to bucket](files-to-bucket)       | TypeScript         | JSON and JPEG; optional S3 upload           |
+| [Form approval](approve-form-submission) | TypeScript, Python | Submission or rejection; TypeScript receipt |
+| [Research agent](ai-sdk-research-agent)  | TypeScript         | Report citing approved sources              |
 
 ## Run
 
@@ -24,8 +24,8 @@ From a full checkout, `just cookbook <slug>` runs an installed TypeScript cookbo
 
 ## Contribute
 
-Include a docs page, agent prompt, README, environment template, lockfile, output checks, and cleanup. Core browser jobs support TypeScript, Python, and Go. Integration recipes may be TypeScript-only.
+Include a docs page, agent prompt, README, environment template, lockfile, output checks, and cleanup. Core browser jobs support TypeScript and Python. Integration recipes may be TypeScript-only.
 
-Run TypeScript typechecks and available unit tests, Python catalog tests, and Go tests. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
+Run TypeScript typechecks and available unit tests, Python catalog tests. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
 
 Use Playwright locators for known elements, Stagehand for natural-language actions and extraction, and site-provided WebMCP tools when available. See [model configuration](https://docs.stagehand.dev/v4/configuration/models) and [Functions deployment](https://docs.stagehand.dev/v4/best-practices/deployments) for other setups.
