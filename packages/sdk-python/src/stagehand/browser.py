@@ -107,7 +107,19 @@ class ResolvedBrowserSource:
             return
         if self._close_task is None:
             self._close_task = asyncio.create_task(_invoke_close(self._close_callback))
-        await asyncio.shield(self._close_task)
+        task = self._close_task
+        try:
+            await asyncio.shield(task)
+        except BaseException:
+            # A failed close (e.g. a transient Browserbase release error) can be retried.
+            if (
+                self._close_task is task
+                and task.done()
+                and not task.cancelled()
+                and task.exception() is not None
+            ):
+                self._close_task = None
+            raise
 
 
 async def _invoke_close(callback: Callable[[], Awaitable[None]]) -> None:
@@ -124,6 +136,7 @@ class _ChromeProfile:
     remove: bool
 
 
+_BROWSER_CLOSE_TIMEOUT_SECONDS = 5.0
 _BROWSER_DISCONNECTED_MESSAGE = "The browser is disconnected; connect() again to close it"
 
 
@@ -475,9 +488,19 @@ async def _connect_browser(
         try:
             if provider == "local":
                 try:
-                    await connected_client.send_command("Browser.close")
+                    # Bounded so an unresponsive Chrome cannot keep a launched one from
+                    # being terminated.
+                    async with asyncio.timeout(_BROWSER_CLOSE_TIMEOUT_SECONDS):
+                        await connected_client.send_command("Browser.close")
                 except CDPConnectionClosedError:
                     pass
+                except TimeoutError:
+                    # A launched browser is terminated below; a connected one cannot be.
+                    if origin == "connected":
+                        raise RuntimeError(
+                            "Browser.close did not respond within "
+                            f"{_BROWSER_CLOSE_TIMEOUT_SECONDS} seconds"
+                        ) from None
         except BaseException as error:
             errors.append(error)
         try:
