@@ -1022,11 +1022,13 @@ def _lifecycle_client(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["page", "iframe", "worker"])
-async def test_client_registration_closes_a_marker_that_is_not_hidden(target_type: str) -> None:
+async def test_client_registration_requires_chrome_137_for_hidden_targets(
+    target_type: str,
+) -> None:
     client, calls = _lifecycle_client(target_type, attach=True)
     try:
-        await client._register_client(True, "ws://browser")
-        await client.detach_client()
+        with pytest.raises(RuntimeError, match="requires Chrome 137 or later"):
+            await client._register_client(True, "ws://browser")
         assert calls == ["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]
     finally:
         await client.close()

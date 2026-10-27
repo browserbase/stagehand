@@ -391,6 +391,17 @@ export class StagehandRuntime {
     }
   }
 
+  /**
+   * Closes the runtime's own browser connection immediately, outside the lifecycle
+   * queue: a lost client must not wait behind lifecycle work that needs that client.
+   */
+  async dropBrowserConnection(): Promise<void> {
+    const session = this.browserSession;
+    this.browserSession = undefined;
+    this.browserSessionCdpUrl = undefined;
+    await session?.close();
+  }
+
   async ensureBrowserConnection(cdpUrl: string): Promise<void> {
     if (!this.browserSession?.connected || this.browserSessionCdpUrl !== cdpUrl) {
       await this.replaceBrowserConnection({ cdpUrl });

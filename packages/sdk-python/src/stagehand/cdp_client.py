@@ -244,14 +244,15 @@ _CLIENT_TARGET_URL = "about:blank#stagehand-client-connection"
 _client_watchdog_warned = False
 
 
-def _warn_client_watchdog_unavailable(reason: str) -> None:
+def _warn_client_watchdog_unavailable() -> None:
     global _client_watchdog_warned
     if _client_watchdog_warned:
         return
     _client_watchdog_warned = True
     warnings.warn(
-        f"Stagehand cannot watch for a lost connection because {reason}; a browser it "
-        "launched keeps running if this process exits unexpectedly.",
+        "Stagehand cannot watch for a lost connection because the Stagehand extension in "
+        "this browser predates it; a browser it launched keeps running if this process "
+        "exits unexpectedly.",
         RuntimeWarning,
         stacklevel=2,
     )
@@ -389,19 +390,19 @@ class CDPClient:
         # ordinary tab that outlives this connection and would never signal its loss.
         info = await self.send_command("Target.getTargetInfo", {"targetId": target_id})
         target_info = info.get("targetInfo")
-        unavailable: str | None = None
         if not isinstance(target_info, dict) or target_info.get("type") != "other":
-            unavailable = "this browser does not support hidden targets"
-        elif not await self._client_lifecycle_command({
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            raise RuntimeError(
+                "Stagehand requires Chrome 137 or later, which supports hidden targets"
+            )
+        if not await self._client_lifecycle_command({
             "action": "attach",
             "targetId": target_id,
             "cdpUrl": cdp_url,
             "closeBrowserOnDisconnect": close_browser_on_disconnect,
         }):
-            unavailable = "the Stagehand extension predates it"
-        if unavailable is not None:
             await self.send_command("Target.closeTarget", {"targetId": target_id})
-            _warn_client_watchdog_unavailable(unavailable)
+            _warn_client_watchdog_unavailable()
             return
         self._client_target_id = target_id
 

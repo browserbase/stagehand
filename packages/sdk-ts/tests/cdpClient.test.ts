@@ -643,11 +643,10 @@ describe("client lifecycle registration", () => {
   }
 
   it.each(["page", "iframe", "worker"])(
-    "closes a marker of type %s and arms no watchdog",
+    "closes a marker of type %s and requires Chrome 137",
     async (targetType) => {
-      const { client, calls, register } = lifecycleClient({ targetType, attach: true });
-      await register();
-      await client.detachClient();
+      const { calls, register } = lifecycleClient({ targetType, attach: true });
+      await expect(register()).rejects.toThrow("requires Chrome 137 or later");
       expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]);
     },
   );

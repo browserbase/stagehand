@@ -27,13 +27,19 @@ type Attachment = {
 /** Browser-side ownership of one SDK attachment. No heartbeat or expiry timer. */
 export class ClientLifecycle {
   private attachment?: Attachment;
+  /** The last client whose detach completed, so a retry after an SDK timeout is acknowledged. */
+  private detachedTargetId?: string;
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly options: {
       connection(cdpUrl: string): Promise<CdpConnection>;
-      releaseClient(): Promise<void>;
+      /** Rejects pending calls into the client; must not wait on anything. */
+      rejectClientCallbacks(): void;
+      /** Closes B immediately, without waiting behind runtime lifecycle work. */
       closeConnection(): Promise<void>;
+      /** Disposes the client's Stagehand instance; may wait for in-flight work to drain. */
+      disposeClient(): Promise<void>;
       onError(error: unknown): void;
     },
   ) {}
@@ -44,15 +50,19 @@ export class ClientLifecycle {
       if (request.action === "detach") {
         const attachment = this.attachment;
         if (attachment?.targetId !== request.targetId) {
+          // The SDK retries after its own timeout even when the first detach finished late.
+          if (this.detachedTargetId === request.targetId) return;
           throw new Error("Stagehand client attachment is no longer active");
         }
         // Disarm before closing B or allowing A to close. A failed cleanup must
         // never turn an intentional detach into an instruction to kill Chrome.
         attachment.closeBrowserOnDisconnect = false;
-        await this.options.releaseClient();
+        this.options.rejectClientCallbacks();
         await this.options.closeConnection();
+        await this.options.disposeClient();
         // Forget the client only once cleanup succeeded, so a failed detach can be retried.
         this.removeAttachment();
+        this.detachedTargetId = request.targetId;
         return;
       }
       if (this.attachment) {
@@ -112,12 +122,14 @@ export class ClientLifecycle {
     }
     // Keep the browser, but close B and release the old client session so the
     // runtime holds no connection of its own: Browserbase then applies its keepAlive
-    // policy, and a later SDK re-attaches with a fresh B. B closes first because
-    // releasing waits for in-flight work, which must not keep a session alive.
+    // policy, and a later SDK re-attaches with a fresh B. Rejecting the client's
+    // callbacks first unblocks work waiting on the dead client; B then closes without
+    // waiting behind that work, and disposal drains in the background.
+    this.options.rejectClientCallbacks();
     try {
       await this.options.closeConnection();
     } finally {
-      await this.options.releaseClient();
+      void this.options.disposeClient().catch((error) => this.options.onError(error));
     }
   }
 

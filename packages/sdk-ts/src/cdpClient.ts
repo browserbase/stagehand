@@ -225,11 +225,11 @@ export class CDPConnectionClosedError extends Error {
 const CLIENT_TARGET_URL = "about:blank#stagehand-client-connection";
 let clientWatchdogWarned = false;
 
-function warnClientWatchdogUnavailable(reason: string): void {
+function warnClientWatchdogUnavailable(): void {
   if (clientWatchdogWarned) return;
   clientWatchdogWarned = true;
   process.emitWarning(
-    `Stagehand cannot watch for a lost connection because ${reason}; a browser it launched keeps running if this process exits unexpectedly.`,
+    "Stagehand cannot watch for a lost connection because the Stagehand extension in this browser predates it; a browser it launched keeps running if this process exits unexpectedly.",
     { code: "STAGEHAND_CLIENT_WATCHDOG_UNAVAILABLE" },
   );
 }
@@ -476,23 +476,22 @@ export class CDPClient {
       undefined,
       signal,
     );
-    const unavailable =
-      targetInfo.type !== "other"
-        ? "this browser does not support hidden targets"
-        : (await this.clientLifecycleCommand(
-              {
-                action: "attach",
-                targetId,
-                cdpUrl: policy.extensionCdpUrl ?? this.webSocketDebuggerUrl,
-                closeBrowserOnDisconnect: policy.closeBrowserOnDisconnect,
-              },
-              signal,
-            ))
-          ? undefined
-          : "the Stagehand extension predates it";
-    if (unavailable) {
+    if (targetInfo.type !== "other") {
       await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
-      warnClientWatchdogUnavailable(unavailable);
+      throw new Error("Stagehand requires Chrome 137 or later, which supports hidden targets");
+    }
+    const supported = await this.clientLifecycleCommand(
+      {
+        action: "attach",
+        targetId,
+        cdpUrl: policy.extensionCdpUrl ?? this.webSocketDebuggerUrl,
+        closeBrowserOnDisconnect: policy.closeBrowserOnDisconnect,
+      },
+      signal,
+    );
+    if (!supported) {
+      await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
+      warnClientWatchdogUnavailable();
       return;
     }
     this.clientTargetId = targetId;

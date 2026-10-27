@@ -767,7 +767,7 @@ If the connection drops without `disconnect()`, for example because your process
 - Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.
 - On Browserbase, the extension releases the instance and its own connection, and the session follows its `keepAlive` setting: with `keepAlive: true` it keeps running and you can connect again; otherwise Browserbase ends it.
 
-This needs an extension that supports it and a Chrome build with hidden targets. Without them, Stagehand warns once when it connects, a launched browser can outlive your process, and a new client can't attach until the browser restarts.
+Stagehand requires Chrome 137 or later for this. If the browser runs an older Stagehand extension, Stagehand warns once when it connects and doesn't watch for a lost connection: a launched browser can outlive your process, and an abandoned Stagehand instance can block a new client from initializing.
 
 Only one Stagehand client can be attached to a browser at a time. Connecting a second client while the first is still connected fails with `A Stagehand client is already connected`.
 
@@ -1130,7 +1130,7 @@ Select the `stagehand-extension` folder in **Load unpacked**. To attach Stagehan
 
 ### Keep alive
 
-Keep-alive keeps a launched browser running after `stagehand.close()` or after your script exits, so you can reconnect to it later. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
+Keep-alive decides whether a launched browser survives after your client disconnects or exits, so you can reconnect to it later. `stagehand.close()` only ends the Stagehand instance and never closes the browser, with or without keep-alive. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
 
 <Note>
 Keeping sessions alive is available on the Browserbase Startup plan and above.
@@ -1148,8 +1148,8 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 const sessionId = browser.sessionId!;
 
-// The session keeps running after stagehand.close()
-await stagehand.close();
+// Let go of the session: this also closes stagehand, and keepAlive keeps it running
+await browser.disconnect();
 
 // Later, reconnect to the same Browserbase session
 const browser2 = await browserbase.connect({
@@ -1180,8 +1180,8 @@ stagehand = await Stagehand.create(browser=browser)
 session_id = browser.session_id
 assert session_id is not None
 
-# The session keeps running after stagehand.close()
-await stagehand.close()
+# Let go of the session: this also closes stagehand, and keep_alive keeps it running
+await browser.disconnect()
 
 # Later, reconnect to the same Browserbase session
 browser2 = await browserbase.connect(

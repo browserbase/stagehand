@@ -99,11 +99,9 @@ export function startStagehandServiceWorker(
       }
       return session.conn;
     },
-    releaseClient: async () => {
-      rpcClient?.releaseClient();
-      await activeRuntime.disposeStagehandInstance();
-    },
-    closeConnection: () => activeRuntime.close(),
+    rejectClientCallbacks: () => rpcClient?.releaseClient(),
+    closeConnection: () => activeRuntime.dropBrowserConnection(),
+    disposeClient: () => activeRuntime.disposeStagehandInstance(),
     onError: (error) => {
       // The client transport may be gone; do not report through RPC.
       // oxlint-disable-next-line no-console
