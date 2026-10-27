@@ -761,7 +761,7 @@ After `disconnect()` the handle is finished: repeated `disconnect()` calls do no
 | **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ apiKey, sessionId })`, then `close()` |
 | **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
 
-If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.close()` still releases a Browserbase session through the Browserbase API and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:
+If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.connected` becomes `false` while `browser.closed` stays `false`, because `browser.close()` still has work to do: it releases a Browserbase session through the Browserbase API, and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:
 
 - Stagehand closes a local browser it launched without `keepAlive`, so the browser doesn't outlive your process.
 - Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.

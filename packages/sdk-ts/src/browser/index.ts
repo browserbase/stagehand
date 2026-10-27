@@ -43,8 +43,13 @@ export interface StagehandBrowser {
   /** CDP URL to reconnect with localBrowser.connect(); undefined for Browserbase browsers. */
   readonly cdpUrl?: string;
   readonly context: BrowserContext;
-  /** True once the handle is closed, disconnected, or has lost its connection. */
+  /** True once close() or disconnect() was called. */
   readonly closed: boolean;
+  /**
+   * False once the handle is closed or disconnected, or its connection was lost. After a
+   * lost connection close() can still have work to do, such as releasing a Browserbase session.
+   */
+  readonly connected: boolean;
   /**
    * Closes the browser: a local browser receives Browser.close (a launched one is also terminated if it keeps running, and its
    * temporary profile removed unless preserved), and a Browserbase session is released.
@@ -112,8 +117,13 @@ class StagehandBrowserHandle implements StagehandBrowser {
   }
 
   get closed(): boolean {
+    const state = browserHandleInternals.get(this)?.state;
+    return state !== undefined && state !== "open";
+  }
+
+  get connected(): boolean {
     const internals = browserHandleInternals.get(this);
-    return internals !== undefined && (internals.state !== "open" || !internals.connected());
+    return internals !== undefined && internals.state === "open" && internals.connected();
   }
 
   get context(): BrowserContext {
@@ -157,7 +167,7 @@ class StagehandBrowserHandle implements StagehandBrowser {
       internals.disconnectPromise = Promise.resolve()
         .then(async () => {
           try {
-            await closeStagehand?.();
+            await closeStagehandWithin(closeStagehand, DISCONNECT_STAGEHAND_TIMEOUT_MS);
           } finally {
             await internals.disconnect();
           }
@@ -172,6 +182,33 @@ class StagehandBrowserHandle implements StagehandBrowser {
         });
     }
     return internals.disconnectPromise;
+  }
+}
+
+const DISCONNECT_STAGEHAND_TIMEOUT_MS = 10_000;
+
+/**
+ * stagehand.close() waits for in-flight work without a deadline; disconnect() stops
+ * waiting after timeoutMs and lets go anyway, which also ends that work.
+ */
+async function closeStagehandWithin(
+  closeStagehand: (() => Promise<void>) | undefined,
+  timeoutMs: number,
+): Promise<void> {
+  if (!closeStagehand) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const closing = closeStagehand();
+  try {
+    await Promise.race([
+      closing,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    // Settles once the connection closes; never leave its rejection unhandled.
+    closing.catch(() => undefined);
   }
 }
 

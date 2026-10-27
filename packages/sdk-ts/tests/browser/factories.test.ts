@@ -269,6 +269,38 @@ describe("Stagehand browser factories", () => {
       expect(closeCdp).toHaveBeenCalledOnce();
     });
 
+    it("stops waiting for a busy Stagehand instance after 10 seconds", async () => {
+      vi.useFakeTimers();
+      try {
+        const closeCdp = vi.fn();
+        const { localBrowser } = createBrowserFactoriesForTest({
+          connectCdp: async () => fakeCdpClient(closeCdp),
+        });
+        const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+        claimStagehandBrowser(browser);
+        // e.g. stagehand.close() waiting on an in-flight act().
+        attachStagehandBrowserContext(browser, {} as BrowserContext, () => new Promise(() => {}));
+
+        const disconnecting = browser.disconnect();
+        await vi.advanceTimersByTimeAsync(10_000);
+        await disconnecting;
+
+        expect(closeCdp).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("reports connected and closed separately", async () => {
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: async () => fakeCdpClient(),
+      });
+      const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+      expect([browser.connected, browser.closed]).toEqual([true, false]);
+      await browser.disconnect();
+      expect([browser.connected, browser.closed]).toEqual([false, true]);
+    });
+
     it("is terminal for a connected local browser: close() then rejects", async () => {
       const closeCdp = vi.fn();
       const sendCommand = vi.fn(async () => ({}));
@@ -353,7 +385,9 @@ describe("Stagehand browser factories", () => {
 
       (client as { closed: boolean }).closed = true;
 
-      expect(browser.closed).toBe(true);
+      // Lost, not closed: close() still runs, and does nothing for a local browser.
+      expect(browser.connected).toBe(false);
+      expect(browser.closed).toBe(false);
       await expect(browser.close()).resolves.toBeUndefined();
       expect(closeSource).not.toHaveBeenCalled();
       expect(client.sendCommand).not.toHaveBeenCalled();

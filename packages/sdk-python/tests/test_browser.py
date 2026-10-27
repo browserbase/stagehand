@@ -332,7 +332,9 @@ async def test_close_leaves_a_local_browser_alone_once_the_connection_is_lost(
     cdp = fake_cdp.instances[-1]
     cdp.closed = True
 
-    assert handle.closed is True
+    # Lost, not closed: close() still runs, and does nothing for a local browser.
+    assert handle.connected is False
+    assert handle.closed is False
     await handle.close()
     assert source.close_calls == 0
     assert cdp.commands == []
@@ -2165,3 +2167,34 @@ async def test_resolved_source_retries_a_failed_release(fake_cdp: type[FakeCDPCl
     await handle.close()
 
     assert attempts == 2
+
+
+async def test_disconnect_stops_waiting_for_a_busy_stagehand_instance(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(browser, "_DISCONNECT_STAGEHAND_TIMEOUT_SECONDS", 0.01)
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def busy() -> None:
+        # e.g. stagehand.close() waiting on an in-flight act().
+        await asyncio.Event().wait()
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), busy)
+
+    await handle.disconnect()
+
+    assert cdp.close_calls == 1
+
+
+async def test_connected_and_closed_are_reported_separately(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    assert (handle.connected, handle.closed) == (True, False)
+    fake_cdp.instances[-1].closed = True
+    assert (handle.connected, handle.closed) == (False, False)
+    await handle.disconnect()
+    assert (handle.connected, handle.closed) == (False, True)
