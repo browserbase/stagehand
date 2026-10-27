@@ -12,15 +12,15 @@
     "@aws-sdk/lib-storage": "3.1145.0",
     "@aws-sdk/s3-presigned-post": "3.1145.0",
     "@aws-sdk/s3-request-presigner": "3.1145.0",
-    "@browserbasehq/stagehand": "4.1.0",
-    "dotenv": "^17.4.2",
+    "@browserbasehq/stagehand": "workspace:*",
+    "dotenv": "catalog:",
     "files-sdk": "^2.6.0",
-    "zod": "4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24",
-    "tsx": "^4.23.1",
-    "typescript": "^5"
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=22.18.0"
