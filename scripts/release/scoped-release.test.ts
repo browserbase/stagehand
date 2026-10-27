@@ -98,7 +98,12 @@ describe("independent release scopes using the real Changesets engine", () => {
       expect((await manifest(root, "python")).version).toMatch(
         snapshot ? /^4\.1\.1-alpha-/ : /^4\.1\.1$/,
       );
-      expect((await readdir(path.join(root, "packages"))).sort()).toEqual(["cli", "python", "sdk"]);
+      expect((await readdir(path.join(root, "packages"))).sort()).toEqual([
+        "cli",
+        "middleware",
+        "python",
+        "sdk",
+      ]);
       expect(await scopedChangesets(root, "sdk")).toEqual([]);
     },
   );
