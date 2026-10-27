@@ -241,6 +241,7 @@ browse cloud extensions upload ./extension.zip
 browse cloud extensions get <extension-id>
 browse cloud extensions delete <extension-id>
 browse cloud fetch https://example.com
+browse cloud fetch https://example.com/account --context-id my-account
 browse cloud search "browser automation"
 browse cloud search "browserbase docs" --provider parallel --mode fast
 browse cloud search "browser automation research" --provider parallel --mode advanced
@@ -267,6 +268,10 @@ browse cloud contexts list                          # show saved names
 Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, contexts, full `--stdin` body).
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
+
+For Authenticated Fetch, add `--context-id <id|name>` to reuse saved cookies. Use an existing context or create one with `browse cloud contexts create --name my-account`, then start `browse cloud sessions create --context-id my-account --persist` and log in through that session. End the session with `browse cloud sessions update <session-id> --status REQUEST_RELEASE` and wait a few seconds for the context to save before fetching. Check the returned content for the expected signed-in page; a login redirect can also return HTTP 200.
+
+Authenticated Fetch reads cookies only and does not save response cookies back to the context. Refresh expired logins in a persistent browser session. If Fetch reports a missing cookie snapshot, refresh the context this way; contexts last saved before September 1, 2026 need refreshing. Use browser automation when authentication requires local storage, JavaScript-generated headers, or the page needs JavaScript rendering. See the [Authenticated Fetch docs](https://docs.browserbase.com/platform/fetch/authenticated-fetch) for context errors and limitations.
 
 Search accepts `--provider parallel|exa` and `--mode fast|advanced`. Provider and mode selection requires the Search API upgrade and is unavailable until that upgrade is deployed. Parallel supports both modes; omit `--mode` with Exa. Leave either flag unset to let the API choose the default provider or the provider choose its default tier. `fast` favors lower latency and cost; `advanced` favors deeper results.
 

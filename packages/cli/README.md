@@ -241,6 +241,7 @@ browse cloud extensions delete <extension-id>
 
 # Fetch & Search APIs
 browse cloud fetch <url>                          # markdown by default
+browse cloud fetch <url> --context-id <id|name>   # Authenticated Fetch
 browse cloud search <query>
 # Requires the Search API upgrade to be deployed:
 browse cloud search "browserbase docs" --provider parallel --mode fast
@@ -249,6 +250,19 @@ browse cloud search "browserbase docs" --provider exa
 ```
 
 `browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
+
+For [Authenticated Fetch](https://docs.browserbase.com/platform/fetch/authenticated-fetch), pass `--context-id <id|name>` to reuse cookies from a saved Browserbase context:
+
+```bash
+browse cloud contexts create --name my-account
+browse cloud sessions create --context-id my-account --persist
+# Log in through the returned session's connectUrl or Live View, then end it:
+browse cloud sessions update <session-id> --status REQUEST_RELEASE
+# Wait a few seconds for the context to finish saving.
+browse cloud fetch https://example.com/account --context-id my-account
+```
+
+Use `browse cloud contexts add my-account <context-id>` to name an existing context. Authenticated Fetch reads saved cookies and does not update the context with response cookies. If login expires, refresh it in a persistent browser session. Pages that need JavaScript rendering or authentication from browser storage still require browser automation.
 
 `browse cloud search` accepts `--provider parallel|exa` and `--mode fast|advanced`. Parallel supports both modes; Exa does not accept a mode. Omitted flags are left out of the request so the API chooses its default provider and the provider chooses its default tier. Use `fast` for lower latency and cost, or `advanced` for deeper results.
 

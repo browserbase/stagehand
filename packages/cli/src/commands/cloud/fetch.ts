@@ -8,6 +8,7 @@ import {
   writeOutputFile,
 } from "../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
+import { resolveContextRefOrFail } from "../../lib/cloud/contexts-resolve.js";
 import { BrowseCommand } from "../../base.js";
 import { fail } from "../../lib/errors.js";
 
@@ -16,11 +17,12 @@ type FetchFormat = (typeof fetchFormats)[number];
 
 export default class Fetch extends BrowseCommand {
   static override description =
-    "Retrieve webpage content using the lightweight Browserbase Fetch API.";
+    "Retrieve webpage content using the lightweight Browserbase Fetch API. Use --context-id for Authenticated Fetch with saved cookies.";
 
   static override examples = [
     "browse cloud fetch https://www.google.com",
     "browse cloud fetch https://example.com --format raw",
+    "browse cloud fetch https://example.com/account --context-id my-account",
     "browse cloud fetch https://example.com --allow-insecure-ssl --output page.html",
     `browse cloud fetch https://example.com --format json --schema '{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}'`,
   ];
@@ -31,6 +33,11 @@ export default class Fetch extends BrowseCommand {
 
   static override flags = {
     ...apiCommonFlags,
+    "context-id": Flags.string({
+      description:
+        "Browserbase context ID or saved name for Authenticated Fetch. Uses saved cookies without updating the context.",
+      helpValue: "<id|name>",
+    }),
     "allow-insecure-ssl": Flags.boolean({
       description: "Bypass TLS certificate verification.",
     }),
@@ -62,12 +69,16 @@ export default class Fetch extends BrowseCommand {
     const { args, flags } = await this.parse(Fetch);
     const format = flags.format as FetchFormat;
     const schema = resolveFetchSchema(format, flags.schema);
+    const contextId = flags["context-id"]
+      ? await resolveContextRefOrFail(flags["context-id"])
+      : undefined;
     const client = createBrowserbaseClient(toApiOptions(flags));
     const result = await withBrowserbaseApi(
       "fetch",
       async () =>
         await client.fetchAPI.create({
           url: args.url,
+          contextId,
           allowInsecureSsl: flags["allow-insecure-ssl"],
           allowRedirects: flags["allow-redirects"],
           format,

@@ -231,6 +231,66 @@ describe("named contexts (end to end through the CLI)", () => {
     }
   });
 
+  it("fetch resolves a saved alias and rejects a nearby typo before calling the API", async () => {
+    const contextId = "00000000-0000-4000-8000-0000000000aa";
+    const server = await startFakeBrowserbaseServer((_request, response) => {
+      jsonResponse(response, 200, { content: "# Account" });
+    });
+    const env = {
+      BROWSERBASE_CONFIG_DIR: configDir,
+      BROWSERBASE_API_KEY: "test-key",
+      BROWSERBASE_BASE_URL: server.baseUrl,
+    };
+    try {
+      const added = await runCli(
+        ["cloud", "contexts", "add", "team-login", contextId],
+        { env },
+      );
+      expect(added.exitCode).toBe(0);
+      expect(server.requests).toHaveLength(0);
+
+      const fetched = await runCli(
+        [
+          "cloud",
+          "fetch",
+          "https://example.com/account",
+          "--context-id",
+          "team-login",
+        ],
+        { env },
+      );
+      expect(fetched.exitCode).toBe(0);
+      expect(JSON.parse(fetched.stdout).content).toBe("# Account");
+      expect(server.requests).toHaveLength(1);
+      expect(server.requests[0]).toMatchObject({
+        method: "POST",
+        path: "/v1/fetch",
+        jsonBody: {
+          url: "https://example.com/account",
+          contextId,
+          format: "markdown",
+        },
+      });
+
+      const typo = await runCli(
+        [
+          "cloud",
+          "fetch",
+          "https://example.com/account",
+          "--context-id",
+          "team-logni",
+        ],
+        { env },
+      );
+      expect(typo.exitCode).not.toBe(0);
+      expect(typo.stderr).toContain('No saved context named "team-logni"');
+      expect(typo.stderr).toContain("Did you mean: team-login");
+      expect(server.requests).toHaveLength(1);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("passes an unrecognized raw id through to the API (raw-id compatibility)", async () => {
     const rawId = "legacy-id-not-a-uuid-9000";
     const server = await startFakeBrowserbaseServer((request, response) => {
