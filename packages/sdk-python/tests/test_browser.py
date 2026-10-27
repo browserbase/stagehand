@@ -2044,3 +2044,65 @@ async def test_failed_browserbase_release_after_lost_connection_can_be_retried(
     await handle.close()
 
     assert source.close_calls == 2
+
+
+@pytest.mark.parametrize("origin", ["launched", "connected"])
+async def test_unresponsive_browser_close_is_bounded(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+    origin: Literal["launched", "connected"],
+) -> None:
+    monkeypatch.setattr(browser, "_BROWSER_CLOSE_TIMEOUT_SECONDS", 0.01)
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    async def hang(*_args: object, **_kwargs: object) -> dict[str, object]:
+        await asyncio.Event().wait()
+        return {}
+
+    monkeypatch.setattr(cdp, "send_command", hang)
+
+    if origin == "launched":
+        await handle.close()
+        assert source.close_calls == 1
+    else:
+        with pytest.raises(RuntimeError, match="did not respond"):
+            await handle.close()
+        assert source.close_calls == 0
+    assert cdp.close_calls == 1
+
+
+async def test_resolved_source_retries_a_failed_release(fake_cdp: type[FakeCDPClient]) -> None:
+    attempts = 0
+
+    async def release() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("release failed")
+
+    source = browser.ResolvedBrowserSource(
+        cdp_url="wss://connect.browserbase.com", keep_alive=True, _close_callback=release
+    )
+    handle = await _connect_browser(
+        provider="browserbase",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    fake_cdp.instances[-1].closed = True
+
+    with pytest.raises(RuntimeError, match="release failed"):
+        await handle.close()
+    await handle.close()
+    await handle.close()
+
+    assert attempts == 2

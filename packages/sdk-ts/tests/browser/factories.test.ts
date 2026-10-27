@@ -162,7 +162,12 @@ describe("Stagehand browser factories", () => {
 
     await browser.close();
 
-    expect(sendCommand).toHaveBeenCalledWith("Browser.close");
+    expect(sendCommand).toHaveBeenCalledWith(
+      "Browser.close",
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
     expect(order).toStrictEqual(["terminate", "disconnect"]);
   });
 
@@ -471,6 +476,52 @@ describe("Stagehand browser factories", () => {
     await browser.close();
 
     expect(closeSession).toHaveBeenCalledTimes(2);
+  });
+
+  describe("when Browser.close does not respond", () => {
+    const unresponsive = () =>
+      vi.fn(
+        (_method: string, _params: unknown, _sessionId: unknown, signal: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      );
+
+    it("still terminates a launched browser", async () => {
+      vi.useFakeTimers();
+      try {
+        const closeSource = vi.fn();
+        const { localBrowser } = createBrowserFactoriesForTest({
+          launchLocalBrowser: async () => ({ cdpUrl: "http://127.0.0.1:9222", close: closeSource }),
+          connectCdp: async () => fakeCdpClient(vi.fn(), unresponsive()),
+        });
+        const browser = await localBrowser.launch();
+
+        const closing = browser.close();
+        await vi.advanceTimersByTimeAsync(5_000);
+        await closing;
+
+        expect(closeSource).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("reports the timeout for a connected browser", async () => {
+      vi.useFakeTimers();
+      try {
+        const { localBrowser } = createBrowserFactoriesForTest({
+          connectCdp: async () => fakeCdpClient(vi.fn(), unresponsive()),
+        });
+        const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+
+        const closing = expect(browser.close()).rejects.toThrow("did not respond within 5000 ms");
+        await vi.advanceTimersByTimeAsync(5_000);
+        await closing;
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("exposes the CDP URL of local browsers only", async () => {
