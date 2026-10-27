@@ -347,6 +347,8 @@ export class StagehandRuntime {
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private browserSessionCdpUrl?: string;
+  /** Bumped whenever B is replaced or dropped; a connect that finishes late checks it. */
+  private browserConnectionGeneration = 0;
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -369,6 +371,7 @@ export class StagehandRuntime {
     bootstrapLogger?: StagehandLogger,
   ): Promise<void> {
     const { cdpUrl } = params;
+    const generation = ++this.browserConnectionGeneration;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
     this.browserSessionCdpUrl = undefined;
@@ -378,15 +381,24 @@ export class StagehandRuntime {
     await previousSession?.close();
 
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(
+      const session = await this.adapters.browserSessionFactory(
         cdpUrl,
         this.logger,
         bootstrapLogger,
       );
+      if (generation !== this.browserConnectionGeneration) {
+        // Dropped (or replaced) while connecting: never install a connection nobody owns.
+        await session.close();
+        throw new Error("Stagehand browser connection was dropped while connecting");
+      }
+      this.browserSession = session;
       this.browserSessionCdpUrl = cdpUrl;
     } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
+      // A newer connection may already be installed; only clean up this attempt's state.
+      if (generation === this.browserConnectionGeneration) {
+        await this.browserSession?.close();
+        this.browserSession = undefined;
+      }
       throw error;
     }
   }
@@ -396,6 +408,8 @@ export class StagehandRuntime {
    * queue: a lost client must not wait behind lifecycle work that needs that client.
    */
   async dropBrowserConnection(): Promise<void> {
+    // Invalidates a connection still being opened, so it closes instead of being installed.
+    this.browserConnectionGeneration += 1;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.browserSessionCdpUrl = undefined;

@@ -1130,7 +1130,7 @@ Select the `stagehand-extension` folder in **Load unpacked**. To attach Stagehan
 
 ### Keep alive
 
-Keep-alive decides whether a launched browser survives after your client disconnects or exits, so you can reconnect to it later. `stagehand.close()` only ends the Stagehand instance and never closes the browser, with or without keep-alive. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
+Keep-alive decides whether a launched browser survives when your client goes away without closing it: when your process exits or loses its connection, and on Browserbase also after `browser.disconnect()`. That lets you reconnect to it later. `stagehand.close()` only ends the Stagehand instance and never closes the browser, with or without keep-alive. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
 
 <Note>
 Keeping sessions alive is available on the Browserbase Startup plan and above.
