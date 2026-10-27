@@ -44,6 +44,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!python/**"],
       "outputs": ["dist/**"]
     },
+    "stagehand-middleware#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/eve#build": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -109,18 +114,6 @@
       "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/src/stagehand/_generated/**"],
       "outputs": ["packages/sdk-python/src/stagehand/_generated/**"]
     },
-    "//#generate:go": {
-      "dependsOn": [
-        "@browserbasehq/stagehand-protocol#build",
-        "@browserbasehq/stagehand-extension#build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!packages/sdk-go/models.gen.go",
-        "!packages/sdk-go/internal/extensionassets/**"
-      ],
-      "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
-    },
     "//#build:wheel": {
       "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-extension#build"],
       "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/dist/**"],
@@ -145,6 +138,10 @@
     "@browserbasehq/stagehand-integrations#typecheck": {
       "dependsOn": ["^build"]
     },
+    "stagehand-middleware#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"]
+    },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -165,6 +162,18 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "stagehand-middleware#test:unit": {
+      "dependsOn": ["^build", "stagehand-middleware#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "$TURBO_ROOT$/packages/integrations/core/python/pyproject.toml",
+        "$TURBO_ROOT$/packages/integrations/core/python/src/stagehand_middleware/facade/_bundle.json"
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#test:unit": {
@@ -408,7 +417,6 @@
         "tests/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/protocol/**",
-        "$TURBO_ROOT$/packages/sdk-go/*.go",
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
