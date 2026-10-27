@@ -767,7 +767,7 @@ If the connection drops without `disconnect()`, for example because your process
 - Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.
 - On Browserbase, the extension releases the instance and its own connection, and the session follows its `keepAlive` setting: with `keepAlive: true` it keeps running and you can connect again; otherwise Browserbase ends it.
 
-Stagehand requires Chrome 137 or later for this. If the browser runs an older Stagehand extension, Stagehand warns once when it connects and doesn't watch for a lost connection: a launched browser can outlive your process, and an abandoned Stagehand instance can block a new client from initializing.
+This requires Chrome 137 or later. Stagehand also rejects a browser whose Stagehand extension is older than your SDK, for example a Browserbase session launched by an earlier SDK version: launch a new session, or connect with the SDK version that launched it.
 
 Only one Stagehand client can be attached to a browser at a time. Connecting a second client while the first is still connected fails with `A Stagehand client is already connected`.
 

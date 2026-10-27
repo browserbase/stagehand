@@ -651,10 +651,9 @@ describe("client lifecycle registration", () => {
     },
   );
 
-  it("closes the marker and arms no watchdog when the extension predates it", async () => {
-    const { client, calls, register } = lifecycleClient({ targetType: "other", attach: false });
-    await register();
-    await client.detachClient();
+  it("closes the marker and rejects an extension without watchdog support", async () => {
+    const { calls, register } = lifecycleClient({ targetType: "other", attach: false });
+    await expect(register()).rejects.toThrow("does not support the client watchdog");
     expect(calls).toEqual([
       "Target.createTarget",
       "Target.getTargetInfo",

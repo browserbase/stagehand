@@ -1035,11 +1035,11 @@ async def test_client_registration_requires_chrome_137_for_hidden_targets(
 
 
 @pytest.mark.asyncio
-async def test_client_registration_skips_an_extension_without_lifecycle_support() -> None:
+async def test_client_registration_rejects_an_extension_without_lifecycle_support() -> None:
     client, calls = _lifecycle_client("other", attach=False)
     try:
-        await client._register_client(True, "ws://browser")
-        await client.detach_client()
+        with pytest.raises(RuntimeError, match="does not support the client watchdog"):
+            await client._register_client(True, "ws://browser")
         assert calls == [
             "Target.createTarget",
             "Target.getTargetInfo",

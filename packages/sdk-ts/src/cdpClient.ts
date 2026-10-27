@@ -223,16 +223,6 @@ export class CDPConnectionClosedError extends Error {
 }
 
 const CLIENT_TARGET_URL = "about:blank#stagehand-client-connection";
-let clientWatchdogWarned = false;
-
-function warnClientWatchdogUnavailable(): void {
-  if (clientWatchdogWarned) return;
-  clientWatchdogWarned = true;
-  process.emitWarning(
-    "Stagehand cannot watch for a lost connection because the Stagehand extension in this browser predates it; a browser it launched keeps running if this process exits unexpectedly.",
-    { code: "STAGEHAND_CLIENT_WATCHDOG_UNAVAILABLE" },
-  );
-}
 
 export class CDPClient {
   onmessage?: (message: unknown) => void | Promise<void>;
@@ -490,9 +480,11 @@ export class CDPClient {
       signal,
     );
     if (!supported) {
+      // The protocol handshake already rejects older extensions; this one is inconsistent.
       await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
-      warnClientWatchdogUnavailable();
-      return;
+      throw new Error(
+        "The Stagehand extension in this browser does not support the client watchdog; update the extension",
+      );
     }
     this.clientTargetId = targetId;
   }

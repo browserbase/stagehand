@@ -5,7 +5,6 @@ import json
 import logging
 import re
 import time
-import warnings
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -241,21 +240,6 @@ class CDPConnectionClosedError(RuntimeError):
 
 
 _CLIENT_TARGET_URL = "about:blank#stagehand-client-connection"
-_client_watchdog_warned = False
-
-
-def _warn_client_watchdog_unavailable() -> None:
-    global _client_watchdog_warned
-    if _client_watchdog_warned:
-        return
-    _client_watchdog_warned = True
-    warnings.warn(
-        "Stagehand cannot watch for a lost connection because the Stagehand extension in "
-        "this browser predates it; a browser it launched keeps running if this process "
-        "exits unexpectedly.",
-        RuntimeWarning,
-        stacklevel=2,
-    )
 
 
 class CDPClient:
@@ -401,9 +385,13 @@ class CDPClient:
             "cdpUrl": cdp_url,
             "closeBrowserOnDisconnect": close_browser_on_disconnect,
         }):
+            # The protocol handshake already rejects older extensions; this one is
+            # inconsistent.
             await self.send_command("Target.closeTarget", {"targetId": target_id})
-            _warn_client_watchdog_unavailable()
-            return
+            raise RuntimeError(
+                "The Stagehand extension in this browser does not support the client "
+                "watchdog; update the extension"
+            )
         self._client_target_id = target_id
 
     async def detach_client(self) -> None:
