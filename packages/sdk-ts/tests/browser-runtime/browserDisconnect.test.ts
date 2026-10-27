@@ -24,7 +24,7 @@ it("disconnect() leaves a connected Chrome running with its pages", async () => 
 
     await browser.disconnect();
     expect(browser.closed).toBe(true);
-    await browser.close();
+    await expect(browser.close()).rejects.toThrow("connect() again to close it");
 
     const endpoint = new URL(chrome.cdpUrl);
     const version = await fetch(`http://${endpoint.host}/json/version`);

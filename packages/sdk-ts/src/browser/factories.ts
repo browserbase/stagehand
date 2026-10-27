@@ -300,13 +300,16 @@ async function connectBrowser(options: {
     };
     const close = async () => {
       try {
-        if (options.provider === "local" && options.origin === "connected") {
+        if (options.provider === "local") {
           try {
             await connectedClient.sendCommand("Browser.close");
           } catch (error) {
             if (!(error instanceof CDPConnectionClosedError)) throw error;
           }
-        } else {
+        }
+        // A launched local browser is also terminated if Browser.close left it running,
+        // and its profile removed unless preserved; a Browserbase session is released.
+        if (options.provider === "browserbase" || options.origin === "launched") {
           await closeSource(options.source);
         }
       } finally {
@@ -317,6 +320,7 @@ async function connectBrowser(options: {
       provider: options.provider,
       origin: options.origin,
       sessionId: options.workerInitMetadata.browser?.sessionId,
+      cdpUrl: options.provider === "local" ? options.source.cdpUrl : undefined,
       attachment: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
@@ -326,9 +330,11 @@ async function connectBrowser(options: {
       // Never closes the browser or releases its session. Browserbase still ends a
       // session without keepAlive once this connection closes.
       disconnect: () => connectedClient.close(),
-      // close() after disconnect(): release a browser or session Stagehand launched,
-      // never one it connected to.
-      releaseOwned: options.origin === "launched" ? () => closeSource(options.source) : undefined,
+      connected: () => !connectedClient.closed,
+      // After an unexpected loss, a Browserbase session can still be released over its
+      // API; a local browser is left alone.
+      closeWithoutConnection:
+        options.provider === "browserbase" ? () => closeSource(options.source) : undefined,
     });
   } catch (error) {
     cdpClient?.close();

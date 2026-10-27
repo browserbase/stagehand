@@ -80,6 +80,7 @@ class _Transport:
     def __init__(self, web_socket_debugger_url: str | None = "ws://browser") -> None:
         self.web_socket_debugger_url = web_socket_debugger_url
         self.close_calls = 0
+        self.closed = False
 
     async def close(self) -> None:
         self.close_calls += 1

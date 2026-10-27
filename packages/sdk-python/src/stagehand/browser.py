@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import errno
 import json
 import math
@@ -125,6 +124,9 @@ class _ChromeProfile:
     remove: bool
 
 
+_BROWSER_DISCONNECTED_MESSAGE = "The browser is disconnected; connect() again to close it"
+
+
 class StagehandBrowser:
     __slots__ = (
         "_attachment",
@@ -133,7 +135,9 @@ class StagehandBrowser:
         "_close_callback",
         "_disconnect_callback",
         "_invalidate_callback",
-        "_release_owned_callback",
+        "_connected",
+        "_close_without_connection",
+        "_cdp_url",
         "_state",
         "_disconnect_task",
         "_close_task",
@@ -152,8 +156,10 @@ class StagehandBrowser:
         *,
         invalidate: Callable[[], Awaitable[None]] | None = None,
         disconnect: Callable[[], Awaitable[None]] | None = None,
-        release_owned: Callable[[], Awaitable[None]] | None = None,
+        connected: Callable[[], bool] | None = None,
+        close_without_connection: Callable[[], Awaitable[None]] | None = None,
         session_id: str | None = None,
+        cdp_url: str | None = None,
         _token: object | None = None,
     ) -> None:
         if _token is not _BROWSER_TOKEN:
@@ -164,8 +170,10 @@ class StagehandBrowser:
         self._close_callback = close
         self._invalidate_callback = invalidate or close
         self._disconnect_callback = disconnect or _noop
-        # close() after disconnect() releases what Stagehand owns, without the connection.
-        self._release_owned_callback = release_owned or _noop
+        self._connected = connected or (lambda: True)
+        # What close() does after an unexpectedly lost connection.
+        self._close_without_connection = close_without_connection or _noop
+        self._cdp_url = cdp_url
         self._claimed = False
         self._state: Literal["open", "disconnected", "closed"] = "open"
         self._disconnect_task: asyncio.Task[None] | None = None
@@ -189,8 +197,14 @@ class StagehandBrowser:
         return self._session_id
 
     @property
+    def cdp_url(self) -> str | None:
+        """CDP URL to reconnect with local_browser.connect(); None for Browserbase browsers."""
+        return self._cdp_url
+
+    @property
     def closed(self) -> bool:
-        return self._state != "open"
+        """True once the handle is closed, disconnected, or has lost its connection."""
+        return self._state != "open" or not self._connected()
 
     @property
     def context(self) -> BrowserContext:
@@ -202,33 +216,37 @@ class StagehandBrowser:
         return self._context
 
     def close(self) -> Awaitable[None]:
+        """Close the browser.
+
+        A local browser receives ``Browser.close`` (a launched one is also terminated if
+        it keeps running, and its temporary profile removed unless preserved), and a
+        Browserbase session is released. After ``disconnect()`` it raises: ``connect()``
+        again to close the browser. After an unexpectedly lost connection it still
+        releases a Browserbase session and does nothing for a local browser. Repeated
+        ``close()`` calls do nothing.
+        """
         if self._close_task is None:
-            if self._state == "disconnected" and self._disconnect_task is not None:
-                self._close_task = asyncio.create_task(
-                    _release_after_disconnect(self._disconnect_task, self._release_owned_callback),
-                    name="stagehand-browser-close",
-                )
-            else:
-                self._close_task = asyncio.create_task(
-                    _run_browser_terminal_callback(self._close_callback),
-                    name="stagehand-browser-close",
-                )
+            if self._state == "disconnected":
+                raise RuntimeError(_BROWSER_DISCONNECTED_MESSAGE)
+            self._close_task = asyncio.create_task(
+                _run_browser_terminal_callback(
+                    self._close_callback if self._connected() else self._close_without_connection
+                ),
+                name="stagehand-browser-close",
+            )
             self._state = "closed"
         return asyncio.shield(self._close_task)
 
     def disconnect(self) -> Awaitable[None]:
-        """Close Stagehand's connection to the browser without closing the browser.
+        """Close the attached Stagehand instance, then Stagehand's connection.
 
-        It first closes an attached Stagehand instance, including the extension's own
-        connection to the browser, so a later ``connect()`` can create a new instance.
-
-        Unlike ``close()``, Stagehand never closes the browser or releases its Browserbase
-        session. Browserbase still ends a session without ``keep_alive`` when its CDP
-        connection closes, so only ``keep_alive`` sessions survive a disconnect. The
-        handle cannot be attached again. A later ``close()`` still releases what
-        Stagehand launched (the local Chrome process and profile, or the Browserbase
-        session) and does nothing for a browser you connected to; repeated
-        ``disconnect()`` calls, or ``disconnect()`` after ``close()``, do nothing.
+        The attached instance closes first, including the extension's own connection to
+        the browser. The browser keeps running: Stagehand never closes it or releases its
+        Browserbase session here. Browserbase still ends a session without
+        ``keep_alive`` when its CDP connection closes, so only ``keep_alive`` sessions
+        survive a disconnect. The handle is finished afterwards: ``connect()`` again for
+        a new one. Repeated ``disconnect()`` calls, or ``disconnect()`` after
+        ``close()``, do nothing.
         """
         if self._state == "closed" and self._close_task is not None:
             return asyncio.shield(self._close_task)
@@ -289,15 +307,6 @@ async def _disconnect_after_closing_stagehand(
             await close_stagehand()
     finally:
         await disconnect()
-
-
-async def _release_after_disconnect(
-    disconnected: asyncio.Task[None], release_owned: Callable[[], Awaitable[None]]
-) -> None:
-    # The connection is already closing; a failure there must not skip the release.
-    with contextlib.suppress(Exception):
-        await asyncio.shield(disconnected)
-    await release_owned()
 
 
 def _attach_browser_context(
@@ -442,12 +451,15 @@ async def _connect_browser(
     async def close() -> None:
         errors: list[BaseException] = []
         try:
-            if provider == "local" and origin == "connected":
+            if provider == "local":
                 try:
                     await connected_client.send_command("Browser.close")
                 except CDPConnectionClosedError:
                     pass
-            else:
+            # A launched local browser is also terminated if Browser.close left it
+            # running, and its profile removed unless preserved; a Browserbase session
+            # is released.
+            if provider == "browserbase" or origin == "launched":
                 await source.close()
         except BaseException as error:
             errors.append(error)
@@ -472,9 +484,11 @@ async def _connect_browser(
         # Never closes the browser or releases its session. Browserbase still ends a
         # session without keep_alive once this connection closes.
         disconnect=connected_client.close,
-        # close() after disconnect(): release a browser or session Stagehand launched,
-        # never one it connected to.
-        release_owned=source.close if origin == "launched" else None,
+        connected=lambda: not connected_client.closed,
+        # After an unexpected loss, a Browserbase session can still be released over its
+        # API; a local browser is left alone.
+        close_without_connection=source.close if provider == "browserbase" else None,
+        cdp_url=source.cdp_url if provider == "local" else None,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
         ),

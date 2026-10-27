@@ -40,22 +40,29 @@ export interface StagehandBrowser {
   readonly origin: StagehandBrowserOrigin;
   /** Browserbase session id backing this browser; undefined for local browsers. */
   readonly sessionId?: string;
+  /** CDP URL to reconnect with localBrowser.connect(); undefined for Browserbase browsers. */
+  readonly cdpUrl?: string;
   readonly context: BrowserContext;
+  /** True once the handle is closed, disconnected, or has lost its connection. */
   readonly closed: boolean;
+  /**
+   * Closes the browser: a local browser receives Browser.close (a launched one is also terminated if it keeps running, and its
+   * temporary profile removed unless preserved), and a Browserbase session is released.
+   *
+   * After disconnect() it rejects: connect() again to close the browser. After an
+   * unexpectedly lost connection it still releases a Browserbase session and does
+   * nothing for a local browser. Repeated close() calls do nothing.
+   */
   close(): Promise<void>;
   /**
-   * Closes Stagehand's connection to the browser without closing the browser.
+   * Closes the attached Stagehand instance, including the extension's own connection
+   * to the browser, then Stagehand's connection. The browser keeps running.
    *
-   * It first closes an attached Stagehand instance, including the extension's own
-   * connection to the browser, so a later connect() can create a new instance.
-   *
-   * Unlike close(), Stagehand never closes the browser or releases its Browserbase
-   * session. Browserbase still ends a session without keepAlive when its CDP
-   * connection closes, so only keepAlive sessions survive a disconnect. The
-   * handle cannot be attached again. A later close() still releases what
-   * Stagehand launched (the local Chrome process and profile, or the Browserbase
-   * session) and does nothing for a browser you connected to; repeated
-   * disconnect() calls, or disconnect() after close(), do nothing.
+   * Stagehand never closes the browser or releases its Browserbase session here.
+   * Browserbase still ends a session without keepAlive when its CDP connection
+   * closes, so only keepAlive sessions survive a disconnect. The handle is finished
+   * afterwards: connect() again for a new one. Repeated disconnect() calls, or
+   * disconnect() after close(), do nothing.
    */
   disconnect(): Promise<void>;
 }
@@ -81,8 +88,9 @@ type BrowserHandleInternals = {
   close: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
   disconnect: () => Promise<void> | void;
-  /** Releases what Stagehand owns without the connection: close() after disconnect(). */
-  releaseOwned: () => Promise<void> | void;
+  connected: () => boolean;
+  /** What close() does after an unexpectedly lost connection. */
+  closeWithoutConnection: () => Promise<void> | void;
   state: "open" | "disconnected" | "closed";
   disconnectPromise?: Promise<void>;
   closePromise?: Promise<void>;
@@ -98,13 +106,14 @@ class StagehandBrowserHandle implements StagehandBrowser {
     readonly origin: StagehandBrowserOrigin,
     internals: BrowserHandleInternals,
     readonly sessionId?: string,
+    readonly cdpUrl?: string,
   ) {
     browserHandleInternals.set(this, internals);
   }
 
   get closed(): boolean {
-    const state = browserHandleInternals.get(this)?.state;
-    return state !== undefined && state !== "open";
+    const internals = browserHandleInternals.get(this);
+    return internals !== undefined && (internals.state !== "open" || !internals.connected());
   }
 
   get context(): BrowserContext {
@@ -119,19 +128,20 @@ class StagehandBrowserHandle implements StagehandBrowser {
 
   close(): Promise<void> {
     const internals = requireBrowserHandleInternals(this);
-    if (!internals.closePromise) {
-      const after = internals.state === "disconnected" ? internals.disconnectPromise : undefined;
-      internals.state = "closed";
-      internals.closePromise = after
-        ? after.catch(() => undefined).then(internals.releaseOwned)
-        : Promise.resolve().then(internals.close);
+    if (internals.closePromise) return internals.closePromise;
+    if (internals.state === "disconnected") {
+      return Promise.reject(new Error(BROWSER_DISCONNECTED_MESSAGE));
     }
+    internals.state = "closed";
+    internals.closePromise = Promise.resolve().then(
+      internals.connected() ? internals.close : internals.closeWithoutConnection,
+    );
     return internals.closePromise;
   }
 
   disconnect(): Promise<void> {
     const internals = requireBrowserHandleInternals(this);
-    if (internals.state === "closed" && internals.closePromise) return internals.closePromise;
+    if (internals.closePromise) return internals.closePromise;
     if (!internals.disconnectPromise) {
       internals.state = "disconnected";
       const closeStagehand = internals.closeStagehand;
@@ -147,6 +157,8 @@ class StagehandBrowserHandle implements StagehandBrowser {
   }
 }
 
+const BROWSER_DISCONNECTED_MESSAGE = "The browser is disconnected; connect() again to close it";
+
 /** @internal */
 export function createStagehandBrowserHandle<Attachment>(options: {
   provider: StagehandBrowserProvider;
@@ -156,9 +168,12 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   invalidate?: () => Promise<void> | void;
   /** Closes only the connection; defaults to doing nothing. */
   disconnect?: () => Promise<void> | void;
-  /** What close() after disconnect() releases; defaults to doing nothing. */
-  releaseOwned?: () => Promise<void> | void;
+  /** Whether the connection is still open; defaults to true. */
+  connected?: () => boolean;
+  /** What close() does after an unexpectedly lost connection; defaults to doing nothing. */
+  closeWithoutConnection?: () => Promise<void> | void;
   sessionId?: string;
+  cdpUrl?: string;
 }): StagehandBrowser {
   return new StagehandBrowserHandle(
     options.provider,
@@ -169,17 +184,19 @@ export function createStagehandBrowserHandle<Attachment>(options: {
       close: options.close,
       invalidate: options.invalidate ?? options.close,
       disconnect: options.disconnect ?? (() => undefined),
-      releaseOwned: options.releaseOwned ?? (() => undefined),
+      connected: options.connected ?? (() => true),
+      closeWithoutConnection: options.closeWithoutConnection ?? (() => undefined),
       state: "open",
     },
     options.sessionId,
+    options.cdpUrl,
   );
 }
 
 /** @internal */
 export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowser): Attachment {
   const internals = requireBrowserHandleInternals(browser);
-  if (internals.state !== "open") {
+  if (internals.state !== "open" || !internals.connected()) {
     throw new Error("Cannot attach Stagehand to a closed browser");
   }
   if (internals.claimed) {

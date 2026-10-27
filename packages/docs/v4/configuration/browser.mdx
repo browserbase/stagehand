@@ -752,16 +752,16 @@ stagehand = await Stagehand.create(browser=browser)
 </Tab>
 </Tabs>
 
-After `disconnect()` you can't reattach the handle itself, so call `connect()` again for a new one, and repeated `disconnect()` calls do nothing. A local browser Stagehand launched keeps running too, as does a Browserbase session with `keepAlive: true`. Call `browser.close()` later to release it: that kills the local Chrome process and removes its temporary profile, or ends the Browserbase session. For a browser you connected to, `close()` after `disconnect()` does nothing.
+After `disconnect()` the handle is finished: repeated `disconnect()` calls do nothing, and `browser.close()` throws because the connection is gone. To close the browser later, connect again and close the new handle. Use `browser.cdpUrl` (`browser.cdp_url` in Python) for a local browser, or `browser.sessionId` (`browser.session_id`) for a Browserbase session.
 
-| Browser | After `browser.disconnect()` | Later `browser.close()` |
+| Browser | After `browser.disconnect()` | To close it later |
 | --- | --- | --- |
-| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
-| **Local, `connect()`** | Browser keeps running | Does nothing |
-| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until its timeout | Ends the session |
-| **Browserbase, `launch()`, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to release |
-| **Browserbase, `connect()`, session has `keepAlive: true`** | Session keeps running until its timeout | Does nothing |
-| **Browserbase, `connect()`, session has `keepAlive: false`** | **Browserbase ends the session** | Does nothing |
+| **Local, `launch()`** | Chrome keeps running | `localBrowser.connect({ cdpUrl })`, then `close()`. The temporary profile stays on disk |
+| **Local, `connect()`** | Browser keeps running | `localBrowser.connect({ cdpUrl })`, then `close()` |
+| **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ sessionId })`, then `close()` |
+| **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
+
+If the connection drops without `disconnect()`, `browser.close()` still releases a Browserbase session through the Browserbase API and does nothing for a local browser.
 
 ## Local environment
 
@@ -1243,11 +1243,11 @@ With `keepAlive: false` (the default), Browserbase ends the session when **any**
 
 | Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
 | --- | --- | --- | --- |
-| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until `browser.close()` or its timeout |
+| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until its timeout |
 | **Browserbase, `launch()`, `keepAlive: false`** | Session keeps running while the connection stays open | Ends the session | **Browserbase ends the session** |
-| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile | Chrome keeps running until `browser.close()` |
-| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running only if it has `keepAlive: true`; a later `browser.close()` does nothing |
-| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running; a later `browser.close()` does nothing |
+| **Local, `launch()`** | Chrome keeps running | Closes Chrome and removes the temp profile, unless `preserveUserDataDir` is set | Chrome keeps running |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running only if it has `keepAlive: true` |
+| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running |
 
 #### Local environment
 

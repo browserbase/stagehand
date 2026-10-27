@@ -39,7 +39,8 @@ async def test_disconnect_leaves_a_connected_chrome_running_with_its_pages() -> 
 
             await browser.disconnect()
             assert browser.closed is True
-            await browser.close()
+            with pytest.raises(RuntimeError, match=r"connect\(\) again to close it"):
+                await browser.close()
 
             host = urlparse(chrome.cdp_url).netloc
             version = await asyncio.to_thread(_get_json, f"http://{host}/json/version")
