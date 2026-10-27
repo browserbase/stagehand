@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - packages/integrations/*
+  - packages/examples/cookbooks/*/typescript
 
 catalogMode: prefer
 

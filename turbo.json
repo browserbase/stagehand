@@ -288,6 +288,21 @@
     "@browserbasehq/stagehand-examples#typecheck": {
       "dependsOn": ["^build"]
     },
+    "stagehand-cookbook-ai-sdk-research-agent#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-approve-form-submission#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-files-to-bucket#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-paginated-catalog#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-persisted-login#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
       "dependsOn": ["^build"]
     },
