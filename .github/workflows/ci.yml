@@ -39,7 +39,6 @@ jobs:
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
       integrations-python: ${{ steps.filter.outputs.integrations-python }}
-      sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -86,11 +85,6 @@ jobs:
               - 'packages/integrations/core/src/facade/**'
               - 'packages/integrations/core/scripts/**'
               - 'packages/sdk-python/**'
-              - '.github/**'
-            sdk-go:
-              - 'packages/sdk-go/**'
-              - 'packages/extension/**'
-              - 'packages/protocol/**'
               - '.github/**'
 
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
@@ -163,8 +157,8 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      # Run directly on every PR, including docs-only and Python/Go-only changes.
-      # The checked-out SDK and docs must describe the same API on either branch.
+      # Run directly on every PR, including docs-only and Python-only changes.
+      # The checked-out TypeScript/Python SDKs and docs must describe the same API.
       - run: pnpm --filter ./packages/protocol build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm --filter ./packages/docs test:unit
@@ -195,12 +189,6 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: "1.26.x"
-          cache-dependency-path: packages/sdk-go/internal/generator/go.sum
-
       # Keep the legacy build command here so the generated protocol drift check
       # still compares freshly generated output with the committed schema.
       - run: pnpm build
@@ -218,20 +206,6 @@ jobs:
         working-directory: packages/sdk-python
       - run: uv run --locked ty check
         working-directory: packages/sdk-python
-      - run: go -C internal/generator mod download
-        working-directory: packages/sdk-go
-      - run: go -C internal/generator run . --check
-        working-directory: packages/sdk-go
-      - name: Check Go formatting
-        run: test -z "$(gofmt -l $(find . -name '*.go' -type f))"
-        working-directory: packages/sdk-go
-      - run: go vet $(go list ./... | grep -v '/examples$')
-        working-directory: packages/sdk-go
-      - run: go -C internal/generator vet ./...
-        working-directory: packages/sdk-go
-      - name: Check Go examples
-        run: sh scripts/check-examples.sh
-        working-directory: packages/sdk-go
 
   cancel-after-check-failure:
     name: Cancel after check failure
@@ -432,7 +406,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
 
       - name: Check the vendored facade bundle
         run: node scripts/sync-python-facade-bundle.mjs --check
@@ -501,73 +475,6 @@ jobs:
           python scripts/smoke.py
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-
-  extension-drift:
-    name: Extension drift (Go embed vs extension build)
-    # Same fork gate as go-windows: installs dependencies and builds the extension, so it should
-    # not burn hosted-runner time on an unreviewed fork PR. safe-to-test lets a maintainer opt
-    # a specific external PR in.
-    if: >-
-      needs.determine-changes.outputs.sdk-go == 'true' &&
-      (needs.determine-changes.outputs.is_internal_head == 'true' ||
-       contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [build, determine-changes]
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: ./.github/actions/setup-node-pnpm
-        with:
-          use-prebuilt-artifacts: "true"
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: "1.26.x"
-          cache: false
-
-      - run: pnpm --filter ./packages/extension build
-
-      # packages/sdk-go/internal/extensionassets/stagehand-extension.zip is committed and
-      # go:embed'd, so Go tests and releases use it without ever building the extension. Without
-      # this gate a change to the extension source ships a stale embedded copy while CI is green.
-      - name: Check embedded Go extension matches the built extension
-        run: go run ./internal/extensionpack --check
-        working-directory: packages/sdk-go
-
-  go-checks:
-    name: Go checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [extension-drift, determine-changes]
-    # extension-drift is fork-gated, so it is *skipped* rather than failed on external PRs.
-    # A skipped dependency skips its dependents by default, which would silently stop running
-    # the Go suite on fork PRs. Run unless the drift check actually failed.
-    if: >-
-      !cancelled() &&
-      needs.extension-drift.result != 'failure' &&
-      needs.determine-changes.outputs.sdk-go == 'true'
-    defaults:
-      run:
-        working-directory: packages/sdk-go
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: "1.26.x"
-          cache-dependency-path: packages/sdk-go/internal/generator/go.sum
-
-      - run: go test $(go list ./... | grep -v '/examples$')
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-      - run: go -C internal/generator test ./...
-      - run: go build $(go list ./... | grep -v '/examples$')
 
   discover-integration:
     name: Discover integration tests
@@ -649,8 +556,7 @@ jobs:
           needs.determine-changes.outputs.evals == 'false' &&
           needs.determine-changes.outputs.extension == 'false' &&
           needs.determine-changes.outputs.sdk-ts == 'false' &&
-          needs.determine-changes.outputs.sdk-python == 'false' &&
-          needs.determine-changes.outputs.sdk-go == 'false')
+          needs.determine-changes.outputs.sdk-python == 'false')
       }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -754,28 +660,3 @@ jobs:
         if: always()
         with:
           name: coverage/evals/regression
-
-  go-windows:
-    name: Go (Windows process management)
-    needs: [determine-changes]
-    if: >-
-      needs.determine-changes.outputs.is_internal_head == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: packages/sdk-go
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: "1.26.x"
-          cache: false
-
-      - name: Test Windows process management
-        run: >-
-          go test
-          -run 'TestConfigureChromeProcessUsesDedicatedProcessGroupWindows|TestTaskkillArgsPreserveGracefulThenForcefulShutdown|TestIgnoreFinishedProcessErrorWindows'
-          .

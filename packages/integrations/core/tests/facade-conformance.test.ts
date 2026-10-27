@@ -20,7 +20,7 @@ type ConformanceCall =
   | { tool: "screenshot"; fullPage?: boolean; type?: "png" | "jpeg"; quality?: number };
 
 type ExpectedError = {
-  kind: "input" | "invalid" | "execution" | "batch" | "syntax";
+  kind: "input" | "invalid" | "execution" | "batch" | "sdk" | "syntax";
   name?: string;
   message?: string;
   contractError?: string;
@@ -46,9 +46,21 @@ type ConformanceCase = {
     snapshot?: { formattedTree: string; xpathMap: Record<string, string> };
     screenshot?: string;
   };
+  context?: {
+    pages?: {
+      id: string;
+      snapshot?: { formattedTree: string; xpathMap: Record<string, string> };
+    }[];
+    activePage?: string | null | { throw: { name: string; message: string } };
+  };
   fs?: ({ dir: string } | { file: string; base64: string } | { symlink: string; target: string })[];
   steps: ConformanceStep[];
-  expect?: { closed?: boolean; tree?: string[]; files?: Record<string, string | { size: number }> };
+  expect?: {
+    closed?: boolean;
+    tree?: string[];
+    files?: Record<string, string | { size: number }>;
+    context?: { newPages: number; setActivePage: string[] };
+  };
 };
 
 const { sources, contract } = facadeBundle("conformance");
@@ -94,20 +106,38 @@ function createFakeStagehand(testCase: ConformanceCase, sandbox: string) {
   };
   let scripted: ConformanceStep["batch"] = [];
   const sent: Json[] = [];
-  const page = {
-    pageId: "page-1",
+  const makePage = (pageId: string, ownSnapshot?: typeof state.snapshot) => ({
+    pageId,
     url: async () => state.url,
-    snapshot: async () => state.snapshot,
+    snapshot: async () => ownSnapshot ?? state.snapshot,
     screenshot: async (options: Record<string, Json>) => {
       state.screenshotOptions = options;
       return Buffer.from(testCase.page?.screenshot ?? "", "base64");
     },
-  };
+  });
+  const pages = testCase.context?.pages?.map((entry) => makePage(entry.id, entry.snapshot)) ?? [
+    makePage("page-1"),
+  ];
+  const contextCalls = { newPages: 0, setActivePage: [] as string[] };
+  const active = testCase.context?.activePage;
   const context = {
-    activePage: async () => page,
-    pages: async () => [page],
-    newPage: async () => page,
-    setActivePage: async () => undefined,
+    activePage: async () => {
+      if (active === null) return undefined;
+      if (typeof active === "object") {
+        throw Object.assign(new Error(active.throw.message), { name: active.throw.name });
+      }
+      return active === undefined ? pages[0] : pages.find((page) => page.pageId === active);
+    },
+    pages: async () => [...pages],
+    newPage: async () => {
+      contextCalls.newPages += 1;
+      const page = makePage(`new-page-${contextCalls.newPages}`);
+      pages.push(page);
+      return page;
+    },
+    setActivePage: async (page: { pageId: string }) => {
+      contextCalls.setActivePage.push(page.pageId);
+    },
   };
   const stagehand = {
     browser: { context, close: vi.fn(async () => undefined) },
@@ -127,6 +157,7 @@ function createFakeStagehand(testCase: ConformanceCase, sandbox: string) {
     close: stagehand.close,
     state,
     sent,
+    contextCalls,
     script(batch: ConformanceStep["batch"]) {
       scripted = [...batch];
       sent.length = 0;
@@ -170,6 +201,7 @@ function expectError(actual: unknown, expected: ExpectedError): void {
       expect(error.facadeExecutionError).toBe(true);
       break;
     case "batch":
+    case "sdk":
       expect(error).not.toBeInstanceOf(StagehandFacadeInputError);
       expect(error.facadeExecutionError).toBeUndefined();
       break;
@@ -266,6 +298,10 @@ describe("facade conformance (TypeScript host)", () => {
           if (expected.closed !== undefined) {
             expect(fake.close).toHaveBeenCalledTimes(expected.closed ? 1 : 0);
           }
+          if (expected.context !== undefined)
+            expect(fake.contextCalls, `${testCase.name} context calls`).toStrictEqual(
+              expected.context,
+            );
           if (expected.tree !== undefined)
             expect(await listTree(sandbox)).toStrictEqual(expected.tree);
           for (const [file, content] of Object.entries(expected.files ?? {})) {
