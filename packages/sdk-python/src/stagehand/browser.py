@@ -329,6 +329,19 @@ async def _run_browser_terminal_callback(
     await callback()
 
 
+async def _close_stagehand_within(
+    close_stagehand: Callable[[], Awaitable[None]], timeout: float
+) -> None:
+    deadline = asyncio.timeout(timeout)
+    try:
+        async with deadline:
+            await close_stagehand()
+    except TimeoutError:
+        # Only this deadline is expected; a TimeoutError from Stagehand itself is a failure.
+        if not deadline.expired():
+            raise
+
+
 async def _disconnect_after_closing_stagehand(
     close_stagehand: Callable[[], Awaitable[None]] | None,
     disconnect: Callable[[], Awaitable[None]],
@@ -337,8 +350,7 @@ async def _disconnect_after_closing_stagehand(
         if close_stagehand is not None:
             # stagehand.close() waits for in-flight work without a deadline; disconnect()
             # stops waiting and lets go anyway, which also ends that work.
-            with suppress(TimeoutError):
-                await asyncio.wait_for(close_stagehand(), _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS)
+            await _close_stagehand_within(close_stagehand, _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS)
     finally:
         await disconnect()
 
