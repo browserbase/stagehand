@@ -26,6 +26,6 @@ From a full checkout, `just cookbook <slug>` runs an installed TypeScript cookbo
 
 Include a docs page, agent prompt, README, environment template, lockfile, output checks, and cleanup. Core browser jobs support TypeScript and Python. Integration recipes may be TypeScript-only.
 
-Run TypeScript typechecks and available unit tests, Python catalog tests. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
+Run TypeScript typechecks and available unit tests, and Python catalog tests. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
 
 Use Playwright locators for known elements, Stagehand for natural-language actions and extraction, and site-provided WebMCP tools when available. See [model configuration](https://docs.stagehand.dev/v4/configuration/models) and [Functions deployment](https://docs.stagehand.dev/v4/best-practices/deployments) for other setups.

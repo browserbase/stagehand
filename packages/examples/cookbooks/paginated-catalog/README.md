@@ -13,4 +13,4 @@ Rerun with the same source and `OUT_DIR` to resume. A failed run keeps its check
 
 Records are deduplicated by title, price, and availability. Use stable product IDs for catalogs where those fields are not unique. Saved pages retain their earlier values.
 
-Run `pnpm typecheck` and `pnpm test` or `uv run --locked python -m unittest` in the matching folder.
+Run `pnpm typecheck` and `pnpm test` in `typescript/`, or `uv run --locked python -m unittest` in `python/`.
