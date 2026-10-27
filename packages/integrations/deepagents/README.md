@@ -1,7 +1,7 @@
 # Stagehand Deep Agents integration
 
 `StagehandMiddleware` gives a LangChain Deep Agent (or any `create_agent` agent) one stateful
-Stagehand browser through three tools: `browser_run`, `browser_snapshot`, and `browser_screenshot`.
+Stagehand browser through three tools: `run`, `snapshot`, and `screenshot`.
 It also adds the tools' instructions to the system prompt.
 
 ```python
@@ -62,8 +62,7 @@ Browserbase sessions use a 1280 × 720 viewport by default.
 
 ## MCP server
 
-For other MCP clients, `stagehand-deepagents-mcp` serves the same browser over stdio, with the tools
-named `run`, `snapshot`, and `screenshot`. Keep one MCP session open for the browser's lifetime: a
+For other MCP clients, `stagehand-deepagents-mcp` serves the same tools over stdio. Keep one MCP session open for the browser's lifetime: a
 stateless client that starts a new stdio process per call loses the browser and snapshot IDs.
 
 ## Configuration

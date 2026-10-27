@@ -1,9 +1,9 @@
 """Stagehand's browser tools as a LangChain agent middleware.
 
 ``StagehandMiddleware`` gives an agent the facade's ``run``, ``snapshot`` and
-``screenshot`` tools, named ``browser_run`` and so on, and adds the facade's
-instructions to the system prompt. Each thread gets its own browser, launched on the
-thread's first browser call and closed when the agent's run ends.
+``screenshot`` tools and adds the facade's instructions to the system prompt. Each
+thread gets its own browser, launched on the thread's first browser call and closed
+when the agent's run ends.
 """
 
 from __future__ import annotations
@@ -31,16 +31,9 @@ from .runtime import BrowserTools, RuntimeConfig
 
 T = TypeVar("T")
 
-# The facade's text and errors name its tools `run` and so on; ours gain `browser_`.
-_RENAMED = (
-    "These tools are named browser_run, browser_snapshot and browser_screenshot: "
-    "call those wherever this text or an error names run, snapshot or screenshot."
-)
-
 
 class StagehandMiddleware(AgentMiddleware):
-    """Give the agent a Stagehand browser through ``browser_run``, ``browser_snapshot`` and
-    ``browser_screenshot``.
+    """Give the agent a Stagehand browser through ``run``, ``snapshot`` and ``screenshot``.
 
     Args:
         config: Which browser to launch (local Chrome or Browserbase) and how. Defaults
@@ -58,7 +51,7 @@ class StagehandMiddleware(AgentMiddleware):
         self.config = config or RuntimeConfig.from_env()
         self.close_after_run = close_after_run
         self.tools = self._tools()
-        self._instructions = f"{facade_instructions()}\n\n{_RENAMED}"
+        self._instructions = facade_instructions()
         self._browsers: dict[str | None, BrowserTools] = {}
         self._locks: dict[str | None, asyncio.Lock] = {}
 
@@ -104,13 +97,13 @@ class StagehandMiddleware(AgentMiddleware):
                 return f"error: {sanitize_error_message(f'{type(err).__name__}: {err}')}"
 
     def _tools(self) -> list[BaseTool]:
-        """The facade's tools as its hosts advertise them, names prefixed ``browser_``."""
+        """The facade's tools as its hosts advertise them."""
         facade = {entry["name"]: entry for entry in facade_tools()}
 
         def advertised(name: str) -> Callable[[Callable[..., Awaitable[object]]], BaseTool]:
             entry = facade[name]
             return tool(
-                f"browser_{name}",
+                name,
                 description=entry["description"],
                 args_schema=entry["inputSchema"],
             )

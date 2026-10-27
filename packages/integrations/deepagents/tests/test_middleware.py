@@ -78,16 +78,16 @@ async def invoke(
 def test_tools_are_the_facade_surface_prefixed() -> None:
     tools = StagehandMiddleware(RuntimeConfig()).tools
     names = [tool.name for tool in tools]
-    assert names == ["browser_run", "browser_snapshot", "browser_screenshot"]
+    assert names == ["run", "snapshot", "screenshot"]
 
 
 async def test_tools_drive_one_browser_per_run(browsers: list[FakeBrowser]) -> None:
     middleware = StagehandMiddleware(RuntimeConfig())
     results, model = await invoke(
         middleware,
-        ("browser_run", {"code": "return 1"}),
-        ("browser_snapshot", {"includeIframes": False}),
-        ("browser_screenshot", {"type": "png"}),
+        ("run", {"code": "return 1"}),
+        ("snapshot", {"includeIframes": False}),
+        ("screenshot", {"type": "png"}),
     )
     assert len(browsers) == 1
     assert results[0].content == '{"code": "return 1", "actions": null}'
@@ -102,8 +102,8 @@ async def test_tools_drive_one_browser_per_run(browsers: list[FakeBrowser]) -> N
 async def test_errors_go_to_the_model(browsers: list[FakeBrowser]) -> None:
     results, _ = await invoke(
         StagehandMiddleware(RuntimeConfig()),
-        ("browser_run", {"code": "throw"}),
-        ("browser_snapshot", {"include_iframes": True}),
+        ("run", {"code": "throw"}),
+        ("snapshot", {"include_iframes": True}),
     )
     assert results[0].content == "error: TypeError: boom"
     assert results[1].content == "error: unexpected arguments: include_iframes"
@@ -114,16 +114,16 @@ async def test_launch_errors_are_redacted(monkeypatch: pytest.MonkeyPatch) -> No
         raise RuntimeError("wss://connect.browserbase.com?apiKey=bb_live_secretsecret")
 
     monkeypatch.setattr(BrowserTools, "start", staticmethod(start))
-    results, _ = await invoke(StagehandMiddleware(RuntimeConfig()), ("browser_snapshot", {}))
+    results, _ = await invoke(StagehandMiddleware(RuntimeConfig()), ("snapshot", {}))
     assert "secretsecret" not in results[0].content
     assert results[0].content.startswith("error: RuntimeError:")
 
 
 async def test_browser_can_outlive_the_run(browsers: list[FakeBrowser]) -> None:
     middleware = StagehandMiddleware(RuntimeConfig(), close_after_run=False)
-    await invoke(middleware, ("browser_snapshot", {}))
-    await invoke(middleware, ("browser_snapshot", {}))
-    await invoke(middleware, ("browser_snapshot", {}), thread="t2")
+    await invoke(middleware, ("snapshot", {}))
+    await invoke(middleware, ("snapshot", {}))
+    await invoke(middleware, ("snapshot", {}), thread="t2")
     assert len(browsers) == 2  # one per thread
     assert not any(browser.closed for browser in browsers)
     await middleware.aclose()
