@@ -137,6 +137,7 @@ class _ChromeProfile:
 
 
 _BROWSER_CLOSE_TIMEOUT_SECONDS = 5.0
+_DISCONNECT_STAGEHAND_TIMEOUT_SECONDS = 10.0
 _BROWSER_DISCONNECTED_MESSAGE = "The browser is disconnected; connect() again to close it"
 
 
@@ -216,8 +217,17 @@ class StagehandBrowser:
 
     @property
     def closed(self) -> bool:
-        """True once the handle is closed, disconnected, or has lost its connection."""
-        return self._state != "open" or not self._connected()
+        """True once ``close()`` or ``disconnect()`` was called."""
+        return self._state != "open"
+
+    @property
+    def connected(self) -> bool:
+        """False once the handle is closed or disconnected, or its connection was lost.
+
+        After a lost connection ``close()`` can still have work to do, such as releasing a
+        Browserbase session.
+        """
+        return self._state == "open" and self._connected()
 
     @property
     def context(self) -> BrowserContext:
@@ -285,7 +295,7 @@ class StagehandBrowser:
 def _claim_browser(browser: object) -> _ClaimedBrowser:
     if not isinstance(browser, StagehandBrowser):
         raise TypeError("browser must be created by local_browser or browserbase")
-    if browser.closed:
+    if not browser.connected:
         raise RuntimeError("Cannot attach Stagehand to a closed browser")
     if browser._claimed:
         raise RuntimeError("This browser is already attached to a Stagehand instance")
@@ -325,7 +335,10 @@ async def _disconnect_after_closing_stagehand(
 ) -> None:
     try:
         if close_stagehand is not None:
-            await close_stagehand()
+            # stagehand.close() waits for in-flight work without a deadline; disconnect()
+            # stops waiting and lets go anyway, which also ends that work.
+            with suppress(TimeoutError):
+                await asyncio.wait_for(close_stagehand(), _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS)
     finally:
         await disconnect()
 

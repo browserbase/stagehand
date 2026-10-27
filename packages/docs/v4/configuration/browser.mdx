@@ -761,7 +761,7 @@ After `disconnect()` the handle is finished: repeated `disconnect()` calls do no
 | **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ apiKey, sessionId })`, then `close()` |
 | **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
 
-If the connection drops without `disconnect()`, `browser.close()` still releases a Browserbase session through the Browserbase API and does nothing for a local browser.
+If the connection drops without `disconnect()`, `browser.connected` becomes `false` while `browser.closed` stays `false`, because `browser.close()` still has work to do: it releases a Browserbase session through the Browserbase API, and does nothing for a local browser.
 
 ## Local environment
 
