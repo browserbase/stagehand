@@ -1,18 +1,37 @@
 # Stagehand Deep Agents integration
 
-This local integration exposes one stateful Stagehand browser to LangChain Deep Agents through a
-stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screenshot`.
+`StagehandMiddleware` gives a LangChain Deep Agent (or any `create_agent` agent) one stateful
+Stagehand browser through three tools: `browser_run`, `browser_snapshot`, and `browser_screenshot`.
+It also adds the tools' instructions to the system prompt.
 
-## Run locally
+```python
+from deepagents import create_deep_agent
+from stagehand_deepagents import RuntimeConfig, StagehandMiddleware
 
-Set a model-provider key and select the Deep Agents model:
+agent = create_deep_agent(
+    model="openai:gpt-5.6-luna",
+    middleware=[StagehandMiddleware(RuntimeConfig(provider="browserbase"))],
+)
+result = await agent.ainvoke({"messages": [{"role": "user", "content": "..."}]})
+```
+
+`RuntimeConfig` chooses the browser: `provider="local"` (the default) launches Chrome on this machine,
+`provider="browserbase"` a Browserbase session (`BROWSERBASE_API_KEY`). Without a config the
+middleware reads the [environment variables](#configuration) below. Each thread gets its own
+browser, launched on its first browser call and closed when the agent's run ends; pass
+`close_after_run=False` to keep it for the thread's next run, then `await middleware.aclose()`.
+
+The tools are async: call the agent with `ainvoke` or `astream`.
+
+## Run the examples
+
+Set a model-provider key:
 
 ```bash
 export OPENAI_API_KEY=...
-export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
 ```
 
-The MCP server launches a visible local Chrome browser by default. Then run:
+The examples launch a visible local Chrome browser by default. Then run:
 
 ```bash
 cd packages/integrations/deepagents
@@ -41,15 +60,13 @@ uv run --project examples/local python examples/local/agent.py
 
 Browserbase sessions use a 1280 × 720 viewport by default.
 
-The server and client intentionally use separate Python environments. Stagehand currently requires
-`websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`.
-The stdio transport isolates those dependency sets.
+## MCP server
 
-The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
-`MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
-call and therefore lose the browser and snapshot IDs.
+For other MCP clients, `stagehand-deepagents-mcp` serves the same browser over stdio, with the tools
+named `run`, `snapshot`, and `screenshot`. Keep one MCP session open for the browser's lifetime: a
+stateless client that starts a new stdio process per call loses the browser and snapshot IDs.
 
-## Server configuration
+## Configuration
 
 | Variable                      | Default | Meaning                                                                                                                                                                                                |
 | ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

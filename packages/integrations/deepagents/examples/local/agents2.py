@@ -3,16 +3,11 @@ from __future__ import annotations
 import asyncio
 
 import dotenv
-from _client import SERVER_NAME, create_stagehand_client
 from deepagents import create_deep_agent
-from langchain_mcp_adapters.tools import load_mcp_tools
 from pydantic import BaseModel, ConfigDict, Field
-from stagehand_middleware.facade import facade_instructions
+from stagehand_deepagents import StagehandMiddleware
 
 dotenv.load_dotenv()
-
-# The facade contract's agent instructions, matching the MCP server's tools.
-BROWSER_INSTRUCTIONS = facade_instructions()
 
 
 class FilledField(BaseModel):
@@ -45,18 +40,13 @@ and then every other field with data of your choice.
 Do not submit the form. Return a summary of the fields you successfully filled."""
     response_format = FormFillResult
 
-    client = create_stagehand_client()
-
-    async with client.session(SERVER_NAME) as session:
-        tools = await load_mcp_tools(session)
-        agent = create_deep_agent(
-            model=model,
-            tools=tools,
-            system_prompt=BROWSER_INSTRUCTIONS,
-            response_format=response_format,
-        )
-        result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
-        response: FormFillResult = result["structured_response"]
+    agent = create_deep_agent(
+        model=model,
+        middleware=[StagehandMiddleware()],
+        response_format=response_format,
+    )
+    result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
+    response: FormFillResult = result["structured_response"]
 
     print(response.model_dump_json(indent=2))
 

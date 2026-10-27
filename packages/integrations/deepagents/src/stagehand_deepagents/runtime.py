@@ -84,12 +84,13 @@ class BrowserTools:
     async def start(cls, config: RuntimeConfig | None = None) -> BrowserTools:
         resolved = config or RuntimeConfig.from_env()
         if resolved.provider == "browserbase":
-            if not resolved.browserbase_api_key:
+            api_key = resolved.browserbase_api_key or os.environ.get("BROWSERBASE_API_KEY")
+            if not api_key:
                 raise ValueError(
                     "BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER=browserbase"
                 )
             browser = await browserbase.launch(
-                api_key=resolved.browserbase_api_key,
+                api_key=api_key,
                 browser_settings={"viewport": {"width": 1280.0, "height": 720.0}},
             )
         else:
@@ -135,7 +136,7 @@ class BrowserTools:
         *,
         full_page: bool | None = None,
         type: ImageType = "png",
-        quality: int | None = None,
+        quality: float | None = None,
     ) -> tuple[bytes, str]:
         if quality is not None and not 0 <= quality <= 100:
             raise ValueError("quality must be between 0 and 100")

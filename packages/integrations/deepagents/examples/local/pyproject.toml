@@ -5,12 +5,11 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
   "python-dotenv>=1.0",
   "deepagents>=0.7,<1",
-  "langchain-mcp-adapters>=0.3,<1",
   "langchain-openai>=1,<2",
   # Requires langgraph-sdk with the authorization fix.
   "langgraph>=1.2.14,<1.3",
   "pydantic>=2,<3",
-  "stagehand-middleware>=0.1.0,<0.2",
+  "stagehand-deepagents",
   # Security minimum for the transitive MCP authentication dependency.
   "pyjwt>=2.15.0,<3",
   # Security minimum for transitive HTTP clients.
@@ -19,3 +18,6 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+stagehand-deepagents = { path = "../..", editable = true }
