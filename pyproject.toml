@@ -1,0 +1,11 @@
+[tool.uv.workspace]
+members = [
+  "packages/sdk-python",
+  "packages/integrations/core/python",
+  "packages/examples/cookbooks/*/python",
+]
+exclude = ["packages/integrations/deepagents", "packages/integrations/deepagents/**"]
+
+[tool.uv.sources]
+stagehand = { workspace = true }
+stagehand-middleware = { workspace = true }
