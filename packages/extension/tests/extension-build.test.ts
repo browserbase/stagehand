@@ -20,7 +20,7 @@ const ManifestSchema = z.looseObject({
   manifest_version: z.literal(3),
   name: z.string(),
   version: z.string(),
-  minimum_chrome_version: z.literal("116"),
+  minimum_chrome_version: z.literal("137"),
   permissions: z.array(z.string()),
   host_permissions: z.array(z.string()),
   background: z.object({
@@ -88,7 +88,7 @@ describe("extension build", () => {
       manifest_version: 3,
       name: "Stagehand Runtime",
       version: expectedManifestVersion,
-      minimum_chrome_version: "116",
+      minimum_chrome_version: "137",
       background: {
         service_worker: "service-worker.js",
         type: "module",

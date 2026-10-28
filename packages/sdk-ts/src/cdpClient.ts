@@ -492,10 +492,19 @@ export class CDPClient {
   /** Acknowledged intentional detach, before the client's socket/marker disappears. */
   async detachClient(): Promise<void> {
     if (!this.clientTargetId || this.closed) return;
-    const acknowledged = await this.clientLifecycleCommand(
-      { action: "detach", targetId: this.clientTargetId },
-      AbortSignal.timeout(10_000),
-    );
+    let acknowledged: boolean;
+    try {
+      acknowledged = await this.clientLifecycleCommand(
+        { action: "detach", targetId: this.clientTargetId },
+        AbortSignal.timeout(10_000),
+      );
+    } catch (error) {
+      // Browserbase ends a keepAlive: false session once the extension closes its own
+      // connection, which closes this one before the acknowledgement arrives: the detach
+      // happened. A failure or timeout with this connection still open is still an error.
+      if (!(error instanceof CDPConnectionClosedError)) throw error;
+      acknowledged = true;
+    }
     if (!acknowledged) throw new Error("The Stagehand extension did not acknowledge the detach");
     this.clientTargetId = undefined;
   }

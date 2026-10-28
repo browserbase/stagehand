@@ -613,7 +613,11 @@ describe("local extension resolution", () => {
 });
 
 describe("client lifecycle registration", () => {
-  function lifecycleClient(options: { targetType: string; attach: boolean; detach?: boolean }) {
+  function lifecycleClient(options: {
+    targetType: string;
+    attach: boolean;
+    detach?: boolean | Error;
+  }) {
     const socket = new FakeWebSocket();
     socket.open();
     const client = new CDPClient(socket as never, "ws://localhost/test");
@@ -624,6 +628,8 @@ describe("client lifecycle registration", () => {
       calls.push(method === "Runtime.evaluate" ? action : method);
       if (method === "Target.createTarget") return { targetId: "marker" };
       if (method === "Target.getTargetInfo") return { targetInfo: { type: options.targetType } };
+      if (method === "Runtime.evaluate" && action === "detach" && options.detach instanceof Error)
+        throw options.detach;
       if (method === "Runtime.evaluate")
         return {
           result: { value: action === "detach" ? (options.detach ?? true) : options.attach },
@@ -668,6 +674,29 @@ describe("client lifecycle registration", () => {
     await client.detachClient();
     await client.detachClient();
     expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]);
+  });
+
+  it("treats the connection closing during a detach as a completed detach", async () => {
+    // Browserbase ends a keepAlive: false session once the extension closes its connection.
+    const { client, calls, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new CDPConnectionClosedError(),
+    });
+    await register();
+    await client.detachClient();
+    await client.detachClient();
+    expect(calls.filter((call) => call === "detach")).toHaveLength(1);
+  });
+
+  it("still rejects a detach that fails with the connection open", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new Error("detach timed out"),
+    });
+    await register();
+    await expect(client.detachClient()).rejects.toThrow("detach timed out");
   });
 
   it("rejects a detach the extension does not acknowledge", async () => {

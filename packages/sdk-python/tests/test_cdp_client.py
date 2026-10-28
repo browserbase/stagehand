@@ -997,7 +997,7 @@ async def test_local_loading_failure_closes_connection_without_retrying(
 
 
 def _lifecycle_client(
-    target_type: str, *, attach: bool, detach: bool = True
+    target_type: str, *, attach: bool, detach: bool | BaseException = True
 ) -> tuple[CDPClient, list[str]]:
     calls: list[str] = []
 
@@ -1007,6 +1007,8 @@ def _lifecycle_client(
         if method == "Runtime.evaluate":
             action = "detach" if '"detach"' in str(params.get("expression")) else "attach"
             calls.append(action)
+            if action == "detach" and isinstance(detach, BaseException):
+                raise detach
             return {"result": {"result": {"value": detach if action == "detach" else attach}}}
         calls.append(method)
         if method == "Target.createTarget":
@@ -1068,6 +1070,30 @@ async def test_detach_client_raises_when_not_acknowledged() -> None:
     try:
         await client._register_client(True, "ws://browser")
         with pytest.raises(RuntimeError, match="did not acknowledge the detach"):
+            await client.detach_client()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_treats_a_closed_connection_as_a_completed_detach() -> None:
+    # Browserbase ends a keep_alive=False session once the extension closes its connection.
+    client, calls = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls.count("detach") == 1
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_still_raises_when_detach_fails_with_the_connection_open() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=RuntimeError("detach failed"))
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="detach failed"):
             await client.detach_client()
     finally:
         await client.close()

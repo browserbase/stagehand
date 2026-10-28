@@ -398,11 +398,17 @@ class CDPClient:
         """Acknowledge intentional detach before the socket/hidden target disappears."""
         if self._client_target_id is None or self._closed:
             return
-        async with asyncio.timeout(10):
-            acknowledged = await self._client_lifecycle_command({
-                "action": "detach",
-                "targetId": self._client_target_id,
-            })
+        try:
+            async with asyncio.timeout(10):
+                acknowledged = await self._client_lifecycle_command({
+                    "action": "detach",
+                    "targetId": self._client_target_id,
+                })
+        except CDPConnectionClosedError:
+            # Browserbase ends a keep_alive=False session once the extension closes its own
+            # connection, which closes this one before the acknowledgement arrives: the
+            # detach happened. A failure or timeout with this connection open still raises.
+            acknowledged = True
         if not acknowledged:
             raise RuntimeError("The Stagehand extension did not acknowledge the detach")
         self._client_target_id = None

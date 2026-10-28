@@ -109,24 +109,44 @@ describe("client connection ownership", () => {
     await vi.waitFor(() => expect(f.options.onError).toHaveBeenCalledOnce());
   });
 
+  it("acknowledges a detach without waiting for disposal", async () => {
+    // e.g. an in-flight worker callback keeps disposal waiting past the SDK's timeout.
+    const f = fixture();
+    f.options.disposeClient.mockImplementation(() => new Promise(() => {}));
+    await f.attach("client-a", true);
+
+    await detach(f);
+
+    expect(f.options.closeConnection).toHaveBeenCalledOnce();
+    expect(f.options.disposeClient).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failed background disposal after a detach", async () => {
+    const f = fixture();
+    f.options.disposeClient.mockRejectedValueOnce(new Error("disposal failed"));
+    await f.attach();
+    await detach(f);
+    await vi.waitFor(() => expect(f.options.onError).toHaveBeenCalledOnce());
+  });
+
   it("keeps a failed detach disarmed and retryable", async () => {
     const f = fixture();
     await f.attach("client-a", true);
-    f.options.disposeClient.mockRejectedValueOnce(new Error("disposal failed"));
-    await expect(detach(f)).rejects.toThrow("disposal failed");
+    f.options.closeConnection.mockRejectedValueOnce(new Error("close failed"));
+    await expect(detach(f)).rejects.toThrow("close failed");
 
     await detach(f);
     f.destroy("client-a");
 
-    expect(f.options.disposeClient).toHaveBeenCalledTimes(2);
+    expect(f.options.closeConnection).toHaveBeenCalledTimes(2);
     expect(f.connection.send).not.toHaveBeenCalled();
   });
 
   it("never shuts the browser down when the client dies after a failed detach", async () => {
     const f = fixture();
     await f.attach("client-a", true);
-    f.options.disposeClient.mockRejectedValueOnce(new Error("disposal failed"));
-    await expect(detach(f)).rejects.toThrow("disposal failed");
+    f.options.closeConnection.mockRejectedValueOnce(new Error("close failed"));
+    await expect(detach(f)).rejects.toThrow("close failed");
 
     f.destroy("client-a");
 

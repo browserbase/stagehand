@@ -59,10 +59,12 @@ export class ClientLifecycle {
         attachment.closeBrowserOnDisconnect = false;
         this.options.rejectClientCallbacks();
         await this.options.closeConnection();
-        await this.options.disposeClient();
-        // Forget the client only once cleanup succeeded, so a failed detach can be retried.
+        // Forget the client only once B closed, so a failed detach can be retried.
         this.removeAttachment();
         this.detachedTargetId = request.targetId;
+        // Acknowledge now: disposal can wait on in-flight work, which must not outlast the
+        // SDK's detach timeout. A new client's initialization queues behind it.
+        void this.options.disposeClient().catch((error) => this.options.onError(error));
         return;
       }
       if (this.attachment) {
