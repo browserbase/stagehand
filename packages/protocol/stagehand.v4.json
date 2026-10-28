@@ -656,6 +656,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.wait_for_url": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWaitForURLParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.wait_for_selector": {
           "type": "object",
           "properties": {
@@ -1085,6 +1098,7 @@
         "page.set_viewport_size",
         "page.wait_for_load_state",
         "page.wait_for_timeout",
+        "page.wait_for_url",
         "page.wait_for_selector",
         "page.wait_for_function",
         "page.webmcp_tools",
@@ -4147,6 +4161,38 @@
       "required": ["page_id", "ms"],
       "additionalProperties": false
     },
+    "PageWaitForURLParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "$ref": "#/$defs/PageWaitForURLOptions"
+        }
+      },
+      "required": ["page_id", "url"],
+      "additionalProperties": false
+    },
+    "PageWaitForURLOptions": {
+      "type": "object",
+      "properties": {
+        "wait_until": {
+          "type": "string",
+          "enum": ["load", "domcontentloaded"]
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
     "PageWaitForSelectorParams": {
       "type": "object",
       "properties": {
@@ -7017,6 +7063,33 @@
             },
             "params": {
               "$ref": "#/$defs/PageWaitForTimeoutParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.wait_for_url"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWaitForURLParams"
             },
             "traceparent": {
               "type": "string"

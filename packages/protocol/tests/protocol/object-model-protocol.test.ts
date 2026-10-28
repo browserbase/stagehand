@@ -396,6 +396,7 @@ describe("Stagehand object-model protocol", () => {
       "page.set_viewport_size",
       "page.wait_for_load_state",
       "page.wait_for_timeout",
+      "page.wait_for_url",
       "page.wait_for_selector",
       "page.wait_for_function",
       "page.webmcp_tools",

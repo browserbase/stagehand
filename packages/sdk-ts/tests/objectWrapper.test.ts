@@ -1067,10 +1067,12 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageWaitForLoadState, { ok: true });
     client.queueResponse(StagehandMethods.pageWaitForTimeout, { ok: true });
     client.queueResponse(StagehandMethods.pageWaitForSelector, { matched: false });
+    client.queueResponse(StagehandMethods.pageWaitForURL, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await page.waitForLoadState("networkidle", 0);
     await page.waitForTimeout(250);
+    await page.waitForURL("**/done", { waitUntil: "domcontentloaded", timeout: 0 });
     await expect(
       page.waitForSelector("button.submit", {
         state: "visible",
@@ -1086,6 +1088,11 @@ describe("Stagehand TS object wrapper", () => {
         timeout: 0,
       }),
       requestCall(StagehandMethods.pageWaitForTimeout, { pageId: "page-1", ms: 250 }),
+      requestCall(StagehandMethods.pageWaitForURL, {
+        pageId: "page-1",
+        url: "**/done",
+        options: { waitUntil: "domcontentloaded", timeout: 0 },
+      }),
       requestCall(StagehandMethods.pageWaitForSelector, {
         pageId: "page-1",
         selector: "button.submit",

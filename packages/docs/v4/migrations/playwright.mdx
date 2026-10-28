@@ -248,7 +248,9 @@ A single wait isn't the same as Playwright's per-action retry. When a step races
 
 There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForFunction()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
 
-Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.on()` supports `"console"` only. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
+`page.waitForURL()` waits for an exact full URL or a full-URL glob. `*` matches any characters except `/`; `**` also matches `/`. It supports history and hash changes, with `waitUntil: "load"` (default) or `"domcontentloaded"`. It doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
+
+There are no equivalents for `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.on()` supports `"console"` only. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()`. Pass a `timeout`: unlike that method, it has no deadline by default. You can also wait for something that only exists on the destination page.
 
 Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
 
@@ -592,7 +594,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.url()`, `page.title()` | Same names, both async |
 | `page.goto()` default `waitUntil` | `"domcontentloaded"`, not Playwright's `"load"` |
 | `waitUntil: "commit"` | Not supported. `load`, `domcontentloaded`, and `networkidle` only |
-| `page.waitForURL(url)` | `page.waitForFunction((url) => location.href === url, url, { timeout })`. For a `RegExp`, pass `[re.source, re.flags]` and test with `new RegExp(source, flags)`. Convert glob patterns to a `RegExp` first |
+| `page.waitForURL()` | Same name for exact full URLs or `*`/`**` globs. `waitUntil` accepts `load` (default) or `domcontentloaded` |
 | `page.setContent()` | No equivalent. Navigate, or build the DOM in `page.evaluate()` |
 | `page.evaluate()`, `addInitScript()` | Same names |
 | `page.$eval()`, `$$eval()` | `page.evaluate()` |
@@ -917,10 +919,9 @@ NAVIGATION AND WAITING
   page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore,
   undefined, { timeout }).
   This catches reloads too. For pushState routes, compare location.href.
-- page.waitForURL(url) -> page.waitForFunction(
-  (url) => location.href === url, url, { timeout }). For a RegExp, pass
-  [re.source, re.flags] and test with new RegExp(source, flags); convert
-  globs to a RegExp first. Both keep waiting across the load.
+- page.waitForURL(pattern, options) -> wait for an exact full URL or a glob.
+  * excludes /; ** includes /. waitUntil accepts load (default) or
+  domcontentloaded. No regex, predicates, brace expansion, or networkidle.
 - No waitForResponse, waitForRequest, or waitForEvent. page.on() supports
   "console" only: no request, response, requestfailed, download, dialog,
   popup, or pageerror events, and no CDP escape hatch.

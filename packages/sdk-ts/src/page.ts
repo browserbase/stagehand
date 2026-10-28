@@ -21,6 +21,7 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForFunctionParams,
   PageWaitForTimeoutParams,
+  PageWaitForURLParams,
 } from "@browserbasehq/stagehand-protocol/types";
 import {
   StagehandMethods,
@@ -55,6 +56,7 @@ export type PageReloadOptions = NonNullable<PageReloadParams["options"]>;
 export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
+export type PageWaitForURLOptions = NonNullable<PageWaitForURLParams["options"]>;
 export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["options"]>;
 
 export interface PageEventListener {
@@ -347,6 +349,15 @@ export class Page {
     await this.rpcClient.send(StagehandMethods.pageWaitForTimeout, {
       pageId: this.pageId,
       ms,
+    });
+  }
+
+  /** Wait for a full-URL glob and its load state. `*` excludes `/`; `**` includes it. */
+  async waitForURL(url: string, options?: PageWaitForURLOptions): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageWaitForURL, {
+      pageId: this.pageId,
+      url,
+      ...(options ? { options } : {}),
     });
   }
 

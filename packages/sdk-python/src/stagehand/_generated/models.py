@@ -2107,6 +2107,25 @@ class PageWaitForTimeoutParams(WireModel):
     ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class PageWaitForURLOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    wait_until: Optional[WaitUntil] = None
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+
+
+class PageWaitForURLParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    url: Annotated[StrictStr, Field(min_length=1)]
+    options: Optional[PageWaitForURLOptions] = None
+
+
 class PageWebMCPCancelInvocationParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2489,6 +2508,11 @@ class VariableValue(RootModel[Union[VariablePrimitive, DescribedVariableValue]])
 
 class Variables(RootModel[dict[StrictStr, VariableValue]]):
     root: dict[StrictStr, VariableValue]
+
+
+class WaitUntil(StrEnum):
+    load = "load"
+    domcontentloaded = "domcontentloaded"
 
 
 class WebMCPAnnotation(WireModel):

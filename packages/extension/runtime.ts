@@ -96,6 +96,7 @@ import type {
   PageUrlResult,
   PageVoidResult,
   PageWaitForLoadStateParams,
+  PageWaitForURLParams,
   PageWaitForSelectorParams,
   PageWaitForFunctionParams,
   PageWaitForFunctionResult,
@@ -168,6 +169,7 @@ export type UnderstudyRuntimePage = {
     options?: PageSetViewportSizeParams["options"],
   ): Promise<void>;
   waitForLoadState(state: LoadState, timeout?: number): Promise<void>;
+  waitForURL(url: string, options?: PageWaitForURLParams["options"]): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   waitForSelector(
     selector: string,
@@ -711,6 +713,11 @@ export class StagehandRuntime {
 
   async pageWaitForTimeout(params: PageWaitForTimeoutParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).waitForTimeout(params.ms);
+    return { ok: true };
+  }
+
+  async pageWaitForURL(params: PageWaitForURLParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).waitForURL(params.url, params.options);
     return { ok: true };
   }
 

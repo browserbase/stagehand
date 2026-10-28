@@ -31,6 +31,7 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.go_forward": 15_000,
     "page.wait_for_load_state": 15_000,
     "page.wait_for_selector": 30_000,
+    "page.wait_for_url": 30_000,
     "page.pdf": 30_000,
     "page.snapshot": 20_000,
     "page.webmcp_tools": 1_000,
@@ -605,6 +606,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.snapshot",
         "page.wait_for_function",
         "page.wait_for_selector",
+        "page.wait_for_url",
         "page.webmcp_tools",
         "page.webmcp_invocation_result",
     }:
@@ -620,6 +622,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
             "page.snapshot",
             "page.wait_for_function",
             "page.wait_for_selector",
+            "page.wait_for_url",
         }:
             return None
         return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000

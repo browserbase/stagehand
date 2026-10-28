@@ -77,6 +77,7 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageGoForward.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
   [StagehandMethods.pageWaitForSelector.name, 30_000],
+  [StagehandMethods.pageWaitForURL.name, 30_000],
   [StagehandMethods.pagePDF.name, 30_000],
   [StagehandMethods.pageSnapshot.name, 20_000],
   [StagehandMethods.pageWebMCPTools.name, 1_000],
@@ -559,6 +560,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pagePDF.name:
     case StagehandMethods.pageSnapshot.name:
     case StagehandMethods.pageWaitForSelector.name:
+    case StagehandMethods.pageWaitForURL.name:
     case StagehandMethods.pageWaitForFunction.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:
@@ -576,6 +578,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     if (
       (method === StagehandMethods.pagePDF.name ||
         method === StagehandMethods.pageSnapshot.name ||
+        method === StagehandMethods.pageWaitForURL.name ||
         method === StagehandMethods.pageWaitForSelector.name ||
         method === StagehandMethods.pageWaitForFunction.name) &&
       operationTimeoutMs === 0

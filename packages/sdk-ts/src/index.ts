@@ -33,6 +33,7 @@ export {
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
+  type PageWaitForURLOptions,
   type PageWaitForFunctionOptions,
   type ScreenshotOptions,
 } from "./page.js";
