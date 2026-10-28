@@ -44,6 +44,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!python/**"],
       "outputs": ["dist/**"]
     },
+    "stagehand-middleware#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/eve#build": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -133,6 +138,10 @@
     "@browserbasehq/stagehand-integrations#typecheck": {
       "dependsOn": ["^build"]
     },
+    "stagehand-middleware#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"]
+    },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -153,6 +162,18 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "stagehand-middleware#test:unit": {
+      "dependsOn": ["^build", "stagehand-middleware#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "$TURBO_ROOT$/packages/integrations/core/python/pyproject.toml",
+        "$TURBO_ROOT$/packages/integrations/core/python/src/stagehand_middleware/facade/_bundle.json"
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-agent-sdk#test:unit": {
@@ -265,6 +286,21 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-examples#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-ai-sdk-research-agent#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-approve-form-submission#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-files-to-bucket#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-paginated-catalog#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-persisted-login#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {

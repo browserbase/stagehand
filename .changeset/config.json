@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "commit": false,
   "linked": [],
-  "ignore": ["@browserbasehq/stagehand-evals"],
+  "ignore": ["@browserbasehq/stagehand-evals", "stagehand-middleware"],
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "access": "public",
@@ -15,6 +15,9 @@
   "privatePackages": {
     "version": true,
     "tag": false
+  },
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
   },
   "snapshot": {
     "useCalculatedVersion": true,

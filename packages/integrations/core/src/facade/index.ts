@@ -38,6 +38,7 @@ export {
   ScreenshotInputSchema,
   type RefAction,
   type CodeModeRunInput,
+  type FacadeEnv,
 } from "./contract.js";
 export {
   StagehandFacadeCleanupError,
