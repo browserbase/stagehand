@@ -985,7 +985,10 @@ export class BrowserContext {
   }
 
   adoptOopif(owner: Page, session: CdpSession, childMainId: string): void {
-    owner.adoptOopifSession(session, childMainId);
+    owner.adoptOopifSession(session, childMainId, () => {
+      // Seeding can reveal same-origin parents of OOPIFs that are still pending.
+      this.adoptPendingOopifsByParent();
+    });
     this.adoptedOopifSessionByFrame.set(childMainId, session.id);
     this.sessionOwnerPage.set(session.id, owner);
     this.frameOwnerPage.set(childMainId, owner);

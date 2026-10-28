@@ -50,12 +50,16 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
   connected = true;
   messageHandler: (data: string) => void = () => {};
   releasePageFrameTree: (() => void) | undefined;
+  releaseEditorSubtree: (() => void) | undefined;
+  editorFrameTreeRequests = 0;
 
   constructor(
     readonly opts: {
       editorRegistersFirst?: boolean;
       nested?: boolean;
       editorInsideWrapper?: boolean;
+      nestedInsideWrapper?: boolean;
+      deferEditorSubtree?: boolean;
     } = {},
   ) {}
 
@@ -103,14 +107,27 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       return reply({ frameTree: { frame: frame(MAIN_FRAME, PAGE_TARGET.url) } });
     }
     if (method === "Page.getFrameTree" && sessionId === EDITOR_SESSION) {
+      this.editorFrameTreeRequests++;
+      // The first request identifies the OOPIF; adoption fetches its subtree again.
+      if (this.opts.deferEditorSubtree && this.editorFrameTreeRequests > 1) {
+        await new Promise<void>((resolve) => (this.releaseEditorSubtree = resolve));
+      }
       const parent = this.opts.editorInsideWrapper ? WRAPPER_FRAME : MAIN_FRAME;
-      reply({ frameTree: { frame: frame(EDITOR_FRAME, EDITOR_TARGET.url, parent) } });
+      reply({
+        frameTree: {
+          frame: frame(EDITOR_FRAME, EDITOR_TARGET.url, parent),
+          ...(this.opts.nestedInsideWrapper && {
+            childFrames: [{ frame: frame(WRAPPER_FRAME, EDITOR_TARGET.url, EDITOR_FRAME) }],
+          }),
+        },
+      });
       await new Promise((resolve) => setImmediate(resolve));
       this.releasePageFrameTree?.();
       return;
     }
     if (method === "Page.getFrameTree" && sessionId === NESTED_SESSION) {
-      return reply({ frameTree: { frame: frame(NESTED_FRAME, NESTED_TARGET.url, EDITOR_FRAME) } });
+      const parent = this.opts.nestedInsideWrapper ? WRAPPER_FRAME : EDITOR_FRAME;
+      return reply({ frameTree: { frame: frame(NESTED_FRAME, NESTED_TARGET.url, parent) } });
     }
     reply();
     if (method !== "Target.setAutoAttach") return;
@@ -195,6 +212,27 @@ describe("BrowserContext OOPIF adoption", () => {
 
     await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
     await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+  });
+
+  it("adopts a pending nested OOPIF after its wrapper is seeded without attachment events", async () => {
+    const browser = new BrowserWithLoadedOopif({
+      nested: true,
+      nestedInsideWrapper: true,
+      deferEditorSubtree: true,
+    });
+    const { context, page } = await connect(browser);
+    await vi.waitFor(() => {
+      expect(browser.releaseEditorSubtree).toBeDefined();
+      expect(context.pendingOopifByMainFrame.get(NESTED_FRAME)).toBe(NESTED_SESSION);
+    });
+    expect(page.listAllFrameIds()).not.toContain(WRAPPER_FRAME);
+
+    browser.releaseEditorSubtree!();
+
+    await expectOwnedBySession(page, WRAPPER_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+    expect(context.pendingOopifByMainFrame.size).toBe(0);
+    expect(context.pendingOopifParentByMainFrame.size).toBe(0);
   });
 
   it("keeps the nested iframe session as owner when the outer iframe reports it late", async () => {

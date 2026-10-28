@@ -463,7 +463,11 @@ export class Page {
    * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
-  public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
+  public adoptOopifSession(
+    childSession: CDPSessionLike,
+    childMainFrameId: string,
+    onFrameTreeSeeded?: () => void,
+  ): void {
     if (this.disposed) return;
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
@@ -512,6 +516,7 @@ export class Page {
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
           this.reconcilePendingWebMCPTools();
+          onFrameTreeSeeded?.();
         }
       } catch {
         // If snapshot races, live events will still converge the registry.
