@@ -977,7 +977,16 @@ export class BrowserContext {
    */
   findPageOwningFrame(frameId: string): Page | undefined {
     const known = this.frameOwnerPage.get(frameId);
-    if (known) return known;
+    if (known) {
+      // Cached ownership can outlive a page or a subtree pruned on session detach.
+      if (
+        this.pagesByTarget.get(known.targetId()) === known &&
+        known.registry.frames.has(frameId)
+      ) {
+        return known;
+      }
+      this.frameOwnerPage.delete(frameId);
+    }
     for (const p of this.pagesByTarget.values()) {
       if (p.listAllFrameIds().includes(frameId)) return p;
     }
@@ -1140,7 +1149,9 @@ export class BrowserContext {
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
-    this.frameOwnerPage.delete(mainId);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) this.frameOwnerPage.delete(frameId);
+    }
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);

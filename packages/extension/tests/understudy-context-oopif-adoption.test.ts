@@ -51,6 +51,7 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
   messageHandler: (data: string) => void = () => {};
   releasePageFrameTree: (() => void) | undefined;
   releaseEditorSubtree: (() => void) | undefined;
+  releaseNestedFrameTree: (() => void) | undefined;
   editorFrameTreeRequests = 0;
 
   constructor(
@@ -60,6 +61,7 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       editorInsideWrapper?: boolean;
       nestedInsideWrapper?: boolean;
       deferEditorSubtree?: boolean;
+      deferNestedFrameTree?: boolean;
     } = {},
   ) {}
 
@@ -126,6 +128,9 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       return;
     }
     if (method === "Page.getFrameTree" && sessionId === NESTED_SESSION) {
+      if (this.opts.deferNestedFrameTree) {
+        await new Promise<void>((resolve) => (this.releaseNestedFrameTree = resolve));
+      }
       const parent = this.opts.nestedInsideWrapper ? WRAPPER_FRAME : EDITOR_FRAME;
       return reply({ frameTree: { frame: frame(NESTED_FRAME, NESTED_TARGET.url, parent) } });
     }
@@ -279,6 +284,66 @@ describe("BrowserContext OOPIF adoption", () => {
     expect(page.listAllFrameIds()).toContain(NESTED_FRAME);
     expect(page.getSessionForFrame(NESTED_FRAME).id).toBe(EDITOR_SESSION);
   });
+
+  it("clears all cached frame owners when their page closes", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true });
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get(NESTED_FRAME)).toBe(page);
+
+    browser.emitEvent("Target.targetDestroyed", { targetId: PAGE_TARGET.targetId });
+    await context.conn.messageQueue;
+
+    expect(context.pages()).toHaveLength(0);
+    expect([...context.frameOwnerPage.values()]).not.toContain(page);
+  });
+
+  it.each(["page close", "parent session detach", "late parent event after page close"])(
+    "does not adopt a late nested OOPIF through a stale owner after %s",
+    async (scenario) => {
+      const browser = new BrowserWithLoadedOopif({ nested: true, deferNestedFrameTree: true });
+      const { context, page } = await connect(browser);
+      await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+      await vi.waitFor(() => expect(browser.releaseNestedFrameTree).toBeDefined());
+
+      if (scenario === "parent session detach") {
+        browser.emitEvent(
+          "Target.detachedFromTarget",
+          { sessionId: EDITOR_SESSION, targetId: EDITOR_TARGET.targetId },
+          PAGE_SESSION,
+        );
+      } else {
+        browser.emitEvent("Target.targetDestroyed", { targetId: PAGE_TARGET.targetId });
+      }
+      await context.conn.messageQueue;
+
+      if (scenario === "late parent event after page close") {
+        // A remaining child session can report a frame after page cleanup ran.
+        browser.emitEvent(
+          "Page.frameAttached",
+          { frameId: EDITOR_FRAME, parentFrameId: MAIN_FRAME },
+          EDITOR_SESSION,
+        );
+        await context.conn.messageQueue;
+      }
+
+      browser.releaseNestedFrameTree!();
+      // Wait for initialization to choose either adoption or pending status.
+      await vi.waitFor(() => {
+        expect(
+          context.sessionOwnerPage.has(NESTED_SESSION) ||
+            context.pendingOopifByMainFrame.has(NESTED_FRAME),
+        ).toBe(true);
+      });
+
+      expect(context.sessionOwnerPage.has(NESTED_SESSION)).toBe(false);
+      expect(context.adoptedOopifSessionByFrame.has(NESTED_FRAME)).toBe(false);
+      expect(context.pendingOopifByMainFrame.get(NESTED_FRAME)).toBe(NESTED_SESSION);
+      expect(context.frameOwnerPage.has(EDITOR_FRAME)).toBe(false);
+    },
+  );
 
   it("adopts waiting OOPIFs once the page reports the frame that contains them", async () => {
     const browser = new BrowserWithLoadedOopif({ nested: true, editorInsideWrapper: true });
