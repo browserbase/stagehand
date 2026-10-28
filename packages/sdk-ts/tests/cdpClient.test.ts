@@ -636,7 +636,7 @@ describe("client lifecycle registration", () => {
         };
       return {};
     });
-    const register = () =>
+    const register = (closeBrowserOnDisconnect = true) =>
       (
         client as unknown as {
           registerClient(
@@ -644,7 +644,7 @@ describe("client lifecycle registration", () => {
             signal: AbortSignal,
           ): Promise<void>;
         }
-      ).registerClient({ closeBrowserOnDisconnect: true }, new AbortController().signal);
+      ).registerClient({ closeBrowserOnDisconnect }, new AbortController().signal);
     return { client, calls, register };
   }
 
@@ -683,10 +683,20 @@ describe("client lifecycle registration", () => {
       attach: true,
       detach: new CDPConnectionClosedError(),
     });
-    await register();
+    await register(false);
     await client.detachClient();
     await client.detachClient();
     expect(calls.filter((call) => call === "detach")).toHaveLength(1);
+  });
+
+  it("reports a lost connection during detach when the browser is shut down on loss", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new CDPConnectionClosedError(),
+    });
+    await register(true);
+    await expect(client.detachClient()).rejects.toBeInstanceOf(CDPConnectionClosedError);
   });
 
   it("still rejects a detach that fails with the connection open", async () => {

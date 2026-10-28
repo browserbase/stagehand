@@ -15,7 +15,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from typing_extensions import override
 from websockets.asyncio.client import connect as WebSocketConnect
-from websockets.exceptions import InvalidStatus
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
@@ -257,6 +257,8 @@ class CDPClient:
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
         self._client_target_id: str | None = None
+        # Whether the extension shuts the browser down if this client is lost.
+        self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
@@ -393,6 +395,7 @@ class CDPClient:
                 "watchdog; update the extension"
             )
         self._client_target_id = target_id
+        self._client_close_browser_on_loss = close_browser_on_disconnect
 
     async def detach_client(self) -> None:
         """Acknowledge intentional detach before the socket/hidden target disappears."""
@@ -407,7 +410,11 @@ class CDPClient:
         except CDPConnectionClosedError:
             # Browserbase ends a keep_alive=False session once the extension closes its own
             # connection, which closes this one before the acknowledgement arrives: the
-            # detach happened. A failure or timeout with this connection open still raises.
+            # detach happened. A failure or timeout with this connection open still raises,
+            # and so does a lost connection when the extension shuts the browser down on
+            # loss: it may not have received the detach.
+            if self._client_close_browser_on_loss:
+                raise
             acknowledged = True
         if not acknowledged:
             raise RuntimeError("The Stagehand extension did not acknowledge the detach")
@@ -503,7 +510,10 @@ class CDPClient:
             message["sessionId"] = session_id
 
         try:
-            await self._socket.send(json.dumps(message, separators=(",", ":")))
+            try:
+                await self._socket.send(json.dumps(message, separators=(",", ":")))
+            except ConnectionClosed as error:
+                raise CDPConnectionClosedError() from error
             result = await response
         except BaseException:
             if not response.done():

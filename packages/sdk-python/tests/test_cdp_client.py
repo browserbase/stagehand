@@ -1081,10 +1081,23 @@ async def test_detach_client_treats_a_closed_connection_as_a_completed_detach() 
     # Browserbase ends a keep_alive=False session once the extension closes its connection.
     client, calls = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
     try:
-        await client._register_client(True, "ws://browser")
+        await client._register_client(False, "ws://browser")
         await client.detach_client()
         await client.detach_client()
         assert calls.count("detach") == 1
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_a_lost_connection_when_the_browser_is_shut_down_on_loss() -> (
+    None
+):
+    client, _ = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(CDPConnectionClosedError):
+            await client.detach_client()
     finally:
         await client.close()
 

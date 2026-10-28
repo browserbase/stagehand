@@ -235,6 +235,8 @@ export class CDPClient {
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
   private clientTargetId?: string;
+  /** Whether the extension shuts the browser down if this client is lost. */
+  private clientCloseBrowserOnLoss = false;
   private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private heartbeatAbort?: AbortController;
@@ -487,6 +489,7 @@ export class CDPClient {
       );
     }
     this.clientTargetId = targetId;
+    this.clientCloseBrowserOnLoss = policy.closeBrowserOnDisconnect;
   }
 
   /** Acknowledged intentional detach, before the client's socket/marker disappears. */
@@ -502,7 +505,11 @@ export class CDPClient {
       // Browserbase ends a keepAlive: false session once the extension closes its own
       // connection, which closes this one before the acknowledgement arrives: the detach
       // happened. A failure or timeout with this connection still open is still an error.
-      if (!(error instanceof CDPConnectionClosedError)) throw error;
+      // When the extension shuts the browser down on loss, a lost connection means it did
+      // not get the detach: the browser is closing, so do not report a clean disconnect.
+      if (!(error instanceof CDPConnectionClosedError) || this.clientCloseBrowserOnLoss) {
+        throw error;
+      }
       acknowledged = true;
     }
     if (!acknowledged) throw new Error("The Stagehand extension did not acknowledge the detach");
