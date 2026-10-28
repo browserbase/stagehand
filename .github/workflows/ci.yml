@@ -388,11 +388,11 @@ jobs:
           version: "0.11.29"
           working-directory: packages/integrations/deepagents/runner
           enable-cache: true
-          cache-dependency-glob: packages/integrations/deepagents/runner/uv.lock
+          cache-dependency-glob: uv.lock
 
-      - run: uv lock --check
-      - run: uv sync --locked --dev
-      - run: uv run --locked pytest
+      - run: uv lock --project ../../../.. --check
+      - run: uv sync --project ../../../.. --package stagehand-deepagents-eval-runner --locked --dev
+      - run: uv run --project ../../../.. --package stagehand-deepagents-eval-runner --locked pytest
 
   integrations-python-checks:
     name: Python facade checks

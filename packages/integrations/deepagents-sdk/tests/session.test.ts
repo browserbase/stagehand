@@ -1,8 +1,10 @@
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
   extractDeepagentsTokenUsage,
   buildDeepagentsRunnerArgs,
+  DEFAULT_DEEPAGENTS_RUNNER_DIR,
   buildDeepagentsTranscript,
   normalizeDeepagentsModel,
   runDeepagentsSession,
@@ -441,5 +443,32 @@ describe("DeepAgents token usage presence", () => {
     expect(
       extractDeepagentsTokenUsage({ reported: true, input_tokens: 2, output_tokens: 1 }),
     ).toMatchObject({ reported: true, inputTokens: 2, outputTokens: 1 });
+  });
+});
+
+describe("Deepagents runner project selection", () => {
+  it("selects the root workspace for the bundled runner", () => {
+    const args = buildDeepagentsRunnerArgs(DEFAULT_DEEPAGENTS_RUNNER_DIR);
+    expect(args).toEqual([
+      "run",
+      "--project",
+      path.resolve(import.meta.dirname, "../../../.."),
+      "--package",
+      "stagehand-deepagents-eval-runner",
+      "--locked",
+      "python",
+      path.join(DEFAULT_DEEPAGENTS_RUNNER_DIR, "run_eval.py"),
+    ]);
+  });
+
+  it("keeps a custom runner in its own project", () => {
+    expect(buildDeepagentsRunnerArgs("/tmp/custom-runner")).toEqual([
+      "run",
+      "--project",
+      "/tmp/custom-runner",
+      "--locked",
+      "python",
+      "/tmp/custom-runner/run_eval.py",
+    ]);
   });
 });

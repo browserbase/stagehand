@@ -5,6 +5,8 @@ stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screensho
 
 ## Run locally
 
+From the repository root, run `just install` and `pnpm --filter ./packages/extension build` first.
+
 Set a model-provider key and select the Deep Agents model:
 
 ```bash
@@ -16,7 +18,7 @@ The MCP server launches a visible local Chrome browser by default. Then run:
 
 ```bash
 cd packages/integrations/deepagents
-uv run --project examples/local python examples/local/agent.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
 
 The model, instruction, and Pydantic response classes are declared directly in `agent.py` so the
@@ -28,7 +30,7 @@ Deep Agent navigates to the form, snapshots it, fills the requested fields with 
 returns a typed Pydantic summary without submitting the form:
 
 ```bash
-uv run --project examples/local python examples/local/agents2.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agents2.py
 ```
 
 To use Browserbase instead:
@@ -36,12 +38,13 @@ To use Browserbase instead:
 ```bash
 export STAGEHAND_BROWSER=browserbase
 export BROWSERBASE_API_KEY=...
-uv run --project examples/local python examples/local/agent.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
 
 Browserbase sessions use a 1280 × 720 viewport by default.
 
-The server and client communicate over stdio and use separate Python environments.
+The server and client communicate over stdio and share the root uv workspace environment.
+Nested examples select the root with `--project` and their workspace member with `--package`.
 
 The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
 `MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
@@ -88,17 +91,19 @@ From `examples/managed`, copy `.env.example` to `.env` and configure:
 Then run:
 
 ```bash
-uv sync
-uv run mda dev .
-uv run mda deploy .
+uv sync --project ../../../../.. --all-packages --locked
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda dev .
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda deploy .
 ```
 
 Managed Deep Agents forwards non-reserved `.env` entries as deployment secrets. The agent model key
 and the optional Stagehand model key are independent: users can bring their own key for either,
 while Browserbase Model Gateway remains the zero-additional-key Stagehand path.
 
-The published `stagehand` wheel bundles the browser extension and `browserbase.launch` provisions
-it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
+Running the Python source through uv uses the workspace SDK and its built extension.
+The compiled managed app declares published Stagehand dependencies; the published `stagehand` wheel
+bundles the extension, and `browserbase.launch` provisions it automatically.
+Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
 
 ## Security model
 
