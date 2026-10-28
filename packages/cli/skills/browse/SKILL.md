@@ -236,6 +236,7 @@ browse cloud contexts list
 browse cloud contexts get <context-id|name>
 browse cloud contexts update <context-id|name>
 browse cloud contexts delete <context-id|name>
+browse cloud extensions upload --stagehand
 browse cloud extensions upload ./extension.zip
 browse cloud extensions get <extension-id>
 browse cloud extensions delete <extension-id>

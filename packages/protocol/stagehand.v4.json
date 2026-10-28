@@ -1607,17 +1607,7 @@
       ]
     },
     "VariablePrimitive": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        }
-      ]
+      "type": ["string", "number", "boolean"]
     },
     "DescribedVariableValue": {
       "type": "object",
@@ -4718,14 +4708,7 @@
           "$ref": "#/$defs/LocatorOptions"
         },
         "percent": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "type": ["number", "string"]
         }
       },
       "required": ["page_id", "selector", "percent"],
