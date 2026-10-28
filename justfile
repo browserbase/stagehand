@@ -3,7 +3,7 @@ integrations_python_dir := "packages/integrations/core/python"
 deepagents_python_dir := "packages/integrations/deepagents"
 
 install:
-    pnpm install
+    pnpm install --frozen-lockfile
     uv sync --all-packages --locked
 
 generate:

@@ -468,7 +468,7 @@ describe("Deepagents runner project selection", () => {
       "/tmp/custom-runner",
       "--locked",
       "python",
-      "/tmp/custom-runner/run_eval.py",
+      path.join("/tmp/custom-runner", "run_eval.py"),
     ]);
   });
 });
