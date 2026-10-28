@@ -55,6 +55,7 @@ export const integrationTestGroups = {
   "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
   "local/page-interactions": [
     "clickCount",
+    "pageContent",
     "pageDragAndDrop",
     "pageHover",
     "pagePdf",

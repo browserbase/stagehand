@@ -60,6 +60,7 @@ import type {
   LocatorTypeResult,
   PageClickParams,
   PageCloseResult,
+  PageContentResult,
   PageCDPEvent,
   PageCDPEventNotification,
   PageEventNotification,
@@ -192,6 +193,7 @@ export type UnderstudyRuntimePage = {
   ): Promise<WebMCPToolResponse>;
   cancelWebMCPInvocation(invocationId: string): Promise<void>;
   title(): Promise<string>;
+  content(): Promise<string>;
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
@@ -798,6 +800,10 @@ export class StagehandRuntime {
 
   async pageTitle(params: PageIdParams): Promise<PageTitleResult> {
     return await this.resolvePage(params.pageId).title();
+  }
+
+  async pageContent(params: PageIdParams): Promise<PageContentResult> {
+    return await this.resolvePage(params.pageId).content();
   }
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {

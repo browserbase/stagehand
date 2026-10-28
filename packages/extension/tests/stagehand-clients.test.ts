@@ -456,6 +456,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return this.currentTitle;
   }
 
+  async content(): Promise<string> {
+    return "<!DOCTYPE html><html><head></head><body></body></html>";
+  }
+
   async captureSnapshot() {
     return {
       combinedTree: `[0-1] heading: ${this.currentTitle || "Example Domain"}`,
@@ -2372,6 +2376,24 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 11,
       result: "Current Title",
+    });
+  });
+
+  it("returns page.content from the resolved understudy page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 11,
+        method: "page.content",
+        params: { pageId: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 11,
+      result: "<!DOCTYPE html><html><head></head><body></body></html>",
     });
   });
 

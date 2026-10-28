@@ -30,6 +30,7 @@ from ._generated.models import (
     PageClickOptions,
     PageClickParams,
     PageCloseResult,
+    PageContentResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
     PageEvaluateParams,
@@ -746,6 +747,14 @@ class Page:
             "page.title",
             PageIdParams(page_id=self.page_id),
             PageTitleResult,
+        )
+
+    async def content(self) -> str:
+        """Return the page's HTML, including its doctype."""
+        return await self._rpc_client.send(
+            "page.content",
+            PageIdParams(page_id=self.page_id),
+            PageContentResult,
         )
 
     async def close(self) -> None:

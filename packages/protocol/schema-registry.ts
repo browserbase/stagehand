@@ -69,6 +69,7 @@ import {
   PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
+  PageContentResultSchema,
   PageDragAndDropParamsSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
@@ -281,6 +282,11 @@ export const StagehandMethods = {
   },
   pageUrl: { name: "page.url", params: PageIdParamsSchema, result: PageUrlResultSchema },
   pageTitle: { name: "page.title", params: PageIdParamsSchema, result: PageTitleResultSchema },
+  pageContent: {
+    name: "page.content",
+    params: PageIdParamsSchema,
+    result: PageContentResultSchema,
+  },
   pageClose: { name: "page.close", params: PageIdParamsSchema, result: PageCloseResultSchema },
   pageReload: {
     name: "page.reload",
