@@ -2,7 +2,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
-import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
+import type { CDPSessionLike, CdpSession, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type {
@@ -106,6 +106,8 @@ export class BrowserContext {
   sessionOwnerPage = new Map<SessionId, Page>();
   frameOwnerPage = new Map<string, Page>();
   pendingOopifByMainFrame = new Map<string, SessionId>();
+  pendingOopifParentByMainFrame = new Map<string, string>();
+  adoptedOopifSessionByFrame = new Map<string, SessionId>();
   createdAtByTarget = new Map<TargetId, number>();
   typeByTarget = new Map<TargetId, TargetType>();
   pendingCreatedTargetUrl = new Map<TargetId, string>();
@@ -572,6 +574,8 @@ export class BrowserContext {
     this.sessionOwnerPage.clear();
     this.frameOwnerPage.clear();
     this.pendingOopifByMainFrame.clear();
+    this.pendingOopifParentByMainFrame.clear();
+    this.adoptedOopifSessionByFrame.clear();
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
@@ -928,6 +932,7 @@ export class BrowserContext {
         this.pendingCreatedTargetUrl.delete(info.targetId);
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this.installFrameEventBridges(sessionId, page);
+        this.adoptPendingOopifsByParent();
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
         await this.applyInitScriptsToPage(page, {
@@ -942,32 +947,21 @@ export class BrowserContext {
           await session.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
         const childMainId = frameTree.frame.id;
 
-        // Try to find owner Page now (it may already have the node in its tree)
-        let owner = this.frameOwnerPage.get(childMainId);
-        if (!owner) {
-          for (const p of this.pagesByTarget.values()) {
-            const tree = p.asProtocolFrameTree(p.mainFrameId());
-            const has = (function find(n: Protocol.Page.FrameTree): boolean {
-              if (n.frame.id === childMainId) return true;
-              for (const c of n.childFrames ?? []) if (find(c)) return true;
-              return false;
-            })(tree);
-            if (has) {
-              owner = p;
-              break;
-            }
-          }
-        }
+        // Remote frames are missing from the parent's frame tree, so fall back to the
+        // page that owns the parent frame (pre-existing or nested OOPIFs).
+        const parentFrameId = frameTree.frame.parentId;
+        const owner =
+          this.findPageOwningFrame(childMainId) ??
+          (parentFrameId ? this.findPageOwningFrame(parentFrameId) : undefined);
 
         if (owner) {
-          owner.adoptOopifSession(session, childMainId);
-          this.sessionOwnerPage.set(sessionId, owner);
-          this.installFrameEventBridges(sessionId, owner);
-          // Prime the execution-context registry so later lookups succeed even if
-          // the frame navigates before we issue a command.
-          void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+          this.adoptOopif(owner, session, childMainId);
+          this.adoptPendingOopifsByParent();
         } else {
           this.pendingOopifByMainFrame.set(childMainId, sessionId);
+          if (parentFrameId) {
+            this.pendingOopifParentByMainFrame.set(childMainId, parentFrameId);
+          }
         }
       } catch {
         // page.getFrameTree failed. Most likely was an ad iframe
@@ -975,6 +969,57 @@ export class BrowserContext {
       }
     } finally {
       await resume();
+    }
+  }
+
+  /**
+   * Page whose frame graph contains `frameId`, including adopted OOPIF roots.
+   */
+  findPageOwningFrame(frameId: string): Page | undefined {
+    const known = this.frameOwnerPage.get(frameId);
+    if (known) return known;
+    for (const p of this.pagesByTarget.values()) {
+      if (p.listAllFrameIds().includes(frameId)) return p;
+    }
+    return undefined;
+  }
+
+  adoptOopif(owner: Page, session: CdpSession, childMainId: string): void {
+    owner.adoptOopifSession(session, childMainId);
+    this.adoptedOopifSessionByFrame.set(childMainId, session.id);
+    this.sessionOwnerPage.set(session.id, owner);
+    this.frameOwnerPage.set(childMainId, owner);
+    this.installFrameEventBridges(session.id, owner);
+    // Prime the execution-context registry so later lookups succeed even if
+    // the frame navigates before we issue a command.
+    void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+  }
+
+  /**
+   * An OOPIF that already existed when we attached (e.g. reconnecting to a live
+   * browser, or a nested OOPIF) never emits `frameAttached` on its parent, so the
+   * pending map would hold it forever. Adopt it once the page owning its parent is known.
+   */
+  adoptPendingOopifsByParent(): void {
+    let adopted = true;
+    while (adopted) {
+      adopted = false;
+      for (const [childMainId, parentFrameId] of Array.from(
+        this.pendingOopifParentByMainFrame.entries(),
+      )) {
+        const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
+        const child = childSessionId ? this.conn.getSession(childSessionId) : undefined;
+        if (!child) {
+          this.pendingOopifParentByMainFrame.delete(childMainId);
+          continue;
+        }
+        const owner = this.findPageOwningFrame(parentFrameId);
+        if (!owner) continue;
+        this.pendingOopifByMainFrame.delete(childMainId);
+        this.pendingOopifParentByMainFrame.delete(childMainId);
+        this.adoptOopif(owner, child, childMainId);
+        adopted = true;
+      }
     }
   }
 
@@ -1063,6 +1108,9 @@ export class BrowserContext {
     for (const [fid, sid] of Array.from(this.pendingOopifByMainFrame.entries())) {
       if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
     }
+    for (const [fid, sid] of Array.from(this.adoptedOopifSessionByFrame.entries())) {
+      if (sid === sessionId) this.adoptedOopifSessionByFrame.delete(fid);
+    }
 
     this._targetSessionListeners.delete(sessionId);
     const session = this.conn.getSession(sessionId);
@@ -1138,19 +1186,23 @@ export class BrowserContext {
     session.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
       const { frameId, parentFrameId } = evt;
 
-      owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+      // A live OOPIF session adopted before this (late) parent event keeps ownership.
+      const adoptedSessionId = this.adoptedOopifSessionByFrame.get(frameId);
+      if (
+        !adoptedSessionId ||
+        adoptedSessionId === session.id ||
+        !this.conn.getSession(adoptedSessionId)
+      ) {
+        owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+      }
 
       // If we were waiting for this id (OOPIF child), adopt now.
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
       if (pendingChildSessionId) {
         const child = this.conn.getSession(pendingChildSessionId);
-        if (child) {
-          owner.adoptOopifSession(child, frameId);
-          this.sessionOwnerPage.set(child.id, owner);
-          // Wire bridges for the child so its Page events keep flowing.
-          this.installFrameEventBridges(pendingChildSessionId, owner);
-        }
         this.pendingOopifByMainFrame.delete(frameId);
+        this.pendingOopifParentByMainFrame.delete(frameId);
+        if (child) this.adoptOopif(owner, child, frameId);
       }
 
       // Track Page ownership for quick reverse lookups (debug helpers).
@@ -1165,6 +1217,9 @@ export class BrowserContext {
         }
         this.frameOwnerPage.set(newRoot, owner);
       }
+
+      // The new frame may be the parent of an OOPIF still waiting for adoption.
+      this.adoptPendingOopifsByParent();
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
