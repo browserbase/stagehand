@@ -1,5 +1,6 @@
 python_dir := "packages/sdk-python"
 integrations_python_dir := "packages/integrations/core/python"
+deepagents_python_dir := "packages/integrations/deepagents"
 
 install:
     pnpm install
@@ -24,12 +25,14 @@ check:
     uv --directory {{integrations_python_dir}} run --locked ruff format --check .
     uv --directory {{integrations_python_dir}} run --locked ruff check .
     uv --directory {{integrations_python_dir}} run --locked ty check
+    just check-deepagents
     pnpm --filter ./packages/extension build
 
 test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
     uv --directory {{integrations_python_dir}} run --locked pytest
+    just test-deepagents
     uv --directory packages/examples/cookbooks/paginated-catalog/python run --locked python -m unittest
 
 docs:
@@ -65,6 +68,22 @@ fmt:
     uv --directory {{python_dir}} run --locked ruff format .
     uv --directory {{integrations_python_dir}} run --locked ruff check --fix .
     uv --directory {{integrations_python_dir}} run --locked ruff format .
+    just fmt-deepagents
+
+# The adapter and examples use the adapter's Ruff configuration.
+check-deepagents:
+    uv --directory {{deepagents_python_dir}} run --locked ruff format --check src tests examples
+    uv --directory {{deepagents_python_dir}} run --locked ruff check src tests examples
+    PYTHON_DOTENV_DISABLED=1 uv --directory {{deepagents_python_dir}}/examples/local run --project "{{justfile_directory()}}" --package stagehand-deepagents-local-example --locked python -c 'import agent; import agents2'
+    PYTHON_DOTENV_DISABLED=1 uv --directory {{deepagents_python_dir}}/examples/managed run --project "{{justfile_directory()}}" --package stagehand-managed-deep-agent --locked python -c 'import agent'
+
+fmt-deepagents:
+    uv --directory {{deepagents_python_dir}} run --locked ruff check --fix src tests examples
+    uv --directory {{deepagents_python_dir}} run --locked ruff format src tests examples
+
+test-deepagents:
+    uv --directory {{deepagents_python_dir}} run --locked pytest
+    uv --directory {{deepagents_python_dir}}/runner run --project "{{justfile_directory()}}" --package stagehand-deepagents-eval-runner --locked pytest
 
 build:
     pnpm build

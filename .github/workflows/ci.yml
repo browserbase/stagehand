@@ -75,6 +75,7 @@ jobs:
               - 'uv.lock'
               - 'justfile'
               - 'packages/integrations/core/python/pyproject.toml'
+              - 'packages/integrations/deepagents/**/pyproject.toml'
               - 'packages/examples/cookbooks/*/python/**'
               - 'packages/sdk-python/**'
               - 'packages/extension/**'
@@ -82,9 +83,17 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/**'
             deepagents-runner:
-              - 'packages/integrations/deepagents/runner/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'justfile'
+              - 'packages/sdk-python/**'
+              - 'packages/integrations/core/python/**'
+              - 'packages/examples/cookbooks/*/python/pyproject.toml'
+              - 'packages/integrations/deepagents/**'
+              - 'packages/integrations/deepagents-sdk/**'
               - '.github/**'
             integrations-python:
+              - 'packages/integrations/deepagents/**/pyproject.toml'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'justfile'
@@ -371,9 +380,6 @@ jobs:
     timeout-minutes: 20
     needs: [determine-changes]
     if: needs.determine-changes.outputs.deepagents-runner == 'true'
-    defaults:
-      run:
-        working-directory: packages/integrations/deepagents/runner
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -386,13 +392,15 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.29"
-          working-directory: packages/integrations/deepagents/runner
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - run: uv lock --project ../../../.. --check
-      - run: uv sync --project ../../../.. --package stagehand-deepagents-eval-runner --locked --dev
-      - run: uv run --project ../../../.. --package stagehand-deepagents-eval-runner --locked pytest
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+
+      - run: uv lock --check
+      - run: uv sync --all-packages --locked
+      - run: just check-deepagents
+      - run: just test-deepagents
 
   integrations-python-checks:
     name: Python facade checks
