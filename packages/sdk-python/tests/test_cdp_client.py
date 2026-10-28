@@ -12,6 +12,7 @@ from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
+    CDPConnectionClosedError,
     ServiceWorkerInfo,
     StagehandRuntimeIncompatibleError,
 )
