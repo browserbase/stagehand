@@ -42,6 +42,7 @@ import type {
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { waitForURL, type WaitForURLOptions } from "./waitForURL.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
@@ -355,7 +356,7 @@ export class Page {
     const page = new Page(conn, session, targetId, mainFrameId, logger, browserIsRemote);
     // Seed current URL from initial frame tree
     try {
-      page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+      page._currentUrl = frameTree.frame.url + (frameTree.frame.urlFragment ?? "");
       if (localBrowserLaunchOptions?.viewport) {
         await page.setViewportSize(
           localBrowserLaunchOptions.viewport.width,
@@ -434,12 +435,7 @@ export class Page {
 
     // Update cached URL if this navigation pertains to the current main frame
     if (frame.id === this.mainFrameId()) {
-      try {
-        // Prefer frame.url; fallback keeps previous value
-        this._currentUrl = String((frame as { url?: string })?.url ?? this._currentUrl);
-      } catch {
-        // ignore
-      }
+      this._currentUrl = frame.url + (frame.urlFragment ?? "");
     }
 
     // Invalidate the cached Frame for this id (session may have changed)
@@ -1739,6 +1735,24 @@ export class Page {
     await this.waitForMainLoadState(state, timeout ?? 15000);
   }
 
+  async waitForURL(url: string, options: WaitForURLOptions = {}): Promise<void> {
+    return runWithProgress(
+      { name: "waitForURL", timeout: options.timeout ?? 30_000 },
+      async (progress) => {
+        const onClosed = () => progress.abort(new Error("Page closed while waiting for URL"));
+        if (this.disposed || !this.conn.connected) onClosed();
+        this.pageEventDisposers.add(onClosed);
+        this.conn.onTransportClosed(onClosed);
+        try {
+          await waitForURL(this, url, options, progress);
+        } finally {
+          this.pageEventDisposers.delete(onClosed);
+          this.conn.offTransportClosed(onClosed);
+        }
+      },
+    );
+  }
+
   /**
    * Wait for a specified amount of time.
    *
@@ -2683,18 +2697,26 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
+  async waitForMainLoadState(
+    state: LoadState,
+    timeout = 15000,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
+    signal?.throwIfAborted();
 
     // Fast path: check the *current* main frame's readyState.
     if (
       (state === "domcontentloaded" || state === "load") &&
       (await this.isMainLoadStateReady(state))
     ) {
+      signal?.throwIfAborted();
       return;
     }
+    signal?.throwIfAborted();
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
@@ -2707,6 +2729,7 @@ export class Page {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+        signal?.removeEventListener("abort", onAbort);
       };
       const clearPollTimer = () => {
         if (pollTimer) {
@@ -2715,7 +2738,7 @@ export class Page {
         }
       };
 
-      const finish = () => {
+      const finish = (error?: unknown) => {
         if (done) return;
         done = true;
         if (timer) {
@@ -2724,27 +2747,33 @@ export class Page {
         }
         clearPollTimer();
         off();
-        resolve();
+        if (error === undefined) resolve();
+        else reject(error);
       };
 
       const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
         if (evt.name !== wanted) return;
+        const loaderId = this.registry.frames.get(this.mainFrameId())?.lastSeen?.loaderId;
+        if (loaderId && evt.loaderId !== loaderId) return;
         // Compare against the *current* main frame id when the event arrives.
         if (evt.frameId === this.mainFrameId()) finish();
       };
 
       const onDomContent = () => {
-        if (state === "domcontentloaded") finish();
+        if (state === "domcontentloaded") void pollReadyState();
       };
 
       const onLoad = () => {
-        if (state === "load") finish();
+        if (state === "load") void pollReadyState();
       };
+
+      const onAbort = () => finish(signal?.reason);
 
       this.mainSession.on("Page.lifecycleEvent", onLifecycle);
       // Backups for sites that don't emit lifecycle consistently
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       // Fallback polling closes lifecycle-event races in remote environments
       // where readyState has advanced but the corresponding event was missed.
@@ -2772,13 +2801,10 @@ export class Page {
       };
       void pollReadyState();
 
-      timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        clearPollTimer();
-        off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
-      }, timeout);
+      if (timeout !== 0)
+        timer = setTimeout(() => {
+          finish(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        }, timeout);
     });
   }
 }
