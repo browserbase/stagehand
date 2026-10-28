@@ -75,8 +75,7 @@ catalog:
   "@opencode/server": 2.0.22
   "@types/proper-lockfile": 4.1.4
   "@workflow/world-local": 5.1.2
-  "durable-harness": 0.0.1-beta.6
-  "effect": 4.0.0-rc.112
+  "durable-harness": 0.0.1
   "libfx": 0.0.14
   "proper-lockfile": 4.1.2
 catalogs:
@@ -123,11 +122,3 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
   - eve@0.71.2
-  - "@earendil-works/chord@1.4.0"
-  - "@earendil-works/pi-ai@1.4.0"
-  - "@earendil-works/pi-codemode@1.4.0"
-  - "@earendil-works/pi-durable@1.4.0"
-  - "@earendil-works/pi-telemetry@1.4.0"
-  - "@workflow/errors@5.0.5"
-  - "@workflow/world-local@5.1.2"
-  - "@workflow/world@5.0.5"

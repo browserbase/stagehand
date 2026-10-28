@@ -16,7 +16,6 @@
     "@workflow/world-local": "catalog:",
     "dotenv": "catalog:",
     "durable-harness": "catalog:",
-    "effect": "catalog:",
     "proper-lockfile": "catalog:",
     "zod": "catalog:"
   },

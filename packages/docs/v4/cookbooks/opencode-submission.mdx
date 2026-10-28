@@ -31,6 +31,8 @@ Preserve stable input identities, the local World, browser binding, serialized a
 
 Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. AI Gateway powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
 
+The root catalog pins `durable-harness@0.0.1` and OpenCode packages at `2.0.22`, the version supported by its [OpenCode adapter](https://vercel.com/docs/agent-harnesses/opencode). OpenCode supplies its required Effect version transitively. Keep these pins when adapting the recipe. durable-harness remains experimental.
+
 ## Check out and run
 
 Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:

@@ -42,9 +42,9 @@ The prepared request includes a reference in its comments. The approval is tied 
 
 `CRASH_AFTER_SUBMIT=1` kills the process after the click but before the tool returns. Unset it and resume; the CLI waits for the stale lock automatically. A matching httpbin response confirms success. An expired browser, missing confirmation, or mismatched response stops with an error and requires manual review. httpbin is an echo service, not an idempotent transaction system. This example does not promise exactly-once website actions.
 
-Keep OpenCode's packages pinned to `2.0.22`, the version this durable-harness beta supports. The latest OpenCode release may be incompatible.
+Keep OpenCode's packages pinned to `2.0.22`, the version durable-harness supports. OpenCode brings the required Effect version transitively; do not add or upgrade Effect separately. See the [OpenCode adapter docs](https://vercel.com/docs/agent-harnesses/opencode).
 
-This cookbook uses the explicitly pinned experimental `durable-harness@0.0.1-beta.6`. APIs may change between releases.
+This cookbook uses the explicitly pinned experimental `durable-harness@0.0.1`. APIs may change between releases.
 
 ## Browser operations
 
