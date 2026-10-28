@@ -197,6 +197,51 @@ describe("BrowserContext OOPIF adoption", () => {
     await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
   });
 
+  it("keeps the nested iframe session as owner when the outer iframe reports it late", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true });
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: NESTED_FRAME, parentFrameId: EDITOR_FRAME },
+      EDITOR_SESSION,
+    );
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: "same-origin-frame", parentFrameId: EDITOR_FRAME },
+      EDITOR_SESSION,
+    );
+    await context.conn.messageQueue;
+
+    expect(page.getSessionForFrame(NESTED_FRAME).id).toBe(NESTED_SESSION);
+    expect(page.listAllFrameIds()).toContain("same-origin-frame");
+    expect(page.getSessionForFrame("same-origin-frame").id).toBe(EDITOR_SESSION);
+  });
+
+  it("allows the outer session to own the frame after the nested session detaches", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true });
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+
+    browser.emitEvent(
+      "Target.detachedFromTarget",
+      { sessionId: NESTED_SESSION, targetId: NESTED_TARGET.targetId },
+      EDITOR_SESSION,
+    );
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: NESTED_FRAME, parentFrameId: EDITOR_FRAME },
+      EDITOR_SESSION,
+    );
+    await context.conn.messageQueue;
+
+    expect(page.listAllFrameIds()).toContain(NESTED_FRAME);
+    expect(page.getSessionForFrame(NESTED_FRAME).id).toBe(EDITOR_SESSION);
+  });
+
   it("adopts waiting OOPIFs once the page reports the frame that contains them", async () => {
     const browser = new BrowserWithLoadedOopif({ nested: true, editorInsideWrapper: true });
     const { context, page } = await connect(browser);

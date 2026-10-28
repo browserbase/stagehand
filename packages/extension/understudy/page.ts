@@ -488,9 +488,8 @@ export class Page {
     childSession.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
       this.onFrameNavigated(evt.frame, childSession);
     });
-    childSession.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
-      this.onFrameAttached(evt.frameId, evt.parentFrameId ?? null, childSession);
-    });
+    // Frame attachments are handled by BrowserContext.installFrameEventBridges,
+    // whose ownership guard protects adopted nested OOPIFs from late parent events.
     childSession.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
     });
