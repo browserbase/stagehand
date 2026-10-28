@@ -11,6 +11,7 @@ import {
   type DeepagentsProcessSpawner,
 } from "../../framework/deepagentsRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_RESULT_SCHEMA } from "../../framework/harnesses/externalRunner.js";
 import type { PreparedDeepagentsToolAdapter } from "../../framework/deepagentsToolAdapter.js";
 import { EvalLogger } from "../../logger.js";
 
@@ -180,6 +181,52 @@ describe("Deep Agents runner", () => {
     expect(result.harnessStatus).toBe("max_turns");
     expect(result.deepagentsStatus).toBe("max_turns");
     expect(result.error).toContain("recursion");
+  });
+
+  it("switches to the structured-output contract when asked", async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const spawn: DeepagentsProcessSpawner = () => {
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      let raw = "";
+      stdin.on("data", (chunk) => (raw += chunk.toString()));
+      stdin.on("finish", () => payloads.push(JSON.parse(raw)));
+      queueMicrotask(() => {
+        stdout.write(
+          `${JSON.stringify({ type: "final", text: '{"success":true,"summary":"done","finalAnswer":"ok"}' })}\n`,
+        );
+        stdout.write(`${JSON.stringify({ type: "usage" })}\n`);
+        stdout.end();
+        stderr.end();
+      });
+      return {
+        stdin,
+        stdout,
+        stderr,
+        exited: Promise.resolve({ code: 0, signal: null }),
+        kill: () => {},
+      };
+    };
+    const run = (contract?: string) =>
+      runDeepagentsAgent({
+        plan,
+        model: "anthropic/claude-opus-5-5" as AvailableModel,
+        logger: new EvalLogger(false),
+        spawn,
+        env: contract === undefined ? {} : { EVAL_RESULT_CONTRACT: contract },
+      });
+
+    const structured = await run("structured_output");
+    await run();
+
+    expect(structured.finalAnswer).toBe("ok");
+    expect(payloads[0]?.result_schema).toEqual(EVAL_RESULT_SCHEMA);
+    expect(payloads[0]?.prompt).toContain("return compact JSON matching this schema");
+    expect(JSON.stringify(payloads[0])).not.toContain("EVAL_RESULT");
+    expect(payloads[1]?.result_schema).toBeNull();
+    expect(payloads[1]?.prompt).toContain("EVAL_RESULT:");
+    await expect(run("json")).rejects.toThrow(/EVAL_RESULT_CONTRACT/);
   });
 });
 

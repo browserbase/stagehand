@@ -14,10 +14,13 @@ import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { deepagentsAdapter } from "./harnesses/deepagentsAdapter.js";
 import {
   buildExternalHarnessPrompt,
+  EVAL_RESULT_SCHEMA,
   parseEvalResult,
   runExternalHarnessTask,
+  type EvalResultContract,
   type ExternalHarnessUsage,
   type ParsedEvalResult,
+  readResultContract,
 } from "./harnesses/externalRunner.js";
 import { isOpenAiModel, readReasoningSummary } from "./reasoningSummary.js";
 import { resolveStepBudget } from "./stepBudget.js";
@@ -38,6 +41,7 @@ export interface DeepagentsRunnerInput {
   signal?: AbortSignal;
   spawn?: DeepagentsProcessSpawner;
   verifier?: ExternalHarnessVerifierConfig;
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface ParsedDeepagentsResult extends ParsedEvalResult {}
@@ -48,6 +52,9 @@ Do not use file or todo tools, and do not use task tools; only the browser tools
 Finish with the EVAL_RESULT line requested by the task prompt.
 `;
 
+const FINISH_WITH_MARKER = "Finish with the EVAL_RESULT line requested by the task prompt.";
+const FINISH_WITH_JSON = "Finish with the JSON report requested by the task prompt.";
+
 const DEEPAGENTS_FACADE_SYSTEM_PROMPT = `You control the browser through exactly three tools:
 - snapshot: inspect the active page and hydrate bracketed element IDs.
 - run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
@@ -57,7 +64,17 @@ Use snapshot actions for simple interactions and run code for multi-step workflo
 valid only for the latest snapshot of the active page. Snapshot again after navigation or stale IDs.
 `;
 
-export function buildDeepagentsSystemPrompt(toolSurface?: ToolSurface): string {
+export function buildDeepagentsSystemPrompt(
+  toolSurface?: ToolSurface,
+  resultContract: EvalResultContract = "marker",
+): string {
+  const prompt = surfaceSystemPrompt(toolSurface);
+  return resultContract === "marker"
+    ? prompt
+    : prompt.replace(FINISH_WITH_MARKER, FINISH_WITH_JSON);
+}
+
+function surfaceSystemPrompt(toolSurface?: ToolSurface): string {
   if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
     return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_FACADE_SYSTEM_PROMPT}`;
   }
@@ -74,7 +91,11 @@ export function buildDeepagentsPrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
 ): string {
-  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
+  return buildExternalHarnessPrompt({
+    plan,
+    toolInstructions,
+    resultContract: readResultContract("marker"),
+  });
 }
 
 export function parseDeepagentsResult(raw: string): ParsedDeepagentsResult {
@@ -89,7 +110,9 @@ export async function runDeepagentsAgent({
   signal,
   spawn,
   verifier,
+  env = process.env,
 }: DeepagentsRunnerInput): Promise<TaskResult> {
+  const resultContract = readResultContract("marker", env);
   const maxToolSteps = resolveStepBudget({
     harnessEnvKey: "EVAL_DEEPAGENTS_MAX_STEPS",
     dataset: plan.dataset,
@@ -102,7 +125,7 @@ export async function runDeepagentsAgent({
     logger,
     toolAdapter,
     verifier,
-    resultContract: "marker",
+    resultContract,
     fallbackErrorMessage: "Deep Agents did not report success",
     stepBudget: maxToolSteps,
     stepBudgetUnit: "tool_calls",
@@ -118,10 +141,11 @@ export async function runDeepagentsAgent({
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-          systemPrompt: `${systemPrompt}\n\n${buildDeepagentsSystemPrompt(toolAdapter?.toolSurface)}`,
+          systemPrompt: `${systemPrompt}\n\n${buildDeepagentsSystemPrompt(toolAdapter?.toolSurface, resultContract)}`,
           ...(isOpenAiModel(model) && { reasoningSummary: readReasoningSummary() }),
           recursionLimit: readDeepagentsRecursionLimit(maxToolSteps),
           maxToolSteps,
+          ...(resultContract === "structured_output" && { resultSchema: EVAL_RESULT_SCHEMA }),
         },
         onToolResult: (_name: string, server?: string) => {
           if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();

@@ -1,17 +1,10 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as llmService from "../services/llmService.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 
-/**
- * End-to-end test of the gateway inference path with nothing mocked: the real
- * AI SDK stack (generateText → @ai-sdk/openai responses model → fetch) runs
- * against a local HTTP server standing in for stagehand-api-v3's
- * POST /v1/llm/responses. Verifies the exact wire contract the server
- * expects — endpoint path, auth headers, Responses-format body — and that
- * Responses payloads map back into the Stagehand LLM result schema.
- */
+import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
 
 interface CapturedRequest {
   url: string;
@@ -21,6 +14,8 @@ interface CapturedRequest {
 
 let server: Server;
 let gateway: GatewayContext;
+let bridge: ReturnType<typeof createBrowserbaseTestBridge>;
+let apiUrl: string;
 const requests: CapturedRequest[] = [];
 let respondWith: () => Record<string, unknown>;
 
@@ -58,40 +53,51 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   const { port } = server.address() as AddressInfo;
-  gateway = {
-    apiUrl: `http://127.0.0.1:${port}/v1`,
-    apiKey: "bb-api-key",
-    sessionId: "session-123",
-  };
+  apiUrl = `http://127.0.0.1:${port}/v1`;
 });
 
 afterAll(() => {
   server.close();
 });
 
+afterEach(async () => {
+  expect(bridge.requests).toHaveLength(requests.length);
+  expect(bridge.requests.every(({ operation }) => operation === "gateway.responses")).toBe(true);
+  bridge.rpc.close();
+  await Promise.all(bridge.pendingReplies);
+});
+
 beforeEach(() => {
+  bridge = createBrowserbaseTestBridge({ apiUrl, apiKey: "bb-api-key", sessionId: "session-123" });
+  gateway = {
+    request: bridge.runtime.adapters.clientBrowserbaseRequest,
+  };
   requests.length = 0;
   respondWith = () => completion("Hello from the gateway");
 });
 
 describe("gateway inference end to end", () => {
-  it("omits the model when Browserbase should select it automatically", async () => {
-    await llmService.generate(
-      undefined,
-      {
-        messages: [{ role: "user", content: { type: "text", text: "Say hello" } }],
-      },
-      () => {
-        throw new Error("client LLM must not be used on the gateway path");
-      },
-      gateway,
-    );
+  it("omits only the model when Browserbase should select it automatically", async () => {
+    for (const model of [{ modelName: "openai/gpt-5" } as const, undefined]) {
+      await llmService.generate(
+        model,
+        { messages: [{ role: "user", content: { type: "text", text: "Say hello" } }] },
+        () => {
+          throw new Error("client LLM must not be used on the gateway path");
+        },
+        gateway,
+      );
+    }
 
-    const request = requests[0]!;
-    expect(request.url).toBe("/v1/llm/responses");
-    expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
-    expect(request.headers["x-bb-session-id"]).toBe("session-123");
-    expect(request.body).not.toHaveProperty("model");
+    const { model, ...body } = requests[0]!.body;
+    expect(model).toBe("openai/gpt-5");
+    expect(requests[1]!.body).toEqual(body);
+    expect(requests[1]!.url).toBe("/v1/llm/responses");
+    expect(requests[1]!.headers).toMatchObject({
+      "x-bb-api-key": "bb-api-key",
+      "x-bb-session-id": "session-123",
+      authorization: "Bearer bb-api-key",
+    });
   });
 
   it("sends an OpenAI-format request to the gateway endpoint and maps the response back", async () => {
@@ -161,8 +167,7 @@ describe("gateway inference end to end", () => {
     );
 
     const request = requests[0]!;
-    const text = request.body.text as { format?: { type: string } } | undefined;
-    expect(text?.format?.type).toBe("json_schema");
+    expect(request.body.text).toMatchObject({ format: { type: "json_schema", name: "greeting" } });
 
     expect(result.outputFormat).toBe("json_schema");
     expect(result).toMatchObject({ structuredContent: { greeting: "hi" } });

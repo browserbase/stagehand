@@ -5,9 +5,11 @@ import { CDPConnectionClosedError, type Stagehand } from "@browserbasehq/stageha
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BROWSER_SESSION_LOST_ERROR_PREFIX,
+  staleSnapshotIdError,
   type FacadeSessionLoss,
 } from "../src/facade/contract.js";
 import {
+  StagehandFacadeInputError,
   StagehandFacadeSessionLostError,
   StagehandFacadeCleanupError,
   StagehandFacadeTools,
@@ -194,6 +196,51 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(reports[0].closeRequested).toBe(false);
     expect(reports[0].batchRuntimeMs).toBeGreaterThanOrEqual(0);
     expect(reports[0].batchRoundTripMs).toBeGreaterThanOrEqual(reports[0].batchRuntimeMs);
+  });
+
+  it("sends quietWait in the run input only when the host turns it on", async () => {
+    const run = async (quietWait: boolean | undefined) => {
+      const fakePage = createFakePage();
+      const probe = vi.fn(async () => ({ readyState: "complete", quietMs: 1_000 }));
+      const page = Object.assign(fakePage, {
+        waitForFunction: vi.fn(async () => probe()),
+      });
+      const { stagehand, experimentalBatch } = createFakeStagehand(page);
+      const reports: StagehandFacadeRunReport[] = [];
+      const tools = new StagehandFacadeTools(stagehand, {
+        onRunReport: (r) => reports.push(r),
+        ...(quietWait !== undefined && { quietWait }),
+      });
+      await tools.run(`await page.waitForTimeout(5000); return null;`);
+      return { input: experimentalBatch.mock.calls[0][1], page, probe, report: reports[0] };
+    };
+
+    for (const quietWait of [undefined, false]) {
+      const off = await run(quietWait);
+      expect(off.input).toStrictEqual({ hiddenPageIds: ["keeper-page"] });
+      expect(off.page.waitForTimeout.mock.calls).toStrictEqual([[5_000]]);
+      expect(off.probe).not.toHaveBeenCalled();
+      expect(off.report.quietWait).toBe(false);
+      expect(off.report.telemetry.waits).toStrictEqual({
+        count: 1,
+        requestedMs: 5_000,
+        waitedMs: 5_000,
+        earlyReturns: 0,
+      });
+    }
+
+    const on = await run(true);
+    expect(on.input).toStrictEqual({ hiddenPageIds: ["keeper-page"], quietWait: true });
+    expect(on.page.waitForTimeout).not.toHaveBeenCalled();
+    expect(on.probe).toHaveBeenCalledOnce();
+    expect(on.report.quietWait).toBe(true);
+    expect(on.report.telemetry.calls["page.waitForTimeout"]).toBe(1);
+    expect(on.report.telemetry.waits).toMatchObject({
+      count: 1,
+      requestedMs: 5_000,
+      earlyReturns: 1,
+    });
+    expect(on.report.telemetry.waits.waitedMs).toBeLessThan(5_000);
   });
 
   it("does not expose Stagehand AI methods or the raw client to the snippet", async () => {
@@ -744,6 +791,53 @@ describe("StagehandFacadeTools session loss", () => {
     expect(world.locators.filter((locator) => locator.selector === "xpath=/first")).toHaveLength(1);
     expect(world.locators[0]?.click).toHaveBeenCalledOnce();
     expect(page.waitForTimeout).not.toHaveBeenCalled();
+  });
+
+  it("resolves bare backend ids and text nodes to their element XPath", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-7": "/html[1]/body[1]/a[1]", "1-9": "/html[1]/body[1]/p[1]/text()[2]" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(
+      tools.runActions([
+        { op: "click", id: "7" },
+        { op: "hover", id: "1-9" },
+      ]),
+    ).resolves.toStrictEqual({ completed: 2, url: "https://example.com" });
+    expect(world.locators.map((locator) => locator.selector)).toStrictEqual([
+      "xpath=/html[1]/body[1]/a[1]",
+      "xpath=/html[1]/body[1]/p[1]",
+    ]);
+  });
+
+  it.each([
+    ["an unknown id", "0-3"],
+    ["an ambiguous bare backend id", "7"],
+    ["a bare id containing a dash", "x-7"],
+  ])("rejects %s as stale before running any action", async (_case, id) => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-1": "/first", "0-7": "/a", "1-7": "/b" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    const error = await tools
+      .runActions([
+        { op: "click", id: "0-1" },
+        { op: "click", id },
+      ])
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(StagehandFacadeInputError);
+    expect((error as Error).message).toBe(staleSnapshotIdError(id));
+    expect(world.locators).toHaveLength(0);
   });
 
   it("treats a single capture deadline as recoverable, escalating to session loss only after repeated consecutive timeouts", async () => {

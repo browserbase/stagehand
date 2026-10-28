@@ -4,6 +4,7 @@ import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import { browserWait, BrowserWaitError } from "./browserWait.js";
 import type { StagehandLogger } from "../logger.js";
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -202,74 +203,37 @@ export class Frame implements FrameManager {
 
   /** Own a disposable browser wait, including a handle delivered after expiry. */
   async waitInLocatorWorld(buildExpression: () => string, progress: Progress): Promise<boolean> {
-    const dispose = (objectId: string) =>
-      Promise.all([
-        progress.cleanup(() =>
-          this.session.send("Runtime.callFunctionOn", {
-            objectId,
-            functionDeclaration: "function() { this.dispose(); }",
-            returnByValue: true,
-          }),
-        ),
-        progress.cleanup(() => this.session.send("Runtime.releaseObject", { objectId })),
-      ]);
     for (let attempt = 0; ; attempt++) {
       progress.throwIfStopped();
-      const response = await this.evaluateLocatorExpression(buildExpression, {
-        progress,
-        returnByValue: false,
-        awaitPromise: false,
-        onLateResult: async (late) => {
-          if (late.result.objectId) await dispose(late.result.objectId);
-        },
-      });
-      const objectId = response.result.objectId;
-      let completed = false;
+      let contextId: number | undefined;
       try {
-        if (response.exceptionDetails || !objectId) {
-          throw new Error(
-            response.exceptionDetails?.exception?.description ??
-              response.exceptionDetails?.text ??
-              "Selector wait handle was not returned",
-          );
-        }
-        let result: Protocol.Runtime.CallFunctionOnResponse;
-        try {
-          result = await progress.run("waiting for selector", () =>
-            this.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-              objectId,
-              functionDeclaration: "function() { return this.promise; }",
-              awaitPromise: true,
-              returnByValue: true,
-            }),
-          );
-        } catch (error) {
-          progress.throwIfStopped();
-          const message = error instanceof Error ? error.message : String(error);
-          // Retry context loss once, matching locator evaluation recovery
-          if (attempt !== 0 || !message.includes("Cannot find context with specified id"))
-            throw error;
-          executionContexts.unregisterLocatorContext(this.session, response.contextId);
-          continue;
-        }
-        if (result.exceptionDetails) {
-          throw new Error(
-            result.exceptionDetails.exception?.description ??
-              result.exceptionDetails.text ??
-              "Selector wait failed",
-          );
-        }
-        completed = true;
-        return result.result.value as boolean;
-      } finally {
-        if (objectId) {
-          // A successful wait has already removed its observers and timers.
-          if (completed) {
-            void progress.cleanup(() => this.session.send("Runtime.releaseObject", { objectId }));
-          } else {
-            await dispose(objectId);
-          }
-        }
+        return await browserWait<boolean>(
+          this.session,
+          progress,
+          async (onLateResult) => {
+            const response = await this.evaluateLocatorExpression(buildExpression, {
+              progress,
+              returnByValue: false,
+              awaitPromise: false,
+              onLateResult,
+            });
+            contextId = response.contextId;
+            return response;
+          },
+          "waiting for selector",
+        );
+      } catch (error) {
+        progress.throwIfStopped();
+        const message = error instanceof Error ? error.message : String(error);
+        // Retry context loss once, matching locator evaluation recovery.
+        if (
+          attempt !== 0 ||
+          contextId === undefined ||
+          error instanceof BrowserWaitError ||
+          !message.includes("Cannot find context with specified id")
+        )
+          throw error;
+        executionContexts.unregisterLocatorContext(this.session, contextId);
       }
     }
   }

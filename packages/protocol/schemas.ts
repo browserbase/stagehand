@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { JSONRPCRequestIdSchema } from "./json-rpc/schemas.ts";
 import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
 
 export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
@@ -931,7 +932,7 @@ export const CacheMetadataSchema = z
     }),
     missReason: z.string().optional().meta({
       description:
-        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)',
     }),
     tokensSaved: CacheTokenSavingsSchema.optional().meta({
       description: "LLM tokens avoided by serving this request from cache; hits only",
@@ -1418,6 +1419,69 @@ export const LocatorDescriptorSchema = z
   })
   .meta({ id: "LocatorDescriptor" });
 
+/** One HTTP attempt; the caller owns retries and response interpretation. */
+export const BrowserbaseRequestParamsSchema = z
+  .strictObject({
+    operation: z.enum(["gateway.responses", "cache.get", "cache.set"]),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id.",
+    }),
+    body: z.string().meta({ description: "JSON request body sent as UTF-8 text" }),
+    remainingTimeoutMs: z.number().nonnegative().optional().meta({
+      description:
+        "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
+    }),
+  })
+  .meta({ id: "BrowserbaseRequestParams" });
+
+export const BrowserbaseHttpResponseSchema = z
+  .strictObject({
+    type: z.literal("response"),
+    status: z.int().min(200).max(599),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()).meta({
+      description:
+        "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted.",
+    }),
+    body: z.string().meta({
+      description:
+        "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced",
+    }),
+  })
+  .meta({
+    id: "BrowserbaseHttpResponse",
+    description:
+      "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them.",
+  });
+
+export const BrowserbaseTransportErrorSchema = z
+  .strictObject({
+    type: z.literal("error"),
+    reason: z.enum(["network", "cancelled", "timeout", "unavailable", "disconnected"]),
+    message: z.string(),
+  })
+  .meta({
+    id: "BrowserbaseTransportError",
+    description:
+      "Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes",
+  });
+
+export const BrowserbaseRequestResultSchema = z
+  .discriminatedUnion("type", [BrowserbaseHttpResponseSchema, BrowserbaseTransportErrorSchema])
+  .meta({ id: "BrowserbaseRequestResult" });
+
+export const BrowserbaseCancelParamsSchema = z
+  .strictObject({
+    requestId: JSONRPCRequestIdSchema,
+    reason: z.enum(["cancelled", "timeout"]),
+  })
+  .meta({
+    id: "BrowserbaseCancelParams",
+    description:
+      "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs",
+  });
+
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1452,21 +1516,7 @@ export const StagehandInitParamsSchema = z
     protocolVersion: StagehandProtocolVersionSchema,
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
-    apiKey: z.string().min(1).optional(),
-    apiUrl: z
-      .url()
-      .refine(
-        (value) => !value.includes("?") && !value.includes("#"),
-        "Stagehand apiUrl must not include a query string or fragment",
-      )
-      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
-        message: "Stagehand apiUrl must be a service origin without /v1",
-      })
-      .optional()
-      .meta({
-        description:
-          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-      }),
+    browserbase: z.literal("client").optional(),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:
@@ -1479,10 +1529,14 @@ export const StagehandInitParamsSchema = z
     domSettleTimeoutMs: z.number().int().positive().optional(),
     cache: CachingSchema.optional().meta({
       description:
-        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
     }),
   })
-  .meta({ id: "StagehandInitParams" });
+  .refine((params) => params.browserbase === undefined || params.browser !== undefined, {
+    message: "Client Browserbase transport requires browser metadata",
+    path: ["browserbase"],
+  })
+  .meta({ id: "StagehandInitParams", dependentRequired: { browserbase: ["browser"] } });
 
 export const StagehandActParamsSchema = z
   .strictObject({
@@ -1506,7 +1560,10 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+// Keep the standalone default inline rather than extracting its metadata id into $defs.
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({
@@ -1841,6 +1898,17 @@ export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
 }).meta({ id: "PageWaitForTimeoutParams" });
 
+export const PageWaitForFunctionParamsSchema = PageIdParamsSchema.extend({
+  expression: z.string(),
+  options: z
+    .strictObject({
+      polling: z.union([z.literal("raf"), z.number().positive().max(2_147_483_647)]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+    })
+    .meta({ id: "PageWaitForFunctionOptions" })
+    .optional(),
+}).meta({ id: "PageWaitForFunctionParams" });
+
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
   options: z
@@ -2021,6 +2089,10 @@ export const PageWaitForSelectorResultSchema = z
     matched: z.boolean(),
   })
   .meta({ id: "PageWaitForSelectorResult" });
+
+export const PageWaitForFunctionResultSchema = z
+  .strictObject({ value: z.json() })
+  .meta({ id: "PageWaitForFunctionResult" });
 
 export const LocatorClickResultSchema = z
   .strictObject({

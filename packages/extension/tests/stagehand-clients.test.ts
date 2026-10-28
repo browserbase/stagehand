@@ -388,6 +388,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     this.waitForTimeoutCalls.push(ms);
   }
 
+  async waitForFunction(): Promise<unknown> {
+    return this.evaluationResult;
+  }
+
   async waitForSelector(
     selector: string,
     options?: PageWaitForSelectorParams["options"],
