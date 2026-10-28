@@ -64,7 +64,8 @@ const StagehandProtocolDocumentSchema = z
       errorResponse: JSONRPCErrorResponseSchema,
     }),
   })
-  .meta({ id: "StagehandProtocolDocument", title: "Stagehand V4 Protocol" });
+  // Keep the document root inline; an id makes Zod extract it into $defs.
+  .meta({ title: "Stagehand V4 Protocol" });
 
 function buildStagehandProtocolDocument(): Record<string, unknown> {
   const preservedDocumentPropertyNames = new Set([

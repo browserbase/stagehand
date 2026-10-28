@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - packages/integrations/*
+  - packages/examples/cookbooks/*/typescript
 
 catalogMode: prefer
 
@@ -33,7 +34,7 @@ catalog:
   tsdown: 0.22.3
   vite: 8.1.3
   vitest: 4.1.11
-  zod: 4.4.3
+  zod: 4.6.6
   devtools-protocol: ^0.0.1657692
   ai: ^7.0.16
   "@openai/codex-sdk": 0.153.4

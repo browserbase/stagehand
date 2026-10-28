@@ -7,16 +7,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.8",
-    "@browserbasehq/stagehand": "4.1.0",
-    "ai": "^7.0.16",
-    "dotenv": "^17.4.2",
-    "zod": "4.4.3"
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand": "workspace:*",
+    "ai": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24",
-    "tsx": "^4.23.1",
-    "typescript": "^5"
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=22.18.0"
