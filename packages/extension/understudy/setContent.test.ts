@@ -166,7 +166,7 @@ describe("Page.setContent", () => {
       if (reason === "frame")
         events.emit("Page.frameDetached", { frameId: "root", reason: "remove" });
       if (reason === "target" || reason === "destroyed") {
-        await connection.onMessage(
+        connection.onMessage(
           JSON.stringify({
             method: reason === "target" ? "Target.detachedFromTarget" : "Target.targetDestroyed",
             params: { sessionId: "session", targetId: "page" },
@@ -303,7 +303,7 @@ describe("Page.setContent", () => {
       if (reason === "frame")
         events.emit("Page.frameDetached", { frameId: "root", reason: "remove" });
       if (reason === "target" || reason === "destroyed") {
-        await connection.onMessage(
+        connection.onMessage(
           JSON.stringify({
             method: reason === "target" ? "Target.detachedFromTarget" : "Target.targetDestroyed",
             params: { sessionId: "session", targetId: "page" },
