@@ -18,6 +18,8 @@ import {
   facadeToolsFor,
   SESSION_INFO_TOOL_NAME,
   SESSION_LOST_TELEMETRY_PREFIX,
+  SCREENSHOT_CAPTURED_MESSAGE,
+  SCREENSHOT_COMPRESSED_MESSAGE,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -100,8 +102,8 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
                 {
                   type: "text" as const,
                   text: screenshot.adjusted
-                    ? "Screenshot captured with transport-safe compression."
-                    : "Screenshot captured.",
+                    ? SCREENSHOT_COMPRESSED_MESSAGE
+                    : SCREENSHOT_CAPTURED_MESSAGE,
                 },
                 {
                   type: "image" as const,
@@ -151,6 +153,7 @@ async function createResources(): Promise<FacadeResources> {
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     const tools = new StagehandFacadeTools(stagehand, {
+      ...(config.quietWait && { quietWait: true }),
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
       // The browser is not recreated on purpose: a fresh session would silently

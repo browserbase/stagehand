@@ -58,9 +58,9 @@
                 "pages": [
                   "v4/integrations/agent-frameworks/overview",
                   "v4/integrations/agent-frameworks/claude-cua-toolset-quickstart",
+                  "v4/integrations/agent-frameworks/openai-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/eve",
                   "v4/integrations/agent-frameworks/deep-agents",
-                  "v4/integrations/agent-frameworks/crewai",
                   "v4/integrations/agent-frameworks/mastra",
                   "v4/integrations/agent-frameworks/vercel-ai-sdk"
                 ]
@@ -187,13 +187,6 @@
                       "v3/integrations/mcp/setup",
                       "v3/integrations/mcp/tools",
                       "v3/integrations/mcp/configuration"
-                    ]
-                  },
-                  {
-                    "group": "CrewAI",
-                    "pages": [
-                      "v3/integrations/crew-ai/introduction",
-                      "v3/integrations/crew-ai/configuration"
                     ]
                   },
                   {
@@ -357,97 +350,6 @@
             ]
           }
         ]
-      },
-      {
-        "version": "v2",
-        "groups": [
-          {
-            "group": "First Steps",
-            "pages": [
-              "v2/first-steps/introduction",
-              "v2/first-steps/quickstart",
-              "v2/first-steps/installation",
-              "v2/first-steps/ai-rules"
-            ]
-          },
-          {
-            "group": "The Basics",
-            "pages": ["v2/basics/agent", "v2/basics/act", "v2/basics/extract", "v2/basics/observe"]
-          },
-          {
-            "group": "Configuration",
-            "pages": [
-              "v2/configuration/browser",
-              "v2/configuration/observability",
-              "v2/configuration/logging",
-              "v2/configuration/models",
-              "v2/configuration/evals"
-            ]
-          },
-          {
-            "group": "Best Practices",
-            "pages": [
-              "v2/best-practices/caching",
-              "v2/best-practices/cost-optimization",
-              "v2/best-practices/using-multiple-tabs",
-              "v2/best-practices/working-with-iframes",
-              "v2/best-practices/deployments",
-              "v2/best-practices/computer-use",
-              "v2/best-practices/contributing",
-              "v2/best-practices/playwright-interop",
-              "v2/best-practices/build-agent",
-              "v2/best-practices/agent-fallbacks",
-              "v2/best-practices/prompting-best-practices",
-              "v2/best-practices/mcp-integrations",
-              "v2/best-practices/speed-optimization"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              {
-                "group": "MCP Server",
-                "pages": [
-                  "v2/integrations/mcp/introduction",
-                  "v2/integrations/mcp/setup",
-                  "v2/integrations/mcp/tools",
-                  "v2/integrations/mcp/configuration"
-                ]
-              },
-              {
-                "group": "CrewAI",
-                "pages": [
-                  "v2/integrations/crew-ai/introduction",
-                  "v2/integrations/crew-ai/configuration"
-                ]
-              },
-              {
-                "group": "Langchain",
-                "pages": [
-                  "v2/integrations/langchain/introduction",
-                  "v2/integrations/langchain/configuration"
-                ]
-              },
-              {
-                "group": "Next.js + Vercel",
-                "pages": [
-                  "v2/integrations/vercel/introduction",
-                  "v2/integrations/vercel/configuration"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "v2/references/stagehand",
-              "v2/references/act",
-              "v2/references/extract",
-              "v2/references/observe",
-              "v2/references/agent"
-            ]
-          }
-        ]
       }
     ],
     "global": {
@@ -505,6 +407,10 @@
     "options": ["copy", "chatgpt", "claude", "view"]
   },
   "redirects": [
+    {
+      "source": "/v2/:slug*",
+      "destination": "/v2-retired"
+    },
     {
       "source": "/first-steps/:slug*",
       "destination": "/v4/first-steps/:slug*"
@@ -587,7 +493,15 @@
     },
     {
       "source": "/v4/integrations/crewai",
-      "destination": "/v4/integrations/agent-frameworks/crewai"
+      "destination": "/v4/integrations/overview"
+    },
+    {
+      "source": "/v4/integrations/agent-frameworks/crewai",
+      "destination": "/v4/integrations/overview"
+    },
+    {
+      "source": "/v3/integrations/crew-ai/:slug*",
+      "destination": "/v4/integrations/overview"
     },
     {
       "source": "/v4/integrations/mastra",
@@ -627,7 +541,7 @@
     },
     {
       "source": "/integrations/crew-ai/:slug*",
-      "destination": "/v3/integrations/crew-ai/:slug*"
+      "destination": "/v4/integrations/overview"
     },
     {
       "source": "/integrations/langchain/:slug*",

@@ -97,6 +97,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "browserbase.request": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/BrowserbaseRequestParams"
+            },
+            "result": {
+              "$ref": "#/$defs/BrowserbaseRequestResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "llm.generate": {
           "type": "object",
           "properties": {
@@ -669,6 +682,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.wait_for_function": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWaitForFunctionParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageWaitForFunctionResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.webmcp_tools": {
           "type": "object",
           "properties": {
@@ -1029,6 +1055,7 @@
         "stagehand.extract",
         "stagehand.metrics",
         "stagehand.callback_batch",
+        "browserbase.request",
         "llm.generate",
         "context.pages",
         "context.new_page",
@@ -1073,6 +1100,7 @@
         "page.wait_for_load_state",
         "page.wait_for_timeout",
         "page.wait_for_selector",
+        "page.wait_for_function",
         "page.webmcp_tools",
         "page.webmcp_invoke_tool",
         "page.webmcp_invocation_result",
@@ -1106,6 +1134,16 @@
     "notifications": {
       "type": "object",
       "properties": {
+        "browserbase.cancel": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/BrowserbaseCancelParams"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
+        },
         "stagehand.log": {
           "type": "object",
           "properties": {
@@ -1137,7 +1175,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event", "page.event"],
+      "required": ["browserbase.cancel", "stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -1191,14 +1229,9 @@
           "type": "string",
           "minLength": 1
         },
-        "api_key": {
+        "browserbase": {
           "type": "string",
-          "minLength": 1
-        },
-        "api_url": {
-          "description": "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
-          "type": "string",
-          "format": "uri"
+          "const": "client"
         },
         "browser": {
           "$ref": "#/$defs/BrowserSessionMetadata"
@@ -1234,12 +1267,15 @@
           "maximum": 9007199254740991
         },
         "cache": {
-          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
         }
       },
       "required": ["protocol_version", "client_info"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "browserbase": ["browser"]
+      }
     },
     "ImplementationInfo": {
       "type": "object",
@@ -1578,17 +1614,7 @@
       ]
     },
     "VariablePrimitive": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        }
-      ]
+      "type": ["string", "number", "boolean"]
     },
     "DescribedVariableValue": {
       "type": "object",
@@ -1728,7 +1754,7 @@
           "maximum": 9007199254740991
         },
         "miss_reason": {
-          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"read_failed\" (the cache request itself failed) and \"replay_failed\" (a cached value was found but could not be applied)",
+          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"timeout\" (the cache read exceeded its budget), \"read_failed\" (another cache read failure), \"payload_too_large\" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and \"replay_failed\" (a cached value was found but could not be applied)",
           "type": "string"
         },
         "tokens_saved": {
@@ -2211,6 +2237,99 @@
           }
         }
       ]
+    },
+    "BrowserbaseRequestParams": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": ["gateway.responses", "cache.get", "cache.set"]
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."
+        },
+        "body": {
+          "type": "string",
+          "description": "JSON request body sent as UTF-8 text"
+        },
+        "remaining_timeout_ms": {
+          "description": "Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["operation", "headers", "body"],
+      "additionalProperties": false
+    },
+    "BrowserbaseRequestResult": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BrowserbaseHttpResponse"
+        },
+        {
+          "$ref": "#/$defs/BrowserbaseTransportError"
+        }
+      ]
+    },
+    "BrowserbaseHttpResponse": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "response"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 599
+        },
+        "status_text": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."
+        },
+        "body": {
+          "type": "string",
+          "description": "Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"
+        }
+      },
+      "required": ["type", "status", "status_text", "headers", "body"],
+      "additionalProperties": false,
+      "description": "Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."
+    },
+    "BrowserbaseTransportError": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "error"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["network", "cancelled", "timeout", "unavailable", "disconnected"]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "reason", "message"],
+      "additionalProperties": false,
+      "description": "Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes"
     },
     "LLMGenerateParams": {
       "anyOf": [
@@ -4090,6 +4209,87 @@
       "required": ["matched"],
       "additionalProperties": false
     },
+    "PageWaitForFunctionParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PageWaitForFunctionOptions"
+        }
+      },
+      "required": ["page_id", "expression"],
+      "additionalProperties": false
+    },
+    "PageWaitForFunctionOptions": {
+      "type": "object",
+      "properties": {
+        "polling": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "raf"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647
+            }
+          ]
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWaitForFunctionResult": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/__schema10"
+        }
+      },
+      "required": ["value"],
+      "additionalProperties": false
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema10"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema10"
+          }
+        }
+      ]
+    },
     "PageWebMCPToolsParams": {
       "type": "object",
       "properties": {
@@ -4163,9 +4363,9 @@
       "additionalProperties": false
     },
     "WebMCPJsonValue": {
-      "$ref": "#/$defs/__schema10"
+      "$ref": "#/$defs/__schema11"
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -4182,7 +4382,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -4191,7 +4391,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]
@@ -4518,14 +4718,7 @@
           "$ref": "#/$defs/LocatorOptions"
         },
         "percent": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "type": ["number", "string"]
         }
       },
       "required": ["page_id", "selector", "percent"],
@@ -5008,6 +5201,26 @@
       "required": ["message"],
       "additionalProperties": false
     },
+    "BrowserbaseCancelParams": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/JSONRPCRequestId"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["cancelled", "timeout"]
+        }
+      },
+      "required": ["request_id", "reason"],
+      "additionalProperties": false,
+      "description": "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"
+    },
+    "JSONRPCRequestId": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
     "StagehandLog": {
       "type": "object",
       "properties": {
@@ -5035,10 +5248,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema11"
+        "$ref": "#/$defs/__schema12"
       }
     },
-    "__schema11": {
+    "__schema12": {
       "anyOf": [
         {
           "type": "string"
@@ -5055,7 +5268,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         },
         {
@@ -5064,7 +5277,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         }
       ]
@@ -5115,10 +5328,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema12"
+        "$ref": "#/$defs/__schema13"
       }
     },
-    "__schema12": {
+    "__schema13": {
       "anyOf": [
         {
           "type": "string"
@@ -5135,7 +5348,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         },
         {
@@ -5144,7 +5357,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         }
       ]
@@ -5660,6 +5873,33 @@
             },
             "params": {
               "$ref": "#/$defs/CallbackBatchParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "browserbase.request"
+            },
+            "params": {
+              "$ref": "#/$defs/BrowserbaseRequestParams"
             },
             "traceparent": {
               "type": "string"
@@ -6871,6 +7111,33 @@
             },
             "method": {
               "type": "string",
+              "const": "page.wait_for_function"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWaitForFunctionParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.webmcp_tools"
             },
             "params": {
@@ -7590,13 +7857,26 @@
         }
       ]
     },
-    "JSONRPCRequestId": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 9007199254740991
-    },
     "StagehandRpcNotification": {
       "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "browserbase.cancel"
+            },
+            "params": {
+              "$ref": "#/$defs/BrowserbaseCancelParams"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
         {
           "type": "object",
           "properties": {
@@ -7661,7 +7941,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema14"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -7670,7 +7950,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema13": {
+    "__schema14": {
       "anyOf": [
         {
           "type": "string"
@@ -7687,7 +7967,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         },
         {
@@ -7696,7 +7976,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         }
       ]
@@ -7730,13 +8010,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema15"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema15": {
       "anyOf": [
         {
           "type": "string"
@@ -7753,7 +8033,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         },
         {
@@ -7762,7 +8042,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         }
       ]
