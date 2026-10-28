@@ -73,7 +73,7 @@ _DEFAULT_CHROME_FLAGS = (
     "--propagate-iph-for-testing",
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
-    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 )
 
 _BROWSER_TOKEN = object()
@@ -85,6 +85,8 @@ _CHROME_REQUEST_TIMEOUT_SECONDS = 0.1
 class _WorkerInitMetadata:
     api_key: str | None
     browser: BrowserSessionMetadata | None
+    browser_cdp_url: str | None = None
+    """The CDP WebSocket the extension dials, when it is not the client's own."""
 
 
 @dataclass(frozen=True)
@@ -310,12 +312,14 @@ async def _connect_browser(
     preloaded_extension: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
     worker_init_metadata: _WorkerInitMetadata,
+    headers: Mapping[str, str] | None = None,
 ) -> StagehandBrowser:
     owns_source = origin == "launched" and not source.keep_alive
     cdp_client: CDPClient | None = None
     try:
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
+            **({"headers": headers} if headers else {}),
             extension_dir=extension_dir,
             local_extension_dir=local_extension_dir,
             extension_id=extension_id,
@@ -533,18 +537,31 @@ class LocalBrowser:
         *,
         cdp_url: str,
         extension_id: str | None = None,
+        extension_cdp_url: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> StagehandBrowser:
         """Connect to an existing browser.
 
         Args:
             extension_id: Deprecated and ignored. Omit this argument; Stagehand
                 discovers the installed extension automatically.
+            extension_cdp_url: The browser-level CDP WebSocket that Stagehand's
+                extension dials from inside the browser. Defaults to the one this
+                client connected to. Set it when the client reaches Chrome through
+                a proxy the browser cannot or should not use, such as an
+                authenticated gateway whose URL carries credentials.
+            headers: HTTP headers to send with the CDP connection, such as a
+                gateway's credentials, so they need not ride in `cdp_url`. They
+                go to `cdp_url` and to the WebSocket it advertises when that is
+                on the same host, never elsewhere, and never to the extension.
         """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("cdp_url", cdp_url),
                 ("extension_id", extension_id),
+                ("extension_cdp_url", extension_cdp_url),
+                ("headers", dict(headers) if isinstance(headers, Mapping) else headers),
             )
             if value is not None
         })
@@ -553,7 +570,12 @@ class LocalBrowser:
             origin="connected",
             source=_ConnectedBrowserSource(options.cdp_url),
             local_extension_dir=lambda: str(extension_directory()),
-            worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
+            worker_init_metadata=_WorkerInitMetadata(
+                api_key=None,
+                browser=None,
+                browser_cdp_url=options.extension_cdp_url,
+            ),
+            headers=options.headers,
         )
 
 

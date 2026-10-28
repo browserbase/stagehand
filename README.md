@@ -36,7 +36,7 @@
     </picture>
   </a>
   <a href="https://deepwiki.com/browserbase/stagehand">
-    <img alt="Ask DeepWiki" src="./media/deepwiki.svg" width="156" height="32" />
+    <img alt="Ask DeepWiki" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/deepwiki.svg" width="156" height="32" />
   </a>
 </p>
 
@@ -452,10 +452,10 @@ console.log(fetched.content);
   </tr>
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/integrations/overview">Integrations</a></td>
-    <td>CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
+    <td>Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
   </tr>
   <tr>
-    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="./packages/sdk-go/README.md">Go SDK</a></td>
+    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="https://github.com/browserbase/stagehand/blob/v4-go/packages/sdk-go/README.md">Go SDK</a></td>
     <td>Language-specific guides</td>
   </tr>
   <tr>

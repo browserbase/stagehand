@@ -34,6 +34,7 @@ export {
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
   type PageWaitForURLOptions,
+  type PageWaitForFunctionOptions,
   type ScreenshotOptions,
 } from "./page.js";
 export {
@@ -146,3 +147,5 @@ export {
   type WebMCPResultOptions,
   type WebMCPToolsOptions,
 } from "./clientSchemas.js";
+
+export { getExtensionArchive } from "./extensionAssets.js";

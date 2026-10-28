@@ -5,7 +5,7 @@ import builtins
 import inspect
 import json
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
@@ -51,6 +51,8 @@ from .browser import (
     _release_browser,
 )
 from .browser_context import BrowserContext
+from .browserbase_connection import resolve_browserbase_connection
+from .browserbase_rpc import register_browserbase_transport
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
     DefaultExtract,
@@ -110,6 +112,7 @@ class Stagehand:
         self._remove_notification_listener: Callable[[], None] | None = None
         self._remove_client_llm_handler: Callable[[], None] | None = None
         self._initialized = False
+        self._remove_browserbase_transport: Callable[[], Awaitable[None]] | None = None
         self._init_request_started = False
         self._close_task: asyncio.Task[None] | None = None
 
@@ -130,6 +133,11 @@ class Stagehand:
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> Stagehand:
+        """Attach Stagehand to a factory-created browser.
+
+        For a Browserbase browser, api_key does not override the key supplied
+        to browserbase.launch() or browserbase.connect().
+        """
         if not isinstance(browser, StagehandBrowser):
             raise TypeError("browser must be created by local_browser or browserbase")
         model_connection_options = (model_api_key, model_headers)
@@ -254,6 +262,10 @@ class Stagehand:
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:
         rpc_client = RPCClient(claimed.cdp_client)
         self._rpc_client = rpc_client
+        connection = resolve_browserbase_connection(
+            self._create_config, claimed.worker_init_metadata
+        )
+        self._remove_browserbase_transport = register_browserbase_transport(rpc_client, connection)
         self._remove_notification_listener = rpc_client.on_notification(
             "stagehand.log",
             StagehandLog,
@@ -272,7 +284,9 @@ class Stagehand:
                 generate,
             )
 
-        init_params = self._worker_init_params(claimed)
+        init_params = self._worker_init_params(
+            claimed, has_browserbase_connection=connection is not None
+        )
         self._init_request_started = True
         await rpc_client.send(
             "stagehand.init",
@@ -486,12 +500,17 @@ class Stagehand:
             raise RuntimeError(_UNAVAILABLE_MESSAGE)
         return self._rpc_client
 
-    def _worker_init_params(self, claimed: _ClaimedBrowser) -> StagehandInitParams:
-        browser_cdp_url = claimed.cdp_client.web_socket_debugger_url
+    def _worker_init_params(
+        self, claimed: _ClaimedBrowser, *, has_browserbase_connection: bool
+    ) -> StagehandInitParams:
+        browser_cdp_url = (
+            claimed.worker_init_metadata.browser_cdp_url
+            or claimed.cdp_client.web_socket_debugger_url
+        )
         if browser_cdp_url is None:
             raise RuntimeError("The browser CDP WebSocket URL is unavailable")
         values = self._create_config.model_dump(
-            exclude={"logging", "model"},
+            exclude={"logging", "model", "api_key", "api_url"},
             exclude_unset=True,
         )
         if isinstance(self._create_config.model, _client_models.ClientLLM):
@@ -503,8 +522,8 @@ class Stagehand:
         values["browser_cdp_url"] = browser_cdp_url
         values["log_level"] = self._create_config.logging.level
         metadata = claimed.worker_init_metadata
-        if metadata.api_key is not None:
-            values["api_key"] = metadata.api_key
+        if has_browserbase_connection:
+            values["browserbase"] = "client"
         if metadata.browser is not None:
             values["browser"] = metadata.browser
         return StagehandInitParams.model_validate(values)
@@ -526,6 +545,10 @@ class Stagehand:
             sys.stderr.write(f"[stagehand] ERROR on_log callback failed: {error}\n")
 
     async def _release_resources(self) -> None:
+        if self._remove_browserbase_transport is not None:
+            dispose = self._remove_browserbase_transport
+            self._remove_browserbase_transport = None
+            await dispose()
         if self._remove_client_llm_handler is not None:
             self._remove_client_llm_handler()
             self._remove_client_llm_handler = None

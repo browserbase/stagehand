@@ -559,6 +559,47 @@ await page.waitForTimeout(500);
   Resolves after the operation completes.
 </ResponseField>
 
+## waitForFunction()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+Polling happens inside the browser and resumes after navigation. The browser awaits
+async predicates before the next poll; thrown errors reject the wait. The result is a detached
+JSON value, not a browser handle. Functions cannot capture variables from your SDK process.
+
+```typescript
+const text = await page.waitForFunction(
+  (selector) => document.querySelector(selector)?.textContent,
+  "#ready",
+  { timeout: 5_000 },
+);
+```
+
+<ParamField path="expression" type="string | ((arg: Arg) => R | Promise<R>)">
+  A JavaScript expression string or a function to run in the page. If a string evaluates
+  to a function, such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  JSON-serializable argument passed to the function. Strings that don't evaluate to a function ignore it.
+</ParamField>
+
+<ParamField path="options" type="PageWaitForFunctionOptions" optional>
+  Options that configure this wait.
+
+  <ParamField path="options.polling" type="PageWaitForFunctionOptions['polling']" optional>
+    Defaults to `"raf"` (animation frames). A positive interval up to `2147483647`
+    polls in milliseconds. Use an interval if the browser pauses animation frames.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<R>">
+  The browser converts the truthy result to JSON. Non-serializable results such as cyclic values and BigInt reject.
+</ResponseField>
+
 ## waitForSelector()
 
 Wait for a selector to reach the requested state.
@@ -1412,6 +1453,42 @@ await page.wait_for_timeout(500)
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_function()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+The browser runs each poll and resumes after navigation. It awaits promises before
+the next poll; thrown errors reject the wait.
+
+```python
+value = await page.wait_for_function(
+    "selector => document.querySelector(selector)?.textContent",
+    arg="#ready",
+    polling=50,
+    timeout=5_000,
+)
+```
+
+<ParamField path="expression" type="str">
+  JavaScript expression to run in the page, not a Python callable. If the expression
+  evaluates to a function, such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="arg" type="JsonValue" optional>
+  JSON-serializable argument passed to the function. Expressions that don't evaluate to a function ignore it. `None` passes JSON `null`; omit `arg` to pass nothing.
+</ParamField>
+
+<ParamField path="polling" type="Literal['raf'] | float | None" optional>
+  Defaults to `"raf"` (animation frames), or use a positive interval in milliseconds up to `2147483647`.
+</ParamField>
+
+<ParamField path="timeout" type="int | None" optional>
+  Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+</ParamField>
+
+<ResponseField name="result" type="JsonValue">
+  The browser converts the truthy result to JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## wait_for_selector()
@@ -2298,33 +2375,6 @@ if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); 
   Returns `nil` after the operation completes.
 </ResponseField>
 
-## WaitForURL()
-
-`WaitForURL` waits for the current or a future main-frame URL to match a full-URL glob, then reach its load state. It supports history and hash changes. `*` matches any characters except `/`; `**` also matches `/`. All other characters match literally. `WaitForURL` doesn't support regular expressions, predicates, brace expansion, or `networkidle`.
-
-```go
-if err := page.WaitForURL(ctx, "**/checkout/success", nil); err != nil {
-    return err
-}
-```
-
-<ParamField path="url" type="string">
-  An exact full URL or a full-URL glob.
-</ParamField>
-
-<ParamField path="options" type="*PageWaitForURLOptions" optional>
-  <ParamField path="options.WaitUntil" type="*PageWaitForURLOptionsWaitUntil" optional>
-    Lifecycle state to reach: `"load"` (default) or `"domcontentloaded"`.
-  </ParamField>
-  <ParamField path="options.Timeout" type="*int" optional>
-    Total wait budget in milliseconds. Defaults to 30,000; a pointer to `0` disables the deadline. Closing the page or canceling the context still ends the wait.
-  </ParamField>
-</ParamField>
-
-<ResponseField name="result" type="error">
-  Returns `nil` when both the URL and requested load state match.
-</ResponseField>
-
 ## WaitForTimeout()
 
 Wait for a fixed number of milliseconds.
@@ -2341,6 +2391,43 @@ if err := page.WaitForTimeout(ctx, 500); err != nil {
 
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForFunction()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+Polling happens in the browser and resumes after navigation. The browser awaits promises
+before the next poll; thrown errors reject the wait. Embed any arguments in the JavaScript
+expression, as with `Evaluate`.
+
+```go
+value, err := page.WaitForFunction(ctx, "document.querySelector('#ready')?.textContent", nil)
+if err != nil {
+    return err
+}
+fmt.Println(string(value))
+```
+
+<ParamField path="expression" type="string">
+  JavaScript expression to run in the page. If the expression evaluates to a function,
+  such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="options" type="*PageWaitForFunctionOptions" optional>
+  Options that configure this wait. Pass `nil` for defaults.
+
+  <ParamField path="options.Polling" type="*FunctionPolling" optional>
+    Defaults to animation frames. Use `AnimationFramePolling()` or `IntervalPolling(ms)`
+    for a positive millisecond interval up to `2147483647`.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*int" optional>
+    Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(json.RawMessage, error)">
+  The truthy result as raw JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## WaitForSelector()
