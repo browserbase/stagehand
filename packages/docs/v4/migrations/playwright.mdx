@@ -551,6 +551,7 @@ Each of these is a direct substitution:
 | `page.waitForNavigation()` | Mark the document with `page.evaluate(() => { document.documentElement.dataset.stagehandBefore = "1"; })`, then `page.waitForFunction(() => !document.documentElement.dataset.stagehandBefore, undefined, { timeout })`. This catches reloads and redirects back to the same URL. For `pushState` route changes, compare `location.href` instead |
 | `page.waitForFunction(fn, arg, options)` | `page.waitForFunction(fn, arg, options)` polls in the browser and returns the truthy JSON value, not a `JSHandle` |
 | `keyboard.press(key)`, `keyboard.type(text)` | `page.keyPress(key)`, `page.type(text)` |
+| `keyboard.down(key)`, `keyboard.up(key)` | `page.keyDown(key)`, `page.keyUp(key)` |
 | `mouse.move(x, y)`, `mouse.click(x, y)` | `page.hover(x, y)`, `page.click(x, y)` |
 | `mouse.wheel(dx, dy)` | `page.scroll(x, y, dx, dy)` |
 | `request.fetch(url)` | `page.evaluate(async (u) => (await fetch(u)).text(), url)` |
@@ -637,7 +638,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `locator.dragTo()` | `page.dragAndDrop(fromX, fromY, toX, toY)` with `locator.centroid()` |
 | `locator.scrollIntoViewIfNeeded()` | Automatic. `locator.scrollTo()` scrolls within an element |
 | `locator.dispatchEvent("click")` | `locator.sendClickEvent()` |
-| `mouse`, `keyboard`, `touchscreen` | `page.click(x, y)`, `hover()`, `scroll()`, `type()`, `keyPress()` |
+| `mouse`, `keyboard`, `touchscreen` | `page.click(x, y)`, `hover()`, `scroll()`, `type()`, `keyPress()`, `keyDown()`, `keyUp()` |
 
 ### Waiting and assertions
 
@@ -864,6 +865,7 @@ ACTIONS
 - locator.setInputFiles() keeps its name and also takes in-memory payloads
   ({ name, mimeType, buffer }). Cap is 50 MiB per file.
 - keyboard.press/type -> page.keyPress/page.type.
+  keyboard.down/up -> page.keyDown/page.keyUp.
   mouse.move/click -> page.hover(x, y)/page.click(x, y).
   mouse.wheel(dx, dy) -> page.scroll(x, y, dx, dy).
 

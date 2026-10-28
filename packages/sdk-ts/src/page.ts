@@ -206,6 +206,20 @@ export class Page {
     });
   }
 
+  async keyDown(key: string): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageKeyDown, {
+      pageId: this.pageId,
+      key,
+    });
+  }
+
+  async keyUp(key: string): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageKeyUp, {
+      pageId: this.pageId,
+      key,
+    });
+  }
+
   async evaluate<R = unknown, Arg = unknown>(
     expression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,

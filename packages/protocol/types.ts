@@ -166,7 +166,9 @@ import type {
   PageGotoParamsSchema,
   PageHoverParamsSchema,
   PageIdParamsSchema,
+  PageKeyDownParamsSchema,
   PageKeyPressParamsSchema,
+  PageKeyUpParamsSchema,
   PageEventNameSchema,
   PageSubscriptionEventNameSchema,
   PageEventNotificationSchema,
@@ -398,6 +400,8 @@ export type PageDragAndDropParams = z.infer<typeof PageDragAndDropParamsSchema>;
 export type PageDragAndDropRoutePoint = z.infer<typeof PageDragAndDropRoutePointSchema>;
 export type PageTypeParams = z.infer<typeof PageTypeParamsSchema>;
 export type PageKeyPressParams = z.infer<typeof PageKeyPressParamsSchema>;
+export type PageKeyDownParams = z.infer<typeof PageKeyDownParamsSchema>;
+export type PageKeyUpParams = z.infer<typeof PageKeyUpParamsSchema>;
 export type PageEvaluateParams = z.infer<typeof PageEvaluateParamsSchema>;
 export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSchema>;
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;

@@ -1702,6 +1702,15 @@ class PageIdParams(WireModel):
     page_id: StrictStr
 
 
+class PageKeyDownParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    key: Annotated[StrictStr, Field(min_length=1)]
+
+
 class PageKeyPressOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1718,6 +1727,15 @@ class PageKeyPressParams(WireModel):
     page_id: StrictStr
     key: Annotated[StrictStr, Field(min_length=1)]
     options: Optional[PageKeyPressOptions] = None
+
+
+class PageKeyUpParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    key: Annotated[StrictStr, Field(min_length=1)]
 
 
 class PageNavigationOptions(WireModel):

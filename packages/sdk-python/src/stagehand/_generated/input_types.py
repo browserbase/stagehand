@@ -796,6 +796,11 @@ class PageIdParams(TypedDict):
     page_id: str
 
 
+class PageKeyDownParams(TypedDict):
+    page_id: str
+    key: str
+
+
 class PageKeyPressOptions(TypedDict):
     delay: NotRequired[float]
 
@@ -804,6 +809,11 @@ class PageKeyPressParams(TypedDict):
     page_id: str
     key: str
     options: NotRequired[PageKeyPressOptions]
+
+
+class PageKeyUpParams(TypedDict):
+    page_id: str
+    key: str
 
 
 class PageNavigationOptions(TypedDict):

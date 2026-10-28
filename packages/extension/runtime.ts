@@ -73,7 +73,9 @@ import type {
   PageGotoParams,
   PageHoverParams,
   PageIdParams,
+  PageKeyDownParams,
   PageKeyPressParams,
+  PageKeyUpParams,
   PageNavigationOptions,
   PageNavigationResult,
   PageOffParams,
@@ -158,6 +160,8 @@ export type UnderstudyRuntimePage = {
   ): Promise<void>;
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
+  keyDown(key: string): Promise<void>;
+  keyUp(key: string): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
   evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
@@ -668,6 +672,16 @@ export class StagehandRuntime {
 
   async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).keyPress(params.key, params.options);
+    return { ok: true };
+  }
+
+  async pageKeyDown(params: PageKeyDownParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).keyDown(params.key);
+    return { ok: true };
+  }
+
+  async pageKeyUp(params: PageKeyUpParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).keyUp(params.key);
     return { ok: true };
   }
 

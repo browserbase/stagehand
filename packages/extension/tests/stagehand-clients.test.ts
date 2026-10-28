@@ -222,6 +222,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }> = [];
   readonly pageTypeCalls: Array<{ text: string; options?: PageTypeParams["options"] }> = [];
   readonly keyPressCalls: Array<{ key: string; options?: PageKeyPressParams["options"] }> = [];
+  readonly keyDownCalls: string[] = [];
+  readonly keyUpCalls: string[] = [];
   readonly evaluateCalls: string[] = [];
   readonly addInitScriptCalls: string[] = [];
   readonly setExtraHTTPHeadersCalls: Array<PageSetExtraHTTPHeadersParams["headers"]> = [];
@@ -347,6 +349,14 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void> {
     this.keyPressCalls.push({ key, options });
+  }
+
+  async keyDown(key: string): Promise<void> {
+    this.keyDownCalls.push(key);
+  }
+
+  async keyUp(key: string): Promise<void> {
+    this.keyUpCalls.push(key);
   }
 
   async evaluate(expression: PageEvaluateParams["expression"]): Promise<unknown> {
@@ -1938,6 +1948,29 @@ describe("Stagehand worker clients", () => {
       { text: "hello", options: { delay: 25, withMistakes: true } },
     ]);
     expect(page.keyPressCalls).toStrictEqual([{ key: "Control+A", options: { delay: 10 } }]);
+  });
+
+  it.each([
+    ["page.key_down", "keyDownCalls"],
+    ["page.key_up", "keyUpCalls"],
+  ] as const)("routes %s to the requested non-active page", async (method, calls) => {
+    const activePage = new FakeUnderstudyRuntimePage("page-a", "https://example.test/first");
+    const targetPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/second");
+    const context = new FakeBrowserSession([targetPage, activePage]);
+    const handle = await createConfiguredHandler(context);
+    expect(await context.activePage()).toBe(activePage);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params: { page_id: "page-b", key: "Shift" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
+
+    expect(targetPage[calls]).toStrictEqual(["Shift"]);
+    expect(activePage[calls]).toStrictEqual([]);
   });
 
   it("routes page evaluation and init scripts with JSON-safe results", async () => {

@@ -1792,6 +1792,14 @@ export const PageKeyPressParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageKeyPressParams" });
 
+export const PageKeyDownParamsSchema = PageIdParamsSchema.extend({
+  key: z.string().min(1),
+}).meta({ id: "PageKeyDownParams" });
+
+export const PageKeyUpParamsSchema = PageIdParamsSchema.extend({
+  key: z.string().min(1),
+}).meta({ id: "PageKeyUpParams" });
+
 export const PageEvaluateParamsSchema = PageIdParamsSchema.extend({
   expression: z.string(),
 }).meta({ id: "PageEvaluateParams" });

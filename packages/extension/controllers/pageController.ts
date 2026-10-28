@@ -8,7 +8,9 @@ import type {
   PageGotoParams,
   PageHoverParams,
   PageIdParams,
+  PageKeyDownParams,
   PageKeyPressParams,
+  PageKeyUpParams,
   PageOffParams,
   PageOnParams,
   PagePDFParams,
@@ -80,6 +82,16 @@ export function createPageController(runtime: StagehandRuntime) {
   async function keyPress(params: PageKeyPressParams, { logger }: HandlerContext) {
     logger.debug("page.key_press", {});
     return runtime.pageKeyPress(params);
+  }
+
+  async function keyDown(params: PageKeyDownParams, { logger }: HandlerContext) {
+    logger.debug("page.key_down", {});
+    return runtime.pageKeyDown(params);
+  }
+
+  async function keyUp(params: PageKeyUpParams, { logger }: HandlerContext) {
+    logger.debug("page.key_up", {});
+    return runtime.pageKeyUp(params);
   }
 
   async function evaluate(params: PageEvaluateParams, { logger }: HandlerContext) {
@@ -202,6 +214,8 @@ export function createPageController(runtime: StagehandRuntime) {
     dragAndDrop,
     type,
     keyPress,
+    keyDown,
+    keyUp,
     evaluate,
     addInitScript,
     setExtraHTTPHeaders,
