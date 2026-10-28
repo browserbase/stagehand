@@ -1560,7 +1560,10 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+// Keep the standalone default inline rather than extracting its metadata id into $defs.
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({

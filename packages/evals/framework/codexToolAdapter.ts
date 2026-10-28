@@ -275,7 +275,10 @@ export async function prepareCodexToolAdapter(
     cwd = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
-    await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
+    await fsp.writeFile(
+      path.join(cwd, "browser_run.mjs"),
+      buildBridgeClientScript(bridge.port, bridge.token),
+    );
     const env = await createIsolatedCodexEnvironment(cwd);
 
     input.logger.log({
