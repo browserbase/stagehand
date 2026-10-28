@@ -129,7 +129,7 @@
     "smol-toml": "catalog:",
     "tsx": "^4.20.6",
     "ws": "^8.18.3",
-    "zod": "^4.2.1"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
