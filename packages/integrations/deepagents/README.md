@@ -50,6 +50,20 @@ The example deliberately creates a persistent MCP `ClientSession`. Do not replac
 `MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
 call and therefore lose the browser and snapshot IDs.
 
+## Checks
+
+Run these from the repository root:
+
+```bash
+just fmt-deepagents
+just check-deepagents
+just test-deepagents
+```
+
+Formatting and lint checks cover the adapter's `src/` and `tests/` directories and both examples.
+The checks also import the examples without loading `.env` files. The tests cover the adapter and
+eval runner. These recipes are included in the root `just fmt`, `just check`, and `just test` commands.
+
 ## Server configuration
 
 | Variable                      | Default | Meaning                                                                                                                                                                                                |

@@ -152,6 +152,12 @@ the outermost `finally` block.
 
 ## Contributing
 
+Clone the [Stagehand repository](https://github.com/browserbase/stagehand) and run these commands
+from its root. All Python projects share the root uv workspace, `uv.lock`, and `.venv`.
+`just install` installs all workspace members, and consumers use this SDK from source.
+See [the contributing guide](https://github.com/browserbase/stagehand/blob/main/CONTRIBUTING.md)
+for workspace membership and package-specific commands.
+
 ```bash
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
