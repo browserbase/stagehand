@@ -53,6 +53,7 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
   releaseEditorSubtree: (() => void) | undefined;
   releaseNestedFrameTree: (() => void) | undefined;
   editorFrameTreeRequests = 0;
+  editorSubtreeFailed = false;
 
   constructor(
     readonly opts: {
@@ -61,6 +62,7 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       editorInsideWrapper?: boolean;
       nestedInsideWrapper?: boolean;
       deferEditorSubtree?: boolean;
+      failEditorSubtree?: boolean;
       deferNestedFrameTree?: boolean;
     } = {},
   ) {}
@@ -113,6 +115,17 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
       // The first request identifies the OOPIF; adoption fetches its subtree again.
       if (this.opts.deferEditorSubtree && this.editorFrameTreeRequests > 1) {
         await new Promise<void>((resolve) => (this.releaseEditorSubtree = resolve));
+      }
+      if (this.opts.failEditorSubtree && this.editorFrameTreeRequests > 1) {
+        this.messageHandler(
+          JSON.stringify({
+            id,
+            sessionId,
+            error: { code: -32000, message: "Frame tree unavailable" },
+          }),
+        );
+        this.editorSubtreeFailed = true;
+        return;
       }
       const parent = this.opts.editorInsideWrapper ? WRAPPER_FRAME : MAIN_FRAME;
       reply({
@@ -211,6 +224,47 @@ describe("BrowserContext OOPIF adoption", () => {
     expect(page.listAllFrameIds()).toContain("same-origin-frame");
     expect(page.getSessionForFrame(EDITOR_FRAME).id).toBe(EDITOR_SESSION);
   });
+
+  it.each(["delayed", "failed"])(
+    "links an adopted iframe on parent attachment when subtree seeding is %s",
+    async (seedState) => {
+      const browser = new BrowserWithLoadedOopif({
+        deferEditorSubtree: seedState === "delayed",
+        failEditorSubtree: seedState === "failed",
+      });
+      const { context, page } = await connect(browser);
+      await vi.waitFor(() => {
+        expect(context.adoptedOopifSessionByFrame.get(EDITOR_FRAME)).toBe(EDITOR_SESSION);
+        if (seedState === "delayed") {
+          expect(browser.releaseEditorSubtree).toBeDefined();
+        } else {
+          expect(browser.editorSubtreeFailed).toBe(true);
+        }
+      });
+      await context.conn.messageQueue;
+
+      try {
+        expect(page.getSessionForFrame(EDITOR_FRAME).id).toBe(EDITOR_SESSION);
+        expect(page.listAllFrameIds()).not.toContain(EDITOR_FRAME);
+
+        browser.emitEvent(
+          "Page.frameAttached",
+          { frameId: EDITOR_FRAME, parentFrameId: MAIN_FRAME },
+          PAGE_SESSION,
+        );
+        await context.conn.messageQueue;
+
+        expect(page.listAllFrameIds()).toContain(EDITOR_FRAME);
+        expect(page.registry.getParent(EDITOR_FRAME)).toBe(MAIN_FRAME);
+        expect(page.getFullFrameTree().childFrames?.map((child) => child.frame.id)).toContain(
+          EDITOR_FRAME,
+        );
+        expect(page.getSessionForFrame(EDITOR_FRAME).id).toBe(EDITOR_SESSION);
+      } finally {
+        browser.releaseEditorSubtree?.();
+      }
+    },
+  );
 
   it("adopts an OOPIF nested inside another OOPIF", async () => {
     const { page } = await connect(new BrowserWithLoadedOopif({ nested: true }));

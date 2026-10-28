@@ -382,7 +382,7 @@ export class Page {
 
   /**
    * Parent/child session emitted a `frameAttached`.
-   * Topology update + ownership stamped to **emitting session**.
+   * Topology update + ownership stamped to the session selected by Context.
    */
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);

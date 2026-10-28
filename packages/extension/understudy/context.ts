@@ -1191,7 +1191,7 @@ export class BrowserContext {
 
   /**
    * Wire Page-domain frame events for a session into the owning Page & mappings.
-   * We forward the *emitting session* with every event so Page can stamp ownership precisely.
+   * Attachments preserve live adopted OOPIF ownership while updating topology.
    */
   installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
@@ -1200,15 +1200,11 @@ export class BrowserContext {
     session.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
       const { frameId, parentFrameId } = evt;
 
-      // A live OOPIF session adopted before this (late) parent event keeps ownership.
+      // Record the parent edge even if the child's subtree seed is still pending or failed.
+      // A live adopted OOPIF session keeps ownership instead of the parent emitter.
       const adoptedSessionId = this.adoptedOopifSessionByFrame.get(frameId);
-      if (
-        !adoptedSessionId ||
-        adoptedSessionId === session.id ||
-        !this.conn.getSession(adoptedSessionId)
-      ) {
-        owner.onFrameAttached(frameId, parentFrameId ?? null, session);
-      }
+      const adoptedSession = adoptedSessionId ? this.conn.getSession(adoptedSessionId) : undefined;
+      owner.onFrameAttached(frameId, parentFrameId ?? null, adoptedSession ?? session);
 
       // If we were waiting for this id (OOPIF child), adopt now.
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
