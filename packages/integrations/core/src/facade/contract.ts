@@ -169,7 +169,10 @@ export const SNAPSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SNAPSHOT_TOOL_DESCRIPTION} 
 export const SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SCREENSHOT_TOOL_DESCRIPTION} Use it to verify the visible state before reporting done, on visual or canvas content, and when text evidence is ambiguous.`;
 export const RUN_TOOL_DESCRIPTION_EXPLICIT = `${RUN_TOOL_DESCRIPTION} Prefer "actions" with snapshot IDs for simple clicks/fills/selects on visible elements; use "code" for multi-step logic and extraction.`;
 
-export function explicitSnapshotActionsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+/** Environment variables as read by the facade; `process.env` satisfies it. */
+export type FacadeEnv = Readonly<Record<string, string | undefined>>;
+
+export function explicitSnapshotActionsEnabled(env: FacadeEnv = process.env): boolean {
   const v = env.EXPLICIT_SNAPSHOT_ACTIONS?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
@@ -184,12 +187,12 @@ export const FACADE_TOOLS_EXPLICIT_SNAPSHOT = FACADE_TOOLS.map((tool) => ({
         : SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT,
 })) as unknown as typeof FACADE_TOOLS;
 
-export function facadeToolsFor(surface: FacadeSurface, env: NodeJS.ProcessEnv = process.env) {
+export function facadeToolsFor(surface: FacadeSurface, env: FacadeEnv = process.env) {
   if (surface === "legacy") return FACADE_LEGACY_TOOLS;
   return explicitSnapshotActionsEnabled(env) ? FACADE_TOOLS_EXPLICIT_SNAPSHOT : FACADE_TOOLS;
 }
 
-export function facadeAgentInstructions(env: NodeJS.ProcessEnv = process.env): string {
+export function facadeAgentInstructions(env: FacadeEnv = process.env): string {
   return explicitSnapshotActionsEnabled(env)
     ? `${FACADE_AGENT_INSTRUCTIONS}\n\n${SNAPSHOT_ACTIONS_WORKFLOW}`
     : FACADE_AGENT_INSTRUCTIONS;

@@ -20,7 +20,7 @@ The output covers up to 50 visible records per source. It does not paginate or d
 ## Agent prompt
 
 <Prompt description="Collect browser data with resumable libfx tools." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/libfx-receipts/typescript` to my merchant receipt pages. Read the README, environment template and source first. Keep native libfx local durability and the existing dependency versions and lockfile.
+Adapt `packages/examples/cookbooks/libfx-receipts/typescript` to my merchant receipt pages. Read the README, environment template and source first. Keep native libfx local durability and the existing catalog versions and root lockfile.
 
 Change the extraction schema and completeness checks together. Accept only configured source URLs, serialize access to the shared page, and validate extracted values. Save each completed source before returning its tool result. Repeated reads must reuse that source's saved result. Do not infer missing records or call partial visible-page coverage a complete account export.
 
@@ -31,29 +31,28 @@ Keep the libfx journal and application manifest together in STATE_DIR. Preserve 
 
 ## Prerequisites and inputs
 
-Use Node.js 24.18+ and pnpm. Add `BROWSERBASE_API_KEY`, `OPENAI_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. OpenAI powers Stagehand extraction; AI Gateway powers libfx. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs you intend the agent to access.
+Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY`, `OPENAI_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. OpenAI powers Stagehand extraction; AI Gateway powers libfx. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs you intend the agent to access.
 
 ## Check out and run
 
-Source: [`packages/examples/cookbooks/libfx-receipts`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/libfx-receipts). Use the [sparse checkout instructions](/v4/cookbooks/overview#run-a-cookbook), then:
+Source: [`packages/examples/cookbooks/libfx-receipts`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/libfx-receipts). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
 
 ```bash
-cd packages/examples/cookbooks/libfx-receipts/typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/libfx-receipts/typescript/.env.example packages/examples/cookbooks/libfx-receipts/typescript/.env
 # Fill in .env, including RECEIPT_URLS, before starting.
-pnpm start
+just cookbook libfx-receipts
 ```
 
 If a handoff appears, the CLI stays open. Complete login in the printed Live View, then type `done` in the waiting terminal. Collection continues in the same process:
 
 ```bash
 # After collection finishes:
-pnpm start status
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-libfx-receipts start status
+pnpm --filter stagehand-cookbook-libfx-receipts start cleanup
 ```
 
-Type `pause` or press Ctrl+C while waiting to save the handoff and exit. Use `pnpm start resume` after an interruption, with the same state directory and source URLs. The explicit `return <decision-id>` command remains available for scripts when no CLI is running.
+Type `pause` or press Ctrl+C while waiting to save the handoff and exit. Use `pnpm --filter stagehand-cookbook-libfx-receipts start resume` after an interruption, with the same state directory and source URLs. The explicit `return <decision-id>` command remains available for scripts when no CLI is running.
 
 ## How the job works
 
@@ -105,7 +104,7 @@ After 20 extraction attempts, the next incomplete read saves a handoff. Typing D
 
 ### Inspect completed and pending sources
 
-After pausing or stopping the CLI, run `pnpm start status`. It reads the manifest without calling libfx, a model or the browser. A collection interrupted after one saved source might include:
+After pausing or stopping the CLI, run `pnpm --filter stagehand-cookbook-libfx-receipts start status`. It reads the manifest without calling libfx, a model or the browser. A collection interrupted after one saved source might include:
 
 ```json
 {
@@ -113,7 +112,7 @@ After pausing or stopping the CLI, run `pnpm start status`. It reads the manifes
     "phase": "collecting",
     "completedSources": 1,
     "pendingSources": ["https://merchant.example/receipts"],
-    "nextAction": "Run pnpm start resume to continue incomplete sources. Saved receipts will be reused."
+    "nextAction": "Run pnpm --filter stagehand-cookbook-libfx-receipts start resume to continue incomplete sources. Saved receipts will be reused."
   }
 }
 ```
@@ -127,16 +126,16 @@ A pending login handoff reports `awaiting_human` instead. Saved records remain a
 Before a PR, configure two sources and run the crash check:
 
 ```bash
-CRASH_AFTER_RECEIPT=1 pnpm start
+CRASH_AFTER_RECEIPT=1 pnpm --filter stagehand-cookbook-libfx-receipts start
 # The next command waits for the stale crash lock automatically.
-pnpm start resume
-pnpm start status
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-libfx-receipts start resume
+pnpm --filter stagehand-cookbook-libfx-receipts start status
+pnpm --filter stagehand-cookbook-libfx-receipts start cleanup
 ```
 
 The inline flag applies only to the first command. Remove any `CRASH_AFTER_RECEIPT=1` setting from `.env` before resuming. Verify that the first source reuses its saved records and the second completes. Separately test a login handoff: the pending decision must survive process exit and collection must continue after return.
 
-Run `pnpm typecheck` to check the source types. Use the steps above to verify the browser flow and restart behavior.
+Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-libfx-receipts` to check the source types. Use the steps above to verify the browser flow and restart behavior.
 
 ## Session lifetime and recovery
 

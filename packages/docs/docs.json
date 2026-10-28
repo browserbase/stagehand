@@ -61,7 +61,6 @@
                   "v4/integrations/agent-frameworks/openai-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/eve",
                   "v4/integrations/agent-frameworks/deep-agents",
-                  "v4/integrations/agent-frameworks/crewai",
                   "v4/integrations/agent-frameworks/mastra",
                   "v4/integrations/agent-frameworks/vercel-ai-sdk"
                 ]
@@ -191,13 +190,6 @@
                       "v3/integrations/mcp/setup",
                       "v3/integrations/mcp/tools",
                       "v3/integrations/mcp/configuration"
-                    ]
-                  },
-                  {
-                    "group": "CrewAI",
-                    "pages": [
-                      "v3/integrations/crew-ai/introduction",
-                      "v3/integrations/crew-ai/configuration"
                     ]
                   },
                   {
@@ -504,7 +496,15 @@
     },
     {
       "source": "/v4/integrations/crewai",
-      "destination": "/v4/integrations/agent-frameworks/crewai"
+      "destination": "/v4/integrations/overview"
+    },
+    {
+      "source": "/v4/integrations/agent-frameworks/crewai",
+      "destination": "/v4/integrations/overview"
+    },
+    {
+      "source": "/v3/integrations/crew-ai/:slug*",
+      "destination": "/v4/integrations/overview"
     },
     {
       "source": "/v4/integrations/mastra",
@@ -544,7 +544,7 @@
     },
     {
       "source": "/integrations/crew-ai/:slug*",
-      "destination": "/v3/integrations/crew-ai/:slug*"
+      "destination": "/v4/integrations/overview"
     },
     {
       "source": "/integrations/langchain/:slug*",

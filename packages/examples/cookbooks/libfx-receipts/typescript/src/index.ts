@@ -177,7 +177,7 @@ async function main() {
               process.exitCode = 2;
           }
           console.log(
-            `Saved ${join(directory, "receipts.json")}. Resume with pnpm start resume; release the browser with pnpm start cleanup.`,
+            `Saved ${join(directory, "receipts.json")}. Resume with pnpm --filter stagehand-cookbook-libfx-receipts start resume; release the browser with pnpm --filter stagehand-cookbook-libfx-receipts start cleanup.`,
           );
           break;
         }

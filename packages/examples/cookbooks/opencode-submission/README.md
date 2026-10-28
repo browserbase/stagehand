@@ -6,23 +6,24 @@ OpenCode v2 on durable-harness. TypeScript CLI, Browserbase only. No application
 
 ## Install and run
 
+Follow the [repository setup](../README.md#run), then run from the repository root:
+
 ```bash
-cd typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/opencode-submission/typescript/.env.example packages/examples/cookbooks/opencode-submission/typescript/.env
 ```
 
 Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` are required. The gateway key powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
 
 ```bash
-pnpm start
+just cookbook opencode-submission
 # In the running terminal, type: approve
 # OpenCode submits once, verifies the response and exits.
-pnpm start status
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-opencode-submission start status
+pnpm --filter stagehand-cookbook-opencode-submission start cleanup
 ```
 
-Run `pnpm start status` to inspect saved state without calling a model or reconnecting the browser. After an interrupted submission, `progress.phase` is `outcome_unknown` until confirmation is verified. `progress.nextAction` directs you to verification instead of another submission. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+Run `pnpm --filter stagehand-cookbook-opencode-submission start status` to inspect saved state without calling a model or reconnecting the browser. After an interrupted submission, `progress.phase` is `outcome_unknown` until confirmation is verified. `progress.nextAction` directs you to verification instead of another submission. `pnpm --filter stagehand-cookbook-opencode-submission start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
 ## Follow the code
 
@@ -66,7 +67,7 @@ Prepare the request, type `pause` at the approval prompt, then set `CRASH_AFTER_
 ## Verify
 
 ```bash
-pnpm typecheck
+pnpm exec turbo run typecheck --filter=stagehand-cookbook-opencode-submission
 ```
 
 Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/opencode-submission) for the agent prompt and deployment boundaries.

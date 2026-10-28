@@ -8,7 +8,7 @@ export async function reviewSubmission(store: Store, browser: Browser, terminal:
   await browser.liveLink();
   if (!terminal.enabled) {
     console.log(
-      `Approve: pnpm start approve ${state.decision.id}. Reject: pnpm start reject ${state.decision.id}`,
+      `Approve: pnpm --filter stagehand-cookbook-opencode-submission start approve ${state.decision.id}. Reject: pnpm --filter stagehand-cookbook-opencode-submission start reject ${state.decision.id}`,
     );
     return false;
   }

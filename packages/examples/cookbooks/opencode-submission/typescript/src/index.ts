@@ -179,7 +179,7 @@ async function main() {
           await saveJson(join(directory, "status.json"), { ...state, progress: progress(state) });
           if (state.confirmed)
             console.log(
-              "Matching confirmation verified. Release the browser with pnpm start cleanup.",
+              "Matching confirmation verified. Release the browser with pnpm --filter stagehand-cookbook-opencode-submission start cleanup.",
             );
           else if (state.attempted)
             throw new Error("Outcome unknown. Inspect the browser manually; no automatic retry.");

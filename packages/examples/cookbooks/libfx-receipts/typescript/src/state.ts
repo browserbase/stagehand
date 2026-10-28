@@ -87,20 +87,26 @@ export function progress(state: State) {
     return {
       ...counts,
       phase: "awaiting_human",
-      nextAction: "Run pnpm start resume, complete the human step in Live View, then type Done.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-libfx-receipts start resume, complete the human step in Live View, then type Done.",
     };
   if (state.sources.length === 0)
-    return { ...counts, phase: "not_started", nextAction: "Set RECEIPT_URLS and run pnpm start." };
+    return {
+      ...counts,
+      phase: "not_started",
+      nextAction: "Set RECEIPT_URLS and run pnpm --filter stagehand-cookbook-libfx-receipts start.",
+    };
   if (pendingSources.length === 0)
     return {
       ...counts,
       phase: "complete",
-      nextAction: "Run pnpm start cleanup to release the browser.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-libfx-receipts start cleanup to release the browser.",
     };
   return {
     ...counts,
     phase: "collecting",
     nextAction:
-      "Run pnpm start resume to continue incomplete sources. Saved receipts will be reused.",
+      "Run pnpm --filter stagehand-cookbook-libfx-receipts start resume to continue incomplete sources. Saved receipts will be reused.",
   };
 }

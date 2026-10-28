@@ -60,29 +60,38 @@ export function approveOrder(state: State, id: string, actual: Record<string, st
 
 export function progress(state: State) {
   if (state.confirmed)
-    return { phase: "confirmed", nextAction: "Run pnpm start cleanup to release the browser." };
+    return {
+      phase: "confirmed",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup to release the browser.",
+    };
   if (state.decision?.status === "rejected")
     return {
       phase: "rejected",
-      nextAction: "Run pnpm start cleanup. The order was not submitted by the agent.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup. The order was not submitted by the agent.",
     };
   if (state.decision?.status === "pending")
     return {
       phase: "awaiting_approval",
-      nextAction: "Run pnpm start resume to review the saved proposal.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-pi-durable-approval start resume to review the saved proposal.",
     };
   if (state.decision?.status === "approved")
     return {
       phase: "awaiting_human_submission",
-      nextAction: "Run pnpm start resume, submit in Live View, then type Done.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-pi-durable-approval start resume, submit in Live View, then type Done.",
     };
   if (state.decision?.status === "returned")
     return {
       phase: "awaiting_verification",
-      nextAction: "Run pnpm start resume to verify the human's submission.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-pi-durable-approval start resume to verify the human's submission.",
     };
   return {
     phase: "preparing",
-    nextAction: "Run pnpm start resume to continue preparing the proposal.",
+    nextAction:
+      "Run pnpm --filter stagehand-cookbook-pi-durable-approval start resume to continue preparing the proposal.",
   };
 }

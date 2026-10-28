@@ -9,8 +9,8 @@ export async function reviewOrder(store: Store, browser: Browser, terminal: Term
   if (!terminal.enabled) {
     console.log(
       state.decision.status === "pending"
-        ? `Approve: pnpm start approve ${state.decision.id}. Reject: pnpm start reject ${state.decision.id}`
-        : `Submit in Live View, then: pnpm start return ${state.decision.id}`,
+        ? `Approve: pnpm --filter stagehand-cookbook-pi-durable-approval start approve ${state.decision.id}. Reject: pnpm --filter stagehand-cookbook-pi-durable-approval start reject ${state.decision.id}`
+        : `Submit in Live View, then: pnpm --filter stagehand-cookbook-pi-durable-approval start return ${state.decision.id}`,
     );
     return false;
   }

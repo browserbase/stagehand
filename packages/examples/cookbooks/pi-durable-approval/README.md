@@ -6,24 +6,25 @@ Official Pi Durable with native SQLite storage. TypeScript CLI, Browserbase only
 
 ## Install and run
 
+Follow the [repository setup](../README.md#run), then run from the repository root:
+
 ```bash
-cd typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/pi-durable-approval/typescript/.env.example packages/examples/cookbooks/pi-durable-approval/typescript/.env
 ```
 
 Fill in the environment template. Node.js 24.18+ and pnpm are required. `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` are required. The OpenAI key powers Pi. The browser uses deterministic Stagehand operations and needs no browser model.
 
 ```bash
-pnpm start
+just cookbook pi-durable-approval
 # In the running terminal, type: approve
 # Click Submit yourself in the printed Live View.
 # In the same terminal, type: done
 # The agent verifies the result, then exits.
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup
 ```
 
-Run `pnpm start status` to inspect the saved decision and `progress.phase` without calling a model or reconnecting the browser. `progress.nextAction` tells you whether to approve, submit through Live View, or resume verification. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+Run `pnpm --filter stagehand-cookbook-pi-durable-approval start status` to inspect the saved decision and `progress.phase` without calling a model or reconnecting the browser. `progress.nextAction` tells you whether to approve, submit through Live View, or resume verification. `pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
 Earendil describes Pi Durable as experimental. These examples pin its published `1.4.0` release; the version pin does not imply a stable API guarantee.
 
@@ -65,9 +66,9 @@ Prepare an order and inspect it in Live View while the terminal waits. Change a 
 ## Verify
 
 ```bash
-pnpm typecheck
+pnpm exec turbo run typecheck --filter=stagehand-cookbook-pi-durable-approval
 ```
 
 Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/pi-durable-approval) for the agent prompt and deployment boundaries.
 
-Shared dependencies follow the existing cookbook ranges: `typescript@^5`, `@types/node@^24`, `tsx@^4.23.1`, `dotenv@^17.4.2`, `@browserbasehq/sdk@^2.16.0` and `zod@4.4.3`. Framework packages keep exact pins. Install with the frozen lockfile.
+Shared dependencies use the root catalog and local Stagehand SDK. Framework packages keep exact pins in the catalog. Install from the repository root with the frozen lockfile.

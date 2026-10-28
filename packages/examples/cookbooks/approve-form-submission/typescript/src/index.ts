@@ -21,7 +21,7 @@ async function main() {
 
   const browser = await browserbase.launch({
     apiKey: browserbaseApiKey,
-    api_timeout: 300,
+    timeout: 300,
   });
 
   try {

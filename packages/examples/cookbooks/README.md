@@ -2,13 +2,13 @@
 
 Browser jobs you can run, adapt, and combine. Each has a [docs page](https://docs.stagehand.dev/v4/cookbooks/overview), source folder, and coding-agent prompt.
 
-| Cookbook                                 | Languages              | Output                                      |
-| ---------------------------------------- | ---------------------- | ------------------------------------------- |
-| [Persisted login](persisted-login)       | TypeScript, Python, Go | Authentication and reuse receipt            |
-| [Paginated catalog](paginated-catalog)   | TypeScript, Python, Go | Checkpoint and complete catalog             |
-| [Files to bucket](files-to-bucket)       | TypeScript             | JSON and JPEG; optional S3 upload           |
-| [Form approval](approve-form-submission) | TypeScript, Python, Go | Submission or rejection; TypeScript receipt |
-| [Research agent](ai-sdk-research-agent)  | TypeScript             | Report citing approved sources              |
+| Cookbook                                 | Languages          | Output                                      |
+| ---------------------------------------- | ------------------ | ------------------------------------------- |
+| [Persisted login](persisted-login)       | TypeScript, Python | Authentication and reuse receipt            |
+| [Paginated catalog](paginated-catalog)   | TypeScript, Python | Checkpoint and complete catalog             |
+| [Files to bucket](files-to-bucket)       | TypeScript         | JSON and JPEG; optional S3 upload           |
+| [Form approval](approve-form-submission) | TypeScript, Python | Submission or rejection; TypeScript receipt |
+| [Research agent](ai-sdk-research-agent)  | TypeScript         | Report citing approved sources              |
 
 ## Durable agents
 
@@ -22,13 +22,28 @@ Independent TypeScript CLI recipes for browser work that waits for a human or re
 
 ## Run
 
+Clone the repository so the TypeScript cookbooks can use the local SDK and root workspace:
+
 ```bash
-git clone --depth 1 --sparse https://github.com/browserbase/stagehand.git
+git clone --depth 1 https://github.com/browserbase/stagehand.git
 cd stagehand
-git sparse-checkout set packages/examples/cookbooks/<cookbook-name>
 ```
 
-Follow the selected README and `.env.example` for setup. Each language folder has its own lockfile. Browserbase examples require `BROWSERBASE_API_KEY` and print a session link. Browser sessions last five minutes, or 30 minutes in the durable examples.
+### TypeScript
+
+Use Node.js 22.18+ for the core recipes, or Node.js 24.18+ for durable agents, with pnpm and [just](https://just.systems/). Install dependencies once from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+Copy the selected cookbook's `typescript/.env.example` to `typescript/.env` and fill in its keys. Then run from the repository root:
+
+```bash
+just cookbook paginated-catalog
+```
+
+Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the local SDK and extension before starting the recipe in its TypeScript directory. Its `.env` and `out/` files live in that directory. TypeScript cookbooks share the root catalog and `pnpm-lock.yaml`.
 
 The durable examples use these model keys:
 
@@ -38,14 +53,29 @@ The durable examples use these model keys:
 | libfx receipts | `AI_GATEWAY_API_KEY` for the agent; `OPENAI_API_KEY` for Stagehand extraction |
 | OpenCode       | `AI_GATEWAY_API_KEY` for the agent                                            |
 
-Page and step limits bound work. They do not set a spending limit.
+### Python
 
-From a full checkout, `just cookbook <slug>` runs an installed TypeScript cookbook. Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
+Use Python 3.11+ and uv. Each Python cookbook keeps its own `pyproject.toml` and `uv.lock` and installs a published Python SDK. Copy `.env.example` to `.env`, fill in its keys, then run from the selected cookbook's `python/` directory:
+
+```bash
+uv sync --locked
+uv run --locked python main.py
+```
+
+Cloud jobs require `BROWSERBASE_API_KEY` and the model keys listed in each recipe. They print a session link and limit browser lifetime to five minutes, or 30 minutes for durable agents. Page and step limits bound work, not cost.
+
+Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
 
 ## Contribute
 
-Include a docs page, agent prompt, README, environment template, lockfile, output checks, and cleanup. Core browser jobs support TypeScript, Python, and Go. Integration recipes may be TypeScript-only.
+Include a docs page, agent prompt, README, environment template, dependency declarations, output checks, and cleanup. Core browser jobs support TypeScript and Python. Integration recipes may be TypeScript-only.
 
-Run TypeScript typechecks and available unit tests, Python catalog tests, and Go tests. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
+Run TypeScript checks from the repository root; Turbo builds the local dependencies first:
+
+```bash
+pnpm exec turbo run typecheck test:unit --filter='stagehand-cookbook-*'
+```
+
+Run Python catalog tests with `uv run --locked python -m unittest` from its `python/` directory. Live-test changed browser behavior locally. Keep context and checkpoint writes sequential.
 
 Use Playwright locators for known elements, Stagehand for natural-language actions and extraction, and site-provided WebMCP tools when available. See [model configuration](https://docs.stagehand.dev/v4/configuration/models) and [Functions deployment](https://docs.stagehand.dev/v4/best-practices/deployments) for other setups.

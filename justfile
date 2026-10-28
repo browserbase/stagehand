@@ -48,6 +48,7 @@ showcase-script slug:
     pnpm exec tsx packages/examples/showcase/{{slug}}/index.ts
 
 cookbook slug:
+    pnpm exec turbo run build --filter=@browserbasehq/stagehand
     pnpm --dir "packages/examples/cookbooks/{{slug}}/typescript" start
 
 fmt:

@@ -67,26 +67,38 @@ export function authorizeSubmit(state: State, actual: Record<string, string>) {
 
 export function progress(state: State) {
   if (state.confirmed)
-    return { phase: "confirmed", nextAction: "Run pnpm start cleanup to release the browser." };
+    return {
+      phase: "confirmed",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-opencode-submission start cleanup to release the browser.",
+    };
   if (state.attempted)
     return {
       phase: "outcome_unknown",
-      nextAction: "Run pnpm start resume to check confirmation. Submission will not be repeated.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to check confirmation. Submission will not be repeated.",
     };
   if (state.decision?.status === "rejected")
-    return { phase: "rejected", nextAction: "Run pnpm start cleanup. Nothing was submitted." };
+    return {
+      phase: "rejected",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-opencode-submission start cleanup. Nothing was submitted.",
+    };
   if (state.decision?.status === "pending")
     return {
       phase: "awaiting_approval",
-      nextAction: "Run pnpm start resume to review the saved request.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to review the saved request.",
     };
   if (state.decision?.status === "approved")
     return {
       phase: "approved",
-      nextAction: "Run pnpm start resume to submit the approved request once and verify it.",
+      nextAction:
+        "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to submit the approved request once and verify it.",
     };
   return {
     phase: "preparing",
-    nextAction: "Run pnpm start resume to continue preparing the request.",
+    nextAction:
+      "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to continue preparing the request.",
   };
 }

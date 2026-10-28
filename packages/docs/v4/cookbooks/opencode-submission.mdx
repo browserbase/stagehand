@@ -18,7 +18,7 @@ Prepare an [httpbin test order](https://httpbin.org/forms/post), approve its exa
 ## Agent prompt
 
 <Prompt description="Reconcile an interrupted browser action with durable OpenCode." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/opencode-submission/typescript` to my browser submission. Read the README, environment template and source first. Keep OpenCode on durable-harness and preserve the package versions and lockfile.
+Adapt `packages/examples/cookbooks/opencode-submission/typescript` to my browser submission. Read the README, environment template and source first. Keep OpenCode on durable-harness and preserve the catalog versions and root lockfile.
 
 Change the form values, exact approval comparison and confirmation parser together. Keep tools limited to preparation, guarded submission and verification. Only a human may approve the saved values. Commit the attempted marker through the session document API before clicking Submit. Never put that write after the click or rely on a successful tool return to persist it.
 
@@ -29,18 +29,17 @@ Preserve stable input identities, the local World, browser binding, serialized a
 
 ## Prerequisites and inputs
 
-Use Node.js 24.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. AI Gateway powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
+Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. AI Gateway powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
 
 ## Check out and run
 
-Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Use the [sparse checkout instructions](/v4/cookbooks/overview#run-a-cookbook), then:
+Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
 
 ```bash
-cd packages/examples/cookbooks/opencode-submission/typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/opencode-submission/typescript/.env.example packages/examples/cookbooks/opencode-submission/typescript/.env
 # Fill in .env before starting.
-pnpm start
+just cookbook opencode-submission
 ```
 
 Review the saved values and Live View while the CLI waits. To submit normally:
@@ -48,11 +47,11 @@ Review the saved values and Live View while the CLI waits. To submit normally:
 ```bash
 # In the running terminal, type: approve
 # OpenCode submits once and verifies the response, then exits.
-pnpm start status
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-opencode-submission start status
+pnpm --filter stagehand-cookbook-opencode-submission start cleanup
 ```
 
-Type `reject` at the prompt to stop without submitting. Type `pause` or press Ctrl+C while waiting to retain the pending decision. `pnpm start resume` reopens the prompt. Explicit `approve <decision-id>` and `reject <decision-id>` commands remain available for scripts when no CLI is running. To exercise interruption, use the manual check below.
+Type `reject` at the prompt to stop without submitting. Type `pause` or press Ctrl+C while waiting to retain the pending decision. `pnpm --filter stagehand-cookbook-opencode-submission start resume` reopens the prompt. Explicit `approve <decision-id>` and `reject <decision-id>` commands remain available for scripts when no CLI is running. To exercise interruption, use the manual check below.
 
 ## How the job works
 
@@ -106,7 +105,7 @@ A matching httpbin response is required. If the crash happened after saving the 
 
 ### Inspect an uncertain outcome
 
-After a crash, run `pnpm start status` before resuming. It reads the saved World document without driving OpenCode, calling a model or reconnecting the browser. An attempted submission without a verified response includes:
+After a crash, run `pnpm --filter stagehand-cookbook-opencode-submission start status` before resuming. It reads the saved World document without driving OpenCode, calling a model or reconnecting the browser. An attempted submission without a verified response includes:
 
 ```json
 {
@@ -114,7 +113,7 @@ After a crash, run `pnpm start status` before resuming. It reads the saved World
   "confirmed": false,
   "progress": {
     "phase": "outcome_unknown",
-    "nextAction": "Run pnpm start resume to check confirmation. Submission will not be repeated."
+    "nextAction": "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to check confirmation. Submission will not be repeated."
   }
 }
 ```
@@ -128,16 +127,16 @@ This status describes the evidence already stored. It does not ask the model to 
 Before a PR, start a fresh run, type `pause` at its approval prompt, then use the saved decision ID:
 
 ```bash
-CRASH_AFTER_SUBMIT=1 pnpm start approve <decision-id>
+CRASH_AFTER_SUBMIT=1 pnpm --filter stagehand-cookbook-opencode-submission start approve <decision-id>
 # The next command waits for the stale crash lock automatically.
-pnpm start resume
-pnpm start status
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-opencode-submission start resume
+pnpm --filter stagehand-cookbook-opencode-submission start status
+pnpm --filter stagehand-cookbook-opencode-submission start cleanup
 ```
 
 The inline flag applies only to approval. Remove any `CRASH_AFTER_SUBMIT=1` setting from `.env` before resuming. Expect recovery to verify the existing response without a second click. In another fresh run, change a form value before approval and check that submission fails. Test rejection separately. If confirmation is missing, the result must stay unknown.
 
-Run `pnpm typecheck` to check the source types. Use the steps above to verify the browser flow and restart behavior.
+Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-opencode-submission` to check the source types. Use the steps above to verify the browser flow and restart behavior.
 
 ## Session lifetime and recovery
 

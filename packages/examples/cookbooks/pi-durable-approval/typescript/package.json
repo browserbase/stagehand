@@ -7,20 +7,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.16.0",
-    "@browserbasehq/stagehand": "4.3.0",
-    "@earendil-works/chord": "1.4.0",
-    "@earendil-works/pi-ai": "1.4.0",
-    "@earendil-works/pi-durable": "1.4.0",
-    "dotenv": "^17.4.2",
-    "proper-lockfile": "4.1.2",
-    "zod": "4.4.3"
+    "@browserbasehq/sdk": "catalog:",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "dotenv": "catalog:",
+    "proper-lockfile": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24",
-    "@types/proper-lockfile": "4.1.4",
-    "tsx": "^4.23.1",
-    "typescript": "^5"
+    "@types/node": "catalog:",
+    "@types/proper-lockfile": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=24.18.0"

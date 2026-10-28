@@ -8,7 +8,9 @@ export async function returnFromHandoff(store: Store, browser: Browser, terminal
   console.log(`Human step: ${state.decision.reason}`);
   await browser.liveLink();
   if (!terminal.enabled) {
-    console.log(`After login: pnpm start return ${state.decision.id}`);
+    console.log(
+      `After login: pnpm --filter stagehand-cookbook-libfx-receipts start return ${state.decision.id}`,
+    );
     return false;
   }
   const answer = await terminal.choose(

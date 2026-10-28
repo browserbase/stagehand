@@ -32,7 +32,7 @@ export class Browser {
         this.browser = await browserbase.launch({
           apiKey: process.env.BROWSERBASE_API_KEY!,
           keepAlive: true,
-          api_timeout: 1800,
+          timeout: 1800,
           browserSettings: { solveCaptchas: false },
         });
         const sessionId = this.browser.sessionId!;

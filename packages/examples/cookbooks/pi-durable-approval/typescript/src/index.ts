@@ -101,9 +101,11 @@ async function main() {
           state = await store.read();
           await saveJson(join(directory, "status.json"), { ...state, progress: progress(state) });
           if (state.confirmed)
-            console.log("Matching confirmation verified. Cleanup: pnpm start cleanup.");
+            console.log(
+              "Matching confirmation verified. Cleanup: pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup.",
+            );
           console.log(
-            "Resume: pnpm start resume. Cleanup: pnpm start cleanup. Keep STATE_DIR unchanged.",
+            "Resume: pnpm --filter stagehand-cookbook-pi-durable-approval start resume. Cleanup: pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup. Keep STATE_DIR unchanged.",
           );
           break;
         }

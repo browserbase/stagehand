@@ -6,10 +6,11 @@ Native libfx durable sessions. TypeScript CLI, Browserbase only. No application 
 
 ## Install and run
 
+Follow the [repository setup](../README.md#run), then run from the repository root:
+
 ```bash
-cd typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/libfx-receipts/typescript/.env.example packages/examples/cookbooks/libfx-receipts/typescript/.env
 ```
 
 Use Node.js 24.18+ and pnpm. Set these keys in `.env`:
@@ -23,14 +24,14 @@ Use Node.js 24.18+ and pnpm. Set these keys in `.env`:
 This recipe uses both model keys because the agent and extraction make separate model calls. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs.
 
 ```bash
-pnpm start
+just cookbook libfx-receipts
 # If login blocks extraction, sign in through Live View.
 # In the waiting terminal, type: done
 # After collection finishes:
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-libfx-receipts start cleanup
 ```
 
-Run `pnpm start status` to inspect the manifest without calling a model or reconnecting the browser. `progress` lists completed and pending sources, any human handoff, and the next action. `pnpm start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
+Run `pnpm --filter stagehand-cookbook-libfx-receipts start status` to inspect the manifest without calling a model or reconnecting the browser. `progress` lists completed and pending sources, any human handoff, and the next action. `pnpm --filter stagehand-cookbook-libfx-receipts start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
 ## Follow the code
 
@@ -49,7 +50,7 @@ libfx's own `createFxAgent` persists turns and tool outcomes. This recipe explic
 
 The output is receipt metadata, not downloaded PDFs. Extraction covers up to 50 visible records per source, without pagination. Adjust the schema and completeness checks together for your portal. Saved records keep their earlier values and do not prove that every receipt in an account was collected.
 
-To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, run `pnpm start resume`. The saved source should be reused.
+To demonstrate recovery, run with `CRASH_AFTER_RECEIPT=1`. After it exits, unset the flag, run `pnpm --filter stagehand-cookbook-libfx-receipts start resume`. The saved source should be reused.
 
 ## Browser operations
 
@@ -74,7 +75,7 @@ Use two receipt-list URLs. Run with `CRASH_AFTER_RECEIPT=1`; after the intention
 ## Verify
 
 ```bash
-pnpm typecheck
+pnpm exec turbo run typecheck --filter=stagehand-cookbook-libfx-receipts
 ```
 
 Read the [cookbook docs](https://docs.stagehand.dev/v4/cookbooks/libfx-receipts) for the agent prompt and deployment boundaries.

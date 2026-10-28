@@ -18,7 +18,7 @@ Fill the [httpbin test order form](https://httpbin.org/forms/post), save its act
 ## Agent prompt
 
 <Prompt description="Add a durable human approval step to a browser job." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/pi-durable-approval/typescript` to my order form. Read the README, environment template and source first. Keep native Pi Durable with its SQLite storage, existing dependency versions and lockfile.
+Adapt `packages/examples/cookbooks/pi-durable-approval/typescript` to my order form. Read the README, environment template and source first. Keep native Pi Durable with its SQLite storage, existing catalog versions and root lockfile.
 
 Change the form fields, saved values and confirmation check together. Persist the proposal before ending the agent turn. Bind approval to the decision ID and actual values; changed values must fail approval. Keep Submit under human control in Browserbase Live View. The agent must have no general action or submit tool.
 
@@ -29,18 +29,17 @@ Preserve serialized browser access, the single-writer lock, session lifetime and
 
 ## Prerequisites and inputs
 
-Use Node.js 24.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. OpenAI powers Pi; deterministic Stagehand browser operations need no separate browser model. The form uses demonstration customer data.
+Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. OpenAI powers Pi; deterministic Stagehand browser operations need no separate browser model. The form uses demonstration customer data.
 
 ## Check out and run
 
-Source: [`packages/examples/cookbooks/pi-durable-approval`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/pi-durable-approval). Use the [sparse checkout instructions](/v4/cookbooks/overview#run-a-cookbook), then:
+Source: [`packages/examples/cookbooks/pi-durable-approval`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/pi-durable-approval). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
 
 ```bash
-cd packages/examples/cookbooks/pi-durable-approval/typescript
-cp .env.example .env
 pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/pi-durable-approval/typescript/.env.example packages/examples/cookbooks/pi-durable-approval/typescript/.env
 # Fill in .env before starting.
-pnpm start
+just cookbook pi-durable-approval
 ```
 
 The CLI prints the proposal, decision ID and Live View URL, then waits for input in the same terminal:
@@ -50,10 +49,10 @@ The CLI prints the proposal, decision ID and Live View URL, then waits for input
 # Submit the approved form yourself in Live View.
 # Back at the terminal prompt, type: done
 # The agent verifies the response, then exits.
-pnpm start cleanup
+pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup
 ```
 
-At the approval prompt, type `reject` to stop without submitting. Type `pause` or press Ctrl+C while waiting to leave the decision saved; `pnpm start resume` reopens it. Scripted commands `approve <decision-id>`, `return <decision-id>` and `reject <decision-id>` remain available when the CLI is not already running.
+At the approval prompt, type `reject` to stop without submitting. Type `pause` or press Ctrl+C while waiting to leave the decision saved; `pnpm --filter stagehand-cookbook-pi-durable-approval start resume` reopens it. Scripted commands `approve <decision-id>`, `return <decision-id>` and `reject <decision-id>` remain available when the CLI is not already running.
 
 ## How the job works
 
@@ -99,13 +98,13 @@ A mismatch throws before `confirmed` can become true. The CLI's stable initial a
 
 ### Inspect the saved handoff
 
-After pausing or stopping the CLI, run `pnpm start status`. It reads SQLite without calling the model or reconnecting the browser. For an approved proposal, the output includes:
+After pausing or stopping the CLI, run `pnpm --filter stagehand-cookbook-pi-durable-approval start status`. It reads SQLite without calling the model or reconnecting the browser. For an approved proposal, the output includes:
 
 ```json
 {
   "progress": {
     "phase": "awaiting_human_submission",
-    "nextAction": "Run pnpm start resume, submit in Live View, then type Done."
+    "nextAction": "Run pnpm --filter stagehand-cookbook-pi-durable-approval start resume, submit in Live View, then type Done."
   }
 }
 ```
@@ -122,7 +121,7 @@ Before a PR, manually verify:
 2. Change a field in Live View. Typing `approve` must refuse it and keep the prompt open. Restore the saved value, type `approve`, submit in Live View and type `done`; expect a matching confirmation.
 3. Use a fresh `STATE_DIR` to test rejection. It must not submit or become approved later.
 
-Run `pnpm typecheck` to check the source types. Use the steps above to verify the browser flow and restart behavior.
+Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-pi-durable-approval` to check the source types. Use the steps above to verify the browser flow and restart behavior.
 
 ## Session lifetime and recovery
 
