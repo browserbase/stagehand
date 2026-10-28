@@ -30,6 +30,7 @@ import type {
   PageSnapshotOptions,
   PagePDFOptions,
   PagePDFResult,
+  PageSetContentOptions,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -1255,10 +1256,7 @@ export class Page {
   // -------- Convenience APIs delegated to the current main frame --------
 
   /** Replace this page's HTML without navigating or changing its URL. */
-  async setContent(
-    html: string,
-    options?: { waitUntil?: LoadState; timeout?: number },
-  ): Promise<void> {
+  async setContent(html: string, options?: PageSetContentOptions): Promise<void> {
     if (this.disposed) throw new Error("Page is disposed");
     await setContent(this, html, options);
   }

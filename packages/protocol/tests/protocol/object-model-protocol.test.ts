@@ -374,6 +374,7 @@ describe("Stagehand object-model protocol", () => {
     ).toStrictEqual([
       "page.goto",
       "page.url",
+      "page.set_content",
       "page.title",
       "page.close",
       "page.reload",

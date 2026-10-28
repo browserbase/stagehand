@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { LoadState } from "@browserbasehq/stagehand-protocol/types";
+import type { LoadState, PageSetContentOptions } from "@browserbasehq/stagehand-protocol/types";
 import type { Page } from "./page.js";
 import { runWithProgress } from "./progress.js";
 
@@ -15,7 +15,7 @@ const activeReplacements = new WeakSet<Page>();
 export async function setContent(
   page: Page,
   html: string,
-  options?: { waitUntil?: LoadState; timeout?: number },
+  options?: PageSetContentOptions,
 ): Promise<void> {
   if (activeReplacements.has(page)) {
     throw new Error("Another setContent call is still in progress on this page");

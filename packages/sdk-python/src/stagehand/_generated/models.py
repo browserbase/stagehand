@@ -1913,6 +1913,25 @@ class PageScrollParams(WireModel):
     delta_y: StrictFloat
 
 
+class PageSetContentOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    wait_until: Optional[LoadState] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
+
+
+class PageSetContentParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    html: StrictStr
+    options: Optional[PageSetContentOptions] = None
+
+
 class PageSetExtraHTTPHeadersParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",

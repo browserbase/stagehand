@@ -26,6 +26,7 @@ _DEFAULT_LOCATOR_TIMEOUT_MS = 20_000
 _TRACE_CONTEXT_PROPAGATOR = TraceContextTextMapPropagator()
 _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.goto": 15_000,
+    "page.set_content": 30_000,
     "page.reload": 15_000,
     "page.go_back": 15_000,
     "page.go_forward": 15_000,
@@ -597,6 +598,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "stagehand.observe",
         "stagehand.callback_batch",
         "page.goto",
+        "page.set_content",
         "page.reload",
         "page.go_back",
         "page.go_forward",
@@ -617,6 +619,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
     if operation_timeout_ms is not None:
         if operation_timeout_ms == 0 and method in {
             "page.pdf",
+            "page.set_content",
             "page.snapshot",
             "page.wait_for_function",
             "page.wait_for_selector",

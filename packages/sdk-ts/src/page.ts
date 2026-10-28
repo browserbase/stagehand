@@ -14,6 +14,7 @@ import type {
   PageReloadParams,
   PageScreenshotOptions,
   PageSetExtraHTTPHeadersParams,
+  PageSetContentParams,
   PageSetViewportSizeParams,
   PageSnapshotOptions,
   SnapshotResult,
@@ -52,6 +53,7 @@ export type PageClickOptions = NonNullable<PageClickParams["options"]>;
 export type PageDragAndDropOptions = NonNullable<PageDragAndDropParams["options"]>;
 export type PageKeyPressOptions = NonNullable<PageKeyPressParams["options"]>;
 export type PageReloadOptions = NonNullable<PageReloadParams["options"]>;
+export type PageSetContentOptions = NonNullable<PageSetContentParams["options"]>;
 export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
@@ -117,6 +119,14 @@ export class Page {
     });
     this.currentRef = result.page;
     return result.response === null ? null : new Response(this.rpcClient, result.response);
+  }
+
+  async setContent(html: string, options?: PageSetContentOptions): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageSetContent, {
+      pageId: this.pageId,
+      html,
+      ...(options ? { options } : {}),
+    });
   }
 
   async reload(options?: PageReloadOptions): Promise<Response | null> {

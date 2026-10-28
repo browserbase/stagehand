@@ -16,6 +16,7 @@ import type {
   PageScrollParams,
   PageScreenshotParams,
   PageSetExtraHTTPHeadersParams,
+  PageSetContentParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
   PageTypeParams,
@@ -35,6 +36,11 @@ export function createPageController(runtime: StagehandRuntime) {
   async function goto(params: PageGotoParams, { logger }: HandlerContext) {
     logger.debug("page.goto", {});
     return runtime.pageGoto(params);
+  }
+
+  async function setContent(params: PageSetContentParams, { logger }: HandlerContext) {
+    logger.debug("page.set_content", {});
+    return runtime.pageSetContent(params);
   }
 
   async function reload(params: PageReloadParams, { logger }: HandlerContext) {
@@ -193,6 +199,7 @@ export function createPageController(runtime: StagehandRuntime) {
 
   return {
     goto,
+    setContent,
     reload,
     goBack,
     goForward,

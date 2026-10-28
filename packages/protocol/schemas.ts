@@ -1658,6 +1658,18 @@ export const PageIdParamsSchema = z
   })
   .meta({ id: "PageIdParams" });
 
+export const PageSetContentOptionsSchema = z
+  .strictObject({
+    waitUntil: LoadStateSchema.optional(),
+    timeout: z.number().nonnegative().max(2_147_473_647).optional(),
+  })
+  .meta({ id: "PageSetContentOptions" });
+
+export const PageSetContentParamsSchema = PageIdParamsSchema.extend({
+  html: z.string(),
+  options: PageSetContentOptionsSchema.optional(),
+}).meta({ id: "PageSetContentParams" });
+
 export const PageOnParamsSchema = PageIdParamsSchema.extend({
   subscriptionId: z.string().min(1),
   event: PageSubscriptionEventNameSchema,

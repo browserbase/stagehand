@@ -268,6 +268,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageGoto, request.params),
           context,
         );
+      case "page.set_content":
+        return this.pageController.setContent(
+          parseParams(StagehandMethods.pageSetContent, request.params),
+          context,
+        );
       case "page.reload":
         return this.pageController.reload(
           parseParams(StagehandMethods.pageReload, request.params),

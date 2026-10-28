@@ -45,6 +45,33 @@ const response = await page.goto("https://example.com");
   The final main-document response, or `null` when no network response was produced.
 </ResponseField>
 
+## setContent()
+
+Replace the page's HTML without navigating or changing its URL. Scripts in the HTML execute,
+and relative resources use the current page URL (or the document's `<base>` element).
+
+```typescript
+await page.setContent("<!doctype html><h1>Hello</h1>");
+```
+
+<ParamField path="html" type="string" required>
+  The HTML to write, including an optional doctype. An empty string clears the document.
+</ParamField>
+
+<ParamField path="options" type="PageSetContentOptions" optional>
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The new document's load state: `"load"` (default), `"domcontentloaded"`, or `"networkidle"`.
+  </ParamField>
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum wait in milliseconds. Defaults to `30000`; `0` disables the timeout. A timeout
+    stops waiting but does not undo document changes already applied.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves when the replacement document reaches the requested load state.
+</ResponseField>
+
 ## reload()
 
 Reload the current page.
@@ -940,6 +967,30 @@ response = await page.goto("https://example.com")
 
 <ResponseField name="result" type="Response | None">
   The final main-document response, or `None` when no network response was produced.
+</ResponseField>
+
+## set_content()
+
+Replace the page's HTML without navigating or changing its URL. Scripts execute, and relative
+resources use the current page URL (or the document's `<base>` element).
+
+```python
+await page.set_content("<!doctype html><h1>Hello</h1>")
+```
+
+<ParamField path="html" type="str" required>
+  The HTML to write. An empty string clears the document.
+</ParamField>
+<ParamField path="wait_until" type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']" optional>
+  The new document's load state. Defaults to `"load"`.
+</ParamField>
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait in milliseconds. Defaults to `30000`; `0` disables the timeout. A timeout
+  stops waiting but does not undo document changes already applied.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Completes when the replacement document reaches the requested load state.
 </ResponseField>
 
 ## reload()
