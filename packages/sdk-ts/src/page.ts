@@ -20,6 +20,7 @@ import type {
   SnapshotResult,
   PageTypeParams,
   PageWaitForSelectorParams,
+  PageWaitForFunctionParams,
   PageWaitForTimeoutParams,
 } from "@browserbasehq/stagehand-protocol/types";
 import {
@@ -31,6 +32,7 @@ import { Locator } from "./locator.js";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
+  normalizeFunctionWaitExpression,
   normalizeInitScriptSource,
 } from "./pageScripts.js";
 import type { StagehandCommandClient } from "./commandClient.js";
@@ -55,6 +57,7 @@ export type PageSetContentOptions = NonNullable<PageSetContentParams["options"]>
 export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
+export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["options"]>;
 
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
@@ -364,6 +367,20 @@ export class Page {
       ...(options ? { options } : {}),
     });
     return result.matched;
+  }
+
+  /** Poll in the page's main world until the expression returns a truthy JSON value. */
+  async waitForFunction<R = unknown, Arg = unknown>(
+    expression: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+    options?: PageWaitForFunctionOptions,
+  ): Promise<R> {
+    const result = await this.rpcClient.send(StagehandMethods.pageWaitForFunction, {
+      pageId: this.pageId,
+      expression: normalizeFunctionWaitExpression(expression, arg),
+      ...(options ? { options } : {}),
+    });
+    return result.value as R;
   }
 
   async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {

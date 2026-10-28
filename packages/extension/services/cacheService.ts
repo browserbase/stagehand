@@ -14,7 +14,7 @@ import {
   type CacheMethod,
   type CdpTree,
 } from "../clients/cacheClient.js";
-import { apiUrlForRegion } from "../clients/stagehandApi.js";
+import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
 import { type Progress, runLocatorStep } from "../understudy/progress.js";
@@ -53,21 +53,17 @@ export interface CacheContext {
   defaultCaching: Caching;
 }
 
-/**
- * Builds the per-instance cache context from init params. Returns undefined
- * when caching is impossible: the stateless routes authenticate with the
- * Browserbase API key and resolve the project from the session id, so both
- * are required.
- */
-export function buildCacheContext(initParams: StagehandInitParams): CacheContext | undefined {
+/** Builds a cache context when client Browserbase transport is configured. */
+export function buildCacheContext(
+  initParams: StagehandInitParams,
+  request?: ClientBrowserbaseRequest,
+): CacheContext | undefined {
   const sessionId = initParams.browser?.sessionId;
-  if (!initParams.apiKey || !sessionId) return undefined;
+  if (!sessionId || initParams.browserbase !== "client") return undefined;
+  const client = new CacheClient({ request });
   return {
     sessionId,
-    client: new CacheClient(
-      apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
-      initParams.apiKey,
-    ),
+    client,
     defaultCaching: initParams.cache ?? true,
   };
 }
@@ -249,12 +245,15 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   };
 
   let getResponse: CacheGetResponse | null = null;
+  let readFailureReason = "read_failed";
   try {
     getResponse = await runLocatorStep(progress, "reading cache", () =>
       context.client.get(baseRequest),
     );
   } catch (error) {
     progress?.throwIfStopped();
+    readFailureReason =
+      error instanceof Error && error.name === "TimeoutError" ? "timeout" : "read_failed";
     logger.warn("Cache read failed; executing without cache", {
       category: "cache",
       method,
@@ -296,7 +295,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
       missReason: cacheMetadata.missReason ?? "unknown",
     });
   } else {
-    cacheMetadata = missMetadata(null, "read_failed");
+    cacheMetadata = missMetadata(null, readFailureReason);
   }
 
   progress?.throwIfStopped();
@@ -304,7 +303,11 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   progress?.throwIfStopped();
   outcome.result.metadata.cache = cacheMetadata;
 
-  if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
+  if (
+    getResponse?.missReason !== "payload_too_large" &&
+    outcome.cacheValue !== undefined &&
+    outcome.cacheValue !== null
+  ) {
     try {
       const setResponse = await runLocatorStep(progress, "writing cache", () =>
         context.client.set({

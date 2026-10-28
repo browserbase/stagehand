@@ -31,17 +31,18 @@ Run the typecheck and a bounded live run with configured keys. Verify source cov
 
 ## Prerequisites and inputs
 
-Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. The AI SDK agent and Stagehand use OpenAI; see [model configuration](/v4/configuration/models) to adapt Stagehand to another provider. The approved URLs are `/v4/basics/act` and `/v4/basics/extract` on `docs.stagehand.dev`.
+Use Node.js 22.18+, pnpm, and just. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. The AI SDK agent and Stagehand use OpenAI; see [model configuration](/v4/configuration/models) to adapt Stagehand to another provider. The approved URLs are `/v4/basics/act` and `/v4/basics/extract` on `docs.stagehand.dev`.
 
 ## Check out and run
 
-The source is [`packages/examples/cookbooks/ai-sdk-research-agent`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/ai-sdk-research-agent). Clone it with the [overview command](/v4/cookbooks/overview#run-a-cookbook):
+The source is [`packages/examples/cookbooks/ai-sdk-research-agent`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/ai-sdk-research-agent). Clone the repository with the [overview command](/v4/cookbooks/overview#run-a-cookbook):
 
 ```bash
-cd packages/examples/cookbooks/ai-sdk-research-agent/typescript
-cp .env.example .env
+# From the repository root
 pnpm install --frozen-lockfile
-pnpm start
+cp packages/examples/cookbooks/ai-sdk-research-agent/typescript/.env.example packages/examples/cookbooks/ai-sdk-research-agent/typescript/.env
+# Add the required keys to the TypeScript .env before running
+just cookbook ai-sdk-research-agent
 ```
 
 ## How the job works

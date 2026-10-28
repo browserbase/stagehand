@@ -48,6 +48,7 @@ import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { setContent } from "./setContent.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { waitForFunction, type FunctionWaitOptions } from "./functionWait.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
   applyMaskOverlays,
@@ -1753,6 +1754,19 @@ export class Page {
    */
   async waitForTimeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Poll an expression in the page's main world until its value is truthy. */
+  async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
+    return waitForFunction(
+      () => {
+        if (this.disposed) throw new Error("Page is disposed");
+        if (!this.conn.connected) throw new Error("CDP connection closed: function wait stopped");
+        return this.mainFrameWrapper;
+      },
+      expression,
+      options,
+    );
   }
 
   /**

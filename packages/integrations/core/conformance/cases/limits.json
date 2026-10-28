@@ -1,0 +1,823 @@
+{
+  "cases": [
+    {
+      "name": "32 artifacts are written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot-00.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-01.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-02.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-03.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-04.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-05.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-06.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-07.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-08.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-09.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-10.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-11.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-12.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-13.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-14.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-15.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-16.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-17.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-18.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-19.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-20.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-21.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-22.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-23.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-24.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-25.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-26.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-27.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-28.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-29.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-30.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-31.png",
+                    "base64": "AA=="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": "ok"
+          }
+        }
+      ],
+      "expect": {
+        "tree": [
+          "artifacts/",
+          "artifacts/shot-00.png",
+          "artifacts/shot-01.png",
+          "artifacts/shot-02.png",
+          "artifacts/shot-03.png",
+          "artifacts/shot-04.png",
+          "artifacts/shot-05.png",
+          "artifacts/shot-06.png",
+          "artifacts/shot-07.png",
+          "artifacts/shot-08.png",
+          "artifacts/shot-09.png",
+          "artifacts/shot-10.png",
+          "artifacts/shot-11.png",
+          "artifacts/shot-12.png",
+          "artifacts/shot-13.png",
+          "artifacts/shot-14.png",
+          "artifacts/shot-15.png",
+          "artifacts/shot-16.png",
+          "artifacts/shot-17.png",
+          "artifacts/shot-18.png",
+          "artifacts/shot-19.png",
+          "artifacts/shot-20.png",
+          "artifacts/shot-21.png",
+          "artifacts/shot-22.png",
+          "artifacts/shot-23.png",
+          "artifacts/shot-24.png",
+          "artifacts/shot-25.png",
+          "artifacts/shot-26.png",
+          "artifacts/shot-27.png",
+          "artifacts/shot-28.png",
+          "artifacts/shot-29.png",
+          "artifacts/shot-30.png",
+          "artifacts/shot-31.png"
+        ]
+      }
+    },
+    {
+      "name": "33 artifacts are rejected before any is written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot-00.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-01.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-02.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-03.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-04.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-05.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-06.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-07.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-08.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-09.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-10.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-11.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-12.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-13.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-14.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-15.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-16.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-17.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-18.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-19.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-20.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-21.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-22.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-23.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-24.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-25.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-26.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-27.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-28.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-29.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-30.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-31.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "shot-32.png",
+                    "base64": "AA=="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_COUNT_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "an artifact of exactly 25 MB decoded is written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "big.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": "ok"
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/big.png"],
+        "files": {
+          "artifacts/big.png": {
+            "size": 26214400
+          }
+        }
+      }
+    },
+    {
+      "name": "an artifact over 25 MB decoded is rejected before any is written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "small.png",
+                    "base64": "iVBORw0KGgo="
+                  },
+                  {
+                    "path": "big.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AAA="
+                    }
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_SIZE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifacts over 100 MB in total are rejected before any is written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "big-0.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big-1.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big-2.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big-3.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "one-more.png",
+                    "base64": "AA=="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a value of exactly 10 MB of JSON is returned",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return big;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": {
+                  "$repeat": "a",
+                  "count": 10485758
+                },
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": {
+              "$repeat": "a",
+              "count": 10485758
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a value over 10 MB of JSON is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return big;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": {
+                  "$repeat": "a",
+                  "count": 10485759
+                },
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_VALUE_SIZE_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "value size counts UTF-8 bytes of the compact JSON",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return big;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": [
+                  {
+                    "$repeat": "\u00e9",
+                    "count": 5242880
+                  }
+                ],
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "RUN_VALUE_SIZE_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "each artifact's size and then the running total are checked in order",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "big0.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big1.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big2.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big3.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "small.png",
+                    "base64": "AA=="
+                  },
+                  {
+                    "path": "over.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AAA="
+                    }
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "value size counts non-ASCII characters unescaped",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return big;"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": {
+                  "$repeat": "\u00e9",
+                  "count": 5242879
+                },
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": {
+              "$repeat": "\u00e9",
+              "count": 5242879
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an artifact over both the per-artifact and total caps fails the per-artifact check",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "return 'ok';"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": "ok",
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "big-0.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big-1.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "big-2.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AA=="
+                    }
+                  },
+                  {
+                    "path": "over.png",
+                    "base64": {
+                      "$repeat": "AAAA",
+                      "count": 8738133,
+                      "suffix": "AAA="
+                    }
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_SIZE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/"]
+      }
+    }
+  ]
+}
