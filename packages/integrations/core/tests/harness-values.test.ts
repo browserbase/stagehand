@@ -12,6 +12,8 @@ import {
 describe("harness value helpers", () => {
   it("isRecord accepts objects and arrays but not null or primitives", () => {
     expect(isRecord({})).toBe(true);
+    // Arrays pass, matching every adapter copy this replaced; callers that must reject
+    // arrays (facade tools, cursor agent-sdk) keep their own guard.
     expect(isRecord([])).toBe(true);
     expect(isRecord(null)).toBe(false);
     expect(isRecord("x")).toBe(false);

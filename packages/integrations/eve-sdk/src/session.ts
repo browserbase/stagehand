@@ -17,13 +17,7 @@ import {
   toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export {
-  clip,
-  isRecord,
-  safeJson,
-  stringifyError,
-  toFiniteNumber,
-} from "@browserbasehq/stagehand-integrations/harness";
+export { stringifyError } from "@browserbasehq/stagehand-integrations/harness";
 
 export type EveEvent = {
   readonly type: string;

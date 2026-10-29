@@ -14,12 +14,7 @@ import {
   toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export {
-  clip,
-  isRecord,
-  safeJson,
-  toFiniteNumber,
-} from "@browserbasehq/stagehand-integrations/harness";
+export { toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 
 export type FxToolCallRecord = {
   id?: string;

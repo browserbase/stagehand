@@ -15,12 +15,7 @@ import {
   toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export {
-  clip,
-  isRecord,
-  safeJson,
-  toFiniteNumber,
-} from "@browserbasehq/stagehand-integrations/harness";
+export { toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 
 /** A native @ai-sdk model instance. Providers can use different @ai-sdk/provider versions, so the types can differ. */
 type NativeMastraModel =

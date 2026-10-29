@@ -5,13 +5,6 @@ import {
   stringifyError,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export {
-  clip,
-  isRecord,
-  safeJson,
-  stringifyError,
-} from "@browserbasehq/stagehand-integrations/harness";
-
 export type CursorEvent = Record<string, unknown>;
 
 export type CursorToolCallView = {

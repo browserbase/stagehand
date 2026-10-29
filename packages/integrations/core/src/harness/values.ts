@@ -5,6 +5,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** Plain `JSON.stringify` that returns `undefined` on failure. It does not redact; pass
+ * strings through `sanitizeErrorMessage` where secrets may appear. */
 export function safeJson(value: unknown): string | undefined {
   try {
     return JSON.stringify(value);

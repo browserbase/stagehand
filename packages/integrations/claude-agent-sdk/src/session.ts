@@ -10,13 +10,6 @@ import {
   stringifyError,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export {
-  clip,
-  isRecord,
-  safeJson,
-  stringifyError,
-} from "@browserbasehq/stagehand-integrations/harness";
-
 export type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
 
