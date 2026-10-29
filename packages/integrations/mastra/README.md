@@ -6,9 +6,12 @@ under those exact names (`toolNames: "bare"`), using agent instructions imported
 from the integrations package.
 
 `src/facade.ts` is the mount (the facade stdio server as a Mastra MCP server
-definition); `src/agent.ts` runs it through `runMastraSession`, the same session
-adapter evals uses for `--harness mastra` (exported from `src/index.ts`). Evals
-keeps the adapter's default server-namespaced names (`stagehand_run`, ...).
+definition, plus the example's session config, `facadeAgentSession()`);
+`src/agent.ts` runs it through `runMastraSession`, the same session adapter
+evals uses for `--harness mastra` (exported from `src/index.ts`). Evals keeps
+the adapter's default server-namespaced names (`stagehand_run`, ...). As in
+evals, a tool call that fails comes back to the model as a tool result
+(`onToolError: "return"`) instead of a thrown error.
 
 This route wraps the facade as an MCP server over stdio, so any MCP-capable
 framework (here, Mastra) can consume the identical tool contract without

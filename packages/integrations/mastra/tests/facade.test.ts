@@ -1,20 +1,38 @@
-import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  FACADE_TOOLS,
+} from "@browserbasehq/stagehand-integrations/facade";
 import { MCPClient } from "@mastra/mcp";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { facadeMcpServer } from "../src/facade.js";
-import { loadMastraSdk, runMastraSession, type MastraSdk } from "../src/index.js";
+import { facadeAgentSession, facadeMcpServer } from "../src/facade.js";
+import {
+  loadMastraSdk,
+  runMastraSession,
+  type MastraSdk,
+  type MastraSessionConfig,
+} from "../src/index.js";
 
 const silentLogger = { log: () => {}, warn: () => {}, error: () => {} };
 
-/** Real Mastra MCP client, fake agent that records the tools it was given and finishes at once. */
-async function toolsSeenByAgent(toolNames?: "bare" | "namespaced"): Promise<string[]> {
+/**
+ * Real Mastra MCP client over the real stdio server, fake agent that records
+ * the tools and instructions it was given and finishes at once.
+ */
+async function agentSetup(session: MastraSessionConfig) {
   const real = await loadMastraSdk();
   let tools: Record<string, unknown> | undefined;
+  let instructions: string | undefined;
+  let clientId: string | undefined;
   const sdk: MastraSdk = {
     ...real,
+    createMcpClient: (options) => {
+      clientId = options.id;
+      return real.createMcpClient(options);
+    },
     createAgent: (config) => {
       tools = config.tools as Record<string, unknown>;
+      instructions = config.instructions as string | undefined;
       return {
         stream: async () => ({
           fullStream: (async function* () {
@@ -29,13 +47,10 @@ async function toolsSeenByAgent(toolNames?: "bare" | "namespaced"): Promise<stri
     model: "gpt-5.4-mini",
     logger: silentLogger,
     sdk,
-    session: {
-      mcpServers: { stagehand: facadeMcpServer() },
-      ...(toolNames && { toolNames }),
-    },
+    session,
   });
   expect(result.status).toBe("completed");
-  return Object.keys(tools ?? {}).sort();
+  return { toolNames: Object.keys(tools ?? {}).sort(), instructions, clientId };
 }
 
 describe("Stagehand facade MCP server for Mastra", () => {
@@ -74,15 +89,21 @@ describe("Stagehand facade MCP server for Mastra", () => {
     }
   });
 
-  // The example's path: runMastraSession over the real stdio server. The model
-  // must see the bare names FACADE_AGENT_INSTRUCTIONS refers to.
+  // The example's path: agent.ts runs facadeAgentSession() through runMastraSession.
+  // The model must see the bare names FACADE_AGENT_INSTRUCTIONS refers to.
   it("hands the example agent the facade's bare tool names", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
     const expectedNames = FACADE_TOOLS.map((tool) => tool.name).sort();
-    expect(await toolsSeenByAgent("bare")).toEqual(expectedNames);
-    expect(await toolsSeenByAgent()).toEqual(
-      expectedNames.map((name) => `stagehand_${name}`).sort(),
-    );
+
+    const example = await agentSetup(facadeAgentSession());
+    expect(example.toolNames).toEqual(expectedNames);
+    expect(example.instructions).toBe(FACADE_AGENT_INSTRUCTIONS);
+    expect(example.clientId).toMatch(/^stagehand-facade-mastra-example-[0-9a-f-]{36}$/);
+
+    // Adapter defaults (what evals uses) stay server-namespaced.
+    const defaults = await agentSetup({ mcpServers: { stagehand: facadeMcpServer() } });
+    expect(defaults.toolNames).toEqual(expectedNames.map((name) => `stagehand_${name}`).sort());
+    expect(defaults.clientId).toMatch(/^stagehand-evals-mastra-[0-9a-f-]{36}$/);
   });
 
   it("launches the core stdio server with only allowlisted host vars", () => {

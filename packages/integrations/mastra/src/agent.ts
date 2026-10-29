@@ -1,8 +1,7 @@
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import type { HarnessLogger } from "@browserbasehq/stagehand-integrations/harness";
 import { runMastraSession } from "@browserbasehq/stagehand-integrations-mastra";
 
-import { facadeMcpServer } from "./facade.ts";
+import { facadeAgentSession } from "./facade.ts";
 
 // oxlint-disable-next-line no-console -- CLI example surfaces adapter warnings and errors on stderr.
 const stderr = (line: { message: string }) => console.error(line.message);
@@ -20,16 +19,7 @@ async function main() {
     prompt: instruction,
     model: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna",
     logger,
-    session: {
-      agentId: "stagehand-facade-agent",
-      agentName: "Stagehand Facade Agent",
-      instructions: FACADE_AGENT_INSTRUCTIONS,
-      maxSteps: 20,
-      mcpServers: { stagehand: facadeMcpServer() },
-      // Keep the facade's own tool names (run/snapshot/screenshot), which the instructions reference.
-      toolNames: "bare",
-      mcpClientIdPrefix: "stagehand-facade-mastra-example",
-    },
+    session: facadeAgentSession(),
   });
 
   // Running out of steps still returns the agent's text, as agent.generate() does.
