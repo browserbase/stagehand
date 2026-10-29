@@ -24,3 +24,17 @@ else, never restated.
 Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —
 see the directory's README. TypeScript examples consume `core/` as a workspace dependency; the Python projects resolve the published
 `stagehand` package.
+
+## Adding a harness
+
+New harnesses use one directory and one package, `@browserbasehq/stagehand-integrations-<h>`, with
+no separate `-sdk` package (claude-code, codex, cursor, fx and mastra already do; the remaining
+`-sdk` directories are legacy):
+
+- `src/index.ts` is the session adapter evals imports; tsdown builds it to `dist`.
+- Where the harness has a docs example, it lives in `src/agent.ts` and imports the adapter by the
+  package's own name, so the docs quickstart builds it with
+  `pnpm exec turbo run build --filter <package>`.
+- `packages/evals` depends on the package as `workspace:*`.
+- Published packages (`eve/`) expose the adapter as a private `./harness` subpath that
+  `publishConfig` excludes.
