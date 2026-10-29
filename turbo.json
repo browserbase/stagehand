@@ -179,33 +179,15 @@
     },
     "@browserbasehq/stagehand-integrations-claude-code#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-code#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/**",
-        "src/**",
-        "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
     },
     "@browserbasehq/stagehand-integrations-codex#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-codex#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/**",
-        "src/**",
-        "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
     },
     "@browserbasehq/stagehand-integrations-mastra#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/**",
-        "src/**",
-        "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pi-sdk#build"],
@@ -239,13 +221,7 @@
     },
     "@browserbasehq/stagehand-integrations-cursor#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/**",
-        "src/**",
-        "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
     },
     "@browserbasehq/eve#typecheck": {
       "dependsOn": ["^build"],
@@ -268,8 +244,7 @@
         "!node_modules/**",
         "!extension/lib/core/**",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
-        "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts"
       ]
     },
     "@browserbasehq/stagehand-integrations-example-vercel-ai-facade#typecheck": {

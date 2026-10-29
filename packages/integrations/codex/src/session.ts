@@ -14,7 +14,7 @@ import {
   toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-export { clip, isRecord, toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
+export { toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 
 export type CodexEvent = Record<string, unknown>;
 export type { ModelReasoningEffort } from "@openai/codex-sdk";
