@@ -3,7 +3,7 @@
  * calls. Tool requests retain their inputs by callId; results, reasoning,
  * usage, images, and page observations are folded in when their events arrive.
  */
-import type { EveEvent } from "@browserbasehq/eve/harness";
+import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve";
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {

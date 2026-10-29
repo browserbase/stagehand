@@ -3,8 +3,8 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as eveSdk from "@browserbasehq/eve/harness";
-import type { EveClientLike, EveEvent } from "@browserbasehq/eve/harness";
+import * as eveSdk from "@browserbasehq/stagehand-integrations-eve";
+import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildEvePrompt,

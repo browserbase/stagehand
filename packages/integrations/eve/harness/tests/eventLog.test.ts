@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { logEveEvent } from "../../harness/index.js";
+import { logEveEvent } from "../src/index.js";
 
 function recordingLogger() {
   const lines: Array<{ level?: number; message: string }> = [];

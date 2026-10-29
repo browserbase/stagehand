@@ -1,5 +1,5 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../../tsconfig.json",
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -8,6 +8,6 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["harness/**/*.ts", "tests/harness/**/*.ts"],
-  "exclude": ["dist", "dist-harness", "node_modules"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
 }

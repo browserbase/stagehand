@@ -114,8 +114,9 @@ export interface HarnessProbeOptions {
 /**
  * Is `specifier` installed for the evals package or any integration package?
  * `require.resolve` alone rejects ESM-only packages (no CJS entry in
- * `exports`), so fall back to looking for the package.json in each
- * package's node_modules — the same tree the dynamic `import()` walks.
+ * `exports`), so fall back to looking for the package.json (or, for a
+ * `pkg/sub/path` specifier, that file) in each package's node_modules — the
+ * same tree the dynamic `import()` walks.
  */
 function defaultResolvePackage(specifier: string): boolean {
   const packageRoot = getPackageRootDir();
@@ -136,7 +137,10 @@ function defaultResolvePackage(specifier: string): boolean {
     } catch {
       // ESM-only or absent: check the tree directly
     }
-    if (fs.existsSync(path.join(root, "node_modules", specifier, "package.json"))) return true;
+    const target = path.join(root, "node_modules", specifier);
+    const nameSegments = specifier.startsWith("@") ? 2 : 1;
+    const isSubpath = specifier.split("/").length > nameSegments;
+    if (fs.existsSync(isSubpath ? target : path.join(target, "package.json"))) return true;
   }
   return false;
 }
@@ -544,16 +548,25 @@ async function buildHarnessRow(
         harnessConfig?.nodeOptions,
       );
       break;
-    case "eve":
-      binary = resolvePackage("@browserbasehq/eve")
-        ? { status: "ok", label: "sdk" }
-        : {
+    case "eve": {
+      const harnessPackage = "@browserbasehq/stagehand-integrations-eve";
+      binary = !resolvePackage(harnessPackage)
+        ? {
             status: "fail",
             label: "sdk missing",
-            detail: "@browserbasehq/eve not resolvable.",
+            detail: `${harnessPackage} not resolvable.`,
             fix: "pnpm install",
-          };
+          }
+        : !resolvePackage(`${harnessPackage}/dist/index.mjs`)
+          ? {
+              status: "fail",
+              label: "harness not built",
+              detail: `${harnessPackage} has no dist/index.mjs.`,
+              fix: `pnpm exec turbo run build --filter=${harnessPackage}`,
+            }
+          : { status: "ok", label: "sdk" };
       break;
+    }
     case "deepagents": {
       const uv = env.STAGEHAND_DEEPAGENTS_UV?.trim() || "uv";
       const found = path.isAbsolute(uv) ? (isExecutable(uv) ? uv : undefined) : which(uv);
