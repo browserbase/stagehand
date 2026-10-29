@@ -299,30 +299,63 @@ async function connectBrowser(options: {
       }
     };
     const close = async () => {
+      const errors: unknown[] = [];
       try {
-        if (options.provider === "local" && options.origin === "connected") {
+        if (options.provider === "local") {
+          // Bounded so an unresponsive Chrome cannot keep a launched one from being terminated.
+          const deadline = new AbortController();
+          const timer = setTimeout(() => deadline.abort(), BROWSER_CLOSE_TIMEOUT_MS);
           try {
-            await connectedClient.sendCommand("Browser.close");
+            await connectedClient.sendCommand("Browser.close", {}, undefined, deadline.signal);
           } catch (error) {
-            if (!(error instanceof CDPConnectionClosedError)) throw error;
+            if (deadline.signal.aborted) {
+              // A launched browser is terminated below; a connected one cannot be.
+              if (options.origin === "connected") {
+                errors.push(
+                  new Error(`Browser.close did not respond within ${BROWSER_CLOSE_TIMEOUT_MS} ms`),
+                );
+              }
+            } else if (!(error instanceof CDPConnectionClosedError)) {
+              errors.push(error);
+            }
+          } finally {
+            clearTimeout(timer);
           }
-        } else {
-          await closeSource(options.source);
+        }
+        // A launched local browser is also terminated if Browser.close failed or left it
+        // running, and its profile removed unless preserved; a Browserbase session is released.
+        if (options.provider === "browserbase" || options.origin === "launched") {
+          try {
+            await closeSource(options.source);
+          } catch (error) {
+            errors.push(error);
+          }
         }
       } finally {
         connectedClient.close();
       }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, "Browser close failed");
     };
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
       sessionId: options.workerInitMetadata.browser?.sessionId,
+      cdpUrl: options.provider === "local" ? options.source.cdpUrl : undefined,
       attachment: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,
+      // Never closes the browser or releases its session. Browserbase still ends a
+      // session without keepAlive once this connection closes.
+      disconnect: () => connectedClient.close(),
+      connected: () => !connectedClient.closed,
+      // After an unexpected loss, a Browserbase session can still be released over its
+      // API; a local browser is left alone.
+      closeWithoutConnection:
+        options.provider === "browserbase" ? () => closeSource(options.source) : undefined,
     });
   } catch (error) {
     cdpClient?.close();
@@ -343,6 +376,8 @@ async function connectBrowser(options: {
     throw error;
   }
 }
+
+const BROWSER_CLOSE_TIMEOUT_MS = 5_000;
 
 async function closeSource(source: BrowserConnectionSource): Promise<void> {
   await source.close?.();

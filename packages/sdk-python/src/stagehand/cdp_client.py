@@ -344,6 +344,10 @@ class CDPClient:
             raise
 
     @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
     def service_worker(self) -> ServiceWorkerInfo:
         if self._service_worker is None:
             raise RuntimeError("Stagehand service worker is not attached")
