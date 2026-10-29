@@ -1,6 +1,6 @@
 {
   "name": "browse",
-  "version": "0.11.1",
+  "version": "0.11.3",
   "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
   "type": "module",
   "private": false,
@@ -90,7 +90,7 @@
   },
   "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
@@ -125,7 +125,7 @@
     "semver": "^7.7.4",
     "tsx": "^4.20.6",
     "ws": "^8.18.3",
-    "zod": "^4.2.1"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

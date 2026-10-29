@@ -16,6 +16,7 @@ import {
   RPCClientOptionsSchema,
   rpcResponseTimeoutMs,
   type CDPTransport,
+  type RPCRequestContext,
 } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
@@ -448,7 +449,7 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it.each(["page.pdf", "page.snapshot"])(
+  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector", "page.wait_for_function"])(
     "honors explicit %s deadlines and allows disabling them",
     (method) => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
@@ -459,6 +460,13 @@ describe("RPCClient", () => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
     },
   );
+
+  it("leaves function waits without a response deadline by default", () => {
+    expect(rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, {})).toBeUndefined();
+    expect(
+      rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, { options: {} }),
+    ).toBeUndefined();
+  });
 
   it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
     "uses the effective locator timeout plus delivery grace for $name",
@@ -515,6 +523,42 @@ describe("RPCClient", () => {
             `RPC response timed out after ${(timeout ?? 20_000) + 10_000}ms: locator.count`,
           );
           await vi.advanceTimersByTimeAsync((timeout ?? 20_000) + 10_000 - 1);
+          expect(client.pending.size).toBe(1);
+          await vi.advanceTimersByTimeAsync(1);
+          await rejected;
+        }
+        expect(client.pending.size).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        client.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([undefined, 50, 0, 2_147_483_648])(
+    "waits for a selector response with timeout %s",
+    async (timeout) => {
+      vi.useFakeTimers();
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      try {
+        const pending = client.send(StagehandMethods.pageWaitForSelector, {
+          pageId: "page-1",
+          selector: "button",
+          ...(timeout === undefined ? {} : { options: { timeout } }),
+        });
+        void pending.catch(() => {});
+        if (timeout === 0) {
+          await vi.advanceTimersByTimeAsync(60_000);
+          expect(client.pending.size).toBe(1);
+          await cdp.receive({ jsonrpc: "2.0", id: 1, result: { matched: true } });
+          await expect(pending).resolves.toEqual({ matched: true });
+        } else {
+          const rejected = expect(pending).rejects.toThrow(
+            `RPC response timed out after ${(timeout ?? 30_000) + 10_000}ms: page.wait_for_selector`,
+          );
+          await vi.advanceTimersByTimeAsync((timeout ?? 30_000) + 10_000 - 1);
           expect(client.pending.size).toBe(1);
           await vi.advanceTimersByTimeAsync(1);
           await rejected;
@@ -700,6 +744,39 @@ describe("RPCClient", () => {
     expect(calls).toBe(0);
     expect(cdp.sent).toStrictEqual([]);
   });
+
+  it.each(["resolve", "reject"])(
+    "provides incoming context and ignores a late %s after close",
+    async (outcome) => {
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      let receivedContext: RPCRequestContext | undefined;
+      let resolve!: (result: { value: string }) => void;
+      let reject!: (error: Error) => void;
+      client.onRequest(UppercaseMethod, (_params, requestContext) => {
+        receivedContext = requestContext;
+        return new Promise((done, fail) => {
+          resolve = done;
+          reject = fail;
+        });
+      });
+      const pending = cdp.receive({
+        jsonrpc: "2.0",
+        id: 91,
+        method: UppercaseMethod.name,
+        params: { value: "pending" },
+      });
+      expect(receivedContext?.requestId).toBe(91);
+      expect(receivedContext?.signal.aborted).toBe(false);
+      const reason = new Error("connection closed");
+      client.close(reason);
+      expect(receivedContext?.signal.reason).toBe(reason);
+      if (outcome === "resolve") resolve({ value: "finished" });
+      else reject(new Error("late failure"));
+      await pending;
+      expect(cdp.sent).toEqual([]);
+    },
+  );
 
   it("can close without taking ownership of the CDP transport", () => {
     const cdp = new ManualCDPTransport();

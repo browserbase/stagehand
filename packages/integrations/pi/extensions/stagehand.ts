@@ -67,8 +67,9 @@ export default function stagehandExtension(pi: ExtensionAPI) {
   let resourcesPromise: Promise<FacadeResources> | undefined;
 
   async function facadeTools(): Promise<StagehandFacadeTools> {
-    if (resources && !resources.browser.closed) return resources.tools;
-    resources = undefined;
+    if (resources?.browser.connected) return resources.tools;
+    // A lost connection still needs close(): it releases a Browserbase session.
+    if (resources) await closeResources();
     resourcesPromise ??= (async () => {
       const config = stagehandFacadeConfigFromEnv();
       const browser =

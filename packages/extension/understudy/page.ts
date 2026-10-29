@@ -46,6 +46,7 @@ import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { waitForFunction, type FunctionWaitOptions } from "./functionWait.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
   applyMaskOverlays,
@@ -300,7 +301,7 @@ export class Page {
   cursorEnabled = false;
   async ensureCursorScript(): Promise<void> {
     await this.mainFrameWrapper
-      .evaluateInLocatorWorld("globalThis.__stagehandLocatorScripts.installCursorOverlay()")
+      .evaluateInLocatorWorld(() => "globalThis.__stagehandLocatorScripts.installCursorOverlay()")
       .catch(() => {});
   }
 
@@ -314,7 +315,8 @@ export class Page {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
-        `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        () =>
+          `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
         progress,
       );
     } catch {
@@ -380,7 +382,7 @@ export class Page {
 
   /**
    * Parent/child session emitted a `frameAttached`.
-   * Topology update + ownership stamped to **emitting session**.
+   * Topology update + ownership stamped to the session selected by Context.
    */
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
@@ -461,7 +463,11 @@ export class Page {
    * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
-  public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
+  public adoptOopifSession(
+    childSession: CDPSessionLike,
+    childMainFrameId: string,
+    onFrameTreeSeeded?: () => void,
+  ): void {
     if (this.disposed) return;
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
@@ -486,9 +492,8 @@ export class Page {
     childSession.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
       this.onFrameNavigated(evt.frame, childSession);
     });
-    childSession.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
-      this.onFrameAttached(evt.frameId, evt.parentFrameId ?? null, childSession);
-    });
+    // Frame attachments are handled by BrowserContext.installFrameEventBridges,
+    // whose ownership guard protects adopted nested OOPIFs from late parent events.
     childSession.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
     });
@@ -511,6 +516,7 @@ export class Page {
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
           this.reconcilePendingWebMCPTools();
+          onFrameTreeSeeded?.();
         }
       } catch {
         // If snapshot races, live events will still converge the registry.
@@ -1746,6 +1752,19 @@ export class Page {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** Poll an expression in the page's main world until its value is truthy. */
+  async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
+    return waitForFunction(
+      () => {
+        if (this.disposed) throw new Error("Page is disposed");
+        if (!this.conn.connected) throw new Error("CDP connection closed: function wait stopped");
+        return this.mainFrameWrapper;
+      },
+      expression,
+      options,
+    );
+  }
+
   /**
    * Wait for an element matching the selector to appear in the DOM.
    * Uses MutationObserver for efficiency
@@ -1755,7 +1774,7 @@ export class Page {
    * @param selector CSS selector to wait for (supports '>>' for iframe hops)
    * @param options
    * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000; zero is unlimited)
    * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
@@ -1767,27 +1786,29 @@ export class Page {
       timeout?: number;
       pierceShadow?: boolean;
     },
+    parentProgress?: Progress,
   ): Promise<boolean> {
-    const timeout = options?.timeout ?? 30000;
-    const state = options?.state ?? "visible";
-    const pierceShadow = options?.pierceShadow ?? true;
-    const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
+    return runWithProgress(
+      parentProgress ?? { name: "waitForSelector", timeout: options?.timeout ?? 30_000 },
+      async (progress) => {
+        const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
+          this,
+          this.mainFrameWrapper,
+          selector,
+          progress,
+        );
+        return targetFrame.waitInLocatorWorld(() => {
+          const remaining = progress.remainingMs();
+          progress.throwIfStopped();
+          return buildLocatorInvocation("createSelectorWait", [
+            JSON.stringify(finalSelector),
+            JSON.stringify(options?.state ?? "visible"),
+            String(remaining === Infinity ? 0 : Math.ceil(remaining)),
+            String(options?.pierceShadow ?? true),
+          ]);
+        }, progress);
+      },
     );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
-
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */

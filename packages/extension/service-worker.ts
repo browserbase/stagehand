@@ -1,3 +1,4 @@
+import { requestBrowserbase } from "./clients/browserbaseClient.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
@@ -15,8 +16,10 @@ import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
+import { ClientLifecycle } from "./clientLifecycle.js";
 
 export type StagehandServiceWorkerScope = {
+  __stagehandClientLifecycle?: (input: unknown) => Promise<void>;
   __stagehand_runtime?: RuntimeDescriptor;
   __stagehandReceiveFromHost?: (
     raw: unknown,
@@ -75,6 +78,10 @@ export function startStagehandServiceWorker(
             console.error("[stagehand] Failed to emit page event notification", error);
           });
       },
+      clientBrowserbaseRequest: async (params, signal) => {
+        if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
+        return await requestBrowserbase(rpcClient, params, signal);
+      },
       clientLLMGenerate: async (params) => {
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);
@@ -83,6 +90,37 @@ export function startStagehandServiceWorker(
 
   const router = new RPCRouter(activeRuntime);
   rpcClient = new RPCClient(chromeRuntimeClient, router);
+  const lifecycle = new ClientLifecycle({
+    connection: async (cdpUrl) => {
+      await activeRuntime.ensureBrowserConnection(cdpUrl);
+      const session = activeRuntime.browserSession;
+      if (!(session instanceof BrowserContext)) {
+        throw new Error("Stagehand client lifecycle requires a CDP browser connection");
+      }
+      return session.conn;
+    },
+    rejectClientCallbacks: () => rpcClient?.releaseClient(),
+    closeConnection: () => activeRuntime.dropBrowserConnection(),
+    disposeClient: () => activeRuntime.disposeStagehandInstance(),
+    onError: (error) => {
+      // The client transport may be gone; do not report through RPC.
+      // oxlint-disable-next-line no-console
+      console.error("Stagehand client lifecycle cleanup failed", error);
+    },
+  });
+  scope.__stagehandClientLifecycle = async (input) => {
+    const action =
+      typeof input === "object" && input !== null && "action" in input ? input.action : undefined;
+    try {
+      await lifecycle.handle(input);
+    } catch (error) {
+      // A failed detach leaves the SDK handle open: keep serving its reverse requests.
+      if (action === "detach") rpcClient?.acceptClient();
+      throw error;
+    }
+    // Only a successful attach may serve a new client's reverse requests.
+    if (action === "attach") rpcClient?.acceptClient();
+  };
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {

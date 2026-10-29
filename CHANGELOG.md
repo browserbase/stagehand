@@ -3,6 +3,288 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.3.0
+
+### Minor Changes
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3253](https://github.com/browserbase/stagehand/pull/3253) [`6bf4146`](https://github.com/browserbase/stagehand/commit/6bf4146508a282bd0f5742f74ca3de63ffb26bd6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add optional `extensionCdpUrl` to `localBrowser.connect` to allow configuring the in-browser CDP url
+
+- [#3263](https://github.com/browserbase/stagehand/pull/3263) [`ecb2a6b`](https://github.com/browserbase/stagehand/commit/ecb2a6b55c6783d510429d6823497136138d28f6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `headers` to `localBrowser.connect` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `page.waitForFunction()` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Python SDK 4.3.0
+
+### Minor Changes
+
+- [#3260](https://github.com/browserbase/stagehand/pull/3260) [`2859fd5`](https://github.com/browserbase/stagehand/commit/2859fd5fe8468dbe9666ea487930d1d1fbff02fa) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `headers` to `local_browser.connect` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3252](https://github.com/browserbase/stagehand/pull/3252) [`21e0363`](https://github.com/browserbase/stagehand/commit/21e03638df1b648cf49e7cb95c9fa959c4f9d749) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `extension_cdp_url` to `local_browser.connect` for clients that reach Chrome through a proxy the extension cannot use
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `page.wait_for_function()` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Extension Runtime 1.2.0
+
+### Minor Changes
+
+- [#3208](https://github.com/browserbase/stagehand/pull/3208) [`4a7c637`](https://github.com/browserbase/stagehand/commit/4a7c637dbb3de17be4e0b70987a69db8d3521b98) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Support routing Browserbase Model Gateway and cache requests through the connected SDK.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add the `page.wait_for_function` method.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3257](https://github.com/browserbase/stagehand/pull/3257) [`113ad81`](https://github.com/browserbase/stagehand/commit/113ad81c4f854b7a943c59ba62349b0062b6aa32) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - honour a changed extension CDP WS URL when creating a new Stagehand instance after closing the previous one
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+## Go SDK 4.3.0
+
+### Minor Changes
+
+- [#3267](https://github.com/browserbase/stagehand/pull/3267) [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add extension archive getter
+
+- [#3265](https://github.com/browserbase/stagehand/pull/3265) [`a31e2da`](https://github.com/browserbase/stagehand/commit/a31e2da5098b77ef457e414827a4497404e243c1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `Headers` to `LocalBrowserConnectOptions` so CDP gateways can be authenticated without credentials in the URL
+
+- [#3254](https://github.com/browserbase/stagehand/pull/3254) [`9eac212`](https://github.com/browserbase/stagehand/commit/9eac2126b59f6168b2f414068377d18bd1417dd4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add optional `ExtensionCDPURL` to `LocalBrowserConnectOptions` to allow configuring the in-browser CDP url.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add `Page.WaitForFunction` to wait until a predicate in the page returns a truthy value.
+
+### Patch Changes
+
+- [#3229](https://github.com/browserbase/stagehand/pull/3229) [`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip caching for request bodies larger than 25 MB.
+
+- [#3198](https://github.com/browserbase/stagehand/pull/3198) [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable WebMCP by default for local chromium versions newer than 157
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+- [#3209](https://github.com/browserbase/stagehand/pull/3209) [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Route Browserbase Model Gateway and cache requests through the connected SDK.
+
+## Protocol 3.0.0
+
+### Major Changes
+
+- [#3210](https://github.com/browserbase/stagehand/pull/3210) [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Require client transport for Browserbase Model Gateway and cache requests.
+
+### Minor Changes
+
+- [#3208](https://github.com/browserbase/stagehand/pull/3208) [`4a7c637`](https://github.com/browserbase/stagehand/commit/4a7c637dbb3de17be4e0b70987a69db8d3521b98) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Support routing Browserbase Model Gateway and cache requests through the connected SDK.
+
+- [#3183](https://github.com/browserbase/stagehand/pull/3183) [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Add the `page.wait_for_function` method.
+
+## Eve Extension 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`c6b6f27`](https://github.com/browserbase/stagehand/commit/c6b6f278c880d2f8b770ac0c1ecc63f248515968), [`cb9a1d1`](https://github.com/browserbase/stagehand/commit/cb9a1d178f203664b6d2851c8bb7dfbebc81f738), [`10418f9`](https://github.com/browserbase/stagehand/commit/10418f98831285b3cddca5328c8013a94f22672a), [`1c40ba7`](https://github.com/browserbase/stagehand/commit/1c40ba71763ddda759cf7f9c9fc582a360a33ef7), [`17de6ea`](https://github.com/browserbase/stagehand/commit/17de6eaac21dc2a35a083c9c6d9f17deb84ef6f3), [`6bf4146`](https://github.com/browserbase/stagehand/commit/6bf4146508a282bd0f5742f74ca3de63ffb26bd6), [`ecb2a6b`](https://github.com/browserbase/stagehand/commit/ecb2a6b55c6783d510429d6823497136138d28f6), [`901eb27`](https://github.com/browserbase/stagehand/commit/901eb276429702cddd4bfe3a3656946f3ebc166a)]:
+  - @browserbasehq/stagehand@4.3.0
+
+## TypeScript SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Python SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Extension Runtime 1.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Go SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Protocol 2.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Eve Extension 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab)]:
+  - @browserbasehq/stagehand@4.2.1
+
+## TypeScript SDK 4.2.0
+
+### Minor Changes
+
+- [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
+
+- [#3118](https://github.com/browserbase/stagehand/pull/3118) [`a837acf`](https://github.com/browserbase/stagehand/commit/a837acfe3fa5682558b0ab63c68dd57cd6f84316) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `clientOptions` to `browserbase.launch()` and `browserbase.connect()`. Thanks to [@pr1m8](https://github.com/pr1m8) for the original proposal that motivated this feature.
+
+- [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
+  set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
+
+- [#3140](https://github.com/browserbase/stagehand/pull/3140) [`f2060a6`](https://github.com/browserbase/stagehand/commit/f2060a689d150957768d92e41eda8decc68bc5bf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - automatically discover Stagehand extensions when connecting to browsers. deprecate & ignore extension IDs passed into .connect().
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2893](https://github.com/browserbase/stagehand/pull/2893) [`5802f59`](https://github.com/browserbase/stagehand/commit/5802f59ab62ea9b35ea6eb592e904532faeed171) Thanks [@miguelg719](https://github.com/miguelg719)! - Bound experimental batch and RPC deadlines so callers can stop waiting without replaying actions or accepting late capture state.
+
+- [#2894](https://github.com/browserbase/stagehand/pull/2894) [`819db28`](https://github.com/browserbase/stagehand/commit/819db2896eacea80d06be0e450fff7cad394c169) Thanks [@miguelg719](https://github.com/miguelg719)! - Add configurable bounded CDP heartbeats and sanitized disconnect diagnostics with cleanup on shutdown.
+
+- [#2892](https://github.com/browserbase/stagehand/pull/2892) [`0210688`](https://github.com/browserbase/stagehand/commit/02106888668925aedbbf354f22b3ddaceb9c1027) Thanks [@miguelg719](https://github.com/miguelg719)! - Release a newly created Browserbase session when initial attachment fails, and support upload retries
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3033](https://github.com/browserbase/stagehand/pull/3033) [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add per-call locator timeouts across TypeScript, Python, & Go. one timeout covers frame readiness, element lookup, & execution, including typing delays & highlight duration. the default is 20 seconds. setting timeout to 0 disables it.
+
+- [#3146](https://github.com/browserbase/stagehand/pull/3146) [`7d8dcef`](https://github.com/browserbase/stagehand/commit/7d8dcef8765f0a9dce498e1cc9d68c6b91ac3892) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make selector waits include frame readiness in their timeout, support unlimited waits with `timeout: 0`, and clean up observers when the wait ends.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Python SDK 4.2.0
+
+### Minor Changes
+
+- [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
+
+- [#3118](https://github.com/browserbase/stagehand/pull/3118) [`a837acf`](https://github.com/browserbase/stagehand/commit/a837acfe3fa5682558b0ab63c68dd57cd6f84316) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `client_options` to `browserbase.launch()` and `browserbase.connect()`.
+
+- [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
+  set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
+
+- [#3140](https://github.com/browserbase/stagehand/pull/3140) [`f2060a6`](https://github.com/browserbase/stagehand/commit/f2060a689d150957768d92e41eda8decc68bc5bf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - automatically discover Stagehand extensions when connecting to browsers. deprecate & ignore extension IDs passed into .connect().
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3033](https://github.com/browserbase/stagehand/pull/3033) [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add per-call locator timeouts across TypeScript, Python, & Go. one timeout covers frame readiness, element lookup, & execution, including typing delays & highlight duration. the default is 20 seconds. setting timeout to 0 disables it.
+
+- [#3146](https://github.com/browserbase/stagehand/pull/3146) [`7d8dcef`](https://github.com/browserbase/stagehand/commit/7d8dcef8765f0a9dce498e1cc9d68c6b91ac3892) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make selector waits include frame readiness in their timeout, support unlimited waits with `timeout: 0`, and clean up observers when the wait ends.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Extension Runtime 1.1.0
+
+### Minor Changes
+
+- [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
+
+- [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
+  set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2896](https://github.com/browserbase/stagehand/pull/2896) [`7919934`](https://github.com/browserbase/stagehand/commit/7919934c24170482dcfab19b882b557c65d8eb61) Thanks [@miguelg719](https://github.com/miguelg719)! - Snapshot references remain valid across same-origin and out-of-process frame captures
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3033](https://github.com/browserbase/stagehand/pull/3033) [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add per-call locator timeouts across TypeScript, Python, & Go. one timeout covers frame readiness, element lookup, & execution, including typing delays & highlight duration. the default is 20 seconds. setting timeout to 0 disables it.
+
+- [#3146](https://github.com/browserbase/stagehand/pull/3146) [`7d8dcef`](https://github.com/browserbase/stagehand/commit/7d8dcef8765f0a9dce498e1cc9d68c6b91ac3892) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make selector waits include frame readiness in their timeout, support unlimited waits with `timeout: 0`, and clean up observers when the wait ends.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Go SDK 4.2.0
+
+### Minor Changes
+
+- [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
+
+- [#3123](https://github.com/browserbase/stagehand/pull/3123) [`100e201`](https://github.com/browserbase/stagehand/commit/100e201a019aa55fadfce36744f560b37b66b682) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `ClientOptions` to `LaunchBrowserbase` and `ConnectBrowserbase`.
+
+- [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
+  set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
+
+- [#3140](https://github.com/browserbase/stagehand/pull/3140) [`f2060a6`](https://github.com/browserbase/stagehand/commit/f2060a689d150957768d92e41eda8decc68bc5bf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - automatically discover Stagehand extensions when connecting to browsers. deprecate & ignore extension IDs passed into .connect().
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2896](https://github.com/browserbase/stagehand/pull/2896) [`7919934`](https://github.com/browserbase/stagehand/commit/7919934c24170482dcfab19b882b557c65d8eb61) Thanks [@miguelg719](https://github.com/miguelg719)! - Snapshot references remain valid across same-origin and out-of-process frame captures
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3033](https://github.com/browserbase/stagehand/pull/3033) [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add per-call locator timeouts across TypeScript, Python, & Go. one timeout covers frame readiness, element lookup, & execution, including typing delays & highlight duration. the default is 20 seconds. setting timeout to 0 disables it.
+
+- [#3146](https://github.com/browserbase/stagehand/pull/3146) [`7d8dcef`](https://github.com/browserbase/stagehand/commit/7d8dcef8765f0a9dce498e1cc9d68c6b91ac3892) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make selector waits include frame readiness in their timeout, support unlimited waits with `timeout: 0`, and clean up observers when the wait ends.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Protocol 2.1.0
+
+### Minor Changes
+
+- [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
+
+- [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
+  set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#3033](https://github.com/browserbase/stagehand/pull/3033) [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add per-call locator timeouts across TypeScript, Python, & Go. one timeout covers frame readiness, element lookup, & execution, including typing delays & highlight duration. the default is 20 seconds. setting timeout to 0 disables it.
+
+## Eve Extension 0.2.0
+
+### Minor Changes
+
+- [#2821](https://github.com/browserbase/stagehand/pull/2821) [`a237c77`](https://github.com/browserbase/stagehand/commit/a237c771fc188569bc95c1b2ed3c789950335d3a) Thanks [@shrey150](https://github.com/shrey150)! - Replace the Eve extension's browser and web tools with Stagehand V4 `run`, `snapshot`, and `screenshot`.
+
+### Patch Changes
+
+- [#3115](https://github.com/browserbase/stagehand/pull/3115) [`7abca76`](https://github.com/browserbase/stagehand/commit/7abca76d25cbc378ac363c246dd2fa9423492643) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update the Eve peer dependency to ^0.71.2 to use upstream security fixes. Requires Eve 0.71.2 or later within the 0.71.x release line.
+
+- Updated dependencies [[`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f), [`a837acf`](https://github.com/browserbase/stagehand/commit/a837acfe3fa5682558b0ab63c68dd57cd6f84316), [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12), [`5802f59`](https://github.com/browserbase/stagehand/commit/5802f59ab62ea9b35ea6eb592e904532faeed171), [`819db28`](https://github.com/browserbase/stagehand/commit/819db2896eacea80d06be0e450fff7cad394c169), [`0210688`](https://github.com/browserbase/stagehand/commit/02106888668925aedbbf354f22b3ddaceb9c1027), [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff), [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189), [`f2060a6`](https://github.com/browserbase/stagehand/commit/f2060a689d150957768d92e41eda8decc68bc5bf), [`1562d35`](https://github.com/browserbase/stagehand/commit/1562d3506204452eb76a4653fc4fabc4c7cc1e3e), [`7d8dcef`](https://github.com/browserbase/stagehand/commit/7d8dcef8765f0a9dce498e1cc9d68c6b91ac3892), [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6), [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a)]:
+  - @browserbasehq/stagehand@4.2.0
+
 ## TypeScript SDK 4.1.0
 
 ### Minor Changes

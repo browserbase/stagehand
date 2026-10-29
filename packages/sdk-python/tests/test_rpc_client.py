@@ -698,6 +698,18 @@ def test_capture_response_deadline_honors_explicit_timeout(
     assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
 
 
+@pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
+def test_selector_response_deadline_honors_explicit_timeout(
+    timeout: int, expected: float | None
+) -> None:
+    params = models.PageWaitForSelectorParams(
+        page_id="page-1",
+        selector="button",
+        options=models.PageWaitForSelectorOptions(timeout=timeout),
+    )
+    assert rpc_client._rpc_response_timeout_seconds("page.wait_for_selector", params) == expected
+
+
 def test_response_deadline_preserves_v3_unbounded_operations() -> None:
     params = models.EmptyParams()
     methods = {
@@ -746,6 +758,51 @@ async def test_invalid_response_closes_client_and_rejects_pending_request() -> N
     with pytest.raises(RuntimeError, match="Invalid JSON-RPC response"):
         await call
     await asyncio.wait_for(transport.closed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("close_transport", [True, False])
+async def test_close_waits_for_all_listeners_before_propagating_failure(
+    close_transport: bool,
+) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+    failed = asyncio.Event()
+    release = asyncio.Event()
+    finished = asyncio.Event()
+    failure = RuntimeError("cleanup failed")
+
+    async def failing_listener() -> None:
+        await started.wait()
+        failed.set()
+        raise failure
+
+    async def delayed_listener() -> None:
+        started.set()
+        await release.wait()
+        assert not transport.closed.is_set()
+        finished.set()
+
+    client.on_close(failing_listener)
+    client.on_close(delayed_listener)
+    closing = asyncio.create_task(client.close(close_transport=close_transport))
+    try:
+        await asyncio.wait_for(failed.wait(), timeout=1)
+        # Let gather process the failed listener while the other is still blocked.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert not closing.done()
+        assert not transport.closed.is_set()
+        release.set()
+        with pytest.raises(RuntimeError, match="cleanup failed") as error:
+            await asyncio.wait_for(closing, timeout=1)
+        assert error.value is failure
+        assert finished.is_set()
+        assert transport.closed.is_set() is close_transport
+    finally:
+        release.set()
+        await asyncio.gather(closing, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -866,6 +923,47 @@ async def test_locator_response_wait_uses_default_override_and_zero(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [None, 20, 0])
+async def test_selector_response_wait_uses_default_override_and_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: int | None,
+) -> None:
+    # Keep real event-loop deadlines short; the policy tests above check production values.
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
+    monkeypatch.setitem(rpc_client._DEFAULT_OPERATION_TIMEOUT_MS, "page.wait_for_selector", 20)
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    params = models.PageWaitForSelectorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": {"timeout": timeout}} if timeout is not None else {}),
+    })
+    call = asyncio.create_task(
+        client.send("page.wait_for_selector", params, models.PageWaitForSelectorResult)
+    )
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        if timeout == 0:
+            await asyncio.sleep(0.06)
+            assert not call.done()
+            await transport.incoming.put({
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {"matched": True},
+            })
+            assert (await asyncio.wait_for(call, timeout=1)).matched is True
+        else:
+            with pytest.raises(
+                TimeoutError, match=r"RPC response timed out after 0\.03s: page\.wait_for_selector"
+            ):
+                await asyncio.wait_for(call, timeout=1)
+        assert client._pending == {}
+    finally:
+        await client.close()
+        await asyncio.gather(call, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("timeout", [None, 0, 5000])
 async def test_canceling_a_locator_task_stops_the_client_wait(timeout: float | None) -> None:
     transport = QueueTransport()
@@ -921,3 +1019,56 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
         assert client._pending == {}
     finally:
         await client.close()
+
+
+async def test_request_context_exposes_incoming_id() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+
+    def handle(params: models.EmptyParams, context: rpc_client.RPCRequestContext) -> RPCResult:
+        assert params == models.EmptyParams()
+        assert context.request_id == 91
+        return RPCResult(ok=True)
+
+    client.on_request_with_context("test.context", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "test.context",
+            "params": {},
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert response == {"jsonrpc": "2.0", "id": 91, "result": {"ok": True}}
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_close_suppresses_late_handler_result_or_error(fail: bool) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+
+    async def handle(_params: models.EmptyParams) -> RPCResult:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            if fail:
+                raise RuntimeError("late handler error") from None
+            return RPCResult(ok=True)
+        raise AssertionError("Handler must be cancelled")
+
+    client.on_request("test.late", models.EmptyParams, RPCResult, handle)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "test.late",
+            "params": {},
+        })
+        await asyncio.wait_for(started.wait(), 1)
+    finally:
+        await client.close()
+    assert not transport.sent

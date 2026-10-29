@@ -4,6 +4,7 @@ import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import { browserWait, BrowserWaitError } from "./browserWait.js";
 import type { StagehandLogger } from "../logger.js";
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -188,7 +189,64 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
+  async evaluateInLocatorWorld<R = unknown>(
+    buildExpression: () => string,
+    progress?: Progress,
+  ): Promise<R> {
+    const response = await this.evaluateLocatorExpression(buildExpression, { progress });
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
+    }
+    return response.result.value as R;
+  }
+
+  /** Own a disposable browser wait, including a handle delivered after expiry. */
+  async waitInLocatorWorld(buildExpression: () => string, progress: Progress): Promise<boolean> {
+    for (let attempt = 0; ; attempt++) {
+      progress.throwIfStopped();
+      let contextId: number | undefined;
+      try {
+        return await browserWait<boolean>(
+          this.session,
+          progress,
+          async (onLateResult) => {
+            const response = await this.evaluateLocatorExpression(buildExpression, {
+              progress,
+              returnByValue: false,
+              awaitPromise: false,
+              onLateResult,
+            });
+            contextId = response.contextId;
+            return response;
+          },
+          "waiting for selector",
+        );
+      } catch (error) {
+        progress.throwIfStopped();
+        const message = error instanceof Error ? error.message : String(error);
+        // Retry context loss once, matching locator evaluation recovery.
+        if (
+          attempt !== 0 ||
+          contextId === undefined ||
+          error instanceof BrowserWaitError ||
+          !message.includes("Cannot find context with specified id")
+        )
+          throw error;
+        executionContexts.unregisterLocatorContext(this.session, contextId);
+      }
+    }
+  }
+
+  private async evaluateLocatorExpression(
+    buildExpression: () => string,
+    options: {
+      progress?: Progress;
+      returnByValue?: boolean;
+      awaitPromise?: boolean;
+      onLateResult?: (response: Protocol.Runtime.EvaluateResponse) => Promise<unknown>;
+    },
+  ): Promise<Protocol.Runtime.EvaluateResponse & { contextId: number }> {
+    const { progress } = options;
     await runLocatorStep(progress, "enabling runtime", () =>
       this.session.send("Runtime.enable").catch((error) => {
         if (progress && isCdpClosedError(error)) throw error;
@@ -201,16 +259,23 @@ export class Frame implements FrameManager {
       progress,
     );
 
+    const evaluate = () =>
+      runLocatorStep(
+        progress,
+        "evaluating locator helper",
+        () =>
+          this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression: buildExpression(),
+            contextId: locatorWorld.contextId,
+            awaitPromise: options.awaitPromise ?? true,
+            returnByValue: options.returnByValue ?? true,
+          }),
+        options.onLateResult,
+      );
+
     let response: Protocol.Runtime.EvaluateResponse;
     try {
-      response = await runLocatorStep(progress, "evaluating locator helper", () =>
-        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression,
-          contextId: locatorWorld.contextId,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      );
+      response = await evaluate();
     } catch (error) {
       progress?.throwIfStopped();
       const message = error instanceof Error ? error.message : String(error);
@@ -222,20 +287,10 @@ export class Frame implements FrameManager {
         1000,
         progress,
       );
-      response = await runLocatorStep(progress, "evaluating locator helper", () =>
-        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression,
-          contextId: locatorWorld.contextId,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      );
+      response = await evaluate();
     }
 
-    if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
-    }
-    return response.result.value as R;
+    return { ...response, contextId: locatorWorld.contextId };
   }
 
   /** Page.captureScreenshot (frame-scoped session) */

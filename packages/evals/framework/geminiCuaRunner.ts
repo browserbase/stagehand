@@ -13,6 +13,9 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   runExternalHarnessTask,
+  type EvalResultContract,
+  readResultContract,
+  requestedResult,
 } from "./harnesses/externalRunner.js";
 import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
@@ -21,8 +24,9 @@ import { geminiCuaAdapter } from "./harnesses/geminiCuaAdapter.js";
 export const GEMINI_CUA_DEFAULT_MODELS: AvailableModel[] = [
   "google/gemini-3.8-flash" as AvailableModel,
 ];
-export const GEMINI_CUA_SYSTEM_PROMPT =
-  "You are being evaluated on a browser task. Complete it with computer use only and finish by printing the requested EVAL_RESULT line.";
+export function geminiCuaSystemPrompt(resultContract: EvalResultContract): string {
+  return `You are being evaluated on a browser task. Complete it with computer use only and finish by printing ${requestedResult(resultContract)}.`;
+}
 export interface GeminiCuaRunnerInput {
   plan: ExternalHarnessTaskPlan;
   model: AvailableModel;
@@ -36,7 +40,11 @@ export function buildGeminiCuaPrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
 ): string {
-  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
+  return buildExternalHarnessPrompt({
+    plan,
+    toolInstructions,
+    resultContract: readResultContract("marker"),
+  });
 }
 export function assertGeminiCuaModel(model: string): void {
   try {
@@ -52,6 +60,7 @@ export async function runGeminiCuaAgent(input: GeminiCuaRunnerInput): Promise<Ta
     dataset: input.plan.dataset,
     harnessDefault: 50,
   });
+  const resultContract = readResultContract("marker");
   return runExternalHarnessTask({
     harness: "gemini_cua",
     plan: input.plan,
@@ -59,7 +68,7 @@ export async function runGeminiCuaAgent(input: GeminiCuaRunnerInput): Promise<Ta
     logger: input.logger,
     toolAdapter: input.toolAdapter,
     verifier: input.verifier,
-    resultContract: "marker",
+    resultContract,
     fallbackErrorMessage: "gemini_cua did not report success",
     stepBudget: maxTurns,
     stepBudgetUnit: "turns",
@@ -72,7 +81,7 @@ export async function runGeminiCuaAgent(input: GeminiCuaRunnerInput): Promise<Ta
         maxTurns,
         tools: input.toolAdapter.executor,
         facade: input.toolAdapter.facade,
-        systemPrompt: `${systemPrompt}\n\n${GEMINI_CUA_SYSTEM_PROMPT}`,
+        systemPrompt: `${systemPrompt}\n\n${geminiCuaSystemPrompt(resultContract)}`,
         signal: input.signal,
         client: input.client,
         browserSessionLoss: input.toolAdapter.browserSessionLoss,

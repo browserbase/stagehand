@@ -1,3 +1,4 @@
+import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
 import { ShadowRootEvaluationUnavailableError } from "./errors.js";
@@ -96,6 +97,8 @@ import type {
   PageVoidResult,
   PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
+  PageWaitForFunctionParams,
+  PageWaitForFunctionResult,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
   PageWebMCPCancelInvocationParams,
@@ -170,6 +173,10 @@ export type UnderstudyRuntimePage = {
     selector: string,
     options?: PageWaitForSelectorParams["options"],
   ): Promise<boolean>;
+  waitForFunction(
+    expression: string,
+    options?: PageWaitForFunctionParams["options"],
+  ): Promise<unknown>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   pdf(options?: PagePDFOptions): Promise<PagePDFResult>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
@@ -287,6 +294,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+  clientBrowserbaseRequest?: ClientBrowserbaseRequest;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
   emitPageEvent?: (notification: PageEventNotification) => void;
 };
@@ -298,6 +306,9 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
 };
 const discardLog: StagehandLogEmitter = () => {};
 const discardPageCDPEvent = (): void => {};
+const unavailableClientBrowserbase = async (): Promise<never> => {
+  throw new Error("The connected SDK did not register a Browserbase transport");
+};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
@@ -311,6 +322,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+      clientBrowserbaseRequest: adapters.clientBrowserbaseRequest ?? unavailableClientBrowserbase,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
       emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
@@ -334,6 +346,9 @@ export class StagehandRuntime {
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
+  private browserSessionCdpUrl?: string;
+  /** Bumped whenever B is replaced or dropped; a connect that finishes late checks it. */
+  private browserConnectionGeneration = 0;
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -356,23 +371,54 @@ export class StagehandRuntime {
     bootstrapLogger?: StagehandLogger,
   ): Promise<void> {
     const { cdpUrl } = params;
+    const generation = ++this.browserConnectionGeneration;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
+    this.browserSessionCdpUrl = undefined;
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
     await previousSession?.close();
 
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(
+      const session = await this.adapters.browserSessionFactory(
         cdpUrl,
         this.logger,
         bootstrapLogger,
       );
+      if (generation !== this.browserConnectionGeneration) {
+        // Dropped (or replaced) while connecting: never install a connection nobody owns.
+        await session.close();
+        throw new Error("Stagehand browser connection was dropped while connecting");
+      }
+      this.browserSession = session;
+      this.browserSessionCdpUrl = cdpUrl;
     } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
+      // A newer connection may already be installed; only clean up this attempt's state.
+      if (generation === this.browserConnectionGeneration) {
+        await this.browserSession?.close();
+        this.browserSession = undefined;
+      }
       throw error;
+    }
+  }
+
+  /**
+   * Closes the runtime's own browser connection immediately, outside the lifecycle
+   * queue: a lost client must not wait behind lifecycle work that needs that client.
+   */
+  async dropBrowserConnection(): Promise<void> {
+    // Invalidates a connection still being opened, so it closes instead of being installed.
+    this.browserConnectionGeneration += 1;
+    const session = this.browserSession;
+    this.browserSession = undefined;
+    this.browserSessionCdpUrl = undefined;
+    await session?.close();
+  }
+
+  async ensureBrowserConnection(cdpUrl: string): Promise<void> {
+    if (!this.browserSession?.connected || this.browserSessionCdpUrl !== cdpUrl) {
+      await this.replaceBrowserConnection({ cdpUrl });
     }
   }
 
@@ -392,7 +438,10 @@ export class StagehandRuntime {
           throw new Error("A Stagehand instance is already initialized");
         }
         this.logger.setLevel(params.logLevel);
-        if (!this.browserSession?.connected) {
+        if (
+          !this.browserSession?.connected ||
+          (params.browserCdpUrl !== undefined && params.browserCdpUrl !== this.browserSessionCdpUrl)
+        ) {
           if (!params.browserCdpUrl) {
             throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
           }
@@ -441,7 +490,9 @@ export class StagehandRuntime {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
     const gateway =
-      state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+      state.status === "initialized"
+        ? buildGatewayContext(state.initParams, this.adapters.clientBrowserbaseRequest)
+        : undefined;
     if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
@@ -700,6 +751,14 @@ export class StagehandRuntime {
       params.options,
     );
     return { matched };
+  }
+
+  async pageWaitForFunction(params: PageWaitForFunctionParams): Promise<PageWaitForFunctionResult> {
+    const value = await this.resolvePage(params.pageId).waitForFunction(
+      params.expression,
+      params.options,
+    );
+    return { value: value as PageWaitForFunctionResult["value"] };
   }
 
   async pageScreenshot(params: PageScreenshotParams): Promise<PageScreenshotResult> {
@@ -983,6 +1042,7 @@ export class StagehandRuntime {
     await this.enqueueLifecycle(async () => {
       const session = this.browserSession;
       this.browserSession = undefined;
+      this.browserSessionCdpUrl = undefined;
       this.clearStagehandInstance();
       await session?.close();
     });

@@ -55,6 +55,8 @@ class FakeCDPClient:
 
     def __init__(self) -> None:
         self.close_calls = 0
+        self.detach_calls = 0
+        self.closed = False
         self.commands: list[tuple[str, dict[str, object]]] = []
         self.web_socket_debugger_url = "ws://browser"
 
@@ -69,8 +71,12 @@ class FakeCDPClient:
 
     async def close(self) -> None:
         self.close_calls += 1
+        self.closed = True
         if self.close_error is not None:
             raise self.close_error
+
+    async def detach_client(self) -> None:
+        self.detach_calls += 1
 
     async def send_command(
         self,
@@ -151,8 +157,8 @@ async def test_handle_close_is_memoized_and_marks_closed_when_requested(
 @pytest.mark.parametrize(
     ("provider", "origin", "keep_alive", "expected_source_closes", "expected_commands"),
     [
-        ("local", "launched", False, 1, []),
-        ("local", "launched", True, 1, []),
+        ("local", "launched", False, 1, [("Browser.close", {})]),
+        ("local", "launched", True, 1, [("Browser.close", {})]),
         ("local", "connected", True, 0, [("Browser.close", {})]),
         ("browserbase", "launched", False, 1, []),
         ("browserbase", "launched", True, 1, []),
@@ -181,6 +187,231 @@ async def test_explicit_browser_close_matrix(
 
     assert source.close_calls == expected_source_closes
     assert cdp.commands == expected_commands
+    assert cdp.close_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive"),
+    [
+        ("local", "launched", False),
+        ("local", "launched", True),
+        ("local", "connected", True),
+        ("browserbase", "launched", False),
+        ("browserbase", "launched", True),
+        ("browserbase", "connected", True),
+    ],
+)
+async def test_disconnect_closes_only_the_connection(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    await handle.disconnect()
+
+    assert handle.closed is True
+    assert cdp.close_calls == 1
+    assert cdp.commands == []
+    assert source.close_calls == 0
+
+
+async def test_disconnect_closes_an_attached_stagehand_before_the_connection(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+    order: list[str] = []
+
+    async def close_stagehand() -> None:
+        order.append(f"stagehand (connection closes: {cdp.close_calls})")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), close_stagehand)
+
+    await handle.disconnect()
+
+    assert order == ["stagehand (connection closes: 0)"]
+    assert cdp.close_calls == 1
+
+
+async def test_disconnect_still_closes_the_connection_when_closing_stagehand_fails(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def close_stagehand() -> None:
+        raise RuntimeError("stagehand.close failed")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), close_stagehand)
+
+    with pytest.raises(RuntimeError, match="stagehand.close failed"):
+        await handle.disconnect()
+    assert cdp.close_calls == 1
+
+
+async def test_disconnect_is_terminal_and_close_then_raises(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=True)
+    handle = await _connected_handle(source, origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    await asyncio.gather(handle.disconnect(), handle.disconnect())
+    with pytest.raises(RuntimeError, match=r"connect\(\) again to close it"):
+        await handle.close()
+
+    assert cdp.close_calls == 1
+    assert cdp.commands == []
+    assert source.close_calls == 0
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        _claim_browser(handle)
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive"),
+    [
+        ("local", "launched", False),
+        ("local", "launched", True),
+        ("local", "connected", True),
+        ("browserbase", "launched", False),
+        ("browserbase", "launched", True),
+        ("browserbase", "connected", True),
+    ],
+)
+async def test_close_after_disconnect_raises_and_releases_nothing(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    await handle.disconnect()
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match=r"connect\(\) again to close it"):
+            await handle.close()
+    await handle.disconnect()
+
+    assert handle.closed is True
+    assert source.close_calls == 0
+    assert cdp.commands == []
+    assert cdp.close_calls == 1
+
+
+async def test_close_leaves_a_local_browser_alone_once_the_connection_is_lost(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+    cdp.closed = True
+
+    # Lost, not closed: close() still runs, and does nothing for a local browser.
+    assert handle.connected is False
+    assert handle.closed is False
+    await handle.close()
+    assert source.close_calls == 0
+    assert cdp.commands == []
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        _claim_browser(handle)
+
+
+@pytest.mark.parametrize("origin", ["launched", "connected"])
+async def test_close_still_releases_a_browserbase_session_once_the_connection_is_lost(
+    fake_cdp: type[FakeCDPClient],
+    origin: Literal["launched", "connected"],
+) -> None:
+    source = FakeSource(keep_alive=True)
+    handle = await _connect_browser(
+        provider="browserbase",
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    fake_cdp.instances[-1].closed = True
+
+    await asyncio.gather(handle.close(), handle.close())
+
+    assert source.close_calls == 1
+
+
+async def test_launched_local_close_sends_browser_close_before_terminating(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+    commands_at_termination: list[list[tuple[str, dict[str, object]]]] = []
+    original_close = source.close
+
+    async def close() -> None:
+        commands_at_termination.append(list(cdp.commands))
+        await original_close()
+
+    monkeypatch.setattr(source, "close", close)
+
+    await handle.close()
+
+    assert commands_at_termination == [[("Browser.close", {})]]
+
+
+async def test_cdp_url_is_exposed_for_local_browsers_only(fake_cdp: type[FakeCDPClient]) -> None:
+    source = FakeSource(keep_alive=True)
+    local = await _connected_handle(source, origin="connected")
+    remote = await _connect_browser(
+        provider="browserbase",
+        origin="launched",
+        source=FakeSource(keep_alive=False),
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+
+    assert local.cdp_url == source.cdp_url
+    assert remote.cdp_url is None
+
+
+async def test_disconnect_after_close_does_nothing(fake_cdp: type[FakeCDPClient]) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True), origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    await handle.close()
+    await handle.disconnect()
+
+    assert cdp.commands == [("Browser.close", {})]
     assert cdp.close_calls == 1
 
 
@@ -577,7 +808,7 @@ async def test_launch_converts_argument_tuples_to_flag_lists(
 # a second occurrence replaces the first outright rather than adding to it. Since
 # the defaults are emitted before options.args, these switches have to be merged
 # or a caller passing one of their own silently drops every default feature name.
-_WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+_WEBMCP_CHROME_FLAG = next(f for f in _DEFAULT_CHROME_FLAGS if f.startswith("--enable-features="))
 
 
 def _feature_values(flags: list[str], name: str) -> list[str]:
@@ -645,6 +876,100 @@ async def test_local_connect_ignores_id_and_defers_packaged_extension(
     assert get_directory() == "/bundle"
     assert accessed == [True]
     await handle.close()
+
+
+async def test_local_connect_carries_the_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(
+        cdp_url="wss://gateway/cdp?api_key=secret",
+        extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/abc",
+    )
+    metadata = handle._attachment.worker_init_metadata
+    assert metadata.browser_cdp_url == "ws://127.0.0.1:9300/devtools/browser/abc"
+    assert fake_cdp.connect_arguments[-1]["cdp_url"] == "wss://gateway/cdp?api_key=secret"
+    await handle.close()
+
+
+async def test_local_connect_defaults_the_extension_to_the_client_url(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert handle._attachment.worker_init_metadata.browser_cdp_url is None
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "extension_cdp_url",
+    [
+        "",
+        "http://127.0.0.1:9300",
+        "ws://",
+        "/devtools/browser/abc",
+        "ws://browser:bad/devtools",
+        "ws://browser:99999/devtools",
+        "ws://browser:0/devtools",
+        "wss://browser:0/devtools",
+    ],
+)
+async def test_local_connect_rejects_an_invalid_extension_cdp_url(
+    fake_cdp: type[FakeCDPClient],
+    extension_cdp_url: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        await local_browser.connect(cdp_url="http://browser", extension_cdp_url=extension_cdp_url)
+
+
+async def test_local_connect_sends_headers_only_when_given(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await local_browser.connect(cdp_url="https://gw/cdp", headers={"X-Api-Key": "k"})
+    assert fake_cdp.connect_arguments[-1]["headers"] == {"X-Api-Key": "k"}
+    await handle.close()
+
+    handle = await local_browser.connect(cdp_url="http://browser")
+    assert "headers" not in fake_cdp.connect_arguments[-1]
+    await handle.close()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Bad Name": "secret-value"},
+        {"X-Api-Key": "secret-value\r\nInjected: 1"},
+        {"X-Api-Key": "secret-value\x80"},
+        {"X-Api-Key": "secret-value\xff"},
+        {"X-Api-Key": "secret-value\u2603"},
+        {"X-Api-Key": " secret-value"},
+        {"X-Api-Key": "secret-value "},
+        {"X-Api-Key": "\tsecret-value"},
+        {"X-Api-Key": "secret-value\t"},
+        {"X-Api-Key": " \t "},
+        {"secret-value invalid name": "dummy"},
+        {"Authorization": ["secret-value"]},
+        {"Authorization": {"token": "secret-value"}},
+        {"Authorization": b"secret-value"},
+        {"Authorization": 123, "X-Api-Key": "secret-value"},
+        {"Authorization": None, "X-Api-Key": "secret-value"},
+        {1: "secret-value"},
+        "secret-value",
+        ["secret-value"],
+        [("Authorization", "secret-value")],
+        {"": "v"},
+    ],
+)
+async def test_local_connect_rejects_unsafe_headers_without_echoing_them(
+    fake_cdp: type[FakeCDPClient],
+    headers: object,
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        await local_browser.connect(cdp_url="http://browser", headers=cast(Any, headers))
+    assert "secret-value" not in str(error.value)
+    assert "secret-value" not in repr(error.value.errors())
+    assert "secret-value" not in error.value.json()
+    assert error.value.errors()[0]["loc"] == ("headers",)
+    assert error.value.errors()[0]["input"] == "[redacted]"
+    assert fake_cdp.connect_arguments == []
 
 
 async def test_browser_factory_bounds_the_complete_connection_lifecycle(
@@ -1728,3 +2053,213 @@ def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) 
     )
 
     assert "--window-size=1280,800" not in flags
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive", "terminate"),
+    [
+        ("local", "launched", False, True),
+        ("local", "launched", True, False),
+        ("local", "connected", False, False),
+        ("browserbase", "launched", False, False),
+        ("browserbase", "connected", False, False),
+    ],
+)
+async def test_client_loss_policy_and_intentional_disconnect(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+    terminate: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    assert fake_cdp.connect_arguments[-1]["close_browser_on_disconnect"] is terminate
+    cdp = fake_cdp.instances[-1]
+    await asyncio.gather(handle.disconnect(), handle.disconnect())
+    assert cdp.detach_calls == 1
+    assert cdp.close_calls == 1
+    assert source.close_calls == 0
+
+
+async def test_unacknowledged_detach_keeps_the_handle_open(
+    fake_cdp: type[FakeCDPClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connected_handle(source)
+    cdp = fake_cdp.instances[-1]
+
+    async def fail() -> None:
+        raise RuntimeError("detach failed")
+
+    monkeypatch.setattr(cdp, "detach_client", fail)
+    with pytest.raises(RuntimeError, match="detach failed"):
+        await handle.disconnect()
+    assert cdp.close_calls == 0
+    assert handle.closed is False
+
+    monkeypatch.undo()
+    await handle.disconnect()
+    assert cdp.close_calls == 1
+
+
+async def test_launched_local_close_still_terminates_when_browser_close_fails(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    async def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise RuntimeError("dispatch failed")
+
+    monkeypatch.setattr(cdp, "send_command", fail)
+
+    with pytest.raises(RuntimeError, match="dispatch failed"):
+        await handle.close()
+    assert source.close_calls == 1
+
+
+async def test_failed_browserbase_release_after_lost_connection_can_be_retried(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=True, close_error=RuntimeError("release failed"))
+    handle = await _connect_browser(
+        provider="browserbase",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    fake_cdp.instances[-1].closed = True
+
+    with pytest.raises(RuntimeError, match="release failed"):
+        await handle.close()
+    source.close_error = None
+    await handle.close()
+    await handle.close()
+
+    assert source.close_calls == 2
+
+
+@pytest.mark.parametrize("origin", ["launched", "connected"])
+async def test_unresponsive_browser_close_is_bounded(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+    origin: Literal["launched", "connected"],
+) -> None:
+    monkeypatch.setattr(browser, "_BROWSER_CLOSE_TIMEOUT_SECONDS", 0.01)
+    source = FakeSource(keep_alive=False)
+    handle = await _connect_browser(
+        provider="local",
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    async def hang(*_args: object, **_kwargs: object) -> dict[str, object]:
+        await asyncio.Event().wait()
+        return {}
+
+    monkeypatch.setattr(cdp, "send_command", hang)
+
+    if origin == "launched":
+        await handle.close()
+        assert source.close_calls == 1
+    else:
+        with pytest.raises(RuntimeError, match="did not respond"):
+            await handle.close()
+        assert source.close_calls == 0
+    assert cdp.close_calls == 1
+
+
+async def test_resolved_source_retries_a_failed_release(fake_cdp: type[FakeCDPClient]) -> None:
+    attempts = 0
+
+    async def release() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("release failed")
+
+    source = browser.ResolvedBrowserSource(
+        cdp_url="wss://connect.browserbase.com", keep_alive=True, _close_callback=release
+    )
+    handle = await _connect_browser(
+        provider="browserbase",
+        origin="launched",
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    fake_cdp.instances[-1].closed = True
+
+    with pytest.raises(RuntimeError, match="release failed"):
+        await handle.close()
+    await handle.close()
+    await handle.close()
+
+    assert attempts == 2
+
+
+async def test_disconnect_stops_waiting_for_a_busy_stagehand_instance(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(browser, "_DISCONNECT_STAGEHAND_TIMEOUT_SECONDS", 0.01)
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def busy() -> None:
+        # e.g. stagehand.close() waiting on an in-flight act().
+        await asyncio.Event().wait()
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), busy)
+
+    await handle.disconnect()
+
+    assert cdp.close_calls == 1
+
+
+async def test_connected_and_closed_are_reported_separately(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    assert (handle.connected, handle.closed) == (True, False)
+    fake_cdp.instances[-1].closed = True
+    assert (handle.connected, handle.closed) == (False, False)
+    await handle.disconnect()
+    assert (handle.connected, handle.closed) == (False, True)
+
+
+async def test_disconnect_reports_a_timeout_raised_by_stagehand_close(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    cdp = fake_cdp.instances[-1]
+
+    async def fail() -> None:
+        raise TimeoutError("stagehand.close timed out")
+
+    _claim_browser(handle)
+    _attach_browser_context(handle, cast(BrowserContext, object()), fail)
+
+    with pytest.raises(TimeoutError, match="stagehand.close timed out"):
+        await handle.disconnect()
+    assert cdp.close_calls == 1
