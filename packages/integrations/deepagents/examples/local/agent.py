@@ -31,7 +31,6 @@ async def main() -> None:
     instruction = "Go find me a summary of all main sports events today"
     response_format = SportsSummary
 
-    # For Browserbase, use browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"]).
     browser = await local_browser.launch(headless=False)
     try:
         stagehand = await Stagehand.create(browser=browser)

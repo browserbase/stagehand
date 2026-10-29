@@ -41,7 +41,6 @@ and then every other field with data of your choice.
 Do not submit the form. Return a summary of the fields you successfully filled."""
     response_format = FormFillResult
 
-    # For Browserbase, use browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"]).
     browser = await local_browser.launch(headless=False)
     try:
         stagehand = await Stagehand.create(browser=browser)

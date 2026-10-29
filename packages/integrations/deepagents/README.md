@@ -1,46 +1,49 @@
 # Stagehand Deep Agents integration
 
-The local examples use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase),
-the LangChain-maintained adapter for Stagehand's `run`, `snapshot`, and `screenshot` tools.
+The local examples use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase)
+to expose Stagehand's `run`, `snapshot`, and `screenshot` tools to Deep Agents.
 
-## Run the examples
+## Run locally
 
-Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and Chrome:
+Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), Chrome, and a model-provider key:
 
 ```bash
-cd packages/integrations/deepagents
 export OPENAI_API_KEY=...
-uv sync --project examples/local --locked
+cd packages/integrations/deepagents
 uv run --project examples/local --locked python examples/local/agent.py
 ```
 
-Edit `model`, `instruction`, and `response_format` in the script. Run `agents2.py` for form filling
-with mock data without submission. Both examples use visible local Chrome; set `headless=True`
-in `local_browser.launch` for headless mode.
+The model, instruction, and Pydantic response classes are declared directly in `agent.py` so the
+example can be edited and rerun without passing command-line arguments. Set `response_format` to a
+Pydantic model class for structured output, or `None` for the normal text response.
 
-For Browserbase, add `import os` and `from stagehand import browserbase`, set `BROWSERBASE_API_KEY`,
-and replace the launch line with:
+`agents2.py` is a form-filling example inspired by Stagehand's sensible form-filling example. The
+Deep Agent navigates to the form, snapshots it, fills the requested fields with mock data, and
+returns a typed Pydantic summary without submitting the form:
+
+```bash
+uv run --project examples/local --locked python examples/local/agents2.py
+```
+
+Both examples launch visible local Chrome. Set `headless=True` in `local_browser.launch` for
+headless mode. For Browserbase, add `import os` and `from stagehand import browserbase`, set
+`BROWSERBASE_API_KEY`, and replace the launch line with:
 
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 ```
 
-The examples pass `tools=browser_middleware.tools` alongside `middleware=[browser_middleware]`
-so Deep Agents' default subagent inherits the browser tools. Both share the same browser.
-Configure the SDK directly; the `STAGEHAND_*` server settings below do not apply to these examples.
-See the [adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme) for options.
+The examples pass `tools=browser_middleware.tools` so Deep Agents' default subagent also has
+browser access. Configure the client through `Stagehand.create(...)`; see the
+[adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme) for usage.
 
-## MCP server
+## MCP server configuration
 
-The MCP server and evaluation runner remain available. From the repository root:
+The standalone MCP server uses the `STAGEHAND_*` settings below. To run it from the repository root:
 
 ```bash
 uv run --project packages/integrations/deepagents --locked stagehand-deepagents-mcp
 ```
-
-Keep one persistent MCP client session to preserve browser state and snapshot IDs.
-
-## Server configuration
 
 | Variable                      | Default | Meaning                                                                                                                                                                                                |
 | ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -60,9 +63,14 @@ the same facade contract the TypeScript facade uses.
 
 ## Managed Deep Agents
 
-`examples/managed` uses thread-scoped Browserbase tools over `stagehand-middleware`.
-Browser state persists while the worker is warm; reconnection after worker replacement is not
-supported. This project has its own dependencies and retains its `websockets==15.0.1` override.
+The managed example lives in `examples/managed`. Its authored LangChain tools wrap
+`stagehand-middleware`'s facade tools over the Python Stagehand SDK and expose the same `run`,
+`snapshot`, and `screenshot` contract; `instructions.md` is the contract's agent instructions. The managed
+thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
+exposed to the model.
+
+The managed project's lockfile uses `websockets==15.0.1`. Browser continuity is guaranteed while
+the managed worker remains warm; durable reconnection after worker replacement is future work.
 
 ### Develop and deploy the managed agent
 
@@ -90,6 +98,7 @@ it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension
 
 ## Security model
 
-`run` executes model-authored JavaScript in the browser extension's service worker. Use disposable
-Browserbase sessions for untrusted tasks and separate browsers for unrelated users. Keep credentials
-in application configuration rather than tool arguments.
+The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
+worker — browser-side, never in the host process. Browserbase is the recommended isolation
+boundary: the privileged execution environment is a disposable cloud browser with no access to the
+host machine.
