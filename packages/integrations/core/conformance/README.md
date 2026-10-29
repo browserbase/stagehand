@@ -13,9 +13,6 @@ and `python/tests/test_conformance.py` on the Python host.
 A runner creates an empty sandbox directory with an `artifacts/` directory
 inside it, applies the case's `fs` entries, and builds a fresh host with
 `artifacts/` as its artifact root, no keeper tab and the case's `host` options.
-Because runners always set the artifact root, the default root
-(`contract.defaultArtifactDirectory` under the working directory) is covered by
-each host's unit tests, not by cases.
 The fake Stagehand has one page whose URL is `page.url` (default
 `about:blank`), whose snapshot is `page.snapshot`, and whose screenshot is the
 base64 bytes `page.screenshot`. A case's `context` can replace that one page
@@ -44,21 +41,21 @@ After the last step it checks the case's `expect`.
 
 Each file holds `{ "cases": [...] }`. A case:
 
-| Field            | Meaning                                                                                                                                                                                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`           | What the case shows.                                                                                                                                                                                                                                                                                   |
-| `notApplicable`  | Optional `{ "<host>": "reason" }` (`typescript` or `python`): that host skips the case, for the reason given.                                                                                                                                                                                          |
-| `host`           | Optional host options, `{ "quietWait"? }` (see `contract.runOptions`); a missing option is the host default.                                                                                                                                                                                           |
-| `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                                                                                                                 |
-| `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, `{ "hardlink", "target" }` (a hard link to the target file, both relative to the sandbox), or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
-| `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                                                                                                             |
-| `steps[].expect` | `{ "result" }`: the tool's return value (run code: the value; run actions: `{ completed, url }`; snapshot: the formatted tree; screenshot: `{ data, mimeType }`). Or `{ "error" }`, below.                                                                                                             |
-| `steps[].sent`   | Batch calls in order: `{ "callback": "run", "code", "input"? }` when it sent `runPrelude + code + runEpilogue`, `{ "callback": "actionRunner", "input" }` when it sent `actionRunner` with that input.                                                                                                 |
-| `context`        | Optional `{ pages?, activePage? }`, above.                                                                                                                                                                                                                                                             |
-| `expect.closed`  | Whether the host closed the Stagehand session (exactly once, or never).                                                                                                                                                                                                                                |
-| `expect.tree`    | Every entry under the sandbox, sorted by code unit, without following symlinks: directories end in `/`, symlinks in `@`. Use it to show that nothing else was written.                                                                                                                                 |
-| `expect.files`   | Contents of files, relative to the sandbox: base64, or `{ "size" }` in bytes.                                                                                                                                                                                                                          |
-| `expect.context` | `{ newPages, setActivePage }`: how many pages the host created, and the ids it passed to `setActivePage`, in order.                                                                                                                                                                                    |
+| Field            | Meaning                                                                                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`           | What the case shows.                                                                                                                                                                                        |
+| `notApplicable`  | Optional `{ "<host>": "reason" }` (`typescript` or `python`): that host skips the case, for the reason given.                                                                                               |
+| `host`           | Optional host options, `{ "quietWait"? }` (see `contract.runOptions`); a missing option is the host default.                                                                                                |
+| `page`           | Optional `{ url, snapshot: { formattedTree, xpathMap }, screenshot }`.                                                                                                                                      |
+| `fs`             | Optional sandbox setup, in order: `{ "dir" }`, `{ "file", "base64" }`, or `{ "symlink", "target" }` (the target is stored as written, relative to the link). Paths are relative to the sandbox and use `/`. |
+| `steps[].call`   | `{ "tool": "run", "code" }`, `{ "tool": "run", "actions" }`, `{ "tool": "snapshot", "includeIframes"? }`, or `{ "tool": "screenshot", "type"?, "fullPage"?, "quality"? }`.                                  |
+| `steps[].expect` | `{ "result" }`: the tool's return value (run code: the value; run actions: `{ completed, url }`; snapshot: the formatted tree; screenshot: `{ data, mimeType }`). Or `{ "error" }`, below.                  |
+| `steps[].sent`   | Batch calls in order: `{ "callback": "run", "code", "input"? }` when it sent `runPrelude + code + runEpilogue`, `{ "callback": "actionRunner", "input" }` when it sent `actionRunner` with that input.      |
+| `context`        | Optional `{ pages?, activePage? }`, above.                                                                                                                                                                  |
+| `expect.closed`  | Whether the host closed the Stagehand session (exactly once, or never).                                                                                                                                     |
+| `expect.tree`    | Every entry under the sandbox, sorted by code unit, without following symlinks: directories end in `/`, symlinks in `@`. Use it to show that nothing else was written.                                      |
+| `expect.files`   | Contents of files, relative to the sandbox: base64, or `{ "size" }` in bytes.                                                                                                                               |
+| `expect.context` | `{ newPages, setActivePage }`: how many pages the host created, and the ids it passed to `setActivePage`, in order.                                                                                         |
 
 An expected error has a `kind` and, optionally, a `name` and a message:
 
@@ -87,32 +84,17 @@ else:
 A run result must have the envelope's shape (see `src/facade/bundle.ts`);
 otherwise the host fails with `RUN_RESULT_MALFORMED_ERROR` and neither writes
 artifacts nor closes. Types are exact: `1` is not `true` and `true` is not a
-number. Artifact bytes must be padded RFC 4648 base64 (`+/`, no line breaks), as
-`btoa` writes it. These checks run on every artifact before the artifact root is
-created or anything is written, so a run they reject writes nothing: first the
-artifact count, then for each artifact in order its decoded size and then the
-running total, then for each artifact in order: the path must stay within the
-root and no component may contain NUL, or ':' on Windows
-(`SCREENSHOT_ARTIFACT_PATH_ERROR`); the name must end in `.png`, `.jpg` or
-`.jpeg` in any case (`SCREENSHOT_ARTIFACT_TYPE_ERROR`); the bytes must start
-with a PNG or JPEG signature, either one under any of those extensions
-(`SCREENSHOT_ARTIFACT_CONTENT_ERROR`); and no component may be over 255 bytes
-(`SCREENSHOT_ARTIFACT_WRITE_ERROR` with `cause` `ENAMETOOLONG`). Artifacts are
-then written in order, each one checked against the filesystem as it is reached,
-so artifacts before one rejected there stay written: no directory on the way may
-be a symlink (`SCREENSHOT_ARTIFACT_SYMLINK_ERROR`) or a file
-(`SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR`); and an existing file must be
-neither a symlink (`SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR`) nor anything but a
-regular file (`SCREENSHOT_ARTIFACT_NOT_FILE_ERROR`). The bytes go to a new file
-in the target's directory that is renamed over the target, so other links to an
-existing file keep their contents and nothing else is left behind. Any other
-filesystem error is `SCREENSHOT_ARTIFACT_WRITE_ERROR` with the error code (never
-a path) as `cause`. An artifact error takes precedence over the code's own
-error, which takes precedence over the value cap. The value cap counts the UTF-8
-bytes of the value's compact JSON, with non-ASCII characters unescaped (Python:
-`separators=(",", ":")`, `ensure_ascii=False`). An execution error's name and
-message are redacted as in `src/harness/redact.ts` before the name is checked
-against `/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
+number. Artifact bytes must be padded RFC 4648 base64 (`+/`, no line breaks),
+as `btoa` writes it. The caps in `contract.limits` are checked before any
+artifact is written: first the artifact count, then for each artifact in order
+its decoded size and then the running total. Artifacts are then written in order, each path checked as
+it is reached, so artifacts before a rejected path stay written. A path error
+takes precedence over the code's own error, which takes precedence over the
+value cap. The value cap counts the UTF-8 bytes of the value's compact JSON, with
+non-ASCII characters unescaped (Python: `separators=(",", ":")`,
+`ensure_ascii=False`). An execution error's name and message are redacted as in
+`src/harness/redact.ts` before the name is checked against
+`/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
 A run's batch input is empty unless the host turned a run option on; then it
 carries exactly those options (`{ "quietWait": true }`). `sent` lists a run's
 `input` only when it is not empty.

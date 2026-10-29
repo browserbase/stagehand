@@ -42,11 +42,8 @@ in `package.json` points at the extension).
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
-service worker, not in the pi process. The facade host process only writes screenshot images
-saved with `page.screenshot({ path })` under the artifact root (default
-`./stagehand-artifacts`, set with `STAGEHAND_FACADE_ARTIFACT_ROOT`), as files that start
-with a PNG or JPEG signature; a local Chrome still keeps its own profile and downloads.
-Browserbase is the recommended isolation boundary: the privileged execution environment is a
-disposable cloud browser. The browser launches lazily on first tool use and closes on
-session shutdown; only `STAGEHAND_*`/`BROWSERBASE_*` variables configure it, and pi's model
-credentials never reach the browser session.
+service worker — browser-side, never in the pi process. Browserbase is the recommended
+isolation boundary: the privileged execution environment is a disposable cloud browser. The
+browser launches lazily on first tool use and closes on session shutdown; only
+`STAGEHAND_*`/`BROWSERBASE_*` variables configure it, and pi's model credentials never reach
+the browser session.
