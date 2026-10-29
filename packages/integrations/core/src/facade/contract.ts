@@ -38,15 +38,18 @@ const actionSchema = (op: string, extra: Record<string, Record<string, unknown>>
   additionalProperties: false,
 });
 
-export const RUN_TOOL_DESCRIPTION =
-  'Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+/** Where run code's `page.screenshot({ path })` files land; shared by both run descriptions. */
+const RUN_SCREENSHOT_PATH_NOTE =
+  "page.screenshot({ path }) saves a .png, .jpg or .jpeg file relative to the host's artifact directory (./stagehand-artifacts under the host's working directory unless the host configures another).";
+
+export const RUN_TOOL_DESCRIPTION = `Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. ${RUN_SCREENSHOT_PATH_NOTE} Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.`;
 
 /**
- * Run-tool description of the pre-Playwright-idiom facade surface, kept
- * byte-identical so `--surface=legacy` hosts reproduce the earlier contract.
+ * Run-tool description of the pre-Playwright-idiom facade surface, kept as
+ * before apart from the screenshot-path note so `--surface=legacy` hosts
+ * reproduce the earlier contract.
  */
-export const LEGACY_RUN_TOOL_DESCRIPTION =
-  'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+export const LEGACY_RUN_TOOL_DESCRIPTION = `Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. ${RUN_SCREENSHOT_PATH_NOTE} Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.`;
 
 export const SNAPSHOT_TOOL_DESCRIPTION =
   "Capture the active page's Stagehand accessibility tree and hydrate its displayed IDs for subsequent run actions. Every call replaces the active page's ID map.";

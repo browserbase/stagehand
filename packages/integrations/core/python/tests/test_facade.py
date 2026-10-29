@@ -137,9 +137,9 @@ def test_artifacts_fail_closed_without_o_nofollow(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delattr(tools.os, "O_NOFOLLOW", raising=False)
-    host = _host(artifact_root=tmp_path)
+    host = _host(artifact_root=tmp_path / "artifacts")
     with pytest.raises(tools.StagehandFacadeInputError, match="no O_NOFOLLOW"):
-        host._write_artifacts([{"path": "shot.png", "base64": _PNG}])
+        host._write_artifacts([{"path": "shots/shot.png", "base64": _PNG}])
     assert list(tmp_path.iterdir()) == []
 
 
@@ -174,6 +174,25 @@ def test_only_image_artifacts_are_written(tmp_path: Path, path: str, data: str, 
     host = _host(artifact_root=tmp_path)
     with pytest.raises(tools.StagehandFacadeInputError) as raised:
         host._write_artifacts([{"path": path, "base64": data}])
+    assert str(raised.value) == contract_error(error)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("rejected", "error"),
+    [
+        ({"path": "../x.png", "base64": _PNG}, "SCREENSHOT_ARTIFACT_PATH_ERROR"),
+        ({"path": "x.txt", "base64": _PNG}, "SCREENSHOT_ARTIFACT_TYPE_ERROR"),
+        ({"path": "x.png", "base64": "dGVzdA=="}, "SCREENSHOT_ARTIFACT_CONTENT_ERROR"),
+    ],
+    ids=["path", "type", "content"],
+)
+def test_a_rejected_artifact_writes_nothing_not_even_the_root(
+    tmp_path: Path, rejected: dict[str, str], error: str
+) -> None:
+    host = _host(artifact_root=tmp_path / "artifacts")
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        host._write_artifacts([{"path": "shots/ok.png", "base64": _PNG}, rejected])
     assert str(raised.value) == contract_error(error)
     assert list(tmp_path.iterdir()) == []
 
@@ -215,6 +234,19 @@ def test_a_replaced_artifact_keeps_its_permissions_and_a_new_one_is_owner_only(
     assert (tmp_path / "shot.png").read_bytes() == base64.b64decode(_PNG)
     assert (tmp_path / "shot.png").stat().st_mode & 0o777 == 0o644
     assert (tmp_path / "new.png").stat().st_mode & 0o777 == 0o600
+
+
+def test_an_artifact_is_replaced_when_its_permissions_cannot_be_copied(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def refuse(_fd: int, _mode: int) -> None:
+        raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(tools.os, "fchmod", refuse)
+    (tmp_path / "shot.png").write_bytes(b"old")
+    _host(artifact_root=tmp_path)._write_artifacts([{"path": "shot.png", "base64": _PNG}])
+    assert (tmp_path / "shot.png").read_bytes() == base64.b64decode(_PNG)
+    assert [p.name for p in tmp_path.iterdir()] == ["shot.png"]
 
 
 def test_a_colon_in_an_artifact_name_is_kept(tmp_path: Path) -> None:

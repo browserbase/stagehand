@@ -85,8 +85,8 @@ export type StagehandFacadeToolsOptions = {
   onCloseRequested?: () => Promise<void>;
   /**
    * Dedicated directory for screenshot artifacts. Paths must stay within it and
-   * name a .png/.jpg/.jpeg file holding PNG or JPEG bytes; run code can replace
-   * any such image under it. Defaults to DEFAULT_ARTIFACT_DIRECTORY under
+   * name a .png/.jpg/.jpeg file holding PNG or JPEG bytes, checked for every
+   * artifact before any is written; run code can replace any such image under it. Defaults to DEFAULT_ARTIFACT_DIRECTORY under
    * process.cwd(), which must not be a symlink; a configured root may be one.
    * New files are owner-only; a replaced file keeps its permissions.
    */
@@ -147,6 +147,38 @@ function isImage(bytes: Buffer): boolean {
     bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ||
     bytes.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)
   );
+}
+
+/** The checks that need no filesystem access: confinement, type, signature and name length. */
+function checkArtifact(
+  root: string,
+  artifact: ScreenshotArtifact,
+): { components: string[]; bytes: Buffer } {
+  const relative = path.relative(root, path.resolve(root, artifact.path));
+  const components = relative.split(path.sep);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative) ||
+    components.some(
+      (component) =>
+        component.includes("\0") || (process.platform === "win32" && component.includes(":")),
+    )
+  ) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
+  }
+  if (!ARTIFACT_EXTENSION.test(components.at(-1)!)) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TYPE_ERROR);
+  }
+  const bytes = Buffer.from(artifact.base64, "base64");
+  if (!isImage(bytes)) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_CONTENT_ERROR);
+  }
+  if (components.some((component) => Buffer.byteLength(component) > MAX_NAME_BYTES)) {
+    throw new StagehandFacadeInputError(screenshotArtifactWriteError("ENAMETOOLONG"));
+  }
+  return { components, bytes };
 }
 
 /** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
@@ -389,12 +421,8 @@ export class StagehandFacadeTools {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR);
       }
     }
-    const decoded = artifacts.map((artifact) => ({
-      path: artifact.path,
-      bytes: Buffer.from(artifact.base64, "base64"),
-    }));
     try {
-      await this.writeArtifactFiles(decoded);
+      await this.writeArtifactFiles(artifacts);
     } catch (error) {
       // Filesystem errors carry host paths; the agent gets only their code.
       const code = (error as NodeJS.ErrnoException | undefined)?.code;
@@ -405,10 +433,13 @@ export class StagehandFacadeTools {
     }
   }
 
-  private async writeArtifactFiles(artifacts: { path: string; bytes: Buffer }[]): Promise<void> {
+  private async writeArtifactFiles(artifacts: ScreenshotArtifact[]): Promise<void> {
     const configuredRoot = path.resolve(
       this.options.artifactRoot || path.join(process.cwd(), DEFAULT_ARTIFACT_DIRECTORY),
     );
+    // Every artifact is checked before the root is created or anything is
+    // written, so a rejected run leaves nothing behind.
+    const checked = artifacts.map((artifact) => checkArtifact(configuredRoot, artifact));
     // A configured root may be a symlink; the default one, found in whatever
     // directory the host runs in, may not.
     if (!this.options.artifactRoot) {
@@ -422,33 +453,7 @@ export class StagehandFacadeTools {
     }
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
-    for (const artifact of artifacts) {
-      const resolved = path.resolve(configuredRoot, artifact.path);
-      const relative = path.relative(configuredRoot, resolved);
-      const components = relative.split(path.sep);
-      if (
-        !relative ||
-        relative === ".." ||
-        relative.startsWith(`..${path.sep}`) ||
-        path.isAbsolute(relative) ||
-        components.some(
-          (component) =>
-            component.includes("\0") || (process.platform === "win32" && component.includes(":")),
-        )
-      ) {
-        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
-      }
-      const name = components.at(-1)!;
-      if (!ARTIFACT_EXTENSION.test(name)) {
-        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TYPE_ERROR);
-      }
-      if (!isImage(artifact.bytes)) {
-        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_CONTENT_ERROR);
-      }
-      // Checked up front so an overlong name creates no directories.
-      if (components.some((component) => Buffer.byteLength(component) > MAX_NAME_BYTES)) {
-        throw new StagehandFacadeInputError(screenshotArtifactWriteError("ENAMETOOLONG"));
-      }
+    for (const { components, bytes } of checked) {
       // Reject symlinks before creating nested directories. An existing file is
       // replaced by renaming a new file over it, never written through, so
       // other links to it keep their contents.
@@ -466,7 +471,7 @@ export class StagehandFacadeTools {
           throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
         }
       }
-      const target = path.join(directory, name);
+      const target = path.join(directory, components.at(-1)!);
       const existing = await fsp.lstat(target).catch((error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return undefined;
         throw error;
@@ -485,9 +490,10 @@ export class StagehandFacadeTools {
       );
       try {
         try {
-          // A replaced file keeps its permissions; a new one is owner-only.
-          if (existing) await file.chmod(existing.mode & 0o777);
-          await file.writeFile(artifact.bytes);
+          // A replaced file keeps its permissions; a new one is owner-only. Some
+          // filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
+          if (existing) await file.chmod(existing.mode & 0o777).catch(() => undefined);
+          await file.writeFile(bytes);
         } finally {
           await file.close();
         }

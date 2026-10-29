@@ -38,7 +38,8 @@ await browser.close();
 ```
 
 Code passed to `run` is model-authored: it runs inside the Stagehand browser extension,
-not in your process. The only thing it writes on your machine is screenshots saved with
-`page.screenshot({ path })`: PNG or JPEG files under `artifactRoot` (default
-`./stagehand-artifacts`). Point `artifactRoot` at a dedicated directory, since run code
-can replace any PNG or JPEG under it.
+not in your process. The facade host process only writes screenshot images saved with
+`page.screenshot({ path })` under `artifactRoot` (default `./stagehand-artifacts`), as
+files that start with a PNG or JPEG signature; a local Chrome still keeps its own
+profile and downloads. Point `artifactRoot` at a dedicated directory, since run code
+can replace any image under it.

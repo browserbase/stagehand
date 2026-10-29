@@ -37,12 +37,14 @@ facade_instructions()  # the agent instructions for the system prompt
 - Screenshots saved with a `path` are written under `artifact_root` (default:
   `stagehand-artifacts` under the current directory, which must not be a
   symlink); point it at a dedicated directory, since run code can replace any
-  image under it. A path must stay
-  within it, end in `.png`, `.jpg` or `.jpeg` and hold PNG or JPEG bytes, and must
-  not pass through a symlink; an existing file must be a regular file and is
-  replaced, never written through, keeping its permissions (new files are
-  owner-only). Filesystem errors reach the agent as their code only. On Windows, which has no `O_NOFOLLOW`,
-  artifact writes are refused.
+  image under it. A path must stay within it, end in `.png`, `.jpg` or `.jpeg` and
+  hold bytes that start with a PNG or JPEG signature; every artifact is checked
+  for these before anything is written, so a run with one that fails them writes
+  nothing. A path must not pass through a symlink; an existing file must be a
+  regular file and is replaced, never written through, keeping its permissions
+  where the filesystem allows it (new files are owner-only). Filesystem errors
+  reach the agent as their code only. On Windows, which has no `O_NOFOLLOW`,
+  artifact writes are refused before anything is created.
 - `browser.close()` in run code closes the Stagehand and its browser once the
   call finishes (pass `on_close_requested` to own that cleanup); later calls fail.
 - `quiet_wait=True` (experimental, off by default) makes a `page.waitForTimeout(ms)`

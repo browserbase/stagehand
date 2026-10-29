@@ -532,12 +532,12 @@
       }
     },
     {
-      "name": "artifacts before a rejected one are already written",
+      "name": "nothing is written when a later artifact has a path error",
       "steps": [
         {
           "call": {
             "tool": "run",
-            "code": "await page.screenshot({ path: 'a.png' }); await page.screenshot({ path: '../b.png' });"
+            "code": "await page.screenshot({ path: 'shots/a.png' }); await page.screenshot({ path: '../b.png' });"
           },
           "batch": [
             {
@@ -550,7 +550,7 @@
                 },
                 "artifacts": [
                   {
-                    "path": "a.png",
+                    "path": "shots/a.png",
                     "base64": "iVBORw0KGgo="
                   },
                   {
@@ -572,10 +572,7 @@
         }
       ],
       "expect": {
-        "tree": ["artifacts/", "artifacts/a.png"],
-        "files": {
-          "artifacts/a.png": "iVBORw0KGgo="
-        }
+        "tree": ["artifacts/"]
       }
     },
     {
@@ -919,7 +916,7 @@
       }
     },
     {
-      "name": "artifacts before a non-image path are already written",
+      "name": "nothing is written when a later artifact has a non-image path",
       "steps": [
         {
           "call": {
@@ -959,10 +956,7 @@
         }
       ],
       "expect": {
-        "tree": ["artifacts/", "artifacts/ok.png"],
-        "files": {
-          "artifacts/ok.png": "iVBORw0KGgo="
-        }
+        "tree": ["artifacts/"]
       }
     },
     {

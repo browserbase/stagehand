@@ -303,6 +303,44 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(await fsp.readdir(artifactRoot)).toEqual([]);
   });
 
+  it("saves image paths with any-case extensions through page.screenshot", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await tools.run(
+      `await page.screenshot({ path: "shots/a.JPEG" }); await page.screenshot({ path: "b.jpg" });`,
+    );
+
+    expect(page.screenshot).toHaveBeenCalledTimes(2);
+    expect(page.screenshot).toHaveBeenCalledWith({ type: "jpeg" });
+    expect((await fsp.readdir(artifactRoot)).sort()).toEqual(["b.jpg", "shots"]);
+    expect(await fsp.readdir(path.join(artifactRoot, "shots"))).toEqual(["a.JPEG"]);
+  });
+
+  it("writes nothing, not even the root, when any artifact is rejected", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const parent = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(parent);
+    const artifactRoot = path.join(parent, "artifacts");
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const png = Buffer.from(PNG_BYTES).toString("base64");
+    const text = Buffer.from("text").toString("base64");
+    for (const [rejected, message] of [
+      [{ path: "../x.png", base64: png }, SCREENSHOT_ARTIFACT_PATH_ERROR],
+      [{ path: "x.txt", base64: png }, SCREENSHOT_ARTIFACT_TYPE_ERROR],
+      [{ path: "x.png", base64: text }, SCREENSHOT_ARTIFACT_CONTENT_ERROR],
+    ] as const) {
+      const artifacts = JSON.stringify([{ path: "shots/ok.png", base64: png }, rejected]);
+      await expect(
+        tools.run(`runtime.artifacts = () => ${artifacts}; return "ok";`),
+      ).rejects.toThrow(message);
+      expect(await fsp.readdir(parent)).toEqual([]);
+    }
+  });
+
   it("writes only PNG or JPEG files, whatever artifacts run code hands back", async () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
@@ -354,6 +392,30 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect((await fsp.stat(target)).mode & 0o777).toBe(0o644);
     expect((await fsp.stat(path.join(artifactRoot, "new.png"))).mode & 0o777).toBe(0o600);
     expect((await fsp.readdir(artifactRoot)).sort()).toEqual(["new.png", "shot.png"]);
+  });
+
+  it("still replaces an existing artifact when its permissions cannot be copied", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const target = path.join(artifactRoot, "shot.png");
+    await fsp.writeFile(target, "old");
+    const handle = await fsp.open(target);
+    const fileHandle = Object.getPrototypeOf(handle) as { chmod: (mode: number) => Promise<void> };
+    await handle.close();
+    const chmod = vi
+      .spyOn(fileHandle, "chmod")
+      .mockRejectedValueOnce(Object.assign(new Error("EPERM"), { code: "EPERM" }));
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    try {
+      await tools.run(`await page.screenshot({ path: "shot.png" });`);
+      expect(chmod).toHaveBeenCalledTimes(1);
+    } finally {
+      chmod.mockRestore();
+    }
+
+    expect([...(await fsp.readFile(target))]).toStrictEqual(PNG_BYTES);
+    expect(await fsp.readdir(artifactRoot)).toEqual(["shot.png"]);
   });
 
   it("keeps a colon in an artifact name, as in a timestamp", async () => {

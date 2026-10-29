@@ -118,7 +118,8 @@ class StagehandFacadeTools:
     Screenshots run code saves with a ``path`` are written under ``artifact_root``
     (default: ``DEFAULT_ARTIFACT_DIRECTORY`` under the current directory) and must
     stay within it. Only ``.png``, ``.jpg`` and ``.jpeg`` files holding PNG or JPEG
-    bytes are written, and an existing file is replaced rather than written through.
+    bytes are written, every artifact is checked for that before any is, and an
+    existing file is replaced rather than written through.
     Run code can replace any such image under the root, so point it at a dedicated
     directory. The default root must not be a symlink; a configured one may be. New
     files are owner-only; a replaced file keeps its permissions. ``on_close_requested``
@@ -314,12 +315,8 @@ class StagehandFacadeTools:
                 raise StagehandFacadeInputError(
                     contract_error("SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR")
                 )
-        decoded = [
-            (artifact["path"], base64.b64decode(artifact["base64"], validate=True))
-            for artifact in artifacts
-        ]
         try:
-            self._write_artifact_files(decoded)
+            self._write_artifact_files(artifacts)
         except OSError as error:
             # Filesystem errors carry host paths; the agent gets only their code.
             code = errno.errorcode.get(error.errno or 0, type(error).__name__)
@@ -327,43 +324,24 @@ class StagehandFacadeTools:
                 contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause=code)
             ) from None
 
-    def _write_artifact_files(self, artifacts: list[tuple[str, bytes]]) -> None:
+    def _write_artifact_files(self, artifacts: list[dict[str, str]]) -> None:
         configured_root = os.path.abspath(
             self._artifact_root or os.path.join(os.getcwd(), DEFAULT_ARTIFACT_DIRECTORY)
         )
+        # Every artifact is checked before the root is created or anything is written,
+        # so a rejected run leaves nothing behind.
+        checked = [_check_artifact(configured_root, artifact) for artifact in artifacts]
+        no_follow = getattr(os, "O_NOFOLLOW", None)
+        if no_follow is None:
+            # Without O_NOFOLLOW (Windows) artifact writes stay refused.
+            raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
         # A configured root may be a symlink; the default one, found in whatever
         # directory the host runs in, may not.
         if not self._artifact_root and os.path.islink(configured_root):
             raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR"))
         os.makedirs(configured_root, exist_ok=True)
         root = os.path.realpath(configured_root)
-        for path, data in artifacts:
-            target = os.path.normpath(os.path.join(configured_root, path))
-            try:
-                relative = os.path.relpath(target, configured_root)
-            except ValueError:  # another drive on Windows
-                relative = target
-            if (
-                relative in (".", "..")
-                or relative.startswith(f"..{os.sep}")
-                or os.path.isabs(relative)
-            ):
-                raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
-            *parents, name = relative.split(os.sep)
-            if any(
-                "\0" in component or (os.name == "nt" and ":" in component)
-                for component in (*parents, name)
-            ):
-                raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
-            if not _ARTIFACT_EXTENSION.search(name):
-                raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_TYPE_ERROR"))
-            if not data.startswith(_IMAGE_SIGNATURES):
-                raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_CONTENT_ERROR"))
-            # Checked up front so an overlong name creates no directories.
-            if any(len(os.fsencode(component)) > _MAX_NAME_BYTES for component in (*parents, name)):
-                raise StagehandFacadeInputError(
-                    contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="ENAMETOOLONG")
-                )
+        for parents, name, data in checked:
             # Reject symlinks before creating nested directories. An existing file is
             # replaced by renaming a new file over it, never written through, so other
             # links to it keep their contents.
@@ -395,18 +373,16 @@ class StagehandFacadeTools:
                     raise StagehandFacadeInputError(
                         contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR")
                     )
-            no_follow = getattr(os, "O_NOFOLLOW", None)
-            if no_follow is None:
-                # Without O_NOFOLLOW (Windows) artifact writes stay refused.
-                raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
             temporary = os.path.join(directory, f".stagehand-{secrets.token_hex(8)}.tmp")
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
             descriptor = os.open(temporary, flags, 0o600)
             try:
                 with os.fdopen(descriptor, "wb") as file:
-                    # A replaced file keeps its permissions; a new one is owner-only.
+                    # A replaced file keeps its permissions; a new one is owner-only. Some
+                    # filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
                     if existing is not None:
-                        os.fchmod(file.fileno(), stat.S_IMODE(existing.st_mode) & 0o777)
+                        with contextlib.suppress(OSError):
+                            os.fchmod(file.fileno(), stat.S_IMODE(existing.st_mode) & 0o777)
                     file.write(data)
                 os.replace(temporary, target)
             except BaseException:
@@ -453,6 +429,34 @@ class StagehandFacadeTools:
                 failed = True
         if failed:
             raise StagehandFacadeCleanupError()
+
+
+def _check_artifact(root: str, artifact: dict[str, str]) -> tuple[list[str], str, bytes]:
+    """The checks that need no filesystem access: confinement, type, signature and
+    name length."""
+    target = os.path.normpath(os.path.join(root, artifact["path"]))
+    try:
+        relative = os.path.relpath(target, root)
+    except ValueError:  # another drive on Windows
+        relative = target
+    if relative in (".", "..") or relative.startswith(f"..{os.sep}") or os.path.isabs(relative):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
+    *parents, name = relative.split(os.sep)
+    if any(
+        "\0" in component or (os.name == "nt" and ":" in component)
+        for component in (*parents, name)
+    ):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
+    if not _ARTIFACT_EXTENSION.search(name):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_TYPE_ERROR"))
+    data = base64.b64decode(artifact["base64"], validate=True)
+    if not data.startswith(_IMAGE_SIGNATURES):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_CONTENT_ERROR"))
+    if any(len(os.fsencode(component)) > _MAX_NAME_BYTES for component in (*parents, name)):
+        raise StagehandFacadeInputError(
+            contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="ENAMETOOLONG")
+        )
+    return parents, name, data
 
 
 def _decoded_base64_length(value: str) -> int:

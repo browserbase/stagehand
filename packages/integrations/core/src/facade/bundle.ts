@@ -70,14 +70,16 @@ export const FACADE_BUNDLE_VERSION = 7;
  *     of `{ path, base64 }` with base64 padded RFC 4648, and `executionError`
  *     absent, null or `{ name, message, stack? }` strings. It then checks
  *     `contract.limits` (artifact count, then per artifact its decoded size
- *     and the running total) before writing any artifact. It then writes the
- *     artifacts in order, checking each one in turn: its path stays within the
- *     artifact root (default `contract.defaultArtifactDirectory` under the
- *     working directory, not itself a symlink) and no path component contains
- *     NUL, or ':' on Windows; its name ends in .png, .jpg or .jpeg in any case;
- *     its bytes start with a PNG or JPEG signature; no component is over 255
- *     bytes; every directory on the way is a directory and not a symlink, and
- *     an existing file is a regular file and not a symlink. Each artifact is
+ *     and the running total), then checks every artifact before creating the
+ *     artifact root or writing anything: its path stays within the root
+ *     (default `contract.defaultArtifactDirectory` under the working
+ *     directory) and no path component contains NUL, or ':' on Windows; its
+ *     name ends in .png, .jpg or .jpeg in any case; its bytes start with a PNG
+ *     or JPEG signature; no component is over 255 bytes. It then writes the
+ *     artifacts in order, checking each one in turn on the filesystem: the
+ *     default root is not a symlink, every directory on the way is a
+ *     directory and not a symlink, and an existing file is a regular file and
+ *     not a symlink. Each artifact is
  *     written to a new file in the target's directory and renamed over the
  *     target, so an existing file is replaced (keeping its permissions) rather
  *     than written through. Filesystem errors become

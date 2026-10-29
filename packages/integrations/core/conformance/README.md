@@ -87,33 +87,32 @@ else:
 A run result must have the envelope's shape (see `src/facade/bundle.ts`);
 otherwise the host fails with `RUN_RESULT_MALFORMED_ERROR` and neither writes
 artifacts nor closes. Types are exact: `1` is not `true` and `true` is not a
-number. Artifact bytes must be padded RFC 4648 base64 (`+/`, no line breaks),
-as `btoa` writes it. The caps in `contract.limits` are checked before any
-artifact is written: first the artifact count, then for each artifact in order
-its decoded size and then the running total. Artifacts are then written in
-order, each one checked as it is reached, so artifacts before a rejected one
-stay written. For each artifact: the path must stay within the root and no
-component may contain NUL, or ':' on Windows (`SCREENSHOT_ARTIFACT_PATH_ERROR`);
-the name must end in `.png`, `.jpg` or `.jpeg` in any case
-(`SCREENSHOT_ARTIFACT_TYPE_ERROR`); the bytes must start with a PNG or JPEG
-signature, either one under any of those extensions
-(`SCREENSHOT_ARTIFACT_CONTENT_ERROR`); no component may be over 255 bytes
-(`SCREENSHOT_ARTIFACT_WRITE_ERROR` with `cause` `ENAMETOOLONG`); no directory on
-the way may be a symlink (`SCREENSHOT_ARTIFACT_SYMLINK_ERROR`) or a file
+number. Artifact bytes must be padded RFC 4648 base64 (`+/`, no line breaks), as
+`btoa` writes it. These checks run on every artifact before the artifact root is
+created or anything is written, so a run they reject writes nothing: first the
+artifact count, then for each artifact in order its decoded size and then the
+running total, then for each artifact in order: the path must stay within the
+root and no component may contain NUL, or ':' on Windows
+(`SCREENSHOT_ARTIFACT_PATH_ERROR`); the name must end in `.png`, `.jpg` or
+`.jpeg` in any case (`SCREENSHOT_ARTIFACT_TYPE_ERROR`); the bytes must start
+with a PNG or JPEG signature, either one under any of those extensions
+(`SCREENSHOT_ARTIFACT_CONTENT_ERROR`); and no component may be over 255 bytes
+(`SCREENSHOT_ARTIFACT_WRITE_ERROR` with `cause` `ENAMETOOLONG`). Artifacts are
+then written in order, each one checked against the filesystem as it is reached,
+so artifacts before one rejected there stay written: no directory on the way may
+be a symlink (`SCREENSHOT_ARTIFACT_SYMLINK_ERROR`) or a file
 (`SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR`); and an existing file must be
 neither a symlink (`SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR`) nor anything but a
-regular file (`SCREENSHOT_ARTIFACT_NOT_FILE_ERROR`). Directories are created
-only once the earlier checks pass. The bytes go to a new file in the target's
-directory that is renamed over the target, so other links to an existing file
-keep their contents and nothing else is left behind. Any other filesystem error
-is `SCREENSHOT_ARTIFACT_WRITE_ERROR` with the error code (never a path) as
-`cause`. A path error
-takes precedence over the code's own error, which takes precedence over the
-value cap. The value cap counts the UTF-8 bytes of the value's compact JSON, with
-non-ASCII characters unescaped (Python: `separators=(",", ":")`,
-`ensure_ascii=False`). An execution error's name and message are redacted as in
-`src/harness/redact.ts` before the name is checked against
-`/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
+regular file (`SCREENSHOT_ARTIFACT_NOT_FILE_ERROR`). The bytes go to a new file
+in the target's directory that is renamed over the target, so other links to an
+existing file keep their contents and nothing else is left behind. Any other
+filesystem error is `SCREENSHOT_ARTIFACT_WRITE_ERROR` with the error code (never
+a path) as `cause`. An artifact error takes precedence over the code's own
+error, which takes precedence over the value cap. The value cap counts the UTF-8
+bytes of the value's compact JSON, with non-ASCII characters unescaped (Python:
+`separators=(",", ":")`, `ensure_ascii=False`). An execution error's name and
+message are redacted as in `src/harness/redact.ts` before the name is checked
+against `/^[A-Za-z][A-Za-z0-9]*Error$/`; any other name becomes `Error`.
 A run's batch input is empty unless the host turned a run option on; then it
 carries exactly those options (`{ "quietWait": true }`). `sent` lists a run's
 `input` only when it is not empty.

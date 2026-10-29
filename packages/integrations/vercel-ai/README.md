@@ -42,9 +42,10 @@ pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-ai-facade sta
 ## Security model
 
 `run(code)` executes model-authored JavaScript in the extension service worker,
-not in the Node host process. The only thing it writes on your machine is
-screenshots saved with `page.screenshot({ path })`: PNG or JPEG files under the
-artifact root (default `./stagehand-artifacts`, set with
-`STAGEHAND_FACADE_ARTIFACT_ROOT`). Browserbase is the recommended isolation
-boundary. The Node host process spawns the facade server and holds only the MCP
-connection; model-authored JavaScript does not execute inside the host process.
+not in the Node host process. The facade host process only writes screenshot
+images saved with `page.screenshot({ path })` under the artifact root (default
+`./stagehand-artifacts`, set with `STAGEHAND_FACADE_ARTIFACT_ROOT`), as files
+that start with a PNG or JPEG signature; a local Chrome still keeps its own
+profile and downloads. Browserbase is the recommended isolation boundary. The
+Node host process spawns the facade server and holds only the MCP connection;
+model-authored JavaScript does not execute inside the host process.

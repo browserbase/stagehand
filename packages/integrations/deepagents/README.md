@@ -51,15 +51,15 @@ call and therefore lose the browser and snapshot IDs.
 
 ## Server configuration
 
-| Variable                         | Default                 | Meaning                                                                                                                                                                                                                               |
-| -------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`              | `local`                 | `local` or `browserbase`                                                                                                                                                                                                              |
-| `STAGEHAND_HEADLESS`             | `false`                 | Headless local Chrome                                                                                                                                                                                                                 |
-| `STAGEHAND_START_URL`            | unset                   | Optional URL opened when the server starts                                                                                                                                                                                            |
-| `STAGEHAND_MODEL`                | unset                   | Optional model used by Stagehand AI methods inside `run`                                                                                                                                                                              |
-| `STAGEHAND_FACADE_ARTIFACT_ROOT` | `./stagehand-artifacts` | Dedicated directory for screenshots saved with a `path` in `run`; only PNG and JPEG files are written there. `STAGEHAND_ARTIFACT_ROOT` is read when it is unset. stagehand-middleware before 0.1.2 defaults to the working directory. |
-| `STAGEHAND_FACADE_QUIET_WAIT`    | `false`                 | Experimental: `page.waitForTimeout(ms)` longer than 400 ms returns once the DOM has loaded and the main document has gone 400 ms without mutations, never later than `ms`; shorter waits sleep in full                                |
-| `BROWSERBASE_API_KEY`            | unset                   | Required for Browserbase                                                                                                                                                                                                              |
+| Variable                         | Default                 | Meaning                                                                                                                                                                                                                                                          |
+| -------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`              | `local`                 | `local` or `browserbase`                                                                                                                                                                                                                                         |
+| `STAGEHAND_HEADLESS`             | `false`                 | Headless local Chrome                                                                                                                                                                                                                                            |
+| `STAGEHAND_START_URL`            | unset                   | Optional URL opened when the server starts                                                                                                                                                                                                                       |
+| `STAGEHAND_MODEL`                | unset                   | Optional model used by Stagehand AI methods inside `run`                                                                                                                                                                                                         |
+| `STAGEHAND_FACADE_ARTIFACT_ROOT` | `./stagehand-artifacts` | Dedicated directory for screenshots saved with a `path` in `run`; only files that start with a PNG or JPEG signature are written there. `STAGEHAND_ARTIFACT_ROOT` is read when it is unset. stagehand-middleware before 0.1.2 defaults to the working directory. |
+| `STAGEHAND_FACADE_QUIET_WAIT`    | `false`                 | Experimental: `page.waitForTimeout(ms)` longer than 400 ms returns once the DOM has loaded and the main document has gone 400 ms without mutations, never later than `ms`; shorter waits sleep in full                                                           |
+| `BROWSERBASE_API_KEY`            | unset                   | Required for Browserbase                                                                                                                                                                                                                                         |
 
 `run` accepts exactly one of JavaScript `code` or snapshot `actions`. JavaScript executes against
 the Playwright-shaped `page`, `context`, and `browser` facade. Snapshot actions use bracketed IDs
@@ -107,9 +107,10 @@ it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
-worker, not in the host process. The only thing it writes on the host is screenshots saved with
-`page.screenshot({ path })`: PNG or JPEG files under the artifact root (default
-`./stagehand-artifacts`, set with `STAGEHAND_FACADE_ARTIFACT_ROOT`). Browserbase is the
-recommended isolation boundary: the privileged execution environment is a disposable cloud browser
-with no access to the host machine. Only `STAGEHAND_*` and `BROWSERBASE_*` environment variables are forwarded to the
-browser session; host secrets such as the deep-agent model key never reach it.
+worker, not in the host process. The facade host process only writes screenshot images saved with
+`page.screenshot({ path })` under the artifact root (default `./stagehand-artifacts`, set with
+`STAGEHAND_FACADE_ARTIFACT_ROOT`), as files that start with a PNG or JPEG signature; a local Chrome
+still keeps its own profile and downloads. Browserbase is the recommended isolation boundary: the
+privileged execution environment is a disposable cloud browser, and run code reaches the host only
+through those screenshot writes. Only `STAGEHAND_*` and `BROWSERBASE_*` environment variables are
+forwarded to the browser session; host secrets such as the deep-agent model key never reach it.
