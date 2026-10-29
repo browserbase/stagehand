@@ -284,12 +284,30 @@ class StagehandBrowser:
         if self._disconnect_task is None:
             self._state = "disconnected"
             self._disconnect_task = asyncio.create_task(
-                _disconnect_after_closing_stagehand(
-                    self._close_stagehand, self._disconnect_callback
-                ),
+                self._disconnect_after_closing_stagehand(self._close_stagehand),
                 name="stagehand-browser-disconnect",
             )
         return asyncio.shield(self._disconnect_task)
+
+    async def _disconnect_after_closing_stagehand(
+        self, close_stagehand: Callable[[], Awaitable[None]] | None
+    ) -> None:
+        try:
+            try:
+                if close_stagehand is not None:
+                    # stagehand.close() waits for in-flight work without a deadline;
+                    # disconnect() stops waiting and lets go anyway, which also ends that work.
+                    await _close_stagehand_within(
+                        close_stagehand, _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS
+                    )
+            finally:
+                await self._disconnect_callback()
+        except BaseException:
+            # Still connected means nothing was let go: keep the handle usable for a retry.
+            if self._connected():
+                self._state = "open"
+                self._disconnect_task = None
+            raise
 
 
 def _claim_browser(browser: object) -> _ClaimedBrowser:
@@ -340,19 +358,6 @@ async def _close_stagehand_within(
         # Only this deadline is expected; a TimeoutError from Stagehand itself is a failure.
         if not deadline.expired():
             raise
-
-
-async def _disconnect_after_closing_stagehand(
-    close_stagehand: Callable[[], Awaitable[None]] | None,
-    disconnect: Callable[[], Awaitable[None]],
-) -> None:
-    try:
-        if close_stagehand is not None:
-            # stagehand.close() waits for in-flight work without a deadline; disconnect()
-            # stops waiting and lets go anyway, which also ends that work.
-            await _close_stagehand_within(close_stagehand, _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS)
-    finally:
-        await disconnect()
 
 
 def _attach_browser_context(
@@ -458,6 +463,10 @@ async def _connect_browser(
             extension_id=extension_id,
             preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
+            # Only a local browser Stagehand launched without keep_alive is shut down when
+            # this client disappears; Browserbase applies its own keep_alive policy.
+            close_browser_on_disconnect=provider == "local" and owns_source,
+            extension_cdp_url=worker_init_metadata.browser_cdp_url,
         )
         if after_connect is not None:
             await after_connect(cdp_client)
@@ -486,6 +495,13 @@ async def _connect_browser(
         raise
 
     connected_client = cdp_client
+
+    async def disconnect() -> None:
+        # Detaching first disarms the extension's watchdog; without that acknowledgement
+        # the socket stays open, since closing it would read as a lost client and could
+        # shut the browser down.
+        await connected_client.detach_client()
+        await connected_client.close()
 
     async def invalidate() -> None:
         try:
@@ -542,7 +558,7 @@ async def _connect_browser(
         invalidate=invalidate,
         # Never closes the browser or releases its session. Browserbase still ends a
         # session without keep_alive once this connection closes.
-        disconnect=connected_client.close,
+        disconnect=disconnect,
         connected=lambda: not connected_client.closed,
         # After an unexpected loss, a Browserbase session can still be released over its
         # API; a local browser is left alone.

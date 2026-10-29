@@ -15,7 +15,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from typing_extensions import override
 from websockets.asyncio.client import connect as WebSocketConnect
-from websockets.exceptions import InvalidStatus
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
@@ -239,6 +239,9 @@ class CDPConnectionClosedError(RuntimeError):
         super().__init__("CDP connection closed")
 
 
+_CLIENT_TARGET_URL = "about:blank#stagehand-client-connection"
+
+
 class CDPClient:
     def __init__(
         self,
@@ -253,6 +256,9 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._client_target_id: str | None = None
+        # Whether the extension shuts the browser down if this client is lost.
+        self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
@@ -267,6 +273,8 @@ class CDPClient:
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
         headers: Mapping[str, str] | None = None,
+        close_browser_on_disconnect: bool | None = None,
+        extension_cdp_url: str | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -338,6 +346,11 @@ class CDPClient:
                 session_id=session_id,
             )
             await client._wait_for_runtime_receiver(session_id)
+            if close_browser_on_disconnect is not None:
+                await client._register_client(
+                    close_browser_on_disconnect,
+                    extension_cdp_url or web_socket_debugger_url,
+                )
             return client
         except BaseException:
             await asyncio.shield(client.close())
@@ -352,6 +365,84 @@ class CDPClient:
         if self._service_worker is None:
             raise RuntimeError("Stagehand service worker is not attached")
         return self._service_worker
+
+    async def _register_client(self, close_browser_on_disconnect: bool, cdp_url: str) -> None:
+        marker = await self.send_command(
+            "Target.createTarget",
+            {"url": _CLIENT_TARGET_URL, "hidden": True, "background": True},
+        )
+        target_id = _required_string(marker, "targetId", "Target.createTarget")
+        # Chrome accepts unknown parameters: a build without hidden targets opens an
+        # ordinary tab that outlives this connection and would never signal its loss.
+        info = await self.send_command("Target.getTargetInfo", {"targetId": target_id})
+        target_info = info.get("targetInfo")
+        if not isinstance(target_info, dict) or target_info.get("type") != "other":
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            raise RuntimeError(
+                "Stagehand requires Chrome 137 or later, which supports hidden targets"
+            )
+        if not await self._client_lifecycle_command({
+            "action": "attach",
+            "targetId": target_id,
+            "cdpUrl": cdp_url,
+            "closeBrowserOnDisconnect": close_browser_on_disconnect,
+        }):
+            # The protocol handshake already rejects older extensions; this one is
+            # inconsistent.
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            raise RuntimeError(
+                "The Stagehand extension in this browser does not support the client "
+                "watchdog; update the extension"
+            )
+        self._client_target_id = target_id
+        self._client_close_browser_on_loss = close_browser_on_disconnect
+
+    async def detach_client(self) -> None:
+        """Acknowledge intentional detach before the socket/hidden target disappears."""
+        if self._client_target_id is None or self._closed:
+            return
+        try:
+            async with asyncio.timeout(10):
+                acknowledged = await self._client_lifecycle_command({
+                    "action": "detach",
+                    "targetId": self._client_target_id,
+                })
+        except CDPConnectionClosedError:
+            # Browserbase ends a keep_alive=False session once the extension closes its own
+            # connection, which closes this one before the acknowledgement arrives: the
+            # detach happened. A failure or timeout with this connection open still raises,
+            # and so does a lost connection when the extension shuts the browser down on
+            # loss: it may not have received the detach.
+            if self._client_close_browser_on_loss:
+                raise
+            acknowledged = True
+        if not acknowledged:
+            raise RuntimeError("The Stagehand extension did not acknowledge the detach")
+        self._client_target_id = None
+
+    async def _client_lifecycle_command(self, params: dict[str, object]) -> bool:
+        """Return False when the extension has no client lifecycle support."""
+        expression = (
+            "(async () => { "
+            'if (typeof globalThis.__stagehandClientLifecycle !== "function") return false; '
+            f"await globalThis.__stagehandClientLifecycle({json.dumps(params)}); "
+            "return true; })()"
+        )
+        result = await self.send_command(
+            "Runtime.evaluate",
+            {"expression": expression, "awaitPromise": True, "returnByValue": True},
+            session_id=self._session_id,
+        )
+        value = result.get("result")
+        if (
+            result.get("exceptionDetails")
+            or not isinstance(value, dict)
+            or not isinstance(value.get("value"), bool)
+        ):
+            raise RuntimeError(
+                f"Stagehand client lifecycle failed: {result.get('exceptionDetails')}"
+            )
+        return bool(value["value"])
 
     async def send(
         self,
@@ -419,7 +510,10 @@ class CDPClient:
             message["sessionId"] = session_id
 
         try:
-            await self._socket.send(json.dumps(message, separators=(",", ":")))
+            try:
+                await self._socket.send(json.dumps(message, separators=(",", ":")))
+            except ConnectionClosed as error:
+                raise CDPConnectionClosedError() from error
             result = await response
         except BaseException:
             if not response.done():

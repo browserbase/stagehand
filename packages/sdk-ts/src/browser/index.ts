@@ -164,13 +164,22 @@ class StagehandBrowserHandle implements StagehandBrowser {
     if (!internals.disconnectPromise) {
       internals.state = "disconnected";
       const closeStagehand = internals.closeStagehand;
-      internals.disconnectPromise = Promise.resolve().then(async () => {
-        try {
-          await closeStagehandWithin(closeStagehand, DISCONNECT_STAGEHAND_TIMEOUT_MS);
-        } finally {
-          await internals.disconnect();
-        }
-      });
+      internals.disconnectPromise = Promise.resolve()
+        .then(async () => {
+          try {
+            await closeStagehandWithin(closeStagehand, DISCONNECT_STAGEHAND_TIMEOUT_MS);
+          } finally {
+            await internals.disconnect();
+          }
+        })
+        .catch((error: unknown) => {
+          // Still connected means nothing was let go: keep the handle usable for a retry.
+          if (internals.connected()) {
+            internals.state = "open";
+            internals.disconnectPromise = undefined;
+          }
+          throw error;
+        });
     }
     return internals.disconnectPromise;
   }

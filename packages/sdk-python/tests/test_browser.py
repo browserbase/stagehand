@@ -55,6 +55,7 @@ class FakeCDPClient:
 
     def __init__(self) -> None:
         self.close_calls = 0
+        self.detach_calls = 0
         self.closed = False
         self.commands: list[tuple[str, dict[str, object]]] = []
         self.web_socket_debugger_url = "ws://browser"
@@ -70,8 +71,12 @@ class FakeCDPClient:
 
     async def close(self) -> None:
         self.close_calls += 1
+        self.closed = True
         if self.close_error is not None:
             raise self.close_error
+
+    async def detach_client(self) -> None:
+        self.detach_calls += 1
 
     async def send_command(
         self,
@@ -2000,6 +2005,60 @@ def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) 
     )
 
     assert "--window-size=1280,800" not in flags
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive", "terminate"),
+    [
+        ("local", "launched", False, True),
+        ("local", "launched", True, False),
+        ("local", "connected", False, False),
+        ("browserbase", "launched", False, False),
+        ("browserbase", "connected", False, False),
+    ],
+)
+async def test_client_loss_policy_and_intentional_disconnect(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+    terminate: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    assert fake_cdp.connect_arguments[-1]["close_browser_on_disconnect"] is terminate
+    cdp = fake_cdp.instances[-1]
+    await asyncio.gather(handle.disconnect(), handle.disconnect())
+    assert cdp.detach_calls == 1
+    assert cdp.close_calls == 1
+    assert source.close_calls == 0
+
+
+async def test_unacknowledged_detach_keeps_the_handle_open(
+    fake_cdp: type[FakeCDPClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connected_handle(source)
+    cdp = fake_cdp.instances[-1]
+
+    async def fail() -> None:
+        raise RuntimeError("detach failed")
+
+    monkeypatch.setattr(cdp, "detach_client", fail)
+    with pytest.raises(RuntimeError, match="detach failed"):
+        await handle.disconnect()
+    assert cdp.close_calls == 0
+    assert handle.closed is False
+
+    monkeypatch.undo()
+    await handle.disconnect()
+    assert cdp.close_calls == 1
 
 
 async def test_launched_local_close_still_terminates_when_browser_close_fails(
