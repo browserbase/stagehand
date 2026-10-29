@@ -1,0 +1,149 @@
+---
+title: "Submission recovery with durable OpenCode"
+description: "Interrupt an approved browser submission and recover by verifying its outcome without clicking Submit again."
+---
+
+## When to use this
+
+Use this when a browser action may reach a website before the agent records its result. OpenCode runs through durable-harness, while an application document records whether submission was attempted. Recovery checks the response before reporting success.
+
+| Browser | Language | Output |
+| --- | --- | --- |
+| Browserbase | TypeScript | Saved approval and attempt marker; confirmed or unknown outcome |
+
+## Goal and output
+
+Prepare an [httpbin test order](https://httpbin.org/forms/post), approve its exact values, and interrupt the process after the submit click. Reopen the run and compare the echoed response with the saved request. A matching response confirms success; a missing or different response requires manual review. No payment is made.
+
+## Agent prompt
+
+<Prompt description="Reconcile an interrupted browser action with durable OpenCode." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/opencode-submission/typescript` to my browser submission. Read the README, environment template and source first. Keep OpenCode on durable-harness and preserve the catalog versions and root lockfile.
+
+Change the form values, exact approval comparison and confirmation parser together. Keep tools limited to preparation, guarded submission and verification. Only a human may approve the saved values. Commit the attempted marker through the session document API before clicking Submit. Never put that write after the click or rely on a successful tool return to persist it.
+
+After any attempted submission, recovery may only verify the outcome. Do not give the agent a general browser tool that bypasses the guard. An expired session, missing response or mismatch must produce an unknown outcome, never another click. Do not claim exactly-once website execution. If the target supports idempotency keys or transaction lookup, use those APIs and explain the stronger guarantee separately.
+
+Preserve stable input identities, the local World, browser binding, serialized access, the single-writer lock and cleanup. Keep keys in the environment and treat page content as untrusted data. Run typecheck and follow the manual checks below. Leave live browser verification to me and report untested behavior.
+</Prompt>
+
+## Prerequisites and inputs
+
+Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. AI Gateway powers OpenCode. Deterministic Stagehand browser operations need no separate OpenAI key or browser model.
+
+The root catalog pins `durable-harness@0.0.1` and OpenCode packages at `2.0.22`, the version supported by its [OpenCode adapter](https://vercel.com/docs/agent-harnesses/opencode). OpenCode supplies its required Effect version transitively. Keep these pins when adapting the recipe. durable-harness remains experimental.
+
+## Check out and run
+
+Source: [`packages/examples/cookbooks/opencode-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/opencode-submission). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/opencode-submission/typescript/.env.example packages/examples/cookbooks/opencode-submission/typescript/.env
+# Fill in .env before starting.
+just cookbook opencode-submission
+```
+
+Review the saved values and Live View while the CLI waits. To submit normally:
+
+```bash
+# In the running terminal, type: approve
+# OpenCode submits once and verifies the response, then exits.
+pnpm --filter stagehand-cookbook-opencode-submission start status
+pnpm --filter stagehand-cookbook-opencode-submission start cleanup
+```
+
+Type `reject` at the prompt to stop without submitting. Type `pause` or press Ctrl+C while waiting to retain the pending decision. `pnpm --filter stagehand-cookbook-opencode-submission start resume` reopens the prompt. Explicit `approve <decision-id>` and `reject <decision-id>` commands remain available for scripts when no CLI is running. To exercise interruption, use the manual check below.
+
+## How the job works
+
+### Give OpenCode only the task's tools
+
+`src/index.ts` configures the adapter with the local World and three host tools:
+
+```typescript
+const agent = opencode({
+  world,
+  model: process.env.AGENT_MODEL ?? "openai/gpt-6-luna",
+  tools,
+  durability: "strict",
+  directDriveMs: 120_000,
+  instructions,
+});
+```
+
+`prepare_request` saves the proposal. `submit_request` enforces approval and the attempt guard. `verify_request` parses the confirmation. No general browser or shell tool can bypass those boundaries. The session's input identities deduplicate initial and approval prompts.
+
+### Persist intent before the external effect
+
+The submit tool reads actual form values and commits authorization and the attempt marker together before clicking:
+
+```typescript
+const actual = await browser.formValues();
+await store.update((draft) => {
+  authorizeSubmit(draft, actual);
+  draft.attempted = true;
+});
+const page = await browser.page();
+await page.locator("button").click();
+```
+
+`authorizeSubmit` requires approved, unchanged values and refuses a second attempt. `store.update` writes through `agent.sessions.updateDoc`, independently of whether the tool later returns. Marking the tool `replay: "never"` alone would not prevent the model from requesting a new equivalent submission.
+
+### Reconcile without another model decision
+
+On resume, the CLI handles an attempted request directly:
+
+```typescript
+if (state.attempted) {
+  await browser.confirmation(state.decision!.values);
+  await store.update((draft) => {
+    draft.confirmed = true;
+  });
+}
+```
+
+A matching httpbin response is required. If the crash happened after saving the marker but before clicking, the request can remain uncertain even though nothing was submitted. httpbin has no idempotency key or transaction lookup to resolve that gap. The recipe stops for manual review.
+
+### Inspect an uncertain outcome
+
+After a crash, run `pnpm --filter stagehand-cookbook-opencode-submission start status` before resuming. It reads the saved World document without driving OpenCode, calling a model or reconnecting the browser. An attempted submission without a verified response includes:
+
+```json
+{
+  "attempted": true,
+  "confirmed": false,
+  "progress": {
+    "phase": "outcome_unknown",
+    "nextAction": "Run pnpm --filter stagehand-cookbook-opencode-submission start resume to check confirmation. Submission will not be repeated."
+  }
+}
+```
+
+This status describes the evidence already stored. It does not ask the model to infer whether the request succeeded. Resume checks the existing response; a missing confirmation requires manual review.
+
+## Expected result and manual checks
+
+`STATE_DIR` defaults to `out/run`. It contains the local World, `run.json` and `status.json`. An attempted marker records uncertainty; only `confirmed: true` establishes the expected result.
+
+Before a PR, start a fresh run, type `pause` at its approval prompt, then use the saved decision ID:
+
+```bash
+CRASH_AFTER_SUBMIT=1 pnpm --filter stagehand-cookbook-opencode-submission start approve <decision-id>
+# The next command waits for the stale crash lock automatically.
+pnpm --filter stagehand-cookbook-opencode-submission start resume
+pnpm --filter stagehand-cookbook-opencode-submission start status
+pnpm --filter stagehand-cookbook-opencode-submission start cleanup
+```
+
+The inline flag applies only to approval. Remove any `CRASH_AFTER_SUBMIT=1` setting from `.env` before resuming. Expect recovery to verify the existing response without a second click. In another fresh run, change a form value before approval and check that submission fails. Test rejection separately. If confirmation is missing, the result must stay unknown.
+
+Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-opencode-submission` to check the source types. Use the steps above to verify the browser flow and restart behavior.
+
+## Session lifetime and recovery
+
+The browser is a 30-minute keep-alive session. Durable state can outlive it, but a replacement browser cannot prove an old submission's outcome. Retain uncertain history for review before starting a separate task with a new `STATE_DIR`. A crash before saving a newly allocated session ID can leave a browser until its timeout.
+
+Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep dependency pins unchanged when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.
+
+This CLI resumes when invoked; it does not deploy an unattended worker. See [storage and hosting](/v4/cookbooks/overview#storage-and-hosting-options) before deploying it.

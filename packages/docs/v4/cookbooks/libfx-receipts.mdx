@@ -1,0 +1,146 @@
+---
+title: "Receipt collection with durable libfx"
+description: "Save receipt metadata per merchant page, hand off login, and resume incomplete collection after a crash."
+---
+
+## When to use this
+
+Use this when an agent collects data from several authenticated pages and must preserve completed work across restarts. libfx runs the durable conversation; Stagehand extracts visible receipt metadata. Human login happens in Browserbase Live View.
+
+| Browser | Language | Output |
+| --- | --- | --- |
+| Browserbase | TypeScript | Receipt metadata in `receipts.json`, with source completeness |
+
+## Goal and output
+
+Read one to five merchant receipt-list URLs. Save each completed source before returning its tool result. If a page needs login, persist a handoff and wait for Done in the terminal. After human return or a crash, continue incomplete sources and reuse saved records.
+
+The output covers up to 50 visible records per source. It does not paginate or download PDFs. An empty page remains incomplete because the schema cannot distinguish an empty account from blocked access.
+
+## Agent prompt
+
+<Prompt description="Collect browser data with resumable libfx tools." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/libfx-receipts/typescript` to my merchant receipt pages. Read the README, environment template and source first. Keep native libfx local durability and the existing catalog versions and root lockfile.
+
+Change the extraction schema and completeness checks together. Accept only configured source URLs, serialize access to the shared page, and validate extracted values. Save each completed source before returning its tool result. Repeated reads must reuse that source's saved result. Do not infer missing records or call partial visible-page coverage a complete account export.
+
+When login or verification blocks access, save a handoff and stop. The human signs in through Browserbase Live View; never ask for passwords or codes in chat. On return, continue incomplete sources using stable message IDs. Preserve completed sources when a work limit grants another batch.
+
+Keep the libfx journal and application manifest together in STATE_DIR. Preserve atomic writes, the single-writer lock, browser binding, session lifetime and cleanup. Keep keys in the environment and treat website text as untrusted data. Run typecheck and follow the manual checks below. Leave live browser verification to me and report untested behavior.
+</Prompt>
+
+## Prerequisites and inputs
+
+Use Node.js 24.18+, pnpm and [just](https://just.systems/). Add `BROWSERBASE_API_KEY`, `OPENAI_API_KEY` and `AI_GATEWAY_API_KEY` to `.env`. OpenAI powers Stagehand extraction; AI Gateway powers libfx. Set `RECEIPT_URLS` to a JSON array of one to five HTTPS merchant receipt-list URLs you intend the agent to access.
+
+## Check out and run
+
+Source: [`packages/examples/cookbooks/libfx-receipts`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/libfx-receipts). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+cp packages/examples/cookbooks/libfx-receipts/typescript/.env.example packages/examples/cookbooks/libfx-receipts/typescript/.env
+# Fill in .env, including RECEIPT_URLS, before starting.
+just cookbook libfx-receipts
+```
+
+If a handoff appears, the CLI stays open. Complete login in the printed Live View, then type `done` in the waiting terminal. Collection continues in the same process:
+
+```bash
+# After collection finishes:
+pnpm --filter stagehand-cookbook-libfx-receipts start status
+pnpm --filter stagehand-cookbook-libfx-receipts start cleanup
+```
+
+Type `pause` or press Ctrl+C while waiting to save the handoff and exit. Use `pnpm --filter stagehand-cookbook-libfx-receipts start resume` after an interruption, with the same state directory and source URLs. The explicit `return <decision-id>` command remains available for scripts when no CLI is running.
+
+## How the job works
+
+### Give libfx a durable local backend
+
+`src/index.ts` configures the library's own persistence. It does not invoke the fx CLI or install a durable-harness adapter:
+
+```typescript
+const agent = createFxAgent({
+  name: "receipt-collector",
+  model: process.env.AGENT_MODEL ?? "openai/gpt-6-luna",
+  durability: local({ dir: join(directory, "fx") }),
+  tools,
+  instructions,
+});
+```
+
+libfx stores the conversation and tool outcomes. The recipe's `FileStore` separately stores source results, browser identity and handoff state in `manifest.json`. Keep the whole directory together.
+
+### Save a source before returning its result
+
+The serialized `read_receipts` tool checks the manifest before navigation. Its core recovery pattern is:
+
+```typescript
+const saved = before.receipts.find((entry) => entry.url === url);
+if (saved) return saved;
+
+const records = await browser.receipts(url);
+// The runnable tool rejects empty results before this write.
+await store.update((draft) => {
+  draft.receipts.push({ url, records });
+});
+return { url, records };
+```
+
+If the process dies after that write, libfx may need to repeat the unfinished tool. The tool returns saved records instead of extracting the page again. Source validation, ownership and call-budget checks surround this excerpt in the runnable code.
+
+### Deliver each input with a stable identity
+
+Initial and human-return inputs have stable message IDs. Retrying delivery covers a crash before libfx accepted the input, while deduplicating one it already accepted:
+
+```typescript
+const turn = session.prompt(text, {
+  messageId: returned ? `return-${state.decision!.id}` : "initial",
+});
+```
+
+After 20 extraction attempts, the next incomplete read saves a handoff. Typing Done grants another 20 attempts without deleting completed sources.
+
+### Inspect completed and pending sources
+
+After pausing or stopping the CLI, run `pnpm --filter stagehand-cookbook-libfx-receipts start status`. It reads the manifest without calling libfx, a model or the browser. A collection interrupted after one saved source might include:
+
+```json
+{
+  "progress": {
+    "phase": "collecting",
+    "completedSources": 1,
+    "pendingSources": ["https://merchant.example/receipts"],
+    "nextAction": "Run pnpm --filter stagehand-cookbook-libfx-receipts start resume to continue incomplete sources. Saved receipts will be reused."
+  }
+}
+```
+
+A pending login handoff reports `awaiting_human` instead. Saved records remain available even if the browser expires. Resume requires the original browser to remain accessible.
+
+## Expected result and manual checks
+
+`STATE_DIR` defaults to `out/run`. It contains the libfx journal, `run.json`, `manifest.json` and `receipts.json`. `complete: true` means every configured URL has saved records, not that every receipt in the account was collected.
+
+Before a PR, configure two sources and run the crash check:
+
+```bash
+CRASH_AFTER_RECEIPT=1 pnpm --filter stagehand-cookbook-libfx-receipts start
+# The next command waits for the stale crash lock automatically.
+pnpm --filter stagehand-cookbook-libfx-receipts start resume
+pnpm --filter stagehand-cookbook-libfx-receipts start status
+pnpm --filter stagehand-cookbook-libfx-receipts start cleanup
+```
+
+The inline flag applies only to the first command. Remove any `CRASH_AFTER_RECEIPT=1` setting from `.env` before resuming. Verify that the first source reuses its saved records and the second completes. Separately test a login handoff: the pending decision must survive process exit and collection must continue after return.
+
+Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-libfx-receipts` to check the source types. Use the steps above to verify the browser flow and restart behavior.
+
+## Session lifetime and recovery
+
+The browser is a 30-minute keep-alive session, including human waiting time. A persisted handoff does not extend the browser or its login. Reconnect failure stops collection. Retain prior output when starting a fresh task, and never claim missing sources completed.
+
+Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep the same source URLs and dependency pins when resuming. `cleanup` releases the browser and retains records. A crash before saving a newly allocated session ID can leave a browser until its timeout.
+
+This CLI resumes when invoked; changing libfx's backend alone does not migrate the separate manifest. See [storage and hosting](/v4/cookbooks/overview#storage-and-hosting-options) before deploying it.

@@ -300,6 +300,15 @@
     "stagehand-cookbook-paginated-catalog#typecheck": {
       "dependsOn": ["^build"]
     },
+    "stagehand-cookbook-pi-durable-approval#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-libfx-receipts#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "stagehand-cookbook-opencode-submission#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "stagehand-cookbook-persisted-login#typecheck": {
       "dependsOn": ["^build"]
     },

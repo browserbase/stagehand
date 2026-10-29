@@ -10,6 +10,16 @@ Browser jobs you can run, adapt, and combine. Each has a [docs page](https://doc
 | [Form approval](approve-form-submission) | TypeScript, Python | Submission or rejection; TypeScript receipt |
 | [Research agent](ai-sdk-research-agent)  | TypeScript         | Report citing approved sources              |
 
+## Durable agents
+
+Independent TypeScript CLI recipes for browser work that waits for a human or resumes after a process exits. Each uses Browserbase and a 30-minute keep-alive browser. Persisted agent state does not extend the browser's lifetime.
+
+| Cookbook                                      | Agent                         | Output                                        |
+| --------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| [Approve an order later](pi-durable-approval) | Native Pi Durable with SQLite | Saved proposal, approval and matching receipt |
+| [Collect receipts](libfx-receipts)            | Native libfx                  | Receipt metadata and completeness manifest    |
+| [Recover a submission](opencode-submission)   | OpenCode on durable-harness   | Confirmed or uncertain submission outcome     |
+
 ## Run
 
 Clone the repository so the TypeScript cookbooks can use the local SDK and root workspace:
@@ -21,7 +31,7 @@ cd stagehand
 
 ### TypeScript
 
-Use Node.js 22.18+ with pnpm and [just](https://just.systems/). Install dependencies once from the repository root:
+Use Node.js 22.18+ for the core recipes, or Node.js 24.18+ for durable agents, with pnpm and [just](https://just.systems/). Install dependencies once from the repository root:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -35,6 +45,14 @@ just cookbook paginated-catalog
 
 Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the local SDK and extension before starting the recipe in its TypeScript directory. Its `.env` and `out/` files live in that directory. TypeScript cookbooks share the root catalog and `pnpm-lock.yaml`.
 
+The durable examples use these model keys:
+
+| Cookbook       | Model keys                                                                    |
+| -------------- | ----------------------------------------------------------------------------- |
+| Pi Durable     | `OPENAI_API_KEY` for the agent                                                |
+| libfx receipts | `AI_GATEWAY_API_KEY` for the agent; `OPENAI_API_KEY` for Stagehand extraction |
+| OpenCode       | `AI_GATEWAY_API_KEY` for the agent                                            |
+
 ### Python
 
 Use Python 3.11+ and uv. Each Python cookbook keeps its own `pyproject.toml` and `uv.lock` and installs a published Python SDK. Copy `.env.example` to `.env`, fill in its keys, then run from the selected cookbook's `python/` directory:
@@ -44,7 +62,7 @@ uv sync --locked
 uv run --locked python main.py
 ```
 
-Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, print a session link, and limit browser lifetime to five minutes. Page and step limits bound work, not cost.
+Cloud jobs require `BROWSERBASE_API_KEY` and the model keys listed in each recipe. They print a session link and limit browser lifetime to five minutes, or 30 minutes for durable agents. Page and step limits bound work, not cost.
 
 Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
 
