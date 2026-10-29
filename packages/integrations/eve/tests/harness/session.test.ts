@@ -12,7 +12,7 @@ import {
   startEveDevServer,
   type EveClientLike,
   type EveEvent,
-} from "../src/index.js";
+} from "../../harness/index.js";
 
 const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
 

@@ -33,18 +33,33 @@
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "default": "./dist/tools/index.mjs"
+    },
+    "./harness": {
+      "types": "./dist-harness/index.d.mts",
+      "import": "./dist-harness/index.mjs"
     }
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "./tools": {
+        "types": "./dist/tools/index.d.ts",
+        "default": "./dist/tools/index.mjs"
+      }
+    },
     "access": "public"
   },
   "scripts": {
     "build": "pnpm run stage:facade && eve extension build",
+    "build:harness": "tsdown",
     "prepack": "pnpm run build",
     "stage:facade": "node scripts/stage-facade.mjs",
     "test": "pnpm run stage:facade && vitest run",
     "test:unit": "pnpm run stage:facade && vitest run",
-    "typecheck": "pnpm run stage:facade && tsc --noEmit"
+    "typecheck": "pnpm run stage:facade && tsc --noEmit && tsc --noEmit -p tsconfig.harness.json"
   },
   "dependencies": {
     "@browserbasehq/sdk": "catalog:",
@@ -52,9 +67,15 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/google": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@types/node": "catalog:",
     "ai": "catalog:eve",
     "eve": "catalog:eve",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

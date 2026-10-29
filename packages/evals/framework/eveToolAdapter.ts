@@ -402,7 +402,7 @@ export async function prepareEveToolAdapter(
     const files = buildEveAgentAppFiles({ instructions: mount.promptInstructions, servers });
     const nodeModulesDir =
       input.nodeModulesDir ??
-      (await import("@browserbasehq/stagehand-integrations-eve-sdk")).resolveEveAppNodeModulesDir();
+      (await import("@browserbasehq/eve/harness")).resolveEveAppNodeModulesDir();
     appRoot = await writeEveAgentApp({
       files,
       nodeModulesDir,

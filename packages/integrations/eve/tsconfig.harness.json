@@ -8,6 +8,6 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["harness/**/*.ts", "tests/harness/**/*.ts"],
+  "exclude": ["dist", "dist-harness", "node_modules"]
 }

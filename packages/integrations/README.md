@@ -15,7 +15,7 @@ else, never restated.
 | `codex/`       | Codex SDK example (config-override MCP mount), the Codex harness adapter used by evals (`--harness codex`), and a `config.toml` template for the codex CLI.                  |
 | `cursor/`      | Cursor SDK example over MCP/stdio, plus the `cursor` harness adapter (session library) used by evals.                                                                        |
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |
-| `eve/`         | Eve example with the tools bound natively via `defineTool` (Eve has no external-process tool mounting).                                                                      |
+| `eve/`         | Published Eve extension `@browserbasehq/eve` (native `defineTool` tools; Eve has no external-process tool mounting) plus the private evals harness driver (`harness/`).      |
 | `fx/`          | fx configuration templates and skill (fx consumes the facade via its user-global MCP config), plus the fx harness adapter used by evals.                                     |
 | `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                      |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |

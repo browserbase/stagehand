@@ -50,14 +50,20 @@
       "outputs": ["dist/**"]
     },
     "@browserbasehq/eve#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@browserbasehq/eve#build:harness"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
         "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
-        "!dist/**"
+        "!dist/**",
+        "!dist-harness/**"
       ],
       "outputs": ["dist/**"]
+    },
+    "@browserbasehq/eve#build:harness": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!dist-harness/**"],
+      "outputs": ["dist-harness/**"]
     },
     "@browserbasehq/stagehand-integrations-claude-code#build": {
       "dependsOn": ["^build"],
@@ -75,11 +81,6 @@
       "outputs": ["dist/**"]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
-      "outputs": ["dist/**"]
-    },
-    "@browserbasehq/stagehand-integrations-eve-sdk#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -216,16 +217,6 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-integrations-eve-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-eve-sdk#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/**",
-        "src/**",
-        "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
-    },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-deepagents-sdk#build"],
       "inputs": [
@@ -270,7 +261,9 @@
         "$TURBO_DEFAULT$",
         "tests/**",
         "extension/**",
+        "harness/**",
         "!dist/**",
+        "!dist-harness/**",
         "!.turbo/**",
         "!node_modules/**",
         "!extension/lib/core/**",
@@ -304,9 +297,6 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
-      "dependsOn": ["^build"]
-    },
-    "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#typecheck": {

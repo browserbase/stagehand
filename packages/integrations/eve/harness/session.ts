@@ -368,7 +368,7 @@ export function extractEveTokenUsage(events: EveEvent[]): EveTokenUsage {
     usage.cacheReadTokens += toFiniteNumber(stepUsage?.cacheReadTokens);
     usage.cacheWriteTokens += toFiniteNumber(stepUsage?.cacheWriteTokens);
     if (isFiniteNumeric(stepUsage?.costUsd)) {
-      costUsd += Number(stepUsage.costUsd);
+      costUsd += Number(stepUsage?.costUsd);
       hasCostUsd = true;
     }
   }
