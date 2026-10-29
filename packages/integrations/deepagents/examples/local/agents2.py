@@ -45,9 +45,12 @@ Do not submit the form. Return a summary of the fields you successfully filled."
     browser = await local_browser.launch(headless=False)
     try:
         stagehand = await Stagehand.create(browser=browser)
+        browser_middleware = StagehandMiddleware(stagehand=stagehand)
         agent = create_deep_agent(
             model=model,
-            middleware=[StagehandMiddleware(stagehand=stagehand)],
+            # Deep Agents inherits explicit tools into its default subagent.
+            tools=browser_middleware.tools,
+            middleware=[browser_middleware],
             response_format=response_format,
         )
         result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})

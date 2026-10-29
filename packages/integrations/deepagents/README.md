@@ -45,7 +45,11 @@ For headless local Chrome, set `headless=True` in `local_browser.launch`.
 
 - Install `langchain-stagehand>=0.0.1,<0.1` and import `StagehandMiddleware` from `langchain_stagehand`.
 - Create a browser and Stagehand client using the SDK, then replace MCP tool loading with
-  `middleware=[StagehandMiddleware(stagehand=stagehand)]`.
+  `browser_middleware = StagehandMiddleware(stagehand=stagehand)`, then pass both
+  `tools=browser_middleware.tools` and `middleware=[browser_middleware]` to `create_deep_agent`.
+  Deep Agents inherits explicit tools into its default subagent, but not `StagehandMiddleware`; using
+  both keeps browser access available for delegated tasks. LangChain deduplicates tools by name.
+  The parent and subagent share this browser; use separate clients for independent browsing sessions.
 - The adapter includes browser guidance in tool descriptions and leaves the system prompt untouched.
   The examples no longer inject `facade_instructions()`; application-specific system prompts can
   still be passed to `create_deep_agent`.
@@ -138,3 +142,11 @@ not in the Python host process. Use disposable Browserbase sessions for untruste
 and avoid sharing a session across unrelated users. The native middleware runs in the agent's
 Python process; it does not provide the old MCP subprocess environment separation. Keep credentials
 in application configuration rather than model-visible tool arguments.
+
+## Test the local examples
+
+Run the delegation regression without Chrome or provider credentials:
+
+```bash
+uv run --project examples/local --locked python -m unittest discover -s examples/local/tests -v
+```

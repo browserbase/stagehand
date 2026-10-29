@@ -33,9 +33,11 @@ async def main():
     browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
     try:
         stagehand = await Stagehand.create(browser=browser)
+        browser_middleware = StagehandMiddleware(stagehand=stagehand)
         agent = create_deep_agent(
             model="openai:gpt-5.6-luna",
-            middleware=[StagehandMiddleware(stagehand=stagehand)],
+            tools=browser_middleware.tools,
+            middleware=[browser_middleware],
         )
         result = await agent.ainvoke({
             "messages": [{"role": "user", "content": "Open example.com and summarize the page."}]
@@ -51,6 +53,12 @@ asyncio.run(main())
 Use `ainvoke` or `astream`. Your application owns the browser and client; the `finally` block closes
 both even when client creation or agent execution fails. Reuse the same client across agent calls
 to preserve browsing state. The middleware leaves your system prompt untouched.
+
+Pass the same instance's tools through `tools=` as well as registering its middleware. Deep Agents
+inherits explicit tools into its default `general-purpose` subagent, but does not inherit
+`StagehandMiddleware`. This keeps browser tools available when the agent delegates a task; LangChain
+deduplicates them by name for the main agent. These tools share one browser and facade across the
+parent and its subagent, so independent browsing sessions need separate clients.
 
 <Warning>
 Give unrelated conversations and concurrent agents separate clients/browsers. The middleware does
@@ -98,7 +106,9 @@ edit `model`, `instruction`, and `response_format` in the script to customize th
 If you used the previous local MCP example:
 
 - Replace `load_mcp_tools` and `tools=...` with a configured Stagehand client and
-  `middleware=[StagehandMiddleware(stagehand=stagehand)]`. Close the browser in `finally`.
+  `browser_middleware = StagehandMiddleware(stagehand=stagehand)`. Pass
+  `tools=browser_middleware.tools` and `middleware=[browser_middleware]` so delegated tasks retain
+  browser access. Close the browser in `finally`.
 - The adapter includes browser guidance in tool descriptions. The examples no longer inject the
   facade instructions into the system prompt; you can still supply your own application prompt.
 - Replace MCP-server environment settings such as `STAGEHAND_BROWSER` and `STAGEHAND_HEADLESS` with
