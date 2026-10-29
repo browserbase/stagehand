@@ -10,4 +10,3 @@ dist
 extension/lib/core
 .DS_Store
 *.tsbuildinfo
-dist-harness/

@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 
-vi.mock("@browserbasehq/eve/harness", () => {
+vi.mock("@browserbasehq/stagehand-integrations-eve", () => {
   throw new Error("the eve harness driver must not load while importing the harness registry");
 });
 

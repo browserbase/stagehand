@@ -143,6 +143,22 @@ describe("buildHarnessMatrix", () => {
     ]);
   });
 
+  it("reports an installed but unbuilt eve harness package with the build command", async () => {
+    const harnessPackage = "@browserbasehq/stagehand-integrations-eve";
+    const matrix = await buildHarnessMatrix(
+      options({
+        env: { OPENAI_API_KEY: "sk" },
+        resolvePackage: (specifier) => specifier !== `${harnessPackage}/dist/index.mjs`,
+        requested: ["eve"],
+      }),
+    );
+    expect(matrix.harnesses.find((row) => row.harness === "eve")?.binary).toMatchObject({
+      status: "fail",
+      label: "harness not built",
+      fix: `pnpm exec turbo run build --filter=${harnessPackage}`,
+    });
+  });
+
   it("does not let unrequested harnesses or a quiet environment move the verdict", async () => {
     const matrix = await buildHarnessMatrix(options({ env: { OPENAI_API_KEY: "sk" } }));
     expect(matrix.harnesses.find((row) => row.harness === "claude_code")?.key.status).toBe("fail");
