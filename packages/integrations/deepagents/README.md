@@ -2,6 +2,8 @@
 
 The local examples use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase)
 to expose Stagehand's `run`, `snapshot`, and `screenshot` tools to Deep Agents.
+See LangChain's [browser-use guide](https://docs.langchain.com/oss/python/deepagents/browser-use)
+for browser choices and session scope.
 
 ## Run locally
 
@@ -35,7 +37,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 The examples pass `tools=browser_middleware.tools` so Deep Agents' default subagent also has
 browser access. Configure the client through `Stagehand.create(...)`; see the
-[adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme) for usage.
+[Stagehand integration guide](https://docs.langchain.com/oss/python/integrations/tools/stagehand) for usage.
 
 ## MCP server configuration
 
@@ -63,7 +65,10 @@ the same facade contract the TypeScript facade uses.
 
 ## Managed Deep Agents
 
-The managed example lives in `examples/managed`. Its authored LangChain tools wrap
+For platform-managed sessions, use LangChain's [built-in browser support](https://docs.langchain.com/langsmith/python/managed-deep-agents-browser-use#browser-tools)
+with `define_browser` and `browser_*` tools, including human handoff.
+
+Our custom example in `examples/managed` owns its Browserbase sessions. Its LangChain tools wrap
 `stagehand-middleware`'s facade tools over the Python Stagehand SDK and expose the same `run`,
 `snapshot`, and `screenshot` contract; `instructions.md` is the contract's agent instructions. The managed
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
