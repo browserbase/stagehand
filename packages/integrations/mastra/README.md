@@ -1,12 +1,14 @@
 # Mastra + Stagehand facade over MCP/stdio
 
 This example connects Mastra to the Stagehand facade MCP server over stdio. It
-exposes the facade's `run`, `snapshot`, and `screenshot` tools to a Mastra agent,
-using agent instructions imported from the integrations package.
+exposes the facade's `run`, `snapshot`, and `screenshot` tools to a Mastra agent
+under those exact names (`toolNames: "bare"`), using agent instructions imported
+from the integrations package.
 
 `src/facade.ts` is the mount (the facade stdio server as a Mastra MCP server
 definition); `src/agent.ts` runs it through `runMastraSession`, the same session
-adapter evals uses for `--harness mastra` (exported from `src/index.ts`).
+adapter evals uses for `--harness mastra` (exported from `src/index.ts`). Evals
+keeps the adapter's default server-namespaced names (`stagehand_run`, ...).
 
 This route wraps the facade as an MCP server over stdio, so any MCP-capable
 framework (here, Mastra) can consume the identical tool contract without
@@ -25,14 +27,14 @@ pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-mastra
 
 Configure the environment as needed:
 
-| Variable                  | Purpose                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`       | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
-| `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                             |
-| `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                 |
-| `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                             |
-| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna` (bare ids use OpenAI, or pass `provider/model`).  |
-| `OPENAI_API_KEY`          | Used by the Mastra agent model in the host process. It is not forwarded to the facade server.    |
+| Variable                  | Purpose                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`       | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                        |
+| `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                                                                                    |
+| `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                                                                        |
+| `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                                                                                    |
+| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna` (bare ids use OpenAI, or pass `provider/model`).                                                         |
+| `OPENAI_API_KEY`          | Used by the default agent model in the host process; other providers need their own key (e.g. `ANTHROPIC_API_KEY`). Not forwarded to the facade server. |
 
 ## Run
 

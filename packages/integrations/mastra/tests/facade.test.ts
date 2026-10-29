@@ -3,6 +3,40 @@ import { MCPClient } from "@mastra/mcp";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { facadeMcpServer } from "../src/facade.js";
+import { loadMastraSdk, runMastraSession, type MastraSdk } from "../src/index.js";
+
+const silentLogger = { log: () => {}, warn: () => {}, error: () => {} };
+
+/** Real Mastra MCP client, fake agent that records the tools it was given and finishes at once. */
+async function toolsSeenByAgent(toolNames?: "bare" | "namespaced"): Promise<string[]> {
+  const real = await loadMastraSdk();
+  let tools: Record<string, unknown> | undefined;
+  const sdk: MastraSdk = {
+    ...real,
+    createAgent: (config) => {
+      tools = config.tools as Record<string, unknown>;
+      return {
+        stream: async () => ({
+          fullStream: (async function* () {
+            yield { type: "finish", payload: { stepResult: { reason: "stop" } } };
+          })(),
+        }),
+      };
+    },
+  };
+  const result = await runMastraSession({
+    prompt: "noop",
+    model: "gpt-5.4-mini",
+    logger: silentLogger,
+    sdk,
+    session: {
+      mcpServers: { stagehand: facadeMcpServer() },
+      ...(toolNames && { toolNames }),
+    },
+  });
+  expect(result.status).toBe("completed");
+  return Object.keys(tools ?? {}).sort();
+}
 
 describe("Stagehand facade MCP server for Mastra", () => {
   let client: MCPClient | undefined;
@@ -38,6 +72,17 @@ describe("Stagehand facade MCP server for Mastra", () => {
     for (const tool of FACADE_TOOLS) {
       expect(tools[tool.name]?.description).toBe(tool.description);
     }
+  });
+
+  // The example's path: runMastraSession over the real stdio server. The model
+  // must see the bare names FACADE_AGENT_INSTRUCTIONS refers to.
+  it("hands the example agent the facade's bare tool names", async () => {
+    process.env.STAGEHAND_BROWSER = "invalid";
+    const expectedNames = FACADE_TOOLS.map((tool) => tool.name).sort();
+    expect(await toolsSeenByAgent("bare")).toEqual(expectedNames);
+    expect(await toolsSeenByAgent()).toEqual(
+      expectedNames.map((name) => `stagehand_${name}`).sort(),
+    );
   });
 
   it("launches the core stdio server with only allowlisted host vars", () => {

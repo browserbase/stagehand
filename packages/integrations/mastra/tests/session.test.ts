@@ -104,6 +104,101 @@ describe("Mastra SDK session", () => {
     expect(servers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
   });
 
+  describe("MCP tool naming and client id", () => {
+    function namingSdk(record: {
+      ids: (string | undefined)[];
+      tools: (Record<string, unknown> | undefined)[];
+      toolsets?: Record<string, Record<string, unknown>>;
+    }): MastraSdk {
+      return {
+        createAgent: (config) => {
+          record.tools.push(config.tools as Record<string, unknown>);
+          return {
+            stream: async () => ({
+              fullStream: streamEvents([
+                { type: "finish", payload: { stepResult: { reason: "stop" } } },
+              ]),
+            }),
+          };
+        },
+        createMcpClient: (options) => {
+          record.ids.push(options.id);
+          return {
+            listToolsWithErrors: async () => ({
+              tools: { stagehand_run: { id: "run" } },
+              errors: {},
+            }),
+            listToolsetsWithErrors: async () => ({
+              toolsets: record.toolsets ?? { stagehand: { run: { id: "run" } } },
+              errors: {},
+            }),
+            disconnect: async () => {},
+          };
+        },
+        createTool: (options) => options,
+      };
+    }
+
+    const servers = { stagehand: { command: "node" } };
+
+    it("defaults to namespaced tools and the evals client id", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: { mcpServers: servers },
+      });
+      expect(result.status).toBe("completed");
+      expect(Object.keys(record.tools[0] ?? {})).toEqual(["stagehand_run"]);
+      expect(record.ids[0]).toMatch(/^stagehand-evals-mastra-[0-9a-f-]{36}$/);
+    });
+
+    it("uses the servers' own tool names and a custom client id prefix when asked", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: { mcpServers: servers, toolNames: "bare", mcpClientIdPrefix: "example" },
+      });
+      expect(result.status).toBe("completed");
+      expect(Object.keys(record.tools[0] ?? {})).toEqual(["run"]);
+      expect(record.ids[0]).toMatch(/^example-[0-9a-f-]{36}$/);
+    });
+
+    it("fails without creating an agent when bare names collide across servers", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+        toolsets: { a: { run: { id: "a" } }, b: { run: { id: "b" } } },
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: {
+          mcpServers: { a: { command: "node" }, b: { command: "node" } },
+          toolNames: "bare",
+        },
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(record.tools).toHaveLength(0);
+      expect(String((result.iterationError as Error).message)).toContain(
+        'MCP tool "run" is exposed by both "a" and "b"',
+      );
+    });
+  });
+
   it("collects final text after the last tool call and finish usage", async () => {
     const result = await runMastraSession({
       prompt: "task",

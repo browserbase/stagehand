@@ -49,6 +49,11 @@ export type MastraMcpClientLike = {
     tools: Record<string, unknown>;
     errors: Record<string, string>;
   }>;
+  /** Per-server toolsets with the servers' own tool names; required for `toolNames: "bare"`. */
+  listToolsetsWithErrors?: () => Promise<{
+    toolsets: Record<string, Record<string, unknown>>;
+    errors: Record<string, string>;
+  }>;
   disconnect: () => Promise<void>;
 };
 
@@ -79,6 +84,14 @@ export type MastraSessionConfig = {
   providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
+  /**
+   * How MCP tools are named for the model. "namespaced" (default) prefixes each
+   * tool with its server name (`stagehand_run`); "bare" keeps the server's own
+   * names (`run`) and fails discovery if two servers expose the same name.
+   */
+  toolNames?: "namespaced" | "bare";
+  /** Prefix for the MCP client id; a random UUID is appended. Defaults to "stagehand-evals-mastra". */
+  mcpClientIdPrefix?: string;
 };
 
 export type MastraTokenUsage = {
@@ -147,12 +160,14 @@ export function normalizeMastraModel(model: string): string {
 
 /**
  * Route first-party models through their native @ai-sdk provider (using the 1p
- * API keys in the environment) instead of Mastra's default Vercel AI Gateway.
- * A bare `provider/model` string handed to `createAgent` resolves via the
- * gateway, which added a failure surface (unparseable error responses ->
- * sdk_error) and costs more than the native APIs we already hold keys for.
- * Open models with no native provider (zai/glm, meta/muse, alibaba/qwen, ...)
- * keep the gateway string. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
+ * API keys in the environment) instead of Mastra's model router. A
+ * `provider/model` string handed to `createAgent` goes through the router,
+ * which resolves it via its models.dev provider registry (provider-direct,
+ * using that provider's API key env var) and wraps errors in its own layer,
+ * which added a failure surface (unparseable error responses -> sdk_error).
+ * Models with no native provider here (zai/glm, meta/muse, alibaba/qwen, ...)
+ * keep the router string; `vercel/...` ids reach the Vercel AI Gateway through
+ * the router. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
  */
 export function resolveMastraModel(
   model: string,
@@ -191,7 +206,7 @@ export function resolveMastraModel(
         : normalized;
     }
     default:
-      return normalized; // open models -> Vercel AI Gateway
+      return normalized; // Mastra model router (models.dev provider-direct)
   }
 }
 
@@ -235,7 +250,7 @@ export async function runMastraSession(input: {
         ]),
       );
       client = sdk.createMcpClient({
-        id: `stagehand-evals-mastra-${randomUUID()}`,
+        id: `${input.session.mcpClientIdPrefix ?? "stagehand-evals-mastra"}-${randomUUID()}`,
         servers,
         ...(positiveIntegerOrUndefined(input.session.mcpTimeoutMs) && {
           timeout: positiveIntegerOrUndefined(input.session.mcpTimeoutMs),
@@ -243,7 +258,12 @@ export async function runMastraSession(input: {
       });
       let discovery: { tools: Record<string, unknown>; errors: Record<string, string> } | undefined;
       try {
-        discovery = await raceAbort(client.listToolsWithErrors(), controller.signal);
+        discovery = await raceAbort(
+          input.session.toolNames === "bare"
+            ? discoverBareMcpTools(client)
+            : client.listToolsWithErrors(),
+          controller.signal,
+        );
       } catch (error) {
         if (!controller.signal.aborted) throw error;
         stopReason = sanitizeErrorMessage(stringifyError(controller.signal.reason) || "aborted");
@@ -375,6 +395,33 @@ export async function runMastraSession(input: {
     tokenUsage: tokenUsage.reported ? tokenUsage : summedStepUsage,
     ...(iterationError !== undefined && { iterationError }),
   };
+}
+
+/** Flatten per-server toolsets under the servers' own tool names, rejecting collisions. */
+async function discoverBareMcpTools(
+  client: MastraMcpClientLike,
+): Promise<{ tools: Record<string, unknown>; errors: Record<string, string> }> {
+  if (!client.listToolsetsWithErrors) {
+    throw new HarnessAdapterError(
+      'toolNames "bare" requires an MCP client with listToolsetsWithErrors()',
+    );
+  }
+  const { toolsets, errors } = await client.listToolsetsWithErrors();
+  const tools: Record<string, unknown> = {};
+  const owners = new Map<string, string>();
+  for (const [server, toolset] of Object.entries(toolsets)) {
+    for (const [name, tool] of Object.entries(toolset)) {
+      const owner = owners.get(name);
+      if (owner !== undefined) {
+        throw new HarnessAdapterError(
+          `MCP tool "${name}" is exposed by both "${owner}" and "${server}"; bare tool names must be unique (use toolNames "namespaced")`,
+        );
+      }
+      owners.set(name, server);
+      tools[name] = tool;
+    }
+  }
+  return { tools, errors };
 }
 
 export function resolveMastraStatus(args: {

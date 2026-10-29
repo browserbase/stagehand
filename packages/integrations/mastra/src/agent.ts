@@ -26,16 +26,22 @@ async function main() {
       instructions: FACADE_AGENT_INSTRUCTIONS,
       maxSteps: 20,
       mcpServers: { stagehand: facadeMcpServer() },
+      // Keep the facade's own tool names (run/snapshot/screenshot), which the instructions reference.
+      toolNames: "bare",
+      mcpClientIdPrefix: "stagehand-facade-mastra-example",
     },
   });
 
-  // oxlint-disable-next-line no-console -- CLI example prints the agent result.
-  if (result.finalText) console.log(result.finalText);
-  if (result.status !== "completed") {
-    throw new Error(
-      `Mastra session ended with ${result.status}: ${result.stopReason ?? "unknown"}`,
-    );
+  // Running out of steps still returns the agent's text, as agent.generate() does.
+  if (result.status === "completed" || result.status === "max_turns") {
+    // oxlint-disable-next-line no-console -- CLI example prints the agent result.
+    console.log(result.finalText);
+    return;
   }
+  const detail =
+    result.stopReason ??
+    (result.iterationError instanceof Error ? result.iterationError.message : undefined);
+  throw new Error(`Mastra session ended with ${result.status}: ${detail ?? "unknown"}`);
 }
 
 main().catch((error: unknown) => {
