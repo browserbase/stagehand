@@ -1,19 +1,19 @@
 # Cursor SDK + Stagehand facade over MCP/stdio
 
-A runnable example using the shared `@browserbasehq/stagehand-integrations-cursor-sdk`
-session library, built on `@cursor/sdk`, with the Stagehand facade
+A runnable example built on this package's Cursor session library (`src/agent-sdk.ts`, over
+`@cursor/sdk`), with the Stagehand facade
 (`run` / `snapshot` / `screenshot`) mounted as the local agent's only MCP server. One Cursor
 agent and one facade process stay alive for the full task, so browser state and snapshot IDs
 survive across tool calls.
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, install dependencies and build the shared
-Cursor SDK package and its dependencies:
+Use Node.js 24 or later. From the repository root, install dependencies and build this
+package and its dependencies:
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-cursor-sdk
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-cursor
 ```
 
 Export a Cursor user or service-account API key. Browserbase is the recommended browser backend
@@ -86,3 +86,26 @@ agent -p --approve-mcps "your instruction"
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
 worker, not in the Cursor agent process. Browserbase is the recommended isolation boundary: the
 privileged execution environment is a disposable cloud browser.
+
+## Evals harness adapter
+
+The same package is the `cursor` evaluation harness adapter. Its library entry (`src/index.ts`,
+built to `dist/` by `tsdown`) is what `packages/evals` imports; the example imports it through the
+package's own name.
+
+The harness uses `@cursor/sdk` with the runner's supplied MCP mount. It does not launch the Cursor
+CLI or read its global MCP configuration. The SDK receives only MCP tools and disables inherited
+setting sources.
+
+Each new run records `harnessImplementation` with the adapter name (`sdk`), adapter version and
+installed SDK version. Older `cursor` and `cursor_sdk` trajectories remain readable; missing
+implementation metadata is not inferred to mean SDK execution. Historical CLI token usage remains
+unreported.
+
+Evaluation policy is prefixed to the task once. Cursor SDK's `systemPrompt` option replaces its
+complete stock prompt and requires server entitlement, so the harness preserves the default system
+prompt. Claude/Gemini native harnesses have their own system channels.
+
+The session owns cancellation and disposal, including handles that arrive after an abort.
+`events.ts` decodes both historical CLI envelopes and normalized SDK events without retaining a CLI
+execution path.
