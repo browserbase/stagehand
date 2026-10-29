@@ -25,6 +25,7 @@ import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 import type { ChromeTabTargetController } from "./chromeTabs.js";
+import { CLIENT_TARGET_URL } from "../clientLifecycle.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -58,6 +59,7 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  if (info.url === CLIENT_TARGET_URL) return true;
   // Top-level pages should always be tracked — the initial URL may be a
   // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
   // web content, and the target identity stays the same.
@@ -67,7 +69,7 @@ function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
-  return info.type === "page" && ti.subtype !== "iframe";
+  return info.type === "page" && ti.subtype !== "iframe" && info.url !== CLIENT_TARGET_URL;
 }
 
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
