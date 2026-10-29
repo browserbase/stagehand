@@ -1,17 +1,11 @@
 # Stagehand Deep Agents integration
 
-The local examples use the published [`langchain-stagehand`](https://pypi.org/project/langchain-stagehand/)
-package maintained in [LangChain's integration repository](https://github.com/langchain-ai/langchain-browserbase).
-Its `StagehandMiddleware` exposes `run`, `snapshot`, and `screenshot`, includes browser guidance in tool descriptions,
-and returns screenshots as model-visible images. Browserbase maintains the underlying `stagehand`
-SDK and `stagehand-middleware` facade; the LangChain adapter lives upstream.
-
-This directory also retains the stdio MCP server, evaluation runner, and Managed Deep Agents example.
-These are separate consumers of the facade, not copies of the native middleware.
+The local examples use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase),
+the LangChain-maintained adapter for Stagehand's `run`, `snapshot`, and `screenshot` tools.
 
 ## Run the examples
 
-Use Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and Chrome for the default local browser:
+Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and Chrome:
 
 ```bash
 cd packages/integrations/deepagents
@@ -20,66 +14,31 @@ uv sync --project examples/local --locked
 uv run --project examples/local --locked python examples/local/agent.py
 ```
 
-Edit `model`, `instruction`, and `response_format` in the script. `agent.py` returns a Pydantic sports
-summary; set `response_format = None` for a plain text response. `agents2.py` fills a form with mock
-data without submitting it:
+Edit `model`, `instruction`, and `response_format` in the script. Run `agents2.py` for form filling
+with mock data without submission. Both examples use visible local Chrome; set `headless=True`
+in `local_browser.launch` for headless mode.
 
-```bash
-uv run --project examples/local --locked python examples/local/agents2.py
-```
-
-Both scripts open visible local Chrome with `local_browser.launch(headless=False)`, create a
-Stagehand client, and pass it to `StagehandMiddleware(stagehand=stagehand)`. A `finally` block
-closes the browser (and its attached Stagehand client), including if setup or invocation fails.
-
-For Browserbase, add `import os` and `from stagehand import browserbase`, set `BROWSERBASE_API_KEY`, and
-replace the launch line with:
+For Browserbase, add `import os` and `from stagehand import browserbase`, set `BROWSERBASE_API_KEY`,
+and replace the launch line with:
 
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 ```
 
-For headless local Chrome, set `headless=True` in `local_browser.launch`.
+The examples pass `tools=browser_middleware.tools` alongside `middleware=[browser_middleware]`
+so Deep Agents' default subagent inherits the browser tools. Both share the same browser.
+Configure the SDK directly; the `STAGEHAND_*` server settings below do not apply to these examples.
+See the [adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme) for options.
 
-## Migrating from the local MCP example
+## MCP server
 
-- Install `langchain-stagehand>=0.0.1,<0.1` and import `StagehandMiddleware` from `langchain_stagehand`.
-- Create a browser and Stagehand client using the SDK, then replace MCP tool loading with
-  `browser_middleware = StagehandMiddleware(stagehand=stagehand)`, then pass both
-  `tools=browser_middleware.tools` and `middleware=[browser_middleware]` to `create_deep_agent`.
-  Deep Agents inherits explicit tools into its default subagent, but not `StagehandMiddleware`; using
-  both keeps browser access available for delegated tasks. LangChain deduplicates tools by name.
-  The parent and subagent share this browser; use separate clients for independent browsing sessions.
-- The adapter includes browser guidance in tool descriptions and leaves the system prompt untouched.
-  The examples no longer inject `facade_instructions()`; application-specific system prompts can
-  still be passed to `create_deep_agent`.
-- Use `ainvoke` or `astream` and close the browser in `finally`. The client persists across calls
-  until you close it. Give unrelated conversations separate clients/browsers; one middleware
-  instance does not provide per-thread isolation or automatic reconnection.
-- Configure the SDK explicitly. `STAGEHAND_BROWSER`, `STAGEHAND_HEADLESS`, and `STAGEHAND_START_URL`
-  were MCP-server settings and are not read by these examples. Select the browser factory, pass
-  launch options, and navigate through the SDK or agent task. Pass optional AI settings through
-  `Stagehand.create(...)`; see the [upstream API examples](https://github.com/langchain-ai/langchain-browserbase#readme).
-- The released adapter does not expose the server's `STAGEHAND_ARTIFACT_ROOT` or
-  `STAGEHAND_FACADE_QUIET_WAIT` settings. Screenshots saved by run code use the current working
-  directory, not a Deep Agents backend.
-- No MCP subprocess or separate server environment is needed for these local examples. Their
-  lockfile resolves the agent and Stagehand dependencies together.
-
-The existing `stagehand-deepagents` package is the MCP server, not an alias for `langchain-stagehand`.
-The managed example has its own per-thread lifecycle and is not migrated by changing this import.
-
-## Retained MCP server
-
-For MCP clients and the existing evaluation runner, the stdio server remains available:
+The MCP server and evaluation runner remain available. From the repository root:
 
 ```bash
 uv run --project packages/integrations/deepagents --locked stagehand-deepagents-mcp
 ```
 
-Run this from the repository root, or configure your MCP client to launch that command. Keep one
-persistent MCP client session: starting a new server process for each call loses browser state and
-snapshot IDs. The settings below apply to this server, not to the native middleware.
+Keep one persistent MCP client session to preserve browser state and snapshot IDs.
 
 ## Server configuration
 
@@ -101,15 +60,9 @@ the same facade contract the TypeScript facade uses.
 
 ## Managed Deep Agents
 
-The managed example lives in `examples/managed`. Its authored LangChain tools wrap
-`stagehand-middleware`'s facade tools over the Python Stagehand SDK and expose the same `run`,
-`snapshot`, and `screenshot` contract; `instructions.md` is the contract's agent instructions. The managed
-thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
-exposed to the model.
-
-This managed project retains its existing lockfile and `websockets==15.0.1` override; its dependency
-and lifecycle migration is separate from the local examples. Browser continuity is guaranteed while the managed
-worker remains warm; durable reconnection after worker replacement is future work.
+`examples/managed` uses thread-scoped Browserbase tools over `stagehand-middleware`.
+Browser state persists while the worker is warm; reconnection after worker replacement is not
+supported. This project has its own dependencies and retains its `websockets==15.0.1` override.
 
 ### Develop and deploy the managed agent
 
@@ -137,16 +90,6 @@ it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension
 
 ## Security model
 
-`run` executes model-authored JavaScript inside the Stagehand browser extension's service worker,
-not in the Python host process. Use disposable Browserbase sessions for untrusted browsing tasks
-and avoid sharing a session across unrelated users. The native middleware runs in the agent's
-Python process; it does not provide the old MCP subprocess environment separation. Keep credentials
-in application configuration rather than model-visible tool arguments.
-
-## Test the local examples
-
-Run the delegation regression without Chrome or provider credentials:
-
-```bash
-uv run --project examples/local --locked python -m unittest discover -s examples/local/tests -v
-```
+`run` executes model-authored JavaScript in the browser extension's service worker. Use disposable
+Browserbase sessions for untrusted tasks and separate browsers for unrelated users. Keep credentials
+in application configuration rather than tool arguments.

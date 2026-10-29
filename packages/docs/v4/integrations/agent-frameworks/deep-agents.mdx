@@ -1,18 +1,14 @@
 ---
 title: "Deep Agents"
-description: "Add Stagehand browser tools to LangChain Deep Agents with the published langchain-stagehand middleware."
+description: "Give LangChain Deep Agents browser tools with langchain-stagehand."
 ---
 
-[`langchain-stagehand`](https://pypi.org/project/langchain-stagehand/) provides native
-`StagehandMiddleware` for LangChain and Deep Agents. It exposes `run`, `snapshot`, and `screenshot`,
-includes browser guidance in tool descriptions, and returns screenshots as model-visible images.
-
-The adapter is maintained in [LangChain's integration repository](https://github.com/langchain-ai/langchain-browserbase).
-Browserbase maintains the underlying Stagehand SDK and shared browser facade.
+Use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase) to add
+Stagehand's `run`, `snapshot`, and `screenshot` tools to Deep Agents.
 
 ## Quickstart
 
-Use Python 3.11+ and install the adapter, Deep Agents, and your model-provider integration:
+Requires Python 3.11+, a model-provider key, and a Browserbase API key.
 
 ```bash
 pip install "langchain-stagehand>=0.0.1,<0.1" "deepagents>=0.7,<1" "langchain-openai>=1,<2"
@@ -50,24 +46,10 @@ async def main():
 asyncio.run(main())
 ```
 
-Use `ainvoke` or `astream`. Your application owns the browser and client; the `finally` block closes
-both even when client creation or agent execution fails. Reuse the same client across agent calls
-to preserve browsing state. The middleware leaves your system prompt untouched.
+Pass `tools=browser_middleware.tools` so Deep Agents' default subagent also receives the browser
+tools. The parent and subagent share the same browser; use separate clients for unrelated conversations.
 
-Pass the same instance's tools through `tools=` as well as registering its middleware. Deep Agents
-inherits explicit tools into its default `general-purpose` subagent, but does not inherit
-`StagehandMiddleware`. This keeps browser tools available when the agent delegates a task; LangChain
-deduplicates them by name for the main agent. These tools share one browser and facade across the
-parent and its subagent, so independent browsing sessions need separate clients.
-
-<Warning>
-Give unrelated conversations and concurrent agents separate clients/browsers. The middleware does
-not isolate sessions by thread ID, checkpoint browser state, or reconnect a disconnected client.
-</Warning>
-
-## Local Chrome and configuration
-
-To run Chrome on your machine, import `local_browser` and replace the launch line in the quickstart:
+For local Chrome, replace the browser launch with:
 
 ```python
 from stagehand import local_browser
@@ -75,87 +57,27 @@ from stagehand import local_browser
 browser = await local_browser.launch(headless=False)
 ```
 
-Keep the same client creation and `try`/`finally` cleanup. Local mode requires Chrome; set
-`headless=True` to hide the window. Configure browser settings through the browser factory and
-optional AI settings through `Stagehand.create(...)`. Pass the resulting client as
-`StagehandMiddleware(stagehand=stagehand)`.
+See the [adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme)
+for configuration. The [repository examples](https://github.com/browserbase/stagehand/tree/main/packages/integrations/deepagents#run-the-examples)
+include structured-output sports research and form filling.
 
-The adapter does not expose an artifact-root option. Screenshots saved by run code go under the
-current working directory, not to a Deep Agents backend. See the
-[adapter documentation](https://github.com/langchain-ai/langchain-browserbase#readme) for its API
-and limitations.
+## Managed Deep Agents
 
-## Repository examples and migration
+The managed example uses thread-scoped tools and Browserbase. It requires `DEEPAGENTS_MODEL`, its
+provider key, `BROWSERBASE_API_KEY`, and either `STAGEHAND_API_URL` or `STAGEHAND_MODEL` with
+`STAGEHAND_MODEL_API_KEY`. See [`.env.example`](https://github.com/browserbase/stagehand/blob/main/packages/integrations/deepagents/examples/managed/.env.example).
 
-The Stagehand repository includes structured-output sports-summary and form-filling examples.
-These examples require Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/):
-
-```bash
-git clone https://github.com/browserbase/stagehand.git
-cd stagehand/packages/integrations/deepagents
-uv sync --project examples/local --locked
-export OPENAI_API_KEY="your-openai-api-key"
-uv run --project examples/local --locked python examples/local/agent.py
-# Form filling with mock data, without submitting the form:
-uv run --project examples/local --locked python examples/local/agents2.py
-```
-
-The scripts default to visible local Chrome. Edit the connection to use Browserbase as shown above;
-edit `model`, `instruction`, and `response_format` in the script to customize the task.
-
-If you used the previous local MCP example:
-
-- Replace `load_mcp_tools` and `tools=...` with a configured Stagehand client and
-  `browser_middleware = StagehandMiddleware(stagehand=stagehand)`. Pass
-  `tools=browser_middleware.tools` and `middleware=[browser_middleware]` so delegated tasks retain
-  browser access. Close the browser in `finally`.
-- The adapter includes browser guidance in tool descriptions. The examples no longer inject the
-  facade instructions into the system prompt; you can still supply your own application prompt.
-- Replace MCP-server environment settings such as `STAGEHAND_BROWSER` and `STAGEHAND_HEADLESS` with
-  explicit SDK launch options. The native adapter does not consume those settings.
-- Install the published adapter in the agent environment. The repository examples now resolve both
-  Stagehand and Deep Agents together and do not launch an MCP subprocess.
-
-The existing `stagehand-deepagents-mcp` server and evaluation runner remain available for their
-current consumers. See the [retained MCP server documentation](https://github.com/browserbase/stagehand/tree/main/packages/integrations/deepagents#retained-mcp-server).
-The server's environment configuration is separate from the native middleware's API.
-
-## Deploy with Managed Deep Agents
-
-The managed example retains its existing thread-scoped Python tools and Browserbase lifecycle.
-It has not migrated to `langchain-stagehand`; a single shared middleware instance would not preserve
-its per-thread browser isolation. It requires a Deep Agents model credential and a Browserbase API key.
-
-<Steps>
-  <Step title="Install the managed project">
 ```bash
 cd packages/integrations/deepagents/examples/managed
 uv sync --locked
-```
-  </Step>
-  <Step title="Configure deployment secrets">
-Use `examples/managed/.env.example` as the list of required names and set them through your shell or deployment secret manager. At minimum, configure:
-
-Configure `DEEPAGENTS_MODEL` and its matching provider credential, `BROWSERBASE_API_KEY`, and either `STAGEHAND_API_URL` for Model Gateway or `STAGEHAND_MODEL` with `STAGEHAND_MODEL_API_KEY` for direct-provider BYOK.
-  </Step>
-  <Step title="Develop and deploy">
-```bash
 uv run mda dev .
 uv run mda deploy .
 ```
-  </Step>
-</Steps>
 
-Browser state remains available while the managed worker is warm. Stagehand does not yet support durable reconnection after a worker replacement.
+Browser state persists while the managed worker is warm; reconnection after worker replacement
+is not supported.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and
+review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).
 </Warning>
-
-<Card title="LangChain Stagehand adapter" icon="github" href="https://github.com/langchain-ai/langchain-browserbase">
-  Adapter API, releases, and LangChain compatibility issues.
-</Card>
-
-<Card title="Stagehand Deep Agents examples" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/deepagents">
-  Native middleware examples, retained MCP server, and managed tools.
-</Card>
