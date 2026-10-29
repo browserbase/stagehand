@@ -38,6 +38,7 @@ jobs:
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
+      deepagents-examples: ${{ steps.filter.outputs.deepagents-examples }}
       integrations-python: ${{ steps.filter.outputs.integrations-python }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -75,6 +76,10 @@ jobs:
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
+              - '.github/**'
+            deepagents-examples:
+              - 'packages/integrations/deepagents/examples/local/**'
+              - 'packages/docs/v4/integrations/agent-frameworks/deep-agents.mdx'
               - '.github/**'
             deepagents-runner:
               - 'packages/integrations/deepagents/runner/**'
@@ -380,6 +385,35 @@ jobs:
       - run: uv lock --check
       - run: uv sync --locked --dev
       - run: uv run --locked pytest
+
+  deepagents-example-checks:
+    name: Deep Agents example checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.deepagents-examples == 'true'
+    defaults:
+      run:
+        working-directory: packages/integrations/deepagents/examples/local
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/integrations/deepagents/examples/local
+          enable-cache: true
+          cache-dependency-glob: packages/integrations/deepagents/examples/local/uv.lock
+
+      - run: uv lock --check
+      - run: uv sync --locked
+      - run: uv run --locked python -m unittest discover -s tests -v
 
   integrations-python-checks:
     name: Python facade checks
