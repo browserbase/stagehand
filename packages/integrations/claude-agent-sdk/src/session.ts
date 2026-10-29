@@ -1,8 +1,20 @@
 import {
+  clip,
   HarnessAdapterError,
   harnessEventLogLevel,
-  sanitizeErrorMessage,
   type HarnessLogger,
+  isRecord,
+  isTokenCount,
+  safeJson,
+  sanitizeErrorMessage,
+  stringifyError,
+} from "@browserbasehq/stagehand-integrations/harness";
+
+export {
+  clip,
+  isRecord,
+  safeJson,
+  stringifyError,
 } from "@browserbasehq/stagehand-integrations/harness";
 
 export type ClaudeSdkMessage = Record<string, unknown>;
@@ -355,35 +367,4 @@ export function extractText(message: ClaudeSdkMessage): string | undefined {
     }
   }
   return parts.length > 0 ? parts.join("\n") : undefined;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function safeJson(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
-export function stringifyError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  return safeJson(value) ?? String(value);
-}
-
-export function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
-}
-
-function isTokenCount(value: unknown): boolean {
-  return (
-    ((typeof value === "number" && Number.isFinite(value)) ||
-      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
-    Number(value) >= 0
-  );
 }
