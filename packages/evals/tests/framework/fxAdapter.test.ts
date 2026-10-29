@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FxEvent } from "@browserbasehq/stagehand-integrations-fx-sdk";
+import type { FxEvent } from "@browserbasehq/stagehand-integrations-fx";
 import type { TaskSpec } from "stagehand-v3";
 import { fxAdapter } from "../../framework/harnesses/fxAdapter.js";
 
