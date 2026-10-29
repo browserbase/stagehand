@@ -78,7 +78,10 @@ export default function stagehandExtension(pi: ExtensionAPI) {
           : await localBrowser.launch(config.browser.launchOptions);
       try {
         const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-        return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+        const tools = new StagehandFacadeTools(stagehand, {
+          ...(config.artifactRoot !== undefined && { artifactRoot: config.artifactRoot }),
+        });
+        return { browser, stagehand, tools };
       } catch (error) {
         await browser.close().catch(() => undefined);
         throw error;

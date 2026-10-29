@@ -3201,6 +3201,10 @@ export async function createPlaywrightCompatRuntime(
       screenshot: async (options: Record<string, unknown> = {}) => {
         record("calls", "page.screenshot");
         const { path: requestedPath, ...supported } = options;
+        // The host saves only PNG/JPEG files; fail before capturing.
+        if (typeof requestedPath === "string" && !/\.(?:png|jpe?g)$/iu.test(requestedPath)) {
+          throw new Error("page.screenshot: path must end in .png, .jpg or .jpeg");
+        }
         const inferredType =
           supported.type === undefined &&
           typeof requestedPath === "string" &&

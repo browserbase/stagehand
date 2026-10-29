@@ -111,10 +111,12 @@ speak JSON-RPC over stdio) rather than through fx.
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
-service worker — browser-side, never on your machine. Browserbase is the recommended isolation
-boundary: the privileged execution environment is a disposable cloud browser. With no
-`environment` block, the server inherits your shell environment. The facade reads
-`STAGEHAND_*`/`BROWSERBASE_*` variables and can also infer a model-provider key
+service worker, not in your process. The only thing it writes on your machine is screenshots
+saved with `page.screenshot({ path })`: PNG or JPEG files under the artifact root (default
+`./stagehand-artifacts`, set with `STAGEHAND_FACADE_ARTIFACT_ROOT`). Browserbase is the
+recommended isolation boundary: the privileged execution environment is a disposable cloud
+browser. With no `environment` block, the server inherits your shell environment. The facade
+reads `STAGEHAND_*`/`BROWSERBASE_*` variables and can also infer a model-provider key
 (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or a Google key) from its environment for optional
 Stagehand model configuration. To keep provider keys away from the facade entirely, use an
 `environment` allowlist instead of inheritance — restating `PATH` and `HOME`, which fx drops

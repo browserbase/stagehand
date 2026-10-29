@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fsp from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -5,6 +6,7 @@ import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/
 import { sanitizeErrorMessage } from "../harness/redact.js";
 import {
   browserSessionLostError,
+  DEFAULT_ARTIFACT_DIRECTORY,
   FACADE_BROWSER_CLOSED_ERROR,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
@@ -13,12 +15,17 @@ import {
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_CONTENT_ERROR,
   SCREENSHOT_ARTIFACT_COUNT_ERROR,
   SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
   SCREENSHOT_ARTIFACT_SIZE_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
   SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_TYPE_ERROR,
+  screenshotArtifactWriteError,
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
@@ -76,7 +83,13 @@ export class StagehandFacadeExecutionError extends Error {
 export type StagehandFacadeToolsOptions = {
   /** Replaces default cleanup when the host owns session release and replacement. */
   onCloseRequested?: () => Promise<void>;
-  /** Owned directory for screenshot artifacts; paths must stay within it. Defaults to process.cwd(). */
+  /**
+   * Dedicated directory for screenshot artifacts. Paths must stay within it and
+   * name a .png/.jpg/.jpeg file holding PNG or JPEG bytes; run code can replace
+   * any such image under it. Defaults to DEFAULT_ARTIFACT_DIRECTORY under
+   * process.cwd(), which must not be a symlink; a configured root may be one.
+   * New files are owner-only; a replaced file keeps its permissions.
+   */
   artifactRoot?: string;
   /** Observes every completed `run` batch (including ones whose code threw). */
   onRunReport?: (report: StagehandFacadeRunReport) => void;
@@ -121,6 +134,20 @@ export type StagehandFacadeScreenshot = {
   data: string;
   mimeType: "image/png" | "image/jpeg";
 };
+
+const ARTIFACT_EXTENSION = /\.(?:png|jpe?g)$/iu;
+/** NAME_MAX on Linux and macOS, in bytes. */
+const MAX_NAME_BYTES = 255;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+
+/** Either signature is accepted under any image extension, as Playwright's `type` wins over the path. */
+function isImage(bytes: Buffer): boolean {
+  return (
+    bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ||
+    bytes.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)
+  );
+}
 
 /** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
 export const FACADE_KEEPER_PAGE_URL = "about:blank";
@@ -366,49 +393,108 @@ export class StagehandFacadeTools {
       path: artifact.path,
       bytes: Buffer.from(artifact.base64, "base64"),
     }));
-    const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
+    try {
+      await this.writeArtifactFiles(decoded);
+    } catch (error) {
+      // Filesystem errors carry host paths; the agent gets only their code.
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (!(error instanceof StagehandFacadeInputError) && typeof code === "string") {
+        throw new StagehandFacadeInputError(screenshotArtifactWriteError(code));
+      }
+      throw error;
+    }
+  }
+
+  private async writeArtifactFiles(artifacts: { path: string; bytes: Buffer }[]): Promise<void> {
+    const configuredRoot = path.resolve(
+      this.options.artifactRoot || path.join(process.cwd(), DEFAULT_ARTIFACT_DIRECTORY),
+    );
+    // A configured root may be a symlink; the default one, found in whatever
+    // directory the host runs in, may not.
+    if (!this.options.artifactRoot) {
+      const stats = await fsp.lstat(configuredRoot).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      if (stats?.isSymbolicLink()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
+      }
+    }
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
-    for (const artifact of decoded) {
-      const target = path.resolve(configuredRoot, artifact.path);
-      const relative = path.relative(configuredRoot, target);
+    for (const artifact of artifacts) {
+      const resolved = path.resolve(configuredRoot, artifact.path);
+      const relative = path.relative(configuredRoot, resolved);
+      const components = relative.split(path.sep);
       if (
         !relative ||
         relative === ".." ||
         relative.startsWith(`..${path.sep}`) ||
-        path.isAbsolute(relative)
+        path.isAbsolute(relative) ||
+        components.some(
+          (component) =>
+            component.includes("\0") || (process.platform === "win32" && component.includes(":")),
+        )
       ) {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
       }
-      // Reject symlink traversal before creating nested directories or opening
-      // the output. O_NOFOLLOW also refuses an existing symlink at the file.
+      const name = components.at(-1)!;
+      if (!ARTIFACT_EXTENSION.test(name)) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TYPE_ERROR);
+      }
+      if (!isImage(artifact.bytes)) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_CONTENT_ERROR);
+      }
+      // Checked up front so an overlong name creates no directories.
+      if (components.some((component) => Buffer.byteLength(component) > MAX_NAME_BYTES)) {
+        throw new StagehandFacadeInputError(screenshotArtifactWriteError("ENAMETOOLONG"));
+      }
+      // Reject symlinks before creating nested directories. An existing file is
+      // replaced by renaming a new file over it, never written through, so
+      // other links to it keep their contents.
       let directory = root;
-      const components = relative.split(path.sep);
       for (const component of components.slice(0, -1)) {
         directory = path.join(directory, component);
         await fsp.mkdir(directory).catch((error: NodeJS.ErrnoException) => {
           if (error.code !== "EEXIST") throw error;
         });
-        if (!(await fsp.lstat(directory)).isDirectory()) {
+        const stats = await fsp.lstat(directory);
+        if (stats.isSymbolicLink()) {
           throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
         }
+        if (!stats.isDirectory()) {
+          throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
+        }
       }
-      const file = await fsp
-        .open(
-          path.join(directory, components.at(-1)!),
-          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-          0o600,
-        )
-        .catch((error: NodeJS.ErrnoException) => {
-          if (error.code === "ELOOP") {
-            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
-          }
-          throw error;
-        });
+      const target = path.join(directory, name);
+      const existing = await fsp.lstat(target).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      if (existing?.isSymbolicLink()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
+      }
+      if (existing && !existing.isFile()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_FILE_ERROR);
+      }
+      const temporary = path.join(directory, `.stagehand-${randomBytes(8).toString("hex")}.tmp`);
+      const file = await fsp.open(
+        temporary,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+      );
       try {
-        await file.writeFile(artifact.bytes);
-      } finally {
-        await file.close();
+        try {
+          // A replaced file keeps its permissions; a new one is owner-only.
+          if (existing) await file.chmod(existing.mode & 0o777);
+          await file.writeFile(artifact.bytes);
+        } finally {
+          await file.close();
+        }
+        await fsp.rename(temporary, target);
+      } catch (error) {
+        await fsp.rm(temporary, { force: true });
+        throw error;
       }
     }
   }

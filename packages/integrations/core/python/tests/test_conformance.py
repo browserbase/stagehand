@@ -231,6 +231,8 @@ def prepare_sandbox(case: dict[str, Any], sandbox: Path) -> None:
         elif "file" in entry:
             (sandbox / entry["file"]).parent.mkdir(parents=True, exist_ok=True)
             (sandbox / entry["file"]).write_bytes(base64.b64decode(entry["base64"]))
+        elif "hardlink" in entry:
+            os.link(sandbox / entry["target"], sandbox / entry["hardlink"])
         else:
             os.symlink(entry["target"], sandbox / entry["symlink"])
 

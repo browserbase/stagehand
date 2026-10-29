@@ -57,7 +57,9 @@ claude -p "your instruction" --mcp-config .mcp.json --allowedTools "mcp__stageha
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
-service worker — browser-side, never on your machine. Browserbase is the recommended isolation
-boundary: the privileged execution environment is a disposable cloud browser. The SDK example
-spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist; your
-Anthropic credentials never reach the browser session.
+service worker, not in your process. The only thing it writes on your machine is screenshots
+saved with `page.screenshot({ path })`: PNG or JPEG files under the artifact root (default
+`./stagehand-artifacts`, set with `STAGEHAND_FACADE_ARTIFACT_ROOT`). Browserbase is the
+recommended isolation boundary: the privileged execution environment is a disposable cloud
+browser. The SDK example spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*`
+allowlist; your Anthropic credentials never reach the browser session.

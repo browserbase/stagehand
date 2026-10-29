@@ -34,9 +34,15 @@ facade_instructions()  # the agent instructions for the system prompt
   raises `StagehandFacadeCleanupError` (or an `ExceptionGroup` with the run's own
   error). Code that does not parse as an async function body raises
   `SyntaxError` before anything is sent.
-- Screenshots saved with a `path` are written under `artifact_root` (default: the
-  current directory). A path must stay within it and must not pass through a
-  symlink.
+- Screenshots saved with a `path` are written under `artifact_root` (default:
+  `stagehand-artifacts` under the current directory, which must not be a
+  symlink); point it at a dedicated directory, since run code can replace any
+  image under it. A path must stay
+  within it, end in `.png`, `.jpg` or `.jpeg` and hold PNG or JPEG bytes, and must
+  not pass through a symlink; an existing file must be a regular file and is
+  replaced, never written through, keeping its permissions (new files are
+  owner-only). Filesystem errors reach the agent as their code only. On Windows, which has no `O_NOFOLLOW`,
+  artifact writes are refused.
 - `browser.close()` in run code closes the Stagehand and its browser once the
   call finishes (pass `on_close_requested` to own that cleanup); later calls fail.
 - `quiet_wait=True` (experimental, off by default) makes a `page.waitForTimeout(ms)`

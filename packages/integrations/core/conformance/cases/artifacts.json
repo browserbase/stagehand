@@ -24,7 +24,7 @@
                   },
                   {
                     "path": "second.png",
-                    "base64": "AAEC"
+                    "base64": "/9j/4AAQ"
                   }
                 ],
                 "closeRequested": false,
@@ -47,7 +47,7 @@
         ],
         "files": {
           "artifacts/shots/first.png": "iVBORw0KGgo=",
-          "artifacts/second.png": "AAEC"
+          "artifacts/second.png": "/9j/4AAQ"
         }
       }
     },
@@ -695,6 +695,544 @@
             "error": {
               "kind": "input",
               "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "an artifact path without an image extension is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": ".git/config",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TYPE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a script artifact path is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "x.test.js",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TYPE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "an image extension must end the artifact name",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot.png.js",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TYPE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "artifact bytes that are not a PNG or JPEG image are rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/evil.png",
+                    "base64": "dGVzdA=="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_CONTENT_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "image extensions match in any case",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "a.JPG",
+                    "base64": "/9j/4AAQ"
+                  },
+                  {
+                    "path": "b.Jpeg",
+                    "base64": "/9j/4AAQ"
+                  },
+                  {
+                    "path": "c.PNG",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/a.JPG", "artifacts/b.Jpeg", "artifacts/c.PNG"],
+        "files": {
+          "artifacts/a.JPG": "/9j/4AAQ",
+          "artifacts/b.Jpeg": "/9j/4AAQ",
+          "artifacts/c.PNG": "iVBORw0KGgo="
+        }
+      }
+    },
+    {
+      "name": "artifacts before a non-image path are already written",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "ok.png",
+                    "base64": "iVBORw0KGgo="
+                  },
+                  {
+                    "path": "bad.txt",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_TYPE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/ok.png"],
+        "files": {
+          "artifacts/ok.png": "iVBORw0KGgo="
+        }
+      }
+    },
+    {
+      "name": "a hard-linked artifact file is replaced, not written through",
+      "fs": [
+        {
+          "dir": "outside"
+        },
+        {
+          "file": "outside/existing.png",
+          "base64": "cHJlc2VydmU="
+        },
+        {
+          "hardlink": "artifacts/shot.png",
+          "target": "outside/existing.png"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/shot.png", "outside/", "outside/existing.png"],
+        "files": {
+          "artifacts/shot.png": "iVBORw0KGgo=",
+          "outside/existing.png": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "a directory at the artifact path is rejected",
+      "fs": [
+        {
+          "dir": "artifacts/dir.png"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "dir.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/dir.png/"]
+      }
+    },
+    {
+      "name": "a colon in an artifact name is kept, as in a timestamp (POSIX hosts)",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shot-2026-10-29T22:57:48.609Z.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "result": null
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/shot-2026-10-29T22:57:48.609Z.png"],
+        "files": {
+          "artifacts/shot-2026-10-29T22:57:48.609Z.png": "iVBORw0KGgo="
+        }
+      }
+    },
+    {
+      "name": "a NUL in an artifact path is rejected",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "x.png\u0000.js",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_PATH_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/"]
+      }
+    },
+    {
+      "name": "a file on the way to an artifact is rejected",
+      "fs": [
+        {
+          "file": "artifacts/a",
+          "base64": "cHJlc2VydmU="
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "a/x.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "closed": false,
+        "tree": ["artifacts/", "artifacts/a"],
+        "files": {
+          "artifacts/a": "cHJlc2VydmU="
+        }
+      }
+    },
+    {
+      "name": "an overlong path component is rejected before any directory is created",
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shot.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/x.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_WRITE_ERROR",
+              "params": {
+                "cause": "ENAMETOOLONG"
+              }
             }
           }
         }

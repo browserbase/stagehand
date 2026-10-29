@@ -40,11 +40,13 @@ pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade start 
 
 ## Security model
 
-`run(code)` executes model-authored JavaScript in the extension service worker:
-it runs browser-side, never in the Node host process. Browserbase is the
-recommended isolation boundary. The Node host process spawns the facade server
-and holds only the MCP connection; model-authored JavaScript does not execute
-inside the host process.
+`run(code)` executes model-authored JavaScript in the extension service worker,
+not in the Node host process. The only thing it writes on your machine is
+screenshots saved with `page.screenshot({ path })`: PNG or JPEG files under the
+artifact root (default `./stagehand-artifacts`, set with
+`STAGEHAND_FACADE_ARTIFACT_ROOT`). Browserbase is the recommended isolation
+boundary. The Node host process spawns the facade server and holds only the MCP
+connection; model-authored JavaScript does not execute inside the host process.
 
 The child process receives `STAGEHAND_*` and `BROWSERBASE_*` environment variables plus the MCP
 transport's safe defaults (HOME, PATH, SHELL, TERM, USER, LOGNAME) — never the full host

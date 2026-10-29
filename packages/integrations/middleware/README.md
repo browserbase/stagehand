@@ -38,4 +38,7 @@ await browser.close();
 ```
 
 Code passed to `run` is model-authored: it runs inside the Stagehand browser extension,
-not in your process.
+not in your process. The only thing it writes on your machine is screenshots saved with
+`page.screenshot({ path })`: PNG or JPEG files under `artifactRoot` (default
+`./stagehand-artifacts`). Point `artifactRoot` at a dedicated directory, since run code
+can replace any PNG or JPEG under it.

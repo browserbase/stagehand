@@ -53,7 +53,12 @@ type ConformanceCase = {
     }[];
     activePage?: string | null | { throw: { name: string; message: string } };
   };
-  fs?: ({ dir: string } | { file: string; base64: string } | { symlink: string; target: string })[];
+  fs?: (
+    | { dir: string }
+    | { file: string; base64: string }
+    | { hardlink: string; target: string }
+    | { symlink: string; target: string }
+  )[];
   steps: ConformanceStep[];
   expect?: {
     closed?: boolean;
@@ -222,6 +227,8 @@ async function prepareSandbox(testCase: ConformanceCase, sandbox: string): Promi
     } else if ("file" in entry) {
       await fsp.mkdir(path.dirname(path.join(sandbox, entry.file)), { recursive: true });
       await fsp.writeFile(path.join(sandbox, entry.file), Buffer.from(entry.base64, "base64"));
+    } else if ("hardlink" in entry) {
+      await fsp.link(path.join(sandbox, entry.target), path.join(sandbox, entry.hardlink));
     } else {
       await fsp.symlink(entry.target, path.join(sandbox, entry.symlink));
     }

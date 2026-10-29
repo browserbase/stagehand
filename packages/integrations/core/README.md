@@ -23,6 +23,7 @@ new visible page in the same browser. In-process callers can pass
 | `STAGEHAND_BROWSERBASE_EXTENSION_ID`                              | Unset uploads a packaged extension for this session; set to reuse the host's uploaded extension. The host owns the shared upload's cleanup.                                                                                                                           |
 | `STAGEHAND_MODEL_NAME`, `STAGEHAND_MODEL_API_KEY`                 | Optional Stagehand model configuration. A model API key requires an explicit model name. Plain facade navigation and inspection do not invoke a model.                                                                                                                |
 | `STAGEHAND_FACADE_QUIET_WAIT`                                     | Off unless `1/true/yes/on`. Experimental: a `page.waitForTimeout(ms)` longer than 400 ms returns once the page is quiet (DOM loaded, no mutation in the main document for 400 ms; shadow roots are not observed), never later than `ms`. Shorter waits sleep in full. |
+| `STAGEHAND_FACADE_ARTIFACT_ROOT`                                  | `./stagehand-artifacts`. Dedicated directory for screenshots run code saves with `page.screenshot({ path })`; a relative path is resolved against the working directory. Only PNG and JPEG files are written there, and run code can replace any image under it.      |
 
 `--surface=playwright` is the default stdio description. `--surface=legacy` selects
 the earlier description with the same runtime. `EXPLICIT_SNAPSHOT_ACTIONS=1`
@@ -53,7 +54,10 @@ stderr line.
 The host keeps the per-page snapshot map and the missing-snapshot and navigation
 checks, rejects run results without the envelope's shape, and enforces the caps
 in `contract.limits` (32 artifacts, 25 MB per artifact, 100 MB in total, 10 MB of
-returned JSON); `src/facade/bundle.ts` documents the shapes in full. The cases in
+returned JSON). It writes artifacts only as PNG or JPEG files under the
+artifact root (`contract.defaultArtifactDirectory` under the working directory
+unless the host sets one), replacing an existing file by renaming a new one over
+it; `src/facade/bundle.ts` documents the shapes in full. The cases in
 `conformance/` pin this behavior for every host. A host must reject
 run `code` that does not parse on its own as an async function body, as
 `AsyncFunction(params, code)` does in TypeScript, before joining it with the

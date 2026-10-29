@@ -43,6 +43,16 @@ describe("Stagehand facade contract", () => {
     );
   });
 
+  it("reads STAGEHAND_FACADE_ARTIFACT_ROOT only when it is set", () => {
+    expect(stagehandFacadeConfigFromEnv({})).not.toHaveProperty("artifactRoot");
+    expect(stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_ARTIFACT_ROOT: " out " })).toMatchObject(
+      { artifactRoot: "out" },
+    );
+    expect(
+      stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_ARTIFACT_ROOT: "  " }),
+    ).not.toHaveProperty("artifactRoot");
+  });
+
   it("ignores malformed Browserbase-only options in local mode", () => {
     expect(
       stagehandFacadeConfigFromEnv({

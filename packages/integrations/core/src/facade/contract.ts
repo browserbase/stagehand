@@ -239,6 +239,25 @@ export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
   "Screenshot artifact directory must not be a symlink.";
 export const SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR =
   "Screenshot artifact file must not be a symlink.";
+export const SCREENSHOT_ARTIFACT_NOT_FILE_ERROR =
+  "Screenshot artifact file must be a regular file.";
+export const SCREENSHOT_ARTIFACT_TYPE_ERROR =
+  "Screenshot artifact path must end in .png, .jpg or .jpeg.";
+export const SCREENSHOT_ARTIFACT_CONTENT_ERROR = "Screenshot artifact must be a PNG or JPEG image.";
+export const SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR =
+  "Screenshot artifact directory must not be a file.";
+/** `${cause}` is the filesystem error code, e.g. ENAMETOOLONG; never a path. */
+export const SCREENSHOT_ARTIFACT_WRITE_ERROR =
+  "Screenshot artifact could not be written (${cause}).";
+
+export function screenshotArtifactWriteError(cause: string): string {
+  return SCREENSHOT_ARTIFACT_WRITE_ERROR.replace("${cause}", cause);
+}
+/**
+ * Directory under the current working directory that screenshot artifacts are
+ * written to when a host sets no artifact root.
+ */
+export const DEFAULT_ARTIFACT_DIRECTORY = "stagehand-artifacts";
 export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
 
 /**

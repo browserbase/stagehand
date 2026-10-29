@@ -42,10 +42,12 @@ pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade dev
 
 ## Security model
 
-`run(code)` executes model-authored JavaScript in the extension service worker: it runs
-browser-side, never in the host process. Browserbase is the recommended isolation boundary. The
-Eve world process holds only the browser session handle; model-authored JavaScript does not execute
-inside the world process.
+`run(code)` executes model-authored JavaScript in the extension service worker, not in the host
+process. The only thing it writes on your machine is screenshots saved with
+`page.screenshot({ path })`: PNG or JPEG files under `stagehand-artifacts` in the host process's
+working directory. Browserbase is the recommended isolation boundary. The Eve world process
+holds only the browser session handle; model-authored JavaScript does not execute inside the
+world process.
 
 ## Session lifecycle
 
