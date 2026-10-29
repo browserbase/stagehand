@@ -1007,6 +1007,31 @@ export class BrowserContext {
     void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
   }
 
+  private removePendingOopif(frameId: string): void {
+    this.pendingOopifByMainFrame.delete(frameId);
+    this.pendingOopifParentByMainFrame.delete(frameId);
+  }
+
+  private removePendingOopifsForPage(page: Page): void {
+    const pageFrameIds = new Set([page.mainFrameId(), ...page.registry.frames.keys()]);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) pageFrameIds.add(frameId);
+    }
+
+    // Follow pending parent chains too, but keep frames with unknown page ownership.
+    let removed: boolean;
+    do {
+      removed = false;
+      for (const [frameId] of this.pendingOopifByMainFrame) {
+        const parentId = this.pendingOopifParentByMainFrame.get(frameId);
+        if (!pageFrameIds.has(frameId) && (!parentId || !pageFrameIds.has(parentId))) continue;
+        pageFrameIds.add(frameId);
+        this.removePendingOopif(frameId);
+        removed = true;
+      }
+    } while (removed);
+  }
+
   /**
    * An OOPIF that already existed when we attached (e.g. reconnecting to a live
    * browser, or a nested OOPIF) never emits `frameAttached` on its parent, so the
@@ -1022,13 +1047,12 @@ export class BrowserContext {
         const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
         const child = childSessionId ? this.conn.getSession(childSessionId) : undefined;
         if (!child) {
-          this.pendingOopifParentByMainFrame.delete(childMainId);
+          this.removePendingOopif(childMainId);
           continue;
         }
         const owner = this.findPageOwningFrame(parentFrameId);
         if (!owner) continue;
-        this.pendingOopifByMainFrame.delete(childMainId);
-        this.pendingOopifParentByMainFrame.delete(childMainId);
+        this.removePendingOopif(childMainId);
         this.adoptOopif(owner, child, childMainId);
         adopted = true;
       }
@@ -1107,6 +1131,10 @@ export class BrowserContext {
    * - Drop any staged child for this session.
    */
   onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
+    // Remove known pending descendants before detaching prunes the page's frame graph.
+    const closingPage = targetId ? this.pagesByTarget.get(targetId) : undefined;
+    if (closingPage) this.removePendingOopifsForPage(closingPage);
+
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
       owner.detachOopifSession(sessionId);
@@ -1118,7 +1146,7 @@ export class BrowserContext {
     }
 
     for (const [fid, sid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
+      if (sid === sessionId) this.removePendingOopif(fid);
     }
     for (const [fid, sid] of Array.from(this.adoptedOopifSessionByFrame.entries())) {
       if (sid === sessionId) this.adoptedOopifSessionByFrame.delete(fid);
@@ -1146,6 +1174,7 @@ export class BrowserContext {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    this.removePendingOopifsForPage(page);
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
@@ -1155,11 +1184,6 @@ export class BrowserContext {
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);
-    }
-
-    for (const [fid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      const owner = this.frameOwnerPage.get(fid);
-      if (!owner || owner === page) this.pendingOopifByMainFrame.delete(fid);
     }
 
     this.pagesByTarget.delete(targetId);
@@ -1210,8 +1234,7 @@ export class BrowserContext {
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
       if (pendingChildSessionId) {
         const child = this.conn.getSession(pendingChildSessionId);
-        this.pendingOopifByMainFrame.delete(frameId);
-        this.pendingOopifParentByMainFrame.delete(frameId);
+        this.removePendingOopif(frameId);
         if (child) this.adoptOopif(owner, child, frameId);
       }
 
