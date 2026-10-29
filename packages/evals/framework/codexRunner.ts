@@ -9,7 +9,7 @@ import {
   type CodexSdk,
   type CodexTokenUsage,
   type ModelReasoningEffort,
-} from "@browserbasehq/stagehand-integrations-codex-sdk";
+} from "@browserbasehq/stagehand-integrations-codex";
 import type { AvailableModel } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { EvalsError } from "../errors.js";
@@ -33,12 +33,12 @@ import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
-export type { CodexSdk, CodexThread } from "@browserbasehq/stagehand-integrations-codex-sdk";
+export type { CodexSdk, CodexThread } from "@browserbasehq/stagehand-integrations-codex";
 export {
   buildCodexTranscript,
   loadCodexSdk,
   runCodexSession,
-} from "@browserbasehq/stagehand-integrations-codex-sdk";
+} from "@browserbasehq/stagehand-integrations-codex";
 export { EVAL_RESULT_SCHEMA } from "./harnesses/externalRunner.js";
 
 export interface CodexRunnerInput {
