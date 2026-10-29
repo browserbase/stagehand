@@ -75,7 +75,7 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations-mastra-sdk#build": {
+    "@browserbasehq/stagehand-integrations-mastra#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -149,8 +149,8 @@
     "@browserbasehq/stagehand-integrations-codex#typecheck": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-codex#build"]
     },
-    "@browserbasehq/stagehand-integrations-mastra-sdk#typecheck": {
-      "dependsOn": ["^build"]
+    "@browserbasehq/stagehand-integrations-mastra#typecheck": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra#build"]
     },
     "@browserbasehq/stagehand-integrations-pi-sdk#typecheck": {
       "dependsOn": ["^build"]
@@ -197,8 +197,8 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-integrations-mastra-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra-sdk#build"],
+    "@browserbasehq/stagehand-integrations-mastra#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -271,9 +271,6 @@
         "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
-    },
-    "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
-      "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-vercel-ai-facade#typecheck": {
       "dependsOn": ["^build"]

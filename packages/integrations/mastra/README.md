@@ -4,6 +4,10 @@ This example connects Mastra to the Stagehand facade MCP server over stdio. It
 exposes the facade's `run`, `snapshot`, and `screenshot` tools to a Mastra agent,
 using agent instructions imported from the integrations package.
 
+`src/facade.ts` is the mount (the facade stdio server as a Mastra MCP server
+definition); `src/agent.ts` runs it through `runMastraSession`, the same session
+adapter evals uses for `--harness mastra` (exported from `src/index.ts`).
+
 This route wraps the facade as an MCP server over stdio, so any MCP-capable
 framework (here, Mastra) can consume the identical tool contract without
 Stagehand-specific glue, at the cost of a child process and JSON-RPC hop.
@@ -12,11 +16,11 @@ a durable Stagehand session, with no bridge process but framework-specific code.
 
 ## Setup
 
-Node.js 24 or newer is required. From the repository root, build the integrations
-package first so its `dist` server entrypoint exists:
+Node.js 24 or newer is required. From the repository root, build this package
+(turbo builds its workspace dependencies, including the facade server, first):
 
 ```sh
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-mastra
 ```
 
 Configure the environment as needed:
@@ -27,15 +31,15 @@ Configure the environment as needed:
 | `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                             |
 | `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                 |
 | `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                             |
-| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna`.                                                  |
+| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna` (bare ids use OpenAI, or pass `provider/model`).  |
 | `OPENAI_API_KEY`          | Used by the Mastra agent model in the host process. It is not forwarded to the facade server.    |
 
 ## Run
 
 ```sh
-pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade test
-pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade typecheck
-pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade start "your instruction"
+pnpm --filter @browserbasehq/stagehand-integrations-mastra test
+pnpm --filter @browserbasehq/stagehand-integrations-mastra typecheck
+pnpm --filter @browserbasehq/stagehand-integrations-mastra start "your instruction"
 ```
 
 ## Security model

@@ -16,7 +16,7 @@ export default defineConfig({
       "packages/integrations/claude-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/gemini-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/codex/tests/**/*.test.ts",
-      "packages/integrations/mastra-sdk/tests/**/*.test.ts",
+      "packages/integrations/mastra/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
       "packages/integrations/eve/tests/harness/**/*.test.ts",
       "packages/integrations/deepagents-sdk/tests/**/*.test.ts",

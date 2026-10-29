@@ -1,8 +1,12 @@
-import { openai } from "@ai-sdk/openai";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
-import { Agent } from "@mastra/core/agent";
+import type { HarnessLogger } from "@browserbasehq/stagehand-integrations/harness";
+import { runMastraSession } from "@browserbasehq/stagehand-integrations-mastra";
 
-import { createFacadeMCPClient } from "./client.ts";
+import { facadeMcpServer } from "./facade.ts";
+
+// oxlint-disable-next-line no-console -- CLI example surfaces adapter warnings and errors on stderr.
+const stderr = (line: { message: string }) => console.error(line.message);
+const logger: HarnessLogger = { log: () => {}, warn: stderr, error: stderr };
 
 async function main() {
   const args = process.argv.slice(2);
@@ -11,39 +15,26 @@ async function main() {
     throw new Error('Usage: pnpm start "your instruction"');
   }
 
-  const client = createFacadeMCPClient();
-
-  try {
-    const { toolsets, errors } = await client.listToolsetsWithErrors();
-    if (Object.keys(errors).length > 0) {
-      throw new Error(`Failed to discover Stagehand facade tools: ${JSON.stringify(errors)}`);
-    }
-
-    const tools = toolsets.stagehand;
-    if (!tools) {
-      throw new Error("Stagehand facade toolset was not discovered");
-    }
-
-    const agent = new Agent({
-      id: "stagehand-facade-agent",
-      name: "Stagehand Facade Agent",
+  // Bare model ids are routed to OpenAI; `provider/model` ids pick another provider.
+  const result = await runMastraSession({
+    prompt: instruction,
+    model: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna",
+    logger,
+    session: {
+      agentId: "stagehand-facade-agent",
+      agentName: "Stagehand Facade Agent",
       instructions: FACADE_AGENT_INSTRUCTIONS,
-      model: openai(process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna"),
-      tools,
-    });
+      maxSteps: 20,
+      mcpServers: { stagehand: facadeMcpServer() },
+    },
+  });
 
-    const result = await agent.generate(instruction, { maxSteps: 20 });
-    // oxlint-disable-next-line no-console -- CLI example prints the agent result.
-    console.log(result.text);
-  } finally {
-    try {
-      await client.disconnect();
-    } catch (disconnectError: unknown) {
-      // oxlint-disable-next-line no-console -- CLI example warns about cleanup failures without masking the original error.
-      console.error(
-        `Warning: failed to disconnect MCP client: ${disconnectError instanceof Error ? disconnectError.message : String(disconnectError)}`,
-      );
-    }
+  // oxlint-disable-next-line no-console -- CLI example prints the agent result.
+  if (result.finalText) console.log(result.finalText);
+  if (result.status !== "completed") {
+    throw new Error(
+      `Mastra session ended with ${result.status}: ${result.stopReason ?? "unknown"}`,
+    );
   }
 }
 

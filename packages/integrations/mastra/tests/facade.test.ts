@@ -1,13 +1,11 @@
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
-import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
+import { MCPClient } from "@mastra/mcp";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createFacadeMCPClient } from "../src/client.js";
+import { facadeMcpServer } from "../src/facade.js";
 
-type FacadeClient = ReturnType<typeof createFacadeMCPClient>;
-
-describe("Stagehand facade MCP client", () => {
-  let client: FacadeClient | undefined;
+describe("Stagehand facade MCP server for Mastra", () => {
+  let client: MCPClient | undefined;
 
   afterEach(async () => {
     await client?.disconnect();
@@ -19,9 +17,12 @@ describe("Stagehand facade MCP client", () => {
   // The contract itself is pinned by core's facade tests; assert against the
   // exported source of truth instead of restating literals, and cover what is
   // unique to this example — Mastra toolset discovery and the env allowlist.
-  it("discovers the facade toolset through the host-env allowlist", async () => {
+  it("is discovered by Mastra as the facade toolset", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
-    client = createFacadeMCPClient();
+    client = new MCPClient({
+      id: "stagehand-facade-mastra-test",
+      servers: { stagehand: facadeMcpServer() },
+    });
 
     const { toolsets, errors } = await client.listToolsetsWithErrors();
 
@@ -39,11 +40,17 @@ describe("Stagehand facade MCP client", () => {
     }
   });
 
-  it("allowlist excludes non-STAGEHAND/BROWSERBASE host vars", () => {
+  it("launches the core stdio server with only allowlisted host vars", () => {
     process.env.STAGEHAND_BROWSER = "local";
     process.env.NOT_ALLOWLISTED_SECRET = "must-not-cross";
-    const env = buildAllowlistedEnv();
-    expect(env.STAGEHAND_BROWSER).toBe("local");
-    expect(env).not.toHaveProperty("NOT_ALLOWLISTED_SECRET");
+
+    const server = facadeMcpServer({ env: { STAGEHAND_MODEL_NAME: "override" } });
+
+    expect(server.command).toBe(process.execPath);
+    expect(server.args).toHaveLength(1);
+    expect(server.args?.[0]).toMatch(/stdio-server\.m?js$/);
+    expect(server.env?.STAGEHAND_BROWSER).toBe("local");
+    expect(server.env?.STAGEHAND_MODEL_NAME).toBe("override");
+    expect(server.env).not.toHaveProperty("NOT_ALLOWLISTED_SECRET");
   });
 });

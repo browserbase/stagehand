@@ -17,7 +17,7 @@ else, never restated.
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |
 | `eve/`         | Published Eve extension `@browserbasehq/eve` (native `defineTool` tools; Eve has no external-process tool mounting) plus the private evals harness driver (`harness/`).      |
 | `fx/`          | fx configuration templates and skill (fx consumes the facade via its user-global MCP config), plus the fx harness adapter used by evals.                                     |
-| `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                      |
+| `mastra/`      | Mastra example over MCP/stdio via `runMastraSession`, plus the Mastra harness adapter (session library) used by evals (`--harness mastra`).                                  |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
 
