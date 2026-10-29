@@ -150,6 +150,31 @@ function isImage(bytes: Buffer): boolean {
 }
 
 /** The checks that need no filesystem access: confinement, type, signature and name length. */
+
+/** Rejects what already exists on an artifact's destination; missing entries are fine. */
+async function checkDestination(root: string, components: string[]): Promise<void> {
+  let entry = root;
+  for (const [index, component] of components.entries()) {
+    entry = path.join(entry, component);
+    const stats = await fsp.lstat(entry).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (!stats) return;
+    const last = index === components.length - 1;
+    if (stats.isSymbolicLink()) {
+      throw new StagehandFacadeInputError(
+        last ? SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR : SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+      );
+    }
+    if (last && !stats.isFile()) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_FILE_ERROR);
+    }
+    if (!last && !stats.isDirectory()) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
+    }
+  }
+}
 function checkArtifact(
   root: string,
   artifact: ScreenshotArtifact,
@@ -451,6 +476,9 @@ export class StagehandFacadeTools {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
       }
     }
+    // Existing entries on every destination are checked before the first
+    // write too; the write loop repeats the checks as it creates directories.
+    for (const { components } of checked) await checkDestination(configuredRoot, components);
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
     for (const { components, bytes } of checked) {

@@ -339,6 +339,10 @@ class StagehandFacadeTools:
         # directory the host runs in, may not.
         if not self._artifact_root and os.path.islink(configured_root):
             raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR"))
+        # Existing entries on every destination are checked before the first write
+        # too; the write loop repeats the checks as it creates directories.
+        for parents, name, _ in checked:
+            _check_destination(configured_root, [*parents, name])
         os.makedirs(configured_root, exist_ok=True)
         root = os.path.realpath(configured_root)
         for parents, name, data in checked:
@@ -429,6 +433,27 @@ class StagehandFacadeTools:
                 failed = True
         if failed:
             raise StagehandFacadeCleanupError()
+
+
+def _check_destination(root: str, components: list[str]) -> None:
+    """Rejects what already exists on an artifact's destination; missing entries are fine."""
+    entry = root
+    for index, component in enumerate(components):
+        entry = os.path.join(entry, component)
+        try:
+            mode = os.lstat(entry).st_mode
+        except FileNotFoundError:
+            return
+        last = index == len(components) - 1
+        if stat.S_ISLNK(mode):
+            error = "FILE_SYMLINK" if last else "SYMLINK"
+            raise StagehandFacadeInputError(contract_error(f"SCREENSHOT_ARTIFACT_{error}_ERROR"))
+        if last and not stat.S_ISREG(mode):
+            raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"))
+        if not last and not stat.S_ISDIR(mode):
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR")
+            )
 
 
 def _check_artifact(root: str, artifact: dict[str, str]) -> tuple[list[str], str, bytes]:

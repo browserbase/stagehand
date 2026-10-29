@@ -262,7 +262,10 @@ describe("facade conformance (TypeScript host)", () => {
     };
     describe(file, () => {
       for (const testCase of cases) {
-        const test = testCase.notApplicable?.typescript === undefined ? it : it.skip;
+        const skipped =
+          testCase.notApplicable?.typescript !== undefined ||
+          (process.platform === "win32" && testCase.notApplicable?.windows !== undefined);
+        const test = skipped ? it.skip : it;
         test(testCase.name, { timeout: 60_000 }, async () => {
           const sandbox = await fsp.realpath(
             await fsp.mkdtemp(path.join(os.tmpdir(), "facade-conformance-")),

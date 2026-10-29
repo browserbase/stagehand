@@ -576,6 +576,55 @@
       }
     },
     {
+      "name": "nothing is written when a later artifact names an existing directory",
+      "fs": [
+        {
+          "dir": "artifacts/b.png"
+        }
+      ],
+      "steps": [
+        {
+          "call": {
+            "tool": "run",
+            "code": "await page.screenshot({ path: 'shots/a.png' }); await page.screenshot({ path: 'b.png' });"
+          },
+          "batch": [
+            {
+              "return": {
+                "__stagehandPlaywrightCompat": true,
+                "value": null,
+                "telemetry": {
+                  "calls": {},
+                  "misses": {}
+                },
+                "artifacts": [
+                  {
+                    "path": "shots/a.png",
+                    "base64": "iVBORw0KGgo="
+                  },
+                  {
+                    "path": "b.png",
+                    "base64": "iVBORw0KGgo="
+                  }
+                ],
+                "closeRequested": false,
+                "batchRuntimeMs": 1
+              }
+            }
+          ],
+          "expect": {
+            "error": {
+              "kind": "input",
+              "contractError": "SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tree": ["artifacts/", "artifacts/b.png/"]
+      }
+    },
+    {
       "name": "a path error takes precedence over the code's own error",
       "steps": [
         {
@@ -1062,6 +1111,9 @@
     },
     {
       "name": "a colon in an artifact name is kept, as in a timestamp (POSIX hosts)",
+      "notApplicable": {
+        "windows": "Windows hosts reject ':' in artifact names."
+      },
       "steps": [
         {
           "call": {
