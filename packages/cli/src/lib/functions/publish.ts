@@ -1,4 +1,4 @@
-import archiver from "archiver";
+import { TarArchive } from "archiver";
 import ignore from "ignore";
 import {
   copyFileSync,
@@ -161,7 +161,7 @@ async function createArchive(root: string): Promise<{
   try {
     await new Promise<void>((resolvePromise, reject) => {
       const output = createWriteStream(archivePath);
-      const archive = archiver("tar", {
+      const archive = new TarArchive({
         gzip: true,
         gzipOptions: { level: 9 },
       });
