@@ -1,3 +1,10 @@
+import {
+  clip,
+  isRecord,
+  safeJson,
+  stringifyError,
+} from "@browserbasehq/stagehand-integrations/harness";
+
 export type CursorEvent = Record<string, unknown>;
 
 export type CursorToolCallView = {
@@ -161,27 +168,4 @@ function readString(record: Record<string, unknown>, keys: string[]): string | u
     if (typeof record[key] === "string") return record[key];
   }
   return undefined;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function safeJson(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
-export function stringifyError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  return safeJson(value) ?? String(value);
-}
-
-export function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }

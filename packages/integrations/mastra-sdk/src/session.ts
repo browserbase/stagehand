@@ -4,11 +4,18 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
+  clip,
   HarnessAdapterError,
   harnessEventLogLevel,
-  sanitizeErrorMessage,
   type HarnessLogger,
+  isRecord,
+  isTokenCount,
+  safeJson,
+  sanitizeErrorMessage,
+  toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
+
+export { toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 
 /** A native @ai-sdk model instance. Providers can use different @ai-sdk/provider versions, so the types can differ. */
 type NativeMastraModel =
@@ -512,38 +519,12 @@ export function compactMastraEvent(event: MastraEvent): MastraEvent {
   };
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function safeJson(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
 export function stringifyError(value: unknown): string {
   if (!value) return "";
   if (value instanceof Error) return value.message;
   if (typeof value === "string") return value;
   if (isRecord(value) && typeof value.message === "string") return value.message;
   return safeJson(value) ?? String(value);
-}
-
-export function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
-}
-
-export function toFiniteNumber(value: unknown): number {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim()
-        ? Number(value)
-        : 0;
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function positiveInteger(value: unknown, fallback: number): number {
@@ -629,12 +610,4 @@ function addTokenUsage(left: MastraTokenUsage, right: MastraTokenUsage): MastraT
     cachedInputTokens: left.cachedInputTokens + right.cachedInputTokens,
     totalTokens: left.totalTokens + right.totalTokens,
   };
-}
-
-function isTokenCount(value: unknown): boolean {
-  return (
-    ((typeof value === "number" && Number.isFinite(value)) ||
-      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
-    Number(value) >= 0
-  );
 }
