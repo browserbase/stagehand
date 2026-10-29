@@ -1,53 +1,81 @@
 # Stagehand Deep Agents integration
 
-This local integration exposes one stateful Stagehand browser to LangChain Deep Agents through a
-stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screenshot`.
+The local examples use the published [`langchain-stagehand`](https://pypi.org/project/langchain-stagehand/)
+package maintained in [LangChain's integration repository](https://github.com/langchain-ai/langchain-browserbase).
+Its `StagehandMiddleware` exposes `run`, `snapshot`, and `screenshot`, includes browser guidance in tool descriptions,
+and returns screenshots as model-visible images. Browserbase maintains the underlying `stagehand`
+SDK and `stagehand-middleware` facade; the LangChain adapter lives upstream.
 
-## Run locally
+This directory also retains the stdio MCP server, evaluation runner, and Managed Deep Agents example.
+These are separate consumers of the facade, not copies of the native middleware.
 
-Set a model-provider key and select the Deep Agents model:
+## Run the examples
 
-```bash
-export OPENAI_API_KEY=...
-export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
-```
-
-The MCP server launches a visible local Chrome browser by default. Then run:
+Use Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and Chrome for the default local browser:
 
 ```bash
 cd packages/integrations/deepagents
-uv run --project examples/local python examples/local/agent.py
+export OPENAI_API_KEY=...
+uv sync --project examples/local --locked
+uv run --project examples/local --locked python examples/local/agent.py
 ```
 
-The model, instruction, and Pydantic response classes are declared directly in `agent.py` so the
-example can be edited and rerun without passing command-line arguments. Set `response_format` to a
-Pydantic model class for structured output, or `None` for the normal text response.
-
-`agents2.py` is a form-filling example inspired by Stagehand's sensible form-filling example. The
-Deep Agent navigates to the form, snapshots it, fills the requested fields with mock data, and
-returns a typed Pydantic summary without submitting the form:
+Edit `model`, `instruction`, and `response_format` in the script. `agent.py` returns a Pydantic sports
+summary; set `response_format = None` for a plain text response. `agents2.py` fills a form with mock
+data without submitting it:
 
 ```bash
-uv run --project examples/local python examples/local/agents2.py
+uv run --project examples/local --locked python examples/local/agents2.py
 ```
 
-To use Browserbase instead:
+Both scripts open visible local Chrome with `local_browser.launch(headless=False)`, create a
+Stagehand client, and pass it to `StagehandMiddleware(stagehand=stagehand)`. A `finally` block
+closes the browser (and its attached Stagehand client), including if setup or invocation fails.
+
+For Browserbase, add `import os` and `from stagehand import browserbase`, set `BROWSERBASE_API_KEY`, and
+replace the launch line with:
+
+```python
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+```
+
+For headless local Chrome, set `headless=True` in `local_browser.launch`.
+
+## Migrating from the local MCP example
+
+- Install `langchain-stagehand>=0.0.1,<0.1` and import `StagehandMiddleware` from `langchain_stagehand`.
+- Create a browser and Stagehand client using the SDK, then replace MCP tool loading with
+  `middleware=[StagehandMiddleware(stagehand=stagehand)]`.
+- The adapter includes browser guidance in tool descriptions and leaves the system prompt untouched.
+  The examples no longer inject `facade_instructions()`; application-specific system prompts can
+  still be passed to `create_deep_agent`.
+- Use `ainvoke` or `astream` and close the browser in `finally`. The client persists across calls
+  until you close it. Give unrelated conversations separate clients/browsers; one middleware
+  instance does not provide per-thread isolation or automatic reconnection.
+- Configure the SDK explicitly. `STAGEHAND_BROWSER`, `STAGEHAND_HEADLESS`, and `STAGEHAND_START_URL`
+  were MCP-server settings and are not read by these examples. Select the browser factory, pass
+  launch options, and navigate through the SDK or agent task. Pass optional AI settings through
+  `Stagehand.create(...)`; see the [upstream API examples](https://github.com/langchain-ai/langchain-browserbase#readme).
+- The released adapter does not expose the server's `STAGEHAND_ARTIFACT_ROOT` or
+  `STAGEHAND_FACADE_QUIET_WAIT` settings. Screenshots saved by run code use the current working
+  directory, not a Deep Agents backend.
+- No MCP subprocess or separate server environment is needed for these local examples. Their
+  lockfile resolves the agent and Stagehand dependencies together.
+
+The existing `stagehand-deepagents` package is the MCP server, not an alias for `langchain-stagehand`.
+The managed example has its own per-thread lifecycle and is not migrated by changing this import.
+
+## Retained MCP server
+
+For MCP clients and the existing evaluation runner, the stdio server remains available:
 
 ```bash
-export STAGEHAND_BROWSER=browserbase
-export BROWSERBASE_API_KEY=...
-uv run --project examples/local python examples/local/agent.py
+uv run --project packages/integrations/deepagents --locked stagehand-deepagents-mcp
 ```
 
-Browserbase sessions use a 1280 × 720 viewport by default.
-
-The server and client intentionally use separate Python environments. Stagehand currently requires
-`websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`.
-The stdio transport isolates those dependency sets.
-
-The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
-`MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
-call and therefore lose the browser and snapshot IDs.
+Run this from the repository root, or configure your MCP client to launch that command. Keep one
+persistent MCP client session: starting a new server process for each call loses browser state and
+snapshot IDs. The settings below apply to this server, not to the native middleware.
 
 ## Server configuration
 
@@ -75,9 +103,8 @@ The managed example lives in `examples/managed`. Its authored LangChain tools wr
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
 exposed to the model.
 
-The current LangGraph SDK requires `websockets<16`, while Stagehand declares `websockets>=16.1.1`.
-For this spike, the managed project overrides the shared dependency to `websockets==15.0.1`. Remove
-the override once the SDK ranges converge. Browser continuity is guaranteed while the managed
+This managed project retains its existing lockfile and `websockets==15.0.1` override; its dependency
+and lifecycle migration is separate from the local examples. Browser continuity is guaranteed while the managed
 worker remains warm; durable reconnection after worker replacement is future work.
 
 ### Develop and deploy the managed agent
@@ -106,8 +133,8 @@ it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension
 
 ## Security model
 
-The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
-worker — browser-side, never in the host process. Browserbase is the recommended isolation
-boundary: the privileged execution environment is a disposable cloud browser with no access to the
-host machine. Only `STAGEHAND_*` and `BROWSERBASE_*` environment variables are forwarded to the
-browser session; host secrets such as the deep-agent model key never reach it.
+`run` executes model-authored JavaScript inside the Stagehand browser extension's service worker,
+not in the Python host process. Use disposable Browserbase sessions for untrusted browsing tasks
+and avoid sharing a session across unrelated users. The native middleware runs in the agent's
+Python process; it does not provide the old MCP subprocess environment separation. Keep credentials
+in application configuration rather than model-visible tool arguments.
