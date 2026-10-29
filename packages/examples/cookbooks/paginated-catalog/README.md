@@ -13,7 +13,7 @@ cp packages/examples/cookbooks/paginated-catalog/typescript/.env.example package
 
 Fill in the TypeScript `.env`, then run `just cookbook paginated-catalog` from the repository root. It builds the local SDK and extension before starting the recipe.
 
-For Python, run `uv sync --locked`, then `uv run --locked python main.py` from this cookbook's `python/` directory.
+For Python, follow the [Python setup](../README.md#python) and run `just install` from the repository root. Copy this cookbook's `python/.env.example` to `python/.env`, fill in its keys, then run `just cookbook-python paginated-catalog` from the root. It builds the extension and runs the cookbook with the local Python SDK; `.env` and `out/` stay in the cookbook's `python/` directory.
 
 The default target is a two-page category. `MAX_PAGES` defaults to 2 and allows up to 100. Adapt `CATALOG_URL`, the record schema, and `NEXT_SELECTOR` together. Browser lifetime is five minutes.
 

@@ -5,6 +5,8 @@ stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screensho
 
 ## Run locally
 
+From the repository root, run `just install` and `pnpm --filter ./packages/extension build` first.
+
 Set a model-provider key and select the Deep Agents model:
 
 ```bash
@@ -16,7 +18,7 @@ The MCP server launches a visible local Chrome browser by default. Then run:
 
 ```bash
 cd packages/integrations/deepagents
-uv run --project examples/local python examples/local/agent.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
 
 The model, instruction, and Pydantic response classes are declared directly in `agent.py` so the
@@ -28,7 +30,7 @@ Deep Agent navigates to the form, snapshots it, fills the requested fields with 
 returns a typed Pydantic summary without submitting the form:
 
 ```bash
-uv run --project examples/local python examples/local/agents2.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agents2.py
 ```
 
 To use Browserbase instead:
@@ -36,18 +38,31 @@ To use Browserbase instead:
 ```bash
 export STAGEHAND_BROWSER=browserbase
 export BROWSERBASE_API_KEY=...
-uv run --project examples/local python examples/local/agent.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
 
 Browserbase sessions use a 1280 × 720 viewport by default.
 
-The server and client intentionally use separate Python environments. Stagehand currently requires
-`websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`.
-The stdio transport isolates those dependency sets.
+The server and client communicate over stdio and share the root uv workspace environment.
+Nested examples select the root with `--project` and their workspace member with `--package`.
 
 The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
 `MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
 call and therefore lose the browser and snapshot IDs.
+
+## Checks
+
+Run these from the repository root:
+
+```bash
+just fmt-deepagents
+just check-deepagents
+just test-deepagents
+```
+
+Formatting and lint checks cover the adapter's `src/` and `tests/` directories and both examples.
+The checks also import the examples without loading `.env` files. The tests cover the adapter and
+eval runner. These recipes are included in the root `just fmt`, `just check`, and `just test` commands.
 
 ## Server configuration
 
@@ -75,10 +90,8 @@ The managed example lives in `examples/managed`. Its authored LangChain tools wr
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
 exposed to the model.
 
-The current LangGraph SDK requires `websockets<16`, while Stagehand declares `websockets>=16.1.1`.
-For this spike, the managed project overrides the shared dependency to `websockets==15.0.1`. Remove
-the override once the SDK ranges converge. Browser continuity is guaranteed while the managed
-worker remains warm; durable reconnection after worker replacement is future work.
+Browser continuity is guaranteed while the managed worker remains warm; durable reconnection
+after worker replacement is future work.
 
 ### Develop and deploy the managed agent
 
@@ -92,17 +105,19 @@ From `examples/managed`, copy `.env.example` to `.env` and configure:
 Then run:
 
 ```bash
-uv sync
-uv run mda dev .
-uv run mda deploy .
+uv sync --project ../../../../.. --all-packages --locked
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda dev .
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda deploy .
 ```
 
 Managed Deep Agents forwards non-reserved `.env` entries as deployment secrets. The agent model key
 and the optional Stagehand model key are independent: users can bring their own key for either,
 while Browserbase Model Gateway remains the zero-additional-key Stagehand path.
 
-The published `stagehand` wheel bundles the browser extension and `browserbase.launch` provisions
-it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
+Running the Python source through uv uses the workspace SDK and its built extension.
+The compiled managed app declares published Stagehand dependencies; the published `stagehand` wheel
+bundles the extension, and `browserbase.launch` provisions it automatically.
+Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
 
 ## Security model
 

@@ -15,15 +15,14 @@ Fill in `.env`, then run `just cookbook approve-form-submission` from the reposi
 
 ## Python
 
-From this cookbook's directory:
+Follow the [Python setup](../README.md#python), then run these commands from the repository root:
 
 ```bash
-cd python
-cp .env.example .env
-uv sync --locked
+just install
+cp packages/examples/cookbooks/approve-form-submission/python/.env.example packages/examples/cookbooks/approve-form-submission/python/.env
 ```
 
-Fill in `.env`, then run `uv run --locked python main.py`.
+Fill in the Python `.env`, then run `just cookbook-python approve-form-submission` from the repository root. It builds the extension and runs the cookbook with the local Python SDK.
 
 Python uses a CLI approval gate. Answer `y` or `n`. Each implementation rechecks values before Submit and permits at most one approved attempt. Browser lifetime is five minutes.
 

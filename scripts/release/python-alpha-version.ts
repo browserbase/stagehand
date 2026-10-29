@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
+import { pinPythonWorkspaceSdkVersion } from "./python-workspace.ts";
 import { updatePythonProjectVersion } from "./python-version.ts";
 
 const execFileAsync = promisify(execFile);
@@ -77,6 +78,7 @@ export async function applyPythonAlphaVersion({
     const pyprojectPath = path.join(pythonDirectory, "pyproject.toml");
     const pyproject = await readFile(pyprojectPath, "utf8");
     await writeFile(pyprojectPath, updatePythonProjectVersion(pyproject, version));
+    await pinPythonWorkspaceSdkVersion(repositoryRoot, version);
   }
   return { shouldPublish: true, version };
 }

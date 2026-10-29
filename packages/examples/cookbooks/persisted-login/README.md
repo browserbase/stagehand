@@ -13,7 +13,7 @@ cp packages/examples/cookbooks/persisted-login/typescript/.env.example packages/
 
 Fill in the TypeScript `.env`, then run `just cookbook persisted-login` from the repository root. It builds the local SDK and extension before starting the recipe.
 
-For Python, run `uv sync --locked`, then `uv run --locked python main.py` from this cookbook's `python/` directory.
+For Python, follow the [Python setup](../README.md#python) and run `just install` from the repository root. Copy this cookbook's `python/.env.example` to `python/.env`, fill in its keys, then run `just cookbook-python persisted-login` from the root. It builds the extension and runs the cookbook with the local Python SDK; `.env` and `out/` stay in the cookbook's `python/` directory.
 
 Run twice sequentially with the same context. A fresh context should authenticate; the next run should report reuse. A wrong password fails only when login is needed, so use a fresh test context for that check.
 

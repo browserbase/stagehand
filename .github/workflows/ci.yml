@@ -71,15 +71,33 @@ jobs:
               - 'turbo.json'
               - '.github/**'
             sdk-python:
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'justfile'
+              - 'packages/integrations/core/python/pyproject.toml'
+              - 'packages/integrations/deepagents/**/pyproject.toml'
+              - 'packages/examples/cookbooks/*/python/**'
               - 'packages/sdk-python/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
               - '.github/**'
             deepagents-runner:
-              - 'packages/integrations/deepagents/runner/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'justfile'
+              - 'packages/sdk-python/**'
+              - 'packages/integrations/core/python/**'
+              - 'packages/examples/cookbooks/*/python/pyproject.toml'
+              - 'packages/integrations/deepagents/**'
+              - 'packages/integrations/deepagents-sdk/**'
               - '.github/**'
             integrations-python:
+              - 'packages/integrations/deepagents/**/pyproject.toml'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'justfile'
+              - 'packages/examples/cookbooks/*/python/pyproject.toml'
               - 'packages/integrations/core/python/**'
               - 'packages/integrations/core/conformance/**'
               - 'packages/integrations/core/src/facade/**'
@@ -187,7 +205,7 @@ jobs:
           version: "0.11.29"
           working-directory: packages/sdk-python
           enable-cache: true
-          cache-dependency-glob: packages/sdk-python/uv.lock
+          cache-dependency-glob: uv.lock
 
       # Keep the legacy build command here so the generated protocol drift check
       # still compares freshly generated output with the committed schema.
@@ -197,7 +215,7 @@ jobs:
       - run: pnpm test:unit
       - run: pnpm --filter browse test:cli
       - run: uv lock --check
-        working-directory: packages/sdk-python
+      - run: uv sync --all-packages --locked
       - run: uv run --locked python scripts/generate.py --check
         working-directory: packages/sdk-python
       - run: uv run --locked ruff format --check .
@@ -347,10 +365,14 @@ jobs:
           version: "0.11.29"
           working-directory: packages/sdk-python
           enable-cache: true
-          cache-dependency-glob: packages/sdk-python/uv.lock
+          cache-dependency-glob: uv.lock
 
-      - run: uv sync --locked --dev
+      - run: uv sync --all-packages --locked
+        working-directory: ${{ github.workspace }}
       - run: uv run --locked pytest
+      - name: Test Python cookbook checkpoints
+        run: uv run --locked python -m unittest
+        working-directory: packages/examples/cookbooks/paginated-catalog/python
 
   deepagents-runner-checks:
     name: Deep Agents runner checks
@@ -358,9 +380,6 @@ jobs:
     timeout-minutes: 20
     needs: [determine-changes]
     if: needs.determine-changes.outputs.deepagents-runner == 'true'
-    defaults:
-      run:
-        working-directory: packages/integrations/deepagents/runner
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -373,13 +392,15 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.29"
-          working-directory: packages/integrations/deepagents/runner
           enable-cache: true
-          cache-dependency-glob: packages/integrations/deepagents/runner/uv.lock
+          cache-dependency-glob: uv.lock
+
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
       - run: uv lock --check
-      - run: uv sync --locked --dev
-      - run: uv run --locked pytest
+      - run: uv sync --all-packages --locked
+      - run: just check-deepagents
+      - run: just test-deepagents
 
   integrations-python-checks:
     name: Python facade checks
@@ -423,7 +444,7 @@ jobs:
           version: "0.11.29"
           working-directory: packages/integrations/core/python
           enable-cache: true
-          cache-dependency-glob: packages/integrations/core/python/uv.lock
+          cache-dependency-glob: uv.lock
 
       - run: uv lock --check
       - run: uv sync --locked --dev
@@ -462,7 +483,7 @@ jobs:
           version: "0.11.29"
           working-directory: packages/sdk-python
           enable-cache: true
-          cache-dependency-glob: packages/sdk-python/uv.lock
+          cache-dependency-glob: uv.lock
 
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 

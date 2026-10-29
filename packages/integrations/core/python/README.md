@@ -49,6 +49,10 @@ This host has no keeper tab and does not latch session loss; the TypeScript
 
 ## Development
 
+Run `just install` from the repository root. This package shares the root uv workspace, `uv.lock`,
+and `.venv` with the other Python projects, and uses the local SDK source. Its published
+`stagehand` dependency still comes from `project.dependencies` in this package's `pyproject.toml`.
+
 `src/stagehand_middleware/facade/_bundle.json` is a copy of the built bundle.
 After changing the TypeScript facade, rebuild the integrations package and run
 `pnpm run sync:python` in `packages/integrations/core`;
@@ -57,12 +61,16 @@ After changing the TypeScript facade, rebuild the integrations package and run
 Python job) fail while the copy is stale. The package also checks the copy's
 `sha256` when it loads it.
 
+Run these checks from `packages/integrations/core/python`; uv discovers the root workspace:
+
 ```bash
-uv run ruff format --check
-uv run ruff check
-uv run ty check
-uv run pytest
+uv run --locked ruff format --check
+uv run --locked ruff check
+uv run --locked ty check
+uv run --locked pytest
 ```
+
+The root `just fmt`, `just check`, and `just test` commands also include this package.
 
 `tests/test_conformance.py` runs the cases in `../conformance` against this host.
 `tests/test_browser.py` drives a local Chrome end to end; it is skipped unless

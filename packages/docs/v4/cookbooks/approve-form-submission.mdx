@@ -33,7 +33,7 @@ Run local checks. Use a test form for approval and rejection; verify changed val
 
 Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. Each language uses OpenAI for Stagehand; TypeScript also uses it for the AI SDK agent. See [model configuration](/v4/configuration/models).
 
-TypeScript requires Node.js 22.18+, pnpm, and just; Python requires Python 3.11+ and uv. The form uses test customer data. Change it with the form checks when adapting the job.
+TypeScript requires Node.js 22.18+, pnpm, and just; Python requires Python 3.11+ and uv, plus the same Node.js, pnpm, and just tools to build the extension. The form uses test customer data. Change it with the form checks when adapting the job.
 
 ## Check out and run
 
@@ -51,13 +51,16 @@ just cookbook approve-form-submission
 </Tab>
 <Tab title="Python">
 ```bash
-cd packages/examples/cookbooks/approve-form-submission/python
-cp .env.example .env
-uv sync --locked
-uv run --locked python main.py
+# From the repository root
+just install
+cp packages/examples/cookbooks/approve-form-submission/python/.env.example packages/examples/cookbooks/approve-form-submission/python/.env
+# Add the required keys to the Python .env before running
+just cookbook-python approve-form-submission
 ```
 </Tab>
 </Tabs>
+
+The Python runner builds the extension and uses the local Python SDK through the root uv workspace. Its `.env` and output files live in the cookbook's `python/` directory.
 
 ## How the job works
 

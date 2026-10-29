@@ -6,6 +6,10 @@ import { applyPythonAlphaVersion, pythonAlphaVersion } from "./python-alpha-vers
 
 async function repositoryFixture(proxyVersion: string): Promise<string> {
   const repositoryRoot = await mkdtemp(path.join(os.tmpdir(), "stagehand-python-alpha-"));
+  await writeFile(
+    path.join(repositoryRoot, "pyproject.toml"),
+    '[tool.uv.workspace]\nmembers = ["packages/*"]\n',
+  );
   const pythonDirectory = path.join(repositoryRoot, "packages/sdk-python");
   await mkdir(pythonDirectory, { recursive: true });
   await writeFile(
@@ -18,6 +22,11 @@ async function repositoryFixture(proxyVersion: string): Promise<string> {
 name = "stagehand"
 version = "4.0.2"
 `,
+  );
+  await mkdir(path.join(repositoryRoot, "packages/consumer"), { recursive: true });
+  await writeFile(
+    path.join(repositoryRoot, "packages/consumer/pyproject.toml"),
+    '[project]\nname = "consumer"\ndependencies = ["stagehand>=4.0.2,<5"]\n',
   );
   return repositoryRoot;
 }
@@ -58,6 +67,9 @@ describe("applyPythonAlphaVersion", () => {
     await expect(
       readFile(path.join(repositoryRoot, "packages/sdk-python/pyproject.toml"), "utf8"),
     ).resolves.toContain('version = "4.0.2"');
+    expect(
+      await readFile(path.join(repositoryRoot, "packages/consumer/pyproject.toml"), "utf8"),
+    ).toContain("stagehand>=4.0.2,<5");
   });
 
   it("writes the alpha version into pyproject.toml", async () => {
@@ -71,6 +83,9 @@ describe("applyPythonAlphaVersion", () => {
 name = "stagehand"
 version = "4.0.3a0.dev1451"
 `);
+    expect(
+      await readFile(path.join(repositoryRoot, "packages/consumer/pyproject.toml"), "utf8"),
+    ).toContain("stagehand==4.0.3a0.dev1451");
   });
 
   it("leaves pyproject.toml untouched in check mode", async () => {
@@ -82,6 +97,9 @@ version = "4.0.3a0.dev1451"
     await expect(
       readFile(path.join(repositoryRoot, "packages/sdk-python/pyproject.toml"), "utf8"),
     ).resolves.toContain('version = "4.0.2"');
+    expect(
+      await readFile(path.join(repositoryRoot, "packages/consumer/pyproject.toml"), "utf8"),
+    ).toContain("stagehand>=4.0.2,<5");
   });
 
   it("rejects a missing proxy version", async () => {

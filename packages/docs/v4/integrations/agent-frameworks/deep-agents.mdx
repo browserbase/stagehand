@@ -16,15 +16,16 @@ Stagehand ships this experimental integration from the repository rather than pu
 
 ## Run locally
 
-The local example requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), a provider credential for the Deep Agent, and a current Google Chrome installation for local browser mode.
+The local example requires Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 22.18+, pnpm, just, a provider credential for the Deep Agent, and a current Google Chrome installation for local browser mode.
 
 <Steps>
   <Step title="Clone Stagehand and install the Python projects">
 ```bash
 git clone https://github.com/browserbase/stagehand.git
-cd stagehand/packages/integrations/deepagents
-uv sync --locked
-uv sync --project examples/local --locked
+cd stagehand
+just install
+pnpm --filter ./packages/extension build
+cd packages/integrations/deepagents
 ```
   </Step>
   <Step title="Configure the agent">
@@ -46,14 +47,14 @@ Set `STAGEHAND_HEADLESS=true` to run local Chrome without a visible window.
   </Step>
   <Step title="Run the agent">
 ```bash
-uv run --project examples/local --locked \
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked \
   python examples/local/agent.py
 ```
 
 Run `agents2.py` for a structured-output form-filling example that uses mock data and does not submit the form.
 
 ```bash
-uv run --project examples/local --locked \
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked \
   python examples/local/agents2.py
 ```
   </Step>
@@ -72,7 +73,7 @@ uv run --project examples/local --locked \
 | `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and snapshot-action batches. |
 | `BROWSERBASE_API_KEY` | Unset | Required for Browserbase. |
 
-The server and client use separate Python environments. Stagehand and the current LangGraph SDK require incompatible `websockets` versions, so stdio keeps their dependency sets isolated.
+The server and client communicate over stdio and share the root uv workspace environment. Nested examples select the root with `--project` and their workspace member with `--package`.
 
 <Warning>
 Keep one persistent MCP `ClientSession`. Stateless tool loading starts a new stdio process for each call, which loses the browser and snapshot IDs.
@@ -86,7 +87,7 @@ The managed example uses native Python tools and Browserbase. It requires a Deep
   <Step title="Install the managed project">
 ```bash
 cd packages/integrations/deepagents/examples/managed
-uv sync --locked
+uv sync --project ../../../../.. --all-packages --locked
 ```
   </Step>
   <Step title="Configure deployment secrets">
@@ -96,8 +97,8 @@ Configure `DEEPAGENTS_MODEL` and its matching provider credential, `BROWSERBASE_
   </Step>
   <Step title="Develop and deploy">
 ```bash
-uv run mda dev .
-uv run mda deploy .
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda dev .
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda deploy .
 ```
   </Step>
 </Steps>
