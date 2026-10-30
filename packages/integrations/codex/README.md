@@ -8,11 +8,12 @@ MCP servers are supplied config.toml-style because codex-sdk has no in-process M
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, build the integrations package first:
+Use Node.js 24 or later. From the repository root, build this package (turbo builds its
+workspace dependencies first):
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-codex
 ```
 
 Export credentials (Browserbase is the default and recommended backend). Codex auth comes from
@@ -26,7 +27,7 @@ export BROWSERBASE_API_KEY=bb_live_...
 ## Run
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+pnpm --filter @browserbasehq/stagehand-integrations-codex start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
 | Variable                | Purpose                                                                                                                                                       |
@@ -82,7 +83,7 @@ STAGEHAND_BROWSER=local \
 STAGEHAND_FACADE_LOG_LEVEL=debug \
 STAGEHAND_FACADE_LOG_FILE=/tmp/stagehand-facade-tools.jsonl \
 STAGEHAND_CODEX_DIAGNOSTICS_DIR=/tmp/stagehand-codex-diagnostics \
-pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start \
+pnpm --filter @browserbasehq/stagehand-integrations-codex start \
   "Go to Paint and draw the NFL logo"
 ```
 

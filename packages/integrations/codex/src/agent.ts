@@ -2,7 +2,7 @@ import {
   isolatedCodexEnv,
   loadCodexSdk,
   runCodexSession,
-} from "@browserbasehq/stagehand-integrations-codex-sdk";
+} from "@browserbasehq/stagehand-integrations-codex";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
