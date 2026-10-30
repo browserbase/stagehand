@@ -1,5 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import type { Page } from "./page.js";
+import { Response } from "./response.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
@@ -23,6 +25,10 @@ import {
  * Aggregates network information for all CDP sessions owned by a Page.
  */
 export class NetworkManager {
+  private readonly pendingResponses = new Set<Response>();
+
+  constructor(private readonly page: Page) {}
+
   readonly sessions = new Map<
     string,
     {
@@ -114,6 +120,7 @@ export class NetworkManager {
 
     const onResponse = (evt: Protocol.Network.ResponseReceivedEvent) => {
       if (!evt?.requestId) return;
+      this.emitResponse(evt, session);
       const url = evt.response?.url ?? "";
       if (url.startsWith("data:")) finish(evt.requestId);
     };
@@ -163,6 +170,7 @@ export class NetworkManager {
     const entry = this.sessions.get(sid);
     if (!entry) return;
     entry.detach();
+    this.disposeResponsesForSession(entry.session);
     this.sessions.delete(sid);
 
     for (const key of this.requests.keys()) {
@@ -302,10 +310,46 @@ export class NetworkManager {
     for (const { detach } of this.sessions.values()) {
       detach();
     }
+    for (const response of this.pendingResponses) response.dispose();
+    this.pendingResponses.clear();
     this.sessions.clear();
     this.observers.clear();
     this.requests.clear();
     this.documentRequestsByFrame.clear();
+  }
+
+  public subscribeResponse(listener: (response: Response) => void): () => void {
+    return this.addObserver({ onResponse: listener });
+  }
+
+  /** Materialize one response for all interested observers; body retrieval stays lazy. */
+  private emitResponse(
+    event: Protocol.Network.ResponseReceivedEvent,
+    session: CDPSessionLike,
+  ): void {
+    if (![...this.observers].some((observer) => typeof observer.onResponse === "function")) return;
+    const response = new Response({
+      page: this.page,
+      session,
+      requestId: event.requestId,
+      frameId: event.frameId,
+      loaderId: event.loaderId,
+      response: event.response,
+      fromServiceWorker: Boolean(event.response.fromServiceWorker),
+    });
+    this.pendingResponses.add(response);
+    void response.finished().then(() => this.pendingResponses.delete(response));
+    for (const observer of this.observers) {
+      observer.onResponse?.(response);
+    }
+  }
+
+  private disposeResponsesForSession(session: CDPSessionLike): void {
+    for (const response of this.pendingResponses) {
+      if (response.session !== session) continue;
+      response.dispose(new Error("Response session was detached"));
+      this.pendingResponses.delete(response);
+    }
   }
 
   /** Fan-out helper when a tracked request starts. */
