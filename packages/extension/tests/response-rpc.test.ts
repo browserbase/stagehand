@@ -94,7 +94,9 @@ describe("navigation response runtime", () => {
       runtime.pageGoForward({ pageId: "page-1" }),
     ]);
 
-    expect(runtime.responseHandles.size).toBe(4);
+    // The fixture returns the same response for all four navigation methods.
+    expect(runtime.responseHandles.size).toBe(1);
+    expect(new Set(results.map((result) => result.response?.responseId)).size).toBe(1);
     for (const result of results) {
       expect(result.page).toStrictEqual({
         pageId: "page-1",
