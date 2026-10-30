@@ -10,6 +10,7 @@ import { abortable, abortableDelay, throwIfAborted } from "../abort.js";
 const CHROME_POLL_INTERVAL_MS = 100;
 const CHROME_REQUEST_TIMEOUT_MS = 100;
 const CHROME_TERMINATION_TIMEOUT_MS = 3_000;
+const CHROME_TASKKILL_RACE_TIMEOUT_MS = 500;
 
 export const DEFAULT_CHROME_FLAGS = [
   "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
@@ -135,7 +136,14 @@ async function launchChrome(
       env: dependencies.env,
     });
     const monitor = monitorChromeProcess(child);
-    close = memoizedChromeClose(child, monitor, userDataDir, removeProfile, dependencies);
+    close = memoizedChromeClose(
+      child,
+      monitor,
+      userDataDir,
+      removeProfile,
+      dependencies,
+      options.headless === true,
+    );
     await abortable(monitor.spawned, signal);
 
     const cdpUrl = `http://127.0.0.1:${port}`;
@@ -494,10 +502,18 @@ function memoizedChromeClose(
   userDataDir: string,
   removeProfile: boolean,
   dependencies: LocalBrowserLauncherDependencies,
+  headless: boolean,
 ): () => Promise<void> {
   let closePromise: Promise<void> | undefined;
   return () => {
-    closePromise ??= closeChrome(child, monitor, userDataDir, removeProfile, dependencies);
+    closePromise ??= closeChrome(
+      child,
+      monitor,
+      userDataDir,
+      removeProfile,
+      dependencies,
+      headless,
+    );
     return closePromise;
   };
 }
@@ -508,10 +524,11 @@ async function closeChrome(
   userDataDir: string,
   removeProfile: boolean,
   dependencies: LocalBrowserLauncherDependencies,
+  headless: boolean,
 ): Promise<void> {
   let processError: unknown;
   try {
-    await closeChromeProcess(child, monitor, dependencies);
+    await closeChromeProcess(child, monitor, dependencies, headless);
   } catch (error) {
     processError = error;
   }
@@ -539,24 +556,43 @@ async function closeChromeProcess(
   child: ChildProcess,
   monitor: ChromeProcessMonitor,
   dependencies: LocalBrowserLauncherDependencies,
+  headless: boolean,
 ): Promise<void> {
   if (monitor.currentExit()) return;
   const pid = child.pid;
   if (pid === undefined) return;
 
-  try {
-    await terminateChromeProcess(pid, false, dependencies);
-  } catch (error) {
-    if (!isFinishedProcessError(error)) throw error;
+  // Headless Chrome on Windows has no top-level window, so a non-forced
+  // `taskkill /T` cannot ask it to exit and only burns the graceful timeout.
+  const skipGraceful = dependencies.platform === "win32" && headless;
+
+  if (!skipGraceful) {
+    try {
+      await terminateChromeProcess(pid, false, dependencies);
+    } catch (error) {
+      if (!isFinishedProcessError(error)) throw error;
+    }
+    if (await waitForExit(monitor, CHROME_TERMINATION_TIMEOUT_MS)) return;
   }
-  if (await waitForExit(monitor, CHROME_TERMINATION_TIMEOUT_MS)) return;
 
   try {
     await terminateChromeProcess(pid, true, dependencies);
   } catch (error) {
-    if (!isFinishedProcessError(error)) throw error;
+    if (!(await shouldIgnoreTerminationError(error, monitor))) throw error;
   }
+  if (monitor.currentExit()) return;
   await monitor.exited;
+}
+
+async function shouldIgnoreTerminationError(
+  error: unknown,
+  monitor: ChromeProcessMonitor,
+): Promise<boolean> {
+  if (isFinishedProcessError(error)) return true;
+  // On Windows, `taskkill /T /F` can exit 255 while the process tree is already
+  // going away. Prefer the monitor's exit over rejecting close().
+  if (monitor.currentExit()) return true;
+  return await waitForExit(monitor, CHROME_TASKKILL_RACE_TIMEOUT_MS);
 }
 
 async function terminateChromeProcess(
