@@ -11,7 +11,7 @@ else, never restated.
 | Directory      | What it is                                                                                                                                                                   |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core/`        | The `@browserbasehq/stagehand-integrations` package: the facade contract, `StagehandFacadeTools`, the `stagehand-facade` stdio MCP bin, and the code-mode MCP host scaffold. |
-| `claude-code/` | Claude Agent SDK example (programmatic MCP mount) plus a `.mcp.json` for connecting a running Claude Code CLI.                                                               |
+| `claude-code/` | Claude Agent SDK example (programmatic MCP mount) plus a `.mcp.json` for a running Claude Code CLI, and the harness adapter evals uses for `--harness claude_code`.          |
 | `codex/`       | Codex SDK example (config-override MCP mount) plus a `config.toml` template for the codex CLI.                                                                               |
 | `cursor/`      | Cursor SDK example over MCP/stdio via the Cursor Agent SDK.                                                                                                                  |
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |

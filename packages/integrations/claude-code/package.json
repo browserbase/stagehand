@@ -1,20 +1,33 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-claude-code-facade",
+  "name": "@browserbasehq/stagehand-integrations-claude-code",
   "version": "4.0.6",
   "private": true,
+  "description": "Claude Code (Claude Agent SDK) example and harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
   "scripts": {
+    "build": "tsdown",
     "start": "node src/agent.ts",
-    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-claude-agent-sdk && vitest run",
+    "test": "pnpm run build && vitest run",
     "test:unit": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@browserbasehq/stagehand-integrations": "workspace:*",
-    "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
