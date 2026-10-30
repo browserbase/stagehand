@@ -27,6 +27,7 @@ export class NetworkManager {
     string,
     {
       session: CDPSessionLike;
+      ready: Promise<void>;
       detach: () => void;
     }
   >();
@@ -139,11 +140,13 @@ export class NetworkManager {
     session.on("Network.responseReceived", onResponse);
     session.on("Page.frameStoppedLoading", onFrameStopped);
 
-    void session.send("Network.enable").catch(() => {});
+    const ready = session.send("Network.enable").then(() => {});
+    void ready.catch(() => {});
     void session.send("Page.enable").catch(() => {});
 
     this.sessions.set(sid, {
       session,
+      ready,
       detach: () => {
         session.off("Network.requestWillBeSent", onRequest);
         session.off("Network.loadingFinished", onFinished);
@@ -180,6 +183,10 @@ export class NetworkManager {
    * Register a passive observer for request lifecycle notifications.
    * Returns a disposer that removes the observer.
    */
+  public async ready(): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((entry) => entry.ready));
+  }
+
   public addObserver(observer: NetworkObserver): () => void {
     this.observers.add(observer);
     return () => {
@@ -210,6 +217,7 @@ export class NetworkManager {
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
+    let networkReady = false;
 
     let resolveFn: (() => void) | null = null;
     let rejectFn: ((error: Error) => void) | null = null;
@@ -229,7 +237,7 @@ export class NetworkManager {
     };
 
     const maybeIdle = () => {
-      if (settled) return;
+      if (settled || !networkReady) return;
       if (tracked.size === 0) {
         if (!idleTimer) {
           idleTimer = setTimeout(() => {
@@ -272,8 +280,15 @@ export class NetworkManager {
       rejectFn = reject;
     });
 
-    // Trigger initial idle check so that we still respect the quiet window
-    maybeIdle();
+    // Keep observing requests during setup, but only count quiet time once
+    // Chrome has acknowledged Network.enable. The timeout below includes setup.
+    void this.ready().then(
+      () => {
+        networkReady = true;
+        maybeIdle();
+      },
+      (error: unknown) => cleanup(error instanceof Error ? error : new Error(String(error))),
+    );
 
     if (Number.isFinite(timeout)) {
       timeoutTimer = setTimeout(
