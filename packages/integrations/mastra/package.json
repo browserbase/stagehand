@@ -1,22 +1,38 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-mastra-facade",
+  "name": "@browserbasehq/stagehand-integrations-mastra",
   "version": "4.0.6",
   "private": true,
+  "description": "Mastra example and harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
   "scripts": {
+    "build": "tsdown",
     "start": "node src/agent.ts",
-    "test": "vitest run",
+    "test": "pnpm run build && vitest run",
     "test:unit": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/google": "catalog:",
     "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/openai-compatible": "^3.0.5",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@mastra/core": "catalog:",
-    "@mastra/mcp": "catalog:"
+    "@mastra/mcp": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

@@ -265,7 +265,7 @@ jobs:
             packages/integrations/claude-cua-sdk/dist/**
             packages/integrations/gemini-cua-sdk/dist/**
             packages/integrations/codex/dist/**
-            packages/integrations/mastra-sdk/dist/**
+            packages/integrations/mastra/dist/**
             packages/integrations/pi-sdk/dist/**
             packages/integrations/eve/harness/dist/**
             packages/integrations/deepagents-sdk/dist/**

@@ -3,7 +3,8 @@
 [fx](https://fx.sh) consumes the Stagehand facade as a standard MCP server — no integration
 code, just an entry in fx's user-global MCP config. This directory ships the config template,
 a project config that sizes fx's limits for browser work, and project instructions plus a skill
-carrying the facade usage guidance.
+carrying the facade usage guidance. `src/` is the `fx` evaluation harness adapter that
+`packages/evals` imports for `--harness fx`; using fx with Stagehand doesn't need it.
 
 <!-- Verified against fx v0.0.3; fx is experimental and its config surface may change. -->
 

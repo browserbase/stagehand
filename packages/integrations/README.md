@@ -17,10 +17,25 @@ else, never restated.
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                                                                                    |
 | `eve/`         | Published Eve extension `@browserbasehq/eve` (native `defineTool` tools; Eve has no external-process tool mounting), plus the evals harness adapter as the nested private package `harness/` (`@browserbasehq/stagehand-integrations-eve`). |
 | `fx/`          | fx configuration templates and skill (fx consumes the facade via its user-global MCP config), plus the fx harness adapter used by evals.                                                                                                    |
-| `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                                                                                     |
+| `mastra/`      | Mastra example over MCP/stdio via `runMastraSession`, plus the Mastra harness adapter (session library) used by evals (`--harness mastra`).                                                                                                 |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                                                                                |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                                                                                 |
 
 Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —
 see the directory's README. TypeScript examples consume `core/` as a workspace dependency; the Python projects resolve the published
 `stagehand` package.
+
+## Adding a harness
+
+New harnesses use one directory and one package, `@browserbasehq/stagehand-integrations-<h>`, with
+no separate `-sdk` package (claude-code, codex, cursor, fx and mastra already do; the remaining
+`-sdk` directories are legacy):
+
+- `src/index.ts` is the session adapter evals imports; tsdown builds it to `dist`.
+- Where the harness has a docs example, it lives in `src/agent.ts` and imports the adapter by the
+  package's own name, so the docs quickstart builds it with
+  `pnpm exec turbo run build --filter <package>`.
+- `packages/evals` depends on the package as `workspace:*`.
+- A published package keeps the adapter out of its tarball: `eve/` nests it as the private
+  workspace package `eve/harness` (`@browserbasehq/stagehand-integrations-eve`), so the
+  published `@browserbasehq/eve` manifest and files are unaffected.

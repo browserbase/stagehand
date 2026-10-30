@@ -13,7 +13,7 @@ Stagehand ships this experimental integration from the repository rather than pu
 
 - Node.js 24 or newer
 - pnpm 11.11.0
-- An OpenAI API key for the example agent
+- An OpenAI API key for the example agent (or another provider's key; see below)
 - A current Google Chrome installation for local browser mode
 
 ## Quickstart
@@ -25,7 +25,7 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 pnpm install --frozen-lockfile
 pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations
+  --filter @browserbasehq/stagehand-integrations-mastra
 ```
   </Step>
   <Step title="Configure the Mastra agent">
@@ -33,7 +33,12 @@ pnpm exec turbo run build \
 export OPENAI_API_KEY="your-openai-api-key"
 ```
 
-Set `MASTRA_STAGEHAND_MODEL` to select another model supported by the example.
+The agent defaults to an OpenAI model. Set `MASTRA_STAGEHAND_MODEL` to pick another one: bare ids (`gpt-5.4-mini`) use OpenAI, and `provider/model` ids select another provider with its own key, for example:
+
+```bash
+export MASTRA_STAGEHAND_MODEL="anthropic/claude-sonnet-5"
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
   </Step>
   <Step title="Choose the browser">
 The example uses local Chrome by default. To use Browserbase instead:
@@ -55,8 +60,8 @@ pnpm --dir packages/integrations/mastra start -- \
 
 | Variable | Purpose |
 | --- | --- |
-| `MASTRA_STAGEHAND_MODEL` | Mastra agent model. |
-| `OPENAI_API_KEY` | Credential for the example agent. Mastra does not forward it to the MCP child. |
+| `MASTRA_STAGEHAND_MODEL` | Mastra agent model. Bare ids use OpenAI; `provider/model` ids (for example `anthropic/claude-sonnet-5`) select another provider. |
+| `OPENAI_API_KEY` | Credential for the default agent model. With a `provider/model` id, set that provider's key instead (for example `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`). Mastra does not forward agent credentials to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
@@ -74,5 +79,5 @@ The MCP child receives only Stagehand and Browserbase configuration plus the pro
 </Warning>
 
 <Card title="Mastra integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/mastra">
-  Read the MCP client setup, agent prompt, and contract tests.
+  Read the facade MCP server mount (`src/facade.ts`), the example agent (`src/agent.ts`), and the contract tests.
 </Card>
