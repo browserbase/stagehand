@@ -31,7 +31,7 @@
     "@browserbasehq/stagehand-integrations-codex": "workspace:*",
     "@browserbasehq/stagehand-integrations-cursor": "workspace:*",
     "@browserbasehq/stagehand-integrations-deepagents-sdk": "workspace:*",
-    "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-eve": "workspace:*",
     "@browserbasehq/stagehand-integrations-fx": "workspace:*",
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",

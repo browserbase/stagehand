@@ -1,5 +1,5 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-eve-sdk",
+  "name": "@browserbasehq/stagehand-integrations-eve",
   "version": "4.0.5",
   "private": true,
   "description": "Eve (Vercel) harness adapter for Stagehand integrations",
@@ -15,8 +15,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/eve-sdk/tests",
-    "test:unit": "vitest run --root ../../.. packages/integrations/eve-sdk/tests",
+    "test": "pnpm run build && vitest run",
+    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

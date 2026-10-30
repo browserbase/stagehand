@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve";
 import type { TaskSpec } from "stagehand-v3";
 import { eveAdapter } from "../../framework/harnesses/eveAdapter.js";
 

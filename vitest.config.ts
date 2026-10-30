@@ -18,7 +18,6 @@ export default defineConfig({
       "packages/integrations/codex/tests/**/*.test.ts",
       "packages/integrations/mastra-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
-      "packages/integrations/eve-sdk/tests/**/*.test.ts",
       "packages/integrations/deepagents-sdk/tests/**/*.test.ts",
       "packages/integrations/fx/tests/**/*.test.ts",
       "packages/integrations/cursor/tests/**/*.test.ts",

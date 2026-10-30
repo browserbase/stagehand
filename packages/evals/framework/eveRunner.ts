@@ -4,7 +4,7 @@ import type {
   EveEvent,
   EveSessionResult,
   EveTokenUsage,
-} from "@browserbasehq/stagehand-integrations-eve-sdk";
+} from "@browserbasehq/stagehand-integrations-eve";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -87,7 +87,7 @@ export async function runEveAgent({
     systemPromptMode: !serverUrl && toolAdapter ? "native" : "task_prefix",
     runSession: async (prompt) => {
       const { buildEveTranscript, runEveSession, stringifyError } =
-        await import("@browserbasehq/stagehand-integrations-eve-sdk");
+        await import("@browserbasehq/stagehand-integrations-eve");
       const server = serverUrl
         ? { url: serverUrl }
         : toolAdapter
