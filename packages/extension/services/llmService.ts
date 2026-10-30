@@ -23,6 +23,9 @@ export async function generate(
   }
 
   if (!model?.apiKey) {
+    if (model?.modelName.startsWith("xai/")) {
+      throw new Error("xAI inference requires an xAI API key");
+    }
     if (!gateway) {
       throw new Error("Model inference requires a provider API key or a Browserbase session");
     }
