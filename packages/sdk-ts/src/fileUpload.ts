@@ -31,7 +31,9 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
       );
     });
     const absolutePath = path.resolve(file);
-    const handle = await fs.open(absolutePath, "r").catch(() => {
+    // A FIFO must not block open() before the descriptor's file-type check.
+    const openFlags = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0);
+    const handle = await fs.open(absolutePath, openFlags).catch(() => {
       throw new TypeError("setInputFiles(): could not read file");
     });
     try {
