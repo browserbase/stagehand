@@ -22,6 +22,8 @@ export type StagehandFacadeConfig = {
   stagehand: StagehandClientCreateConfig;
   /** STAGEHAND_FACADE_QUIET_WAIT: see StagehandFacadeToolsOptions.quietWait. */
   quietWait: boolean;
+  /** STAGEHAND_FACADE_ARTIFACT_ROOT: see StagehandFacadeToolsOptions.artifactRoot. */
+  artifactRoot?: string;
 };
 
 export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): StagehandFacadeConfig {
@@ -93,6 +95,7 @@ export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): Stag
   const quietWait =
     booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ??
     RUN_OPTIONS.quietWait.default;
+  const artifactRoot = nonEmpty(env.STAGEHAND_FACADE_ARTIFACT_ROOT);
 
   return {
     browser:
@@ -121,6 +124,7 @@ export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): Stag
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
     quietWait,
+    ...(artifactRoot !== undefined ? { artifactRoot } : {}),
   };
 }
 

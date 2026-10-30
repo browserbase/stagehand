@@ -31,7 +31,7 @@ function mountWith(handles: Record<string, unknown>): Extract<AgentMount, { via:
 async function post(bridge: CodeBridge, code: string) {
   const res = await fetch(`http://127.0.0.1:${bridge.port}/run`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", authorization: `Bearer ${bridge.token}` },
     body: JSON.stringify({ code }),
   });
   return (await res.json()) as { ok: boolean; result?: string; error?: string };
@@ -92,10 +92,25 @@ describe("codex code bridge", () => {
     }
   });
 
-  it("client script embeds the bridge port and pipes code", () => {
-    const script = buildBridgeClientScript(45678);
+  it("client script embeds the bridge port, token, and pipes code", () => {
+    const script = buildBridgeClientScript(45678, "test-token");
     expect(script).toContain("http://127.0.0.1:45678/run");
+    expect(script).toContain("Bearer test-token");
     expect(script).toContain("process.argv[2]");
+  });
+
+  it("rejects requests without the bridge token", async () => {
+    bridge = await startCodeBridge({
+      mount: mountWith({}),
+      plan,
+      logger: new EvalLogger(false),
+    });
+    const res = await fetch(`http://127.0.0.1:${bridge.port}/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "return 1;" }),
+    });
+    expect(res.status).toBe(403);
   });
 
   it("redacts credentials from snippet error messages", async () => {
