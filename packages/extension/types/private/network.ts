@@ -1,4 +1,5 @@
-import { Protocol } from "devtools-protocol";
+import type { Protocol } from "devtools-protocol";
+import type { Response } from "../../understudy/response.js";
 
 /** Metadata tracked for each network request currently in-flight. */
 export type NetworkRequestInfo = {
@@ -13,11 +14,12 @@ export type NetworkRequestInfo = {
   documentRequest: boolean;
 };
 
-/** Callback hooks consumers can implement to observe network transitions. */
+/** Consumers implement only the network transitions they need. */
 export interface NetworkObserver {
-  onRequestStarted(info: NetworkRequestInfo): void;
-  onRequestFinished(info: NetworkRequestInfo): void;
-  onRequestFailed(info: NetworkRequestInfo): void;
+  onRequestStarted?(info: NetworkRequestInfo): void;
+  onRequestFinished?(info: NetworkRequestInfo): void;
+  onRequestFailed?(info: NetworkRequestInfo): void;
+  onResponse?(response: Response): void;
 }
 
 /** Options for the idle waiter helper. */
