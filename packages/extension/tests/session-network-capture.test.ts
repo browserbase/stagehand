@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { NetworkManager } from "../understudy/networkManager.js";
+import type { Page } from "../understudy/page.js";
+import type { Response } from "../understudy/response.js";
 import {
   SessionNetworkCapture,
   type SessionNetworkHandlers,
@@ -14,6 +16,8 @@ class Session implements CDPSessionLike {
 
   async send<Result = unknown>(method: string): Promise<Result> {
     this.calls.push(method);
+    if (method === "Network.getResponseBody")
+      return { body: "hello", base64Encoded: false } as Result;
     return {} as Result;
   }
 
@@ -180,6 +184,43 @@ describe("SessionNetworkCapture", () => {
 });
 
 describe("NetworkManager using session capture", () => {
+  it.each([false, true])(
+    "settles responses completed before capture adoption (failed: %s)",
+    async (failed) => {
+      const session = new Session();
+      const capture = new SessionNetworkCapture(session);
+      session.emit("Network.requestWillBeSent", request());
+      session.emit("Network.responseReceived", {
+        requestId: "request",
+        frameId: "frame",
+        loaderId: "loader",
+        response: { url: "https://example.test/frame", status: 200, headers: {} },
+      });
+      session.emit(failed ? "Network.loadingFailed" : "Network.loadingFinished", {
+        requestId: "request",
+        errorText: "net::ERR_FAILED",
+      });
+      const manager = new NetworkManager({} as Page);
+      const responses: Response[] = [];
+      manager.subscribeResponse((response) => responses.push(response));
+      manager.trackSession(session, capture);
+      expect(responses).toHaveLength(1);
+      const response = responses[0]!;
+      expect(response.finishedSettled).toBe(true);
+      if (failed) {
+        await expect(response.finished()).resolves.toMatchObject({ message: "net::ERR_FAILED" });
+        await expect(response.text()).rejects.toThrow("net::ERR_FAILED");
+        expect(session.calls).not.toContain("Network.getResponseBody");
+      } else {
+        await expect(response.finished()).resolves.toBeNull();
+        await expect(response.text()).resolves.toBe("hello");
+        expect(session.calls).toEqual(["Network.getResponseBody"]);
+      }
+      manager.dispose();
+      expect(session.listenerCount()).toBe(0);
+    },
+  );
+
   it("adopts a pending capture without re-enabling domains or changing arrival times", () => {
     vi.useFakeTimers();
     const session = new Session();
@@ -188,7 +229,7 @@ describe("NetworkManager using session capture", () => {
     session.emit("Network.requestWillBeSent", request());
     vi.setSystemTime(20);
     session.emit("Network.loadingFinished", { requestId: "request" });
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const observed = observer();
     manager.addObserver(observed);
     vi.setSystemTime(1000);
@@ -210,7 +251,7 @@ describe("NetworkManager using session capture", () => {
     const capture = new SessionNetworkCapture(session);
     session.emit("Network.requestWillBeSent", request());
     session.emit("Network.loadingFinished", { requestId: "request" });
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const observed = observer();
     observed.onRequestStarted.mockImplementation(() => manager.dispose());
     manager.addObserver(observed);
@@ -238,7 +279,7 @@ describe("NetworkManager using session capture", () => {
     { name: "frame stop", event: "Page.frameStoppedLoading", payload: { frameId: "frame" } },
   ])("preserves request bookkeeping on $name", ({ name, event, payload }) => {
     vi.useFakeTimers();
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const session = new Session();
     const observed = observer();
     manager.addObserver(observed);
@@ -270,7 +311,7 @@ describe("NetworkManager using session capture", () => {
   });
 
   it("keeps sessions isolated and releases listeners on untrack and disposal", () => {
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const parent = new Session(null);
     const child = new Session("child");
     const observed = observer();
@@ -305,7 +346,7 @@ describe("NetworkManager using session capture", () => {
 
   it("keeps networkidle pending until a live request completes and the quiet period elapses", async () => {
     vi.useFakeTimers();
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const session = new Session();
     manager.trackSession(session);
     const idle = manager.waitForIdle({ timeout: 1000, idleTimeMs: 50 });
