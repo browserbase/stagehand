@@ -212,7 +212,7 @@ def test_a_directory_at_the_artifact_path_is_rejected(tmp_path: Path) -> None:
 def test_a_failed_replace_is_reported_by_its_code_and_leaves_no_temporary_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def fail(_source: str, target: str) -> None:
+    def fail(_source: str, target: str, **_dir_fds: int) -> None:
         raise PermissionError(errno.EACCES, "Permission denied", target)
 
     monkeypatch.setattr(tools.os, "replace", fail)
@@ -220,6 +220,26 @@ def test_a_failed_replace_is_reported_by_its_code_and_leaves_no_temporary_file(
         _host(artifact_root=tmp_path)._write_artifacts([{"path": "shot.png", "base64": _PNG}])
     assert str(raised.value) == contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="EACCES")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_a_directory_swapped_for_a_symlink_mid_write_writes_nothing_outside_the_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    real_open = os.open
+
+    def swap_then_open(path: str, flags: int, *args: Any, **kwargs: Any) -> int:  # noqa: ANN401
+        if os.path.basename(path).startswith(".stagehand-"):
+            (root / "shots").rename(root / "moved")
+            (root / "shots").symlink_to(outside)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(tools.os, "open", swap_then_open)
+    _host(artifact_root=root)._write_artifacts([{"path": "shots/shot.png", "base64": _PNG}])
+    assert list(outside.iterdir()) == []
+    assert [p.name for p in (root / "moved").iterdir()] == ["shot.png"]
 
 
 def test_a_replaced_artifact_keeps_its_permissions_and_a_new_one_is_owner_only(
