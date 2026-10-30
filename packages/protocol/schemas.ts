@@ -10,11 +10,9 @@ const ModelIdSchema = z.string().min(1).regex(/^\S+$/);
 export const OpenAIModelIdSchema = ModelIdSchema.meta({ id: "OpenAIModelId" });
 export const AnthropicModelIdSchema = ModelIdSchema.meta({ id: "AnthropicModelId" });
 export const GoogleModelIdSchema = ModelIdSchema.meta({ id: "GoogleModelId" });
-export const GroqModelIdSchema = ModelIdSchema.meta({ id: "GroqModelId" });
-export const CerebrasModelIdSchema = ModelIdSchema.meta({ id: "CerebrasModelId" });
 
 export const ModelProviderSchema = z
-  .enum(["openai", "anthropic", "google", "groq", "cerebras"])
+  .enum(["openai", "anthropic", "google"])
   .meta({ id: "ModelProvider" });
 
 export const OpenAIModelNameSchema = z
@@ -26,21 +24,9 @@ export const AnthropicModelNameSchema = z
 export const GoogleModelNameSchema = z
   .templateLiteral(["google/", GoogleModelIdSchema])
   .meta({ id: "GoogleModelName" });
-export const GroqModelNameSchema = z
-  .templateLiteral(["groq/", GroqModelIdSchema])
-  .meta({ id: "GroqModelName" });
-export const CerebrasModelNameSchema = z
-  .templateLiteral(["cerebras/", CerebrasModelIdSchema])
-  .meta({ id: "CerebrasModelName" });
 
 export const ModelNameSchema = z
-  .union([
-    OpenAIModelNameSchema,
-    AnthropicModelNameSchema,
-    GoogleModelNameSchema,
-    GroqModelNameSchema,
-    CerebrasModelNameSchema,
-  ])
+  .union([OpenAIModelNameSchema, AnthropicModelNameSchema, GoogleModelNameSchema])
   .meta({
     id: "ModelName",
     description: "A model name with a supported provider prefix",

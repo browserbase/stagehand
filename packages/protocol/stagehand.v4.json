@@ -1335,14 +1335,6 @@
       "type": "string",
       "pattern": "^google\\/\\S+$"
     },
-    "GroqModelName": {
-      "type": "string",
-      "pattern": "^groq\\/\\S+$"
-    },
-    "CerebrasModelName": {
-      "type": "string",
-      "pattern": "^cerebras\\/\\S+$"
-    },
     "ModelName": {
       "anyOf": [
         {
@@ -1353,12 +1345,6 @@
         },
         {
           "$ref": "#/$defs/GoogleModelName"
-        },
-        {
-          "$ref": "#/$defs/GroqModelName"
-        },
-        {
-          "$ref": "#/$defs/CerebrasModelName"
         }
       ],
       "description": "A model name with a supported provider prefix"
