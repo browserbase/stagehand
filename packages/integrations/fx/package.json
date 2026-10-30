@@ -1,8 +1,8 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-fx-sdk",
+  "name": "@browserbasehq/stagehand-integrations-fx",
   "version": "4.0.5",
   "private": true,
-  "description": "fx CLI harness adapter for Stagehand integrations",
+  "description": "fx CLI integration for Stagehand: configuration templates and skill, plus the fx harness adapter used by evals",
   "files": [
     "dist"
   ],
@@ -15,8 +15,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/fx-sdk/tests",
-    "test:unit": "vitest run --root ../../.. packages/integrations/fx-sdk/tests",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/fx/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/fx/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

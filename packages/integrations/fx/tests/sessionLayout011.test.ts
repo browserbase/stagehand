@@ -21,7 +21,7 @@ const logger = { log: () => {}, warn: () => {}, error: () => {} };
 const homes: string[] = [];
 
 async function homeWithSession(fixture: "committed" | "in-flight"): Promise<string> {
-  const home = await fsp.mkdtemp(path.join(os.tmpdir(), "fx-sdk-011-"));
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), "fx-011-"));
   homes.push(home);
   await fsp.cp(path.join(FIXTURES, fixture), path.join(home, ".fx", "sessions", "S3ss10nId"), {
     recursive: true,
