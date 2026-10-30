@@ -37,7 +37,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
         selector="select",
     ).nth(1)
 
-    await locator.click(button="left", click_count=2)
+    await locator.click(button="left", click_count=2, position={"x": 12, "y": 8.5})
     count = await locator.count()
     selected = await locator.select_option("one")
 
@@ -49,7 +49,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
         "page_id": "page-1",
         "selector": "select",
         "nth": 1,
-        "options": {"button": "left", "click_count": 2},
+        "options": {"button": "left", "click_count": 2, "position": {"x": 12, "y": 8.5}},
     })
     assert result_model is LocatorClickResult
     assert recording.calls[1] == (
