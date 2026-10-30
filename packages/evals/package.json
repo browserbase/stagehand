@@ -29,7 +29,7 @@
     "@browserbasehq/stagehand-integrations-claude-code": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex": "workspace:*",
-    "@browserbasehq/stagehand-integrations-cursor-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-cursor": "workspace:*",
     "@browserbasehq/stagehand-integrations-deepagents-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",

@@ -94,7 +94,7 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations-cursor-sdk#build": {
+    "@browserbasehq/stagehand-integrations-cursor#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -246,8 +246,8 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-integrations-cursor-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor-sdk#build"],
+    "@browserbasehq/stagehand-integrations-cursor#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -306,9 +306,6 @@
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations-example-cursor-facade#typecheck": {
-      "dependsOn": ["^build"]
-    },
     "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -318,8 +315,8 @@
     "@browserbasehq/stagehand-integrations-fx-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations-cursor-sdk#typecheck": {
-      "dependsOn": ["^build"]
+    "@browserbasehq/stagehand-integrations-cursor#typecheck": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor#build"]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
