@@ -1,0 +1,85 @@
+---
+title: "OpenTelemetry Collector"
+sidebarTitle: "OTel Collector"
+description: "Route Stagehand browser traces through an OpenTelemetry Collector."
+---
+
+Use an OpenTelemetry Collector when you need to forward Stagehand traces to multiple providers, process spans before export, or convert OTLP/HTTP JSON to protobuf. For one compatible backend, use its [direct provider guide](/v4/observability/overview).
+
+## Configure Stagehand
+
+Set `BROWSERBASE_API_KEY` and `OTEL_COLLECTOR_TRACES_ENDPOINT`. The latter must be the full HTTP traces URL, including `/v1/traces`. The Collector's OTLP HTTP receiver uses port 4318 in the configuration below.
+
+The exporter runs inside the browser extension. For Browserbase sessions, expose the Collector through an HTTPS ingress reachable from the remote browser. `localhost` points to that browser, not your SDK's machine. Add any ingress authentication headers to `telemetry.traces.headers`.
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.OTEL_COLLECTOR_TRACES_ENDPOINT!,
+        headers: {},
+      },
+    },
+  });
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+Close Stagehand before closing the browser to flush the final batch. The Collector cannot forward spans that have not left the browser.
+
+## Configure the Collector
+
+This pipeline receives Stagehand's OTLP/HTTP JSON and exports to two backends. Set the endpoint and authorization variables in the Collector's environment. Each `traces_endpoint` is a full provider traces URL. The HTTP exporter uses protobuf by default.
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlp_http/first:
+    traces_endpoint: ${env:FIRST_OTLP_TRACES_ENDPOINT}
+    headers:
+      Authorization: ${env:FIRST_OTLP_AUTHORIZATION}
+  otlp_http/second:
+    traces_endpoint: ${env:SECOND_OTLP_TRACES_ENDPOINT}
+    headers:
+      Authorization: ${env:SECOND_OTLP_AUTHORIZATION}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/first, otlp_http/second]
+```
+
+Replace the headers for each provider. Braintrust also needs `x-bt-parent`; LangSmith uses `x-api-key` and `Langsmith-Project`; Sentry uses `x-sentry-auth`. Langfuse uses Basic Auth and `x-langfuse-ingestion-version`.
+
+The current exporter name is `otlp_http`. Older Collector releases may require `otlphttp` in both the exporter definition and pipeline. See the [OTLP HTTP exporter configuration](https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter) for supported options, including `encoding: json` when a backend requires JSON.
+
+## Verify traces
+
+Start the Collector before running Stagehand. Check its logs for receiver and export errors, then inspect each backend for `service.name = stagehand-service-worker`.
+
+If no spans arrive, check network access from the browser, the receiver URL, and Stagehand cleanup. Temporarily add a [debug exporter](https://opentelemetry.io/docs/collector/troubleshooting/) to the traces pipeline to confirm receipt.
+
+If the Collector receives spans but a backend stays empty, inspect that exporter's endpoint, headers, and errors. A 401 usually indicates missing or invalid credentials; a 404 can indicate an incorrect path. `traces_endpoint` uses the URL exactly as given. If you use `endpoint` instead, omit the `/v1/traces` suffix but keep provider prefixes such as `/otel` or `/api/public/otel`.

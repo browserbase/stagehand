@@ -1,0 +1,97 @@
+---
+title: "Sentry"
+description: "Send Stagehand browser traces to Sentry using OpenTelemetry."
+---
+
+Send Stagehand browser traces to Sentry using direct OTLP/HTTP ingestion, which is currently in open beta. No Sentry SDK is required for trace export.
+
+## Setup
+
+1. Open your Sentry project's Settings > Client Keys (DSN) > OpenTelemetry tab.
+2. Copy its OTLP Traces Endpoint and public key. Use the OTLP endpoint shown there rather than constructing one from the DSN.
+3. Set `BROWSERBASE_API_KEY`, `SENTRY_OTLP_TRACES_ENDPOINT`, and `SENTRY_PUBLIC_KEY`.
+
+The `x-sentry-auth` header contains `sentry sentry_key=<public-key>`. See [Sentry's OTLP setup guide](https://blog.sentry.io/send-your-existing-opentelemetry-traces/).
+
+## Configure Stagehand
+
+These examples use the [v4 SDK](/v4/first-steps/installation) with a Browserbase browser. The exporter runs inside the browser extension, so the endpoint must be reachable from that browser.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.SENTRY_OTLP_TRACES_ENDPOINT!,
+        headers: {
+          "x-sentry-auth": `sentry sentry_key=${process.env.SENTRY_PUBLIC_KEY}`,
+        },
+      },
+    },
+  });
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from stagehand import Stagehand, browserbase
+
+
+async def main():
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    try:
+        stagehand = await Stagehand.create(
+            browser=browser,
+            telemetry={
+                "traces": {
+                    "endpoint": os.environ["SENTRY_OTLP_TRACES_ENDPOINT"],
+                    "headers": {
+                        "x-sentry-auth": f"sentry sentry_key={os.environ['SENTRY_PUBLIC_KEY']}",
+                    },
+                },
+            },
+        )
+        try:
+            page = (await browser.context.pages())[0]
+            await page.goto("https://example.com")
+            await stagehand.observe("find the link on the page")
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</Tab>
+
+</Tabs>
+
+Close Stagehand before closing the browser to flush pending spans. Exports run in one-second batches; exiting without closing Stagehand can lose the final batch. Delivery is best effort, so successful cleanup does not confirm ingestion.
+
+## Verify traces
+
+Open Explore > Traces and select the time of your run. Filter by `service.name = stagehand-service-worker` and inspect the operation and child log spans.
+
+Stagehand records exceptions as span events and marks failed operations with error status. Sentry's direct OTLP ingestion drops span events, so these exceptions do not create error issues. Capture exceptions with a Sentry SDK if you also need error issues.
+
+If traces are missing, check the OTLP endpoint, public key, and that Stagehand closed before the browser.
