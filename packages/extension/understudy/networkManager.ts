@@ -311,21 +311,21 @@ export class NetworkManager {
   /** Fan-out helper when a tracked request starts. */
   emitStart(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
-      obs.onRequestStarted(info);
+      obs.onRequestStarted?.(info);
     }
   }
 
   /** Fan-out helper when a tracked request completes successfully. */
   emitFinish(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
-      obs.onRequestFinished(info);
+      obs.onRequestFinished?.(info);
     }
   }
 
   /** Fan-out helper when a tracked request fails mid-flight. */
   emitFailure(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
-      obs.onRequestFailed(info);
+      obs.onRequestFailed?.(info);
     }
   }
 
