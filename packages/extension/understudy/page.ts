@@ -152,6 +152,8 @@ function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotat
     ...(annotation.untrustedContent === undefined
       ? {}
       : { untrustedContent: annotation.untrustedContent }),
+    ...(annotation.consequential === undefined ? {} : { consequential: annotation.consequential }),
+    ...(annotation.debugging === undefined ? {} : { debugging: annotation.debugging }),
     ...(annotation.autosubmit === undefined ? {} : { autosubmit: annotation.autosubmit }),
   };
 }
