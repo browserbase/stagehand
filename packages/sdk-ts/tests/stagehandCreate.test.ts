@@ -277,7 +277,12 @@ describe("Stagehand.create", () => {
 
     expect(browser.closed).toBe(true);
     expect(cdp.sendCommand).toHaveBeenCalledOnce();
-    expect(cdp.sendCommand).toHaveBeenCalledWith("Browser.close");
+    expect(cdp.sendCommand).toHaveBeenCalledWith(
+      "Browser.close",
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
     expect(cdp.close).toHaveBeenCalledOnce();
     expect(cdp.requestsFor("context.close")).toHaveLength(0);
 
