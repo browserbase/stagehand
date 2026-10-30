@@ -52,6 +52,7 @@ export interface BilledCost {
  * | mastra      | never (AI SDK usage has no dollars)     | —                     | provider SDK with our key → computed <provider>_api   |
  * | deepagents  | never (LangChain usage_metadata)        | —                     | provider SDK with our key → computed <provider>_api   |
  * | cursor      | never                                   | —                     | subscription → unavailable                            |
+ * | grok_build  | end event `total_cost_usd`             | xai                   | unreported → unavailable                              |
  */
 const REPORTED_CHANNEL: Readonly<Record<string, string>> = {
   claude_code: "anthropic_api",
@@ -60,6 +61,7 @@ const REPORTED_CHANNEL: Readonly<Record<string, string>> = {
   eve: "ai_gateway",
   pi: "pi_catalog",
   fx: "fx_gateway",
+  grok_build: "xai",
 };
 
 /** Harnesses whose unreported bill is our own provider-API spend, priceable at list. */
