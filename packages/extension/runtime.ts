@@ -200,6 +200,10 @@ export type UnderstudyRuntimePage = {
     listener: (event: PageCDPEvent) => void,
     signal?: AbortSignal,
   ): Promise<() => void>;
+  subscribeResponse(
+    listener: (response: Response) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
   subscribeWebMCPToolsChanged(
     listener: (event: WebMCPToolsEvent) => void,
     signal?: AbortSignal,
@@ -866,6 +870,19 @@ export class StagehandRuntime {
             subscription.controller.signal,
           );
           break;
+        case "response":
+          subscription.dispose = await page.subscribeResponse((response) => {
+            if (!isActive()) return;
+            this.adapters.emitPageEvent({
+              subscriptionId: params.subscriptionId,
+              event: "response",
+              pageId: params.pageId,
+              sessionId: response.session.id ?? params.pageId,
+              targetId: response.page.conn.targetIdForSession(response.session.id) ?? params.pageId,
+              response: this.responseDescriptor(params.pageId, response),
+            });
+          }, subscription.controller.signal);
+          break;
         case "toolsadded":
         case "toolsremoved":
           subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
@@ -1187,17 +1204,17 @@ export class StagehandRuntime {
     const pageRef = pageRefFromUnderstudyPage(page);
     if (!(response instanceof Response)) return { page: pageRef, response: null };
 
-    const responseId = this.responseHandles.register(pageId, response);
+    return { page: pageRef, response: this.responseDescriptor(pageId, response) };
+  }
+
+  private responseDescriptor(pageId: string, response: Response) {
     return {
-      page: pageRef,
-      response: {
-        responseId,
-        url: response.url(),
-        status: response.status(),
-        statusText: response.statusText(),
-        headers: response.headers(),
-        fromServiceWorker: response.fromServiceWorker(),
-      },
+      responseId: this.responseHandles.register(pageId, response),
+      url: response.url(),
+      status: response.status(),
+      statusText: response.statusText(),
+      headers: response.headers(),
+      fromServiceWorker: response.fromServiceWorker(),
     };
   }
 
