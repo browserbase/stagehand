@@ -3,6 +3,69 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.4.0
+
+### Minor Changes
+
+- [#3305](https://github.com/browserbase/stagehand/pull/3305) [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1) Thanks [@miguelg719](https://github.com/miguelg719)! - add `browser.disconnect()`, which closes an attached Stagehand instance and the connection to a browser without closing the browser or releasing its Browserbase session (Browserbase still ends sessions without `keepAlive` on disconnect). `browser.close()` after `disconnect()` now throws (connect again to close the browser), a launched local browser receives `Browser.close` before it is terminated, browser handles expose `cdpUrl` (`cdp_url` in Python) for local browsers, and `connected` reports whether the handle still has a live connection
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+## Python SDK 4.4.0
+
+### Minor Changes
+
+- [#3305](https://github.com/browserbase/stagehand/pull/3305) [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1) Thanks [@miguelg719](https://github.com/miguelg719)! - add `browser.disconnect()`, which closes an attached Stagehand instance and the connection to a browser without closing the browser or releasing its Browserbase session (Browserbase still ends sessions without `keepAlive` on disconnect). `browser.close()` after `disconnect()` now throws (connect again to close the browser), a launched local browser receives `Browser.close` before it is terminated, browser handles expose `cdpUrl` (`cdp_url` in Python) for local browsers, and `connected` reports whether the handle still has a live connection
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+## Extension Runtime 1.3.0
+
+### Minor Changes
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+## Protocol 3.1.1
+
+### Patch Changes
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+## Eve Extension 0.2.3
+
+### Patch Changes
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3350](https://github.com/browserbase/stagehand/pull/3350) [`b7a4b89`](https://github.com/browserbase/stagehand/commit/b7a4b899079f198a0ee78a6dcb62ad02f545cf49) Thanks [@miguelg719](https://github.com/miguelg719)! - Save run screenshots only as PNG or JPEG files, under ./stagehand-artifacts by default
+
+- Updated dependencies [[`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0), [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91), [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086), [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1), [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2)]:
+  - @browserbasehq/stagehand@4.4.0
+
 ## TypeScript SDK 4.3.0
 
 ### Minor Changes
