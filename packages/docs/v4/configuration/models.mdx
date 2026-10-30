@@ -1197,6 +1197,120 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Step>
 </Steps>
 </Accordion>
+<Accordion title="Fireworks AI">
+
+Use [Fireworks AI's OpenAI-compatible API](https://docs.fireworks.ai/tools-sdks/openai-compatibility) through a custom callback. Set `FIREWORKS_API_KEY` to your Fireworks API key and `FIREWORKS_MODEL` to the full model or deployment ID from your [Fireworks console](https://fireworks.ai/models), such as `accounts/fireworks/models/kimi-k2p5`.
+
+Install the OpenAI client used in this TypeScript example:
+
+```bash
+pnpm add openai
+```
+
+The callback calls Chat Completions at `https://api.fireworks.ai/inference/v1`, forwards Stagehand's JSON schema, and returns the parsed response in `structuredContent`.
+
+```typescript
+import OpenAI from "openai";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const fireworks = new OpenAI({
+  apiKey: process.env.FIREWORKS_API_KEY,
+  baseURL: "https://api.fireworks.ai/inference/v1",
+});
+const model = process.env.FIREWORKS_MODEL ?? "accounts/fireworks/models/kimi-k2p5";
+
+// Describe the callback fields used by this example.
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+type GenerateParams = {
+  messages: Array<{
+    role: "user" | "assistant";
+    content: ContentBlock | ContentBlock[];
+  }>;
+  systemPrompt?: string;
+  temperature?: number;
+  stopSequences?: string[];
+  responseFormat?:
+    | { type: "text" }
+    | { type: "json_schema"; name: string; schema: unknown };
+};
+
+async function generateWithFireworks(params: GenerateParams) {
+  if (params.responseFormat?.type !== "json_schema") {
+    throw new TypeError("Expected a structured generation");
+  }
+
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: [
+        params.systemPrompt,
+        `Return JSON matching this schema: ${JSON.stringify(params.responseFormat.schema)}`,
+      ].filter(Boolean).join("\n\n"),
+    },
+    ...params.messages.map((message) => {
+      const blocks = Array.isArray(message.content) ? message.content : [message.content];
+      if (message.role === "assistant") {
+        return {
+          role: "assistant" as const,
+          content: blocks.map((block) => {
+            if (block.type !== "text") throw new Error("Unexpected assistant image");
+            return block.text;
+          }).join("\n"),
+        };
+      }
+      return {
+        role: "user" as const,
+        content: blocks.map((block): OpenAI.Chat.Completions.ChatCompletionContentPart =>
+          block.type === "text"
+            ? { type: "text", text: block.text }
+            : {
+                type: "image_url",
+                image_url: { url: `data:${block.mimeType};base64,${block.data}` },
+              },
+        ),
+      };
+    }),
+  ];
+
+  const response = await fireworks.chat.completions.create({
+    model,
+    messages,
+    temperature: params.temperature,
+    stop: params.stopSequences,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: params.responseFormat.name,
+        schema: params.responseFormat.schema as Record<string, unknown>,
+      },
+    },
+  });
+  const choice = response.choices[0];
+  const text = choice?.message.content;
+  if (choice?.finish_reason !== "stop" || !text) {
+    throw new Error(`Fireworks returned no complete JSON response: ${choice?.finish_reason}`);
+  }
+
+  return {
+    role: "assistant" as const,
+    content: { type: "text" as const, text },
+    outputFormat: "json_schema" as const,
+    structuredContent: JSON.parse(text),
+  };
+}
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model: { generate: generateWithFireworks },
+});
+```
+
+Choose a model that supports [structured outputs](https://docs.fireworks.ai/structured-responses/structured-response-formatting). Screenshot extraction also requires a vision-capable model. The `baseURL` above belongs to the OpenAI client inside your callback; Fireworks does not use a native Stagehand provider prefix. For the Python and Go callback contracts, see **All providers** below.
+
+</Accordion>
 <Accordion title="All providers">
 
 The pattern is the same for every provider: implement one function, wire it in, done. Your callback never crosses the wire; Stagehand records only that the model lives on the client and calls back to you over the same connection.
