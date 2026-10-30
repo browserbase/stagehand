@@ -1,5 +1,15 @@
 # browse
 
+## 0.11.4
+
+### Patch Changes
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3275](https://github.com/browserbase/stagehand/pull/3275) [`63078cf`](https://github.com/browserbase/stagehand/commit/63078cf85ddfe189da88204539ec30d41959378b) Thanks [@shrey150](https://github.com/shrey150)! - Update extension upload instructions to use `--stagehand` flag.
+
+- [#3289](https://github.com/browserbase/stagehand/pull/3289) [`aa67fee`](https://github.com/browserbase/stagehand/commit/aa67fee03ef7b899f9f505350e6410d207496450) Thanks [@shrey150](https://github.com/shrey150)! - Add `--stagehand` flag to `browse cloud extensions upload`.
+
 ## 0.11.3
 
 ### Patch Changes
