@@ -52,6 +52,7 @@ from ._generated.models import (
     PageRef,
     PageReloadOptions,
     PageReloadParams,
+    PageResponseNotification,
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
@@ -94,6 +95,7 @@ from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+ResponseListener = Callable[[Response], object | Awaitable[object]]
 ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
@@ -421,6 +423,16 @@ class Page:
             PageCDPEventNotification,
             lambda notification: listener(notification.event),
         )
+
+    async def on_response(self, listener: ResponseListener) -> CDPSubscription:
+        """Observe future response headers; body methods wait for completion."""
+
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            if isinstance(notification.root, PageResponseNotification):
+                return listener(Response(self._rpc_client, notification.root.response))
+            return None
+
+        return await self._subscribe("response", "page.event", PageEventNotification, deliver)
 
     async def on_tools_added(self, listener: ToolsAddedListener) -> CDPSubscription:
         def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
