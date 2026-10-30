@@ -12,6 +12,7 @@ from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
+    CDPConnectionClosedError,
     ServiceWorkerInfo,
     StagehandRuntimeIncompatibleError,
 )
@@ -994,3 +995,119 @@ async def test_local_loading_failure_closes_connection_without_retrying(
         "Extensions.getExtensions",
         "Extensions.loadUnpacked",
     ]
+
+
+def _lifecycle_client(
+    target_type: str, *, attach: bool, detach: bool | BaseException = True
+) -> tuple[CDPClient, list[str]]:
+    calls: list[str] = []
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = cast(str, message["method"])
+        params = cast(dict[str, object], message.get("params") or {})
+        if method == "Runtime.evaluate":
+            action = "detach" if '"detach"' in str(params.get("expression")) else "attach"
+            calls.append(action)
+            if action == "detach" and isinstance(detach, BaseException):
+                raise detach
+            return {"result": {"result": {"value": detach if action == "detach" else attach}}}
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"result": {"targetId": "marker"}}
+        if method == "Target.getTargetInfo":
+            return {"result": {"targetInfo": {"type": target_type}}}
+        return {"result": {}}
+
+    client = CDPClient(FakeWebSocket(response_for), "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    return client, calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["page", "iframe", "worker"])
+async def test_client_registration_requires_chrome_137_for_hidden_targets(
+    target_type: str,
+) -> None:
+    client, calls = _lifecycle_client(target_type, attach=True)
+    try:
+        with pytest.raises(RuntimeError, match="requires Chrome 137 or later"):
+            await client._register_client(True, "ws://browser")
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_registration_rejects_an_extension_without_lifecycle_support() -> None:
+    client, calls = _lifecycle_client("other", attach=False)
+    try:
+        with pytest.raises(RuntimeError, match="does not support the client watchdog"):
+            await client._register_client(True, "ws://browser")
+        assert calls == [
+            "Target.createTarget",
+            "Target.getTargetInfo",
+            "attach",
+            "Target.closeTarget",
+        ]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_runs_once_when_acknowledged() -> None:
+    client, calls = _lifecycle_client("other", attach=True)
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_when_not_acknowledged() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=False)
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="did not acknowledge the detach"):
+            await client.detach_client()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_treats_a_closed_connection_as_a_completed_detach() -> None:
+    # Browserbase ends a keep_alive=False session once the extension closes its connection.
+    client, calls = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(False, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls.count("detach") == 1
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_a_lost_connection_when_the_browser_is_shut_down_on_loss() -> (
+    None
+):
+    client, _ = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(CDPConnectionClosedError):
+            await client.detach_client()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_still_raises_when_detach_fails_with_the_connection_open() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=RuntimeError("detach failed"))
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="detach failed"):
+            await client.detach_client()
+    finally:
+        await client.close()
