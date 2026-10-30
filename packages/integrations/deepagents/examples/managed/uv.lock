@@ -931,13 +931,13 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.14,<1.3" },
     { name = "managed-deepagents" },
     { name = "stagehand", specifier = ">=4.3.0,<5" },
-    { name = "stagehand-middleware", specifier = ">=0.1.0,<0.2" },
+    { name = "stagehand-middleware", specifier = ">=0.1.2,<0.2" },
     { name = "urllib3", specifier = ">=2.8.0,<3" },
 ]
 
 [[package]]
 name = "stagehand-middleware"
-version = "0.1.0"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
@@ -945,9 +945,9 @@ dependencies = [
     { name = "tree-sitter" },
     { name = "tree-sitter-javascript" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/9b/1e3bb478e29d31679afc3ef5e10989e9a9453593443d7f3ff08d104f0532/stagehand_middleware-0.1.0.tar.gz", hash = "sha256:d09647a30bec55865f92169d54ac4b9c74db19c67ad9db65aa7e0f47362cffb2", size = 62909, upload-time = "2026-10-21T06:22:52.182Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/e3/7595941e2bff7bed68e4a9d88ef9756098b9365d66fed600739744d10f90/stagehand_middleware-0.1.2.tar.gz", hash = "sha256:0657056e3095bb9217a619ff50f1870153bed95b41c6dbb1e939ebdca026bc3c", size = 64815, upload-time = "2026-10-30T01:18:38.768Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/fd/5be653d7703c3ce5841829e173a49305ab2acbacc4588f10d06a590a672b/stagehand_middleware-0.1.0-py3-none-any.whl", hash = "sha256:ed04255cc9ca7050f4ed661db547108b6f3fcb71006daa992be9cd34002ae251", size = 65176, upload-time = "2026-10-21T06:22:50.548Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/0c/ab7c9ca9c0d77d82deb72457a0c6ad28474a46ce83540710d4f9571d1098/stagehand_middleware-0.1.2-py3-none-any.whl", hash = "sha256:ddfb7ac5e702fb370993ae35d157b71da68354b3aecb4244dc0117cbed9ed159", size = 67176, upload-time = "2026-10-30T01:18:37.785Z" },
 ]
 
 [[package]]
