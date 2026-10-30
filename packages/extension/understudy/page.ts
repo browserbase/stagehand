@@ -259,7 +259,7 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(this);
     this.networkManager.trackSession(this.mainSession);
   }
 
@@ -601,6 +601,17 @@ export class Page {
     return this.subscribeWhenReady(
       undefined,
       () => this.attachCDPEventListener(pageEventName, listener),
+      signal,
+    );
+  }
+
+  public async subscribeResponse(
+    listener: (response: Response) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.networkManager.subscribeResponse(listener),
       signal,
     );
   }
