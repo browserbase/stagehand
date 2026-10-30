@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CodeModeRunInputSchema,
+  DEFAULT_ARTIFACT_DIRECTORY,
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_LEGACY_TOOLS,
   FACADE_TOOLS,
+  FACADE_TOOLS_EXPLICIT_SNAPSHOT,
   facadeSurfaceFromArgs,
   facadeToolsFor,
   facadeToolsForSurface,
@@ -41,6 +43,16 @@ describe("Stagehand facade contract", () => {
         'STAGEHAND_FACADE_QUIET_WAIT must be a boolean (got "maybe").',
       ),
     );
+  });
+
+  it("reads STAGEHAND_FACADE_ARTIFACT_ROOT only when it is set", () => {
+    expect(stagehandFacadeConfigFromEnv({})).not.toHaveProperty("artifactRoot");
+    expect(stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_ARTIFACT_ROOT: " out " })).toMatchObject(
+      { artifactRoot: "out" },
+    );
+    expect(
+      stagehandFacadeConfigFromEnv({ STAGEHAND_FACADE_ARTIFACT_ROOT: "  " }),
+    ).not.toHaveProperty("artifactRoot");
   });
 
   it("ignores malformed Browserbase-only options in local mode", () => {
@@ -142,6 +154,18 @@ describe("Stagehand facade contract", () => {
     expect(FACADE_TOOLS[2].description).toContain('{"type":"jpeg","quality":40,"fullPage":false}');
   });
 
+  it("tells the agent where page.screenshot({ path }) files land", () => {
+    for (const tool of [
+      FACADE_TOOLS[0],
+      FACADE_LEGACY_TOOLS[0],
+      FACADE_TOOLS_EXPLICIT_SNAPSHOT[0],
+    ]) {
+      expect(tool.description).toContain(
+        `page.screenshot({ path }) saves a .png, .jpg or .jpeg file relative to the host's artifact directory (./${DEFAULT_ARTIFACT_DIRECTORY} under`,
+      );
+    }
+  });
+
   it("advertises the Playwright idiom and no Stagehand AI methods", () => {
     expect(FACADE_TOOLS[0].description).toContain("page, context, and browser in scope");
     expect(FACADE_TOOLS[0].description).toContain("Playwright-shaped API");
@@ -160,7 +184,7 @@ describe("Stagehand facade contract", () => {
       "screenshot",
     ]);
     expect(FACADE_LEGACY_TOOLS[0].description).toBe(
-      'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.',
+      'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. page.screenshot({ path }) saves a .png, .jpg or .jpeg file relative to the host\'s artifact directory (./stagehand-artifacts under the host\'s working directory unless the host configures another). Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.',
     );
     expect(FACADE_LEGACY_TOOLS[0].inputSchema).toBe(FACADE_TOOLS[0].inputSchema);
     expect(FACADE_LEGACY_TOOLS[1]).toBe(FACADE_TOOLS[1]);
