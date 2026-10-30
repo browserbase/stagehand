@@ -296,6 +296,7 @@ class Stagehand:
         _attach_browser_context(
             self._browser_handle,
             BrowserContext(rpc_client, self._browser_handle.close),
+            self.close,
         )
         self._initialized = True
 

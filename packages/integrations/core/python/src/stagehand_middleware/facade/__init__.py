@@ -10,6 +10,7 @@ from .bundle import (
     facade_tools,
 )
 from .tools import (
+    DEFAULT_ARTIFACT_DIRECTORY,
     StagehandFacadeCleanupError,
     StagehandFacadeExecutionError,
     StagehandFacadeInputError,
@@ -17,6 +18,7 @@ from .tools import (
 )
 
 __all__ = [
+    "DEFAULT_ARTIFACT_DIRECTORY",
     "StagehandFacadeBundleError",
     "StagehandFacadeCleanupError",
     "StagehandFacadeExecutionError",

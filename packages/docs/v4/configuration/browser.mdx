@@ -709,8 +709,67 @@ In this example, `127.0.0.1` refers to the browser's environment. The extension 
 
 
 <Note>
-Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
+`browser.close()` closes the browser, including one you attached to with `localBrowser.connect()`. To detach without closing it, call `browser.disconnect()`.
 </Note>
+
+#### Disconnecting without closing the browser
+
+`browser.disconnect()` closes Stagehand's connection without closing the browser or releasing its Browserbase session. Use it when the browser holds state you want to keep, such as a signed-in profile. It also closes the attached Stagehand instance, including the extension's own connection to the browser, so you can connect again later and create a new instance:
+
+<Warning>
+**On Browserbase, `keepAlive` controls whether the session survives a disconnect, not `disconnect()`.** With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes. That includes `browser.disconnect()`, a dropped network connection, or your process exiting. To keep a Browserbase session running after you disconnect, create it with `keepAlive: true`.
+</Warning>
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+let browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+let stagehand = await Stagehand.create({ browser });
+// ...
+await browser.disconnect(); // closes stagehand; Chrome and its tabs keep running
+
+// Later, attach again to the same Chrome
+browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
+# ...
+await browser.disconnect()  # closes stagehand; Chrome and its tabs keep running
+
+# Later, attach again to the same Chrome
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+`Disconnect` isn't available in the Go SDK.
+</Tab>
+</Tabs>
+
+After `disconnect()` the handle is finished: repeated `disconnect()` calls do nothing, and `browser.close()` throws because the connection is gone. To close the browser later, connect again and close the new handle. Use `browser.cdpUrl` (`browser.cdp_url` in Python) for a local browser, or `browser.sessionId` (`browser.session_id`) for a Browserbase session.
+
+| Browser | After `browser.disconnect()` | To close it later |
+| --- | --- | --- |
+| **Local, `launch()`** | Chrome keeps running | `localBrowser.connect({ cdpUrl })`, then `close()`. The temporary profile stays on disk |
+| **Local, `connect()`** | Browser keeps running | `localBrowser.connect({ cdpUrl })`, then `close()` |
+| **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ apiKey, sessionId })`, then `close()` |
+| **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
+
+If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.connected` becomes `false` while `browser.closed` stays `false`, because `browser.close()` still has work to do: it releases a Browserbase session through the Browserbase API, and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:
+
+- Stagehand closes a local browser it launched without `keepAlive`, so the browser doesn't outlive your process.
+- Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.
+- On Browserbase, the extension releases the instance and its own connection, and the session follows its `keepAlive` setting: with `keepAlive: true` it keeps running and you can connect again; otherwise Browserbase ends it.
+
+This requires Chrome 137 or later. Stagehand also rejects a browser whose Stagehand extension speaks an older protocol version than your SDK requires, for example a Browserbase session launched by an SDK release from before this change: launch a new session, or connect with the SDK version that launched it.
+
+Only one Stagehand client can be attached to a browser at a time. Connecting a second client while the first is still connected fails with `A Stagehand client is already connected`.
 
 ## Local environment
 
@@ -1071,7 +1130,7 @@ Select the `stagehand-extension` folder in **Load unpacked**. To attach Stagehan
 
 ### Keep alive
 
-Keep-alive keeps a launched browser running after `stagehand.close()` or after your script exits, so you can reconnect to it later. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
+Keep-alive decides whether a launched browser survives when your client goes away without closing it: when your process exits or loses its connection, and on Browserbase also after `browser.disconnect()`. That lets you reconnect to it later. `stagehand.close()` only ends the Stagehand instance and never closes the browser, with or without keep-alive. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
 
 <Note>
 Keeping sessions alive is available on the Browserbase Startup plan and above.
@@ -1089,8 +1148,8 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 const sessionId = browser.sessionId!;
 
-// The session keeps running after stagehand.close()
-await stagehand.close();
+// Let go of the session: this also closes stagehand, and keepAlive keeps it running
+await browser.disconnect();
 
 // Later, reconnect to the same Browserbase session
 const browser2 = await browserbase.connect({
@@ -1121,8 +1180,8 @@ stagehand = await Stagehand.create(browser=browser)
 session_id = browser.session_id
 assert session_id is not None
 
-# The session keeps running after stagehand.close()
-await stagehand.close()
+# Let go of the session: this also closes stagehand, and keep_alive keeps it running
+await browser.disconnect()
 
 # Later, reconnect to the same Browserbase session
 browser2 = await browserbase.connect(
@@ -1186,12 +1245,17 @@ defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }
 
 #### Behavior by environment
 
-| Environment | After `stagehand.close()` | After `browser.close()` |
-| --- | --- | --- |
-| **Browserbase, `launch()`** | Session keeps running until `browser.close()` or its timeout | Ends the session |
-| **Local, `launch()`** | Chrome keeps running | Kills Chrome and removes the temp profile |
-| **Browserbase, `connect()`** | Session keeps running | Ends the session |
-| **Local, `connect()`** | Browser keeps running | Closes the browser |
+<Warning>
+With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes, including `browser.disconnect()` or your process exiting.
+</Warning>
+
+| Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
+| --- | --- | --- | --- |
+| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until its timeout |
+| **Browserbase, `launch()`, `keepAlive: false`** | Session keeps running while the connection stays open | Ends the session | **Browserbase ends the session** |
+| **Local, `launch()`** | Chrome keeps running | Closes Chrome and removes the temp profile, unless `preserveUserDataDir` is set | Chrome keeps running |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running only if it has `keepAlive: true` |
+| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running |
 
 #### Local environment
 
