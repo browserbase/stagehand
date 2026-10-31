@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { spawnSync } from "node:child_process";
 import { abortable, abortableDelay } from "../src/abort.js";
 
 describe("abort helpers", () => {
@@ -18,6 +19,39 @@ describe("abort helpers", () => {
 
     await expect(abortable(Promise.resolve("late"), controller.signal)).rejects.toBe(reason);
   });
+
+  it.each(["immediate", "deferred"])(
+    "observes an underlying %s rejection when already aborted",
+    (timing) => {
+      const moduleUrl = new URL("../src/abort.ts", import.meta.url).href;
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--unhandled-rejections=strict",
+          "--input-type=module",
+          "-e",
+          `
+            import assert from "node:assert/strict";
+            import { abortable } from ${JSON.stringify(moduleUrl)};
+            const controller = new AbortController();
+            const reason = new Error("caller canceled");
+            controller.abort(reason);
+            const failure = new Error("underlying operation failed");
+            const operation = ${
+              timing === "immediate"
+                ? "Promise.reject(failure)"
+                : "new Promise((_, reject) => setImmediate(() => reject(failure)))"
+            };
+            await assert.rejects(abortable(operation, controller.signal), error => error === reason);
+            await new Promise(resolve => setTimeout(resolve, 20));
+          `,
+        ],
+        { encoding: "utf8", timeout: 5_000 },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+    },
+  );
 
   it("rejects a pending operation when its signal aborts", async () => {
     const controller = new AbortController();
