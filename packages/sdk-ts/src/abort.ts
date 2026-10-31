@@ -8,7 +8,11 @@ export function throwIfAborted(signal?: AbortSignal): void {
 
 export async function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return await promise;
-  throwIfAborted(signal);
+  if (signal.aborted) {
+    // The caller already started this operation; observe any later rejection.
+    void promise.catch(() => undefined);
+    throw abortReason(signal);
+  }
 
   return await new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(abortReason(signal));
