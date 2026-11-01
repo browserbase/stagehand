@@ -1,4 +1,4 @@
-import { Args } from "@oclif/core";
+import { secretIdArg } from "../../../lib/cloud/args.js";
 import { BrowseCommand } from "../../../base.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { updateSecret } from "../../../lib/secrets/api.js";
@@ -16,11 +16,7 @@ export default class SecretsUpdate extends BrowseCommand {
     "browse cloud secrets update <secretId> --stdin < ./secret.txt",
   ];
   static override args = {
-    secretId: Args.string({
-      description:
-        "Project secret ID (e.g. d2c4f48f-38e9-4b82-a36a-2b373fd14a65).",
-      required: true,
-    }),
+    secretId: secretIdArg,
   };
   static override flags = { ...apiCommonFlags, ...secretInputFlags };
   async run(): Promise<void> {

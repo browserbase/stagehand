@@ -676,15 +676,28 @@ describe("cloud API contracts", () => {
       responseBody: [{ id: "proj_123", name: "Demo" }],
     },
     {
-      args: ["cloud", "projects", "get", "proj_123"],
+      args: [
+        "cloud",
+        "projects",
+        "get",
+        "00000000-0000-4000-8000-000000000001",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/projects/proj_123",
-      responseBody: { id: "proj_123", name: "Demo" },
+      expectedPath: "/v1/projects/00000000-0000-4000-8000-000000000001",
+      responseBody: {
+        id: "00000000-0000-4000-8000-000000000001",
+        name: "Demo",
+      },
     },
     {
-      args: ["cloud", "projects", "usage", "proj_123"],
+      args: [
+        "cloud",
+        "projects",
+        "usage",
+        "00000000-0000-4000-8000-000000000001",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/projects/proj_123/usage",
+      expectedPath: "/v1/projects/00000000-0000-4000-8000-000000000001/usage",
       responseBody: { browserMinutes: 1, proxyBytes: 2 },
     },
   ])(
@@ -951,15 +964,25 @@ describe("cloud API contracts", () => {
 
   it.each([
     {
-      args: ["cloud", "extensions", "get", "ext_123"],
+      args: [
+        "cloud",
+        "extensions",
+        "get",
+        "00000000-0000-4000-8000-000000000002",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/extensions/ext_123",
-      responseBody: { id: "ext_123" },
+      expectedPath: "/v1/extensions/00000000-0000-4000-8000-000000000002",
+      responseBody: { id: "00000000-0000-4000-8000-000000000002" },
     },
     {
-      args: ["cloud", "extensions", "delete", "ext_123"],
+      args: [
+        "cloud",
+        "extensions",
+        "delete",
+        "00000000-0000-4000-8000-000000000002",
+      ],
       expectedMethod: "DELETE",
-      expectedPath: "/v1/extensions/ext_123",
+      expectedPath: "/v1/extensions/00000000-0000-4000-8000-000000000002",
       responseBody: null,
     },
   ])(
@@ -997,7 +1020,9 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "ext_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000002",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -1095,37 +1120,63 @@ describe("cloud API contracts", () => {
       responseBody: [],
     },
     {
-      args: ["cloud", "sessions", "get", "sess_123"],
+      args: [
+        "cloud",
+        "sessions",
+        "get",
+        "00000000-0000-4000-8000-000000000003",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/sessions/sess_123",
+      expectedPath: "/v1/sessions/00000000-0000-4000-8000-000000000003",
       expectedBody: undefined,
-      responseBody: { id: "sess_123" },
+      responseBody: { id: "00000000-0000-4000-8000-000000000003" },
     },
     {
       args: ["cloud", "sessions", "create", "--body", '{"keepAlive":true}'],
       expectedMethod: "POST",
       expectedPath: "/v1/sessions",
       expectedBody: { keepAlive: true },
-      responseBody: { id: "sess_123", connectUrl: "ws://example.com" },
+      responseBody: {
+        id: "00000000-0000-4000-8000-000000000003",
+        connectUrl: "ws://example.com",
+      },
     },
     {
-      args: ["cloud", "sessions", "update", "sess_123"],
+      args: [
+        "cloud",
+        "sessions",
+        "update",
+        "00000000-0000-4000-8000-000000000003",
+      ],
       expectedMethod: "POST",
-      expectedPath: "/v1/sessions/sess_123",
+      expectedPath: "/v1/sessions/00000000-0000-4000-8000-000000000003",
       expectedBody: { status: "REQUEST_RELEASE" },
-      responseBody: { id: "sess_123", status: "REQUEST_RELEASE" },
+      responseBody: {
+        id: "00000000-0000-4000-8000-000000000003",
+        status: "REQUEST_RELEASE",
+      },
     },
     {
-      args: ["cloud", "sessions", "debug", "sess_123"],
+      args: [
+        "cloud",
+        "sessions",
+        "debug",
+        "00000000-0000-4000-8000-000000000003",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/sessions/sess_123/debug",
+      expectedPath: "/v1/sessions/00000000-0000-4000-8000-000000000003/debug",
       expectedBody: undefined,
       responseBody: { debuggerUrl: "https://example.com" },
     },
     {
-      args: ["cloud", "sessions", "logs", "sess_123"],
+      args: [
+        "cloud",
+        "sessions",
+        "logs",
+        "00000000-0000-4000-8000-000000000003",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/sessions/sess_123/logs",
+      expectedPath: "/v1/sessions/00000000-0000-4000-8000-000000000003/logs",
       expectedBody: undefined,
       responseBody: [],
     },
@@ -1355,7 +1406,9 @@ describe("cloud API contracts", () => {
   it("sessions create merges body JSON with ergonomic flags", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "sess_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000003",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -1392,10 +1445,43 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("sessions create preserves valid context and extension ID flags", async () => {
+    const contextId = "45ED525F-63A5-490D-B4C4-853F50643B90";
+    const extensionId = "01956333-0818-7000-8000-000000000007";
+    await withServer(
+      async (_request, response) =>
+        jsonResponse(response, 200, { id: "session" }),
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--context-id",
+          contextId,
+          "--extension-id",
+          extensionId,
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        expect(requests[0]?.jsonBody).toMatchObject({
+          browserSettings: { context: { id: contextId } },
+          extensionId,
+        });
+      },
+    );
+  });
+
   it("sessions create accepts --advanced-stealth as a hidden alias for verified browser mode", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "sess_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000003",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -1427,7 +1513,9 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "sess_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000003",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
@@ -1461,7 +1549,9 @@ describe("cloud API contracts", () => {
   it("sessions create preserves user-supplied metadata but keeps attribution keys authoritative", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "sess_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000003",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -1495,7 +1585,9 @@ describe("cloud API contracts", () => {
   it("sessions create strips caller-supplied install_id to prevent spoofing", async () => {
     await withServer(
       async (_request, response) => {
-        jsonResponse(response, 200, { id: "sess_123" });
+        jsonResponse(response, 200, {
+          id: "00000000-0000-4000-8000-000000000003",
+        });
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
@@ -1539,7 +1631,7 @@ describe("cloud API contracts", () => {
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, {
-          id: "sess_123",
+          id: "00000000-0000-4000-8000-000000000003",
           status: "REQUEST_RELEASE",
         });
       },
@@ -1548,7 +1640,7 @@ describe("cloud API contracts", () => {
           "cloud",
           "sessions",
           "update",
-          "sess_123",
+          "00000000-0000-4000-8000-000000000003",
           "--status",
           "REQUEST_RELEASE",
           "--body",
@@ -1560,7 +1652,12 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
-        expectRequest(requests[0], "POST", "/v1/sessions/sess_123", "test-key");
+        expectRequest(
+          requests[0],
+          "POST",
+          "/v1/sessions/00000000-0000-4000-8000-000000000003",
+          "test-key",
+        );
         expect(requests[0]?.jsonBody).toMatchObject({
           status: "REQUEST_RELEASE",
           userMetadata: {
@@ -1590,7 +1687,7 @@ describe("cloud API contracts", () => {
           "sessions",
           "downloads",
           "get",
-          "sess_123",
+          "00000000-0000-4000-8000-000000000003",
           "--output",
           outputPath,
           "--api-key",
@@ -1603,7 +1700,7 @@ describe("cloud API contracts", () => {
         expectRequest(
           requests[0],
           "GET",
-          "/v1/sessions/sess_123/downloads",
+          "/v1/sessions/00000000-0000-4000-8000-000000000003/downloads",
           "test-key",
         );
         expect(await readFile(outputPath, "utf8")).toBe("zip-bytes");
@@ -1626,7 +1723,7 @@ describe("cloud API contracts", () => {
           "sessions",
           "uploads",
           "create",
-          "sess_123",
+          "00000000-0000-4000-8000-000000000003",
           fixturePath,
           "--api-key",
           "test-key",
@@ -1638,7 +1735,7 @@ describe("cloud API contracts", () => {
         expectRequest(
           requests[0],
           "POST",
-          "/v1/sessions/sess_123/uploads",
+          "/v1/sessions/00000000-0000-4000-8000-000000000003/uploads",
           "test-key",
         );
         expect(requests[0]?.headers["content-type"]).toContain(

@@ -35,7 +35,7 @@ export async function invokeFunction(
   if (options.checkStatus) {
     const status = await functionsGet<InvocationResponse>(
       config,
-      `/v1/functions/invocations/${options.checkStatus}`,
+      `/v1/functions/invocations/${encodeURIComponent(options.checkStatus)}`,
     );
     console.log(JSON.stringify(status, null, 2));
     return;
@@ -48,7 +48,7 @@ export async function invokeFunction(
   const params = parseOptionalJsonValueArg(options.params, "params");
   const invocation = await functionsPost<InvocationResponse>(
     config,
-    `/v1/functions/${options.functionId}/invoke`,
+    `/v1/functions/${encodeURIComponent(options.functionId)}/invoke`,
     { params },
   );
 
@@ -61,7 +61,7 @@ export async function invokeFunction(
     () =>
       functionsGet<InvocationResponse>(
         config,
-        `/v1/functions/invocations/${invocation.id}`,
+        `/v1/functions/invocations/${encodeURIComponent(invocation.id)}`,
       ),
     {
       done: (result) => !["PENDING", "RUNNING"].includes(result.status),

@@ -1,5 +1,6 @@
 import { Args } from "@oclif/core";
 
+import { sessionIdArg } from "../../../../lib/cloud/args.js";
 import {
   createBrowserbaseClient,
   outputJson,
@@ -16,7 +17,7 @@ export default class SessionsUploadsCreate extends BrowseCommand {
   ];
 
   static override args = {
-    id: Args.string({ required: true, description: "Session ID." }),
+    id: sessionIdArg,
     file: Args.string({
       required: true,
       description: "Path to file to upload.",

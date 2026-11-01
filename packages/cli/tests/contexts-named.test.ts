@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,7 +11,7 @@ import {
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
 
-const CONTEXT_ID = "ctx_real_1";
+const CONTEXT_ID = "00000000-0000-4000-8000-000000000005";
 
 let configDir: string;
 
@@ -113,6 +113,18 @@ describe("named contexts (end to end through the CLI)", () => {
         server.requests.some(
           (r) =>
             r.method === "GET" && pathOf(r) === `/v1/contexts/${CONTEXT_ID}`,
+        ),
+      ).toBe(true);
+
+      // update <name> also uses the resolved id.
+      const updated = await runCli(["cloud", "contexts", "update", "github"], {
+        env,
+      });
+      expect(updated.exitCode).toBe(0);
+      expect(
+        server.requests.some(
+          (r) =>
+            r.method === "PUT" && pathOf(r) === `/v1/contexts/${CONTEXT_ID}`,
         ),
       ).toBe(true);
 
@@ -231,10 +243,10 @@ describe("named contexts (end to end through the CLI)", () => {
     }
   });
 
-  it("passes an unrecognized raw id through to the API (raw-id compatibility)", async () => {
+  it("rejects an unknown non-UUID even when it is not close to a saved name", async () => {
     const rawId = "legacy-id-not-a-uuid-9000";
     const server = await startFakeBrowserbaseServer((request, response) => {
-      jsonResponse(response, 200, { id: rawId });
+      jsonResponse(response, 200, { id: CONTEXT_ID });
     });
     const env = {
       BROWSERBASE_CONFIG_DIR: configDir,
@@ -242,19 +254,80 @@ describe("named contexts (end to end through the CLI)", () => {
       BROWSERBASE_BASE_URL: server.baseUrl,
     };
     try {
-      // A saved name exists, but the ref is far from it -> no "did you mean",
-      // so the ref must pass through unchanged rather than being rejected.
+      // A distant typo still fails validation instead of reaching the API.
       await runCli(["cloud", "contexts", "create", "--name", "github"], {
         env,
       });
       const got = await runCli(["cloud", "contexts", "get", rawId], { env });
 
-      expect(got.exitCode).toBe(0);
+      expect(got.exitCode).not.toBe(0);
+      expect(got.stderr).toContain("Context ID must be a UUID");
       expect(
         server.requests.some(
           (r) => r.method === "GET" && pathOf(r) === `/v1/contexts/${rawId}`,
         ),
-      ).toBe(true);
+      ).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it.each(["", "keypair", "../projects", "..", "not-a-uuid"])(
+    "rejects invalid context target %j without overwriting an alias",
+    async (invalidId) => {
+      const env = {
+        BROWSERBASE_CONFIG_DIR: configDir,
+        BROWSE_LOAD_DOTENV: "0",
+        BROWSERBASE_TELEMETRY_DISABLED: "1",
+      };
+      const added = await runCli(
+        ["cloud", "contexts", "add", "github", CONTEXT_ID],
+        { env },
+      );
+      expect(added.exitCode).toBe(0);
+      const storePath = join(configDir, "contexts.json");
+      const before = await readFile(storePath, "utf8");
+      const result = await runCli(
+        ["cloud", "contexts", "add", "github", invalidId, "--force"],
+        { env },
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("Context ID must be a UUID");
+      expect(result.stdout).toBe("");
+      expect(await readFile(storePath, "utf8")).toBe(before);
+    },
+  );
+
+  it.each([
+    ["cloud", "contexts", "get", "github"],
+    ["cloud", "contexts", "update", "github"],
+    ["cloud", "contexts", "delete", "github"],
+    ["cloud", "sessions", "create", "--context-id", "github"],
+  ])("rejects a malformed stored alias for %j", async (...args) => {
+    const storePath = join(configDir, "contexts.json");
+    const stored = JSON.stringify({
+      version: 1,
+      contexts: { github: { id: "../projects", createdAt: "" } },
+    });
+    await writeFile(storePath, stored);
+    const server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    try {
+      const result = await runCli(args, {
+        env: {
+          BROWSERBASE_CONFIG_DIR: configDir,
+          BROWSERBASE_API_KEY: "test-key",
+          BROWSERBASE_BASE_URL: server.baseUrl,
+          BROWSE_LOAD_DOTENV: "0",
+          BROWSERBASE_TELEMETRY_DISABLED: "1",
+        },
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("Context ID must be a UUID");
+      expect(result.stdout).toBe("");
+      expect(server.requests).toHaveLength(0);
+      expect(await readFile(storePath, "utf8")).toBe(stored);
     } finally {
       await server.close();
     }
