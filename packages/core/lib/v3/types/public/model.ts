@@ -174,6 +174,8 @@ export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   headers?: Record<string, string>;
   /** Reasoning effort for reasoning-capable models (e.g., "none", "low", "medium", "high") */
   reasoningEffort?: string;
+  /** Gemini thinking level for structured extraction; supported values depend on the model. */
+  thinkingLevel?: "minimal" | "low" | "medium" | "high";
   /**
    * Wire format used against the OpenAI-compatible endpoint at `baseURL`.
    * Defaults to the Responses API. Use `chat` for providers that expose only

@@ -196,6 +196,13 @@ export class AISdkClient extends LLMClient {
       case "google":
         providerOptions.google = {
           structuredOutputs: true,
+          ...(this.clientOptions?.thinkingLevel
+            ? {
+                thinkingConfig: {
+                  thinkingLevel: this.clientOptions.thinkingLevel,
+                },
+              }
+            : {}),
         };
         break;
       case "vertex":
