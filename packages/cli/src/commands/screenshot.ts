@@ -94,7 +94,7 @@ const MAX_RESERVE_ATTEMPTS = 1000;
  * driver should return base64 (explicit --path is handled separately; --base64
  * opts out of a file entirely).
  */
-function getDefaultPathFromFlags(flags: {
+export function getDefaultPathFromFlags(flags: {
   path?: string;
   base64?: boolean;
   type?: string;
@@ -110,7 +110,7 @@ function getDefaultPathFromFlags(flags: {
  * the name already exists, so two concurrent runs can never claim the same
  * file. On EEXIST we advance the counter and try the next name.
  */
-function reserveDefaultScreenshotPath(type: string | undefined): string {
+export function reserveDefaultScreenshotPath(type: string | undefined): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
   const stamp =
@@ -137,7 +137,7 @@ function reserveDefaultScreenshotPath(type: string | undefined): string {
 // Removes the reserved placeholder when the screenshot failed before the driver
 // wrote to it. `path` is always a file we created via openSync above, so the
 // isFile guard is just defensive against an unexpected directory/symlink.
-function removeIfEmpty(path: string): void {
+export function removeIfEmpty(path: string): void {
   try {
     const stats = statSync(path);
     if (stats.isFile() && stats.size === 0) unlinkSync(path);
