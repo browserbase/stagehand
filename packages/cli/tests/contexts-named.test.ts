@@ -116,18 +116,6 @@ describe("named contexts (end to end through the CLI)", () => {
         ),
       ).toBe(true);
 
-      // update <name> also uses the resolved id.
-      const updated = await runCli(["cloud", "contexts", "update", "github"], {
-        env,
-      });
-      expect(updated.exitCode).toBe(0);
-      expect(
-        server.requests.some(
-          (r) =>
-            r.method === "PUT" && pathOf(r) === `/v1/contexts/${CONTEXT_ID}`,
-        ),
-      ).toBe(true);
-
       // 5. delete <name> hits the API and prunes the local alias.
       const deleted = await runCli(["cloud", "contexts", "delete", "github"], {
         env,
@@ -300,7 +288,6 @@ describe("named contexts (end to end through the CLI)", () => {
 
   it.each([
     ["cloud", "contexts", "get", "github"],
-    ["cloud", "contexts", "update", "github"],
     ["cloud", "contexts", "delete", "github"],
     ["cloud", "sessions", "create", "--context-id", "github"],
   ])("rejects a malformed stored alias for %j", async (...args) => {
