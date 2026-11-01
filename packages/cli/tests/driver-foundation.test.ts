@@ -1051,6 +1051,54 @@ describe("driver foundation", () => {
     ).toBe(2_147_483_647);
   });
 
+  it("gives a command transport longer than the deadline the command declares", () => {
+    // `browse wait load networkidle --timeout 45000` is a documented example
+    // (src/commands/wait.ts). The transport must outlive the 45s the daemon
+    // will spend, or the client aborts a request that was going to succeed.
+    expect(
+      daemonRequestTimeoutMs({
+        command: "wait",
+        id: "wait-45s",
+        params: { state: "networkidle", timeoutMs: 45_000, type: "load" },
+        type: "command",
+      }),
+    ).toBeGreaterThan(45_000);
+  });
+
+  it("leaves commands without a declared deadline on the default budget", () => {
+    for (const params of [
+      undefined,
+      null,
+      "not-an-object",
+      {},
+      { timeoutMs: "45000" },
+      { timeoutMs: 0 },
+      { timeoutMs: -1 },
+      { timeoutMs: 1.5 },
+      { timeoutMs: Number.NaN },
+    ]) {
+      expect(
+        daemonRequestTimeoutMs({
+          command: "wait",
+          id: "no-deadline",
+          params,
+          type: "command",
+        }),
+      ).toBe(35_000);
+    }
+  });
+
+  it("caps command transport timeouts at Node's maximum timer delay", () => {
+    expect(
+      daemonRequestTimeoutMs({
+        command: "wait",
+        id: "command-large-timeout",
+        params: { timeoutMs: Number.MAX_SAFE_INTEGER },
+        type: "command",
+      }),
+    ).toBe(2_147_483_647);
+  });
+
   it("closes the browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { close: closeBrowser, context: {}, origin: "launched" };
