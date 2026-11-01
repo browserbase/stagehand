@@ -1,5 +1,11 @@
 import { Flags } from "@oclif/core";
 
+import {
+  collectionVersionFlag,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+} from "../../lib/collections.js";
 import { BrowseCommand } from "../../base.js";
 import {
   outputFormatFlags,
@@ -23,12 +29,14 @@ export default class SkillsList extends BrowseCommand {
 
   static override flags = {
     ...outputFormatFlags,
+    ...collectionVersionFlag,
     all: Flags.boolean({
-      description: "Show all returned skills in table output.",
+      description:
+        "Show all returned skills (all output formats in version 2).",
     }),
     limit: Flags.integer({
-      default: 25,
-      description: "Maximum skills to show in table output.",
+      description:
+        "Maximum skills: table rows in version 1 (default 25), records in version 2 (default 20).",
       helpValue: "<count>",
       min: 1,
     }),
@@ -36,7 +44,22 @@ export default class SkillsList extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SkillsList);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
     const skills = await listCatalogSkills();
+
+    if (usesCollectionContract(flags)) {
+      await outputCollection({
+        flags,
+        source: { kind: "array", complete: true, load: async () => skills },
+        table: (items) =>
+          outputSkillTable(items, {
+            limit: items.length,
+            wide: flags.wide,
+            footer: false,
+          }),
+      });
+      return;
+    }
 
     if (resolveOutputFormat(flags) === "json") {
       outputJson({ skills });
@@ -44,7 +67,7 @@ export default class SkillsList extends BrowseCommand {
     }
 
     outputSkillTable(skills, {
-      limit: flags.all ? skills.length : flags.limit,
+      limit: flags.all ? skills.length : (flags.limit ?? 25),
       wide: flags.wide,
     });
   }
