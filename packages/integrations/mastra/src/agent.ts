@@ -26,7 +26,7 @@ async function main() {
   });
 
   // Running out of steps still returns the agent's text, as agent.generate() does.
-  // finalText arrives with secrets redacted by the adapter.
+  // The adapter applies best-effort redaction of known key formats to finalText.
   if (result.status === "completed" || result.status === "max_turns") {
     if (result.status === "max_turns" && result.stopReason) stderr({ message: result.stopReason });
     // oxlint-disable-next-line no-console -- CLI example prints the agent result.

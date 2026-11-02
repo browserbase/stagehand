@@ -12,8 +12,8 @@ evals uses for `--harness mastra` (exported from `src/index.ts`). Evals keeps
 the adapter's default server-namespaced names (`stagehand_run`, ...). As in
 evals, a tool call that fails comes back to the model as a tool result
 (`onToolError: "return"`) instead of a thrown error. The example prints the
-agent's final answer with secrets (API keys, credential-bearing URL parameters)
-redacted, as the adapter returns it.
+agent's final answer as the adapter returns it, with best-effort redaction of
+known key formats (API keys, credential-bearing URL parameters).
 
 This route wraps the facade as an MCP server over stdio, so any MCP-capable
 framework (here, Mastra) can consume the identical tool contract without
