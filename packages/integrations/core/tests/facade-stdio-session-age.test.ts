@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   setRequestHandler: vi.fn(),
   onSessionLost: undefined as ((loss: FacadeSessionLoss) => void) | undefined,
   quietWait: false,
+  artifactRoot: undefined as string | undefined,
   toolsOptions: undefined as object | undefined,
 }));
 
@@ -28,6 +29,7 @@ vi.mock("../src/facade/config.js", () => ({
     browser: { type: "browserbase", launchOptions: { timeout: 3600 } },
     stagehand: {},
     quietWait: mocks.quietWait,
+    ...(mocks.artifactRoot !== undefined && { artifactRoot: mocks.artifactRoot }),
   }),
 }));
 vi.mock("../src/facade/tools.js", () => ({
@@ -53,6 +55,7 @@ vi.mock("../src/facade/tools.js", () => ({
 
 afterEach(() => {
   mocks.quietWait = false;
+  mocks.artifactRoot = undefined;
   mocks.toolsOptions = undefined;
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -94,6 +97,7 @@ it("includes browser launch and Stagehand initialization in measured session age
   });
   // STAGEHAND_FACADE_QUIET_WAIT is unset in this config.
   expect(mocks.toolsOptions).not.toHaveProperty("quietWait");
+  expect(mocks.toolsOptions).not.toHaveProperty("artifactRoot");
 });
 
 it("turns quietWait on for the tools when the config asks for it", async () => {
@@ -110,4 +114,20 @@ it("turns quietWait on for the tools when the config asks for it", async () => {
   ) => Promise<unknown>;
   await handler({ params: { name: "snapshot", arguments: {} } }, { requestId: "snapshot-1" });
   expect(mocks.toolsOptions).toMatchObject({ quietWait: true });
+});
+
+it("passes STAGEHAND_FACADE_ARTIFACT_ROOT to the tools when the config sets it", async () => {
+  mocks.artifactRoot = "/tmp/facade-artifacts";
+  mocks.launch.mockResolvedValue({ provider: "local", close: vi.fn() });
+  mocks.create.mockResolvedValue({});
+  vi.spyOn(process.stderr, "write").mockReturnValue(true);
+  vi.spyOn(process, "once").mockReturnValue(process);
+  vi.spyOn(process.stdin, "once").mockReturnValue(process.stdin);
+  await import("../src/facade/stdio-server.js");
+  const handler = mocks.setRequestHandler.mock.calls.at(-1)?.[1] as (
+    request: { params: { name: string; arguments: object } },
+    extra: { requestId: string },
+  ) => Promise<unknown>;
+  await handler({ params: { name: "snapshot", arguments: {} } }, { requestId: "snapshot-1" });
+  expect(mocks.toolsOptions).toMatchObject({ artifactRoot: "/tmp/facade-artifacts" });
 });

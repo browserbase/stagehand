@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/fx/tests",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-fx && vitest run --root ../../.. packages/integrations/fx/tests",
     "test:unit": "vitest run --root ../../.. packages/integrations/fx/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -29,6 +29,6 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=24"
   }
 }
