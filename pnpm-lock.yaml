@@ -628,7 +628,7 @@ importers:
       '@browserbasehq/stagehand-integrations-deepagents-sdk':
         specifier: workspace:*
         version: link:../integrations/deepagents-sdk
-      '@browserbasehq/stagehand-integrations-eve':
+      '@browserbasehq/stagehand-integrations-eve-harness':
         specifier: workspace:*
         version: link:../integrations/eve/harness
       '@browserbasehq/stagehand-integrations-fx':
