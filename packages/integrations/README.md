@@ -29,7 +29,7 @@ see the directory's README. TypeScript examples consume `core/` as a workspace d
 
 New harnesses use one directory and one package, `@browserbasehq/stagehand-integrations-<h>`, with
 no separate `-sdk` package (claude-code, codex, cursor, fx and mastra already do; the remaining
-`-sdk` directories are legacy):
+`-sdk` directories still use the older two-package layout):
 
 - `src/index.ts` is the session adapter evals imports; tsdown builds it to `dist`.
 - Where the harness has a docs example, it lives in `src/agent.ts` and imports the adapter by the

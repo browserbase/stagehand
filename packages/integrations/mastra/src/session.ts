@@ -10,6 +10,7 @@ import {
   type HarnessLogger,
   isRecord,
   isTokenCount,
+  positiveInteger,
   safeJson,
   sanitizeErrorMessage,
   toFiniteNumber,
@@ -159,15 +160,19 @@ export function normalizeMastraModel(model: string): string {
 }
 
 /**
- * Route first-party models through their native @ai-sdk provider (using the 1p
- * API keys in the environment) instead of Mastra's model router. A
- * `provider/model` string handed to `createAgent` goes through the router,
- * which resolves it via its models.dev provider registry (provider-direct,
- * using that provider's API key env var) and wraps errors in its own layer,
- * which added a failure surface (unparseable error responses -> sdk_error).
- * Models with no native provider here (zai/glm, meta/muse, alibaba/qwen, ...)
- * keep the router string; `vercel/...` ids reach the Vercel AI Gateway through
- * the router. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
+ * Pick the model handed to Mastra's `Agent`. OpenAI, Google, Anthropic and xAI ids
+ * get a native @ai-sdk provider instance built from that provider's API key in `env`
+ * (Mastra 1.57 accepts AI SDK v5-v7 model specs). Every other id, and any of those
+ * when its key is unset, stays a `provider/model` string for Mastra's model router:
+ * `mastra/...` and `netlify/...` go to those gateways, everything else resolves through
+ * the bundled models.dev registry and calls the provider directly with its API-key env
+ * var (`vercel/...` is models.dev's Vercel AI Gateway provider, AI_GATEWAY_API_KEY).
+ * Native providers skip the router's extra auth/error layer, which surfaced unparseable
+ * provider error responses as sdk_error.
+ *
+ * MASTRA_FORCE_GATEWAY=1 turns native providers off, so every id goes to the model
+ * router as described above (provider-direct unless the id names a gateway). The name
+ * predates that behavior and is kept for existing eval configurations.
  */
 export function resolveMastraModel(
   model: string,
@@ -175,7 +180,7 @@ export function resolveMastraModel(
 ): string | NativeMastraModel {
   const normalized = normalizeMastraModel(model);
   if ((env.MASTRA_FORCE_GATEWAY ?? "").trim() === "1") return normalized;
-  // An explicit gateway route is part of the caller's model selection.
+  // An explicit gateway prefix is part of the caller's model selection; leave it to the router.
   if (/^(?:vercel|gateway)\//.test(normalized)) return normalized;
   const bare = normalized;
   const slash = bare.indexOf("/");
@@ -198,15 +203,15 @@ export function resolveMastraModel(
     case "xai": {
       // xAI's API is OpenAI-compatible but stricter — the full @ai-sdk/openai
       // request tripped a 422. Use the openai-compatible provider, which emits a
-      // minimal request (no OpenAI-only params xAI rejects). Same @ai-sdk/provider
-      // spec as mastra's openai@4, so it drops in without a version bump.
+      // minimal request (no OpenAI-only params xAI rejects). It shares
+      // @ai-sdk/openai's @ai-sdk/provider version, so it drops in the same way.
       const apiKey = env.XAI_API_KEY;
       return apiKey
         ? createOpenAICompatible({ name: "xai", baseURL: "https://api.x.ai/v1", apiKey })(id)
         : normalized;
     }
     default:
-      return normalized; // Mastra model router (models.dev provider-direct)
+      return normalized; // Mastra model router (models.dev, provider-direct)
   }
 }
 
@@ -260,7 +265,7 @@ export async function runMastraSession(input: {
       try {
         discovery = await raceAbort(
           input.session.toolNames === "bare"
-            ? discoverBareMcpTools(client)
+            ? discoverBareMcpTools(client, input.session.tools)
             : client.listToolsWithErrors(),
           controller.signal,
         );
@@ -397,9 +402,14 @@ export async function runMastraSession(input: {
   };
 }
 
-/** Flatten per-server toolsets under the servers' own tool names, rejecting collisions. */
+/**
+ * Flatten per-server toolsets under the servers' own tool names. Bare names must be
+ * unique across servers and must not collide with `session.tools`, which would
+ * otherwise silently shadow an MCP tool when the two maps are merged.
+ */
 async function discoverBareMcpTools(
   client: MastraMcpClientLike,
+  sessionTools: Record<string, unknown> | undefined,
 ): Promise<{ tools: Record<string, unknown>; errors: Record<string, string> }> {
   if (!client.listToolsetsWithErrors) {
     throw new HarnessAdapterError(
@@ -407,21 +417,29 @@ async function discoverBareMcpTools(
     );
   }
   const { toolsets, errors } = await client.listToolsetsWithErrors();
-  const tools: Record<string, unknown> = {};
-  const owners = new Map<string, string>();
+  const reserved = new Set(Object.keys(sessionTools ?? {}));
+  // A Map keeps names like "__proto__" as plain keys; Object.fromEntries defines own properties.
+  const tools = new Map<string, { server: string; tool: unknown }>();
   for (const [server, toolset] of Object.entries(toolsets)) {
     for (const [name, tool] of Object.entries(toolset)) {
-      const owner = owners.get(name);
-      if (owner !== undefined) {
+      const existing = tools.get(name);
+      if (existing !== undefined) {
         throw new HarnessAdapterError(
-          `MCP tool "${name}" is exposed by both "${owner}" and "${server}"; bare tool names must be unique (use toolNames "namespaced")`,
+          `MCP tool "${name}" is exposed by both "${existing.server}" and "${server}"; bare tool names must be unique (use toolNames "namespaced")`,
         );
       }
-      owners.set(name, server);
-      tools[name] = tool;
+      if (reserved.has(name)) {
+        throw new HarnessAdapterError(
+          `MCP tool "${name}" from "${server}" has the same name as a session.tools entry; bare tool names must be unique (rename the session tool or use toolNames "namespaced")`,
+        );
+      }
+      tools.set(name, { server, tool });
     }
   }
-  return { tools, errors };
+  return {
+    tools: Object.fromEntries([...tools].map(([name, { tool }]) => [name, tool])),
+    errors,
+  };
 }
 
 export function resolveMastraStatus(args: {
@@ -572,10 +590,6 @@ export function stringifyError(value: unknown): string {
   if (typeof value === "string") return value;
   if (isRecord(value) && typeof value.message === "string") return value.message;
   return safeJson(value) ?? String(value);
-}
-
-function positiveInteger(value: unknown, fallback: number): number {
-  return positiveIntegerOrUndefined(value) ?? fallback;
 }
 
 function positiveIntegerOrUndefined(value: unknown): number | undefined {

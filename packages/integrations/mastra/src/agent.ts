@@ -1,4 +1,7 @@
-import type { HarnessLogger } from "@browserbasehq/stagehand-integrations/harness";
+import {
+  type HarnessLogger,
+  sanitizeErrorMessage,
+} from "@browserbasehq/stagehand-integrations/harness";
 import { runMastraSession } from "@browserbasehq/stagehand-integrations-mastra";
 
 import { facadeAgentSession } from "./facade.ts";
@@ -23,6 +26,7 @@ async function main() {
   });
 
   // Running out of steps still returns the agent's text, as agent.generate() does.
+  // finalText arrives with secrets redacted by the adapter.
   if (result.status === "completed" || result.status === "max_turns") {
     // oxlint-disable-next-line no-console -- CLI example prints the agent result.
     console.log(result.finalText);
@@ -30,7 +34,9 @@ async function main() {
   }
   const detail =
     result.stopReason ??
-    (result.iterationError instanceof Error ? result.iterationError.message : undefined);
+    (result.iterationError instanceof Error
+      ? sanitizeErrorMessage(result.iterationError.message)
+      : undefined);
   throw new Error(`Mastra session ended with ${result.status}: ${detail ?? "unknown"}`);
 }
 

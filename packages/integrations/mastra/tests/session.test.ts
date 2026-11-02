@@ -197,6 +197,66 @@ describe("Mastra SDK session", () => {
         'MCP tool "run" is exposed by both "a" and "b"',
       );
     });
+
+    it("fails without creating an agent when a bare name collides with session.tools", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: { mcpServers: servers, toolNames: "bare", tools: { run: { id: "local" } } },
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(record.tools).toHaveLength(0);
+      expect(String((result.iterationError as Error).message)).toContain(
+        'MCP tool "run" from "stagehand" has the same name as a session.tools entry',
+      );
+    });
+
+    it("keeps namespaced merging unchanged: session.tools entries win", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: { mcpServers: servers, tools: { stagehand_run: { id: "local" }, extra: {} } },
+      });
+      expect(result.status).toBe("completed");
+      expect(record.tools[0]).toEqual({ stagehand_run: { id: "local" }, extra: {} });
+    });
+
+    it("keeps a bare tool named __proto__ as an own key without touching the prototype", async () => {
+      const record = {
+        ids: [] as (string | undefined)[],
+        tools: [] as (Record<string, unknown> | undefined)[],
+        toolsets: {
+          stagehand: JSON.parse('{"__proto__":{"id":"proto"},"run":{"id":"run"}}') as Record<
+            string,
+            unknown
+          >,
+        },
+      };
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        sdk: namingSdk(record),
+        session: { mcpServers: servers, toolNames: "bare" },
+      });
+      expect(result.status).toBe("completed");
+      const tools = record.tools[0] ?? {};
+      expect(Object.keys(tools).sort()).toEqual(["__proto__", "run"]);
+      expect(Object.getPrototypeOf(tools)).toBe(Object.prototype);
+      expect(Object.getOwnPropertyDescriptor(tools, "__proto__")?.value).toEqual({ id: "proto" });
+    });
   });
 
   it("collects final text after the last tool call and finish usage", async () => {

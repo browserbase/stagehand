@@ -24,6 +24,9 @@ async function agentSetup(session: MastraSessionConfig) {
   let tools: Record<string, unknown> | undefined;
   let instructions: string | undefined;
   let clientId: string | undefined;
+  let agentId: unknown;
+  let agentName: unknown;
+  let streamOptions: Record<string, unknown> | undefined;
   const sdk: MastraSdk = {
     ...real,
     createMcpClient: (options) => {
@@ -33,12 +36,17 @@ async function agentSetup(session: MastraSessionConfig) {
     createAgent: (config) => {
       tools = config.tools as Record<string, unknown>;
       instructions = config.instructions as string | undefined;
+      agentId = config.id;
+      agentName = config.name;
       return {
-        stream: async () => ({
-          fullStream: (async function* () {
-            yield { type: "finish", payload: { stepResult: { reason: "stop" } } };
-          })(),
-        }),
+        stream: async (_prompt, options) => {
+          streamOptions = options;
+          return {
+            fullStream: (async function* () {
+              yield { type: "finish", payload: { stepResult: { reason: "stop" } } };
+            })(),
+          };
+        },
       };
     },
   };
@@ -50,7 +58,14 @@ async function agentSetup(session: MastraSessionConfig) {
     session,
   });
   expect(result.status).toBe("completed");
-  return { toolNames: Object.keys(tools ?? {}).sort(), instructions, clientId };
+  return {
+    toolNames: Object.keys(tools ?? {}).sort(),
+    instructions,
+    clientId,
+    agentId,
+    agentName,
+    maxSteps: streamOptions?.maxSteps,
+  };
 }
 
 describe("Stagehand facade MCP server for Mastra", () => {
@@ -99,11 +114,16 @@ describe("Stagehand facade MCP server for Mastra", () => {
     expect(example.toolNames).toEqual(expectedNames);
     expect(example.instructions).toBe(FACADE_AGENT_INSTRUCTIONS);
     expect(example.clientId).toMatch(/^stagehand-facade-mastra-example-[0-9a-f-]{36}$/);
+    expect(example.agentId).toBe("stagehand-facade-agent");
+    expect(example.agentName).toBe("Stagehand Facade Agent");
+    expect(example.maxSteps).toBe(20);
 
     // Adapter defaults (what evals uses) stay server-namespaced.
     const defaults = await agentSetup({ mcpServers: { stagehand: facadeMcpServer() } });
     expect(defaults.toolNames).toEqual(expectedNames.map((name) => `stagehand_${name}`).sort());
     expect(defaults.clientId).toMatch(/^stagehand-evals-mastra-[0-9a-f-]{36}$/);
+    expect(defaults.agentId).toBe("stagehand-evals-mastra");
+    expect(defaults.maxSteps).toBe(50);
   });
 
   it("launches the core stdio server with only allowlisted host vars", () => {
