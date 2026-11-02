@@ -1,6 +1,6 @@
 [project]
 name = "stagehand-middleware"
-version = "0.1.1"
+version = "0.1.2"
 description = "Stagehand's facade tools (run, snapshot, screenshot) for Python hosts"
 readme = "README.md"
 requires-python = ">=3.11"
