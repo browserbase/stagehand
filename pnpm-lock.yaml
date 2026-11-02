@@ -367,9 +367,6 @@ catalogs:
     tsx:
       specifier: ^4.23.1
       version: 4.23.1
-    typebox:
-      specifier: 1.3.7
-      version: 1.3.7
     typescript:
       specifier: ^5
       version: 5.9.3
@@ -1380,7 +1377,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
 
   packages/integrations/pi-sdk:
     dependencies:
@@ -1389,10 +1386,7 @@ importers:
         version: link:../core
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      typebox:
-        specifier: 'catalog:'
-        version: 1.3.7
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -9236,9 +9230,6 @@ packages:
   typebox@1.3.27:
     resolution: {integrity: sha512-zu+jc1pcy4UiNThxikUr36f0Rybk9PEeCg/NE6adeWr/SKsdNO4EzZHYRDlv2YCVAfj3Odq3dESSo/jNyoBXzA==}
 
-  typebox@1.3.7:
-    resolution: {integrity: sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==}
-
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
     engines: {node: '>= 0.4'}
@@ -10916,7 +10907,7 @@ snapshots:
 
   '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -10931,7 +10922,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
@@ -10939,8 +10930,8 @@ snapshots:
       '@earendil-works/pi-telemetry': 1.5.0
       '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0
-      https-proxy-agent: 9.1.0
+      http-proxy-agent: 9.1.0(supports-color@8.1.1)
+      https-proxy-agent: 9.1.0(supports-color@8.1.1)
       openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
     transitivePeerDependencies:
@@ -10960,10 +10951,10 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.5.0
       '@earendil-works/pi-mcp': 1.5.0
       '@earendil-works/pi-tui': 1.5.0
@@ -15716,7 +15707,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-agent@9.1.0:
+  http-proxy-agent@9.1.0(supports-color@8.1.1):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -15750,7 +15741,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@9.1.0:
+  https-proxy-agent@9.1.0(supports-color@8.1.1):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -18965,8 +18956,6 @@ snapshots:
       mime-types: 3.0.2
 
   typebox@1.3.27: {}
-
-  typebox@1.3.7: {}
 
   typed-array-buffer@1.0.3:
     dependencies:

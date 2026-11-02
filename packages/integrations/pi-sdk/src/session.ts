@@ -12,7 +12,6 @@ import type {
   McpServerConfig,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 
 export type PiEvent = Record<string, unknown>;
 export type PiToolDefinition = ToolDefinition<any, any, any>;
@@ -521,9 +520,13 @@ export function definePiCodeRunTool(spec: {
   codeParamDescription: string;
   execute: (code: string, signal?: AbortSignal) => Promise<string>;
 }): PiToolDefinition {
-  const parameters = Type.Object({
-    code: Type.String({ description: spec.codeParamDescription }),
-  });
+  const parameters = {
+    type: "object",
+    properties: {
+      code: { type: "string", description: spec.codeParamDescription },
+    },
+    required: ["code"],
+  };
   return {
     name: spec.name,
     label: spec.label ?? spec.name,
