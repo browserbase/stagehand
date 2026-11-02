@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsdown",
     "start": "node src/agent.ts",
-    "test": "pnpm run build && vitest run",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-claude-code && vitest run",
     "test:unit": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

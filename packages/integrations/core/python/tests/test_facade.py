@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
+import errno
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -12,7 +15,9 @@ import pytest
 from stagehand import Stagehand
 
 from stagehand_middleware.facade import (
+    DEFAULT_ARTIFACT_DIRECTORY,
     StagehandFacadeBundleError,
+    contract_error,
     facade_bundle,
     facade_instructions,
     facade_tools,
@@ -25,7 +30,7 @@ from stagehand_middleware.facade.bundle import canonical_json, parse_bundle
 def test_bundle_content_matches_its_hash() -> None:
     bundle = facade_bundle()
     canonical = canonical_json({"sources": bundle["sources"], "contract": bundle["contract"]})
-    assert bundle["version"] == 6
+    assert bundle["version"] == 7
     assert hashlib.sha256(canonical.encode()).hexdigest() == bundle["sha256"]
 
 
@@ -132,10 +137,172 @@ def test_artifacts_fail_closed_without_o_nofollow(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delattr(tools.os, "O_NOFOLLOW", raising=False)
-    host = _host(artifact_root=tmp_path)
+    host = _host(artifact_root=tmp_path / "artifacts")
     with pytest.raises(tools.StagehandFacadeInputError, match="no O_NOFOLLOW"):
-        host._write_artifacts([{"path": "shot.png", "base64": "AA=="}])
+        host._write_artifacts([{"path": "shots/shot.png", "base64": _PNG}])
     assert list(tmp_path.iterdir()) == []
+
+
+_PNG = "iVBORw0KGgo="
+_JPEG = "/9j/4AAQ"
+
+
+def test_a_hard_linked_artifact_is_replaced_not_written_through(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "existing.png"
+    outside.write_bytes(b"preserve")
+    os.link(outside, root / "shot.png")
+    _host(artifact_root=root)._write_artifacts([{"path": "shot.png", "base64": _PNG}])
+    assert (root / "shot.png").read_bytes() == base64.b64decode(_PNG)
+    assert outside.read_bytes() == b"preserve"
+    assert outside.stat().st_nlink == 1
+    assert sorted(p.name for p in root.iterdir()) == ["shot.png"]
+
+
+@pytest.mark.parametrize(
+    ("path", "data", "error"),
+    [
+        (".git/config", _PNG, "SCREENSHOT_ARTIFACT_TYPE_ERROR"),
+        ("x.test.js", _PNG, "SCREENSHOT_ARTIFACT_TYPE_ERROR"),
+        ("shots/evil.png", "dGVzdA==", "SCREENSHOT_ARTIFACT_CONTENT_ERROR"),
+        ("x.png\0.js", _PNG, "SCREENSHOT_ARTIFACT_PATH_ERROR"),
+    ],
+    ids=["git-config", "script", "not-an-image", "nul"],
+)
+def test_only_image_artifacts_are_written(tmp_path: Path, path: str, data: str, error: str) -> None:
+    host = _host(artifact_root=tmp_path)
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        host._write_artifacts([{"path": path, "base64": data}])
+    assert str(raised.value) == contract_error(error)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("rejected", "error"),
+    [
+        ({"path": "../x.png", "base64": _PNG}, "SCREENSHOT_ARTIFACT_PATH_ERROR"),
+        ({"path": "x.txt", "base64": _PNG}, "SCREENSHOT_ARTIFACT_TYPE_ERROR"),
+        ({"path": "x.png", "base64": "dGVzdA=="}, "SCREENSHOT_ARTIFACT_CONTENT_ERROR"),
+    ],
+    ids=["path", "type", "content"],
+)
+def test_a_rejected_artifact_writes_nothing_not_even_the_root(
+    tmp_path: Path, rejected: dict[str, str], error: str
+) -> None:
+    host = _host(artifact_root=tmp_path / "artifacts")
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        host._write_artifacts([{"path": "shots/ok.png", "base64": _PNG}, rejected])
+    assert str(raised.value) == contract_error(error)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_jpeg_bytes_under_an_upper_case_extension_are_written(tmp_path: Path) -> None:
+    _host(artifact_root=tmp_path)._write_artifacts([{"path": "SHOT.JPG", "base64": _JPEG}])
+    assert (tmp_path / "SHOT.JPG").read_bytes() == base64.b64decode(_JPEG)
+
+
+def test_a_directory_at_the_artifact_path_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "dir.png").mkdir()
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        _host(artifact_root=tmp_path)._write_artifacts([{"path": "dir.png", "base64": _PNG}])
+    assert str(raised.value) == contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR")
+
+
+def test_a_failed_replace_is_reported_by_its_code_and_leaves_no_temporary_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail(_source: str, target: str) -> None:
+        raise PermissionError(errno.EACCES, "Permission denied", target)
+
+    monkeypatch.setattr(tools.os, "replace", fail)
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        _host(artifact_root=tmp_path)._write_artifacts([{"path": "shot.png", "base64": _PNG}])
+    assert str(raised.value) == contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="EACCES")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_replaced_artifact_keeps_its_permissions_and_a_new_one_is_owner_only(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "shot.png").write_bytes(b"old")
+    (tmp_path / "shot.png").chmod(0o644)
+    _host(artifact_root=tmp_path)._write_artifacts([
+        {"path": "shot.png", "base64": _PNG},
+        {"path": "new.png", "base64": _PNG},
+    ])
+    assert (tmp_path / "shot.png").read_bytes() == base64.b64decode(_PNG)
+    assert (tmp_path / "shot.png").stat().st_mode & 0o777 == 0o644
+    assert (tmp_path / "new.png").stat().st_mode & 0o777 == 0o600
+
+
+def test_an_artifact_is_replaced_when_its_permissions_cannot_be_copied(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def refuse(_fd: int, _mode: int) -> None:
+        raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(tools.os, "fchmod", refuse)
+    (tmp_path / "shot.png").write_bytes(b"old")
+    _host(artifact_root=tmp_path)._write_artifacts([{"path": "shot.png", "base64": _PNG}])
+    assert (tmp_path / "shot.png").read_bytes() == base64.b64decode(_PNG)
+    assert [p.name for p in tmp_path.iterdir()] == ["shot.png"]
+
+
+def test_a_colon_in_an_artifact_name_is_kept(tmp_path: Path) -> None:
+    name = "shot-2026-10-29T22:57:48.609Z.png"
+    _host(artifact_root=tmp_path)._write_artifacts([{"path": name, "base64": _PNG}])
+    assert [p.name for p in tmp_path.iterdir()] == [name]
+
+
+def test_a_file_on_the_way_to_an_artifact_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "a").write_bytes(b"keep")
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        _host(artifact_root=tmp_path)._write_artifacts([{"path": "a/x.png", "base64": _PNG}])
+    assert str(raised.value) == contract_error("SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR")
+    assert (tmp_path / "a").read_bytes() == b"keep"
+
+
+def test_an_overlong_component_is_rejected_before_any_directory_is_created(
+    tmp_path: Path,
+) -> None:
+    path = f"{'d' * 200}/{'d' * 256}/x.png"
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        _host(artifact_root=tmp_path)._write_artifacts([{"path": path, "base64": _PNG}])
+    assert str(raised.value) == contract_error(
+        "SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="ENAMETOOLONG"
+    )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_artifacts_default_to_a_directory_under_the_working_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _host()._write_artifacts([{"path": "shots/first.png", "base64": _PNG}])
+    assert [p.name for p in tmp_path.iterdir()] == [DEFAULT_ARTIFACT_DIRECTORY]
+    written = tmp_path / DEFAULT_ARTIFACT_DIRECTORY / "shots" / "first.png"
+    assert written.read_bytes() == base64.b64decode(_PNG)
+
+
+def test_a_symlinked_default_artifact_directory_is_refused_but_a_configured_one_is_followed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    linked = tmp_path / DEFAULT_ARTIFACT_DIRECTORY
+    linked.symlink_to(elsewhere)
+    with pytest.raises(tools.StagehandFacadeInputError) as raised:
+        _host()._write_artifacts([{"path": "x.png", "base64": _PNG}])
+    assert str(raised.value) == contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
+    assert list(elsewhere.iterdir()) == []
+    _host(artifact_root=linked)._write_artifacts([{"path": "x.png", "base64": _PNG}])
+    assert [p.name for p in elsewhere.iterdir()] == ["x.png"]
+
+
+def test_the_default_artifact_directory_matches_the_bundle() -> None:
+    assert DEFAULT_ARTIFACT_DIRECTORY == facade_bundle()["contract"]["defaultArtifactDirectory"]
 
 
 @pytest.mark.parametrize(
