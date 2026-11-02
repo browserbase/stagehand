@@ -7,6 +7,7 @@ import {
 } from "./batch-sources.js";
 import {
   BROWSER_SESSION_LOST_ERROR,
+  DEFAULT_ARTIFACT_DIRECTORY,
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_BROWSER_CLOSED_ERROR,
   FACADE_LEGACY_TOOLS,
@@ -20,12 +21,17 @@ import {
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_CONTENT_ERROR,
   SCREENSHOT_ARTIFACT_COUNT_ERROR,
   SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
   SCREENSHOT_ARTIFACT_SIZE_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
   SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_TYPE_ERROR,
+  SCREENSHOT_ARTIFACT_WRITE_ERROR,
   SCREENSHOT_CAPTURED_MESSAGE,
   SCREENSHOT_COMPRESSED_MESSAGE,
   STALE_SNAPSHOT_ID_ERROR,
@@ -33,7 +39,7 @@ import {
 } from "./contract.js";
 
 /** Bumped when the bundle's shape changes, not when its content does. */
-export const FACADE_BUNDLE_VERSION = 6;
+export const FACADE_BUNDLE_VERSION = 7;
 
 /**
  * Everything a non-TypeScript facade host needs to reproduce this facade, built
@@ -64,10 +70,23 @@ export const FACADE_BUNDLE_VERSION = 6;
  *     of `{ path, base64 }` with base64 padded RFC 4648, and `executionError`
  *     absent, null or `{ name, message, stack? }` strings. It then checks
  *     `contract.limits` (artifact count, then per artifact its decoded size
- *     and the running total) before writing any artifact, writes artifacts in
- *     order, raises executionError, and finally checks the value's compact-JSON
- *     size; whatever fails, it closes the session afterwards when
- *     `closeRequested` is true. packages/integrations/core/conformance holds
+ *     and the running total), then checks every artifact before creating the
+ *     artifact root or writing anything: its path stays within the root
+ *     (default `contract.defaultArtifactDirectory` under the working
+ *     directory) and no path component contains NUL, or ':' on Windows; its
+ *     name ends in .png, .jpg or .jpeg in any case; its bytes start with a PNG
+ *     or JPEG signature; no component is over 255 bytes. It then writes the
+ *     artifacts in order, checking each one in turn on the filesystem: the
+ *     default root is not a symlink, every directory on the way is a
+ *     directory and not a symlink, and an existing file is a regular file and
+ *     not a symlink. Each artifact is
+ *     written to a new file in the target's directory and renamed over the
+ *     target, so an existing file is replaced (keeping its permissions) rather
+ *     than written through. Filesystem errors become
+ *     SCREENSHOT_ARTIFACT_WRITE_ERROR with the error code as `${cause}`.
+ *     It then raises executionError, and finally checks the value's
+ *     compact-JSON size; whatever fails, it closes the session afterwards
+ *     when `closeRequested` is true. packages/integrations/core/conformance holds
  *     cases every host must pass.
  *   - `run` actions: `actionRunner`, input `{ actions, xpathById }` with the
  *     validated actions and the XPath map of the active page's latest snapshot.
@@ -84,6 +103,8 @@ export const FACADE_BUNDLE_VERSION = 6;
  * - contract.errors: messages hosts must return verbatim; `${id}` and
  *   `${cause}` are placeholders.
  * - contract.limits: caps on a run result (RUN_RESULT_LIMITS), in bytes.
+ * - contract.defaultArtifactDirectory: where artifacts go, under the working
+ *   directory, when the host sets no artifact root.
  * - contract.sdkErrorMarkers: substrings of SDK errors hosts recognise, e.g.
  *   UNMANAGED_ACTIVE_PAGE_ERROR_MARKER (see the hosts' active-page lookup).
  * - contract.runOptions: the `run` input options, with their defaults and the
@@ -123,6 +144,11 @@ export function facadeBundle(packageVersion: string) {
           SCREENSHOT_ARTIFACT_PATH_ERROR,
           SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
           SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+          SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
+          SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+          SCREENSHOT_ARTIFACT_TYPE_ERROR,
+          SCREENSHOT_ARTIFACT_CONTENT_ERROR,
+          SCREENSHOT_ARTIFACT_WRITE_ERROR,
           FACADE_BROWSER_CLOSED_ERROR,
           RUN_RESULT_MALFORMED_ERROR,
           SCREENSHOT_ARTIFACT_COUNT_ERROR,
@@ -131,6 +157,7 @@ export function facadeBundle(packageVersion: string) {
           RUN_VALUE_SIZE_ERROR,
         },
         limits: RUN_RESULT_LIMITS,
+        defaultArtifactDirectory: DEFAULT_ARTIFACT_DIRECTORY,
         sdkErrorMarkers: { UNMANAGED_ACTIVE_PAGE_ERROR_MARKER },
         runOptions: RUN_OPTIONS,
         messages: {

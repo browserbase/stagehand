@@ -3201,6 +3201,13 @@ export async function createPlaywrightCompatRuntime(
       screenshot: async (options: Record<string, unknown> = {}) => {
         record("calls", "page.screenshot");
         const { path: requestedPath, ...supported } = options;
+        // The host saves only PNG/JPEG files; fail before capturing. This
+        // callback is serialized, so it keeps its own copy of ARTIFACT_EXTENSION
+        // (tools.ts); the host's SCREENSHOT_ARTIFACT_TYPE_ERROR (contract.ts)
+        // rejects the same paths.
+        if (typeof requestedPath === "string" && !/\.(?:png|jpe?g)$/iu.test(requestedPath)) {
+          throw new Error("page.screenshot: path must end in .png, .jpg or .jpeg");
+        }
         const inferredType =
           supported.type === undefined &&
           typeof requestedPath === "string" &&
