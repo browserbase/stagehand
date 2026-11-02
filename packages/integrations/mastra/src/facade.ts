@@ -13,7 +13,8 @@ export type FacadeMcpServerOptions = {
 /**
  * How Stagehand mounts into Mastra: the facade MCP server over stdio, as a
  * server definition for `runMastraSession({ session: { mcpServers } })`.
- * The child receives only the allowlisted STAGEHAND_* / BROWSERBASE_* host variables.
+ * From the host environment the child receives only the allowlisted STAGEHAND_* /
+ * BROWSERBASE_* variables; entries in `options.env` are passed through as given.
  */
 export function facadeMcpServer(options: FacadeMcpServerOptions = {}): MastraStdioServerDefinition {
   // Build @browserbasehq/stagehand-integrations first so this dist entrypoint exists.

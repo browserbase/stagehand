@@ -61,7 +61,6 @@ pnpm --dir packages/integrations/mastra start -- \
 | Variable | Purpose |
 | --- | --- |
 | `MASTRA_STAGEHAND_MODEL` | Mastra agent model. Bare ids use OpenAI; `provider/model` ids (for example `anthropic/claude-sonnet-5`) select another provider. |
-| `MASTRA_FORCE_GATEWAY` | Optional. `openai`, `anthropic`, `google` and `xai` ids call the provider's own AI SDK client when its key is set; every other `provider/model` id goes through Mastra's model router. Set to `1` to send every id through the router. |
 | `OPENAI_API_KEY` | Credential for the default agent model. With a `provider/model` id, set that provider's key instead (for example `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`). Mastra does not forward agent credentials to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |

@@ -326,6 +326,44 @@ describe("Mastra SDK session", () => {
     expect(observed).toEqual(["one", "two"]);
   });
 
+  it("returns bare-mode discovery errors without creating an agent", async () => {
+    const disconnect = vi.fn();
+    const createAgent = vi.fn();
+    const sdk = fakeSdk({ disconnect, createAgent });
+    const createMcpClient = sdk.createMcpClient;
+    sdk.createMcpClient = (options) => ({
+      ...createMcpClient(options),
+      listToolsetsWithErrors: async () => ({ toolsets: {}, errors: { stagehand: "boom" } }),
+    });
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk,
+      session: { mcpServers: { stagehand: { command: "node" } }, toolNames: "bare" },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("MCP server discovery failed for: stagehand");
+    expect(createAgent).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("fails bare mode without creating an agent when the client cannot list toolsets", async () => {
+    const createAgent = vi.fn();
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk: fakeSdk({ createAgent }),
+      session: { mcpServers: { stagehand: { command: "node" } }, toolNames: "bare" },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(String((result.iterationError as Error | undefined)?.message)).toContain(
+      "listToolsetsWithErrors",
+    );
+    expect(createAgent).not.toHaveBeenCalled();
+  });
+
   it("returns discovery errors and disconnects without creating an agent", async () => {
     const disconnect = vi.fn();
     const createAgent = vi.fn();
