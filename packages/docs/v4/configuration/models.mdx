@@ -1217,7 +1217,7 @@ const fireworks = new OpenAI({
   apiKey: process.env.FIREWORKS_API_KEY,
   baseURL: "https://api.fireworks.ai/inference/v1",
 });
-const model = process.env.FIREWORKS_MODEL ?? "accounts/fireworks/models/kimi-k2p5";
+const model = process.env.FIREWORKS_MODEL;
 
 // Describe the callback fields used by this example.
 type ContentBlock =
@@ -1238,6 +1238,7 @@ type GenerateParams = {
 };
 
 async function generateWithFireworks(params: GenerateParams) {
+  if (!model) throw new Error("Set FIREWORKS_MODEL to your Fireworks model ID");
   if (params.responseFormat?.type !== "json_schema") {
     throw new TypeError("Expected a structured generation");
   }
