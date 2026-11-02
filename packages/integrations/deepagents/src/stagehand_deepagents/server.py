@@ -3,147 +3,18 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import re
 import sys
 from typing import Any
+
+from stagehand_middleware.facade import facade_tools
+from stagehand_middleware.facade.tools import sanitize_error_message
 
 from .runtime import BrowserTools, RuntimeConfig, stringify_result
 
 _PROTOCOL_VERSION = "2025-06-18"
 
-_ACTION_SCHEMAS: list[dict[str, Any]] = [
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "click"},
-            "id": {"type": "string", "minLength": 1},
-        },
-        "required": ["op", "id"],
-        "additionalProperties": False,
-    },
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "hover"},
-            "id": {"type": "string", "minLength": 1},
-        },
-        "required": ["op", "id"],
-        "additionalProperties": False,
-    },
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "fill"},
-            "id": {"type": "string", "minLength": 1},
-            "value": {"type": "string"},
-        },
-        "required": ["op", "id", "value"],
-        "additionalProperties": False,
-    },
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "type"},
-            "id": {"type": "string", "minLength": 1},
-            "text": {"type": "string"},
-            "delay": {"type": "number", "minimum": 0},
-        },
-        "required": ["op", "id", "text"],
-        "additionalProperties": False,
-    },
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "press"},
-            "id": {"type": "string", "minLength": 1},
-            "key": {"type": "string", "minLength": 1},
-        },
-        "required": ["op", "id", "key"],
-        "additionalProperties": False,
-    },
-    {
-        "type": "object",
-        "properties": {
-            "op": {"const": "select"},
-            "id": {"type": "string", "minLength": 1},
-            "values": {
-                "oneOf": [
-                    {"type": "string"},
-                    {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                ]
-            },
-        },
-        "required": ["op", "id", "values"],
-        "additionalProperties": False,
-    },
-]
-
-TOOLS: list[dict[str, Any]] = [
-    {
-        "name": "run",
-        "description": (
-            "Execute either a JavaScript workflow against the Stagehand Playwright facade or a "
-            "batch of actions using IDs from the latest snapshot. Provide exactly one of code or "
-            'actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the '
-            "bracketed snapshot ID as a string. Examples: "
-            '{"actions":[{"op":"click","id":"1-42"}]}, '
-            '{"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, '
-            '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.'
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": (
-                        "JavaScript async-function body. page, context, browser, startUrl, and "
-                        "task are already in scope."
-                    ),
-                },
-                "actions": {
-                    "type": "array",
-                    "items": {"oneOf": _ACTION_SCHEMAS},
-                    "minItems": 1,
-                },
-            },
-            # Deliberate deviation from the reference contract: no top-level
-            # `oneOf` (code XOR actions). AI-SDK-based MCP clients (Eve,
-            # Vercel AI SDK) reject tool input schemas with a top-level oneOf,
-            # failing every run call client-side. The exclusivity is stated in
-            # the description and enforced at runtime (runtime.py raises
-            # "run requires exactly one of code or actions"). Mirrors the same
-            # change in the TS facade contract
-            # (packages/integrations/core/src/facade/contract.ts).
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "snapshot",
-        "description": (
-            "Capture the active page accessibility tree and hydrate its displayed IDs for "
-            "subsequent run actions. Every call replaces the active page ID map."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {"includeIframes": {"type": "boolean", "default": True}},
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "screenshot",
-        "description": "Capture a screenshot of the active page.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "fullPage": {"type": "boolean"},
-                "type": {"type": "string", "enum": ["png", "jpeg"]},
-                "quality": {"type": "number", "minimum": 0, "maximum": 100},
-            },
-            "additionalProperties": False,
-        },
-    },
-]
+# The tool surface is the facade contract shared with the TypeScript facade.
+TOOLS: list[dict[str, Any]] = facade_tools()
 
 
 class StdioServer:
@@ -263,13 +134,7 @@ class StdioServer:
 
 
 def _sanitize_error(message: str) -> str:
-    message = re.sub(
-        r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+",
-        r"\1[redacted]",
-        message,
-        flags=re.IGNORECASE,
-    )
-    return re.sub(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", r"\1[redacted]", message)
+    return sanitize_error_message(message)
 
 
 async def serve() -> None:

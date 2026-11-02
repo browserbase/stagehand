@@ -56,7 +56,7 @@ defineFn(
   },
   {
     // Upload the Stagehand extension once, then paste its ID here:
-    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    //   browse cloud extensions upload --stagehand
     sessionConfig: { extensionId: "your-extension-id" },
   },
 );
@@ -166,7 +166,7 @@ export async function initFunctionsProject({
         nextSteps: [
           `cd ${projectName}`,
           "Edit .env with your Browserbase API key",
-          "browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip",
+          "browse cloud extensions upload --stagehand",
           "Paste the uploaded extension ID into index.ts",
           "browse functions dev index.ts",
           "browse functions publish index.ts",

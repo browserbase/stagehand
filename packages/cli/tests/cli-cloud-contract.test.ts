@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import { getExtensionArchive } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -1018,6 +1019,71 @@ describe("cloud API contracts", () => {
         expect(requests[0]?.bodyText).toContain('filename="extension.zip"');
       },
     );
+  });
+
+  it("extensions upload --stagehand uploads the bundled Stagehand extension", async () => {
+    const expectedArchive = Buffer.from(await getExtensionArchive());
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "ext_stagehand" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "extensions",
+          "upload",
+          "--stagehand",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/extensions", "test-key");
+        expect(requests[0]?.headers["content-type"]).toContain(
+          "multipart/form-data",
+        );
+        expect(requests[0]?.bodyText).toContain(
+          'filename="stagehand-extension.zip"',
+        );
+
+        const bodyBuffer = requests[0]?.bodyBuffer;
+        expect(bodyBuffer).toBeDefined();
+        expect(bodyBuffer!.includes(expectedArchive)).toBe(true);
+      },
+    );
+  });
+
+  it("extensions upload rejects both --stagehand and a file path", async () => {
+    const result = await runCli([
+      "cloud",
+      "extensions",
+      "upload",
+      "--stagehand",
+      "./extension.zip",
+      "--api-key",
+      "test-key",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "Cannot specify both --stagehand and a file path",
+    );
+  });
+
+  it("extensions upload requires --stagehand or a file path", async () => {
+    const result = await runCli([
+      "cloud",
+      "extensions",
+      "upload",
+      "--api-key",
+      "test-key",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Provide a file path or use --stagehand");
   });
 
   it.each([

@@ -5,11 +5,11 @@ description: "Fill a test form with Stagehand, then require a human decision bef
 
 ## When to use this
 
-Use this when a browser action needs a human decision on the exact values about to be submitted. The application enforces approval and a single attempt; the model cannot grant consent. The TypeScript version demonstrates an AI SDK tool loop. Python and Go use a direct CLI gate.
+Use this when a browser action needs a human decision on the exact values about to be submitted. The application enforces approval and a single attempt; the model cannot grant consent. The TypeScript version demonstrates an AI SDK tool loop. Python uses a direct CLI gate.
 
 | Browser | Languages | Output |
 | --- | --- | --- |
-| Browserbase | TypeScript, Python, Go | Submission or rejection; TS approval receipt |
+| Browserbase | TypeScript, Python | Submission or rejection; TS approval receipt |
 
 ## Goal and output
 
@@ -18,7 +18,7 @@ Fill the [httpbin test form](https://httpbin.org/forms/post) in a Browserbase cl
 ## Agent prompt
 
 <Prompt description="Add an approval gate before Stagehand submits a form." icon="robot" actions={["copy"]}>
-Adapt `packages/examples/cookbooks/approve-form-submission` to my form. Read the README, environment template, and source for my chosen language first. Keep the existing OpenAI setup and approval mechanism: AI SDK in TypeScript, CLI input in Python and Go.
+Adapt `packages/examples/cookbooks/approve-form-submission` to my form. Read the README, environment template, and source for my chosen language first. Keep the existing OpenAI setup and approval mechanism: AI SDK in TypeScript, CLI input in Python.
 
 Change the target, fields, expected values, and confirmation check together. Fill through Stagehand variables and check action results. Read actual values, compare them with the request, and show the exact action to the human. Only the human may approve. Rejection must stop without Submit.
 
@@ -33,19 +33,20 @@ Run local checks. Use a test form for approval and rejection; verify changed val
 
 Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. Each language uses OpenAI for Stagehand; TypeScript also uses it for the AI SDK agent. See [model configuration](/v4/configuration/models).
 
-TypeScript requires Node.js 22.18+ and pnpm, Python requires Python 3.11+ and uv, and Go requires Go 1.26+. The form uses test customer data. Change it with the form checks when adapting the job.
+TypeScript requires Node.js 22.18+, pnpm, and just; Python requires Python 3.11+ and uv. The form uses test customer data. Change it with the form checks when adapting the job.
 
 ## Check out and run
 
-The source is [`packages/examples/cookbooks/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/approve-form-submission). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then use one language:
+The source is [`packages/examples/cookbooks/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/approve-form-submission). Clone the repository with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then use one language:
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-cd packages/examples/cookbooks/approve-form-submission/typescript
-cp .env.example .env
+# From the repository root
 pnpm install --frozen-lockfile
-pnpm start
+cp packages/examples/cookbooks/approve-form-submission/typescript/.env.example packages/examples/cookbooks/approve-form-submission/typescript/.env
+# Add the required keys to the TypeScript .env before running
+just cookbook approve-form-submission
 ```
 </Tab>
 <Tab title="Python">
@@ -54,14 +55,6 @@ cd packages/examples/cookbooks/approve-form-submission/python
 cp .env.example .env
 uv sync --locked
 uv run --locked python main.py
-```
-</Tab>
-<Tab title="Go">
-```bash
-cd packages/examples/cookbooks/approve-form-submission/go
-cp .env.example .env
-set -a; . ./.env; set +a
-go run .
 ```
 </Tab>
 </Tabs>
@@ -76,10 +69,10 @@ go run .
     Fill the form with `act()` and `%variable%` placeholders. Check each result's `success` field so a failed fill cannot proceed to approval.
   </Step>
   <Step title="Submit once">
-    Present a single submit action. TypeScript separates `fillForm` and `submitForm` tools; `generateText` uses `toolApproval: { submitForm: "user-approval" }`. Python and Go read `y` or `n` from stdin before the submit call.
+    Present a single submit action. TypeScript separates `fillForm` and `submitForm` tools; `generateText` uses `toolApproval: { submitForm: "user-approval" }`. Python reads `y` or `n` from stdin before the submit call.
   </Step>
   <Step title="Verify the result">
-    Submit at most once, print the result URL, and close both resources in `finally` or deferred cleanup.
+    Submit at most once, print the result URL, and close both resources in `finally`.
   </Step>
 </Steps>
 
@@ -114,15 +107,6 @@ if not confirm_submit():
     print("Rejected: submit was not executed.")
     return
 await stagehand.act("Click the Submit order button", page=page)
-```
-```go Go approval
-if strings.ToLower(strings.TrimSpace(answer)) != "y" {
-    fmt.Println("Rejected: submit was not executed.")
-    return nil
-}
-_, err = client.Act(ctx, stagehand.ActInstruction("Click the Submit order button"),
-    &stagehand.StagehandClientActOptions{Page: page})
-if err != nil { return err }
 ```
 </CodeGroup>
 

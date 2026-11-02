@@ -455,3 +455,25 @@ describe("Stagehand runtime state", () => {
     expect(close).not.toHaveBeenCalled();
   });
 });
+
+describe("runtime browser connection", () => {
+  it("closes a connection that finishes opening after it was dropped", async () => {
+    let finish!: () => void;
+    const close = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: () =>
+        new Promise((resolve) => {
+          finish = () => resolve(createBrowserSession({ close }));
+        }),
+    });
+
+    const connecting = runtime.ensureBrowserConnection("ws://browser.example");
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    await runtime.dropBrowserConnection();
+    finish();
+
+    await expect(connecting).rejects.toThrow("dropped while connecting");
+    expect(close).toHaveBeenCalledOnce();
+    expect(runtime.browserSession).toBeUndefined();
+  });
+});

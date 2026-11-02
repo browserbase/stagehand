@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Stagehand browser tools for LangChain Deep Agents"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["stagehand>=4.0.0"]
+dependencies = ["stagehand>=4.3.0,<5", "stagehand-middleware>=0.1.0,<0.2"]
 
 [project.scripts]
 stagehand-deepagents-mcp = "stagehand_deepagents.server:main"
