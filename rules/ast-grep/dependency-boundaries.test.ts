@@ -60,15 +60,13 @@ describe("object model dependency boundaries", () => {
     [extension, 'const sdk = await import("@browserbasehq/stagehand");'],
     [extension, 'const sdk = require("../sdk-ts/src/index.js");'],
     [extension, 'import sdk = require("@browserbasehq/stagehand");'],
-    [extension, 'import "../../tests/helpers/browserbaseBridge.js";'],
-    [extension, 'import "./tests/helpers/example.js";'],
+    [extension, 'import "./tests/helpers/browserbaseBridge.js";'],
     [extension, 'import "./vite.config.js";'],
     [extension, 'import { readFile } from "node:fs/promises";'],
-    ["packages/extension/tests/example.test.ts", 'import "../../sdk-ts/tests/helpers/example.js";'],
     [shared, 'import type { RPCClient } from "../../sdk-ts/src/rpcClient.js";'],
     [shared, 'import "@browserbasehq/stagehand-extension";'],
     [shared, 'import "../../extension/runtime.js";'],
-    [shared, 'import "../../../tests/helpers/browserbaseBridge.js";'],
+    [shared, 'import "../../extension/tests/helpers/browserbaseBridge.js";'],
     [shared, 'import "../tests/example.js";'],
     [shared, 'import "@browserbasehq/sdk";'],
     [shared, 'import { readFile } from "node:fs/promises";'],
@@ -102,16 +100,18 @@ describe("object model dependency boundaries", () => {
     ["packages/extension/vite.config.ts", 'import { readFile } from "node:fs/promises";'],
     [
       "packages/extension/tests/example.test.ts",
-      'import "../../../tests/helpers/browserbaseBridge.js";',
+      'import "../../sdk-ts/tests/helpers/httpServer.js";',
     ],
     [
       "packages/shared-object-model/tests/example.test.ts",
       'import { readFile } from "node:fs/promises";',
     ],
     [
-      "tests/helpers/browserbaseBridge.ts",
-      'import "../../packages/sdk-ts/src/browserbaseTransport.js";',
+      "packages/extension/tests/helpers/browserbaseBridge.ts",
+      'import "../../../sdk-ts/src/browserbaseTransport.js";',
     ],
+    ["packages/extension/callbackBatch.test.ts", 'import "@browserbasehq/stagehand";'],
+    ["packages/shared-object-model/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
   ])("allows supported dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source)).toEqual([]);
   });

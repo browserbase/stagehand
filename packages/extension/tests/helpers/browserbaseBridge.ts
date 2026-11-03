@@ -1,21 +1,24 @@
-import { encodeWireValue, wireSchema } from "../../packages/protocol/json-rpc/wire-casing.js";
-import { JSONRPCErrorCodes } from "../../packages/protocol/json-rpc/schemas.js";
+import {
+  encodeWireValue,
+  wireSchema,
+} from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
+import { JSONRPCErrorCodes } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import {
   StagehandMethods,
   StagehandNotifications,
-} from "../../packages/protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   BrowserbaseRequestParams,
   LLMGenerateParams,
   LLMGenerateResult,
-} from "../../packages/protocol/types.js";
-import type { BrowserbaseConnection } from "../../packages/sdk-ts/src/browserbaseConnection.js";
-import { executeBrowserbaseRequest } from "../../packages/sdk-ts/src/browserbaseTransport.js";
-import { requestBrowserbase } from "../../packages/extension/clients/browserbaseClient.js";
-import { ChromeRuntimeClient } from "../../packages/extension/clients/chromeRuntimeClient.js";
-import { RPCClient } from "../../packages/extension/clients/rpcClient.js";
-import { RPCRouter } from "../../packages/extension/rpcRouter.js";
-import { createStagehandRuntime } from "../../packages/extension/runtime.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import type { BrowserbaseConnection } from "../../../sdk-ts/src/browserbaseConnection.js";
+import { executeBrowserbaseRequest } from "../../../sdk-ts/src/browserbaseTransport.js";
+import { requestBrowserbase } from "../../clients/browserbaseClient.js";
+import { ChromeRuntimeClient } from "../../clients/chromeRuntimeClient.js";
+import { RPCClient } from "../../clients/rpcClient.js";
+import { RPCRouter } from "../../rpcRouter.js";
+import { createStagehandRuntime } from "../../runtime.js";
 
 export type WireMessage = {
   id?: number;

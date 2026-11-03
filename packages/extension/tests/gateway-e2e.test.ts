@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as llmService from "../services/llmService.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 
-import { createBrowserbaseTestBridge } from "../../../tests/helpers/browserbaseBridge.js";
+import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
 
 interface CapturedRequest {
   url: string;

@@ -16,12 +16,7 @@ import { CDPClient } from "../src/cdpClient.js";
 import { Stagehand } from "../src/stagehand.js";
 import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
-import {
-  createHttpTestServer,
-  listen,
-  close,
-  type CapturedRequest,
-} from "../../../tests/helpers/httpServer.js";
+import { createHttpTestServer, listen, close, type CapturedRequest } from "./helpers/httpServer.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

@@ -9,7 +9,7 @@ import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../../src/extensionAssets.js";
 
-import { createHttpTestServer, listen, close } from "../../../../tests/helpers/httpServer.js";
+import { createHttpTestServer, listen, close } from "../helpers/httpServer.js";
 
 import fixture from "../../../../tests/fixtures/browserbase-routing.json" with { type: "json" };
 

@@ -1,9 +1,9 @@
 import { expect, it, onTestFinished } from "vitest";
 import { JSONRPCErrorCodes } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
-import { createHttpTestServer, listen, close } from "../../../tests/helpers/httpServer.js";
+import { createHttpTestServer, listen, close } from "../../sdk-ts/tests/helpers/httpServer.js";
 import { requestBrowserbase } from "../clients/browserbaseClient.js";
-import { createBrowserbaseTestBridge } from "../../../tests/helpers/browserbaseBridge.js";
+import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
 
 const connection = { apiKey: "test", sessionId: "session", apiUrl: "http://127.0.0.1:1/v1" };
 const params = { operation: "gateway.responses" as const, headers: {}, body: "{}" };
