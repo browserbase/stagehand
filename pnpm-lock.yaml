@@ -1387,7 +1387,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
@@ -1408,7 +1408,7 @@ importers:
         version: link:../core
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
@@ -5863,8 +5863,8 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
-  fast-uri@3.1.8:
-    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
+  fast-uri@3.1.9:
+    resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
@@ -10912,7 +10912,7 @@ snapshots:
 
   '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -10927,7 +10927,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
@@ -10935,8 +10935,8 @@ snapshots:
       '@earendil-works/pi-telemetry': 1.5.0
       '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0
-      https-proxy-agent: 9.1.0
+      http-proxy-agent: 9.1.0(supports-color@8.1.1)
+      https-proxy-agent: 9.1.0(supports-color@8.1.1)
       openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
     transitivePeerDependencies:
@@ -10956,10 +10956,10 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.5.0
       '@earendil-works/pi-mcp': 1.5.0
       '@earendil-works/pi-tui': 1.5.0
@@ -13514,7 +13514,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.8
+      fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -14971,7 +14971,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@3.1.8: {}
+  fast-uri@3.1.9: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
@@ -15677,7 +15677,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-agent@9.1.0:
+  http-proxy-agent@9.1.0(supports-color@8.1.1):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -15711,7 +15711,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@9.1.0:
+  https-proxy-agent@9.1.0(supports-color@8.1.1):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
