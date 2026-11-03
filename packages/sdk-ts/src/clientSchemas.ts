@@ -30,7 +30,7 @@ export {
   type WebMCPToolsOptions,
   type WebMCPInvokeOptions,
   type WebMCPResultOptions,
-} from "./objectModelSchemas.js";
+} from "@browserbasehq/stagehand-shared-object-model/objectModelSchemas";
 
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({

@@ -21,10 +21,10 @@ import type {
   StagehandRpcNotification,
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
-import { BrowserContext } from "./browserContext.js";
+import { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
 import { resolveBrowserbaseConnection } from "./browserbaseConnection.js";
 import { registerBrowserbaseTransport } from "./browserbaseRpc.js";
-import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
+import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-shared-object-model/clientLocatorOptions";
 import {
   StagehandCreateOptionsSchema,
   type ResolvedStagehandClientLoggingConfig,
@@ -38,7 +38,7 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "./objectModelSchemas.js";
+} from "@browserbasehq/stagehand-shared-object-model/objectModelSchemas";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {

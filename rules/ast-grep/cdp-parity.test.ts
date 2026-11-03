@@ -60,7 +60,7 @@ const runtimeBindingTokens = {
 
 const pages = {
   typescript: {
-    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    file: new URL("../../packages/shared-object-model/src/page.ts", import.meta.url),
     typeName: "Page",
     method: "on",
   },
@@ -73,7 +73,7 @@ const pages = {
 
 const subscriptions = {
   typescript: {
-    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    file: new URL("../../packages/shared-object-model/src/page.ts", import.meta.url),
     typeName: "CDPSubscription",
     method: "unsubscribe",
   },
