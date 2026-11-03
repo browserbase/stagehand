@@ -16,8 +16,11 @@ import type { RPCClient } from "../clients/rpcClient.js";
 import type { createStagehandRuntime } from "../runtime.js";
 
 import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
-import { createHttpTestServer, listen, close } from "../../sdk-ts/tests/helpers/httpServer.js";
-import { createBrowserbaseTestBridge, type WireMessage } from "./helpers/browserbaseBridge.js";
+import { createHttpTestServer, listen, close } from "../../../tests/helpers/httpServer.js";
+import {
+  createBrowserbaseTestBridge,
+  type WireMessage,
+} from "../../../tests/helpers/browserbaseBridge.js";
 
 const schema = {
   type: "object",
