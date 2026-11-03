@@ -54,7 +54,7 @@ pnpm --dir packages/integrations/mastra start -- \
   "Open https://example.com and report the page title."
 ```
 
-The example prints the agent's answer. If the agent does not finish (it hits the 20-step cap or the run errors), it prints the reason to stderr and exits non-zero.
+The example prints the agent's answer. If the agent does not finish (it hits the 20-step cap or the run errors), it prints the reason to stderr and exits non-zero. A failed tool call is returned to the agent as a tool result, so it changes the exit code only if the agent then fails to finish.
   </Step>
 </Steps>
 
@@ -63,7 +63,7 @@ The example prints the agent's answer. If the agent does not finish (it hits the
 | Variable | Purpose |
 | --- | --- |
 | `MASTRA_STAGEHAND_MODEL` | Mastra agent model. Bare ids use OpenAI; `provider/model` ids (for example `anthropic/claude-sonnet-5`) select another provider. |
-| `OPENAI_API_KEY` | Credential for the default agent model. With a `provider/model` id, set that provider's key instead (for example `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`). Mastra does not forward agent credentials to the MCP child. |
+| `OPENAI_API_KEY` | Credential for the default agent model. With a `provider/model` id, set that provider's key instead (for example `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`). The example's env allowlist keeps agent credentials out of the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
@@ -74,7 +74,7 @@ The example prints the agent's answer. If the agent does not finish (it hits the
 
 The example creates one MCP client and one facade MCP server for the entire model loop. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
 
-The example passes only `STAGEHAND_*` and `BROWSERBASE_*` variables to the MCP child. The host's model credential remains in the Mastra process.
+The example passes the MCP child only `STAGEHAND_*` and `BROWSERBASE_*` variables, plus the default launch variables the MCP SDK adds (such as `PATH` and `HOME`). The host's model credential remains in the Mastra process.
 
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).

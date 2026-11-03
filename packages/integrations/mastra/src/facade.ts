@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
  * How Stagehand mounts into Mastra: the facade MCP server over stdio, as a
  * server definition for `runMastraSession({ session: { mcpServers } })`.
  * From the host environment the child receives only the allowlisted STAGEHAND_* /
- * BROWSERBASE_* variables.
+ * BROWSERBASE_* variables, plus the default launch variables (PATH, HOME, ...) the
+ * MCP SDK adds when it spawns a stdio server.
  */
 export function facadeMcpServer(): MastraStdioServerDefinition {
   // Build @browserbasehq/stagehand-integrations first so this dist entrypoint exists.
@@ -28,7 +29,9 @@ export function facadeMcpServer(): MastraStdioServerDefinition {
 /**
  * The example agent's session: the facade server with the adapter's default
  * server-namespaced tool names (stagehand_run, stagehand_snapshot,
- * stagehand_screenshot) and FACADE_AGENT_INSTRUCTIONS.
+ * stagehand_screenshot) and FACADE_AGENT_INSTRUCTIONS. The instructions name the
+ * tools run/snapshot/screenshot; models map them to the namespaced names, as the
+ * claude-code example does with mcp__stagehand__*.
  *
  * Tool failures reach the model as tool results (the adapter's
  * `onToolError: "return"`, shared with evals) rather than as thrown errors.
