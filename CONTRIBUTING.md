@@ -169,13 +169,3 @@ Two consequences are worth knowing before you plan a change:
   version from [`packages/sdk-go/package.json`](https://github.com/browserbase/stagehand/blob/v4-go/packages/sdk-go/package.json).
 
 The protocol package is versioned for compatibility tracking and is never published.
-
-## Preview builds
-
-Add the `preview` label to a pull request to build the TypeScript package, the Python wheel, and the
-extension ZIP without publishing them. The workflow keeps one authenticated artifact and one comment
-up to date with the pull request. Artifacts expire after 30 days, so push a commit or remove and
-reapply the label to refresh one. Removing the label or closing the pull request removes both.
-
-Previews do not change committed versions or changelogs, publish a release, or deploy a Browserbase
-environment.
