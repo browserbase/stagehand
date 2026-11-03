@@ -1,0 +1,294 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  buildGrokBuildArgs,
+  defaultGrokBuildProcessRunner,
+  extractGrokBuildToolCall,
+  readGrokBuildUsage,
+  runGrokBuildSession,
+  type GrokBuildProcessRunner,
+} from "../src/session.js";
+
+const logger = {
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+};
+
+describe("Grok Build CLI session", () => {
+  it("builds a restricted one-shot CLI invocation", async () => {
+    const runProcess = vi.fn(scriptedRunner([{ type: "end", stopReason: "end_turn" }]));
+    await runGrokBuildSession({
+      prompt: "do it",
+      model: "xai/grok-build",
+      logger,
+      session: {
+        binaryPath: "/custom/grok",
+        cwd: "/workspace",
+        maxTurns: 12,
+        sandbox: "off",
+        rules: "Do not ask for clarification.",
+      },
+      runProcess,
+    });
+    expect(runProcess.mock.calls[0][0].command).toBe("/custom/grok");
+    expect(runProcess.mock.calls[0][0].args).toEqual([
+      "-p",
+      "do it",
+      "--output-format",
+      "streaming-json",
+      "--tools",
+      "search_tool,use_tool",
+      "--disallowed-tools",
+      "Agent",
+      "--no-plan",
+      "--no-subagents",
+      "--disable-web-search",
+      "--cwd",
+      "/workspace",
+      "--model",
+      "grok-build",
+      "--max-turns",
+      "12",
+      "--sandbox",
+      "off",
+      "--rules",
+      "Do not ask for clarification.",
+    ]);
+  });
+
+  it.each([undefined, false, true])("respects alwaysApprove=%s", (alwaysApprove) => {
+    const args = buildGrokBuildArgs({ prompt: "do it", session: { alwaysApprove } });
+    expect(args.includes("--always-approve")).toBe(alwaysApprove === true);
+  });
+
+  it("normalizes usage from the terminal end event", () => {
+    expect(
+      readGrokBuildUsage({
+        type: "end",
+        usage: {
+          input_tokens: 10,
+          cache_read_input_tokens: 20,
+          cache_creation_input_tokens: 2,
+          output_tokens: 5,
+          reasoning_tokens: 3,
+        },
+      }),
+    ).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      cachedInputTokens: 20,
+      cacheCreationInputTokens: 2,
+      reasoningOutputTokens: 3,
+      totalTokens: 37,
+      reported: true,
+    });
+  });
+
+  it("treats native MCP errors as failures even when the wrapper completed", () => {
+    expect(
+      extractGrokBuildToolCall({
+        type: "tool_call_update",
+        toolCallId: "failed",
+        status: "completed",
+        rawOutput: { type: "MCP", output: { Error: "browser closed" } },
+      }),
+    ).toMatchObject({ ok: false, error: expect.stringContaining("browser closed") });
+  });
+
+  it("distinguishes missing usage from reported zero tokens", () => {
+    expect(readGrokBuildUsage({ usage: {} }).reported).toBe(false);
+    expect(readGrokBuildUsage({ usage: { input_tokens: 0, output_tokens: 0 } }).reported).toBe(
+      true,
+    );
+  });
+
+  it("ignores partial updates and observes wrapped MCP tools only on completion", async () => {
+    const onToolResult = vi.fn();
+    const start = {
+      type: "tool_call",
+      toolCallId: "mcp-1",
+      toolName: "use_tool",
+      rawInput: { tool_name: "stagehand__run", tool_input: { code: "return 1" } },
+    };
+    expect(extractGrokBuildToolCall(start)).toMatchObject({
+      name: "stagehand__run",
+      args: { code: "return 1" },
+    });
+    const partial = {
+      type: "tool_call_update",
+      toolCallId: "mcp-1",
+      status: null,
+      content: [],
+      rawOutput: null,
+    };
+    expect(extractGrokBuildToolCall(partial)).toBeUndefined();
+    expect(extractGrokBuildToolCall({ ...partial, status: undefined })).toBeUndefined();
+    await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/grok-4.6",
+      logger,
+      session: {},
+      onToolResult,
+      runProcess: scriptedRunner([
+        start,
+        partial,
+        { type: "tool_call_update", toolCallId: "mcp-1", status: "completed", rawOutput: "1" },
+        { type: "end", stopReason: "end_turn" },
+      ]),
+    });
+    expect(onToolResult).toHaveBeenCalledTimes(1);
+    expect(onToolResult).toHaveBeenCalledWith(
+      "stagehand__run",
+      expect.objectContaining({ result: "1" }),
+    );
+  });
+
+  it("runs the stream, joins text, and reports usage and cost", async () => {
+    const onToolResult = vi.fn();
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: { cwd: "/workspace" },
+      runProcess: scriptedRunner([
+        { type: "text", data: "EVAL_RESULT: " },
+        {
+          type: "tool_call",
+          toolCallId: "call-1",
+          toolName: "stagehand__snapshot",
+          rawInput: {},
+        },
+        {
+          type: "tool_call_update",
+          toolCallId: "call-1",
+          status: "completed",
+          rawOutput: "snapshot",
+        },
+        { type: "text", data: '{"success":true,"summary":"done","finalAnswer":"ok"}' },
+        {
+          type: "end",
+          stopReason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+          total_cost_usd: 0.02,
+          num_turns: 2,
+        },
+      ]),
+      onToolResult,
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.stopReason).toBeUndefined();
+    expect(result.resultText).toContain('EVAL_RESULT: {"success":true');
+    expect(result.tokenUsage.totalTokens).toBe(15);
+    expect(result.costUsd).toBe(0.02);
+    expect(onToolResult).toHaveBeenCalledWith(
+      "stagehand__snapshot",
+      expect.objectContaining({ subtype: "completed" }),
+    );
+  });
+
+  it("fails a non-zero exit without an end event", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([], 1),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("exited with code 1");
+  });
+
+  it.each(["end_turn", "max_turn_requests"])(
+    "fails a non-zero exit after %s",
+    async (stopReason) => {
+      const result = await runGrokBuildSession({
+        prompt: "do it",
+        model: "grok-build/auto",
+        logger,
+        session: {},
+        runProcess: scriptedRunner([{ type: "end", stopReason }], 1),
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(result.stopReason).toContain("exited with code 1");
+    },
+  );
+
+  it("reports signal termination even after an end event", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: async (input) => {
+        await input.onStdoutLine(JSON.stringify({ type: "end", stopReason: "end_turn" }));
+        return { exitCode: null, signal: "SIGTERM" };
+      },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("SIGTERM");
+  });
+
+  it.each(["max_tokens", "refusal", "cancelled", "unknown_reason"])(
+    "does not report %s as normal completion",
+    async (stopReason) => {
+      const result = await runGrokBuildSession({
+        prompt: "do it",
+        model: "grok-build/auto",
+        logger,
+        session: {},
+        runProcess: scriptedRunner([{ type: "end", stopReason }]),
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(result.stopReason).toContain(stopReason);
+    },
+  );
+
+  it("rejects an end event without a stop reason", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([{ type: "end" }]),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("missing its stop reason");
+  });
+
+  it("terminates the child and rejects when a stream callback fails", async () => {
+    await expect(
+      defaultGrokBuildProcessRunner({
+        command: process.execPath,
+        args: ["-e", "console.log('event'); setInterval(() => {}, 1000)"],
+        signal: new AbortController().signal,
+        onStdoutLine: async () => {
+          throw new Error("callback failed");
+        },
+        onStderr: () => {},
+      }),
+    ).rejects.toThrow("callback failed");
+  });
+
+  it("reports max-turn stops without treating them as SDK errors", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([{ type: "end", stopReason: "max_turn_requests" }]),
+    });
+    expect(result.status).toBe("max_turns");
+    expect(result.stopReason).toBe("max turns reached");
+  });
+});
+
+function scriptedRunner(
+  events: Array<Record<string, unknown>>,
+  exitCode = 0,
+): GrokBuildProcessRunner {
+  return async (input) => {
+    for (const event of events) await input.onStdoutLine(JSON.stringify(event));
+    return { exitCode, signal: null };
+  };
+}
