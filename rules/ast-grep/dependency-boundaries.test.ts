@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  createDependencyBoundaryProgram,
   dependencyBoundaryViolations,
   manifestBoundaryViolations,
 } from "./dependency-boundaries.js";
@@ -32,15 +31,13 @@ describe("object model dependency boundaries", () => {
     async (directory) => {
       const files = await sourceFiles(`packages/${directory}`);
       expect(files.length).toBeGreaterThan(0);
-      const sources = new Map(
+      const violations = (
         await Promise.all(
-          files.map(async (file) => [file, await readFile(path.join(root, file), "utf8")] as const),
-        ),
-      );
-      const program = createDependencyBoundaryProgram(sources);
-      const violations = [...sources].flatMap(([file, source]) =>
-        dependencyBoundaryViolations(file, source, program),
-      );
+          files.map(async (file) =>
+            dependencyBoundaryViolations(file, await readFile(path.join(root, file), "utf8")),
+          ),
+        )
+      ).flat();
       expect(violations).toEqual([]);
     },
   );
@@ -76,14 +73,6 @@ describe("object model dependency boundaries", () => {
     [shared, 'export * from "fs/promises";'],
     [shared, 'const fs = await import("node:" + "fs/promises");'],
     [shared, 'const moduleName = "node:fs"; const fs = await import(moduleName);'],
-    ...[
-      'process.emitWarning("warning");',
-      'Buffer.from("hello");',
-      "const globals = { process, Buffer, __dirname, __filename };",
-      'globalThis.Buffer.from("hello");',
-      'globalThis["Buffer"].from("hello");',
-      "let timeout: NodeJS.Timeout;",
-    ].flatMap((source) => [shared, extension].map((file) => [file, source])),
   ])("rejects forbidden dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source).length).toBeGreaterThan(0);
   });
@@ -103,10 +92,7 @@ describe("object model dependency boundaries", () => {
     ],
     [shared, "const bytes = new Uint8Array(new ArrayBuffer(4));"],
     [shared, `// import "node:fs";\nconst text = 'process.emitWarning("example")';`],
-    [
-      "packages/extension/vite.config.ts",
-      'import { readFile } from "node:fs/promises"; process.pid;',
-    ],
+    ["packages/extension/vite.config.ts", 'import { readFile } from "node:fs/promises";'],
     [
       "packages/extension/tests/example.test.ts",
       'import "../../sdk-ts/tests/helpers/httpServer.js";',
@@ -119,31 +105,10 @@ describe("object model dependency boundaries", () => {
       "packages/extension/tests/helpers/browserbaseBridge.ts",
       'import "../../../sdk-ts/src/browserbaseTransport.js";',
     ],
-    [
-      "packages/extension/callbackBatch.test.ts",
-      'import "@browserbasehq/stagehand"; Buffer.from("test");',
-    ],
+    ["packages/extension/callbackBatch.test.ts", 'import "@browserbasehq/stagehand";'],
     ["packages/shared-object-model/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
   ])("allows supported dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source)).toEqual([]);
-  });
-
-  it.each([shared, extension])("allows properties and local bindings in %s", (file) => {
-    expect(
-      dependencyBoundaryViolations(
-        file,
-        `
-      const model = { process: () => {}, Buffer: 1 };
-      model.process();
-      model["Buffer"];
-      const Buffer = "local";
-      const values = { Buffer };
-      function example(process: string, globalThis: { Buffer: number }) {
-        return [process, globalThis.Buffer, globalThis["Buffer"]];
-      }
-    `,
-      ),
-    ).toEqual([]);
   });
 
   it("rejects package edges that would reintroduce the cycle", () => {
