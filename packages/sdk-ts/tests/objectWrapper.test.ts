@@ -22,6 +22,11 @@ import {
   type ToolsAddedListener,
   type ToolsRemovedListener,
 } from "../src/index.js";
+import {
+  browserObjectModelPlatform,
+  type ObjectModelPlatform,
+} from "../src/objectModelPlatform.js";
+import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {
   attachStagehandBrowserContext,
@@ -46,7 +51,7 @@ class FakeProtocolClient extends RPCClient {
   responses = new Map<string, unknown[]>();
   readonly listeners = new Set<(notification: StagehandRpcNotification) => void>();
 
-  constructor() {
+  constructor(readonly platform: ObjectModelPlatform = nodeObjectModelPlatform) {
     super({
       webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
       serviceWorker: {
@@ -836,6 +841,76 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
   });
 
+  it.each(["page", "context"] as const)(
+    "reads %s init-script paths through the SDK adapter",
+    async (target) => {
+      const directory = await mkdtemp(path.join(tmpdir(), "stagehand-platform-script-"));
+      const filePath = path.join(directory, "init.js");
+      try {
+        await writeFile(filePath, "globalThis.ready = true");
+        const client = new FakeProtocolClient();
+        const context = new BrowserContext(client);
+        client.queueResponse(StagehandMethods.contextNewPage, {
+          pageId: "page-1",
+          url: "about:blank",
+        });
+        const page = await context.newPage();
+        client.queueResponse(
+          target === "page"
+            ? StagehandMethods.pageAddInitScript
+            : StagehandMethods.contextAddInitScript,
+          { ok: true },
+        );
+        await (target === "page" ? page : context).addInitScript({ path: filePath });
+        expect(client.calls.at(-1)?.params).toMatchObject({
+          source: `globalThis.ready = true\n//# sourceURL=${filePath}`,
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "reports browser listener failures (async: %s) through console warnings",
+    async (asyncListener) => {
+      const client = new FakeProtocolClient(browserObjectModelPlatform);
+      client.queueResponse(StagehandMethods.pageOn, { ok: true });
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const page = new Page(client, { pageId: "page-1" });
+        const subscription = await page.on("console", () => {
+          if (asyncListener) return Promise.reject(new Error("listener failed"));
+          throw new Error("listener failed");
+        });
+        const subscriptionId = (client.calls[0]!.params as { subscriptionId: string })
+          .subscriptionId;
+        client.emitNotification({
+          jsonrpc: "2.0",
+          method: "page.cdp_event",
+          params: {
+            subscriptionId,
+            event: {
+              pageId: "page-1",
+              method: "Runtime.consoleAPICalled",
+              params: { type: "log", executionContextId: 1 },
+              sessionId: "session-1",
+              targetId: "target-1",
+            },
+          },
+        });
+        await Promise.resolve();
+        expect(warning).toHaveBeenCalledWith(
+          "[STAGEHAND_PAGE_EVENT_LISTENER_ERROR] listener failed",
+        );
+        await subscription.unsubscribe();
+      } finally {
+        warning.mockRestore();
+      }
+    },
+  );
+
   it("reports page event listener failures with a stable warning code", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageOn, { ok: true });
@@ -1210,25 +1285,18 @@ describe("Stagehand TS object wrapper", () => {
   it.each(["screenshot", "pdf"] as const)(
     "reports when %s paths are unavailable outside Node.js",
     async (method) => {
-      vi.doMock("node:fs/promises", () => {
-        throw new Error("module resolution failed");
-      });
-      try {
-        const client = new FakeProtocolClient();
-        client.queueResponse(
-          method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
-          {
-            data: "iVBORw0KGgo=",
-          },
-        );
-        const page = new Page(client, { pageId: "page-1" });
+      const client = new FakeProtocolClient(browserObjectModelPlatform);
+      client.queueResponse(
+        method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
+        {
+          data: "iVBORw0KGgo=",
+        },
+      );
+      const page = new Page(client, { pageId: "page-1" });
 
-        await expect(page[method]({ path: `capture.${method}` })).rejects.toThrow(
-          `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
-        );
-      } finally {
-        vi.doUnmock("node:fs/promises");
-      }
+      await expect(page[method]({ path: `capture.${method}` })).rejects.toThrow(
+        `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
+      );
     },
   );
 
@@ -2110,20 +2178,13 @@ describe("Stagehand TS object wrapper", () => {
   });
 
   it("reports when file paths are unavailable outside Node.js", async () => {
-    vi.doMock("node:fs/promises", () => {
-      throw new Error("module resolution failed");
-    });
-    try {
-      const client = new FakeProtocolClient();
-      const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const client = new FakeProtocolClient(browserObjectModelPlatform);
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
 
-      await expect(locator.setInputFiles("example.txt")).rejects.toThrow(
-        "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
-      );
-      expect(client.calls).toHaveLength(0);
-    } finally {
-      vi.doUnmock("node:fs/promises");
-    }
+    await expect(locator.setInputFiles("example.txt")).rejects.toThrow(
+      "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
+    );
+    expect(client.calls).toHaveLength(0);
   });
 
   it("encodes string file payloads only once", async () => {
@@ -2165,7 +2226,7 @@ describe("Stagehand TS object wrapper", () => {
   });
 
   it("rejects oversized string file payloads before encoding in a worker", async () => {
-    const client = new FakeProtocolClient();
+    const client = new FakeProtocolClient(browserObjectModelPlatform);
     const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
     const encode = vi.spyOn(TextEncoder.prototype, "encode");
     vi.stubGlobal("Buffer", undefined);

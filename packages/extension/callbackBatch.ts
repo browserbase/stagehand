@@ -25,6 +25,7 @@ import {
 import { serializeClientLocatorOptions } from "../sdk-ts/src/clientLocatorOptions.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
 import { Page } from "../sdk-ts/src/page.js";
+import { browserObjectModelPlatform } from "../sdk-ts/src/objectModelPlatform.js";
 import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
 
 export type CallbackBatchFunction = (batch: CallbackStagehand, input: unknown) => unknown;
@@ -34,6 +35,8 @@ export type CallbackBatchRuntimeAttachments = {
 };
 
 class InProcessCommandClient implements StagehandCommandClient {
+  readonly platform = browserObjectModelPlatform;
+
   #nextRequestId = 1;
 
   constructor(
