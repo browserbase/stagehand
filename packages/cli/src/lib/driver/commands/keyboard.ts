@@ -16,10 +16,7 @@ export const keyboardHandlers: DriverCommandHandlers = {
       ...(delay === undefined ? {} : { delay }),
       ...(mistakes === undefined ? {} : { withMistakes: mistakes }),
     };
-    await page.type(
-      text,
-      Object.keys(options).length === 0 ? undefined : options,
-    );
+    await page.type(text, Object.keys(options).length === 0 ? undefined : options);
     return { typed: true };
   },
 

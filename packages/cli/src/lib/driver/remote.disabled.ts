@@ -44,9 +44,7 @@ export async function remoteBrowserbaseIdentity(): Promise<BrowserbaseIdentity> 
   return {};
 }
 
-export function classifyRemoteInitError(
-  error: unknown,
-): RemoteInitErrorClassification {
+export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
   // Remote targets cannot be selected in a local-only build, so this is only
   // reachable if a remote error somehow surfaces anyway; preserve it as-is.
   return {
@@ -60,8 +58,7 @@ export function driverInitHints(): DriverInitHints {
   return {
     chromeNotFound:
       "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set) or attach to a running browser with --cdp <port>.",
-    repeatedInitFailure:
-      " (failing repeatedly — check your browser setup or run browse doctor)",
+    repeatedInitFailure: " (failing repeatedly — check your browser setup or run browse doctor)",
   };
 }
 

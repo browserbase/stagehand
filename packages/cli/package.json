@@ -1,11 +1,19 @@
 {
   "name": "browse",
   "version": "0.11.3",
-  "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
-  "type": "module",
   "private": false,
+  "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
   "license": "MIT",
   "author": "Browserbase <support@browserbase.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "browse": "bin/run.js"
   },
@@ -17,80 +25,9 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
-  },
-  "oclif": {
-    "bin": "browse",
-    "dirname": "browse",
-    "commands": "./dist/commands",
-    "helpClass": "./dist/help.js",
-    "hooks": {
-      "init": "./dist/hooks/init.js",
-      "prerun": "./dist/hooks/prerun.js",
-      "finally": "./dist/hooks/finally.js",
-      "command_not_found": "./dist/hooks/command-not-found.js"
-    },
-    "topicSeparator": " ",
-    "topics": {
-      "cloud": {
-        "description": "Manage Browserbase cloud resources and APIs."
-      },
-      "cloud:secrets": {
-        "description": "Create, list, retrieve, update, and delete project secrets."
-      },
-      "cloud:projects": {
-        "description": "Manage Browserbase projects."
-      },
-      "cloud:contexts": {
-        "description": "Manage Browserbase contexts."
-      },
-      "cloud:extensions": {
-        "description": "Manage Browserbase Chrome extensions."
-      },
-      "cloud:sessions": {
-        "description": "Manage Browserbase browser sessions."
-      },
-      "cloud:sessions:downloads": {
-        "description": "Download Browserbase session artifacts."
-      },
-      "cloud:sessions:uploads": {
-        "description": "Upload files to Browserbase sessions."
-      },
-      "functions:secrets": {
-        "description": "List, attach, and detach project secrets for functions."
-      },
-      "functions": {
-        "description": "Develop, publish, and invoke Browserbase Functions."
-      },
-      "mouse": {
-        "description": "Send raw mouse coordinate input."
-      },
-      "network": {
-        "description": "Capture browser network traffic for the active session."
-      },
-      "skills": {
-        "description": "Discover and install browser automation skills."
-      },
-      "tab": {
-        "description": "Manage browser tabs in the active session."
-      },
-      "templates": {
-        "description": "Browse and scaffold Browserbase templates."
-      }
-    }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git",
-    "directory": "packages/cli"
-  },
-  "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
-  },
-  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
-  "engines": {
-    "node": ">=22.18.0"
   },
   "scripts": {
     "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
@@ -99,8 +36,8 @@
     "cli": "pnpm build && node bin/run.js",
     "oxlint": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli",
     "oxlint:fix": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier . --check --cache",
+    "format": "pnpm --workspace-root exec oxfmt --config .oxfmtrc.json --write packages/cli",
+    "format:check": "pnpm --workspace-root exec oxfmt --config .oxfmtrc.json --check packages/cli",
     "lint": "pnpm format:check && pnpm oxlint && pnpm check",
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
@@ -133,8 +70,70 @@
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
     "oclif": "^4.23.1",
-    "prettier": "3.5.3",
     "typescript": "^5.8.3",
     "vitest": "catalog:"
+  },
+  "oclif": {
+    "bin": "browse",
+    "commands": "./dist/commands",
+    "dirname": "browse",
+    "helpClass": "./dist/help.js",
+    "hooks": {
+      "command_not_found": "./dist/hooks/command-not-found.js",
+      "finally": "./dist/hooks/finally.js",
+      "init": "./dist/hooks/init.js",
+      "prerun": "./dist/hooks/prerun.js"
+    },
+    "topicSeparator": " ",
+    "topics": {
+      "cloud": {
+        "description": "Manage Browserbase cloud resources and APIs."
+      },
+      "cloud:contexts": {
+        "description": "Manage Browserbase contexts."
+      },
+      "cloud:extensions": {
+        "description": "Manage Browserbase Chrome extensions."
+      },
+      "cloud:projects": {
+        "description": "Manage Browserbase projects."
+      },
+      "cloud:secrets": {
+        "description": "Create, list, retrieve, update, and delete project secrets."
+      },
+      "cloud:sessions": {
+        "description": "Manage Browserbase browser sessions."
+      },
+      "cloud:sessions:downloads": {
+        "description": "Download Browserbase session artifacts."
+      },
+      "cloud:sessions:uploads": {
+        "description": "Upload files to Browserbase sessions."
+      },
+      "functions": {
+        "description": "Develop, publish, and invoke Browserbase Functions."
+      },
+      "functions:secrets": {
+        "description": "List, attach, and detach project secrets for functions."
+      },
+      "mouse": {
+        "description": "Send raw mouse coordinate input."
+      },
+      "network": {
+        "description": "Capture browser network traffic for the active session."
+      },
+      "skills": {
+        "description": "Discover and install browser automation skills."
+      },
+      "tab": {
+        "description": "Manage browser tabs in the active session."
+      },
+      "templates": {
+        "description": "Browse and scaffold Browserbase templates."
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }
