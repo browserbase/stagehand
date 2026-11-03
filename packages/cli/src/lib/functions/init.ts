@@ -113,24 +113,17 @@ export async function initFunctionsProject({
     },
   };
 
-  await writeFile(
-    join(projectRoot, "package.json"),
-    `${JSON.stringify(packageJson, null, 2)}\n`,
-  );
+  await writeFile(join(projectRoot, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
   await writeFile(join(projectRoot, ".env"), envTemplate);
   await writeFile(join(projectRoot, ".gitignore"), gitignoreTemplate);
   await writeFile(join(projectRoot, "index.ts"), starterFunctionTemplate);
   await writeFile(join(projectRoot, "tsconfig.json"), tsconfigTemplate);
   if (packageManager === "pnpm") {
-    await writeFile(
-      join(projectRoot, "pnpm-workspace.yaml"),
-      pnpmWorkspaceTemplate,
-    );
+    await writeFile(join(projectRoot, "pnpm-workspace.yaml"), pnpmWorkspaceTemplate);
   }
 
   const install = packageManager === "pnpm" ? ["add"] : ["install"];
-  const installDev =
-    packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
+  const installDev = packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
 
   runPackageManager(
     packageManager,
@@ -144,11 +137,7 @@ export async function initFunctionsProject({
     [...install, zodVersion ? `zod@${zodVersion}` : "zod"],
     projectRoot,
   );
-  runPackageManager(
-    packageManager,
-    [...installDev, "typescript", "@types/node"],
-    projectRoot,
-  );
+  runPackageManager(packageManager, [...installDev, "typescript", "@types/node"], projectRoot);
 
   if (!existsSync(join(projectRoot, ".git"))) {
     spawnSync("git", ["init"], {
@@ -190,13 +179,7 @@ function readStagehandZodVersion(projectRoot: string): string | undefined {
   try {
     const stagehandPackageJson = JSON.parse(
       readFileSync(
-        join(
-          projectRoot,
-          "node_modules",
-          "@browserbasehq",
-          "stagehand",
-          "package.json",
-        ),
+        join(projectRoot, "node_modules", "@browserbasehq", "stagehand", "package.json"),
         "utf8",
       ),
     ) as { dependencies?: Record<string, string> };
@@ -206,11 +189,7 @@ function readStagehandZodVersion(projectRoot: string): string | undefined {
   }
 }
 
-function runPackageManager(
-  packageManager: "npm" | "pnpm",
-  args: string[],
-  cwd: string,
-): void {
+function runPackageManager(packageManager: "npm" | "pnpm", args: string[], cwd: string): void {
   const result = spawnSync(packageManager, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
