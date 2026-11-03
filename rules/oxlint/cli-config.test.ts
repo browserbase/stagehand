@@ -148,11 +148,14 @@ describe("CLI Oxlint migration", () => {
     ).toEqual([]);
   });
 
-  it.each(["duplicate.cjs", "octal.cjs"])("rejects legacy syntax in %s", (name) => {
-    expect(
-      diagnostics.some(
-        (entry) => entry.filename === `packages/cli/src/${name}` && entry.severity === "error",
-      ),
-    ).toBe(true);
+  it.each([
+    ["duplicate.cjs", "eslint(no-redeclare)"],
+    ["octal.cjs", "stagehand(no-legacy-octal)"],
+  ])("rejects legacy syntax in %s", (name, code) => {
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ filename: `packages/cli/src/${name}`, code, severity: "error" }),
+      ]),
+    );
   });
 });

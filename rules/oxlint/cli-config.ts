@@ -2,8 +2,9 @@ import { defineConfig } from "oxlint";
 
 // Preserve @eslint/js 10 recommended and typescript-eslint 8 recommended explicitly.
 // Oxlint's core rules also handle the TypeScript extension rules for arrays,
-// unused expressions, and unused variables. Duplicate parameters are checked
-// by the parser; a local rule covers legacy octal literals in CommonJS.
+// unused expressions, and unused variables. Duplicate parameters are caught
+// by no-redeclare in CommonJS and by the parser in strict/module code.
+// A local rule covers legacy octal literals in CommonJS.
 export const cliConfig = defineConfig({
   ignorePatterns: [
     "packages/cli/dist/**",
