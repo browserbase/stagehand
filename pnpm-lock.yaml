@@ -391,6 +391,7 @@ catalogs:
       version: 0.71.2
 
 overrides:
+  '@mintlify/cli>zod': 4.6.6
   get-uri>basic-ftp: 6.2.1
   sharp: 0.35.5
   '@mintlify/previewing>express': 4.22.3
@@ -9715,9 +9716,6 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
-
   zod@4.6.6:
     resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
@@ -11916,7 +11914,7 @@ snapshots:
       unist-util-visit: 5.0.0
       yaml: 2.9.0
       yargs: 17.7.1
-      zod: 4.3.6
+      zod: 4.6.6
     optionalDependencies:
       keytar: 7.9.0
     transitivePeerDependencies:
@@ -19488,8 +19486,6 @@ snapshots:
   zod@3.24.0: {}
 
   zod@3.25.76: {}
-
-  zod@4.3.6: {}
 
   zod@4.6.6: {}
 

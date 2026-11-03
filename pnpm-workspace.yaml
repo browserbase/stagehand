@@ -71,6 +71,7 @@ catalogs:
     ai: ^7.0.105
     eve: 0.71.2
 overrides:
+  "@mintlify/cli>zod": 4.6.6
   "get-uri>basic-ftp": 6.2.1
   sharp: 0.35.5
   "@mintlify/previewing>express": 4.22.3
