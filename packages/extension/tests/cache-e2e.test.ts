@@ -6,7 +6,7 @@ import type {
   BrowserbaseRequestParams,
   StagehandInitParams,
 } from "@browserbasehq/stagehand-protocol/types";
-import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
+import { createBrowserbaseTestBridge } from "../../../tests/helpers/browserbaseBridge.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";

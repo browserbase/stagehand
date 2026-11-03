@@ -27,8 +27,8 @@ import {
   listen,
   close,
   type CapturedRequest,
-} from "../../sdk-ts/tests/helpers/httpServer.js";
-import { createBrowserbaseTestBridge } from "./helpers/browserbaseBridge.js";
+} from "../../../tests/helpers/httpServer.js";
+import { createBrowserbaseTestBridge } from "../../../tests/helpers/browserbaseBridge.js";
 
 vi.mock("../llm/boundFetch.js", () => ({ boundFetch: vi.fn() }));
 const initParams = StagehandInitParamsSchema.parse({
