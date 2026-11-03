@@ -258,7 +258,7 @@ describe("Mastra tool adapter", () => {
   });
 
   it("returns a structured error when the bridge port is closed", async () => {
-    await expect(executeViaCodeBridge(1, "return 1")).resolves.toMatchObject({
+    await expect(executeViaCodeBridge(1, "return 1", "token")).resolves.toMatchObject({
       ok: false,
       error: expect.any(String),
     });
