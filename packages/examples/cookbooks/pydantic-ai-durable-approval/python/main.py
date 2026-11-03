@@ -287,15 +287,14 @@ async def release_session(run_id: str) -> None:
 def workflow_summary(run_id: str, client: DBOSClient) -> None:
     handle = client.retrieve_workflow(run_id)
     status = handle.get_status().status
-    status_name = status.value if hasattr(status, "value") else str(status)
     proposal = client.get_event(run_id, "proposal", timeout_seconds=0)
-    result = handle.get_result() if status_name == "SUCCESS" else None
+    result = handle.get_result() if status == "SUCCESS" else None
     attempted = recorded_session(run_id) is not None
     summary = {
-        "status": status_name,
+        "status": status,
         "proposal": proposal,
         "attempted": attempted,
-        "progress": progress(run_id, status_name, proposal, attempted, result),
+        "progress": progress(run_id, status, proposal, attempted, result),
     }
     if result is not None:
         summary["result"] = result
@@ -330,9 +329,8 @@ def main() -> None:
             if args.command != "status":
                 handle = client.retrieve_workflow(run_id)
                 status = handle.get_status().status
-                status_name = status.value if hasattr(status, "value") else str(status)
                 proposal = client.get_event(run_id, "proposal", timeout_seconds=0)
-                if proposal is None or status_name != "PENDING":
+                if proposal is None or status != "PENDING":
                     parser.error("This workflow has no pending proposal.")
                 client.send(
                     run_id,
