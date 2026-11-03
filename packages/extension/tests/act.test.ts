@@ -23,14 +23,13 @@ const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
 
 describe("act inference", () => {
   it("runs one structured action call through the shared generator", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const result = await inference.act({
@@ -70,14 +69,13 @@ describe("act inference", () => {
   });
 
   it("rejects malformed structured action output", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "12",
-          description: "Invalid element ID",
-          method: "click",
-          arguments: [],
-        }),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "12",
+        description: "Invalid element ID",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await expect(
@@ -100,14 +98,13 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/input/text()"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Email field",
-          method: "fill",
-          arguments: ["%accountEmail%"],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Email field",
+        method: "fill",
+        arguments: ["%accountEmail%"],
+      }),
     );
     const logger = testLogger();
 
@@ -174,14 +171,13 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await actService.act({
@@ -222,14 +218,13 @@ describe("act service", () => {
       };
     });
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Checkout button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Checkout button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await actService.act({
@@ -299,14 +294,13 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-20", "/html/body/button[2]"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-20",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-20",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
     performAction.mockRejectedValueOnce(new Error("Element detached")).mockResolvedValueOnce();
 
@@ -528,14 +522,13 @@ describe("act service", () => {
       client: { get, set } as unknown as CacheClient,
       defaultCaching: true as const,
     };
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const miss = await actService.act({
@@ -588,14 +581,13 @@ describe("act service", () => {
     } as unknown as Page;
     const get = vi.fn();
     const set = vi.fn();
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Checkout button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Checkout button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const result = await actService.act({

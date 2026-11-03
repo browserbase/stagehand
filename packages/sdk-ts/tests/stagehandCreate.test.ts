@@ -453,13 +453,11 @@ describe("Stagehand.create", () => {
 
   it("registers a client LLM handler and sends its serializable model reference", async () => {
     const cdp = new FakeCDPClient();
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "Hello" },
-        outputFormat: "text",
-      }),
-    );
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "Hello" },
+      outputFormat: "text",
+    }));
     const { localBrowser } = createBrowserFactoriesForTest({
       connectCdp: async () => cdp as unknown as CDPClient,
     });
