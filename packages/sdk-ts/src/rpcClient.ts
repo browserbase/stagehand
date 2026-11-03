@@ -1,3 +1,4 @@
+import { nodeObjectModelPlatform } from "./nodeObjectModelPlatform.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   ROOT_CONTEXT,
@@ -147,6 +148,8 @@ export type CDPTransport = {
 };
 
 export class RPCClient {
+  readonly platform = nodeObjectModelPlatform;
+
   readonly serviceWorker: ServiceWorkerInfo;
   readonly browserWebSocketDebuggerUrl?: string;
   nextRequestId = 1;

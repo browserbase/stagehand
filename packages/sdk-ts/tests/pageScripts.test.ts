@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
 import { normalizeEvaluationExpression, normalizeInitScriptSource } from "../src/pageScripts.js";
 
 describe("page script normalization", () => {
@@ -41,9 +42,14 @@ describe("page script normalization", () => {
 
     try {
       await writeFile(filePath, "globalThis.fromPath = true", "utf8");
-      await expect(normalizeInitScriptSource({ path: filePath })).resolves.toBe(
-        `globalThis.fromPath = true\n//# sourceURL=${filePath}`,
-      );
+      await expect(
+        normalizeInitScriptSource(
+          { path: filePath },
+          undefined,
+          "page.addInitScript",
+          nodeObjectModelPlatform,
+        ),
+      ).resolves.toBe(`globalThis.fromPath = true\n//# sourceURL=${filePath}`);
     } finally {
       await rm(directory, { recursive: true });
     }
