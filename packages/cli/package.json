@@ -52,8 +52,7 @@
     "@inquirer/password": "^4.0.23",
     "@oclif/core": "^4.11.0",
     "@vercel/detect-agent": "^1.2.3",
-    "archiver": "^7.0.1",
-    "deepmerge": "^4.3.1",
+    "archiver": "^8.0.0",
     "dotenv": "^16.5.0",
     "fastest-levenshtein": "^1.0.16",
     "http-status-codes": "^2.3.0",
@@ -65,7 +64,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/archiver": "^6.0.3",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20.11.30",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
