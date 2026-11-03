@@ -356,8 +356,8 @@ catalogs:
       specifier: ^0.3.8
       version: 0.3.21
     smol-toml:
-      specifier: 1.7.1
-      version: 1.7.1
+      specifier: 1.9.0
+      version: 1.9.0
     snakecase-keys:
       specifier: ^9.0.2
       version: 9.0.2
@@ -470,7 +470,7 @@ importers:
         version: 0.24.0
       smol-toml:
         specifier: 'catalog:'
-        version: 1.7.1
+        version: 1.9.0
       tsx:
         specifier: 'catalog:'
         version: 4.23.1
@@ -8841,8 +8841,8 @@ packages:
     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
     engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
 
-  smol-toml@1.7.1:
-    resolution: {integrity: sha512-PPlsspAZ4jbMBu5DMFhfUGDQLu/vrL4SyBROVS37x8ynnVmFIs1VPBz1Co8Xks3TvpIaZXmU85y4DrQ+UyVFoQ==}
+  smol-toml@1.9.0:
+    resolution: {integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==}
     engines: {node: '>= 18'}
 
   snake-case@3.0.4:
@@ -18437,7 +18437,7 @@ snapshots:
 
   smart-buffer@4.2.0: {}
 
-  smol-toml@1.7.1: {}
+  smol-toml@1.9.0: {}
 
   snake-case@3.0.4:
     dependencies:
