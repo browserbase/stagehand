@@ -142,6 +142,8 @@ Run `pnpm exec turbo run typecheck --filter=stagehand-cookbook-opencode-submissi
 
 ## Session lifetime and recovery
 
+On exit, the CLI calls `browser.disconnect()` so the Browserbase keep-alive session stays available for resume. Use `cleanup` to release the saved session.
+
 The browser is a 30-minute keep-alive session. Durable state can outlive it, but a replacement browser cannot prove an old submission's outcome. Retain uncertain history for review before starting a separate task with a new `STATE_DIR`. A crash before saving a newly allocated session ID can leave a browser until its timeout.
 
 Run one CLI process per state directory. While its terminal prompt is active, use that prompt rather than starting another command against the same directory. After a hard crash, the lock expires after 30 seconds. The next command waits up to 35 seconds for it to clear; it does not require you to delete a lock or retry commands manually. Keep dependency pins unchanged when resuming. `cleanup` releases the browser and retains history. Live View URLs grant interactive access and are printed locally.

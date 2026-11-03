@@ -106,7 +106,8 @@
               "v4/cookbooks/ai-sdk-research-agent",
               "v4/cookbooks/pi-durable-approval",
               "v4/cookbooks/libfx-receipts",
-              "v4/cookbooks/opencode-submission"
+              "v4/cookbooks/opencode-submission",
+              "v4/cookbooks/pydantic-ai-durable-approval"
             ]
           },
           {

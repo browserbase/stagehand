@@ -26,7 +26,7 @@ pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup
 
 Run `pnpm --filter stagehand-cookbook-pi-durable-approval start status` to inspect the saved decision and `progress.phase` without calling a model or reconnecting the browser. `progress.nextAction` tells you whether to approve, submit through Live View, or resume verification. `pnpm --filter stagehand-cookbook-pi-durable-approval start cleanup` releases the Browserbase session and retains history. To start a separate task, choose a new `STATE_DIR`; do not delete uncertain submission history to retry an action.
 
-Earendil describes Pi Durable as experimental. These examples pin its published `1.4.0` release; the version pin does not imply a stable API guarantee.
+Earendil describes Pi Durable as experimental. These examples pin its published `1.5.0` release; the version pin does not imply a stable API guarantee.
 
 ## Follow the code
 

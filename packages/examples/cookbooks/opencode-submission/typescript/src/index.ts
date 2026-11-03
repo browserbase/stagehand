@@ -133,7 +133,7 @@ async function main() {
           .sessionId;
         await saveJson(join(directory, "run.json"), { sessionId });
         if (command === "cleanup") {
-          await browser.stop(true);
+          await browser.release();
           console.log("Browser released; durable history retained.");
           return;
         }
@@ -193,7 +193,7 @@ async function main() {
         }
       } finally {
         try {
-          await browser.stop();
+          await browser.disconnect();
         } finally {
           await world.close?.();
         }

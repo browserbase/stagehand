@@ -87,17 +87,14 @@ export class Browser {
     return schema.parse(result.data).records;
   }
 
-  async stop(release = false) {
-    try {
-      await this.stagehand?.close();
-    } finally {
-      this.stagehand = undefined;
-      if (release) {
-        const binding = (await this.store.read()).browser;
-        if (binding)
-          await this.bb.sessions.update(binding.sessionId, { status: "REQUEST_RELEASE" });
-      }
-    }
-    // In the pinned 4.3.0 SDK, browser.close releases even a keep-alive session.
+  async disconnect() {
+    await this.browser?.disconnect();
+    this.browser = undefined;
+    this.stagehand = undefined;
+  }
+
+  async release() {
+    const binding = (await this.store.read()).browser;
+    if (binding) await this.bb.sessions.update(binding.sessionId, { status: "REQUEST_RELEASE" });
   }
 }

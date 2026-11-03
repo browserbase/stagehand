@@ -10,15 +10,16 @@ Browser jobs you can run, adapt, and combine. Each has a [docs page](https://doc
 | [Form approval](approve-form-submission) | TypeScript, Python | Submission or rejection; TypeScript receipt |
 | [Research agent](ai-sdk-research-agent)  | TypeScript         | Report citing approved sources              |
 
-## Durable agents
+## Durable cookbooks
 
-Independent TypeScript CLI recipes for browser work that waits for a human or resumes after a process exits. Each uses Browserbase and a 30-minute keep-alive browser. Persisted agent state does not extend the browser's lifetime.
+CLI recipes for browser work that waits for a human or resumes after a process exits. Each uses a 30-minute Browserbase keep-alive session. Persisted agent state does not extend the browser's lifetime.
 
-| Cookbook                                      | Agent                         | Output                                        |
-| --------------------------------------------- | ----------------------------- | --------------------------------------------- |
-| [Approve an order later](pi-durable-approval) | Native Pi Durable with SQLite | Saved proposal, approval and matching receipt |
-| [Collect receipts](libfx-receipts)            | Native libfx                  | Receipt metadata and completeness manifest    |
-| [Recover a submission](opencode-submission)   | OpenCode on durable-harness   | Confirmed or uncertain submission outcome     |
+| Cookbook                                               | Agent                         | Output                                          |
+| ------------------------------------------------------ | ----------------------------- | ----------------------------------------------- |
+| [Approve an order later](pi-durable-approval)          | Native Pi Durable with SQLite | Saved proposal, approval and matching receipt   |
+| [Collect receipts](libfx-receipts)                     | Native libfx                  | Receipt metadata and completeness manifest      |
+| [Recover a submission](opencode-submission)            | OpenCode on durable-harness   | Confirmed or uncertain submission outcome       |
+| [Durable order approval](pydantic-ai-durable-approval) | Python Pydantic AI with DBOS  | Saved proposal, decision and submission outcome |
 
 ## Run
 
@@ -67,9 +68,11 @@ Copy the selected cookbook's `python/.env.example` to `python/.env` and fill in 
 just cookbook-python paginated-catalog
 ```
 
-Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Python cookbooks keep their own `pyproject.toml` files, share the root `uv.lock` and `.venv`, and use the local Python SDK source. After building the extension, you can also run `uv run --locked python main.py` from a cookbook's `python/` directory; uv discovers the root workspace automatically.
+Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Pass recipe arguments after the folder name. Python cookbooks keep their own `pyproject.toml` files, share the root `uv.lock` and `.venv`, and use the local Python SDK source. After building the extension, you can also run `uv run --locked python main.py` from a cookbook's `python/` directory; uv discovers the root workspace automatically.
 
-Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, print a session link, and limit browser lifetime to five minutes. Page and step limits bound work, not cost.
+The Pydantic AI durable cookbook uses `OPENAI_API_KEY` for the agent. Stagehand fills and checks the form with locators, so that recipe does not use a separate browser model.
+
+Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` and print a session link. Core recipes limit browser lifetime to five minutes. Page and step limits bound work, not cost.
 
 Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
 

@@ -58,9 +58,10 @@ cookbook slug:
     pnpm exec turbo run build --filter=@browserbasehq/stagehand
     pnpm --dir "packages/examples/cookbooks/{{slug}}/typescript" start
 
-cookbook-python slug:
+[positional-arguments]
+cookbook-python slug *args:
     pnpm --filter ./packages/extension build
-    uv --directory "packages/examples/cookbooks/{{slug}}/python" run --locked python main.py
+    shift; uv --directory "packages/examples/cookbooks/{{slug}}/python" run --locked python main.py "$@"
 
 fmt:
     pnpm fmt

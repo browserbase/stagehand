@@ -41,7 +41,7 @@ async function main() {
           },
         });
         if (command === "cleanup") {
-          await browser.stop(true);
+          await browser.release();
           console.log(
             "Browser released. Agent history retained. Use a new STATE_DIR for a new order.",
           );
@@ -111,7 +111,7 @@ async function main() {
         }
       } finally {
         try {
-          await browser.stop();
+          await browser.disconnect();
         } finally {
           await harness.close(BACKGROUND_CONTEXT);
         }

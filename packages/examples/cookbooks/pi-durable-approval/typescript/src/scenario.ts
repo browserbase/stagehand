@@ -1,11 +1,11 @@
-import { Type, type TSchema } from "@earendil-works/pi-ai";
+import type { Tool as PiTool } from "@earendil-works/pi-ai";
 import type { Browser } from "./browser.js";
 import { requestDecision, type Store } from "./state.js";
 
 export type Tool = {
   name: string;
   description: string;
-  parameters: TSchema;
+  parameters: PiTool["parameters"];
   replay: "safe" | "never";
   execute(args: Record<string, string>, executionId: string): Promise<string>;
 };
@@ -20,7 +20,7 @@ export function makeTools(store: Store, browser: Browser): Tool[] {
       name: "prepare_order",
       description:
         "Fill a test order, save its actual values and request approval. Does not submit.",
-      parameters: Type.Object({}),
+      parameters: { type: "object", properties: {} },
       replay: "safe",
       execute: async (_args, executionId) => {
         if ((await store.read()).decision)
@@ -42,7 +42,7 @@ export function makeTools(store: Store, browser: Browser): Tool[] {
       name: "verify_order",
       description:
         "Verify httpbin's confirmation matches the approved order. Does not click or submit.",
-      parameters: Type.Object({}),
+      parameters: { type: "object", properties: {} },
       replay: "safe",
       execute: async () => {
         const state = await store.read();

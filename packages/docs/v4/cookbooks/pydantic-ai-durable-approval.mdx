@@ -1,0 +1,145 @@
+---
+title: "Durable order approval with Pydantic AI"
+description: "Pause a Python agent for approval and recover a Stagehand submission with DBOS."
+---
+
+## When to use this
+
+Use this when a Python agent needs to wait for human approval across worker restarts. Pydantic AI drafts the order, DBOS persists the workflow, and Stagehand submits the approved values.
+
+| Browser | Language | Output |
+| --- | --- | --- |
+| Browserbase | Python | Saved proposal and decision, plus a verified or unknown submission outcome |
+
+## Goal and output
+
+Draft a fictional [httpbin test order](https://httpbin.org/forms/post), stop the worker while it waits, and approve the exact values before resuming. Once approved, the workflow opens a browser, submits the form, and checks the echoed receipt. No payment is made.
+
+## Agent prompt
+
+<Prompt description="Adapt the durable Python approval workflow to your form." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/pydantic-ai-durable-approval/python` to my form. Read the README, environment template and source first. Keep Pydantic AI and DBOS in the root uv workspace.
+
+Change the order schema, browser fields and receipt comparison together. Keep the approval tied to the full form payload. Attach Stagehand with `Stagehand.create` before reading the page. Recheck the filled values immediately before submission, and save the Browserbase session ID before clicking Submit.
+
+Keep browser I/O inside the DBOS step. Disconnect after a recorded attempt so the keep-alive session survives. `close()` releases that session, so use it only from cleanup. After an interrupted attempt, inspect the recorded session for a matching receipt and do not click again. Report an unknown outcome if verification fails. Keep credentials in the environment and follow the manual checks below. Leave live browser verification to me and report what remains untested.
+</Prompt>
+
+## Prerequisites and inputs
+
+Follow the [Python cookbook setup](/v4/cookbooks/overview#run-a-cookbook). Set `OPENAI_API_KEY` for the agent and `BROWSERBASE_API_KEY` for the browser. Stagehand locators do not use a separate browser model. The recipe's `pyproject.toml` declares its dependencies, and the root `uv.lock` pins them.
+
+## Check out and run
+
+Source: [`packages/examples/cookbooks/pydantic-ai-durable-approval`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/pydantic-ai-durable-approval). Follow the [repository setup](/v4/cookbooks/overview#run-a-cookbook), then run from the repository root:
+
+```bash
+just install
+cp packages/examples/cookbooks/pydantic-ai-durable-approval/python/.env.example packages/examples/cookbooks/pydantic-ai-durable-approval/python/.env
+# Fill in .env before starting.
+just cookbook-python pydantic-ai-durable-approval
+```
+
+In a second terminal, set `RUN_ID` to the printed workflow ID. Review the exact fields:
+
+```bash
+just cookbook-python pydantic-ai-durable-approval status "$RUN_ID"
+```
+
+Once the proposal appears, press Ctrl+C in the worker terminal, then run:
+
+```bash
+just cookbook-python pydantic-ai-durable-approval approve "$RUN_ID"
+just cookbook-python pydantic-ai-durable-approval resume "$RUN_ID"
+just cookbook-python pydantic-ai-durable-approval cleanup "$RUN_ID"
+```
+
+Use `reject` with the same ID to finish without opening a browser. `cleanup` releases the Browserbase session and retains the SQLite history.
+
+## How the job works
+
+### Journal the proposal and wait for a decision
+
+[DBOS durability](https://pydantic.dev/docs/ai/capabilities/durable_execution/dbos/) journals the agent's model request. The workflow publishes the exact form fields and waits up to one hour:
+
+```python
+result = await agent.run("Draft a medium test order for delivery.", model=model)
+expected = form_values(run_id, result.output)
+await DBOS.set_event_async("proposal", expected)
+approved = await DBOS.recv_async("decision", timeout_seconds=3600)
+if approved is not True:
+    return "Rejected or expired. No browser was opened."
+```
+
+The status and decision commands access SQLite directly, even while the worker is stopped. Ctrl+C leaves the process without DBOS teardown, so the workflow stays resumable.
+
+### Attach Stagehand, then save the attempt before submitting
+
+The submit step opens a browser only after approval. Page access requires an attached Stagehand instance. The step then checks the live fields and writes the session marker before the click:
+
+```python
+stagehand = await Stagehand.create(browser=browser)
+page = await browser.context.active_page()
+await prepare_form(page, expected)
+claim_marker(OUT / f"{run_id}.submission", browser.session_id)
+await page.locator("button").click()
+```
+
+`prepare_form` fills the known inputs and compares `page.evaluate` with the approved payload. A replay that finds the marker reads the receipt and does not click again.
+
+### Leave the session up until cleanup
+
+A recorded attempt disconnects instead of closing. `close()` releases a Browserbase session even when `keep_alive` is set:
+
+```python
+if keep:
+    await browser.disconnect()
+    return
+try:
+    if stagehand is not None:
+        await stagehand.close()
+finally:
+    await browser.close()
+```
+
+`cleanup` connects to the saved session and closes it. The marker and SQLite database stay in `python/out/`.
+
+### Inspect the saved handoff
+
+`just cookbook-python pydantic-ai-durable-approval status "$RUN_ID"` reads the workflow without calling the model or reconnecting the browser. While the proposal is waiting, the output includes:
+
+```json
+{
+  "status": "PENDING",
+  "attempted": false,
+  "progress": {
+    "phase": "awaiting_approval",
+    "nextAction": "Review the proposal. Run just cookbook-python pydantic-ai-durable-approval approve <id> or just cookbook-python pydantic-ai-durable-approval reject <id>, then just cookbook-python pydantic-ai-durable-approval resume <id>."
+  }
+}
+```
+
+The summary describes stored evidence. It does not ask the model whether the website action succeeded.
+
+## Expected result and manual checks
+
+`python/out/` contains `workflow.sqlite` and, after a submit attempt, `<workflow-id>.submission`. A verified result starts with `Verified receipt`. An unknown result means the receipt was missing or different. Approval alone is not success.
+
+Before relying on a recovery, approve while the worker is stopped, then run:
+
+```bash
+CRASH_AFTER_SUBMIT=1 just cookbook-python pydantic-ai-durable-approval resume "$RUN_ID"
+just cookbook-python pydantic-ai-durable-approval resume "$RUN_ID"
+just cookbook-python pydantic-ai-durable-approval status "$RUN_ID"
+just cookbook-python pydantic-ai-durable-approval cleanup "$RUN_ID"
+```
+
+The inline flag applies only to that resume. Remove any `CRASH_AFTER_SUBMIT=1` setting from `.env` before the second resume. The first resume exits after the click. The second checks the original session without clicking again. A matching response confirms success. A missing or different response leaves the outcome unknown. Test rejection separately.
+
+## Session lifetime and recovery
+
+Run one worker at a time against the local SQLite database. Keep the database and submission markers together in `python/out/`. The browser opens after approval and lasts up to 30 minutes, so resume promptly after a submit crash. Durable workflow state can outlive that browser. If the session expires, keep the history and inspect it before taking further action.
+
+A crash between saving the marker and clicking can leave an unknown outcome even though nothing was submitted. httpbin has no idempotency key that can close that gap. `cleanup` releases the session when it is still alive and always retains history.
+
+This recipe resumes when invoked. It does not deploy an unattended worker. See [storage and hosting](/v4/cookbooks/overview#storage-and-hosting-options) before deploying it.
