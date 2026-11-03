@@ -64,7 +64,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/archiver": "^6.0.3",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20.11.30",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
