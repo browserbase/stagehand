@@ -28,7 +28,7 @@ catalog:
   "@opentelemetry/semantic-conventions": 1.43.0
   "@types/node": ^24
   typescript: ^5
-  oxfmt: 0.57.0
+  oxfmt: 0.76.0
   oxlint: 1.72.0
   oxlint-tsgolint: 0.24.0
   tsdown: 0.22.3
@@ -109,3 +109,23 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
   - eve@0.71.2
+  - "@oxfmt/binding-android-arm-eabi@0.76.0"
+  - "@oxfmt/binding-android-arm64@0.76.0"
+  - "@oxfmt/binding-darwin-arm64@0.76.0"
+  - "@oxfmt/binding-darwin-x64@0.76.0"
+  - "@oxfmt/binding-freebsd-x64@0.76.0"
+  - "@oxfmt/binding-linux-arm-gnueabihf@0.76.0"
+  - "@oxfmt/binding-linux-arm-musleabihf@0.76.0"
+  - "@oxfmt/binding-linux-arm64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-arm64-musl@0.76.0"
+  - "@oxfmt/binding-linux-ppc64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-riscv64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-riscv64-musl@0.76.0"
+  - "@oxfmt/binding-linux-s390x-gnu@0.76.0"
+  - "@oxfmt/binding-linux-x64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-x64-musl@0.76.0"
+  - "@oxfmt/binding-openharmony-arm64@0.76.0"
+  - "@oxfmt/binding-win32-arm64-msvc@0.76.0"
+  - "@oxfmt/binding-win32-ia32-msvc@0.76.0"
+  - "@oxfmt/binding-win32-x64-msvc@0.76.0"
+  - oxfmt@0.76.0
