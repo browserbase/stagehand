@@ -21,7 +21,7 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "../sdk-ts/src/clientSchemas.js";
+} from "../sdk-ts/src/objectModelSchemas.js";
 import { serializeClientLocatorOptions } from "../sdk-ts/src/clientLocatorOptions.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
 import { Page } from "../sdk-ts/src/page.js";
