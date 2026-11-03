@@ -281,8 +281,8 @@ catalogs:
       specifier: 3.1.1
       version: 3.1.1
     '@modelcontextprotocol/sdk':
-      specifier: 1.29.0
-      version: 1.29.0
+      specifier: 1.32.2
+      version: 1.32.2
     '@openai/codex-sdk':
       specifier: 0.153.4
       version: 0.153.4
@@ -600,7 +600,7 @@ importers:
         version: 2.0.3
       '@anthropic-ai/claude-agent-sdk':
         specifier: 'catalog:'
-        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.29.0(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)
+        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)
       '@braintrust/otel':
         specifier: ^0.2.1
         version: 0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6))
@@ -648,7 +648,7 @@ importers:
         version: 1.8.1
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.32.2(zod@4.6.6)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -1096,7 +1096,7 @@ importers:
         version: link:../../sdk-ts
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.32.2(zod@4.6.6)
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -1221,7 +1221,7 @@ importers:
         version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.32.2(zod@4.6.6)
       ai:
         specifier: catalog:eve
         version: 7.0.122(zod@4.6.6)
@@ -1408,10 +1408,10 @@ importers:
         version: link:../core
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.32.2(zod@4.6.6)
       typebox:
         specifier: 'catalog:'
         version: 1.3.7
@@ -3286,16 +3286,6 @@ packages:
       react:
         optional: true
       react-dom:
-        optional: true
-
-  '@modelcontextprotocol/sdk@1.29.0':
-    resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@cfworker/json-schema': ^4.1.1
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      '@cfworker/json-schema':
         optional: true
 
   '@modelcontextprotocol/sdk@1.32.2':
@@ -9746,7 +9736,7 @@ snapshots:
     dependencies:
       uuid: 11.1.1
     optionalDependencies:
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
 
   '@ai-sdk/amazon-bedrock@3.0.111(zod@4.6.6)':
     dependencies:
@@ -10037,21 +10027,6 @@ snapshots:
 
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.224':
     optional: true
-
-  '@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.29.0(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)':
-    dependencies:
-      '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
-      zod: 4.6.6
-    optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.224
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.224
 
   '@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)':
     dependencies:
@@ -10653,8 +10628,8 @@ snapshots:
       '@ai-sdk/provider': 2.0.3
       '@anthropic-ai/sdk': 0.39.0
       '@browserbasehq/sdk': 2.16.0
-      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
+      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
       ai: 5.0.220(zod@4.6.6)
       devtools-protocol: 0.0.1642743
       fetch-cookie: 3.2.0
@@ -10927,23 +10902,6 @@ snapshots:
     dependencies:
       esbuild: 0.28.2
 
-  '@earendil-works/pi-agent-core@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
-    dependencies:
-      '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      typebox: 1.3.27
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-provider-node'
-      - '@modelcontextprotocol/sdk'
-      - '@smithy/hash-node'
-      - '@smithy/signature-v4'
-      - bufferutil
-      - kerberos
-      - supports-color
-      - undici
-      - utf-8-validate
-      - ws
-      - zod
-
   '@earendil-works/pi-agent-core@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
@@ -10971,31 +10929,6 @@ snapshots:
       http-proxy-agent: 9.1.0(supports-color@8.1.1)
       https-proxy-agent: 9.1.0(supports-color@8.1.1)
       openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      partial-json: 0.1.7
-      typebox: 1.3.27
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-provider-node'
-      - '@modelcontextprotocol/sdk'
-      - '@smithy/hash-node'
-      - '@smithy/signature-v4'
-      - bufferutil
-      - kerberos
-      - supports-color
-      - undici
-      - utf-8-validate
-      - ws
-      - zod
-
-  '@earendil-works/pi-ai@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
-    dependencies:
-      '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
-      '@aws-sdk/client-bedrock-runtime': 3.1127.0
-      '@earendil-works/pi-telemetry': 1.0.2
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(bufferutil@4.1.0)
-      '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0(supports-color@8.1.1)
-      https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
       typebox: 1.3.27
     transitivePeerDependencies:
@@ -11040,11 +10973,11 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-coding-agent@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.0.2
-      '@earendil-works/pi-agent-core': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-agent-core': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.0.2
       '@earendil-works/pi-mcp': 1.0.2
       '@earendil-works/pi-tui': 1.0.2
@@ -11077,11 +11010,11 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-coding-agent@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-coding-agent@1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.0.2
       '@earendil-works/pi-agent-core': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.0.2(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.0.2
       '@earendil-works/pi-mcp': 1.0.2
       '@earendil-works/pi-tui': 1.0.2
@@ -11353,19 +11286,6 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)':
-    dependencies:
-      google-auth-library: 10.9.1
-      p-retry: 4.6.2
-      protobufjs: 7.6.5
-      ws: 8.21.0(bufferutil@4.1.0)
-    optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)':
     dependencies:
       google-auth-library: 10.9.1
@@ -11374,19 +11294,6 @@ snapshots:
       ws: 8.21.0(bufferutil@4.1.0)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
-  '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(bufferutil@4.1.0)':
-    dependencies:
-      google-auth-library: 10.9.1
-      p-retry: 4.6.2
-      protobufjs: 7.6.5
-      ws: 8.21.0(bufferutil@4.1.0)
-    optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -11933,7 +11840,7 @@ snapshots:
       '@isaacs/ttlcache': 2.1.5
       '@lukeed/uuid': 2.0.1
       '@mastra/schema-compat': 1.3.5(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
@@ -11970,8 +11877,8 @@ snapshots:
   '@mastra/mcp@1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
     dependencies:
       '@mastra/core': 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)
-      '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+      '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
       exit-hook: 5.1.0
       fast-deep-equal: 3.1.3
     transitivePeerDependencies:
@@ -12336,36 +12243,14 @@ snapshots:
       - supports-color
       - typescript
 
-  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.29.0(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
+  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(supports-color@8.1.1)(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
       zod: 4.6.6
     optionalDependencies:
       react: 19.2.3
       react-dom: 18.3.1(react@19.2.3)
-
-  '@modelcontextprotocol/sdk@1.29.0(supports-color@8.1.1)(zod@4.6.6)':
-    dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.13)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      express: 5.2.1(supports-color@8.1.1)
-      express-rate-limit: 8.6.0(express@5.2.1(supports-color@8.1.1))(supports-color@8.1.1)
-      hono: 4.13.13
-      jose: 6.2.4
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.6.6
-      zod-to-json-schema: 3.25.2(zod@4.6.6)
-    transitivePeerDependencies:
-      - supports-color
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.6)':
     dependencies:
@@ -12377,8 +12262,8 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1(supports-color@8.1.1)
-      express-rate-limit: 8.6.0(express@5.2.1(supports-color@8.1.1))(supports-color@8.1.1)
+      express: 5.2.1
+      express-rate-limit: 8.6.0(express@5.2.1)
       hono: 4.13.13
       jose: 6.2.4
       json-schema-typed: 8.0.2
@@ -13906,7 +13791,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  body-parser@2.3.0(supports-color@8.1.1):
+  body-parser@2.3.0:
     dependencies:
       bytes: 3.1.2
       content-type: 2.0.0
@@ -13958,7 +13843,7 @@ snapshots:
       esbuild: 0.28.1
       esquery: 1.7.0
       eventsource-parser: 1.1.2
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       http-errors: 2.0.1
       meriyah: 6.1.4
       minimatch: 10.2.5
@@ -14001,7 +13886,7 @@ snapshots:
       esbuild: 0.28.1
       esquery: 1.7.0
       eventsource-parser: 1.1.2
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       http-errors: 2.0.1
       meriyah: 6.1.4
       minimatch: 10.2.5
@@ -15004,10 +14889,10 @@ snapshots:
 
   expr-eval-fork@3.0.3: {}
 
-  express-rate-limit@8.6.0(express@5.2.1(supports-color@8.1.1))(supports-color@8.1.1):
+  express-rate-limit@8.6.0(express@5.2.1):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       ip-address: 10.7.3
     transitivePeerDependencies:
       - supports-color
@@ -15048,10 +14933,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  express@5.2.1(supports-color@8.1.1):
+  express@5.2.1:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.3.0(supports-color@8.1.1)
+      body-parser: 2.3.0
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
@@ -15061,7 +14946,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1(supports-color@8.1.1)
+      finalhandler: 2.1.1
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -15072,8 +14957,8 @@ snapshots:
       proxy-addr: 2.0.7
       qs: 6.16.0
       range-parser: 1.2.1
-      router: 2.2.0(supports-color@8.1.1)
-      send: 1.2.1(supports-color@8.1.1)
+      router: 2.2.0
+      send: 1.2.1
       serve-static: 2.2.1
       statuses: 2.0.2
       type-is: 2.1.0
@@ -15257,7 +15142,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  finalhandler@2.1.1(supports-color@8.1.1):
+  finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       encodeurl: 2.0.0
@@ -18313,7 +18198,7 @@ snapshots:
 
   rou3@0.9.2: {}
 
-  router@2.2.0(supports-color@8.1.1):
+  router@2.2.0:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       depd: 2.0.0
@@ -18411,7 +18296,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  send@1.2.1(supports-color@8.1.1):
+  send@1.2.1:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       encodeurl: 2.0.0
@@ -18452,7 +18337,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1(supports-color@8.1.1)
+      send: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
