@@ -26,17 +26,19 @@ import { resolveBrowserbaseConnection } from "./browserbaseConnection.js";
 import { registerBrowserbaseTransport } from "./browserbaseRpc.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
 import {
-  StagehandClientActOptionsSchema,
-  StagehandClientExtractOptionsSchema,
   StagehandCreateOptionsSchema,
-  StagehandClientObserveOptionsSchema,
-  type StagehandClientActOptions,
-  type StagehandClientExtractOptions,
   type ResolvedStagehandClientLoggingConfig,
   type ResolvedStagehandClientCreateConfig,
   type StagehandCreateOptions,
-  type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
+import {
+  StagehandClientActOptionsSchema,
+  StagehandClientExtractOptionsSchema,
+  StagehandClientObserveOptionsSchema,
+  type StagehandClientActOptions,
+  type StagehandClientExtractOptions,
+  type StagehandClientObserveOptions,
+} from "./objectModelSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {

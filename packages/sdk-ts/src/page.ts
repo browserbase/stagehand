@@ -37,7 +37,7 @@ import {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
-import type { WebMCPToolsOptions } from "./clientSchemas.js";
+import type { WebMCPToolsOptions } from "./objectModelSchemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
