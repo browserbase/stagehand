@@ -50,11 +50,6 @@ export type MastraMcpClientLike = {
     tools: Record<string, unknown>;
     errors: Record<string, string>;
   }>;
-  /** Per-server toolsets with the servers' own tool names; required for `toolNames: "bare"`. */
-  listToolsetsWithErrors?: () => Promise<{
-    toolsets: Record<string, Record<string, unknown>>;
-    errors: Record<string, string>;
-  }>;
   disconnect: () => Promise<void>;
 };
 
@@ -85,14 +80,6 @@ export type MastraSessionConfig = {
   providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
-  /**
-   * How MCP tools are named for the model. "namespaced" (default) prefixes each
-   * tool with its server name (`stagehand_run`); "bare" keeps the server's own
-   * names (`run`) and fails discovery if two servers expose the same name.
-   */
-  toolNames?: "namespaced" | "bare";
-  /** Prefix for the MCP client id; a random UUID is appended. Defaults to "stagehand-evals-mastra". */
-  mcpClientIdPrefix?: string;
 };
 
 export type MastraTokenUsage = {
@@ -255,7 +242,7 @@ export async function runMastraSession(input: {
         ]),
       );
       client = sdk.createMcpClient({
-        id: `${input.session.mcpClientIdPrefix ?? "stagehand-evals-mastra"}-${randomUUID()}`,
+        id: `stagehand-evals-mastra-${randomUUID()}`,
         servers,
         ...(positiveIntegerOrUndefined(input.session.mcpTimeoutMs) && {
           timeout: positiveIntegerOrUndefined(input.session.mcpTimeoutMs),
@@ -263,12 +250,7 @@ export async function runMastraSession(input: {
       });
       let discovery: { tools: Record<string, unknown>; errors: Record<string, string> } | undefined;
       try {
-        discovery = await raceAbort(
-          input.session.toolNames === "bare"
-            ? discoverBareMcpTools(client, input.session.tools)
-            : client.listToolsWithErrors(),
-          controller.signal,
-        );
+        discovery = await raceAbort(client.listToolsWithErrors(), controller.signal);
       } catch (error) {
         if (!controller.signal.aborted) throw error;
         stopReason = sanitizeErrorMessage(stringifyError(controller.signal.reason) || "aborted");
@@ -399,46 +381,6 @@ export async function runMastraSession(input: {
     stepCount,
     tokenUsage: tokenUsage.reported ? tokenUsage : summedStepUsage,
     ...(iterationError !== undefined && { iterationError }),
-  };
-}
-
-/**
- * Flatten per-server toolsets under the servers' own tool names. Bare names must be
- * unique across servers and must not collide with `session.tools`, which would
- * otherwise silently shadow an MCP tool when the two maps are merged.
- */
-async function discoverBareMcpTools(
-  client: MastraMcpClientLike,
-  sessionTools: Record<string, unknown> | undefined,
-): Promise<{ tools: Record<string, unknown>; errors: Record<string, string> }> {
-  if (!client.listToolsetsWithErrors) {
-    throw new HarnessAdapterError(
-      'toolNames "bare" requires an MCP client with listToolsetsWithErrors()',
-    );
-  }
-  const { toolsets, errors } = await client.listToolsetsWithErrors();
-  const reserved = new Set(Object.keys(sessionTools ?? {}));
-  // A Map keeps names like "__proto__" as plain keys; Object.fromEntries defines own properties.
-  const tools = new Map<string, { server: string; tool: unknown }>();
-  for (const [server, toolset] of Object.entries(toolsets)) {
-    for (const [name, tool] of Object.entries(toolset)) {
-      const existing = tools.get(name);
-      if (existing !== undefined) {
-        throw new HarnessAdapterError(
-          `MCP tool "${name}" is exposed by both "${existing.server}" and "${server}"; bare tool names must be unique (use toolNames "namespaced")`,
-        );
-      }
-      if (reserved.has(name)) {
-        throw new HarnessAdapterError(
-          `MCP tool "${name}" from "${server}" has the same name as a session.tools entry; bare tool names must be unique (rename the session tool or use toolNames "namespaced")`,
-        );
-      }
-      tools.set(name, { server, tool });
-    }
-  }
-  return {
-    tools: Object.fromEntries([...tools].map(([name, { tool }]) => [name, tool])),
-    errors,
   };
 }
 

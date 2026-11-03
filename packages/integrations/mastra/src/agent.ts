@@ -2,7 +2,10 @@ import {
   type HarnessLogger,
   sanitizeErrorMessage,
 } from "@browserbasehq/stagehand-integrations/harness";
-import { runMastraSession } from "@browserbasehq/stagehand-integrations-mastra";
+import {
+  runMastraSession,
+  type MastraSessionResult,
+} from "@browserbasehq/stagehand-integrations-mastra";
 
 import { facadeAgentSession } from "./facade.ts";
 
@@ -10,12 +13,32 @@ import { facadeAgentSession } from "./facade.ts";
 const stderr = (line: { message: string }) => console.error(line.message);
 const logger: HarnessLogger = { log: () => {}, warn: stderr, error: stderr };
 
-async function main() {
+/**
+ * The text to print for a completed run. Any other status (step cap, SDK or
+ * discovery error) throws with the status, stop reason and last agent text, so
+ * the CLI exits non-zero. The adapter already redacts known key formats from
+ * finalText and stopReason.
+ */
+export function reportMastraResult(
+  result: Pick<MastraSessionResult, "status" | "stopReason" | "finalText" | "iterationError">,
+): string {
+  if (result.status === "completed") return result.finalText;
+  const reason =
+    result.stopReason ??
+    (result.iterationError instanceof Error
+      ? sanitizeErrorMessage(result.iterationError.message)
+      : "unknown");
+  const lastText = result.finalText.trim();
+  throw new Error(
+    `Agent did not finish (${result.status}): ${reason}` +
+      (lastText ? `\nLast agent message: ${lastText}` : ""),
+  );
+}
+
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
-  if (!instruction) {
-    throw new Error('Usage: pnpm start "your instruction"');
-  }
+  if (!instruction) throw new Error('Usage: pnpm start "your instruction"');
 
   // Bare model ids are routed to OpenAI; `provider/model` ids pick another provider.
   const result = await runMastraSession({
@@ -24,25 +47,16 @@ async function main() {
     logger,
     session: facadeAgentSession(),
   });
-
-  // Running out of steps still returns the agent's text, as agent.generate() does.
-  // The adapter applies best-effort redaction of known key formats to finalText.
-  if (result.status === "completed" || result.status === "max_turns") {
-    if (result.status === "max_turns" && result.stopReason) stderr({ message: result.stopReason });
-    // oxlint-disable-next-line no-console -- CLI example prints the agent result.
-    console.log(result.finalText);
-    return;
-  }
-  const detail =
-    result.stopReason ??
-    (result.iterationError instanceof Error
-      ? sanitizeErrorMessage(result.iterationError.message)
-      : undefined);
-  throw new Error(`Mastra session ended with ${result.status}: ${detail ?? "unknown"}`);
+  // oxlint-disable-next-line no-console -- CLI example prints the agent result.
+  console.log(reportMastraResult(result));
 }
 
-main().catch((error: unknown) => {
+if (import.meta.main) {
+  main().catch(handleFailure);
+}
+
+function handleFailure(error: unknown): void {
   // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
-});
+}

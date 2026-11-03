@@ -6,17 +6,13 @@ import type {
 } from "@browserbasehq/stagehand-integrations-mastra";
 import { fileURLToPath } from "node:url";
 
-export type FacadeMcpServerOptions = {
-  env?: Record<string, string>;
-};
-
 /**
  * How Stagehand mounts into Mastra: the facade MCP server over stdio, as a
  * server definition for `runMastraSession({ session: { mcpServers } })`.
  * From the host environment the child receives only the allowlisted STAGEHAND_* /
- * BROWSERBASE_* variables; entries in `options.env` are passed through as given.
+ * BROWSERBASE_* variables.
  */
-export function facadeMcpServer(options: FacadeMcpServerOptions = {}): MastraStdioServerDefinition {
+export function facadeMcpServer(): MastraStdioServerDefinition {
   // Build @browserbasehq/stagehand-integrations first so this dist entrypoint exists.
   const serverPath = fileURLToPath(
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
@@ -25,26 +21,24 @@ export function facadeMcpServer(options: FacadeMcpServerOptions = {}): MastraStd
   return {
     command: process.execPath,
     args: [serverPath],
-    env: { ...buildAllowlistedEnv(), ...options.env },
+    env: buildAllowlistedEnv(),
   };
 }
 
 /**
- * The example agent's session: the facade server under its own tool names
- * (run/snapshot/screenshot), which FACADE_AGENT_INSTRUCTIONS references.
- * Evals keeps the adapter defaults (stagehand_run, ...).
+ * The example agent's session: the facade server with the adapter's default
+ * server-namespaced tool names (stagehand_run, stagehand_snapshot,
+ * stagehand_screenshot) and FACADE_AGENT_INSTRUCTIONS.
  *
  * Tool failures reach the model as tool results (the adapter's
  * `onToolError: "return"`, shared with evals) rather than as thrown errors.
  */
-export function facadeAgentSession(options: FacadeMcpServerOptions = {}): MastraSessionConfig {
+export function facadeAgentSession(): MastraSessionConfig {
   return {
     agentId: "stagehand-facade-agent",
     agentName: "Stagehand Facade Agent",
     instructions: FACADE_AGENT_INSTRUCTIONS,
     maxSteps: 20,
-    mcpServers: { stagehand: facadeMcpServer(options) },
-    toolNames: "bare",
-    mcpClientIdPrefix: "stagehand-facade-mastra-example",
+    mcpServers: { stagehand: facadeMcpServer() },
   };
 }

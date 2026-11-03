@@ -105,38 +105,31 @@ describe("Stagehand facade MCP server for Mastra", () => {
   });
 
   // The example's path: agent.ts runs facadeAgentSession() through runMastraSession.
-  // The model must see the bare names FACADE_AGENT_INSTRUCTIONS refers to.
-  it("hands the example agent the facade's bare tool names", async () => {
+  // The model sees the facade tools namespaced by server, as evals does.
+  it("hands the example agent the namespaced facade tools", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
-    const expectedNames = FACADE_TOOLS.map((tool) => tool.name).sort();
+    const expectedNames = FACADE_TOOLS.map((tool) => `stagehand_${tool.name}`).sort();
+    expect(expectedNames).toEqual(["stagehand_run", "stagehand_screenshot", "stagehand_snapshot"]);
 
     const example = await agentSetup(facadeAgentSession());
     expect(example.toolNames).toEqual(expectedNames);
     expect(example.instructions).toBe(FACADE_AGENT_INSTRUCTIONS);
-    expect(example.clientId).toMatch(/^stagehand-facade-mastra-example-[0-9a-f-]{36}$/);
+    expect(example.clientId).toMatch(/^stagehand-evals-mastra-[0-9a-f-]{36}$/);
     expect(example.agentId).toBe("stagehand-facade-agent");
     expect(example.agentName).toBe("Stagehand Facade Agent");
     expect(example.maxSteps).toBe(20);
-
-    // Adapter defaults (what evals uses) stay server-namespaced.
-    const defaults = await agentSetup({ mcpServers: { stagehand: facadeMcpServer() } });
-    expect(defaults.toolNames).toEqual(expectedNames.map((name) => `stagehand_${name}`).sort());
-    expect(defaults.clientId).toMatch(/^stagehand-evals-mastra-[0-9a-f-]{36}$/);
-    expect(defaults.agentId).toBe("stagehand-evals-mastra");
-    expect(defaults.maxSteps).toBe(50);
   });
 
   it("launches the core stdio server with only allowlisted host vars", () => {
     process.env.STAGEHAND_BROWSER = "local";
     process.env.NOT_ALLOWLISTED_SECRET = "must-not-cross";
 
-    const server = facadeMcpServer({ env: { STAGEHAND_MODEL_NAME: "override" } });
+    const server = facadeMcpServer();
 
     expect(server.command).toBe(process.execPath);
     expect(server.args).toHaveLength(1);
     expect(server.args?.[0]).toMatch(/stdio-server\.m?js$/);
     expect(server.env?.STAGEHAND_BROWSER).toBe("local");
-    expect(server.env?.STAGEHAND_MODEL_NAME).toBe("override");
     expect(server.env).not.toHaveProperty("NOT_ALLOWLISTED_SECRET");
   });
 });
