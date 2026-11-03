@@ -33,7 +33,7 @@ catalog:
   oxlint-tsgolint: 0.24.0
   tsdown: 0.22.3
   vite: 8.1.6
-  vitest: 4.1.11
+  vitest: 4.1.12
   zod: 4.6.6
   devtools-protocol: ^0.0.1657692
   ai: ^7.0.155
