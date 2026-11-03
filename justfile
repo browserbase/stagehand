@@ -106,10 +106,6 @@ _version:
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
-# Builds the commit-addressed bundle used by labeled pull request previews.
-_preview commit:
-    pnpm exec tsx scripts/release/build-preview.ts "{{commit}}"
-
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
     pnpm --filter @browserbasehq/eve build

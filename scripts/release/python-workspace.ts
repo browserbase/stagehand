@@ -2,7 +2,7 @@ import { glob, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 
-// Alpha and preview builds run in disposable checkouts. Their SDK version can
+// Alpha builds run in disposable checkouts. Their SDK version can
 // fall below a member's stable minimum. Pin those consumers to the development
 // version in that checkout, keeping the SDK's own metadata and dev tools intact.
 export async function pinPythonWorkspaceSdkVersion(repositoryRoot: string, version: string) {
