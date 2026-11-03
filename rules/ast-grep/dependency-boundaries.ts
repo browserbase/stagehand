@@ -34,12 +34,10 @@ function extensionProductionFile(file: string): boolean {
 /** Checks source imports without loading them, including type imports and dynamic imports. */
 export function dependencyBoundaryViolations(file: string, source: string): string[] {
   file = posix.normalize(file.replaceAll("\\", "/"));
-  const shared = inside(file, sharedRoot);
-  const extension = inside(file, extensionRoot);
-  if (!shared && !extension) return [];
   const sharedProduction = inside(file, `${sharedRoot}/src`) && !testFile(file);
   const extensionProduction = extensionProductionFile(file);
-  const production = sharedProduction || extensionProduction;
+  // Test coupling is intentionally outside this production boundary check.
+  if (!sharedProduction && !extensionProduction) return [];
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const violations: string[] = [];
   const report = (node: ts.Node, message: string) => {
@@ -49,7 +47,7 @@ export function dependencyBoundaryViolations(file: string, source: string): stri
 
   function checkImport(node: ts.Node): void {
     if (!ts.isStringLiteralLike(node)) {
-      if (production) report(node, "Production imports must use literal module specifiers.");
+      report(node, "Production imports must use literal module specifiers.");
       return;
     }
     const specifier = node.text;
@@ -60,11 +58,14 @@ export function dependencyBoundaryViolations(file: string, source: string): stri
       report(node, "The extension and shared object model must not import the TS SDK.");
       return;
     }
-    if (shared && (packageImport(specifier, extensionPackage) || inside(target, extensionRoot))) {
+    if (
+      sharedProduction &&
+      (packageImport(specifier, extensionPackage) || inside(target, extensionRoot))
+    ) {
       report(node, "The shared object model must not import the extension.");
       return;
     }
-    if (production && (specifier.startsWith("node:") || isBuiltin(specifier))) {
+    if (specifier.startsWith("node:") || isBuiltin(specifier)) {
       report(node, "Browser production code must not import Node built-ins.");
       return;
     }

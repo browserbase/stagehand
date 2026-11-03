@@ -125,13 +125,12 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/tests/helpers/**"
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
       ]
     },
     "@browserbasehq/stagehand-protocol#typecheck": {},
     "@browserbasehq/stagehand#typecheck": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tests/helpers/httpServer.ts"]
+      "dependsOn": ["^typecheck"]
     },
     "@browserbasehq/stagehand-evals#typecheck": {
       "dependsOn": ["^build"]
@@ -352,7 +351,7 @@
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/tests/helpers/**"
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
@@ -366,8 +365,7 @@
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**",
-        "$TURBO_ROOT$/tests/helpers/httpServer.ts"
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
     "//#test:unit": {

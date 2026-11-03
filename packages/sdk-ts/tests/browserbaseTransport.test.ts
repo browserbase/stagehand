@@ -14,12 +14,7 @@ import type { BrowserbaseRequestParams } from "@browserbasehq/stagehand-protocol
 import fixtures from "../../../tests/fixtures/browserbase-transport.json" with { type: "json" };
 import type { BrowserbaseConnection } from "../src/browserbaseConnection.js";
 import { executeBrowserbaseRequest } from "../src/browserbaseTransport.js";
-import {
-  createHttpTestServer,
-  listen,
-  close,
-  type CapturedRequest,
-} from "../../../tests/helpers/httpServer.js";
+import { createHttpTestServer, listen, close, type CapturedRequest } from "./helpers/httpServer.js";
 
 const params: BrowserbaseRequestParams = {
   operation: "gateway.responses",

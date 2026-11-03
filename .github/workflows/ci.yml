@@ -70,7 +70,6 @@ jobs:
               - 'packages/protocol/**'
               - 'packages/shared-object-model/**'
               - 'packages/integrations/**'
-              - 'tests/helpers/**'
               - 'rules/ast-grep/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
