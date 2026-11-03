@@ -1,5 +1,5 @@
 import { isBuiltin } from "node:module";
-import { posix } from "node:path";
+import { posix, resolve } from "node:path";
 import ts from "typescript";
 
 const extensionRoot = "packages/extension";
@@ -31,14 +31,55 @@ function extensionProductionFile(file: string): boolean {
   );
 }
 
+/** Share one program across a source scan, using the supplied contents for fixture tests too. */
+export function createDependencyBoundaryProgram(sources: ReadonlyMap<string, string>): ts.Program {
+  const files = new Map([...sources].map(([file, source]) => [resolve(file), source]));
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.NodeNext,
+    moduleDetection: ts.ModuleDetectionKind.Force,
+    types: ["node"],
+    noEmit: true,
+  };
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (file, languageVersion, onError, shouldCreateNewSourceFile) => {
+    const source = files.get(resolve(file));
+    return source === undefined
+      ? getSourceFile(file, languageVersion, onError, shouldCreateNewSourceFile)
+      : ts.createSourceFile(file, source, languageVersion, true);
+  };
+  return ts.createProgram([...files.keys()], options, host);
+}
+
 /** Checks source imports without loading them, including type imports and dynamic imports. */
-export function dependencyBoundaryViolations(file: string, source: string): string[] {
+export function dependencyBoundaryViolations(
+  file: string,
+  source: string,
+  program?: ts.Program,
+): string[] {
   file = posix.normalize(file.replaceAll("\\", "/"));
   const sharedProduction = inside(file, `${sharedRoot}/src`) && !testFile(file);
   const extensionProduction = extensionProductionFile(file);
   // Test coupling is intentionally outside this production boundary check.
   if (!sharedProduction && !extensionProduction) return [];
-  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  if (sharedProduction) program ??= createDependencyBoundaryProgram(new Map([[file, source]]));
+  const ast =
+    program?.getSourceFile(resolve(file)) ??
+    ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const checker = program?.getTypeChecker();
+  const globalSymbols = new Set(
+    [...nodeGlobals]
+      .map((name) =>
+        checker?.resolveName(
+          name,
+          undefined,
+          ts.SymbolFlags.Value | ts.SymbolFlags.Type | ts.SymbolFlags.Namespace,
+          false,
+        ),
+      )
+      .filter((symbol) => symbol !== undefined),
+  );
   const violations: string[] = [];
   const report = (node: ts.Node, message: string) => {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
@@ -100,17 +141,18 @@ export function dependencyBoundaryViolations(file: string, source: string): stri
     ) {
       if (node.arguments[0]) checkImport(node.arguments[0]);
     }
-    if (sharedProduction) {
-      if (ts.isIdentifier(node) && nodeGlobals.has(node.text)) {
+    if (
+      sharedProduction &&
+      checker &&
+      (ts.isIdentifier(node) ||
+        (ts.isStringLiteralLike(node) && ts.isElementAccessExpression(node.parent))) &&
+      nodeGlobals.has(node.text)
+    ) {
+      const symbol = ts.isShorthandPropertyAssignment(node.parent)
+        ? checker.getShorthandAssignmentValueSymbol(node.parent)
+        : checker.getSymbolAtLocation(node);
+      if (symbol && globalSymbols.has(symbol)) {
         report(node, `Shared object model must use its platform adapter instead of ${node.text}.`);
-      } else if (
-        ts.isElementAccessExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "globalThis" &&
-        ts.isStringLiteralLike(node.argumentExpression) &&
-        nodeGlobals.has(node.argumentExpression.text)
-      ) {
-        report(node, "Shared object model must use its platform adapter instead of Node globals.");
       }
     }
     ts.forEachChild(node, visit);

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  createDependencyBoundaryProgram,
   dependencyBoundaryViolations,
   manifestBoundaryViolations,
 } from "./dependency-boundaries.js";
@@ -31,13 +32,16 @@ describe("object model dependency boundaries", () => {
     async (directory) => {
       const files = await sourceFiles(`packages/${directory}`);
       expect(files.length).toBeGreaterThan(0);
-      const violations = (
+      const sources = new Map(
         await Promise.all(
-          files.map(async (file) =>
-            dependencyBoundaryViolations(file, await readFile(path.join(root, file), "utf8")),
-          ),
-        )
-      ).flat();
+          files.map(async (file) => [file, await readFile(path.join(root, file), "utf8")] as const),
+        ),
+      );
+      const program =
+        directory === "shared-object-model" ? createDependencyBoundaryProgram(sources) : undefined;
+      const violations = [...sources].flatMap(([file, source]) =>
+        dependencyBoundaryViolations(file, source, program),
+      );
       expect(violations).toEqual([]);
     },
   );
@@ -75,6 +79,7 @@ describe("object model dependency boundaries", () => {
     [shared, 'const moduleName = "node:fs"; const fs = await import(moduleName);'],
     [shared, 'process.emitWarning("warning");'],
     [shared, 'Buffer.from("hello");'],
+    [shared, "const globals = { process, Buffer, __dirname, __filename };"],
     [shared, 'globalThis.Buffer.from("hello");'],
     [shared, 'globalThis["Buffer"].from("hello");'],
     [shared, "let timeout: NodeJS.Timeout;"],
@@ -114,6 +119,24 @@ describe("object model dependency boundaries", () => {
     ["packages/shared-object-model/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
   ])("allows supported dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source)).toEqual([]);
+  });
+
+  it("allows properties and local bindings named like Node globals", () => {
+    expect(
+      dependencyBoundaryViolations(
+        shared,
+        `
+      const model = { process: () => {}, Buffer: 1 };
+      model.process();
+      model["Buffer"];
+      const Buffer = "local";
+      const values = { Buffer };
+      function example(process: string, globalThis: { Buffer: number }) {
+        return [process, globalThis.Buffer, globalThis["Buffer"]];
+      }
+    `,
+      ),
+    ).toEqual([]);
   });
 
   it("rejects package edges that would reintroduce the cycle", () => {
