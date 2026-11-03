@@ -17,13 +17,8 @@
       "outputs": ["stagehand.v4.json"]
     },
     "@browserbasehq/stagehand-extension#build": {
-      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "!dist/**",
-        "!artifacts/stagehand-extension.zip"
-      ],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
       "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
     },
     "@browserbasehq/stagehand#build": {
@@ -126,7 +121,12 @@
       "inputs": ["tsconfig.tooling.json", "rules/**/*.ts", "scripts/release/**/*.ts"]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
-      "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
+      ]
     },
     "@browserbasehq/stagehand-protocol#typecheck": {},
     "@browserbasehq/stagehand#typecheck": {
@@ -349,7 +349,9 @@
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/*/node_modules/**",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
@@ -438,7 +440,8 @@
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/*/node_modules/**",
+        "$TURBO_ROOT$/packages/shared-object-model/src/**"
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#build": {
@@ -479,6 +482,13 @@
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
+    },
+    "@browserbasehq/stagehand-shared-object-model#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@browserbasehq/stagehand-shared-object-model#typecheck": {
+      "dependsOn": ["^typecheck"]
     }
   }
 }

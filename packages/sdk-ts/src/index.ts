@@ -4,12 +4,12 @@ export {
   type Cookie,
   type CookieParam,
   type DomainPolicy,
-} from "./browserContext.js";
+} from "@browserbasehq/stagehand-shared-object-model/browserContext";
 export {
   BrowserClipboard,
   type ClipboardOptions,
   type ClipboardPasteOptions,
-} from "./browserClipboard.js";
+} from "@browserbasehq/stagehand-shared-object-model/browserClipboard";
 export {
   Locator,
   type LocatorOptions,
@@ -17,8 +17,11 @@ export {
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
   type LocatorTypeOptions,
-} from "./locator.js";
-export type { FileInput, FilePayload } from "./fileUpload.js";
+} from "@browserbasehq/stagehand-shared-object-model/locator";
+export type {
+  FileInput,
+  FilePayload,
+} from "@browserbasehq/stagehand-shared-object-model/fileUpload";
 export {
   CDPSubscription,
   Page,
@@ -35,17 +38,17 @@ export {
   type PageWaitForSelectorOptions,
   type PageWaitForFunctionOptions,
   type ScreenshotOptions,
-} from "./page.js";
+} from "@browserbasehq/stagehand-shared-object-model/page";
 export {
   Response,
   type ResponseHeader,
   type ResponseSecurityDetails,
   type ResponseServerAddr,
-} from "./response.js";
-export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
+} from "@browserbasehq/stagehand-shared-object-model/response";
+export { WebMCPInvocation, WebMCPTool } from "@browserbasehq/stagehand-shared-object-model/webmcp";
 export { CDPConnectionClosedError } from "./cdpClient.js";
 export { RPCResponseTimeoutError } from "./rpcErrors.js";
-export type { InitScriptSource } from "./pageScripts.js";
+export type { InitScriptSource } from "@browserbasehq/stagehand-shared-object-model/pageScripts";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {

@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Buffer } from "node:buffer";
-import { MAX_INPUT_FILE_BYTES } from "./fileUpload.js";
-import type { ObjectModelPlatform } from "./objectModelPlatform.js";
+import { MAX_INPUT_FILE_BYTES } from "@browserbasehq/stagehand-shared-object-model/fileUpload";
+import type { ObjectModelPlatform } from "@browserbasehq/stagehand-shared-object-model/objectModelPlatform";
 
 /** Node capabilities supplied by the SDK; never imported by the shared object model. */
 export const nodeObjectModelPlatform: ObjectModelPlatform = {

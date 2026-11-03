@@ -25,7 +25,7 @@ import {
 import {
   browserObjectModelPlatform,
   type ObjectModelPlatform,
-} from "../src/objectModelPlatform.js";
+} from "@browserbasehq/stagehand-shared-object-model/objectModelPlatform";
 import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {

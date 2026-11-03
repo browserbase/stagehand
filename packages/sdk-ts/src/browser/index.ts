@@ -9,7 +9,7 @@ import type {
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
 } from "../clientSchemas.js";
-import type { BrowserContext } from "../browserContext.js";
+import type { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
 
 export type {
   BrowserbaseClientOptions,

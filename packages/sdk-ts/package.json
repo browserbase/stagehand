@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@browserbasehq/stagehand-protocol": "workspace:*",
+    "@browserbasehq/stagehand-shared-object-model": "workspace:*",
     "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",

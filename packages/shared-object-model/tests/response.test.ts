@@ -3,25 +3,20 @@ import { z } from "zod/v4";
 import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { NavigationResponseDescriptor } from "@browserbasehq/stagehand-protocol/types";
-import { Page, Response } from "../src/index.js";
-import { RPCClient } from "../src/rpcClient.js";
+import { Page } from "../src/page.js";
+import { Response } from "../src/response.js";
+import type { StagehandCommandClient } from "../src/commandClient.js";
 
-class FakeResponseClient extends RPCClient {
+class FakeResponseClient implements StagehandCommandClient {
+  onNotification(): () => void {
+    return () => {};
+  }
+
   readonly calls: Array<{ method: string; params: unknown }> = [];
   readonly responses = new Map<string, unknown[]>();
   readonly preserveQueuedResponseIdentity: boolean;
 
   constructor(options: { preserveQueuedResponseIdentity?: boolean } = {}) {
-    super({
-      serviceWorker: {
-        targetId: "worker-target",
-        url: "chrome-extension://stagehand/service-worker.js",
-        title: "Stagehand",
-        extensionId: "stagehand",
-      },
-      send: async () => {},
-      close: () => {},
-    });
     this.preserveQueuedResponseIdentity = options.preserveQueuedResponseIdentity ?? false;
   }
 
