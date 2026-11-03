@@ -40,9 +40,9 @@ async function normalizeFile(
   const bytes =
     typeof file.buffer === "string"
       ? new TextEncoder().encode(file.buffer)
-      : file.buffer instanceof ArrayBuffer
-        ? new Uint8Array(file.buffer)
-        : file.buffer;
+      : ArrayBuffer.isView(file.buffer)
+        ? file.buffer
+        : new Uint8Array(file.buffer);
   if (bytes.byteLength > MAX_INPUT_FILE_BYTES) {
     throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
   }
