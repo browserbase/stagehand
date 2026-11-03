@@ -37,8 +37,7 @@ describe("object model dependency boundaries", () => {
           files.map(async (file) => [file, await readFile(path.join(root, file), "utf8")] as const),
         ),
       );
-      const program =
-        directory === "shared-object-model" ? createDependencyBoundaryProgram(sources) : undefined;
+      const program = createDependencyBoundaryProgram(sources);
       const violations = [...sources].flatMap(([file, source]) =>
         dependencyBoundaryViolations(file, source, program),
       );
@@ -77,12 +76,14 @@ describe("object model dependency boundaries", () => {
     [shared, 'export * from "fs/promises";'],
     [shared, 'const fs = await import("node:" + "fs/promises");'],
     [shared, 'const moduleName = "node:fs"; const fs = await import(moduleName);'],
-    [shared, 'process.emitWarning("warning");'],
-    [shared, 'Buffer.from("hello");'],
-    [shared, "const globals = { process, Buffer, __dirname, __filename };"],
-    [shared, 'globalThis.Buffer.from("hello");'],
-    [shared, 'globalThis["Buffer"].from("hello");'],
-    [shared, "let timeout: NodeJS.Timeout;"],
+    ...[
+      'process.emitWarning("warning");',
+      'Buffer.from("hello");',
+      "const globals = { process, Buffer, __dirname, __filename };",
+      'globalThis.Buffer.from("hello");',
+      'globalThis["Buffer"].from("hello");',
+      "let timeout: NodeJS.Timeout;",
+    ].flatMap((source) => [shared, extension].map((file) => [file, source])),
   ])("rejects forbidden dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source).length).toBeGreaterThan(0);
   });
@@ -102,7 +103,10 @@ describe("object model dependency boundaries", () => {
     ],
     [shared, "const bytes = new Uint8Array(new ArrayBuffer(4));"],
     [shared, `// import "node:fs";\nconst text = 'process.emitWarning("example")';`],
-    ["packages/extension/vite.config.ts", 'import { readFile } from "node:fs/promises";'],
+    [
+      "packages/extension/vite.config.ts",
+      'import { readFile } from "node:fs/promises"; process.pid;',
+    ],
     [
       "packages/extension/tests/example.test.ts",
       'import "../../sdk-ts/tests/helpers/httpServer.js";',
@@ -115,16 +119,19 @@ describe("object model dependency boundaries", () => {
       "packages/extension/tests/helpers/browserbaseBridge.ts",
       'import "../../../sdk-ts/src/browserbaseTransport.js";',
     ],
-    ["packages/extension/callbackBatch.test.ts", 'import "@browserbasehq/stagehand";'],
+    [
+      "packages/extension/callbackBatch.test.ts",
+      'import "@browserbasehq/stagehand"; Buffer.from("test");',
+    ],
     ["packages/shared-object-model/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
   ])("allows supported dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source)).toEqual([]);
   });
 
-  it("allows properties and local bindings named like Node globals", () => {
+  it.each([shared, extension])("allows properties and local bindings in %s", (file) => {
     expect(
       dependencyBoundaryViolations(
-        shared,
+        file,
         `
       const model = { process: () => {}, Buffer: 1 };
       model.process();
