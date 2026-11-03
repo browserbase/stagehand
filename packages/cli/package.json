@@ -97,11 +97,11 @@
     "build:local-only": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.local-only.json && pnpm manifest",
     "check": "tsc --noEmit -p tsconfig.json",
     "cli": "pnpm build && node bin/run.js",
-    "eslint": "eslint .",
-    "eslint:fix": "eslint . --fix",
+    "oxlint": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli",
+    "oxlint:fix": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli --fix",
     "format": "prettier --write .",
     "format:check": "prettier . --check --cache",
-    "lint": "pnpm format:check && pnpm eslint && pnpm check",
+    "lint": "pnpm format:check && pnpm oxlint && pnpm check",
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
     "test:cli": "vitest run",
@@ -128,18 +128,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@types/archiver": "^6.0.3",
     "@types/node": "^20.11.30",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
-    "eslint": "^10.4.0",
-    "eslint-plugin-security": "^4.0.0",
-    "globals": "^17.6.0",
     "oclif": "^4.23.1",
     "prettier": "3.5.3",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.59.3",
     "vitest": "catalog:"
   }
 }
