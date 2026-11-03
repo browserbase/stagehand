@@ -63,15 +63,15 @@ export function dependencyBoundaryViolations(
   const extensionProduction = extensionProductionFile(file);
   // Test coupling is intentionally outside this production boundary check.
   if (!sharedProduction && !extensionProduction) return [];
-  if (sharedProduction) program ??= createDependencyBoundaryProgram(new Map([[file, source]]));
+  program ??= createDependencyBoundaryProgram(new Map([[file, source]]));
   const ast =
-    program?.getSourceFile(resolve(file)) ??
+    program.getSourceFile(resolve(file)) ??
     ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const checker = program?.getTypeChecker();
+  const checker = program.getTypeChecker();
   const globalSymbols = new Set(
     [...nodeGlobals]
       .map((name) =>
-        checker?.resolveName(
+        checker.resolveName(
           name,
           undefined,
           ts.SymbolFlags.Value | ts.SymbolFlags.Type | ts.SymbolFlags.Namespace,
@@ -142,8 +142,6 @@ export function dependencyBoundaryViolations(
       if (node.arguments[0]) checkImport(node.arguments[0]);
     }
     if (
-      sharedProduction &&
-      checker &&
       (ts.isIdentifier(node) ||
         (ts.isStringLiteralLike(node) && ts.isElementAccessExpression(node.parent))) &&
       nodeGlobals.has(node.text)
@@ -152,7 +150,7 @@ export function dependencyBoundaryViolations(
         ? checker.getShorthandAssignmentValueSymbol(node.parent)
         : checker.getSymbolAtLocation(node);
       if (symbol && globalSymbols.has(symbol)) {
-        report(node, `Shared object model must use its platform adapter instead of ${node.text}.`);
+        report(node, `Browser production code must not use Node global ${node.text}.`);
       }
     }
     ts.forEachChild(node, visit);
