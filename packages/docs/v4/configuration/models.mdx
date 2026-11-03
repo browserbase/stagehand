@@ -948,9 +948,13 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 <Accordion title="OpenAI-compatible SDKs">
 
+<Note>
+**Use Chat Completions for local and proxy endpoints.** LM Studio, Ollama, vLLM, and most OpenAI-compatible proxies only enforce `json_schema` constraints on the Chat Completions endpoint (`/v1/chat/completions`). Endpoints that ignore the schema return malformed output (often a bare array instead of `{"elements": [...]}`) and cause Stagehand validation errors. OpenAI's own API enforces schemas on both endpoints, so the Responses API variant below works there.
+</Note>
+
 <Steps>
 <Step title="Install dependencies">
-Install your provider's SDK.
+Install the OpenAI SDK.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -978,12 +982,18 @@ go get github.com/openai/openai-go
 
 <Step title="Write the generate callback">
 
+Use the Chat Completions API with `response_format` set to `json_schema`. This works with OpenAI and all OpenAI-compatible endpoints that support structured outputs.
+
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Point base_url at your endpoint: LM Studio, Ollama, vLLM, etc.
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY ?? "lm-studio",
+  baseURL: process.env.OPENAI_BASE_URL, // e.g. "http://localhost:1234/v1"
+});
 
 // The shape Stagehand passes to your callback. The TypeScript SDK does not
 // re-export `LLMGenerateParams` yet, so spell out the fields you read.
@@ -1003,18 +1013,19 @@ type LLMGenerateParams = {
     | { type: "json_schema"; name: string; schema: unknown };
 };
 
-// A message's content is one block or an array of them. The Responses API takes
-// input parts, so map text to an input text part and images (which
-// `extract({ screenshot: true })` sends) to an input image data URL.
+// Chat Completions takes text and image content parts. Map screenshots to
+// image_url data URLs so extract({ screenshot: true }) continues to work.
 function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
   const blocks = Array.isArray(content) ? content : [content];
   return blocks.map((block) =>
     block.type === "text"
-      ? { type: "input_text", text: block.text }
+      ? { type: "text" as const, text: block.text }
       : {
-          type: "input_image",
-          image_url: `data:${block.mimeType};base64,${block.data}`,
-          detail: "auto",
+          type: "image_url" as const,
+          image_url: {
+            url: `data:${block.mimeType};base64,${block.data}`,
+            detail: "auto" as const,
+          },
         },
   );
 }
@@ -1024,17 +1035,19 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
     throw new TypeError("Stagehand only issues structured generations");
   }
 
-  const response = await openai.responses.create({
-    model: "gpt-5.6-sol",
-    instructions: params.systemPrompt,
-    input: params.messages.map((message) => ({
-      role: message.role,
-      content: messageContent(message.content),
-    })),
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL ?? "gpt-5.6-sol",
+    messages: [
+      ...(params.systemPrompt ? [{ role: "system" as const, content: params.systemPrompt }] : []),
+      ...params.messages.map((message) => ({
+        role: message.role,
+        content: messageContent(message.content),
+      })),
+    ],
     temperature: params.temperature,
-    text: {
-      format: {
-        type: "json_schema",
+    response_format: {
+      type: "json_schema",
+      json_schema: {
         name: params.responseFormat.name,
         schema: params.responseFormat.schema,
         strict: true,
@@ -1042,11 +1055,13 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
     },
   });
 
+  const text = response.choices[0]?.message.content ?? "";
+
   return {
     role: "assistant",
-    content: { type: "text", text: response.output_text },
+    content: { type: "text", text },
     outputFormat: "json_schema",
-    structuredContent: JSON.parse(response.output_text),
+    structuredContent: JSON.parse(text),
   };
 }
 ```
@@ -1054,64 +1069,81 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
 
 <Tab title="Python">
 ```python
-import os
 import json
+import os
 
 from openai import AsyncOpenAI
 
 from stagehand import LLMStructuredGenerateResult
 
-openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+# Point base_url at your endpoint: LM Studio, Ollama, vLLM, etc.
+openai = AsyncOpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY", "lm-studio"),
+    base_url=os.environ.get("OPENAI_BASE_URL"),  # e.g. "http://localhost:1234/v1"
+)
 
 def content_part(block):
-    # Each block is a LLMTextContent or LLMImageContent under `.root`. The
-    # Responses API takes input parts, so map text to an input text part and
-    # images (which `extract(screenshot=True)` sends) to an input image data URL.
     if block.root.type == "text":
-        return {"type": "input_text", "text": block.root.text}
+        return {"type": "text", "text": block.root.text}
     return {
-        "type": "input_image",
-        "image_url": f"data:{block.root.mime_type};base64,{block.root.data}",
-        "detail": "auto",
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:{block.root.mime_type};base64,{block.root.data}",
+            "detail": "auto",
+        },
     }
 
 def message_content(message):
-    # A message's content is one block or a list of them.
     content = message.content
     blocks = content if isinstance(content, list) else [content]
     return [content_part(block) for block in blocks]
 
 async def generate_with_openai(params):
     response_format = params.response_format
-    response = await openai.responses.create(
-        model="gpt-5.6-sol",
-        instructions=params.system_prompt,
-        input=[
-            {"role": message.role.value, "content": message_content(message)}
-            for message in params.messages
-        ],
+    messages = []
+    if params.system_prompt:
+        messages.append({"role": "system", "content": params.system_prompt})
+    messages.extend(
+        {"role": message.role.value, "content": message_content(message)}
+        for message in params.messages
+    )
+
+    response = await openai.chat.completions.create(
+        model=os.environ.get("OPENAI_MODEL", "gpt-5.6-sol"),
+        messages=messages,
         temperature=params.temperature,
-        text={
-            "format": {
-                "type": "json_schema",
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
                 "name": response_format.name,
                 "schema": response_format.schema_.model_dump(),
                 "strict": True,
-            }
+            },
         },
     )
 
+    text = response.choices[0].message.content or ""
+
     return LLMStructuredGenerateResult.model_validate({
         "role": "assistant",
-        "content": {"type": "text", "text": response.output_text},
+        "content": {"type": "text", "text": text},
         "output_format": "json_schema",
-        "structured_content": json.loads(response.output_text),
+        "structured_content": json.loads(text),
     })
 ```
 </Tab>
 
 <Tab title="Go">
 ```go
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+
+	"github.com/browserbasehq/stagehand-go/stagehand"
+)
+
 func generateWithOpenAI(
 	ctx context.Context,
 	params stagehand.LLMGenerateParams,
@@ -1121,13 +1153,18 @@ func generateWithOpenAI(
 		return stagehand.LLMGenerateResult{}, errors.New("Stagehand only issues structured generations")
 	}
 
-	text, err := callOpenAI(ctx, callOpenAIInput{
-		Model:          "gpt-5.6-luna",
-		Instructions:   request.SystemPrompt,
-		Messages:       request.Messages,
-		Temperature:    request.Temperature,
-		SchemaName:     request.ResponseFormat.Name,
-		Schema:         request.ResponseFormat.Schema,
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-5.6-sol"
+	}
+
+	text, err := callOpenAIChatCompletions(ctx, callOpenAIChatInput{
+		Model:       model,
+		System:      request.SystemPrompt,
+		Messages:    request.Messages,
+		Temperature: request.Temperature,
+		SchemaName:  request.ResponseFormat.Name,
+		Schema:      request.ResponseFormat.Schema,
 	})
 	if err != nil {
 		return stagehand.LLMGenerateResult{}, err
@@ -1143,9 +1180,6 @@ func generateWithOpenAI(
 </Tab>
 </Tabs>
 
-<Note>
-Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
-</Note>
 </Step>
 
 <Step title="Pass the callback to Stagehand">
@@ -1193,9 +1227,173 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
-
 </Step>
 </Steps>
+
+<Note>
+Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
+</Note>
+</Accordion>
+
+<Accordion title="OpenAI Responses API (OpenAI only)">
+
+If you're targeting OpenAI's API directly (not a local model or proxy), you can use the Responses API instead. This endpoint enforces `json_schema` constraints on OpenAI but is not supported by most OpenAI-compatible servers.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+type LLMContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+type LLMGenerateParams = {
+  messages: Array<{
+    role: "user" | "assistant";
+    content: LLMContentBlock | LLMContentBlock[];
+  }>;
+  systemPrompt?: string;
+  temperature?: number;
+  responseFormat?:
+    | { type: "text" }
+    | { type: "json_schema"; name: string; schema: unknown };
+};
+
+function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
+  const blocks = Array.isArray(content) ? content : [content];
+  return blocks.map((block) =>
+    block.type === "text"
+      ? { type: "input_text", text: block.text }
+      : {
+          type: "input_image",
+          image_url: `data:${block.mimeType};base64,${block.data}`,
+          detail: "auto",
+        },
+  );
+}
+
+async function generateWithOpenAIResponses(params: LLMGenerateParams) {
+  if (params.responseFormat?.type !== "json_schema") {
+    throw new TypeError("Stagehand only issues structured generations");
+  }
+
+  const response = await openai.responses.create({
+    model: "gpt-5.6-sol",
+    instructions: params.systemPrompt,
+    input: params.messages.map((message) => ({
+      role: message.role,
+      content: messageContent(message.content),
+    })),
+    temperature: params.temperature,
+    text: {
+      format: {
+        type: "json_schema",
+        name: params.responseFormat.name,
+        schema: params.responseFormat.schema,
+        strict: true,
+      },
+    },
+  });
+
+  return {
+    role: "assistant",
+    content: { type: "text", text: response.output_text },
+    outputFormat: "json_schema",
+    structuredContent: JSON.parse(response.output_text),
+  };
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import json
+import os
+
+from openai import AsyncOpenAI
+
+from stagehand import LLMStructuredGenerateResult
+
+openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+def content_part(block):
+    if block.root.type == "text":
+        return {"type": "input_text", "text": block.root.text}
+    return {
+        "type": "input_image",
+        "image_url": f"data:{block.root.mime_type};base64,{block.root.data}",
+        "detail": "auto",
+    }
+
+def message_content(message):
+    content = message.content
+    blocks = content if isinstance(content, list) else [content]
+    return [content_part(block) for block in blocks]
+
+async def generate_with_openai_responses(params):
+    response_format = params.response_format
+    response = await openai.responses.create(
+        model="gpt-5.6-sol",
+        instructions=params.system_prompt,
+        input=[
+            {"role": message.role.value, "content": message_content(message)}
+            for message in params.messages
+        ],
+        temperature=params.temperature,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": response_format.name,
+                "schema": response_format.schema_.model_dump(),
+                "strict": True,
+            }
+        },
+    )
+
+    return LLMStructuredGenerateResult.model_validate({
+        "role": "assistant",
+        "content": {"type": "text", "text": response.output_text},
+        "output_format": "json_schema",
+        "structured_content": json.loads(response.output_text),
+    })
+```
+</Tab>
+
+<Tab title="Go">
+```go
+func generateWithOpenAIResponses(
+	ctx context.Context,
+	params stagehand.LLMGenerateParams,
+) (stagehand.LLMGenerateResult, error) {
+	request, ok := params.AsStructured()
+	if !ok {
+		return stagehand.LLMGenerateResult{}, errors.New("Stagehand only issues structured generations")
+	}
+
+	text, err := callOpenAIResponses(ctx, callOpenAIInput{
+		Model:        "gpt-5.6-sol",
+		Instructions: request.SystemPrompt,
+		Messages:     request.Messages,
+		Temperature:  request.Temperature,
+		SchemaName:   request.ResponseFormat.Name,
+		Schema:       request.ResponseFormat.Schema,
+	})
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+
+	return stagehand.StructuredGenerateResult(stagehand.LLMStructuredGenerateResult{
+		Role:              stagehand.LLMRoleAssistant,
+		Content:           stagehand.LLMMessageContent{stagehand.TextContentBlock(stagehand.LLMTextContent{Text: text})},
+		StructuredContent: json.RawMessage(text),
+	}), nil
+}
+```
+</Tab>
+</Tabs>
 </Accordion>
 <Accordion title="All providers">
 
