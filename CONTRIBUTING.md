@@ -41,7 +41,7 @@ anything under `packages/sdk-python/src/stagehand/_generated/`.
 ## Set up your environment
 
 The root [`just`](https://github.com/casey/just) recipes cover TypeScript and Python development.
-Install Node.js 22.18 or later, `just`, [`pnpm`](https://pnpm.io), and
+Install Node.js 22.18 or later, Python 3.11 or later, `just`, [`pnpm`](https://pnpm.io), and
 [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
@@ -51,9 +51,23 @@ just install
 just build
 ```
 
-`just install` installs the pnpm workspace and syncs the Python environment with `uv`.
-`pnpm install` on its own covers only the TypeScript workspace, which leaves the Python
-checks unable to run.
+`just install` installs the pnpm workspace and runs `uv sync --all-packages --locked` for the
+Python workspace. All Python projects share the root `uv.lock` and `.venv`: the SDK,
+core middleware, three cookbooks, and the Deepagents integration, eval runner, local example,
+and managed example. The root `pyproject.toml` defines membership and local package sources.
+Workspace consumers use the SDK and middleware from source. `pnpm install` on its own covers
+only the TypeScript workspace.
+
+Each Python member keeps its dependency declarations and tool settings in its own `pyproject.toml`.
+After changing dependencies, run `uv lock` from the repository root and commit the member's
+`pyproject.toml` with the root `uv.lock`. Published packages retain the dependencies declared in
+`project.dependencies`; workspace sources apply to local development.
+
+Commands run from the SDK, middleware, or cookbook directories discover the root workspace
+automatically. The nested Deepagents runner and examples must select the root explicitly with
+`--project` and their member with `--package`, because the integration's intermediate
+`pyproject.toml` stops uv's workspace discovery. Use the root `just` recipes or the commands in
+[the Deepagents README](packages/integrations/deepagents/README.md).
 
 Add an LLM provider key and a Browserbase API key to run anything that reaches a model or a cloud
 browser:
@@ -75,11 +89,22 @@ Run these from the repository root to format, check, and test TypeScript and Pyt
 ```bash
 just fmt   # oxfmt and ruff
 just check # formatting, lint, types, release metadata, and Python generated-code drift
-just test  # vitest and pytest
+just test  # vitest, pytest, and Python cookbook checkpoint tests
 ```
 
-`just check` validates the generated Python models against the committed protocol schema. If you touched
-`packages/protocol`, regenerate first:
+The Python formatting and lint checks cover the SDK, core middleware, and Deepagents adapter
+and examples. `just check` also verifies that the Deepagents examples import successfully;
+`just test` runs the SDK, middleware, Deepagents adapter, and eval runner test suites, plus the
+Python catalog cookbook's checkpoint tests. To work on Deepagents alone, run these from the root:
+
+```bash
+just fmt-deepagents
+just check-deepagents
+just test-deepagents
+```
+
+`just check` validates the generated Python models against the committed protocol schema. If you
+touched `packages/protocol`, regenerate first:
 
 ```bash
 just generate
@@ -110,8 +135,8 @@ parent's final tip before pushing again.
 
 Package metadata is the source of truth for versions. Each package can be selected independently in
 a Changeset; there are no fixed groups. The private Python `package.json` lets Changesets version
-the public `stagehand` package, and release tooling copies that version into `pyproject.toml` and
-`uv.lock`.
+the public `stagehand` package, and release tooling copies that version into the SDK
+`pyproject.toml` and its entry in the root `uv.lock`.
 
 After the initial v4 release, run `just changeset` when a pull request changes a public SDK, the
 extension, or the protocol compatibility contract. Select only the packages intended for release and
@@ -134,7 +159,7 @@ that release pull request publishes a changed TypeScript SDK to npm and a change
 PyPI.
 
 TypeScript and Python do not have to be bumped together. The Python version stays in sync only with
-its own `pyproject.toml` and lockfile.
+its own `pyproject.toml` and the SDK entry in the root `uv.lock`.
 
 Two consequences are worth knowing before you plan a change:
 
