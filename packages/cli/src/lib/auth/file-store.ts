@@ -24,6 +24,14 @@ export function credentialPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(resolve(root), "auth", "credential.json");
 }
 
+export function requireFileCredentialStore(): void {
+  if (process.platform === "win32" || !process.getuid) {
+    fail(
+      "Plaintext credential files are supported only on macOS and Linux. Use the OS keystore or BROWSERBASE_API_KEY on Windows.",
+    );
+  }
+}
+
 // A private directory prevents other users replacing entries between checks and
 // opens. Same-user processes are trusted, as with environment-based API keys.
 function checkDirectory(path: string): void {
