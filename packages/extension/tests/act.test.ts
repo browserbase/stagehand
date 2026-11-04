@@ -167,6 +167,68 @@ describe("act service", () => {
     });
   });
 
+  it.each(["inferred", "supplied", "self-heal"] as const)(
+    "preserves literal drag targets with variables for %s actions",
+    async (route) => {
+      const frame = {};
+      const sourceXPath = "/html[1]/body[1]/button[1]";
+      const targetXPath = "/html[1]/body[1]/x-%token%-%password%[1]/button[1]";
+      const page = actPage(
+        frame,
+        vi.fn(async () => ({
+          combinedTree: "[0-12] button: Card\n[0-13] button: Drop zone",
+          combinedXpathMap: { "0-12": sourceXPath, "0-13": targetXPath },
+          combinedUrlMap: {},
+        })),
+      );
+      const action = {
+        selector: `xpath=${sourceXPath}`,
+        description: "Drag the card to the drop zone",
+        method: "dragAndDrop",
+        arguments: [`xpath=${targetXPath}`],
+      };
+      const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: action.description,
+          method: action.method,
+          arguments: ["0-13"],
+        }),
+      );
+      if (route === "self-heal") {
+        performAction.mockRejectedValueOnce(new Error("Element detached"));
+      }
+
+      const result = await actService.act({
+        params: {
+          pageId: "page-1",
+          instruction: route === "inferred" ? action.description : action,
+          options: {
+            variables: {
+              token: "sk-CANARY-token",
+              password: { value: "CANARY-password", description: "Account password" },
+            },
+          },
+        },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+        selfHeal: route === "self-heal",
+      });
+
+      expect(performAction).toHaveBeenCalledTimes(route === "self-heal" ? 2 : 1);
+      for (const call of performAction.mock.calls) {
+        expect(call[2]).toBe("dragAndDrop");
+        expect(call[3]).toBe(action.selector);
+        expect(call[4]).toStrictEqual(action.arguments);
+      }
+      expect(result.data).toMatchObject({ success: true, actions: [action] });
+      expect(JSON.stringify(result)).not.toContain("CANARY");
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(route === "supplied" ? 0 : 1);
+    },
+  );
+
   it("captures the requested locator scope and ignored locator subtrees", async () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
