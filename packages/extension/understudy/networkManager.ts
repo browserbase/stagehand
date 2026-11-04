@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import { TimeoutError } from "../errors.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
@@ -132,12 +133,24 @@ export class NetworkManager {
       this.emitFinish({ ...stored, timestamp: Date.now() });
     };
 
+    const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
+      if (!evt?.frame) return;
+      const { id, loaderId } = evt.frame;
+      // Chrome sends no loadingFinished/loadingFailed for requests of the replaced document.
+      for (const [key, info] of this.requests) {
+        if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
+        this.requests.delete(key);
+        this.emitFailure(info);
+      }
+    };
+
     session.on("Network.requestWillBeSent", onRequest);
     session.on("Network.loadingFinished", onFinished);
     session.on("Network.loadingFailed", onFailed);
     session.on("Network.requestServedFromCache", onFinished);
     session.on("Network.responseReceived", onResponse);
     session.on("Page.frameStoppedLoading", onFrameStopped);
+    session.on("Page.frameNavigated", onFrameNavigated);
 
     void session.send("Network.enable").catch(() => {});
     void session.send("Page.enable").catch(() => {});
@@ -151,6 +164,7 @@ export class NetworkManager {
         session.off("Network.requestServedFromCache", onFinished);
         session.off("Network.responseReceived", onResponse);
         session.off("Page.frameStoppedLoading", onFrameStopped);
+        session.off("Page.frameNavigated", onFrameNavigated);
       },
     });
   }
@@ -284,14 +298,7 @@ export class NetworkManager {
 
     if (Number.isFinite(timeout)) {
       timeoutTimer = setTimeout(
-        () => {
-          const elapsed = Date.now() - startTime;
-          const message =
-            originalBudgetMs !== undefined
-              ? `networkidle timed out after ${originalBudgetMs}ms`
-              : `networkidle timed out after ${elapsed}ms`;
-          cleanup(new Error(message));
-        },
+        () => cleanup(new TimeoutError("networkidle", originalBudgetMs ?? Date.now() - startTime)),
         Math.max(0, timeout),
       );
     }

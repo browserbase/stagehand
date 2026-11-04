@@ -39,9 +39,10 @@ import type {
   WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
+import { DEFAULT_IDLE_WAIT } from "../types/private/network.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
-import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { LifecycleWatcher, mainDocumentIdleFilter } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
@@ -1737,10 +1738,27 @@ export class Page {
 
   /**
    * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures.
+   * Mirrors Playwright's API signatures. `networkidle` uses the same quiet-window
+   * check as `goto(url, { waitUntil: "networkidle" })`.
    */
-  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeout ?? 15000);
+  async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
+    if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
+
+    const deadline = Date.now() + timeout;
+    await this.waitForMainLoadState("load", timeout);
+    const remaining = Math.max(0, deadline - Date.now());
+    const mainFrameId = this.mainFrameId();
+    await this.networkManager.waitForIdle({
+      // Count requests that were already in flight before the wait started.
+      startTime: 0,
+      timeout: remaining,
+      totalBudgetMs: timeout,
+      idleTimeMs: Math.min(DEFAULT_IDLE_WAIT, remaining),
+      filter: mainDocumentIdleFilter(
+        this.registry.frames.get(mainFrameId)?.lastSeen?.loaderId,
+        mainFrameId,
+      ),
+    }).promise;
   }
 
   /**
