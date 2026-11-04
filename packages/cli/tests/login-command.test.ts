@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fakeKeyring } from "./helpers/keyring.js";
 import Login from "../src/commands/login.js";
 import { login } from "../src/lib/auth/login.js";
 import { productionApiOrigin, readCredential, writeCredential } from "../src/lib/auth/store.js";
@@ -33,7 +34,8 @@ describe.skipIf(process.platform === "win32")("login cancellation", () => {
       projectId: "00000000-0000-4000-8000-000000000001",
       apiOrigin: productionApiOrigin,
     };
-    writeCredential(previous, process.env, "file");
+    fakeKeyring();
+    writeCredential(previous);
     vi.mocked(login).mockResolvedValue({ ...previous, apiKey: "synthetic-new-key" });
     let verificationSignal: AbortSignal | null | undefined;
     vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
@@ -43,7 +45,7 @@ describe.skipIf(process.platform === "win32")("login cancellation", () => {
       return new Response(JSON.stringify({ id: previous.projectId }));
     });
     const config = await Config.load(fileURLToPath(new URL("..", import.meta.url)));
-    const command = new Login(["--credential-store=file", "--no-browser"], config);
+    const command = new Login([], config);
     vi.spyOn(command, "log").mockImplementation(() => {});
     await expect(command.run()).rejects.toThrow("canceled");
     expect(verificationSignal?.aborted).toBe(true);

@@ -15,10 +15,9 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { credentialFetch, resolveCredential } from "../src/lib/auth/credentials.js";
 import { login, loginProvider, readLoginJson } from "../src/lib/auth/login.js";
@@ -33,6 +32,7 @@ import {
   writeCredential,
 } from "../src/lib/auth/store.js";
 import { runCli } from "./helpers/run-cli.js";
+import { fakeKeyring } from "./helpers/keyring.js";
 import { oauthProvider, otherProjectId } from "./helpers/oauth-provider.js";
 
 const directories: string[] = [];
@@ -55,10 +55,13 @@ afterEach(() => {
 });
 
 describe.skipIf(process.platform === "win32")("saved login", () => {
+  beforeEach(() => {
+    fakeKeyring();
+  });
   it("writes a private atomic record and removes it without revoking anything", () => {
     const env = environment();
     expect(readCredential(env)).toBeUndefined();
-    writeCredential(fixture, env, "file");
+    writeCredential(fixture, env);
     expect(lstatSync(credentialPath(env)).mode & 0o777).toBe(0o600);
     expect(readCredential(env)).toEqual(fixture);
     expect(removeCredential(env)).toBe(true);
@@ -67,7 +70,7 @@ describe.skipIf(process.platform === "win32")("saved login", () => {
 
   it("rejects broad permissions, linked credentials, and symlinked directories", () => {
     const env = environment();
-    writeCredential(fixture, env, "file");
+    writeCredential(fixture, env);
     const path = credentialPath(env);
     chmodSync(path, 0o644);
     expect(() => readCredential(env)).toThrow("securely read");
@@ -83,13 +86,13 @@ describe.skipIf(process.platform === "win32")("saved login", () => {
     const target = join(env.BROWSERBASE_CONFIG_DIR, "target");
     mkdirSync(target, { mode: 0o700 });
     symlinkSync(target, join(env.BROWSERBASE_CONFIG_DIR, "auth"));
-    expect(() => writeCredential(fixture, env, "file")).toThrow(/symlinked/);
+    expect(() => writeCredential(fixture, env)).toThrow(/symlinked/);
     expect(existsSync(join(target, "credential.json"))).toBe(false);
   });
 
   it("keeps explicit flag and environment precedence, and binds saved keys to their API and project", () => {
     const env = environment();
-    writeCredential({ ...fixture, apiOrigin: developmentApiOrigin }, env, "file");
+    writeCredential({ ...fixture, apiOrigin: developmentApiOrigin }, env);
     expect(resolveCredential({}, env)).toMatchObject({
       source: "saved",
       baseUrl: developmentApiOrigin,
@@ -136,11 +139,17 @@ describe.skipIf(process.platform === "win32")("saved login", () => {
 
   it("resolves a persisted login in a fresh CLI process and logout leaves env credentials active", async () => {
     const env = environment();
-    writeCredential(fixture, env, "file");
+    writeCredential(fixture, env);
     const transport = join(env.BROWSERBASE_CONFIG_DIR, "transport.mjs");
     writeFileSync(
       transport,
       `
+      import { createRequire } from 'node:module';
+      const require = createRequire(${JSON.stringify(new URL("../src/lib/auth/store.ts", import.meta.url).href)});
+      require('@napi-rs/keyring').Entry = class {
+        getPassword() { return ${JSON.stringify(JSON.stringify(fixture))}; }
+        deleteCredential() { return true; }
+      };
       globalThis.fetch = async (input, init) => {
         if (String(input) !== 'https://api.browserbase.com/v1/projects' ||
           new Headers(init.headers).get('x-bb-api-key') !== 'synthetic-test-key' ||
@@ -180,37 +189,6 @@ describe.skipIf(process.platform === "win32")("saved login", () => {
 });
 
 describe("OS credential storage", () => {
-  function fakeKeyring() {
-    const require = createRequire(import.meta.url);
-    const library = require("@napi-rs/keyring");
-    const secrets = new Map<string, string>();
-    const state = { unavailable: false, rejectDelete: false, failNextDelete: false };
-    const constructor = vi.spyOn(library, "Entry").mockImplementation(function (
-      service: string,
-      account: string,
-      options: unknown,
-    ) {
-      expect(service).toBe("com.browserbase.browse");
-      expect(options).toEqual({ linux: { store: "secret-service" } });
-      if (state.unavailable) throw new Error("unavailable");
-      return {
-        getPassword: () => secrets.get(account) ?? null,
-        setPassword: (value: string) => {
-          secrets.set(account, value);
-        },
-        deleteCredential: () => {
-          if (state.rejectDelete) throw new Error("locked");
-          if (state.failNextDelete) {
-            state.failNextDelete = false;
-            throw new Error("locked once");
-          }
-          return secrets.delete(account);
-        },
-      };
-    });
-    return { secrets, state, constructor };
-  }
-
   it("stores the key only in the OS store by default, isolates config namespaces, and deletes on logout", () => {
     const backend = fakeKeyring();
     const env = environment();
@@ -250,18 +228,6 @@ describe("OS credential storage", () => {
     expect(removeCredential(env)).toBe(true);
   });
 
-  it.skipIf(process.platform === "win32")(
-    "cleans up prior OS entries when explicitly switching to file storage",
-    () => {
-      const backend = fakeKeyring();
-      const env = environment();
-      writeCredential(fixture, env);
-      writeCredential(fixture, env, "file");
-      expect(backend.secrets.size).toBe(0);
-      expect(savedCredentialStore(env)).toBe("file");
-      expect(readCredential(env)).toEqual(fixture);
-    },
-  );
   it("restores the previous login and removes the new OS entry if replacement cleanup fails", () => {
     const backend = fakeKeyring();
     const env = environment();
@@ -401,7 +367,11 @@ describe("browser authorization", () => {
   it("selects one permitted project while keeping the saved credential format unchanged", async () => {
     const provider = await oauthProvider({ manyProjects: true });
     try {
-      const credential = await login({ ...provider, development: true, projectId: otherProjectId });
+      const credential = await login({
+        ...provider,
+        development: true,
+        chooseProject: async () => otherProjectId,
+      });
       expect(credential.projectId).toBe(otherProjectId);
       expect(provider.state.credentials).toBe(1);
       expect(provider.state.revocations).toBe(1);
@@ -410,10 +380,12 @@ describe("browser authorization", () => {
     }
   });
 
-  it("requires explicit selection without a project chooser and clears temporary authorization", async () => {
+  it("requires an interactive project chooser and clears temporary authorization", async () => {
     const provider = await oauthProvider({ manyProjects: true });
     try {
-      await expect(login({ ...provider, development: true })).rejects.toThrow("--project-id");
+      await expect(login({ ...provider, development: true })).rejects.toThrow(
+        "interactive terminal",
+      );
       expect(provider.state.credentials).toBe(0);
       expect(provider.state.revocations).toBe(1);
     } finally {

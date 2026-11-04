@@ -8,7 +8,6 @@ import {
   credentialPath,
   readPrivateRecord,
   removePrivateRecord,
-  requireFileCredentialStore,
   writePrivateRecord,
   withCredentialLock,
 } from "./file-store.js";
@@ -20,10 +19,9 @@ export {
   validateCredential,
   type SavedCredential,
 } from "./credential.js";
-export type CredentialStore = "keychain" | "file";
 const require = createRequire(import.meta.url);
 const keychainUnavailable =
-  "OS credential storage is unavailable or locked. Unlock your keystore, use BROWSERBASE_API_KEY from your secret manager, or explicitly choose browse login --credential-store=file on macOS/Linux. No plaintext fallback was used.";
+  "OS credential storage is unavailable or locked. Unlock your keystore or use BROWSERBASE_API_KEY from your secret manager. No plaintext fallback was used.";
 
 function entry(account: string, env: NodeJS.ProcessEnv): Entry {
   try {
@@ -44,24 +42,15 @@ function accountFor(record: Record<string, unknown>): string {
   return record.account;
 }
 
-export function savedCredentialStore(
-  env: NodeJS.ProcessEnv = process.env,
-): CredentialStore | undefined {
+export function savedCredentialStore(env: NodeJS.ProcessEnv = process.env): "keychain" | undefined {
   const record = readPrivateRecord(env);
   if (!record) return undefined;
-  if (record.store !== "keychain" && record.store !== "file")
+  if (record.store !== "keychain")
     fail("Invalid credential storage selection. Run browse login again.");
   return record.store;
 }
 
-export function requireSupportedCredentialStore(
-  kind: CredentialStore = "keychain",
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  if (kind === "file") {
-    requireFileCredentialStore();
-    return;
-  }
+export function requireSupportedCredentialStore(env: NodeJS.ProcessEnv = process.env): void {
   try {
     entry("availability-check", env).getPassword();
   } catch {
@@ -72,10 +61,6 @@ export function requireSupportedCredentialStore(
 export function readCredential(env: NodeJS.ProcessEnv = process.env): SavedCredential | undefined {
   const record = readPrivateRecord(env);
   if (!record) return undefined;
-  if (record.store === "file") {
-    requireFileCredentialStore();
-    return validateCredential(record);
-  }
   if (record.store !== "keychain")
     fail("Invalid credential storage selection. Run browse login again.");
   let value: string | null;
@@ -97,37 +82,23 @@ export function readCredential(env: NodeJS.ProcessEnv = process.env): SavedCrede
 export function writeCredential(
   credential: SavedCredential,
   env: NodeJS.ProcessEnv = process.env,
-  kind: CredentialStore = "keychain",
 ): void {
-  if (kind === "file") requireFileCredentialStore();
-  return withCredentialLock(env, () => updateCredential(credential, env, kind));
+  return withCredentialLock(env, () => updateCredential(credential, env));
 }
 
-function updateCredential(
-  credential: SavedCredential,
-  env: NodeJS.ProcessEnv,
-  kind: CredentialStore,
-): void {
+function updateCredential(credential: SavedCredential, env: NodeJS.ProcessEnv): void {
   const checked = validateCredential(credential);
   const previous = readPrivateRecord(env);
   const account = randomUUID();
   let nextEntry: Entry | undefined;
-  if (kind === "file") requireFileCredentialStore();
-  else {
-    try {
-      nextEntry = entry(account, env);
-      nextEntry.setPassword(JSON.stringify(checked));
-    } catch {
-      fail(keychainUnavailable);
-    }
+  try {
+    nextEntry = entry(account, env);
+    nextEntry.setPassword(JSON.stringify(checked));
+  } catch {
+    fail(keychainUnavailable);
   }
   try {
-    writePrivateRecord(
-      kind === "file"
-        ? { version: 1, store: "file", ...checked }
-        : { version: 1, store: "keychain", account },
-      env,
-    );
+    writePrivateRecord({ version: 1, store: "keychain", account }, env);
     if (previous?.store === "keychain") entry(accountFor(previous), env).deleteCredential();
   } catch {
     // Keep the previous login usable when a write or old-entry removal fails.
@@ -162,7 +133,6 @@ function deleteCredential(env: NodeJS.ProcessEnv): boolean {
     } catch {
       fail(keychainUnavailable);
     }
-  } else if (record.store === "file") requireFileCredentialStore();
-  else fail("Invalid credential storage selection. Check the credential metadata file.");
+  } else fail("Invalid credential storage selection. Check the credential metadata file.");
   return removePrivateRecord(env);
 }

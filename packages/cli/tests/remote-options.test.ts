@@ -2,6 +2,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeCredential, developmentApiOrigin } from "../src/lib/auth/store.js";
+import { fakeKeyring } from "./helpers/keyring.js";
 import { collectForwardedEnv } from "../src/lib/driver/daemon/forwarded-env.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -41,6 +42,7 @@ describe("remote.ts (Browserbase capability)", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     if (previousApiKey === undefined) {
       delete process.env.BROWSERBASE_API_KEY;
     } else {
@@ -103,6 +105,7 @@ describe("remote.ts (Browserbase capability)", () => {
   it.skipIf(process.platform === "win32")(
     "clears stale daemon environment keys and pins the saved project",
     async () => {
+      fakeKeyring();
       const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-remote-auth-")));
       try {
         const env = { BROWSERBASE_CONFIG_DIR: directory };
@@ -113,7 +116,6 @@ describe("remote.ts (Browserbase capability)", () => {
             apiOrigin: "https://api.browserbase.com",
           },
           env,
-          "file",
         );
         process.env.BROWSERBASE_API_KEY = "stale-daemon-key";
         const forwarded = await collectForwardedEnv(env);
@@ -129,7 +131,6 @@ describe("remote.ts (Browserbase capability)", () => {
             apiOrigin: developmentApiOrigin,
           },
           env,
-          "file",
         );
         await expect(
           remoteStagehandOptions({ kind: "remote" }, await collectForwardedEnv(env)),

@@ -15,9 +15,7 @@ export default class AuthStatus extends BrowseCommand {
       apiOrigin: active?.baseUrl ?? null,
       projectId: active?.projectId ?? null,
       savedLogin: Boolean(store),
-      ...(store
-        ? { storage: store === "file" ? "plaintext-file" : "os-keystore", path: credentialPath() }
-        : {}),
+      ...(store ? { storage: "os-keystore", path: credentialPath() } : {}),
       verified: false,
     });
   }

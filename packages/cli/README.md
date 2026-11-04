@@ -57,23 +57,18 @@ browse open https://example.com --remote
 browse logout
 ```
 
-`browse login --no-browser` prints a link to open manually. Use `--project-id ID` to
-select a project without a prompt; it is required without an interactive terminal
-when more than one project is available. The temporary OAuth tokens stay in memory
-and are discarded after login. Any returned refresh grant is revoked before the
-selected project's API key is saved. By default, the key is stored in your OS credential store: macOS Keychain, Windows Credential Manager, or
-Linux Secret Service. Linux requires a running, unlocked Secret Service (such as
+Use an interactive terminal to choose a project when more than one is available.
+The temporary OAuth tokens stay in memory and are discarded after login. Any returned refresh grant is revoked before the
+selected project's API key is saved in your OS credential store: macOS Keychain,
+Windows Credential Manager, or Linux Secret Service. Linux requires a running, unlocked Secret Service (such as
 GNOME Keyring or KWallet); login fails if it is unavailable. It never silently falls
 back to plaintext or a temporary kernel keyring.
 
 Only a storage reference is written to `~/.config/browserbase/auth/credential.json`.
 `XDG_CONFIG_HOME` and `BROWSERBASE_CONFIG_DIR` override that directory and isolate
 saved logins. On a headless machine, use `BROWSERBASE_API_KEY` supplied by your secret
-manager. If you deliberately want file storage on macOS or Linux, use
-`browse login --credential-store=file`: this saves the API key **as plaintext** in a
-private directory (0700) and file (0600). File storage is not supported on Windows.
-Processes running as your user can use your credentials, including credentials in
-an unlocked OS store; the keystore mainly improves protection at rest.
+manager. Processes running as your user can use your credentials, including credentials
+in an unlocked OS store; the keystore mainly improves protection at rest.
 
 Explicit `--api-key` values take precedence over `BROWSERBASE_API_KEY`, which takes
 precedence over the saved login. Saved credentials are restricted to their API origin

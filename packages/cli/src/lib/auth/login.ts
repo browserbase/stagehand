@@ -283,7 +283,6 @@ export async function login({
   dashboard,
   development = false,
   openBrowser,
-  projectId,
   chooseProject,
   timeoutMs = 300000,
   signal,
@@ -291,7 +290,6 @@ export async function login({
   dashboard?: string;
   development?: boolean;
   openBrowser: (url: string) => Promise<void>;
-  projectId?: string;
   chooseProject?: (projects: LoginProject[], signal: AbortSignal) => Promise<string>;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -329,10 +327,8 @@ export async function login({
       await dashboardJson(origin, "/cli/projects", activeSignal, tokens.access_token),
     );
     const selectedId =
-      projectId ??
-      (projects.length === 1 ? projects[0]!.id : await chooseProject?.(projects, activeSignal));
-    if (!selectedId)
-      fail("Select a project with --project-id when running without an interactive terminal.");
+      projects.length === 1 ? projects[0]!.id : await chooseProject?.(projects, activeSignal);
+    if (!selectedId) fail("Run browse login in an interactive terminal to choose a project.");
     if (!projects.some((project) => project.id === selectedId))
       fail("The selected project is not available for this login.");
     const credential = validateCredential(
