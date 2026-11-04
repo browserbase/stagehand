@@ -658,6 +658,133 @@ exit 0
     30_000,
   );
 
+  it("supports the real Functions SDK through results, errors, and hot reload", async () => {
+    const cwd = await createTempDir("functions-dev-sdk-");
+    const port = await getFreePort();
+    // Keep the readiness marker outside the watched project.
+    const markerFile = join(await createTempDir("functions-dev-sdk-marker-"), "loaded.json");
+    await writeSdkEntrypoint(cwd, markerFile, 1);
+    let sessionCount = 0;
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/sessions") {
+          sessionCount += 1;
+          jsonResponse(response, 200, {
+            connectUrl: "ws://example.test/devtools",
+            id: `sess_sdk_${sessionCount}`,
+          });
+          return;
+        }
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_sdk_")) {
+          jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
+          return;
+        }
+        jsonResponse(response, 404, { error: "not found" });
+      },
+      async ({ baseUrl, requests }) => {
+        const child = spawn(
+          process.execPath,
+          [
+            join(repoRoot, "bin/run.js"),
+            "functions",
+            "dev",
+            "runtime-entry.mjs",
+            "--port",
+            String(port),
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          {
+            cwd,
+            env: {
+              ...process.env,
+              NODE_ENV: "test",
+              BROWSE_DISABLE_UPDATE_CHECK: "1",
+              DO_NOT_TRACK: "1",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        cleanupProcesses.push(child);
+        await waitForStdout(child, '"ok": true');
+        const firstWorker = JSON.parse(await waitForFileText(markerFile, '"version":1'));
+
+        // The SDK re-polls asynchronously after posting each result. Retry only the
+        // server's explicit not-ready response, without masking failures or hung invocations.
+        const invokeWhenReady = async (params: Record<string, unknown>) => {
+          const deadline = Date.now() + 10_000;
+          while (true) {
+            const response = await fetch(
+              `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ params }),
+                signal: AbortSignal.timeout(10_000),
+              },
+            );
+            if (response.status !== 503 || Date.now() >= deadline) return response;
+            await response.text();
+            await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+          }
+        };
+
+        const first = await invokeWhenReady({ answer: 42 });
+        expect(first.status).toBe(200);
+        await expect(first.json()).resolves.toEqual({
+          version: 1,
+          params: { answer: 42 },
+          sessionId: "sess_sdk_1",
+          secrets: {},
+        });
+
+        const failed = await invokeWhenReady({ fail: true });
+        expect(failed.status).toBe(500);
+        await expect(failed.json()).resolves.toMatchObject({
+          error: { errorMessage: "Expected SDK handler error", errorType: "Error" },
+        });
+
+        // A handler error must leave the SDK able to receive another invocation.
+        const recovered = await invokeWhenReady({ afterError: true });
+        expect(recovered.status).toBe(200);
+        await expect(recovered.json()).resolves.toMatchObject({
+          version: 1,
+          params: { afterError: true },
+        });
+        await waitForRequests(requests, sessionCount * 2);
+
+        await writeSdkEntrypoint(cwd, markerFile, 2);
+        const secondWorker = JSON.parse(await waitForFileText(markerFile, '"version":2'));
+        expect(secondWorker.pid).not.toBe(firstWorker.pid);
+        const reloaded = await invokeWhenReady({ afterReload: true });
+        expect(reloaded.status).toBe(200);
+        await expect(reloaded.json()).resolves.toMatchObject({
+          version: 2,
+          params: { afterReload: true },
+        });
+
+        await waitForRequests(requests, sessionCount * 2);
+        const created = requests.filter((request) => request.path === "/v1/sessions");
+        const released = requests.filter((request) =>
+          request.path.startsWith("/v1/sessions/sess_sdk_"),
+        );
+        expect(created.length).toBeGreaterThanOrEqual(4);
+        expect(released).toHaveLength(created.length);
+        for (const request of created) {
+          expectRequest(request, "POST", "/v1/sessions", "test-key");
+          expect(request.jsonBody).toEqual({ keepAlive: true });
+        }
+        for (let index = 0; index < released.length; index += 1) {
+          expectRequest(released[index], "POST", `/v1/sessions/sess_sdk_${index + 1}`, "test-key");
+          expect(released[index]?.jsonBody).toMatchObject({ status: "REQUEST_RELEASE" });
+        }
+      },
+    );
+  }, 30_000);
+
   it("blocks browser origins outside loopback before creating a session", async () => {
     const cwd = await createTempDir("functions-dev-cors-");
     const port = await getFreePort();
@@ -1070,6 +1197,24 @@ async function createFakePackageManagerBin(
   await writeFile(scriptPath, contents);
   await chmod(scriptPath, 0o755);
   return directory;
+}
+
+async function writeSdkEntrypoint(cwd: string, markerFile: string, version: number): Promise<void> {
+  // Resolve without importing: importing the SDK starts its runtime loop.
+  const sdkUrl = import.meta.resolve("@browserbasehq/sdk-functions");
+  await writeFile(
+    join(cwd, "runtime-entry.mjs"),
+    `
+import { writeFileSync } from "node:fs";
+import { defineFn } from ${JSON.stringify(sdkUrl)};
+
+defineFn("test-function", async (context, params) => {
+  if (params.fail) throw new Error("Expected SDK handler error");
+  return { version: ${version}, params, sessionId: context.session.id, secrets: context.secrets };
+}, { sessionConfig: { keepAlive: true } });
+writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify({ version: ${version}, pid: process.pid }));
+`,
+  );
 }
 
 async function writeRuntimeEntrypoint(
