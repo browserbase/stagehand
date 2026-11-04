@@ -120,6 +120,7 @@ export async function stopDriverDaemon(
       type: "stop",
     });
   } catch (error) {
+    if (isRuntimeDirFailure(error)) throw error;
     if (
       !force &&
       error instanceof CommandFailure &&
@@ -156,13 +157,25 @@ async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
       id: requestId(),
       type: "status",
     });
-  } catch {
+  } catch (error) {
+    if (isRuntimeDirFailure(error)) throw error;
     await cleanupStaleDaemonFiles(session);
     return null;
   }
 }
 
+function isRuntimeDirFailure(error: unknown): boolean {
+  return (
+    error instanceof CommandFailure &&
+    (error.telemetry.resultCode === "daemon_dir_not_owned" ||
+      error.telemetry.resultCode === "daemon_dir_invalid")
+  );
+}
+
 async function sendDriverRequest<T>(session: string, request: DriverRequest): Promise<T> {
+  // Validate here too: command requests can carry credentials and may be sent
+  // directly, without a preceding status probe.
+  await ensureRuntimeDir();
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
     const socket = net.createConnection(socketPath);
@@ -274,7 +287,10 @@ async function waitForSocketReady(socketPath: string, timeoutMs: number): Promis
   throw new Error(`Driver daemon socket was not ready after ${timeoutMs}ms.`);
 }
 
-function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+  // Guard even the initial status probe, before accepting settings from a daemon.
+  // This also protects readiness probes while waiting for a new daemon to start.
+  await ensureRuntimeDir();
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath);
     const timer = setTimeout(() => {
