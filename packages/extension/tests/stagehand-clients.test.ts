@@ -475,6 +475,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
+  async subscribeResponse(): Promise<() => void> {
+    return () => {};
+  }
+
   readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
 
   async subscribeWebMCPToolsChanged(

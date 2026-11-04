@@ -165,7 +165,9 @@ describe("WebMCP shared discovery", () => {
         .poll(() =>
           events
             .slice(4)
-            .flatMap((event) => event.tools.map((tool) => tool.name))
+            .flatMap((event) =>
+              event.event === "response" ? [] : event.tools.map((tool) => tool.name),
+            )
             .sort((a, b) => a.localeCompare(b)),
         )
         .toEqual(["initial", "live"]);
@@ -187,6 +189,7 @@ describe("WebMCP shared discovery", () => {
       );
       await expect.poll(() => events.length).toBe(2);
       const childEvent = events[0]!;
+      if (childEvent.event !== "toolsadded") throw new Error("Expected toolsadded");
       expect(childEvent).toMatchObject({ event: "toolsadded", tools: [{ name: "initial" }] });
       expect(childEvent.tools[0]!.frameId).not.toBe(initial[0]!.frameId);
       await page.evaluate(() => document.querySelector("iframe")!.remove());
