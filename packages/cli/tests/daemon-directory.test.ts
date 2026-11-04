@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { describePosix } from "./helpers/platform.js";
-import { mockDirectoryOwner } from "./helpers/directory-owner.js";
+import { mockDirectoryOwner, mockRootOwnedParents } from "./helpers/directory-owner.js";
 import { resolveTargetForCommand } from "../src/lib/driver/command-cli.js";
 import {
   ensureDriverDaemon,
@@ -26,13 +26,16 @@ import {
 describePosix("daemon directory validation before connections", () => {
   const session = "default";
   const sockets = new Set<net.Socket>();
+  let fixtureDir: string;
   let daemonDir: string;
   let server: net.Server;
   let connections: number;
   let requests: string[];
 
   beforeEach(async () => {
-    daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-dir-"));
+    fixtureDir = await fs.realpath(await fs.mkdtemp(join(tmpdir(), "browse-dir-")));
+    daemonDir = join(fixtureDir, "runtime");
+    await fs.mkdir(daemonDir);
     vi.stubEnv("BROWSE_DAEMON_DIR", daemonDir);
     vi.stubEnv("BROWSERBASE_API_KEY", "test-key-must-not-be-forwarded");
     connections = 0;
@@ -77,7 +80,7 @@ describePosix("daemon directory validation before connections", () => {
       });
     }
     vi.unstubAllEnvs();
-    if (daemonDir) await fs.rm(daemonDir, { recursive: true, force: true });
+    if (fixtureDir) await fs.rm(fixtureDir, { recursive: true, force: true });
   });
 
   it.each(["unprivileged", "root"])(
@@ -85,6 +88,7 @@ describePosix("daemon directory validation before connections", () => {
     async (caller) => {
       const uid = caller === "root" ? 0 : process.getuid!();
       vi.spyOn(process, "getuid").mockReturnValue(uid);
+      if (caller === "root") mockRootOwnedParents();
       mockDirectoryOwner(daemonDir, () => uid + 1);
       const connect = vi.spyOn(net, "createConnection");
       const operations = [
@@ -280,6 +284,48 @@ describePosix("daemon directory validation before connections", () => {
     expect(connections).toBe(0);
     await expect(fs.readFile(getPidPath(session), "utf8")).resolves.toBe("999999");
     await expect(fs.access(getSocketPath(session))).resolves.toBeUndefined();
+  });
+
+  it("rejects a shared writable parent before any connection or cleanup", async () => {
+    await fs.chmod(fixtureDir, 0o777);
+    const connect = vi.spyOn(net, "createConnection");
+    const unlink = vi.spyOn(fs, "unlink");
+    for (const operation of [
+      () => getDriverStatus(session),
+      () => openViaDaemon(session, "about:blank"),
+      () => runDriverCommandViaDaemon(session, "snapshot"),
+      () => stopDriverDaemon(session, true),
+      () => resolveTargetForCommand(session, { local: true }),
+    ]) {
+      await expect(operation()).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_unsafe_parent" },
+      });
+    }
+    expect(connect).not.toHaveBeenCalled();
+    expect(unlink).not.toHaveBeenCalled();
+    expect(requests).toEqual([]);
+    expect(connections).toBe(0);
+    await expect(fs.access(getSocketPath(session))).resolves.toBeUndefined();
+  });
+
+  it.each([
+    { operation: "status", validChecks: 1 },
+    { operation: "forced stop", validChecks: 2 },
+  ])("propagates unsafe parent errors during $operation", async ({ operation, validChecks }) => {
+    const lstat = fs.lstat.bind(fs);
+    let remainingChecks = validChecks;
+    vi.spyOn(fs, "lstat").mockImplementation(async (...args) => {
+      const entry = await lstat(...args);
+      if (args[0] === fixtureDir && remainingChecks-- <= 0) entry.mode |= 0o022;
+      return entry;
+    });
+    const unlink = vi.spyOn(fs, "unlink");
+    await expect(
+      operation === "status" ? getDriverStatus(session) : stopDriverDaemon(session, true),
+    ).rejects.toMatchObject({ telemetry: { resultCode: "daemon_dir_unsafe_parent" } });
+    expect(unlink).not.toHaveBeenCalled();
+    await expect(fs.readFile(getPidPath(session), "utf8")).resolves.toBe("999999");
+    await expect(fs.readFile(getLockPath(session), "utf8")).resolves.toBe("999999");
   });
 
   it("still reads status from a daemon in an owned directory", async () => {

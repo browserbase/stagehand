@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { itPosix } from "./helpers/platform.js";
-import { mockDirectoryOwner } from "./helpers/directory-owner.js";
+import { mockDirectoryOwner, mockRootOwnedParents } from "./helpers/directory-owner.js";
 
 import { resolveConnectionTarget, targetsCompatible } from "../src/lib/driver/mode.js";
 import {
@@ -523,12 +523,10 @@ describe("driver foundation", () => {
       const before = await fs.lstat(dir);
       const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
       process.env.BROWSE_DAEMON_DIR = dir;
-      const uidSpy = vi
-        .spyOn(process, "getuid")
-        .mockReturnValue(caller === "root" ? 0 : before.uid + 1);
-      // When the tests themselves run as root, simulate a foreign owner too.
-      const ownerSpy =
-        caller === "root" && before.uid === 0 ? mockDirectoryOwner(dir, () => 1) : undefined;
+      const uid = caller === "root" ? 0 : before.uid;
+      const uidSpy = vi.spyOn(process, "getuid").mockReturnValue(uid);
+      const parentsSpy = caller === "root" ? mockRootOwnedParents() : undefined;
+      const ownerSpy = mockDirectoryOwner(dir, () => uid + 1);
 
       try {
         await expect(ensureRuntimeDir()).rejects.toMatchObject({
@@ -539,7 +537,8 @@ describe("driver foundation", () => {
         expect(await fileMode(dir)).toBe(0o755);
         expect(await fs.readFile(join(dir, "keep"), "utf8")).toBe("existing contents");
       } finally {
-        ownerSpy?.mockRestore();
+        ownerSpy.mockRestore();
+        parentsSpy?.mockRestore();
         uidSpy.mockRestore();
         restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
       }

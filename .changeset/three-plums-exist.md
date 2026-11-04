@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-harden daemon directory checks to reject empty paths, symlinks, non-directories, and directories owned by another user on Unix.
+Harden daemon directory checks to reject empty paths, symlinks, non-directories, and, on Unix, foreign-owned directories or unsafe parent locations.

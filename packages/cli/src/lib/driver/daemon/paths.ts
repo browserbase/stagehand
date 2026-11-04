@@ -32,6 +32,10 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
   assertNonEmptyDir(dir);
   // Strip trailing separators so O_NOFOLLOW also rejects "symlink/".
   const resolvedDir = path.resolve(dir);
+  const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  if (process.platform !== "win32" && uid !== undefined) {
+    await ensureTrustedParents(resolvedDir, uid);
+  }
   try {
     await fs.mkdir(resolvedDir, { mode: PRIVATE_DIR_MODE, recursive: true });
   } catch (error) {
@@ -57,7 +61,7 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
     const entry = await handle.stat();
     if (!entry.isDirectory()) failInvalidDirectory(dir);
     // Root must also reject foreign ownership: chmod does not change the owner.
-    if (typeof process.getuid === "function" && entry.uid !== process.getuid()) {
+    if (uid !== undefined && entry.uid !== uid) {
       fail(
         `Refusing to use ${dir}: it is owned by another user. Set BROWSE_DAEMON_DIR to a directory you own.`,
         1,
@@ -68,6 +72,76 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
   } finally {
     await handle.close();
   }
+}
+
+/**
+ * Check from the root downward so each entry is protected before we inspect it
+ * or create a child. A trusted sticky directory (such as /tmp) protects entries
+ * owned by us or root; a foreign owner can replace children even with that bit.
+ * Never realpath first: that would hide replaceable symlink ancestors.
+ */
+async function ensureTrustedParents(dir: string, uid: number): Promise<void> {
+  let symlinksRemaining = 40;
+
+  const reject = (parent: string, reason: string): never => {
+    fail(
+      `Refusing to use ${dir}: parent ${parent} ${reason}. Choose a runtime directory beneath trusted parents owned by you or the system.`,
+      1,
+      { resultCode: "daemon_dir_unsafe_parent" },
+    );
+  };
+
+  const inspect = async (parent: string, createMissing: boolean) => {
+    const entry = await fs.lstat(parent).catch(async (error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT" || !createMissing) throw error;
+      // The ancestor is already trusted. Inspect even an entry created by a
+      // concurrent process instead of assuming mkdir established ownership.
+      await fs.mkdir(parent, { mode: PRIVATE_DIR_MODE }).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "EEXIST") throw error;
+      });
+      return fs.lstat(parent);
+    });
+    if (entry.uid !== 0 && entry.uid !== uid) reject(parent, "is owned by another user");
+    if (!entry.isSymbolicLink()) {
+      if (!entry.isDirectory()) reject(parent, "is not a directory");
+      if ((entry.mode & 0o022) !== 0 && (entry.mode & 0o1000) === 0) {
+        reject(parent, "is writable by other users without sticky-bit protection");
+      }
+    }
+    return entry;
+  };
+
+  const root = path.parse(dir).root;
+  await inspect(root, false);
+  const walk = async (start: string, parts: string[], createMissing: boolean): Promise<string> => {
+    let current = start;
+    for (const part of parts) {
+      if (part === "" || part === ".") continue;
+      if (part === "..") {
+        current = path.dirname(current);
+        continue;
+      }
+      const next = path.join(current, part);
+      const entry = await inspect(next, createMissing);
+      if (entry.isSymbolicLink()) {
+        if (symlinksRemaining-- === 0) reject(next, "has too many symbolic links");
+        const target = await fs.readlink(next);
+        // Resolve each target component before processing '..', just as the
+        // kernel does. Normalizing the target first could check the wrong path.
+        // Never create missing targets of dangling ancestor links.
+        current = await walk(
+          path.isAbsolute(target) ? root : current,
+          target.split(path.sep),
+          false,
+        );
+      } else {
+        current = next;
+      }
+    }
+    return current;
+  };
+
+  await walk(root, path.relative(root, path.dirname(dir)).split(path.sep), true);
 }
 
 function assertNonEmptyDir(dir: string): void {

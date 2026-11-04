@@ -168,7 +168,8 @@ function isRuntimeDirFailure(error: unknown): boolean {
   return (
     error instanceof CommandFailure &&
     (error.telemetry.resultCode === "daemon_dir_not_owned" ||
-      error.telemetry.resultCode === "daemon_dir_invalid")
+      error.telemetry.resultCode === "daemon_dir_invalid" ||
+      error.telemetry.resultCode === "daemon_dir_unsafe_parent")
   );
 }
 

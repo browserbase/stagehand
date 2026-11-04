@@ -18,3 +18,12 @@ export function mockDirectoryOwner(dir: string, owner: (actualUid: number) => nu
     return handle;
   });
 }
+
+/** Model trusted root-owned ancestors when simulating a root caller on a non-root test runner. */
+export function mockRootOwnedParents() {
+  const lstat = fs.lstat.bind(fs);
+  return vi.spyOn(fs, "lstat").mockImplementation(async (...args) => {
+    const entry = await lstat(...args);
+    return Object.assign(entry, { uid: typeof entry.uid === "bigint" ? 0n : 0 });
+  });
+}
