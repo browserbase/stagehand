@@ -367,6 +367,30 @@ await subscription.unsubscribe();
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
 
+## onResponse()
+
+Subscribe to future network responses from this page and its child frames. The callback
+receives a [Response](/v4/reference/response) when status and headers arrive. Body methods
+wait for completion automatically. Subscriptions remain active across navigation and do
+not replay earlier responses. Async callbacks may overlap.
+
+```typescript
+const subscription = await page.onResponse(async (response) => {
+  if (response.url().includes("/api/orders") && response.ok()) {
+    console.log(await response.json());
+  }
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A callback with the signature `(response: Response) => unknown`.
+</ParamField>
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops future callbacks. Responses
+  already delivered can still be read while their handles remain available.
+</ResponseField>
+
 ## onToolsAdded()
 
 Run a callback when WebMCP tools are added to this page or its child frames. The subscription
@@ -1248,6 +1272,28 @@ await subscription.unsubscribe()
 `await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
+## on_response()
+
+Subscribe to future response headers from this page and its child frames. The callback
+receives a [Response](/v4/reference/response); body methods await completion. Subscriptions
+remain active across navigation and do not replay previous responses.
+
+```python
+async def handle_response(response):
+    if "/api/orders" in response.url and response.ok:
+        print(await response.json())
+
+subscription = await page.on_response(handle_response)
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A synchronous or asynchronous callback accepting a `Response`.
+</ParamField>
+<ResponseField name="result" type="CDPSubscription">
+  A subscription whose `unsubscribe()` method stops future callbacks.
+</ResponseField>
 
 ## on_tools_added()
 
