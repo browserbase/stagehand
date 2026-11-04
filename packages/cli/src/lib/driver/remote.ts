@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import Browserbase from "@browserbasehq/sdk";
 import { browserbase } from "@browserbasehq/stagehand";
 import { StatusCodes } from "http-status-codes";
 
+import { developmentApiOrigin, readCredential } from "../auth/store.js";
+import { sdkCredentialFetch, resolveCredential } from "../auth/credentials.js";
 import { getCliVersion, resolveInstallId, toMetadataValue } from "../identity.js";
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
@@ -22,8 +25,8 @@ type BrowserbaseDebugClient = {
 };
 
 /**
- * Real Browserbase capability. This is the ONLY module that reads
- * `BROWSERBASE_API_KEY`; it is excluded from `build:local-only` so that
+ * Real Browserbase capability. This module and its credential helpers are
+ * excluded from `build:local-only` so that
  * local-only artifacts cannot reach Browserbase.
  */
 
@@ -36,34 +39,62 @@ export function resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionT
 }
 
 export function autoSelectRemoteTarget(): ConnectionTarget | null {
-  return process.env.BROWSERBASE_API_KEY ? { kind: "remote" } : null;
+  return resolveCredential() ? { kind: "remote" } : null;
 }
 
 /**
- * Env vars the client forwards to a running daemon. Only the API key needs
- * forwarding: the Browserbase backend infers the project from the key, so a
- * project id is not required for session creation. (A multi-project key that
- * wants to pin a non-default project via BROWSERBASE_PROJECT_ID is a rare edge
- * case; that still resolves from the daemon's own env, not the forwarded set.)
+ * Forward explicit credentials and saved-login configuration to a running daemon.
+ * Saved keys themselves are read from the private store when launching a browser.
  */
 export function forwardedEnvKeys(): readonly string[] {
-  return ["BROWSERBASE_API_KEY"];
+  return [
+    "BROWSERBASE_API_KEY",
+    "BROWSERBASE_CONFIG_DIR",
+    "BROWSERBASE_BASE_URL",
+    "BROWSERBASE_PROJECT_ID",
+    "XDG_CONFIG_HOME",
+  ];
+}
+
+export function savedCredentialFingerprint(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.BROWSERBASE_API_KEY) return undefined;
+  try {
+    const credential = readCredential(env);
+    return credential
+      ? createHash("sha256").update(JSON.stringify(credential)).digest("hex")
+      : undefined;
+  } catch {
+    // Explicit local browser commands must still work with an invalid saved login.
+    // Remote startup reports the storage error when resolving its credential.
+    return undefined;
+  }
+}
+
+function remoteEnvironment(forwardedEnv?: ForwardedEnv): NodeJS.ProcessEnv {
+  if (!forwardedEnv) return process.env;
+  const env = { ...process.env };
+  for (const key of forwardedEnvKeys()) {
+    if (key in forwardedEnv) env[key] = forwardedEnv[key] || undefined;
+  }
+  return env;
 }
 
 export async function remoteStagehandOptions(
   target?: RemoteConnectionTarget,
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteStagehandOptions> {
-  // Prefer the caller's forwarded key; fall back to the daemon's own spawn-time
-  // env (e.g. a daemon that was started with a key). Threading the value here
-  // avoids writing the key back into the daemon's `process.env`. The project id
-  // is left to Stagehand to resolve (constructor opt → env → inferred from key).
-  const apiKey = resolveApiKey(forwardedEnv);
-  if (!apiKey) {
+  const credential = resolveCredential({}, remoteEnvironment(forwardedEnv));
+  if (!credential) {
     throw new Error(
-      "Missing BROWSERBASE_API_KEY for remote mode. Pass --local to run a managed local browser (no key needed), or set BROWSERBASE_API_KEY for cloud sessions.",
+      "Run browse login or set BROWSERBASE_API_KEY for remote mode. Pass --local for a local browser.",
     );
   }
+  if (credential.source === "saved" && credential.baseUrl === developmentApiOrigin) {
+    throw new Error(
+      "Development login supports cloud API commands only. Remote browser automation also uses the Stagehand service; run browse login for production, or use --local.",
+    );
+  }
+  const { apiKey } = credential;
 
   // Stamp anonymous attribution onto the session. Resolving the install id is
   // best-effort and never throws; if it can't be resolved we still send
@@ -79,7 +110,11 @@ export async function remoteStagehandOptions(
 
   return {
     apiKey,
+    ...(credential.source === "saved"
+      ? { baseUrl: credential.baseUrl, clientOptions: { fetch: sdkCredentialFetch(credential) } }
+      : {}),
     browser: {
+      ...(credential.source === "saved" ? { projectId: credential.projectId } : {}),
       userMetadata,
       ...(target?.proxies ? { proxies: true } : {}),
       ...(target?.verified ? { browserSettings: { verified: true } } : {}),
@@ -91,13 +126,22 @@ export async function launchRemoteBrowser(
   target?: RemoteConnectionTarget,
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteBrowserLaunch> {
-  const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(target, forwardedEnv);
+  const {
+    apiKey,
+    browser: sessionOptions,
+    baseUrl,
+    clientOptions,
+  } = await remoteStagehandOptions(target, forwardedEnv);
   // The V4 factory provisions the packaged Stagehand extension before it
   // creates the Browserbase session and owns both resources on browser.close().
   // A raw sessions.create() + browserbase.connect() skips that provisioning.
   let browser;
   try {
-    browser = await browserbase.launch({ apiKey, ...sessionOptions });
+    browser = await browserbase.launch({
+      apiKey,
+      ...sessionOptions,
+      ...(baseUrl ? { baseUrl, clientOptions } : {}),
+    });
   } catch (error) {
     throw remoteDriverError(error);
   }
@@ -121,11 +165,17 @@ export async function remoteBrowserbaseIdentity(
     browserbaseSessionId: normalizedSessionId,
     browserbaseSessionUrl: `https://www.browserbase.com/sessions/${normalizedSessionId}`,
   };
-  const apiKey = resolveApiKey(forwardedEnv);
-  if (!apiKey) return identity;
+  const credential = resolveCredential({}, remoteEnvironment(forwardedEnv));
+  if (!credential) return identity;
 
   try {
-    const client = browserbase ?? new Browserbase({ apiKey });
+    const client =
+      browserbase ??
+      new Browserbase({
+        apiKey: credential.apiKey,
+        baseURL: credential.baseUrl,
+        fetch: sdkCredentialFetch(credential),
+      });
     const { debuggerUrl } = await client.sessions.debug(normalizedSessionId);
     if (debuggerUrl) {
       identity.browserbaseDebugUrl = debuggerUrl;
@@ -134,10 +184,6 @@ export async function remoteBrowserbaseIdentity(
     // The stable session URL and ID are still useful if live-view lookup fails.
   }
   return identity;
-}
-
-function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
-  return forwardedEnv?.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY;
 }
 
 /**
@@ -188,13 +234,20 @@ export function driverInitHints(): DriverInitHints {
 }
 
 export function remoteDoctorCheck(env: NodeJS.ProcessEnv): RemoteDoctorResult {
-  if (env.BROWSERBASE_API_KEY) {
-    return { ok: true, message: "BROWSERBASE_API_KEY is set" };
+  const credential = resolveCredential({}, env);
+  if (credential) {
+    return {
+      ok: true,
+      message:
+        credential.source === "saved"
+          ? "Saved Browserbase login is available"
+          : "BROWSERBASE_API_KEY is set",
+    };
   }
 
   return {
     ok: false,
     message: "BROWSERBASE_API_KEY is not set",
-    fix: "export BROWSERBASE_API_KEY=...",
+    fix: "browse login (or set BROWSERBASE_API_KEY)",
   };
 }

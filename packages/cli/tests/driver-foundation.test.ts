@@ -1291,7 +1291,7 @@ describe("driver foundation", () => {
   });
 
   it("collects forwardable env vars from the caller's env", async () => {
-    // Only the API key is forwarded; the project is inferred from the key.
+    // Include empty settings so a daemon cannot retain stale credentials.
     await expect(
       collectForwardedEnv({
         BROWSERBASE_API_KEY: "client-key",
@@ -1300,9 +1300,15 @@ describe("driver foundation", () => {
       }),
     ).resolves.toEqual({
       BROWSERBASE_API_KEY: "client-key",
+      BROWSERBASE_PROJECT_ID: "client-project",
+      BROWSERBASE_BASE_URL: "",
+      BROWSERBASE_CONFIG_DIR: "",
+      XDG_CONFIG_HOME: "",
     });
-    await expect(collectForwardedEnv({})).resolves.toBeUndefined();
-    await expect(collectForwardedEnv({ BROWSERBASE_API_KEY: "" })).resolves.toBeUndefined();
+    await expect(collectForwardedEnv({})).resolves.toMatchObject({ BROWSERBASE_API_KEY: "" });
+    await expect(collectForwardedEnv({ BROWSERBASE_API_KEY: "" })).resolves.toMatchObject({
+      BROWSERBASE_API_KEY: "",
+    });
   });
 
   it("produces a stable, secret-free forwarded-env signature", () => {

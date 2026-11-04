@@ -59,7 +59,7 @@ describe("doctor command", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("[fail] browserbase BROWSERBASE_API_KEY is not set");
-    expect(result.stdout).toContain("Fix: export BROWSERBASE_API_KEY=...");
+    expect(result.stdout).toContain("Fix: browse login (or set BROWSERBASE_API_KEY)");
   });
 
   it("keeps --json exit 0 even when the verdict fails", async () => {

@@ -27,14 +27,16 @@ export type ForwardedEnv = Record<string, string>;
 export async function collectForwardedEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ForwardedEnv | undefined> {
-  const keys = (await getRemote()).forwardedEnvKeys();
+  const remote = await getRemote();
+  const keys = remote.forwardedEnvKeys();
   const forwardedEnv: ForwardedEnv = {};
   for (const key of keys) {
     const value = env[key];
-    if (typeof value === "string" && value.length > 0) {
-      forwardedEnv[key] = value;
-    }
+    // An empty value explicitly clears a daemon's stale spawn-time setting.
+    forwardedEnv[key] = value ?? "";
   }
+  const fingerprint = remote.savedCredentialFingerprint(env);
+  if (fingerprint) forwardedEnv.credentialFingerprint = fingerprint;
   return Object.keys(forwardedEnv).length > 0 ? forwardedEnv : undefined;
 }
 

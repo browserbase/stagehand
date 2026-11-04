@@ -1,3 +1,8 @@
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeCredential, developmentApiOrigin } from "../src/lib/auth/store.js";
+import { collectForwardedEnv } from "../src/lib/driver/daemon/forwarded-env.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const stagehandMocks = vi.hoisted(() => ({
@@ -94,6 +99,46 @@ describe("remote.ts (Browserbase capability)", () => {
     delete process.env.BROWSERBASE_API_KEY;
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(/BROWSERBASE_API_KEY/);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "clears stale daemon environment keys and pins the saved project",
+    async () => {
+      const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-remote-auth-")));
+      try {
+        const env = { BROWSERBASE_CONFIG_DIR: directory };
+        writeCredential(
+          {
+            apiKey: "saved-test-key",
+            projectId: "00000000-0000-4000-8000-000000000001",
+            apiOrigin: "https://api.browserbase.com",
+          },
+          env,
+          "file",
+        );
+        process.env.BROWSERBASE_API_KEY = "stale-daemon-key";
+        const forwarded = await collectForwardedEnv(env);
+        const options = await remoteStagehandOptions({ kind: "remote" }, forwarded);
+        expect(options.apiKey).toBe("saved-test-key");
+        expect(options.browser.projectId).toBe("00000000-0000-4000-8000-000000000001");
+        expect(options.baseUrl).toBe("https://api.browserbase.com");
+        expect(options.clientOptions?.fetch).toBeTypeOf("function");
+        writeCredential(
+          {
+            apiKey: "dev-test-key",
+            projectId: "00000000-0000-4000-8000-000000000001",
+            apiOrigin: developmentApiOrigin,
+          },
+          env,
+          "file",
+        );
+        await expect(
+          remoteStagehandOptions({ kind: "remote" }, await collectForwardedEnv(env)),
+        ).rejects.toThrow("cloud API commands only");
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("launches through the V4 Browserbase factory so the extension is provisioned", async () => {
     const browser = { close: vi.fn(), sessionId: "session-test" };

@@ -43,6 +43,52 @@ browse screenshot --path page.png
 browse stop
 ```
 
+## Browserbase login
+
+Run `browse login` on the same computer as your browser. Sign in to Browserbase,
+select a project, and approve access. Subsequent commands use that project's API key:
+
+```bash
+browse login
+browse auth status
+browse cloud projects list
+browse open https://example.com --remote
+browse logout
+```
+
+`browse login --no-browser` prints a link to open manually. By default, the key is
+stored in your OS credential store: macOS Keychain, Windows Credential Manager, or
+Linux Secret Service. Linux requires a running, unlocked Secret Service (such as
+GNOME Keyring or KWallet); login fails if it is unavailable. It never silently falls
+back to plaintext or a temporary kernel keyring.
+
+Only a storage reference is written to `~/.config/browserbase/auth/credential.json`.
+`XDG_CONFIG_HOME` and `BROWSERBASE_CONFIG_DIR` override that directory and isolate
+saved logins. On a headless machine, use `BROWSERBASE_API_KEY` supplied by your secret
+manager. If you deliberately want file storage on macOS or Linux, use
+`browse login --credential-store=file`: this saves the API key **as plaintext** in a
+private directory (0700) and file (0600). File storage is not supported on Windows.
+Processes running as your user can use your credentials, including credentials in
+an unlocked OS store; the keystore mainly improves protection at rest.
+
+Explicit `--api-key` values take precedence over `BROWSERBASE_API_KEY`, which takes
+precedence over the saved login. Saved credentials are restricted to their API origin
+and selected project; a different `--base-url` requires an explicitly supplied key.
+`browse auth status` shows local configuration without printing a key or checking the
+server. `browse logout` removes the local credential; it does not revoke the shared
+project API key, sign out your browser, or close existing browser sessions. Rotate or
+revoke the key in the dashboard when you need to invalidate it everywhere. Existing
+browser sessions keep their original credentials: run `browse stop` (or
+`browse stop --session NAME`) before switching projects.
+
+For development testing, `browse login --development` uses the development dashboard
+and API. An explicitly forwarded dashboard can be selected with
+`--development --dashboard http://localhost:3000`. A development login replaces the
+active saved login and remains bound to the development API. Development saved logins
+support cloud API commands only; remote browser automation also requires the
+Stagehand service and is currently limited to production logins. Use `--local` for
+local browser automation. Run `browse login` again to switch back to production.
+
 ## How it works
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
@@ -53,9 +99,9 @@ Every driver command accepts the same flags to pick where the browser runs. Mix 
 
 | Flag                                 | Target                                                                             |
 | ------------------------------------ | ---------------------------------------------------------------------------------- |
-| _(default)_                          | Managed local browser, or remote when `BROWSERBASE_API_KEY` is set                 |
+| _(default)_                          | Managed local browser, or remote with an API key or saved login                    |
 | `--local`                            | Managed local browser (add `--headed` / `--headless`)                              |
-| `--remote`                           | Remote Browserbase session (uses `BROWSERBASE_API_KEY`)                            |
+| `--remote`                           | Remote Browserbase session (uses an API key or saved login)                        |
 | `--auto-connect`                     | Auto-discover and attach to a local Chrome with remote debugging enabled           |
 | `--cdp <url\|port>`                  | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`)              |
 | `--target-id <id>`                   | Select a specific CDP target when attaching to an existing browser                 |
@@ -210,7 +256,7 @@ browse skills add mcdonalds.order.online/order-delivery-42q71n
 
 ## Browserbase cloud commands
 
-Manage projects, sessions, contexts, and extensions, or call the Fetch and Search APIs directly. These commands use `BROWSERBASE_API_KEY`.
+Manage projects, sessions, contexts, and extensions, or call the Fetch and Search APIs directly. These commands use your saved login or `BROWSERBASE_API_KEY`.
 
 ```bash
 # Projects
