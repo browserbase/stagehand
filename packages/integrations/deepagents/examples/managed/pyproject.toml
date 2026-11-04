@@ -1,7 +1,7 @@
 [project]
 name = "stagehand-managed-deep-agent"
 version = "0.1.0"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11"
 dependencies = [
   "httpx>=0.28,<1",
   "langchain>=1,<2",
@@ -17,4 +17,3 @@ dependencies = [
 
 [tool.uv]
 package = false
-override-dependencies = ["websockets==15.0.1"]

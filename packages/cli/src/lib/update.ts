@@ -24,10 +24,7 @@ export async function maybeAutoUpdateCli(
   env: NodeJS.ProcessEnv = process.env,
   options: UpdateCheckOptions = {},
 ): Promise<void> {
-  if (
-    env.BROWSE_DISABLE_UPDATE_CHECK === "1" ||
-    env.BB_DISABLE_UPDATE_CHECK === "1"
-  ) {
+  if (env.BROWSE_DISABLE_UPDATE_CHECK === "1" || env.BB_DISABLE_UPDATE_CHECK === "1") {
     return;
   }
 
@@ -67,9 +64,7 @@ export async function refreshUpdateCheckCache(
   });
 }
 
-async function readFreshUpdateCheckCache(
-  cachePath: string,
-): Promise<UpdateCheckCache | null> {
+async function readFreshUpdateCheckCache(cachePath: string): Promise<UpdateCheckCache | null> {
   const cache = await readUpdateCheckCache(cachePath);
   if (!cache) {
     return null;
@@ -87,9 +82,7 @@ async function readFreshUpdateCheckCache(
   return cache;
 }
 
-async function readUpdateCheckCache(
-  cachePath: string,
-): Promise<UpdateCheckCache | null> {
+async function readUpdateCheckCache(cachePath: string): Promise<UpdateCheckCache | null> {
   try {
     const contents = await readFile(cachePath, "utf8");
     const parsed = JSON.parse(contents) as {
@@ -114,10 +107,7 @@ async function readUpdateCheckCache(
   }
 }
 
-async function writeUpdateCheckCache(
-  cachePath: string,
-  cache: UpdateCheckCache,
-): Promise<void> {
+async function writeUpdateCheckCache(cachePath: string, cache: UpdateCheckCache): Promise<void> {
   try {
     await mkdir(dirname(cachePath), { recursive: true });
     await writeFile(cachePath, `${JSON.stringify(cache)}\n`, "utf8");
@@ -130,17 +120,11 @@ function resolveUpdateCheckPath(
   env: NodeJS.ProcessEnv,
   options: UpdateCheckOptions = {},
 ): string | null {
-  const configured =
-    options.cacheFile ??
-    env.BROWSE_UPDATE_CHECK_FILE ??
-    env.BB_UPDATE_CHECK_FILE;
+  const configured = options.cacheFile ?? env.BROWSE_UPDATE_CHECK_FILE ?? env.BB_UPDATE_CHECK_FILE;
   return configured && configured.length > 0 ? configured : null;
 }
 
-function spawnBackgroundUpdateCheck(
-  env: NodeJS.ProcessEnv,
-  cachePath: string,
-): void {
+function spawnBackgroundUpdateCheck(env: NodeJS.ProcessEnv, cachePath: string): void {
   try {
     const workerPath = resolveUpdateCheckWorkerPath();
     const childEnv = {
@@ -161,15 +145,10 @@ function spawnBackgroundUpdateCheck(
 
 function resolveUpdateCheckWorkerPath(): string {
   const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
-  return fileURLToPath(
-    new URL(`../update-check-worker.${extension}`, import.meta.url),
-  );
+  return fileURLToPath(new URL(`../update-check-worker.${extension}`, import.meta.url));
 }
 
-function writeUpdateNotice(
-  currentVersion: string,
-  latestVersion: string,
-): void {
+function writeUpdateNotice(currentVersion: string, latestVersion: string): void {
   process.stderr.write(
     [
       `Update available: ${currentVersion} -> ${latestVersion}.`,
@@ -213,10 +192,7 @@ async function fetchLatestCliVersion(): Promise<string | null> {
   }
 }
 
-function isVersionNewer(
-  currentVersion: string,
-  latestVersion: string,
-): boolean {
+function isVersionNewer(currentVersion: string, latestVersion: string): boolean {
   if (!semver.valid(currentVersion) || !semver.valid(latestVersion)) {
     return false;
   }

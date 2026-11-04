@@ -1,4 +1,5 @@
 import { defineConfig } from "oxlint";
+import { cliConfig } from "./rules/oxlint/cli-config.ts";
 import { stagehandRuleConfig } from "./rules/oxlint/stagehand-plugin.ts";
 
 export default defineConfig({
@@ -9,13 +10,7 @@ export default defineConfig({
     ...stagehandRuleConfig,
   },
   overrides: [
-    {
-      files: ["packages/cli/**/*.{js,ts}"],
-      rules: {
-        "no-console": "off",
-        "stagehand/no-renamed-imports": "off",
-      },
-    },
+    ...cliConfig.overrides!,
     {
       files: ["packages/evals/**/*.ts"],
       rules: {
@@ -35,5 +30,6 @@ export default defineConfig({
       },
     },
   ],
+  ignorePatterns: cliConfig.ignorePatterns,
   options: { typeAware: true },
 });
