@@ -20,10 +20,10 @@ export default class Login extends BrowseCommand {
   static override examples = ["browse login", "browse login --no-browser"];
   static override flags = {
     "credential-store": Flags.string({
-      options: ["keychain", "file"],
-      default: "keychain",
+      options: ["auto", "keychain", "file"],
+      default: "auto",
       description:
-        "Save in the OS keystore (default), or explicitly opt into a private plaintext file.",
+        "Prefer the OS keystore with a private plaintext fallback (auto), require the keystore, or use a file.",
     }),
     "project-id": Flags.string({
       description: "Choose the project whose API key should be saved.",
@@ -38,12 +38,14 @@ export default class Login extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Login);
-    const store = flags["credential-store"] as CredentialStore;
+    const store = flags["credential-store"] as CredentialStore | "auto";
     requireSupportedCredentialStore(store);
     this.log(
-      store === "file"
-        ? `This saves the selected project's API key as plaintext in a private file: ${credentialPath()}`
-        : "This saves the selected project's API key in your OS keystore.",
+      store === "auto"
+        ? "This saves the selected project's API key in your OS keystore, or a private plaintext file if the keystore is unavailable."
+        : store === "file"
+          ? `This saves the selected project's API key as plaintext in a private file: ${credentialPath()}`
+          : "This saves the selected project's API key in your OS keystore.",
     );
     this.log(
       "Authorize access to your permitted project API keys, then choose one project to use here.",
@@ -97,7 +99,10 @@ export default class Login extends BrowseCommand {
         if (result?.id !== credential.projectId)
           fail("Login project verification failed; no credential was saved.");
         if (controller.signal.aborted) fail("Login canceled; no credential was saved.");
-        writeCredential(credential, process.env, store);
+        const savedStore = writeCredential(credential, process.env, store);
+        if (savedStore === "file") {
+          this.log(`API key saved as plaintext in a private file: ${credentialPath()}`);
+        }
         this.log("Signed in. Run browse auth status to inspect your saved login.");
         this.log(
           "Existing browser sessions keep their original credentials. Run browse stop (with --session NAME for named sessions) before switching projects.",

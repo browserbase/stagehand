@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   lstatSync,
   mkdtempSync,
   readFileSync,
@@ -41,7 +42,7 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-describe.skipIf(process.platform === "win32")("explicit plaintext credential storage", () => {
+describe.skipIf(process.platform === "win32")("plaintext credential storage", () => {
   it("writes a private plaintext file only when selected and rejects broad permissions", () => {
     const env = environment();
     writeCredential(fixture, env, "file");
@@ -66,6 +67,66 @@ describe.skipIf(process.platform === "win32")("explicit plaintext credential sto
     expect(readCredential(env)).toEqual(fixture);
     expect(removeCredential(env)).toBe(true);
     expect(backend.constructor).not.toHaveBeenCalled();
+  });
+
+  it("prefers the keystore in auto mode and falls back for a new login when unavailable", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    requireSupportedCredentialStore("auto", env);
+    expect(writeCredential(fixture, env, "auto")).toBe("keychain");
+    expect(readFileSync(credentialPath(env), "utf8")).not.toContain(fixture.apiKey);
+    removeCredential(env);
+    backend.state.unavailable = true;
+    requireSupportedCredentialStore("auto", env);
+    expect(writeCredential(fixture, env, "auto")).toBe("file");
+    expect(readCredential(env)).toEqual(fixture);
+    expect(lstatSync(credentialPath(env)).mode & 0o777).toBe(0o600);
+    expect(() => requireSupportedCredentialStore("keychain", env)).toThrow("No plaintext fallback");
+    expect(() => writeCredential(fixture, env, "keychain")).toThrow("No plaintext fallback");
+    expect(savedCredentialStore(env)).toBe("file");
+  });
+
+  it("falls back when the keystore becomes unwritable after preflight", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    requireSupportedCredentialStore("auto", env);
+    backend.state.rejectWrite = true;
+    expect(writeCredential(fixture, env, "auto")).toBe("file");
+    expect(readCredential(env)).toEqual(fixture);
+    expect(backend.secrets.size).toBe(0);
+  });
+
+  it("never automatically downgrades a keystore login created after preflight", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    requireSupportedCredentialStore("auto", env);
+    writeCredential(fixture, env);
+    const originalReference = readFileSync(credentialPath(env), "utf8");
+    backend.state.unavailable = true;
+    expect(() => requireSupportedCredentialStore("auto", env)).toThrow("No plaintext fallback");
+    expect(() => writeCredential(fixture, env, "auto")).toThrow("No plaintext fallback");
+    backend.state.unavailable = false;
+    backend.state.rejectWrite = true;
+    expect(() => writeCredential(fixture, env, "auto")).toThrow("No plaintext fallback");
+    expect(readFileSync(credentialPath(env), "utf8")).toBe(originalReference);
+    expect(readCredential(env)).toEqual(fixture);
+  });
+
+  it("does not fall back for metadata failures or unsafe existing file permissions", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    const write = vi.spyOn(metadata, "writePrivateRecord").mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    expect(() => writeCredential(fixture, env, "auto")).toThrow("Could not update saved login");
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(backend.secrets.size).toBe(0);
+    expect(existsSync(credentialPath(env))).toBe(false);
+    writeCredential(fixture, env, "file");
+    chmodSync(credentialPath(env), 0o644);
+    backend.state.unavailable = true;
+    expect(() => requireSupportedCredentialStore("auto", env)).toThrow("securely read");
+    expect(() => writeCredential(fixture, env, "auto")).toThrow("securely read");
   });
 
   it("cleans up the previous backend when explicitly switching storage", () => {

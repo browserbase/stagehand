@@ -8,7 +8,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeKeyring } from "./helpers/keyring.js";
 import Login from "../src/commands/login.js";
 import { login } from "../src/lib/auth/login.js";
-import { productionApiOrigin, readCredential, writeCredential } from "../src/lib/auth/store.js";
+import {
+  credentialPath,
+  productionApiOrigin,
+  readCredential,
+  savedCredentialStore,
+  writeCredential,
+} from "../src/lib/auth/store.js";
 
 vi.mock("../src/lib/auth/login.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/lib/auth/login.js")>()),
@@ -24,7 +30,31 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-describe.skipIf(process.platform === "win32")("login cancellation", () => {
+describe.skipIf(process.platform === "win32")("login command", () => {
+  it("defaults to automatic file fallback and reports plaintext storage without exposing the key", async () => {
+    const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-fallback-test-")));
+    directories.push(directory);
+    vi.stubEnv("BROWSERBASE_CONFIG_DIR", directory);
+    fakeKeyring().state.unavailable = true;
+    const credential = {
+      apiKey: "synthetic-new-key",
+      projectId: "00000000-0000-4000-8000-000000000001",
+      apiOrigin: productionApiOrigin,
+    };
+    vi.mocked(login).mockResolvedValue({ ...credential });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: credential.projectId })));
+    const config = await Config.load(fileURLToPath(new URL("..", import.meta.url)));
+    const command = new Login([], config);
+    const log = vi.spyOn(command, "log").mockImplementation(() => {});
+    await command.run();
+    expect(savedCredentialStore()).toBe("file");
+    expect(readCredential()).toEqual(credential);
+    const output = log.mock.calls.flat().join("\n");
+    expect(output).toContain(`API key saved as plaintext in a private file: ${credentialPath()}`);
+    expect(output).toContain("Signed in.");
+    expect(output).not.toContain(credential.apiKey);
+  });
+
   it("preserves the previous login when SIGINT arrives during project verification", async () => {
     const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-cancel-test-")));
     directories.push(directory);
