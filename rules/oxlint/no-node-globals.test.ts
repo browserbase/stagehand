@@ -33,6 +33,16 @@ it("rejects Node globals in browser production code while allowing local names a
       ],
       ['globalThis.Buffer.from("hello");', "Buffer"],
       ['globalThis["Buffer"].from("hello");', "Buffer"],
+      ["const { Buffer } = globalThis;", "Buffer"],
+      [
+        'const { Buffer: Encoder, ["process"]: proc, "require": load } = globalThis;',
+        "Buffer",
+        "process",
+        "require",
+      ],
+      ["let Encoder; ({ Buffer: Encoder } = globalThis);", "Buffer"],
+      ["function example({ Buffer } = globalThis) {}", "Buffer"],
+      ['module.exports = require("node:fs"); exports.value = 1;', "module", "require", "exports"],
       ["let timeout: NodeJS.Timeout;", "NodeJS"],
       ["global.process;", "global"],
       ["clearImmediate(setImmediate(() => {}));", "clearImmediate", "setImmediate"],
@@ -40,10 +50,18 @@ it("rejects Node globals in browser production code while allowing local names a
     const allowed = `
       const model = { process: () => {}, Buffer: 1 };
       model.process(); model["Buffer"];
+      const { Buffer: modelBuffer } = model;
       const Buffer = "local";
       const values = { Buffer };
       function example(process: string, globalThis: { Buffer: number }) {
-        return [process, globalThis.Buffer, globalThis["Buffer"]];
+        const { Buffer: Encoder } = globalThis;
+        let assigned;
+        ({ Buffer: assigned } = globalThis);
+        return [process, globalThis.Buffer, globalThis["Buffer"], Encoder, assigned];
+      }
+      function localModules(require: (id: string) => object, module: { exports: object }, exports: object) {
+        module.exports = require("local");
+        return exports;
       }
       namespace NodeJS { export type Timeout = number; }
       let timeout: NodeJS.Timeout;
