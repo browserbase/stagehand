@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
+import { fail } from "../../errors.js";
+
 export const PRIVATE_DIR_MODE = 0o700;
 export const PRIVATE_FILE_MODE = 0o600;
 
@@ -25,8 +27,34 @@ export async function ensureRuntimeDir(): Promise<string> {
 }
 
 export async function ensurePrivateDir(dir: string): Promise<void> {
-  await fs.mkdir(dir, { mode: PRIVATE_DIR_MODE, recursive: true });
-  await chmodIfSupported(dir, PRIVATE_DIR_MODE);
+  // Normalize trailing separators so lstat inspects the directory entry itself,
+  // rather than following a symlink with a trailing slash.
+  const resolvedDir = path.resolve(dir);
+  try {
+    await fs.mkdir(resolvedDir, { mode: PRIVATE_DIR_MODE, recursive: true });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EEXIST" && code !== "ENOENT") throw error;
+    // mkdir can report ENOENT for a dangling symlink. Inspect the entry below;
+    // if it really is missing, lstat will fail without changing anything.
+  }
+
+  const entry = await fs.lstat(resolvedDir);
+  if (!entry.isDirectory()) {
+    fail(`Refusing to use ${dir}: it must be a directory, not a symlink or other file.`, 1, {
+      resultCode: "daemon_dir_invalid",
+    });
+  }
+  // chmod is not an ownership check: root can chmod another user's directory
+  // without taking ownership, leaving that user in control of its contents.
+  if (typeof process.getuid === "function" && entry.uid !== process.getuid()) {
+    fail(
+      `Refusing to use ${dir}: it is owned by another user. Set BROWSE_DAEMON_DIR to a directory you own.`,
+      1,
+      { resultCode: "daemon_dir_not_owned" },
+    );
+  }
+  await chmodIfSupported(resolvedDir, PRIVATE_DIR_MODE);
 }
 
 export async function writePrivateFile(file: string, contents: string): Promise<void> {

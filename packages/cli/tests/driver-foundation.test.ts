@@ -11,6 +11,7 @@ import { itPosix } from "./helpers/platform.js";
 
 import { resolveConnectionTarget, targetsCompatible } from "../src/lib/driver/mode.js";
 import {
+  ensurePrivateDir,
   ensureRuntimeDir,
   getLockPath,
   getPidPath,
@@ -409,6 +410,111 @@ describe("driver foundation", () => {
       }
     },
   );
+
+  itPosix("makes an existing owned directory private without changing its contents", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "browse-driver-owned-"));
+    cleanupPaths.push(dir);
+    await fs.chmod(dir, 0o755);
+    await writeFile(join(dir, "keep"), "existing contents");
+    const before = await fs.lstat(dir);
+
+    await ensurePrivateDir(dir);
+
+    expect(await fileMode(dir)).toBe(0o700);
+    expect(await fs.lstat(dir)).toMatchObject({ ino: before.ino, uid: before.uid });
+    expect(await fs.readFile(join(dir, "keep"), "utf8")).toBe("existing contents");
+  });
+
+  itPosix.each(["unprivileged", "root"])(
+    "rejects a foreign runtime directory before chmod for a %s caller",
+    async (caller) => {
+      const dir = await mkdtemp(join(tmpdir(), "browse-driver-foreign-"));
+      cleanupPaths.push(dir);
+      await fs.chmod(dir, 0o755);
+      await writeFile(join(dir, "keep"), "existing contents");
+      const before = await fs.lstat(dir);
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = dir;
+      const uidSpy = vi
+        .spyOn(process, "getuid")
+        .mockReturnValue(caller === "root" ? 0 : before.uid + 1);
+      // When the tests themselves run as root, simulate a foreign owner too.
+      const ownerSpy =
+        caller === "root" && before.uid === 0
+          ? vi.spyOn(fs, "lstat").mockResolvedValue(Object.assign(before, { uid: 1 }))
+          : undefined;
+
+      try {
+        await expect(ensureRuntimeDir()).rejects.toMatchObject({
+          exitCode: 1,
+          message: expect.stringContaining("owned by another user"),
+          telemetry: { resultCode: "daemon_dir_not_owned" },
+        });
+        expect(await fileMode(dir)).toBe(0o755);
+        expect(await fs.readFile(join(dir, "keep"), "utf8")).toBe("existing contents");
+      } finally {
+        ownerSpy?.mockRestore();
+        uidSpy.mockRestore();
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      }
+    },
+  );
+
+  itPosix.each(["", "/"])(
+    "rejects a directory symlink with suffix %j without changing its target",
+    async (suffix) => {
+      const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-symlink-"));
+      cleanupPaths.push(parentDir);
+      const target = join(parentDir, "target");
+      const link = join(parentDir, "runtime");
+      await fs.mkdir(target);
+      await fs.chmod(target, 0o755);
+      await writeFile(join(target, "keep"), "existing contents");
+      await fs.symlink(target, link);
+
+      await expect(ensurePrivateDir(link + suffix)).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+
+      expect(await fileMode(target)).toBe(0o755);
+      expect(await fs.readlink(link)).toBe(target);
+      expect(await fs.readFile(join(target, "keep"), "utf8")).toBe("existing contents");
+    },
+  );
+
+  itPosix("rejects a dangling symlink without creating its target", async () => {
+    const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-dangling-"));
+    cleanupPaths.push(parentDir);
+    const target = join(parentDir, "missing");
+    const link = join(parentDir, "runtime");
+    await fs.symlink(target, link);
+
+    await expect(ensurePrivateDir(link)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_invalid" },
+    });
+
+    expect(await fs.readlink(link)).toBe(target);
+    await expect(fs.lstat(target)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a regular file without changing it", async () => {
+    const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-file-"));
+    cleanupPaths.push(parentDir);
+    const file = join(parentDir, "runtime");
+    await writeFile(file, "existing contents", { mode: 0o644 });
+    const before = await fs.lstat(file);
+
+    await expect(ensurePrivateDir(file)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_invalid" },
+    });
+
+    expect(await fs.lstat(file)).toMatchObject({
+      ino: before.ino,
+      mode: before.mode,
+      uid: before.uid,
+    });
+    expect(await fs.readFile(file, "utf8")).toBe("existing contents");
+  });
 
   it("exposes descriptive help for top-level driver commands", async () => {
     for (const command of ["open", "status", "stop"]) {
