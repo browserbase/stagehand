@@ -42,9 +42,7 @@ export default class ExtensionsUpload extends BrowseCommand {
       fail("Cannot specify both --stagehand and a file path.");
     }
     if (!flags.stagehand && !args.file) {
-      fail(
-        "Provide a file path or use --stagehand to upload the Stagehand extension.",
-      );
+      fail("Provide a file path or use --stagehand to upload the Stagehand extension.");
     }
 
     await withBrowserbaseApi("extensions", async () => {

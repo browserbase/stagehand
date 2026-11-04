@@ -78,49 +78,28 @@ describe("function secret detach HTTP contract", () => {
     );
   });
 
-  it.each([400, 403, 404])(
-    "reports HTTP %s without retrying",
-    async (status) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, status, { message: "Attachment rejected" }),
-      );
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "detach",
-          functionId,
-          secretId,
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stderr).toContain("Attachment rejected");
-      expect(server.requests).toHaveLength(1);
-    },
-  );
+  it.each([400, 403, 404])("reports HTTP %s without retrying", async (status) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, status, { message: "Attachment rejected" }),
+    );
+    const result = await runCli(
+      ["functions", "secrets", "detach", functionId, secretId, "--base-url", server.baseUrl],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Attachment rejected");
+    expect(server.requests).toHaveLength(1);
+  });
 
-  it.each([{ ids: [] }, { ids: [functionId] }])(
-    "requires both IDs: $ids",
-    async ({ ids }) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "detach",
-          ...ids,
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(server.requests).toHaveLength(0);
-    },
-  );
+  it.each([{ ids: [] }, { ids: [functionId] }])("requires both IDs: $ids", async ({ ids }) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(
+      ["functions", "secrets", "detach", ...ids, "--base-url", server.baseUrl],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
 });

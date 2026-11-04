@@ -71,3 +71,20 @@ merge an older combined release PR during the transition.
 The CLI job stays in `release.yml` so it uses the same npm trusted-publisher
 workflow identity as the existing release process. GitHub Actions OIDC and npm
 publication permissions must still be verified on the first production release.
+
+## Python distribution installs
+
+`publish-python.yml` uses `just _install-python-release` for stable and alpha builds.
+It installs root release tooling plus the extension, protocol, and TypeScript SDK
+pnpm dependencies, and syncs only the Python `stagehand` environment. The SDK TS
+dependencies are required by the extension's current direct source imports.
+
+The build job disables pnpm's automatic dependency installation before `run`/`exec`
+so alpha manifest changes cannot trigger a full-workspace reinstall. For local
+reproduction in a disposable checkout, set `pnpm_config_verify_deps_before_run=false`
+for subsequent pnpm commands too. Root `just install` remains comprehensive.
+
+Both installs use locked dependencies. Alpha preparation still deliberately updates
+the shared lockfile after changing versions; filtered installation does not isolate
+workspace-wide dependency resolution. Existing wheel and source-distribution smoke
+checks and publication steps are unchanged.

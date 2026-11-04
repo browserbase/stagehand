@@ -1,10 +1,6 @@
 import { Args, Flags } from "@oclif/core";
 
-import {
-  createBrowserbaseClient,
-  outputJson,
-  withBrowserbaseApi,
-} from "../../../lib/cloud/api.js";
+import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { reduceLogs } from "../../../lib/cloud/reduce-logs.js";
 import { BrowseCommand } from "../../../base.js";
@@ -29,8 +25,7 @@ export default class SessionsLogs extends BrowseCommand {
       default: false,
     }),
     "failed-requests": Flags.boolean({
-      description:
-        "With --only-errors, narrow to failed / error-status network requests only.",
+      description: "With --only-errors, narrow to failed / error-status network requests only.",
       default: false,
       dependsOn: ["only-errors"],
     }),
@@ -42,9 +37,7 @@ export default class SessionsLogs extends BrowseCommand {
       const client = createBrowserbaseClient(toApiOptions(flags));
       const raw = await client.sessions.logs.list(args.id);
       if (flags["only-errors"]) {
-        const arr = Array.isArray(raw)
-          ? raw
-          : ((raw as { data?: unknown[] })?.data ?? []);
+        const arr = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
         outputJson(
           reduceLogs(arr as never[], {
             failedRequests: flags["failed-requests"],

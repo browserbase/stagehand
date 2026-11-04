@@ -6,5 +6,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
+  "include": ["oxlint.config.ts", "rules/**/*.ts", "scripts/release/**/*.ts"]
 }
