@@ -91,4 +91,29 @@ describe("NetworkManager.waitForIdle", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(settled).toBe(true);
   });
+
+  it("drops requests of a document that its frame navigated away from", async () => {
+    vi.useFakeTimers();
+    const manager = new NetworkManager();
+    const { session, emit } = createSession();
+    manager.trackSession(session);
+    emit("Network.requestWillBeSent", {
+      requestId: "xhr-1",
+      loaderId: "loader-1",
+      frameId: "main",
+      type: "XHR",
+      request: { url: "https://example.com/api" },
+    });
+
+    let settled = false;
+    const handle = manager.waitForIdle({ startTime: 0, timeout: 10_000, idleTimeMs: 500 });
+    void handle.promise.then(() => {
+      settled = true;
+    });
+
+    emit("Page.frameNavigated", { frame: { id: "main", loaderId: "loader-2" } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(settled).toBe(true);
+    expect(manager.requests.size).toBe(0);
+  });
 });
