@@ -399,7 +399,7 @@ async def test_tools_removed_delivers_identities_without_wrappers() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed"])
+@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed", "on_response"])
 async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
     recording = RecordingRPCClient({
         "page.on": RuntimeError("registration failed"),
@@ -412,7 +412,7 @@ async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed"])
+@pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed", "on_response"])
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 @pytest.mark.parametrize("failure_kind", ["cancellation", "timeout", "remote_error"])
 async def test_unsuccessful_registration_unsubscribes_remotely(
@@ -996,3 +996,44 @@ async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -
     with pytest.raises(ValidationError):
         await page.snapshot(timeout=timeout)
     assert not recording.calls
+
+
+@pytest.mark.asyncio
+async def test_on_response_delivers_response_objects_and_filters_subscription_ids() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": {"ok": True},
+        "response.body": {"body": "eyJvayI6dHJ1ZX0=", "base64_encoded": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[Response] = []
+    subscription = await page.on_response(received.append)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    assert params.event.value == "response"
+    _, raw_listener = recording.notifications["page.event"]
+    listener = cast(Callable[[PageEventNotification], Awaitable[None]], raw_listener)
+    payload = {
+        "event": "response",
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "response": {
+            "response_id": "response-1",
+            "url": "https://example.test/api",
+            "status": 200,
+            "status_text": "OK",
+            "headers": {},
+            "from_service_worker": False,
+        },
+    }
+    await listener(PageEventNotification.model_validate({**payload, "subscription_id": "other"}))
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert len(received) == 1
+    assert isinstance(received[0], Response)
+    assert received[0].status == 200
+    assert await received[0].json() == {"ok": True}
+    await subscription.unsubscribe()
+    assert "page.event" not in recording.notifications
