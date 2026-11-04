@@ -87,15 +87,12 @@ export function formatTable<Row>(
     ),
   );
 
-  const widths = columns.map((column, index) => {
-    const maxContentWidth = Math.max(
-      column.header.length,
-      ...renderedRows.map((row) => row[index]?.length ?? 0),
-    );
-    return options.wide || !column.maxWidth
-      ? maxContentWidth
-      : Math.min(maxContentWidth, column.maxWidth);
-  });
+  // Widths come from the rendered cells and the header. `maxWidth` is applied while
+  // rendering a cell, so capping the column again here would emit a header wider than
+  // the divider and the rows whenever a header is longer than its column's cap.
+  const widths = columns.map((column, index) =>
+    Math.max(column.header.length, ...renderedRows.map((row) => row[index]?.length ?? 0)),
+  );
 
   const lines = [
     columns
