@@ -55,17 +55,19 @@ export function savedCredentialStore(
 }
 
 export function requireSupportedCredentialStore(
-  kind: CredentialStore = "keychain",
+  kind: CredentialStore | "auto" = "keychain",
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   if (kind === "file") {
     requireFileCredentialStore();
     return;
   }
+  const previousStore = savedCredentialStore(env);
   try {
     entry("availability-check", env).getPassword();
   } catch {
-    fail(keychainUnavailable);
+    if (kind !== "auto" || previousStore === "keychain") fail(keychainUnavailable);
+    requireFileCredentialStore();
   }
 }
 
@@ -97,8 +99,8 @@ export function readCredential(env: NodeJS.ProcessEnv = process.env): SavedCrede
 export function writeCredential(
   credential: SavedCredential,
   env: NodeJS.ProcessEnv = process.env,
-  kind: CredentialStore = "keychain",
-): void {
+  kind: CredentialStore | "auto" = "keychain",
+): CredentialStore {
   if (kind === "file") requireFileCredentialStore();
   return withCredentialLock(env, () => updateCredential(credential, env, kind));
 }
@@ -106,29 +108,38 @@ export function writeCredential(
 function updateCredential(
   credential: SavedCredential,
   env: NodeJS.ProcessEnv,
-  kind: CredentialStore,
-): void {
+  kind: CredentialStore | "auto",
+): CredentialStore {
   const checked = validateCredential(credential);
   const previous = readPrivateRecord(env);
   if (previous && previous.store !== "keychain" && previous.store !== "file")
     fail("Invalid credential storage selection. Run browse login again.");
+  let store: CredentialStore = kind === "file" ? "file" : "keychain";
   const existingAccount =
-    kind === "keychain" && previous?.store === "keychain" ? accountFor(previous) : undefined;
+    store === "keychain" && previous?.store === "keychain" ? accountFor(previous) : undefined;
   const account = existingAccount ?? randomUUID();
   let nextEntry: Entry | undefined;
-  if (kind === "keychain") {
+  if (store === "keychain") {
     try {
       nextEntry = entry(account, env);
       nextEntry.setPassword(JSON.stringify(checked));
     } catch {
-      fail(keychainUnavailable);
+      if (kind !== "auto" || previous?.store === "keychain") fail(keychainUnavailable);
+      try {
+        nextEntry?.deleteCredential();
+      } catch {
+        /* A failed native write may also prevent cleanup. */
+      }
+      nextEntry = undefined;
+      requireFileCredentialStore();
+      store = "file";
     }
   }
   // Reuse the existing OS entry; its reference does not change on later logins.
-  if (existingAccount) return;
+  if (existingAccount) return "keychain";
   try {
     writePrivateRecord(
-      kind === "file"
+      store === "file"
         ? { version: 1, store: "file", ...checked }
         : { version: 1, store: "keychain", account },
       env,
@@ -147,10 +158,9 @@ function updateCredential(
     } catch {
       /* The OS may have become locked during cleanup. */
     }
-    fail(
-      "Could not update saved login. Check your credential store and retry; no automatic plaintext fallback was used.",
-    );
+    fail("Could not update saved login. Check your credential store and retry.");
   }
+  return store;
 }
 
 export function removeCredential(env: NodeJS.ProcessEnv = process.env): boolean {
