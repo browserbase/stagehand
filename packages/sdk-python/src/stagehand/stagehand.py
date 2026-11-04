@@ -379,7 +379,11 @@ class Stagehand:
             )
             if value is not None
         })
-        params = StagehandObserveParams(page_id=target_page.page_id, instruction=instruction)
+        # The worker schema accepts an omitted instruction, not null. exclude_unset
+        # still emits a field that was explicitly set to None.
+        params = StagehandObserveParams(page_id=target_page.page_id)
+        if instruction is not None:
+            params.instruction = instruction
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
