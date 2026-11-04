@@ -5,7 +5,7 @@ export function fakeKeyring() {
   const require = createRequire(import.meta.url);
   const library = require("@napi-rs/keyring");
   const secrets = new Map<string, string>();
-  const state = { unavailable: false, rejectDelete: false, failNextDelete: false };
+  const state = { unavailable: false, rejectDelete: false, rejectWrite: false };
   const constructor = vi.spyOn(library, "Entry").mockImplementation(function (
     service: string,
     account: string,
@@ -17,14 +17,11 @@ export function fakeKeyring() {
     return {
       getPassword: () => secrets.get(account) ?? null,
       setPassword: (value: string) => {
+        if (state.rejectWrite) throw new Error("locked");
         secrets.set(account, value);
       },
       deleteCredential: () => {
         if (state.rejectDelete) throw new Error("locked");
-        if (state.failNextDelete) {
-          state.failNextDelete = false;
-          throw new Error("locked once");
-        }
         return secrets.delete(account);
       },
     };

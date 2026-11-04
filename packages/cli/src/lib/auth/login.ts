@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as oauth from "openid-client";
@@ -17,10 +16,6 @@ export interface LoginProject {
   name: string;
   organizationName: string;
 }
-const equal = (a: string | null, b: string): boolean =>
-  typeof a === "string" &&
-  Buffer.byteLength(a) === Buffer.byteLength(b) &&
-  timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 export function loginProvider(
   dashboard?: string,
@@ -210,10 +205,7 @@ async function authorize({
     )
       return reject(403);
     if (accepted) return reject(409);
-    if (
-      url.searchParams.getAll("state").length !== 1 ||
-      !equal(url.searchParams.get("state"), state)
-    )
+    if (url.searchParams.getAll("state").length !== 1 || url.searchParams.get("state") !== state)
       return reject(400);
     const codes = url.searchParams.getAll("code");
     const errors = url.searchParams.getAll("error");

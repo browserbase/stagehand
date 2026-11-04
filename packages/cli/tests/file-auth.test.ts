@@ -19,6 +19,7 @@ import {
   savedCredentialStore,
   writeCredential,
 } from "../src/lib/auth/store.js";
+import * as metadata from "../src/lib/auth/file-store.js";
 import { fakeKeyring } from "./helpers/keyring.js";
 import { runCli } from "./helpers/run-cli.js";
 
@@ -66,6 +67,39 @@ describe.skipIf(process.platform === "win32")("explicit plaintext credential sto
     expect(savedCredentialStore(env)).toBe("keychain");
     expect(readFileSync(credentialPath(env), "utf8")).not.toContain(fixture.apiKey);
     expect(readCredential(env)).toEqual(fixture);
+  });
+
+  it("keeps the keychain login when switching to a file cannot remove its OS entry", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    writeCredential(fixture, env);
+    const originalReference = readFileSync(credentialPath(env), "utf8");
+    backend.state.rejectDelete = true;
+    expect(() => writeCredential(fixture, env, "file")).toThrow("Could not update saved login");
+    expect(readFileSync(credentialPath(env), "utf8")).toBe(originalReference);
+    expect(readCredential(env)).toEqual(fixture);
+    expect(backend.secrets.size).toBe(1);
+    backend.state.rejectDelete = false;
+    writeCredential(fixture, env, "file");
+    expect(savedCredentialStore(env)).toBe("file");
+    expect(backend.secrets.size).toBe(0);
+  });
+
+  it("keeps the file login and removes a new OS entry when switching cannot save its reference", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    writeCredential(fixture, env, "file");
+    const originalRecord = readFileSync(credentialPath(env), "utf8");
+    vi.spyOn(metadata, "writePrivateRecord").mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    expect(() => writeCredential(fixture, env)).toThrow("Could not update saved login");
+    expect(readFileSync(credentialPath(env), "utf8")).toBe(originalRecord);
+    expect(readCredential(env)).toEqual(fixture);
+    expect(backend.secrets.size).toBe(0);
+    writeCredential(fixture, env);
+    expect(savedCredentialStore(env)).toBe("keychain");
+    expect(backend.secrets.size).toBe(1);
   });
 
   it("resolves a persisted login in a fresh CLI process and logout leaves env credentials active", async () => {

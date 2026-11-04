@@ -110,7 +110,11 @@ function updateCredential(
 ): void {
   const checked = validateCredential(credential);
   const previous = readPrivateRecord(env);
-  const account = randomUUID();
+  if (previous && previous.store !== "keychain" && previous.store !== "file")
+    fail("Invalid credential storage selection. Run browse login again.");
+  const existingAccount =
+    kind === "keychain" && previous?.store === "keychain" ? accountFor(previous) : undefined;
+  const account = existingAccount ?? randomUUID();
   let nextEntry: Entry | undefined;
   if (kind === "file") requireFileCredentialStore();
   else {
@@ -121,6 +125,8 @@ function updateCredential(
       fail(keychainUnavailable);
     }
   }
+  // Reuse the existing OS entry; its reference does not change on later logins.
+  if (existingAccount) return;
   try {
     writePrivateRecord(
       kind === "file"
@@ -130,7 +136,7 @@ function updateCredential(
     );
     if (previous?.store === "keychain") entry(accountFor(previous), env).deleteCredential();
   } catch {
-    // Keep the previous login usable when a write or old-entry removal fails.
+    // Keep the previous login usable when switching storage fails.
     try {
       if (previous) writePrivateRecord(previous, env);
       else removePrivateRecord(env);

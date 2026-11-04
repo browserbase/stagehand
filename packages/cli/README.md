@@ -43,58 +43,6 @@ browse screenshot --path page.png
 browse stop
 ```
 
-## Browserbase login
-
-Run `browse login` on the same computer as your browser. Sign in to Browserbase and
-authorize access to API keys for projects you are permitted to access. Then choose one
-project in your terminal. Subsequent commands use only that project's API key:
-
-```bash
-browse login
-browse auth status
-browse cloud projects list
-browse open https://example.com --remote
-browse logout
-```
-
-`browse login --no-browser` prints a link instead of opening the browser automatically.
-Authorization still needs a browser on the same computer; this is not browserless login.
-Use `--project-id ID` to
-select a project without a prompt; it is required without an interactive terminal
-when more than one project is available. The temporary OAuth tokens stay in memory
-and are discarded after login. Any returned refresh grant is revoked before the
-selected project's API key is saved. By default, the key is stored in your OS credential store: macOS Keychain, Windows Credential Manager, or
-Linux Secret Service. Linux requires a running, unlocked Secret Service (such as
-GNOME Keyring or KWallet); login fails if it is unavailable. It never silently falls
-back to plaintext or a temporary kernel keyring.
-
-Only a storage reference is written to `~/.config/browserbase/auth/credential.json`.
-`XDG_CONFIG_HOME` and `BROWSERBASE_CONFIG_DIR` override that directory and isolate
-saved logins. On a headless machine, use `BROWSERBASE_API_KEY` supplied by your secret
-manager. If you deliberately want file storage on macOS or Linux, use
-`browse login --credential-store=file`: this saves the API key **as plaintext** in a
-private directory (0700) and file (0600). File storage is not supported on Windows.
-Processes running as your user can use your credentials, including credentials in
-an unlocked OS store; the keystore mainly improves protection at rest.
-
-Explicit `--api-key` values take precedence over `BROWSERBASE_API_KEY`, which takes
-precedence over the saved login. Saved credentials are restricted to their API origin
-and selected project; a different `--base-url` requires an explicitly supplied key.
-`browse auth status` shows local configuration without printing a key or checking the
-server. `browse logout` removes the local credential; it does not revoke the shared
-project API key, sign out your browser, or close existing browser sessions. Rotate or
-revoke the key in the dashboard when you need to invalidate it everywhere. Existing
-browser sessions keep their original credentials: run `browse stop` (or
-`browse stop --session NAME`) before switching projects.
-
-For development testing, `browse login --development` uses the development dashboard
-and API. An explicitly forwarded dashboard can be selected with
-`--development --dashboard http://localhost:3000`. A development login replaces the
-active saved login and remains bound to the development API. Development saved logins
-support cloud API commands only; remote browser automation also requires the
-Stagehand service and is currently limited to production logins. Use `--local` for
-local browser automation. Run `browse login` again to switch back to production.
-
 ## How it works
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
