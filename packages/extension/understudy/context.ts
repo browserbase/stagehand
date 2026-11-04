@@ -24,6 +24,7 @@ import {
 import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
+import type { DomainPolicyRuleSession } from "./domainPolicyDnr.js";
 import type { ChromeTabTargetController } from "./chromeTabs.js";
 import { CLIENT_TARGET_URL } from "../clientLifecycle.js";
 
@@ -94,6 +95,7 @@ export class BrowserContext {
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
+    private readonly domainPolicyRules?: DomainPolicyRuleSession,
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
@@ -126,6 +128,9 @@ export class BrowserContext {
   readonly initScripts: string[] = [];
   extraHttpHeaders: Record<string, string> | null = null;
   domainPolicy: NormalizedDomainPolicy | null = null;
+  private domainPolicyTail: Promise<void> = Promise.resolve();
+  private closing = false;
+  private closePromise?: Promise<void>;
   _clipboard?: ContextClipboard;
 
   get connected(): boolean {
@@ -169,6 +174,7 @@ export class BrowserContext {
       blankPageUrl: string;
       fallbackLocatorScriptSource: string;
       chromeTabs: ChromeTabTargetController;
+      domainPolicyRules?: DomainPolicyRuleSession;
       logger: StagehandLogger;
       bootstrapLogger?: StagehandLogger;
     },
@@ -183,6 +189,7 @@ export class BrowserContext {
         opts?.localBrowserLaunchOptions ?? null,
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
+        opts.domainPolicyRules,
       );
       const bootstrap = async () => {
         await ctx.bootstrap();
@@ -190,14 +197,26 @@ export class BrowserContext {
           await ctx.newPage();
         }
       };
-      if (opts.bootstrapLogger) {
-        await conn.runWithTelemetryContext(
-          Symbol("browser.bootstrap"),
-          opts.bootstrapLogger,
-          bootstrap,
-        );
-      } else {
-        await bootstrap();
+      try {
+        if (opts.bootstrapLogger) {
+          await conn.runWithTelemetryContext(
+            Symbol("browser.bootstrap"),
+            opts.bootstrapLogger,
+            bootstrap,
+          );
+        } else {
+          await bootstrap();
+        }
+      } catch (error) {
+        try {
+          await ctx.close();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Browser context initialization and cleanup failed",
+          );
+        }
+        throw error;
       }
       return ctx;
     };
@@ -347,8 +366,48 @@ export class BrowserContext {
 
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     const nextPolicy = normalizeDomainPolicy(policy);
-    this.domainPolicy = nextPolicy;
+    if (this.closing) throw new Error("Browser context is closing");
+    const rules = this.domainPolicyRules;
+    if (!rules) throw new Error("Domain policy DNR enforcement is unavailable");
 
+    const update = this.domainPolicyTail.then(async () => {
+      if (this.closing) throw new Error("Browser context is closing");
+      const previousPolicy = this.domainPolicy;
+      // Do not publish the new policy until Chrome has validated and installed it.
+      await rules.replace(nextPolicy);
+      this.domainPolicy = nextPolicy;
+      try {
+        await this.applyDomainPolicyToSessions(nextPolicy);
+      } catch (error) {
+        const rollbackErrors: unknown[] = [];
+        try {
+          await rules.replace(previousPolicy);
+          this.domainPolicy = previousPolicy;
+        } catch (rollbackError) {
+          // The getter must continue to describe the DNR policy actually installed.
+          rollbackErrors.push(rollbackError);
+        }
+        try {
+          await this.applyDomainPolicyToSessions(this.domainPolicy);
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+        if (rollbackErrors.length) {
+          throw new AggregateError(
+            [error, ...rollbackErrors],
+            "Domain policy update failed and could not be fully rolled back",
+          );
+        }
+        throw error;
+      }
+    });
+    this.domainPolicyTail = update.catch(() => undefined);
+    await update;
+  }
+
+  private async applyDomainPolicyToSessions(
+    nextPolicy: NormalizedDomainPolicy | null,
+  ): Promise<void> {
     const sessions: CDPSessionLike[] = [];
     for (const sessionId of this._sessionInit) {
       const session = this.conn.getSession(sessionId);
@@ -569,23 +628,45 @@ export class BrowserContext {
   /**
    * Close CDP and clear all mappings. Best-effort cleanup.
    */
-  async close(): Promise<void> {
-    await this.conn.close();
-    this.pagesByTarget.clear();
-    this.mainFrameToTarget.clear();
-    this.sessionOwnerPage.clear();
-    this.frameOwnerPage.clear();
-    this.pendingOopifByMainFrame.clear();
-    this.pendingOopifParentByMainFrame.clear();
-    this.adoptedOopifSessionByFrame.clear();
-    this.createdAtByTarget.clear();
-    this.typeByTarget.clear();
-    this.pendingCreatedTargetUrl.clear();
-    this.pageCreationFailures.clear();
-    this.pendingInitialTopLevelTargets.clear();
-    this.pendingNewPageTargets.clear();
-    this.domainPolicyClosingTargets.clear();
-    this.domainPolicyClosePromises.clear();
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    const closing = Promise.resolve().then(async () => {
+      try {
+        // Disconnect first so outstanding Fetch calls cannot hold cleanup open.
+        await this.conn.close();
+      } finally {
+        await this.domainPolicyTail;
+        try {
+          await this.domainPolicyRules?.close();
+          this.domainPolicy = null;
+        } finally {
+          this.pagesByTarget.clear();
+          this.mainFrameToTarget.clear();
+          this.sessionOwnerPage.clear();
+          this.frameOwnerPage.clear();
+          this.pendingOopifByMainFrame.clear();
+          this.pendingOopifParentByMainFrame.clear();
+          this.adoptedOopifSessionByFrame.clear();
+          this.createdAtByTarget.clear();
+          this.typeByTarget.clear();
+          this.pendingCreatedTargetUrl.clear();
+          this.pageCreationFailures.clear();
+          this.pendingInitialTopLevelTargets.clear();
+          this.pendingNewPageTargets.clear();
+          this.domainPolicyClosingTargets.clear();
+          this.domainPolicyClosePromises.clear();
+          this._sessionInit.clear();
+          this._domainPolicySessionListeners.clear();
+        }
+      }
+    });
+    this.closePromise = closing.catch((error) => {
+      // Keep cleanup retryable if Chrome rejects removal of the session rules.
+      this.closePromise = undefined;
+      throw error;
+    });
+    return this.closePromise;
   }
 
   /**

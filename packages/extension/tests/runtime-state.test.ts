@@ -477,3 +477,52 @@ describe("runtime browser connection", () => {
     expect(runtime.browserSession).toBeUndefined();
   });
 });
+
+describe("runtime domain policy disposal", () => {
+  it("clears policy before allowing reuse of the retained browser session", async () => {
+    const gate = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
+    const setDomainPolicy = vi.fn(async () => {
+      started.resolve();
+      await gate.promise;
+    });
+    const close = vi.fn();
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () =>
+        createBrowserSession({
+          getDomainPolicy: () => ({ blockedDomains: ["blocked.test"] }),
+          setDomainPolicy,
+          close,
+        }),
+    });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    const disposing = runtime.disposeStagehandInstance();
+    await started.promise;
+    const initializing = runtime.initialize(runtimeIdentity);
+    expect(runtime.state.getState().status).toBe("initialized");
+    expect(setDomainPolicy).toHaveBeenCalledWith(null);
+    gate.resolve();
+    await disposing;
+    await initializing;
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("reports policy cleanup failure without pretending disposal completed, and permits retry", async () => {
+    const setDomainPolicy = vi
+      .fn(async () => {})
+      .mockRejectedValueOnce(new Error("cleanup failed"));
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () =>
+        createBrowserSession({
+          getDomainPolicy: () => ({ blockedDomains: ["blocked.test"] }),
+          setDomainPolicy,
+        }),
+    });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    await expect(runtime.disposeStagehandInstance()).rejects.toThrow("cleanup failed");
+    expect(runtime.state.getState().status).toBe("initialized");
+    await runtime.disposeStagehandInstance();
+    expect(runtime.state.getState().status).toBe("idle");
+    expect(setDomainPolicy).toHaveBeenCalledTimes(2);
+  });
+});

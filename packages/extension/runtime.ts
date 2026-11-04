@@ -1056,6 +1056,9 @@ export class StagehandRuntime {
       // Pending registrations must release their request leases before disposal can drain them.
       this.disposeAllPageEventSubscriptions();
       await this.waitForStagehandInstanceRequests();
+      // The browser connection can outlive the instance, but its policy must not.
+      const session = this.browserSession;
+      if (session?.getDomainPolicy()) await session.setDomainPolicy(null);
       this.clearStagehandInstance();
     });
     this.stagehandInstanceDisposal = disposal.finally(() => {
