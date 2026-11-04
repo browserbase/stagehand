@@ -1,4 +1,4 @@
-import type { Protocol } from "devtools-protocol";
+import { Protocol } from "devtools-protocol";
 import type { Response } from "../../understudy/response.js";
 
 /** Metadata tracked for each network request currently in-flight. */
@@ -14,7 +14,7 @@ export type NetworkRequestInfo = {
   documentRequest: boolean;
 };
 
-/** Consumers implement only the network transitions they need. */
+/** Callback hooks consumers can implement to observe network transitions. */
 export interface NetworkObserver {
   onRequestStarted?(info: NetworkRequestInfo): void;
   onRequestFinished?(info: NetworkRequestInfo): void;
