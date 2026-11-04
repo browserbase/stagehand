@@ -23,14 +23,13 @@ const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
 
 describe("act inference", () => {
   it("runs one structured action call through the shared generator", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const result = await inference.act({
@@ -70,14 +69,13 @@ describe("act inference", () => {
   });
 
   it("rejects malformed structured action output", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "12",
-          description: "Invalid element ID",
-          method: "click",
-          arguments: [],
-        }),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "12",
+        description: "Invalid element ID",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await expect(
@@ -100,14 +98,13 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/input/text()"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Email field",
-          method: "fill",
-          arguments: ["%accountEmail%"],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Email field",
+        method: "fill",
+        arguments: ["%accountEmail%"],
+      }),
     );
     const logger = testLogger();
 
@@ -170,18 +167,79 @@ describe("act service", () => {
     });
   });
 
+  it.each(["inferred", "supplied", "self-heal"] as const)(
+    "preserves literal drag targets with variables for %s actions",
+    async (route) => {
+      const frame = {};
+      const sourceXPath = "/html[1]/body[1]/button[1]";
+      const targetXPath = "/html[1]/body[1]/x-%token%-%password%[1]/button[1]";
+      const page = actPage(
+        frame,
+        vi.fn(async () => ({
+          combinedTree: "[0-12] button: Card\n[0-13] button: Drop zone",
+          combinedXpathMap: { "0-12": sourceXPath, "0-13": targetXPath },
+          combinedUrlMap: {},
+        })),
+      );
+      const action = {
+        selector: `xpath=${sourceXPath}`,
+        description: "Drag the card to the drop zone",
+        method: "dragAndDrop",
+        arguments: [`xpath=${targetXPath}`],
+      };
+      const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: action.description,
+          method: action.method,
+          arguments: ["0-13"],
+        }),
+      );
+      if (route === "self-heal") {
+        performAction.mockRejectedValueOnce(new Error("Element detached"));
+      }
+
+      const result = await actService.act({
+        params: {
+          pageId: "page-1",
+          instruction: route === "inferred" ? action.description : action,
+          options: {
+            variables: {
+              token: "sk-CANARY-token",
+              password: { value: "CANARY-password", description: "Account password" },
+            },
+          },
+        },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+        selfHeal: route === "self-heal",
+      });
+
+      expect(performAction).toHaveBeenCalledTimes(route === "self-heal" ? 2 : 1);
+      for (const call of performAction.mock.calls) {
+        expect(call[2]).toBe("dragAndDrop");
+        expect(call[3]).toBe(action.selector);
+        expect(call[4]).toStrictEqual(action.arguments);
+      }
+      expect(result.data).toMatchObject({ success: true, actions: [action] });
+      expect(JSON.stringify(result)).not.toContain("CANARY");
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(route === "supplied" ? 0 : 1);
+    },
+  );
+
   it("captures the requested locator scope and ignored locator subtrees", async () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await actService.act({
@@ -222,14 +280,13 @@ describe("act service", () => {
       };
     });
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Checkout button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Checkout button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     await actService.act({
@@ -299,14 +356,13 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async () => snapshot("0-20", "/html/body/button[2]"));
     const page = actPage(frame, captureSnapshot);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-20",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-20",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
     performAction.mockRejectedValueOnce(new Error("Element detached")).mockResolvedValueOnce();
 
@@ -528,14 +584,13 @@ describe("act service", () => {
       client: { get, set } as unknown as CacheClient,
       defaultCaching: true as const,
     };
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const miss = await actService.act({
@@ -588,14 +643,13 @@ describe("act service", () => {
     } as unknown as Page;
     const get = vi.fn();
     const set = vi.fn();
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Checkout button",
-          method: "click",
-          arguments: [],
-        }),
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
+      actGeneration({
+        elementId: "0-12",
+        description: "Checkout button",
+        method: "click",
+        arguments: [],
+      }),
     );
 
     const result = await actService.act({

@@ -25,8 +25,7 @@ export default class Wait extends BrowseCommand {
       required: true,
     }),
     arg: Args.string({
-      description:
-        "Load state, selector, or timeout milliseconds depending on wait type.",
+      description: "Load state, selector, or timeout milliseconds depending on wait type.",
       required: false,
     }),
   };

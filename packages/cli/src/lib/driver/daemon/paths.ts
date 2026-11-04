@@ -7,16 +7,11 @@ export const PRIVATE_DIR_MODE = 0o700;
 export const PRIVATE_FILE_MODE = 0o600;
 
 export function runtimeDir(): string {
-  return (
-    process.env.BROWSE_DAEMON_DIR ??
-    path.join(os.tmpdir(), defaultRuntimeDirName())
-  );
+  return process.env.BROWSE_DAEMON_DIR ?? path.join(os.tmpdir(), defaultRuntimeDirName());
 }
 
 export function sanitizeSessionName(session: string): string {
-  const sanitized = session
-    .replace(/[^A-Za-z0-9._-]/g, "-")
-    .replace(/^[.-]+|[.-]+$/g, "");
+  const sanitized = session.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[.-]+|[.-]+$/g, "");
   const base = sanitized || "default";
   if (base === session) return base;
   const hash = createHash("sha256").update(session).digest("hex").slice(0, 8);
@@ -34,10 +29,7 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
   await chmodIfSupported(dir, PRIVATE_DIR_MODE);
 }
 
-export async function writePrivateFile(
-  file: string,
-  contents: string,
-): Promise<void> {
+export async function writePrivateFile(file: string, contents: string): Promise<void> {
   await fs.writeFile(file, contents, { mode: PRIVATE_FILE_MODE });
   await chmodIfSupported(file, PRIVATE_FILE_MODE);
 }

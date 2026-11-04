@@ -125,7 +125,19 @@ export function normalizeDeepagentsModel(model: string): string {
 }
 
 export function buildDeepagentsRunnerArgs(runnerDir: string): string[] {
-  return ["run", "--project", runnerDir, "--locked", "python", path.join(runnerDir, "run_eval.py")];
+  // uv stops workspace discovery at the integration's intermediate pyproject.toml.
+  // Select the root explicitly for the bundled runner; custom runners retain
+  // their own project and environment.
+  const projectArgs =
+    path.resolve(runnerDir) === path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR)
+      ? [
+          "--project",
+          path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR, "../../../.."),
+          "--package",
+          "stagehand-deepagents-eval-runner",
+        ]
+      : ["--project", runnerDir];
+  return ["run", ...projectArgs, "--locked", "python", path.join(runnerDir, "run_eval.py")];
 }
 
 export async function runDeepagentsSession(input: {
