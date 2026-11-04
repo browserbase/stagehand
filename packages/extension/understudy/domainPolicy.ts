@@ -225,3 +225,55 @@ export function getDomainPolicyDecision(
 
   return { action: "continue" };
 }
+
+/**
+ * Compile a normalized policy into browser-wide DNR session rules without installing them.
+ * IDs are deterministic within this rule set; the installer must own their namespace.
+ * Chrome rule limits and regex support must be checked by the installer before activation.
+ */
+export function toDomainPolicyDnrRules(
+  policy: NormalizedDomainPolicy | null,
+): chrome.declarativeNetRequest.Rule[] {
+  if (!policy) return [];
+
+  const rules: chrome.declarativeNetRequest.Rule[] = [];
+  const addRule = (type: "allow" | "block", priority: number, regexFilter: string): void => {
+    rules.push({
+      id: rules.length + 1,
+      priority,
+      action: { type },
+      condition: {
+        regexFilter,
+        isUrlFilterCaseSensitive: false,
+        // Omitting both resource type fields excludes main_frame in Chrome.
+        // An empty exclusion list includes navigations and all subresources.
+        excludedResourceTypes: [],
+      },
+    });
+  };
+
+  // Allow rules only exempt their matching request, not the frame's future requests.
+  // Explicit blocks must outrank allows, which outrank the allowlist's default block.
+  if (policy.allowedDomainRules.length) {
+    addRule("block", 1, "^https?://");
+    for (const rule of policy.allowedDomainRules) {
+      addRule("allow", 2, domainRuleDnrRegex(rule));
+    }
+  }
+  for (const rule of policy.blockedDomainRules) {
+    addRule("block", 3, domainRuleDnrRegex(rule));
+  }
+
+  return rules;
+}
+
+function domainRuleDnrRegex(rule: DomainRule): string {
+  // Normalization restricts rules to ASCII domain labels, so only dots need escaping.
+  const hostname = rule.hostname.replace(/\./g, "\\.");
+  // Match the existing hostname suffix check, including empty labels accepted by URL().
+  // Exclude credentials, ports and path/query delimiters from the subdomain prefix.
+  const subdomain = rule.type === "wildcard" ? "[^/?#@:]*\\." : "";
+  // Match the destination host, allowing credentials, trailing dots and a port.
+  // The final boundary prevents matching a host prefix or a domain in the path/query.
+  return `^https?://([^/?#@]*@)?${subdomain}${hostname}\\.*(:[0-9]+)?(/|$)`;
+}
