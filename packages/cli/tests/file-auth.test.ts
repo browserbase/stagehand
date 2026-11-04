@@ -16,6 +16,7 @@ import {
   productionApiOrigin,
   readCredential,
   removeCredential,
+  requireSupportedCredentialStore,
   savedCredentialStore,
   writeCredential,
 } from "../src/lib/auth/store.js";
@@ -52,6 +53,19 @@ describe.skipIf(process.platform === "win32")("explicit plaintext credential sto
     expect(() => readCredential(env)).toThrow("securely read");
     chmodSync(credentialPath(env), 0o600);
     expect(removeCredential(env)).toBe(true);
+  });
+
+  it("uses explicit file storage when the native keystore is unavailable", () => {
+    const backend = fakeKeyring();
+    backend.state.unavailable = true;
+    const env = environment();
+    expect(() => requireSupportedCredentialStore()).toThrow("--credential-store=file");
+    backend.constructor.mockClear();
+    requireSupportedCredentialStore("file", env);
+    writeCredential(fixture, env, "file");
+    expect(readCredential(env)).toEqual(fixture);
+    expect(removeCredential(env)).toBe(true);
+    expect(backend.constructor).not.toHaveBeenCalled();
   });
 
   it("cleans up the previous backend when explicitly switching storage", () => {
@@ -135,6 +149,7 @@ describe.skipIf(process.platform === "win32")("explicit plaintext credential sto
     expect(JSON.parse(status.stdout)).toMatchObject({
       source: "saved",
       savedLogin: true,
+      storage: "plaintext-file",
       verified: false,
     });
     expect(status.stdout).not.toContain(fixture.apiKey);

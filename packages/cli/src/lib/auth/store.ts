@@ -116,8 +116,7 @@ function updateCredential(
     kind === "keychain" && previous?.store === "keychain" ? accountFor(previous) : undefined;
   const account = existingAccount ?? randomUUID();
   let nextEntry: Entry | undefined;
-  if (kind === "file") requireFileCredentialStore();
-  else {
+  if (kind === "keychain") {
     try {
       nextEntry = entry(account, env);
       nextEntry.setPassword(JSON.stringify(checked));
@@ -136,7 +135,7 @@ function updateCredential(
     );
     if (previous?.store === "keychain") entry(accountFor(previous), env).deleteCredential();
   } catch {
-    // Keep the previous login usable when switching storage fails.
+    // Try to restore the previous login when switching storage fails.
     try {
       if (previous) writePrivateRecord(previous, env);
       else removePrivateRecord(env);
