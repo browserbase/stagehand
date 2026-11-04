@@ -12,14 +12,9 @@ import { startStagehandMcp } from "./server.js";
 async function savedApiKey(): Promise<string | undefined> {
   const dir =
     process.env.BROWSERBASE_CONFIG_DIR ||
-    join(
-      process.env.XDG_CONFIG_HOME || join(homedir(), ".config"),
-      "browserbase",
-    );
+    join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "browserbase");
   try {
-    const config: unknown = JSON.parse(
-      await readFile(join(dir, "browse.json"), "utf8"),
-    );
+    const config: unknown = JSON.parse(await readFile(join(dir, "browse.json"), "utf8"));
     const apiKey = (config as { apiKey?: unknown } | null)?.apiKey;
     return typeof apiKey === "string" && apiKey ? apiKey : undefined;
   } catch {

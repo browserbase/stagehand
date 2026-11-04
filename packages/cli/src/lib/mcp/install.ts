@@ -103,10 +103,7 @@ export async function installMcpRuntime(
   await mkdir(versions, { recursive: true, mode: 0o700 });
   const staging = await mkdtemp(join(versions, ".install-"));
   try {
-    await writeFile(
-      join(staging, "package.json"),
-      '{"private":true,"type":"module"}\n',
-    );
+    await writeFile(join(staging, "package.json"), '{"private":true,"type":"module"}\n');
     const npm = await npmCommand();
     try {
       await execFileAsync(
@@ -137,25 +134,20 @@ export async function installMcpRuntime(
       const detail = String((error as { stderr?: unknown }).stderr ?? "")
         .trim()
         .slice(-1000);
-      throw new Error(
-        `Could not install Stagehand MCP with npm${detail ? `: ${detail}` : "."}`,
-        { cause: error },
-      );
+      throw new Error(`Could not install Stagehand MCP with npm${detail ? `: ${detail}` : "."}`, {
+        cause: error,
+      });
     }
     const modules = join(staging, "node_modules");
     const middleware = await readManifest(join(modules, MIDDLEWARE_PACKAGE));
-    const sdk = await readManifest(
-      join(modules, "@browserbasehq", "stagehand"),
-    );
+    const sdk = await readManifest(join(modules, "@browserbasehq", "stagehand"));
     if (!isCompatible(middleware, sdk.version, nodeVersion))
       throw new Error(
         `${MIDDLEWARE_PACKAGE}@${middleware.version} is incompatible with @browserbasehq/stagehand@${sdk.version} or Node ${nodeVersion}.`,
       );
     for (const file of ["main.js", "server.js"])
       await copyFile(join(adapterDir(), file), join(staging, file));
-    const manifest = JSON.parse(
-      await readFile(join(staging, "package.json"), "utf8"),
-    );
+    const manifest = JSON.parse(await readFile(join(staging, "package.json"), "utf8"));
     await writeFile(
       join(staging, "package.json"),
       `${JSON.stringify({ ...manifest, name: "stagehand-mcp", version: middleware.version }, null, 2)}\n`,
@@ -169,16 +161,11 @@ export async function installMcpRuntime(
       mcpEntrypoint(env),
       await readFile(join(adapterDir(), "launcher.js"), "utf8"),
     );
-    await writeAtomically(
-      join(root, "current.json"),
-      `${JSON.stringify({ version: id })}\n`,
-    );
+    await writeAtomically(join(root, "current.json"), `${JSON.stringify({ version: id })}\n`);
     // Keep the replaced version for agents that are still running it.
     for (const entry of await readdir(versions)) {
       if (entry !== id && entry !== previous && !entry.startsWith("."))
-        await rm(join(versions, entry), { recursive: true, force: true }).catch(
-          () => {},
-        );
+        await rm(join(versions, entry), { recursive: true, force: true }).catch(() => {});
     }
     return { entrypoint: mcpEntrypoint(env), version: middleware.version };
   } finally {

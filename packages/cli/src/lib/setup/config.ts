@@ -32,9 +32,7 @@ export async function readSetupConfig(): Promise<SetupConfig> {
   }
   if (
     !isRecord(value) ||
-    (value.browser !== undefined &&
-      value.browser !== "local" &&
-      value.browser !== "cloud") ||
+    (value.browser !== undefined && value.browser !== "local" && value.browser !== "cloud") ||
     (value.apiKey !== undefined && typeof value.apiKey !== "string")
   ) {
     throw new Error(`Invalid browse setup config: ${setupConfigPath()}`);
@@ -44,10 +42,7 @@ export async function readSetupConfig(): Promise<SetupConfig> {
 
 export async function writeSetupConfig(config: SetupConfig): Promise<void> {
   await ensurePrivateDir(resolveConfigDir());
-  await writePrivateFile(
-    setupConfigPath(),
-    `${JSON.stringify(config, null, 2)}\n`,
-  );
+  await writePrivateFile(setupConfigPath(), `${JSON.stringify(config, null, 2)}\n`);
 }
 
 export async function loadSetupEnvironment(): Promise<void> {

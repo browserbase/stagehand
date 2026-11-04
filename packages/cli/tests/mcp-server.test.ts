@@ -67,15 +67,12 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.close()));
 });
 
-async function connect(
-  env: NodeJS.ProcessEnv = { STAGEHAND_BROWSER: "local" },
-) {
+async function connect(env: NodeJS.ProcessEnv = { STAGEHAND_BROWSER: "local" }) {
   const host = createStagehandMcp("0.1.0", middleware, env);
   const client = new Client({ name: "adapter-test", version: "1" });
   hosts.push(host);
   clients.push(client);
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await host.server.connect(serverTransport);
   await client.connect(clientTransport);
   return { host, client };
@@ -84,9 +81,7 @@ async function connect(
 it("advertises the middleware contract and instructions without launching a browser", async () => {
   const env = { STAGEHAND_BROWSER: "local", EXPLICIT_SNAPSHOT_ACTIONS: "1" };
   const { client } = await connect(env);
-  expect((await client.listTools()).tools).toEqual([
-    ...facadeToolsFor("playwright", env),
-  ]);
+  expect((await client.listTools()).tools).toEqual([...facadeToolsFor("playwright", env)]);
   expect(client.getInstructions()).toBe(facadeAgentInstructions(env));
   expect(client.getServerVersion()).toEqual({
     name: "stagehand",
@@ -98,9 +93,7 @@ it("advertises the middleware contract and instructions without launching a brow
 
 it("reuses one middleware instance for code, actions, snapshots, and screenshots", async () => {
   const { client, host } = await connect();
-  expect(
-    await client.callTool({ name: "run", arguments: { code: "return 42;" } }),
-  ).toMatchObject({
+  expect(await client.callTool({ name: "run", arguments: { code: "return 42;" } })).toMatchObject({
     content: [{ type: "text", text: '{"answer":42}' }],
   });
   await client.callTool({
@@ -113,9 +106,7 @@ it("reuses one middleware instance for code, actions, snapshots, and screenshots
       arguments: { includeIframes: false },
     }),
   ).toMatchObject({ content: [{ text: "heading: Example" }] });
-  expect(
-    await client.callTool({ name: "screenshot", arguments: { type: "png" } }),
-  ).toMatchObject({
+  expect(await client.callTool({ name: "screenshot", arguments: { type: "png" } })).toMatchObject({
     content: [{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }],
   });
   expect(mocks.localLaunch).toHaveBeenCalledTimes(1);
@@ -157,9 +148,7 @@ it("uses middleware cloud configuration with the Browserbase launcher", async ()
 
 it("cleans up failed initialization, redacts credentials, and allows a retry", async () => {
   const key = "test-browserbase-key";
-  mocks.create.mockRejectedValueOnce(
-    new Error(`Initialization failed with ${key}`),
-  );
+  mocks.create.mockRejectedValueOnce(new Error(`Initialization failed with ${key}`));
   const { client } = await connect({
     STAGEHAND_BROWSER: "local",
     BROWSERBASE_API_KEY: key,
@@ -170,9 +159,6 @@ it("cleans up failed initialization, redacts credentials, and allows a retry", a
     content: [{ text: "Initialization failed with [redacted]" }],
   });
   expect(mocks.closeBrowser).toHaveBeenCalledTimes(1);
-  expect(await client.callTool({ name: "snapshot" })).not.toHaveProperty(
-    "isError",
-    true,
-  );
+  expect(await client.callTool({ name: "snapshot" })).not.toHaveProperty("isError", true);
   expect(mocks.localLaunch).toHaveBeenCalledTimes(2);
 });

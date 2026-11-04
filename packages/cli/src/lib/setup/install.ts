@@ -50,17 +50,14 @@ const currentProcess: SetupProcess = {
 };
 
 /** Finds the Node that will run Stagehand MCP and checks its version. */
-export async function nodeExecutable(
-  setup: SetupProcess = currentProcess,
-): Promise<NodeRuntime> {
+export async function nodeExecutable(setup: SetupProcess = currentProcess): Promise<NodeRuntime> {
   const unsupported = (found: string) =>
     new Error(
       `Stagehand MCP needs Node.js ${NODE_RANGE}${found}. Install it from https://nodejs.org and rerun setup.`,
     );
   // `bunx browse setup` may run under Bun, but the MCP runtime needs Node.
   if (!setup.bun) {
-    if (!semver.satisfies(setup.version, NODE_RANGE))
-      throw unsupported(`; found ${setup.version}`);
+    if (!semver.satisfies(setup.version, NODE_RANGE)) throw unsupported(`; found ${setup.version}`);
     return { path: setup.execPath, version: setup.version };
   }
   const found: string[] = [];
@@ -69,14 +66,12 @@ export async function nodeExecutable(
     const candidate = join(directory, name);
     try {
       await access(candidate, constants.X_OK);
-      const { stdout } = await execFileAsync(
-        candidate,
-        ["-p", "process.version"],
-        { timeout: 10_000, windowsHide: true },
-      );
+      const { stdout } = await execFileAsync(candidate, ["-p", "process.version"], {
+        timeout: 10_000,
+        windowsHide: true,
+      });
       const version = stdout.trim();
-      if (semver.satisfies(version, NODE_RANGE))
-        return { path: candidate, version };
+      if (semver.satisfies(version, NODE_RANGE)) return { path: candidate, version };
       found.push(`${version} at ${candidate}`);
     } catch {
       continue;
@@ -91,29 +86,21 @@ export interface SetupFile {
 }
 
 /** Builds every file setup will write, failing on malformed client configs. */
-export async function prepareSetup(
-  options: SetupOptions,
-): Promise<SetupFile[]> {
+export async function prepareSetup(options: SetupOptions): Promise<SetupFile[]> {
   const files: SetupFile[] = [];
   const entry =
     options.mode === "cli"
       ? undefined
       : {
           command: options.mcp!.node,
-          args: [
-            options.mcp!.entrypoint,
-            options.browser === "local" ? "--local" : "--remote",
-          ],
+          args: [options.mcp!.entrypoint, options.browser === "local" ? "--local" : "--remote"],
         };
   for (const agent of options.agents) {
     const paths = agentPaths(agent, options.scope);
     if (options.mode !== "mcp") {
       files.push({
         path: join(paths.skill, "SKILL.md"),
-        contents: await readFile(
-          join(bundledCliSkillPath(), "SKILL.md"),
-          "utf8",
-        ),
+        contents: await readFile(join(bundledCliSkillPath(), "SKILL.md"), "utf8"),
       });
     }
     if (entry) {

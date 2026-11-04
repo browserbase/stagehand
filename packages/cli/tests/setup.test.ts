@@ -1,12 +1,4 @@
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
@@ -20,25 +12,18 @@ import {
   writeSetupConfig,
 } from "../src/lib/setup/config.js";
 import { nodeExecutable } from "../src/lib/setup/install.js";
-import {
-  updateJsonMcp,
-  updateOpenCodeMcp,
-  updateTomlMcp,
-} from "../src/lib/setup/mcp.js";
+import { updateJsonMcp, updateOpenCodeMcp, updateTomlMcp } from "../src/lib/setup/mcp.js";
 import { fakeNpm } from "./helpers/fake-npm.js";
 import { itPosix } from "./helpers/platform.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const temporaryDirs: string[] = [];
-const runtimeDir = (dir: string) =>
-  join(dir, ".local/share/browserbase/stagehand-mcp");
+const runtimeDir = (dir: string) => join(dir, ".local/share/browserbase/stagehand-mcp");
 
 afterEach(async () => {
   vi.unstubAllEnvs();
   await Promise.all(
-    temporaryDirs
-      .splice(0)
-      .map((dir) => rm(dir, { recursive: true, force: true })),
+    temporaryDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 
@@ -64,21 +49,13 @@ async function fixture() {
   };
 }
 
-async function writeSetupConfigIn(
-  env: { BROWSERBASE_CONFIG_DIR: string },
-  config: object,
-) {
+async function writeSetupConfigIn(env: { BROWSERBASE_CONFIG_DIR: string }, config: object) {
   await mkdir(env.BROWSERBASE_CONFIG_DIR, { recursive: true });
-  await writeFile(
-    join(env.BROWSERBASE_CONFIG_DIR, "browse.json"),
-    JSON.stringify(config),
-  );
+  await writeFile(join(env.BROWSERBASE_CONFIG_DIR, "browse.json"), JSON.stringify(config));
 }
 
 async function readSetupConfigIn(env: { BROWSERBASE_CONFIG_DIR: string }) {
-  return JSON.parse(
-    await readFile(join(env.BROWSERBASE_CONFIG_DIR, "browse.json"), "utf8"),
-  );
+  return JSON.parse(await readFile(join(env.BROWSERBASE_CONFIG_DIR, "browse.json"), "utf8"));
 }
 
 // Tests that install the MCP runtime use a POSIX npm stub.
@@ -119,9 +96,7 @@ describe("browse setup", () => {
           env: { ...env, FAKE_MIDDLEWARE_VERSION: version },
         });
         expect(result, result.stderr).toMatchObject({ exitCode: 0 });
-        expect(result.stdout).toContain(
-          `Installed stagehand-middleware@${version}`,
-        );
+        expect(result.stdout).toContain(`Installed stagehand-middleware@${version}`);
       }
       const { version: id } = JSON.parse(
         await readFile(join(runtimeDir(dir), "current.json"), "utf8"),
@@ -137,21 +112,14 @@ describe("browse setup", () => {
           stagehand: { command: process.execPath, args: entry },
         },
       });
-      const claude = JSON.parse(
-        await readFile(join(dir, ".claude/.claude.json"), "utf8"),
-      );
+      const claude = JSON.parse(await readFile(join(dir, ".claude/.claude.json"), "utf8"));
       expect(claude.mcpServers.stagehand).toMatchObject({
         type: "stdio",
         args: entry,
       });
-      const cursor = JSON.parse(
-        await readFile(join(dir, ".cursor/mcp.json"), "utf8"),
-      );
+      const cursor = JSON.parse(await readFile(join(dir, ".cursor/mcp.json"), "utf8"));
       expect(cursor.mcpServers.stagehand.command).toBe(process.execPath);
-      const openCodeRaw = await readFile(
-        join(dir, ".config/opencode/opencode.jsonc"),
-        "utf8",
-      );
+      const openCodeRaw = await readFile(join(dir, ".config/opencode/opencode.jsonc"), "utf8");
       expect(openCodeRaw).toContain("// keep opencode settings");
       expect(parseJsonc(openCodeRaw)).toMatchObject({
         model: "existing/model",
@@ -166,24 +134,18 @@ describe("browse setup", () => {
           },
         },
       });
-      expect(parseJsonc(openCodeRaw).mcp.servers.stagehand).not.toHaveProperty(
-        "enabled",
-      );
+      expect(parseJsonc(openCodeRaw).mcp.servers.stagehand).not.toHaveProperty("enabled");
       for (const path of [
         ".claude/skills/browse/SKILL.md",
         ".agents/skills/browse/SKILL.md",
         ".cursor/skills/browse/SKILL.md",
         ".config/opencode/skills/browse/SKILL.md",
       ]) {
-        expect(await readFile(join(dir, path), "utf8")).toContain(
-          "name: browse",
-        );
+        expect(await readFile(join(dir, path), "utf8")).toContain("name: browse");
       }
-      expect(
-        JSON.parse(
-          await readFile(join(dir, "browserbase/browse.json"), "utf8"),
-        ),
-      ).toEqual({ browser: "local" });
+      expect(JSON.parse(await readFile(join(dir, "browserbase/browse.json"), "utf8"))).toEqual({
+        browser: "local",
+      });
     },
   );
 
@@ -193,31 +155,19 @@ describe("browse setup", () => {
       const { dir, env } = await fixture();
       await writeSetupConfigIn(env, { browser: "local" });
       const result = await runCli(
-        [
-          "setup",
-          "--mode",
-          "mcp",
-          "--browser",
-          "cloud",
-          "--agent",
-          "claude",
-          "--project",
-          "--yes",
-        ],
+        ["setup", "--mode", "mcp", "--browser", "cloud", "--agent", "claude", "--project", "--yes"],
         { cwd: dir, env },
       );
       expect(result.exitCode, result.stderr).toBe(0);
       // Project setup must not change the default browser of other projects.
       expect(await readSetupConfigIn(env)).toEqual({ browser: "local" });
-      expect(result.stdout).toContain(
-        "Cloud browsers need BROWSERBASE_API_KEY",
-      );
+      expect(result.stdout).toContain("Cloud browsers need BROWSERBASE_API_KEY");
       const raw = await readFile(join(dir, ".mcp.json"), "utf8");
       expect(JSON.parse(raw).mcpServers.stagehand.args.at(-1)).toBe("--remote");
       expect(raw).not.toContain("apiKey");
-      await expect(
-        stat(join(dir, ".claude/skills/browse/SKILL.md")),
-      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(stat(join(dir, ".claude/skills/browse/SKILL.md"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     },
   );
 
@@ -225,27 +175,12 @@ describe("browse setup", () => {
     const { dir, env } = await fixture();
     await writeFile(join(dir, ".mcp.json"), '{"mcpServers": [');
     const result = await runCli(
-      [
-        "setup",
-        "--mode",
-        "both",
-        "--browser",
-        "local",
-        "--agent",
-        "claude",
-        "--project",
-        "--yes",
-      ],
+      ["setup", "--mode", "both", "--browser", "local", "--agent", "claude", "--project", "--yes"],
       { cwd: dir, env },
     );
     expect(result.exitCode).toBe(1);
-    expect(await readFile(join(dir, ".mcp.json"), "utf8")).toBe(
-      '{"mcpServers": [',
-    );
-    for (const path of [
-      join(dir, ".claude/skills/browse/SKILL.md"),
-      runtimeDir(dir),
-    ])
+    expect(await readFile(join(dir, ".mcp.json"), "utf8")).toBe('{"mcpServers": [');
+    for (const path of [join(dir, ".claude/skills/browse/SKILL.md"), runtimeDir(dir)])
       await expect(stat(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -261,42 +196,37 @@ describe("browse setup", () => {
     ["opencode.jsonc", "opencode.jsonc"],
     [".opencode/opencode.json", ".opencode/opencode.json"],
     [".opencode/opencode.jsonc", ".opencode/opencode.jsonc"],
-  ])(
-    "updates an existing OpenCode v2 project config at %s",
-    async (existing, expected) => {
-      const { dir, env } = await fixture();
-      await mkdir(dirname(join(dir, existing)), { recursive: true });
-      await writeFile(join(dir, existing), '{"model":"keep/model"}\n');
-      const result = await runCli(
-        [
-          "setup",
-          "--mode",
-          "both",
-          "--browser",
-          "local",
-          "--agent",
-          "opencode",
-          "--project",
-          "--yes",
-        ],
-        { cwd: dir, env },
-      );
-      expect(result.exitCode, result.stderr).toBe(0);
-      expect(
-        parseJsonc(await readFile(join(dir, expected), "utf8")),
-      ).toMatchObject({
-        model: "keep/model",
-        mcp: { servers: { stagehand: { type: "local" } } },
+  ])("updates an existing OpenCode v2 project config at %s", async (existing, expected) => {
+    const { dir, env } = await fixture();
+    await mkdir(dirname(join(dir, existing)), { recursive: true });
+    await writeFile(join(dir, existing), '{"model":"keep/model"}\n');
+    const result = await runCli(
+      [
+        "setup",
+        "--mode",
+        "both",
+        "--browser",
+        "local",
+        "--agent",
+        "opencode",
+        "--project",
+        "--yes",
+      ],
+      { cwd: dir, env },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(parseJsonc(await readFile(join(dir, expected), "utf8"))).toMatchObject({
+      model: "keep/model",
+      mcp: { servers: { stagehand: { type: "local" } } },
+    });
+    expect(await readFile(join(dir, ".opencode/skills/browse/SKILL.md"), "utf8")).toContain(
+      "name: browse",
+    );
+    if (existing !== "opencode.jsonc")
+      await expect(stat(join(dir, "opencode.jsonc"))).rejects.toMatchObject({
+        code: "ENOENT",
       });
-      expect(
-        await readFile(join(dir, ".opencode/skills/browse/SKILL.md"), "utf8"),
-      ).toContain("name: browse");
-      if (existing !== "opencode.jsonc")
-        await expect(stat(join(dir, "opencode.jsonc"))).rejects.toMatchObject({
-          code: "ENOENT",
-        });
-    },
-  );
+  });
 
   itPosix(
     "uses OpenCode's JSONC and nested-directory precedence without editing lower-priority files",
@@ -327,9 +257,7 @@ describe("browse setup", () => {
       expect(result.exitCode, result.stderr).toBe(0);
       for (const file of files.slice(0, -1))
         expect(await readFile(join(dir, file), "utf8")).toBe("{}\n");
-      const config = parseJsonc(
-        await readFile(join(dir, files.at(-1)!), "utf8"),
-      );
+      const config = parseJsonc(await readFile(join(dir, files.at(-1)!), "utf8"));
       expect(config.mcp.servers.stagehand.command.at(-1)).toBe("--remote");
     },
   );
@@ -338,15 +266,15 @@ describe("browse setup", () => {
     const { dir, env } = await fixture();
     const custom = join(dir, "custom-opencode");
     await mkdir(custom);
-    const result = await runCli(
-      ["setup", "--mode", "cli", "--browser", "local", "--yes"],
-      { cwd: dir, env: { ...env, OPENCODE_CONFIG_DIR: custom } },
-    );
+    const result = await runCli(["setup", "--mode", "cli", "--browser", "local", "--yes"], {
+      cwd: dir,
+      env: { ...env, OPENCODE_CONFIG_DIR: custom },
+    });
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("OpenCode v2");
-    expect(
-      await readFile(join(custom, "skills/browse/SKILL.md"), "utf8"),
-    ).toContain("name: browse");
+    expect(await readFile(join(custom, "skills/browse/SKILL.md"), "utf8")).toContain(
+      "name: browse",
+    );
     await expect(stat(join(custom, "opencode.jsonc"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -358,56 +286,31 @@ describe("browse setup", () => {
       const { dir, env } = await fixture();
       const configDir = join(env.XDG_CONFIG_HOME, "opencode");
       await mkdir(configDir, { recursive: true });
-      await writeFile(
-        join(configDir, "opencode.json"),
-        '{"model":"keep/model"}',
-      );
+      await writeFile(join(configDir, "opencode.json"), '{"model":"keep/model"}');
       const result = await runCli(
-        [
-          "setup",
-          "--mode",
-          "mcp",
-          "--browser",
-          "local",
-          "--agent",
-          "opencode",
-          "--yes",
-        ],
+        ["setup", "--mode", "mcp", "--browser", "local", "--agent", "opencode", "--yes"],
         { cwd: dir, env },
       );
       expect(result.exitCode, result.stderr).toBe(0);
-      expect(
-        JSON.parse(await readFile(join(configDir, "opencode.json"), "utf8")),
-      ).toMatchObject({
+      expect(JSON.parse(await readFile(join(configDir, "opencode.json"), "utf8"))).toMatchObject({
         model: "keep/model",
         mcp: { servers: { stagehand: { type: "local" } } },
       });
-      await expect(
-        stat(join(configDir, "opencode.jsonc")),
-      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(stat(join(configDir, "opencode.jsonc"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     },
   );
 
   itPosix("creates an OpenCode JSONC config for a new project", async () => {
     const { dir, env } = await fixture();
     const result = await runCli(
-      [
-        "setup",
-        "--mode",
-        "mcp",
-        "--browser",
-        "local",
-        "--agent",
-        "opencode",
-        "--project",
-        "--yes",
-      ],
+      ["setup", "--mode", "mcp", "--browser", "local", "--agent", "opencode", "--project", "--yes"],
       { cwd: dir, env },
     );
     expect(result.exitCode, result.stderr).toBe(0);
     expect(
-      parseJsonc(await readFile(join(dir, "opencode.jsonc"), "utf8")).mcp
-        .servers.stagehand.type,
+      parseJsonc(await readFile(join(dir, "opencode.jsonc"), "utf8")).mcp.servers.stagehand.type,
     ).toBe("local");
   });
 
@@ -435,9 +338,9 @@ describe("browse setup", () => {
     await expect(stat(join(dir, ".mcp.json"))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    await expect(
-      stat(join(dir, ".claude/skills/browse/SKILL.md")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(dir, ".claude/skills/browse/SKILL.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });
 
@@ -453,10 +356,9 @@ describe("setup config", () => {
       apiKey: "saved-test-key",
     });
     if (process.platform !== "win32") {
-      expect(
-        (await stat(join(env.BROWSERBASE_CONFIG_DIR, "browse.json"))).mode &
-          0o777,
-      ).toBe(0o600);
+      expect((await stat(join(env.BROWSERBASE_CONFIG_DIR, "browse.json"))).mode & 0o777).toBe(
+        0o600,
+      );
     }
     await loadSetupEnvironment();
     expect(process.env.BROWSERBASE_API_KEY).toBe("saved-test-key");
@@ -519,9 +421,9 @@ describe("MCP Node selection", () => {
       path: "/usr/bin/node",
       version: "v22.18.0",
     });
-    await expect(
-      nodeExecutable({ ...setup, version: "v20.19.0" }),
-    ).rejects.toThrow("found v20.19.0");
+    await expect(nodeExecutable({ ...setup, version: "v20.19.0" })).rejects.toThrow(
+      "found v20.19.0",
+    );
   });
 
   itPosix("under Bun, skips unsupported Node versions on PATH", async () => {
@@ -604,10 +506,7 @@ describe("MCP config edits", () => {
   });
   it("rejects ambiguous inline TOML instead of damaging the file", () => {
     expect(() =>
-      updateTomlMcp(
-        'mcp_servers = { stagehand = { command = "old" } }\n',
-        entry,
-      ),
+      updateTomlMcp('mcp_servers = { stagehand = { command = "old" } }\n', entry),
     ).toThrow();
   });
 });

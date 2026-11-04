@@ -12,21 +12,14 @@ export interface McpEntry {
 // Rerunning setup is how users repair or move an installation; keep the
 // environment they configured for the server (for example STAGEHAND_* options).
 function keptEnvironment(server: unknown, key: string) {
-  return isRecord(server) && isRecord(server[key])
-    ? { [key]: server[key] }
-    : {};
+  return isRecord(server) && isRecord(server[key]) ? { [key]: server[key] } : {};
 }
 
-export function updateJsonMcp(
-  raw: string,
-  entry: McpEntry,
-  claude: boolean,
-): string {
+export function updateJsonMcp(raw: string, entry: McpEntry, claude: boolean): string {
   const source = raw.trim() ? raw : "{}\n";
   const errors: ParseError[] = [];
   const value: unknown = parse(source, errors, { allowTrailingComma: true });
-  if (errors.length || !isRecord(value))
-    throw new Error("Invalid MCP JSON config.");
+  if (errors.length || !isRecord(value)) throw new Error("Invalid MCP JSON config.");
   if (value.mcpServers !== undefined && !isRecord(value.mcpServers)) {
     throw new Error("MCP config mcpServers must be an object.");
   }
@@ -50,13 +43,10 @@ export function updateOpenCodeMcp(raw: string, entry: McpEntry): string {
   const source = raw.trim() ? raw : "{}\n";
   const errors: ParseError[] = [];
   const value: unknown = parse(source, errors, { allowTrailingComma: true });
-  if (errors.length || !isRecord(value))
-    throw new Error("Invalid OpenCode JSON config.");
+  if (errors.length || !isRecord(value)) throw new Error("Invalid OpenCode JSON config.");
   if (value.mcp !== undefined && !isRecord(value.mcp))
     throw new Error("OpenCode config mcp must be an object.");
-  const mcp = value.mcp as
-    | { servers?: Record<string, unknown> | undefined }
-    | undefined;
+  const mcp = value.mcp as { servers?: Record<string, unknown> | undefined } | undefined;
   if (mcp?.servers !== undefined && !isRecord(mcp.servers))
     throw new Error("OpenCode config mcp.servers must be an object.");
   return applyEdits(

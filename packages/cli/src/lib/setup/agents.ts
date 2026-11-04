@@ -20,11 +20,7 @@ export function agentPaths(agent: SetupAgent, scope: SetupScope) {
             ? join(dir, ".claude.json")
             : join(home, ".claude.json")
           : join(process.cwd(), ".mcp.json"),
-        skill: join(
-          global ? dir : join(process.cwd(), ".claude"),
-          "skills",
-          "browse",
-        ),
+        skill: join(global ? dir : join(process.cwd(), ".claude"), "skills", "browse"),
       };
     }
     case "codex": {
@@ -33,12 +29,7 @@ export function agentPaths(agent: SetupAgent, scope: SetupScope) {
         name: "Codex",
         detect: dir,
         mcp: join(global ? dir : join(process.cwd(), ".codex"), "config.toml"),
-        skill: join(
-          global ? home : process.cwd(),
-          ".agents",
-          "skills",
-          "browse",
-        ),
+        skill: join(global ? home : process.cwd(), ".agents", "skills", "browse"),
       };
     }
     case "cursor": {
@@ -57,9 +48,7 @@ export function agentPaths(agent: SetupAgent, scope: SetupScope) {
       const project = join(process.cwd(), ".opencode");
       const root = global ? dir : process.cwd();
       const candidates = [
-        ...(!global
-          ? [join(project, "opencode.jsonc"), join(project, "opencode.json")]
-          : []),
+        ...(!global ? [join(project, "opencode.jsonc"), join(project, "opencode.json")] : []),
         join(root, "opencode.jsonc"),
         join(root, "opencode.json"),
       ];

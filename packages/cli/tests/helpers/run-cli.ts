@@ -17,34 +17,23 @@ export interface RunCliOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export function runCli(
-  args: string[],
-  options: RunCliOptions = {},
-): Promise<CliResult> {
+export function runCli(args: string[], options: RunCliOptions = {}): Promise<CliResult> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(
-      process.execPath,
-      [join(repoRoot, "bin/run.js"), ...args],
-      {
-        cwd: options.cwd ?? repoRoot,
-        env: {
-          ...process.env,
-          // CLI tests must not inherit browser preferences or credentials saved by setup.
-          BROWSE_BROWSER: undefined,
-          BROWSERBASE_CONFIG_DIR: options.env?.XDG_CONFIG_HOME
-            ? undefined
-            : join(tmpdir(), `browse-cli-tests-config-${process.pid}`),
-          BROWSE_DISABLE_UPDATE_CHECK: "1",
-          NODE_ENV: "test",
-          ...options.env,
-        },
-        stdio: [
-          options.stdin === undefined ? "ignore" : "pipe",
-          "pipe",
-          "pipe",
-        ],
+    const child = spawn(process.execPath, [join(repoRoot, "bin/run.js"), ...args], {
+      cwd: options.cwd ?? repoRoot,
+      env: {
+        ...process.env,
+        // CLI tests must not inherit browser preferences or credentials saved by setup.
+        BROWSE_BROWSER: undefined,
+        BROWSERBASE_CONFIG_DIR: options.env?.XDG_CONFIG_HOME
+          ? undefined
+          : join(tmpdir(), `browse-cli-tests-config-${process.pid}`),
+        BROWSE_DISABLE_UPDATE_CHECK: "1",
+        NODE_ENV: "test",
+        ...options.env,
       },
-    );
+      stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+    });
 
     if (options.stdin !== undefined) {
       child.stdin?.on("error", () => {});

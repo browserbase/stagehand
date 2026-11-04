@@ -1,11 +1,4 @@
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -13,11 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const { exec } = vi.hoisted(() => ({ exec: vi.fn() }));
 vi.mock("node:child_process", () => ({ execFile: exec }));
 
-import {
-  installMcpRuntime,
-  mcpEntrypoint,
-  mcpRuntimeDir,
-} from "../src/lib/mcp/install.js";
+import { installMcpRuntime, mcpEntrypoint, mcpRuntimeDir } from "../src/lib/mcp/install.js";
 import { isCompatible } from "../src/lib/mcp/contract.js";
 
 let env: NodeJS.ProcessEnv;
@@ -51,9 +40,7 @@ function npmInstalls(version: string, sdkVersion = "4.3.0") {
 }
 
 async function current(): Promise<{ id: string; version: string }> {
-  const { version: id } = JSON.parse(
-    await readFile(join(root, "current.json"), "utf8"),
-  );
+  const { version: id } = JSON.parse(await readFile(join(root, "current.json"), "utf8"));
   const { version } = JSON.parse(
     await readFile(join(root, "versions", id, "package.json"), "utf8"),
   );
@@ -105,20 +92,12 @@ it("switches the stable launcher to each new version, keeping only the one it re
   const second = await current();
   expect(second.version).toBe("0.1.2");
   // An agent started before the update may still be running the old version.
-  expect((await readdir(join(root, "versions"))).sort()).toEqual(
-    [first.id, second.id].sort(),
-  );
+  expect((await readdir(join(root, "versions"))).sort()).toEqual([first.id, second.id].sort());
   npmInstalls("0.1.3");
   await install();
   const third = await current();
-  expect((await readdir(join(root, "versions"))).sort()).toEqual(
-    [second.id, third.id].sort(),
-  );
-  expect((await readdir(root)).sort()).toEqual([
-    "current.json",
-    "main.mjs",
-    "versions",
-  ]);
+  expect((await readdir(join(root, "versions"))).sort()).toEqual([second.id, third.id].sort());
+  expect((await readdir(root)).sort()).toEqual(["current.json", "main.mjs", "versions"]);
 });
 
 it("leaves the launcher on the working version when npm fails, and reports npm's error", async () => {
@@ -140,9 +119,7 @@ it("refuses a middleware release that does not support the installed SDK or Node
   npmInstalls("0.1.2", "5.0.0");
   await expect(install()).rejects.toThrow("incompatible");
   npmInstalls("0.1.2");
-  await expect(installMcpRuntime("v20.19.0", env)).rejects.toThrow(
-    "Node v20.19.0",
-  );
+  await expect(installMcpRuntime("v20.19.0", env)).rejects.toThrow("Node v20.19.0");
   expect(await current()).toEqual(before);
 });
 
@@ -154,18 +131,10 @@ it("checks the middleware, SDK, and Node compatibility ranges", () => {
   };
   const node = "v22.18.0";
   expect(isCompatible(manifest, "4.3.0", node)).toBe(true);
-  expect(isCompatible({ ...manifest, version: "0.2.0" }, "4.3.0", node)).toBe(
-    false,
-  );
-  expect(
-    isCompatible({ ...manifest, version: "0.1.3-beta.1" }, "4.3.0", node),
-  ).toBe(false);
-  expect(
-    isCompatible({ ...manifest, peerDependencies: {} }, "4.3.0", node),
-  ).toBe(false);
+  expect(isCompatible({ ...manifest, version: "0.2.0" }, "4.3.0", node)).toBe(false);
+  expect(isCompatible({ ...manifest, version: "0.1.3-beta.1" }, "4.3.0", node)).toBe(false);
+  expect(isCompatible({ ...manifest, peerDependencies: {} }, "4.3.0", node)).toBe(false);
   expect(isCompatible(manifest, "5.0.0", node)).toBe(false);
   expect(isCompatible(manifest, "4.3.0", "v20.19.0")).toBe(false);
-  expect(
-    isCompatible({ ...manifest, engines: { node: ">=999" } }, "4.3.0", node),
-  ).toBe(false);
+  expect(isCompatible({ ...manifest, engines: { node: ">=999" } }, "4.3.0", node)).toBe(false);
 });

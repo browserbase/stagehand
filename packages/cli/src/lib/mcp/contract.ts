@@ -27,7 +27,6 @@ export function isCompatible(
     typeof peer === "string" &&
     semver.satisfies(sdkVersion, peer) &&
     semver.satisfies(nodeVersion, NODE_RANGE) &&
-    (!manifest.engines?.node ||
-      semver.satisfies(nodeVersion, manifest.engines.node))
+    (!manifest.engines?.node || semver.satisfies(nodeVersion, manifest.engines.node))
   );
 }

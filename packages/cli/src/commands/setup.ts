@@ -4,12 +4,7 @@ import select from "@inquirer/select";
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import {
-  agentNames,
-  agentPaths,
-  detectAgents,
-  type SetupAgent,
-} from "../lib/setup/agents.js";
+import { agentNames, agentPaths, detectAgents, type SetupAgent } from "../lib/setup/agents.js";
 import {
   readSetupConfig,
   setupConfigPath,
@@ -17,12 +12,7 @@ import {
   type BrowserMode,
 } from "../lib/setup/config.js";
 import { installMcpRuntime, mcpEntrypoint } from "../lib/mcp/install.js";
-import {
-  nodeExecutable,
-  prepareSetup,
-  writeSetup,
-  type SetupMode,
-} from "../lib/setup/install.js";
+import { nodeExecutable, prepareSetup, writeSetup, type SetupMode } from "../lib/setup/install.js";
 
 export default class Setup extends BrowseCommand {
   static override description =
@@ -51,20 +41,14 @@ export default class Setup extends BrowseCommand {
     }),
     yes: Flags.boolean({
       char: "y",
-      description:
-        "Use defaults without prompts: CLI, local browsers, and detected agents.",
+      description: "Use defaults without prompts: CLI, local browsers, and detected agents.",
     }),
   };
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Setup);
-    const interactive =
-      !flags.yes && Boolean(process.stdin.isTTY && process.stderr.isTTY);
-    if (
-      !interactive &&
-      !flags.yes &&
-      (!flags.mode || !flags.browser || !flags.agent?.length)
-    ) {
+    const interactive = !flags.yes && Boolean(process.stdin.isTTY && process.stderr.isTTY);
+    if (!interactive && !flags.yes && (!flags.mode || !flags.browser || !flags.agent?.length)) {
       this.error(
         "Non-interactive setup needs --mode, --browser, and --agent, or --yes to use defaults.",
       );
@@ -88,8 +72,7 @@ export default class Setup extends BrowseCommand {
                   {
                     name: "Browse CLI + Skills",
                     value: "cli",
-                    description:
-                      "Use Browse CLI from your agent, with skills to guide it.",
+                    description: "Use Browse CLI from your agent, with skills to guide it.",
                   },
                   {
                     name: "Stagehand MCP",
@@ -99,8 +82,7 @@ export default class Setup extends BrowseCommand {
                   {
                     name: "Browse CLI + Skills + MCP",
                     value: "both",
-                    description:
-                      "Set up Browse CLI skills and connect Stagehand MCP tools.",
+                    description: "Set up Browse CLI skills and connect Stagehand MCP tools.",
                   },
                 ],
               },
@@ -118,14 +100,12 @@ export default class Setup extends BrowseCommand {
                   {
                     name: "Local only",
                     value: "local",
-                    description:
-                      "Chrome on this machine. No API key, ready to go.",
+                    description: "Chrome on this machine. No API key, ready to go.",
                   },
                   {
                     name: "Browserbase cloud",
                     value: "cloud",
-                    description:
-                      "Browsers hosted by Browserbase. Add a key now or later.",
+                    description: "Browsers hosted by Browserbase. Add a key now or later.",
                   },
                 ],
               },
@@ -184,9 +164,7 @@ export default class Setup extends BrowseCommand {
       mode,
       browser,
       scope: flags.project ? "project" : "global",
-      ...(node
-        ? { mcp: { node: node.path, entrypoint: mcpEntrypoint() } }
-        : {}),
+      ...(node ? { mcp: { node: node.path, entrypoint: mcpEntrypoint() } } : {}),
     });
     if (node) {
       this.log("Installing the latest Stagehand MCP...");
@@ -215,8 +193,7 @@ export default class Setup extends BrowseCommand {
       );
     }
     this.log("Restart your agent to pick up the changes.");
-    if (mode !== "cli")
-      this.log("To update Stagehand MCP later, run this setup command again.");
+    if (mode !== "cli") this.log("To update Stagehand MCP later, run this setup command again.");
     if (mode !== "mcp")
       this.log(
         `Try: browse open https://example.com --${browser === "local" ? "local" : "remote"}`,

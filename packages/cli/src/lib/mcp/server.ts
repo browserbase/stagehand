@@ -1,10 +1,7 @@
 import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Middleware } from "./contract.js";
 
 type Resources = { tools: InstanceType<Middleware["StagehandFacadeTools"]> };
@@ -78,9 +75,7 @@ export function createStagehandMcp(
               ? await facade.runActions(input.actions!)
               : await facade.run(input.code);
           return textResult(
-            typeof result === "string"
-              ? result
-              : (JSON.stringify(result) ?? "null"),
+            typeof result === "string" ? result : (JSON.stringify(result) ?? "null"),
           );
         }
         case "snapshot": {
@@ -127,8 +122,7 @@ export function createStagehandMcp(
 function textResult(text: string) {
   const safe = text.replace(
     /[\u0085\u2028\u2029]/gu,
-    (character) =>
-      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
   return { content: [{ type: "text" as const, text: safe }] };
 }
@@ -140,17 +134,11 @@ function errorMessage(error: unknown, env: NodeJS.ProcessEnv): string {
       message = message.replaceAll(value, "[redacted]");
   }
   return message
-    .replace(
-      /([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi,
-      "$1[redacted]",
-    )
+    .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi, "$1[redacted]")
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, "$1[redacted]");
 }
 
-export async function startStagehandMcp(
-  version: string,
-  middleware: Middleware,
-): Promise<void> {
+export async function startStagehandMcp(version: string, middleware: Middleware): Promise<void> {
   const host = createStagehandMcp(version, middleware);
   let stopping = false;
   async function stop(code: number): Promise<void> {

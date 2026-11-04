@@ -1,13 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -18,9 +10,7 @@ const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temporaryDirs: string[] = [];
 afterEach(async () => {
   await Promise.all(
-    temporaryDirs
-      .splice(0)
-      .map((dir) => rm(dir, { recursive: true, force: true })),
+    temporaryDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 
@@ -29,10 +19,7 @@ afterEach(async () => {
 async function runtime(): Promise<{ dir: string; entrypoint: string }> {
   const root = await mkdtemp(join(tmpdir(), "browse-mcp-runtime-"));
   temporaryDirs.push(root);
-  await copyFile(
-    join(cliRoot, "dist/lib/mcp/launcher.js"),
-    join(root, "main.mjs"),
-  );
+  await copyFile(join(cliRoot, "dist/lib/mcp/launcher.js"), join(root, "main.mjs"));
   await writeFile(join(root, "current.json"), '{"version":"test"}');
   const dir = join(root, "versions", "test");
   for (const name of [
@@ -50,15 +37,9 @@ async function runtime(): Promise<{ dir: string; entrypoint: string }> {
   for (const file of ["main.js", "server.js"])
     await copyFile(join(cliRoot, "dist/lib/mcp", file), join(dir, file));
   const { version } = JSON.parse(
-    await readFile(
-      join(cliRoot, "node_modules/stagehand-middleware/package.json"),
-      "utf8",
-    ),
+    await readFile(join(cliRoot, "node_modules/stagehand-middleware/package.json"), "utf8"),
   );
-  await writeFile(
-    join(dir, "package.json"),
-    JSON.stringify({ type: "module", version }),
-  );
+  await writeFile(join(dir, "package.json"), JSON.stringify({ type: "module", version }));
   return { dir: root, entrypoint: join(root, "main.mjs") };
 }
 
@@ -107,14 +88,14 @@ it("serves the middleware tools over clean stdio without browse installed", asyn
           child.stdin.write(
             `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
           );
-          child.stdin.write(
-            `${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`,
-          );
+          child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
         }
         if (response.id === 2) {
-          expect(
-            response.result.tools.map((tool: { name: string }) => tool.name),
-          ).toEqual(["run", "snapshot", "screenshot"]);
+          expect(response.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
+            "run",
+            "snapshot",
+            "screenshot",
+          ]);
           listed = true;
           child.stdin.end();
         }
