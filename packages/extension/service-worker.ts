@@ -120,7 +120,7 @@ export function startStagehandServiceWorker(
       return session.conn;
     },
     rejectClientCallbacks: () => rpcClient?.releaseClient(),
-    closeConnection: () => activeRuntime.dropBrowserConnection(),
+    closeConnection: () => activeRuntime.disconnectBrowser(),
     disposeClient: () => activeRuntime.disposeStagehandInstance(),
     onError: (error) => {
       // The client transport may be gone; do not report through RPC.

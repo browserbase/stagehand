@@ -347,6 +347,11 @@ export class StagehandRuntime {
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private browserSessionCdpUrl?: string;
+  // Retain disconnected sessions until cleanup succeeds; undefined permits a retry.
+  private readonly pendingBrowserSessionCleanup = new Map<
+    StagehandBrowserSession,
+    Promise<void> | undefined
+  >();
   /** Bumped whenever B is replaced or dropped; a connect that finishes late checks it. */
   private browserConnectionGeneration = 0;
   private initializationInProgress = false;
@@ -372,48 +377,73 @@ export class StagehandRuntime {
   ): Promise<void> {
     const { cdpUrl } = params;
     const generation = ++this.browserConnectionGeneration;
-    const previousSession = this.browserSession;
+    if (this.browserSession && !this.pendingBrowserSessionCleanup.has(this.browserSession)) {
+      this.pendingBrowserSessionCleanup.set(this.browserSession, undefined);
+    }
     this.browserSession = undefined;
     this.browserSessionCdpUrl = undefined;
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
-    await previousSession?.close();
-
-    try {
-      const session = await this.adapters.browserSessionFactory(
-        cdpUrl,
-        this.logger,
-        bootstrapLogger,
-      );
-      if (generation !== this.browserConnectionGeneration) {
-        // Dropped (or replaced) while connecting: never install a connection nobody owns.
-        await session.close();
-        throw new Error("Stagehand browser connection was dropped while connecting");
-      }
-      this.browserSession = session;
-      this.browserSessionCdpUrl = cdpUrl;
-    } catch (error) {
-      // A newer connection may already be installed; only clean up this attempt's state.
-      if (generation === this.browserConnectionGeneration) {
-        await this.browserSession?.close();
-        this.browserSession = undefined;
-      }
-      throw error;
+    await this.runPendingSessionCleanup();
+    if (generation !== this.browserConnectionGeneration) {
+      throw new Error("Stagehand browser connection was dropped while connecting");
     }
+
+    const session = await this.adapters.browserSessionFactory(cdpUrl, this.logger, bootstrapLogger);
+    if (generation !== this.browserConnectionGeneration) {
+      // Late connections also need a retained cleanup handle if close rejects.
+      await this.cleanupSession(session);
+      throw new Error("Stagehand browser connection was dropped while connecting");
+    }
+    this.browserSession = session;
+    this.browserSessionCdpUrl = cdpUrl;
   }
 
   /**
    * Closes the runtime's own browser connection immediately, outside the lifecycle
    * queue: a lost client must not wait behind lifecycle work that needs that client.
    */
-  async dropBrowserConnection(): Promise<void> {
+  async disconnectBrowser(): Promise<void> {
     // Invalidates a connection still being opened, so it closes instead of being installed.
     this.browserConnectionGeneration += 1;
-    const session = this.browserSession;
+    if (this.browserSession && !this.pendingBrowserSessionCleanup.has(this.browserSession)) {
+      this.pendingBrowserSessionCleanup.set(this.browserSession, undefined);
+    }
     this.browserSession = undefined;
     this.browserSessionCdpUrl = undefined;
-    await session?.close();
+    await this.runPendingSessionCleanup();
+  }
+
+  private cleanupSession(session: StagehandBrowserSession): Promise<void> {
+    const pending = this.pendingBrowserSessionCleanup.get(session);
+    if (pending) return pending;
+    const closing = Promise.resolve()
+      .then(() => session.close())
+      .then(
+        () => {
+          this.pendingBrowserSessionCleanup.delete(session);
+        },
+        (error) => {
+          this.pendingBrowserSessionCleanup.set(session, undefined);
+          throw error;
+        },
+      );
+    this.pendingBrowserSessionCleanup.set(session, closing);
+    return closing;
+  }
+
+  private async runPendingSessionCleanup(): Promise<void> {
+    const results = await Promise.allSettled(
+      Array.from(this.pendingBrowserSessionCleanup.keys(), (session) =>
+        this.cleanupSession(session),
+      ),
+    );
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Browser session cleanup failed");
   }
 
   async ensureBrowserConnection(cdpUrl: string): Promise<void> {
@@ -1040,11 +1070,10 @@ export class StagehandRuntime {
 
   async close(): Promise<void> {
     await this.enqueueLifecycle(async () => {
-      const session = this.browserSession;
-      this.browserSession = undefined;
-      this.browserSessionCdpUrl = undefined;
       this.clearStagehandInstance();
-      await session?.close();
+      await this.disconnectBrowser();
+      // A queued instance disposal still owns request admission.
+      if (!this.stagehandInstanceDisposal) this.stagehandInstanceClosing = false;
     });
   }
 
@@ -1059,10 +1088,13 @@ export class StagehandRuntime {
       // The browser connection can outlive the instance, but its policy must not.
       const session = this.browserSession;
       if (session?.getDomainPolicy()) await session.setDomainPolicy(null);
+      await this.runPendingSessionCleanup();
       this.clearStagehandInstance();
+      this.stagehandInstanceClosing = false;
     });
     this.stagehandInstanceDisposal = disposal.finally(() => {
-      this.stagehandInstanceClosing = false;
+      // Failed disposal has already removed subscriptions. Keep requests closed,
+      // but release the promise so cleanup can be retried.
       this.stagehandInstanceDisposal = undefined;
     });
     return await this.stagehandInstanceDisposal;

@@ -457,6 +457,94 @@ describe("Stagehand runtime state", () => {
 });
 
 describe("runtime browser connection", () => {
+  it.each(["drop", "replace", "close"] as const)(
+    "retries failed session cleanup through %s without reusing the disconnected session",
+    async (operation) => {
+      let rulesInstalled = true;
+      const cleanup = vi
+        .fn(async () => {
+          rulesInstalled = false;
+        })
+        .mockRejectedValueOnce(new Error("cleanup failed"))
+        .mockRejectedValueOnce(new Error("cleanup failed again"));
+      const previous = createBrowserSession({ close: cleanup });
+      const replacement = createBrowserSession();
+      const factory = vi.fn().mockResolvedValueOnce(previous).mockResolvedValue(replacement);
+      const runtime = createStagehandRuntime({ browserSessionFactory: factory });
+      await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example/old" });
+      const run = () =>
+        operation === "drop"
+          ? runtime.disconnectBrowser()
+          : operation === "close"
+            ? runtime.close()
+            : runtime.replaceBrowserConnection({ cdpUrl: "ws://browser.example/new" });
+
+      await expect(run()).rejects.toThrow("cleanup failed");
+      expect(rulesInstalled).toBe(true);
+      expect(runtime.browserSession).toBeUndefined();
+      expect(() => runtime.requireBrowserSession()).toThrow("not configured");
+      await expect(run()).rejects.toThrow("cleanup failed again");
+      expect(rulesInstalled).toBe(true);
+      expect(factory).toHaveBeenCalledOnce();
+
+      await run();
+      expect(rulesInstalled).toBe(false);
+      expect(cleanup).toHaveBeenCalledTimes(3);
+      expect(runtime.browserSession).toBe(operation === "replace" ? replacement : undefined);
+      await runtime.disconnectBrowser();
+      expect(cleanup).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it("shares pending cleanup between drop and replacement before opening a new connection", async () => {
+    const gate = Promise.withResolvers<void>();
+    const cleanup = vi.fn(() => gate.promise);
+    const previous = createBrowserSession({ close: cleanup });
+    const replacement = createBrowserSession();
+    const factory = vi.fn().mockResolvedValueOnce(previous).mockResolvedValueOnce(replacement);
+    const runtime = createStagehandRuntime({ browserSessionFactory: factory });
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://browser.example/old" });
+    const dropping = runtime.disconnectBrowser();
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    const replacing = runtime.replaceBrowserConnection({ cdpUrl: "ws://browser.example/new" });
+    await Promise.resolve();
+    expect(factory).toHaveBeenCalledOnce();
+    gate.resolve();
+    await Promise.all([dropping, replacing]);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(runtime.browserSession).toBe(replacement);
+  });
+
+  it("does not open a replacement if dropped while previous-session cleanup is pending", async () => {
+    const gate = Promise.withResolvers<void>();
+    const cleanup = vi.fn(() => gate.promise);
+    const factory = vi.fn(async () => createBrowserSession({ close: cleanup }));
+    const runtime = createStagehandRuntime({ browserSessionFactory: factory });
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://browser.example/old" });
+    const replacing = runtime.replaceBrowserConnection({ cdpUrl: "ws://browser.example/new" });
+    const rejected = expect(replacing).rejects.toThrow("dropped while connecting");
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    const dropping = runtime.disconnectBrowser();
+    gate.resolve();
+    await Promise.all([rejected, dropping]);
+    expect(factory).toHaveBeenCalledOnce();
+    expect(runtime.browserSession).toBeUndefined();
+  });
+
+  it("retains cleanup for a connection that finishes opening after a drop", async () => {
+    const gate = Promise.withResolvers<StagehandBrowserSession>();
+    const cleanup = vi.fn(async () => {}).mockRejectedValueOnce(new Error("late cleanup failed"));
+    const factory = vi.fn(() => gate.promise);
+    const runtime = createStagehandRuntime({ browserSessionFactory: factory });
+    const connecting = runtime.ensureBrowserConnection("ws://browser.example");
+    await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce());
+    await runtime.disconnectBrowser();
+    gate.resolve(createBrowserSession({ close: cleanup }));
+    await expect(connecting).rejects.toThrow("late cleanup failed");
+    expect(runtime.browserSession).toBeUndefined();
+    await runtime.disconnectBrowser();
+    expect(cleanup).toHaveBeenCalledTimes(2);
+  });
   it("closes a connection that finishes opening after it was dropped", async () => {
     let finish!: () => void;
     const close = vi.fn(async () => {});
@@ -469,7 +557,7 @@ describe("runtime browser connection", () => {
 
     const connecting = runtime.ensureBrowserConnection("ws://browser.example");
     await vi.waitFor(() => expect(finish).toBeDefined());
-    await runtime.dropBrowserConnection();
+    await runtime.disconnectBrowser();
     finish();
 
     await expect(connecting).rejects.toThrow("dropped while connecting");
@@ -479,6 +567,65 @@ describe("runtime browser connection", () => {
 });
 
 describe("runtime domain policy disposal", () => {
+  it("does not reopen requests when runtime close is followed by queued instance disposal", async () => {
+    const gate = Promise.withResolvers<void>();
+    const cleanup = vi.fn(() => gate.promise);
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession({ close: cleanup }),
+    });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    const release = runtime.acquireStagehandInstanceRequest();
+    const closing = runtime.close();
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    const disposing = runtime.disposeStagehandInstance();
+    gate.resolve();
+    await closing;
+    expect(() => runtime.acquireStagehandInstanceRequest()).toThrow("closing");
+    release();
+    await disposing;
+    runtime.acquireStagehandInstanceRequest()();
+  });
+
+  it("can recover failed instance disposal by successfully closing the runtime", async () => {
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () =>
+        createBrowserSession({
+          getDomainPolicy: () => ({ blockedDomains: ["blocked.test"] }),
+          setDomainPolicy: async () => {
+            throw new Error("cleanup failed");
+          },
+        }),
+    });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    await expect(runtime.disposeStagehandInstance()).rejects.toThrow("cleanup failed");
+    expect(() => runtime.acquireStagehandInstanceRequest()).toThrow("closing");
+    await runtime.close();
+    expect(runtime.browserSession).toBeUndefined();
+    expect(runtime.state.getState().status).toBe("idle");
+    runtime.acquireStagehandInstanceRequest()();
+  });
+
+  it("cannot complete disposal while detached-session cleanup is still failing", async () => {
+    let rulesInstalled = true;
+    const cleanup = vi
+      .fn(async () => {
+        rulesInstalled = false;
+      })
+      .mockRejectedValueOnce(new Error("cleanup failed"))
+      .mockRejectedValueOnce(new Error("cleanup failed"));
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession({ close: cleanup }),
+    });
+    await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
+    await expect(runtime.disconnectBrowser()).rejects.toThrow("cleanup failed");
+    await expect(runtime.disposeStagehandInstance()).rejects.toThrow("cleanup failed");
+    expect(rulesInstalled).toBe(true);
+    expect(() => runtime.acquireStagehandInstanceRequest()).toThrow("closing");
+    await runtime.disposeStagehandInstance();
+    expect(rulesInstalled).toBe(false);
+    expect(runtime.state.getState().status).toBe("idle");
+    runtime.acquireStagehandInstanceRequest()();
+  });
   it("clears policy before allowing reuse of the retained browser session", async () => {
     const gate = Promise.withResolvers<void>();
     const started = Promise.withResolvers<void>();
@@ -521,8 +668,10 @@ describe("runtime domain policy disposal", () => {
     await runtime.initialize({ ...runtimeIdentity, browserCdpUrl: "ws://browser.example" });
     await expect(runtime.disposeStagehandInstance()).rejects.toThrow("cleanup failed");
     expect(runtime.state.getState().status).toBe("initialized");
+    expect(() => runtime.acquireStagehandInstanceRequest()).toThrow("closing");
     await runtime.disposeStagehandInstance();
     expect(runtime.state.getState().status).toBe("idle");
+    runtime.acquireStagehandInstanceRequest()();
     expect(setDomainPolicy).toHaveBeenCalledTimes(2);
   });
 });
