@@ -195,8 +195,9 @@ export class Locator {
   }
 
   /**
-   * Return the center of the element's bounding box in the owning frame's viewport
-   * (CSS pixels), rounded to integers. Scrolls into view best-effort.
+   * Return the point a pointer event uses to hit the element (see `pointerTarget`)
+   * in the owning frame's viewport (CSS pixels), rounded to integers. Scrolls into
+   * view best-effort.
    */
   public async centroid(progress?: Progress): Promise<{ x: number; y: number }> {
     const session = this.frame.session;
@@ -208,13 +209,7 @@ export class Locator {
           if (progress && isCdpClosedError(error)) throw error;
         }),
       );
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.pointerTarget(objectId, progress);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
       const release = () =>
@@ -357,13 +352,7 @@ export class Locator {
         }),
       );
 
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.pointerTarget(objectId, progress);
 
       await runLocatorStep(progress, "dispatching mouse events", () =>
         session.send<never>("Input.dispatchMouseEvent", {
@@ -387,7 +376,7 @@ export class Locator {
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
    *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
-   *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
+   *  3) Read geometry via `pointerTarget` → the center of the first line fragment.
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
   async click(
@@ -407,13 +396,7 @@ export class Locator {
       );
 
       // Get geometry using objectId
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.pointerTarget(objectId, progress);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -978,6 +961,39 @@ export class Locator {
     return resolved;
   }
 
+  /**
+   * Viewport point that a pointer event must use to hit the element. An inline
+   * element that wraps has one content quad per line fragment, while its box
+   * model spans all of them; the box centre can lie beside a shorter line and
+   * hit the parent. The centre of the first quad with an area is used, and the
+   * box model only when the element reports no such quad.
+   */
+  private async pointerTarget(
+    objectId: Protocol.Runtime.RemoteObjectId,
+    progress?: Progress,
+  ): Promise<{ cx: number; cy: number }> {
+    const session = this.frame.session;
+    const { quads } = await runLocatorStep(progress, "reading element geometry", () =>
+      session
+        .send<Protocol.DOM.GetContentQuadsResponse>("DOM.getContentQuads", { objectId })
+        .catch((error): Partial<Protocol.DOM.GetContentQuadsResponse> => {
+          progress?.throwIfStopped();
+          if (isCdpClosedError(error)) throw error;
+          return {};
+        }),
+    );
+    const quad = quads?.find((candidate) => quadArea(candidate) > 0);
+    if (quad) return this.centerFromBoxContent(quad);
+
+    const box = await runLocatorStep(progress, "reading element geometry", () =>
+      session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+        objectId,
+      }),
+    );
+    if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
+    return this.centerFromBoxContent(box.model.content);
+  }
+
   /** Compute a center point from a BoxModel content quad */
   centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
@@ -990,4 +1006,15 @@ export class Locator {
     const cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
     return { cx, cy };
   }
+}
+
+/** Area of a CDP quad ([x1,y1, x2,y2, x3,y3, x4,y4]); 0 for a malformed quad. */
+function quadArea(quad: Protocol.DOM.Quad): number {
+  if (!quad || quad.length < 8) return 0;
+  let twice = 0;
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    twice += quad[i * 2] * quad[j * 2 + 1] - quad[j * 2] * quad[i * 2 + 1];
+  }
+  return Math.abs(twice) / 2;
 }
