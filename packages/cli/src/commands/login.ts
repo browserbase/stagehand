@@ -6,7 +6,12 @@ import { Flags } from "@oclif/core";
 import { BrowseCommand } from "../base.js";
 import { login, readLoginJson, type LoginProject } from "../lib/auth/login.js";
 import { credentialFetch } from "../lib/auth/credentials.js";
-import { requireSupportedCredentialStore, writeCredential } from "../lib/auth/store.js";
+import {
+  credentialPath,
+  requireSupportedCredentialStore,
+  writeCredential,
+  type CredentialStore,
+} from "../lib/auth/store.js";
 import { fail } from "../lib/errors.js";
 
 export default class Login extends BrowseCommand {
@@ -14,6 +19,12 @@ export default class Login extends BrowseCommand {
     "Sign in through your browser and save a project API key on this computer.";
   static override examples = ["browse login"];
   static override flags = {
+    "credential-store": Flags.string({
+      options: ["keychain", "file"],
+      default: "keychain",
+      description:
+        "Save in the OS keystore (default), or explicitly opt into a private plaintext file.",
+    }),
     development: Flags.boolean({
       description: "Use the development dashboard and API.",
       hidden: true,
@@ -23,8 +34,13 @@ export default class Login extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Login);
-    requireSupportedCredentialStore();
-    this.log("This saves the selected project's API key in your OS keystore.");
+    const store = flags["credential-store"] as CredentialStore;
+    requireSupportedCredentialStore(store);
+    this.log(
+      store === "file"
+        ? `This saves the selected project's API key as plaintext in a private file: ${credentialPath()}`
+        : "This saves the selected project's API key in your OS keystore.",
+    );
     this.log(
       "Authorize access to your permitted project API keys, then choose one project to use here.",
     );
@@ -74,7 +90,7 @@ export default class Login extends BrowseCommand {
         if (result?.id !== credential.projectId)
           fail("Login project verification failed; no credential was saved.");
         if (controller.signal.aborted) fail("Login canceled; no credential was saved.");
-        writeCredential(credential);
+        writeCredential(credential, process.env, store);
         this.log("Signed in. Run browse auth status to inspect your saved login.");
         this.log(
           "Existing browser sessions keep their original credentials. Run browse stop (with --session NAME for named sessions) before switching projects.",
