@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { NetworkManager } from "../understudy/networkManager.js";
+import type { Page } from "../understudy/page.js";
 
 type Handler = (params: unknown) => void;
 
@@ -36,7 +37,7 @@ describe("NetworkManager.waitForIdle", () => {
   it("waits for a request that started before the waiter was registered", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const { session, emit } = createSession();
     manager.trackSession(session);
 
@@ -70,7 +71,7 @@ describe("NetworkManager.waitForIdle", () => {
   it("ignores in-flight requests that started before the wait window", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
-    const manager = new NetworkManager();
+    const manager = new NetworkManager({} as Page);
     const { session, emit } = createSession();
     manager.trackSession(session);
     emit("Network.requestWillBeSent", {
@@ -90,5 +91,30 @@ describe("NetworkManager.waitForIdle", () => {
 
     await vi.advanceTimersByTimeAsync(500);
     expect(settled).toBe(true);
+  });
+
+  it("drops requests of a document that its frame navigated away from", async () => {
+    vi.useFakeTimers();
+    const manager = new NetworkManager({} as Page);
+    const { session, emit } = createSession();
+    manager.trackSession(session);
+    emit("Network.requestWillBeSent", {
+      requestId: "xhr-1",
+      loaderId: "loader-1",
+      frameId: "main",
+      type: "XHR",
+      request: { url: "https://example.com/api" },
+    });
+
+    let settled = false;
+    const handle = manager.waitForIdle({ startTime: 0, timeout: 10_000, idleTimeMs: 500 });
+    void handle.promise.then(() => {
+      settled = true;
+    });
+
+    emit("Page.frameNavigated", { frame: { id: "main", loaderId: "loader-2" } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(settled).toBe(true);
+    expect(manager.requests.size).toBe(0);
   });
 });

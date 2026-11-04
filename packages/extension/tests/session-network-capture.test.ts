@@ -62,6 +62,7 @@ function handlers(
     "Network.loadingFailed": (event, time) => receive("fail", event, time),
     "Network.requestServedFromCache": (event, time) => receive("cache", event, time),
     "Page.frameStoppedLoading": (event, time) => receive("frame-stopped", event, time),
+    "Page.frameNavigated": (event, time) => receive("frame-navigated", event, time),
   };
 }
 
@@ -320,7 +321,7 @@ describe("NetworkManager using session capture", () => {
     manager.trackSession(parent);
     manager.trackSession(child);
     expect(parent.calls).toEqual(["Network.enable", "Page.enable"]);
-    expect(parent.listenerCount()).toBe(6);
+    expect(parent.listenerCount()).toBe(7);
 
     parent.emit("Network.requestWillBeSent", request("shared", "parent-frame"));
     child.emit("Network.requestWillBeSent", request("shared", "child-frame"));
