@@ -613,6 +613,49 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("delivers response wrappers with lazy body methods and filters subscription IDs", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    client.queueResponse(StagehandMethods.responseBody, {
+      body: "eyJvayI6dHJ1ZX0=",
+      base64Encoded: true,
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const received: Response[] = [];
+    const subscription = await page.onResponse((response) => received.push(response));
+    const { subscriptionId } = client.calls[0]!.params as { subscriptionId: string };
+    const params = {
+      subscriptionId,
+      event: "response" as const,
+      pageId: "page-1",
+      sessionId: "child",
+      targetId: "child",
+      response: {
+        responseId: "response-1",
+        url: "https://example.test/api",
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        fromServiceWorker: false,
+      },
+    };
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: { ...params, subscriptionId: "other" },
+    });
+    expect(received).toHaveLength(0);
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(received[0]).toBeInstanceOf(Response);
+    expect(client.calls).toHaveLength(1);
+    await expect(received[0]!.json()).resolves.toEqual({ ok: true });
+    expect(client.calls[1]!.params).toEqual({ responseId: "response-1" });
+    await subscription.unsubscribe();
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(received).toHaveLength(1);
+  });
+
   it("delivers added tools as callable wrappers and filters unrelated events", async () => {
     expectTypeOf<Page["onToolsAdded"]>().parameter(0).toEqualTypeOf<ToolsAddedListener>();
     expectTypeOf<ToolsAddedListener>().parameter(0).toEqualTypeOf<WebMCPTool[]>();

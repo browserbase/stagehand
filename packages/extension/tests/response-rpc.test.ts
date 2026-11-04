@@ -91,7 +91,7 @@ describe("navigation response runtime", () => {
       runtime.pageGoForward({ pageId: "page-1" }),
     ]);
 
-    expect(runtime.responseHandles.size).toBe(4);
+    expect(runtime.responseHandles.size).toBe(1);
     for (const result of results) {
       expect(result.page).toStrictEqual({
         pageId: "page-1",

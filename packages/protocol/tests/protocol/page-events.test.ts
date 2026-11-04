@@ -155,7 +155,9 @@ describe("typed page events", () => {
       expect(PageEventNotificationSchema.safeParse(invalid).success).toBe(false);
     }
     for (const event of ["toolsadded", "toolsremoved"]) {
-      expect(PageEventNotificationSchema.parse({ ...routing, event, tools: [] }).tools).toEqual([]);
+      const parsed = PageEventNotificationSchema.parse({ ...routing, event, tools: [] });
+      if (parsed.event === "response") throw new Error("Expected a tool event");
+      expect(parsed.tools).toEqual([]);
     }
   });
 
@@ -202,4 +204,32 @@ describe("typed page events", () => {
       ),
     ).toStrictEqual(removed);
   });
+});
+
+it("roundtrips response notifications without rewriting HTTP header names", () => {
+  const event = {
+    event: "response" as const,
+    subscriptionId: "s",
+    pageId: "p",
+    sessionId: "child",
+    targetId: "child",
+    response: {
+      responseId: "r",
+      url: "https://example.test/api",
+      status: 200,
+      statusText: "OK",
+      headers: { "X-Request-ID": "abc", customHeader: "preserved" },
+      fromServiceWorker: false,
+    },
+  };
+  expect(PageSubscriptionEventNameSchema.parse("response")).toBe("response");
+  const wire = encodeWireValue(event, StagehandNotifications.pageEvent.paramsWire);
+  expect(
+    wireSchema(PageEventNotificationSchema, StagehandNotifications.pageEvent.paramsWire).parse(
+      wire,
+    ),
+  ).toEqual(event);
+  expect(() =>
+    PageEventNotificationSchema.parse({ ...event, response: { status: 200 } }),
+  ).toThrow();
 });
