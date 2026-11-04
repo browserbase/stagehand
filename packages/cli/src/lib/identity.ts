@@ -39,12 +39,10 @@ export async function resolveInstallId(
   if (cachedInstallId !== undefined) {
     return cachedInstallId;
   }
-  inFlightResolution ??= resolveAnonymousInstallId(env, fallbackId).then(
-    (id) => {
-      cachedInstallId = id;
-      return id;
-    },
-  );
+  inFlightResolution ??= resolveAnonymousInstallId(env, fallbackId).then((id) => {
+    cachedInstallId = id;
+    return id;
+  });
   return inFlightResolution;
 }
 
@@ -179,19 +177,11 @@ export function resolveConfigDir(env: NodeJS.ProcessEnv = process.env): string {
 function legacyInstallIdPaths(env: NodeJS.ProcessEnv): string[] {
   const paths: string[] = [];
   if (process.platform === "win32") {
-    const baseDir =
-      env.APPDATA ?? env.LOCALAPPDATA ?? join(homedir(), "AppData", "Roaming");
+    const baseDir = env.APPDATA ?? env.LOCALAPPDATA ?? join(homedir(), "AppData", "Roaming");
     paths.push(join(baseDir, "Browserbase", "cli", "telemetry-id"));
   } else if (process.platform === "darwin") {
     paths.push(
-      join(
-        homedir(),
-        "Library",
-        "Application Support",
-        "Browserbase",
-        "cli",
-        "telemetry-id",
-      ),
+      join(homedir(), "Library", "Application Support", "Browserbase", "cli", "telemetry-id"),
     );
   }
   const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");

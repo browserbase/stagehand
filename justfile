@@ -107,6 +107,12 @@ _version:
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
+# Python distributions need release tooling and the extension's build dependencies.
+# SDK TS is included because callbackBatch.ts currently imports its source directly.
+_install-python-release:
+    pnpm --filter stagehand-workspace --filter '@browserbasehq/stagehand-extension...' --filter '@browserbasehq/stagehand...' install --frozen-lockfile
+    uv sync --package stagehand --locked
+
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
     pnpm --filter @browserbasehq/eve build
