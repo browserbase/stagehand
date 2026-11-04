@@ -31,6 +31,12 @@ export class Progress {
     return this.controller.signal;
   }
 
+  /** Cancel the operation when its owning page or transport closes. */
+  abort(error: Error): void {
+    this.dispose();
+    this.controller.abort(error);
+  }
+
   remainingMs(): number {
     return this.deadline === null ? Infinity : Math.max(0, this.deadline - performance.now());
   }
