@@ -45,8 +45,9 @@ browse stop
 
 ## Browserbase login
 
-Run `browse login` on the same computer as your browser. Sign in to Browserbase,
-select a project, and approve access. Subsequent commands use that project's API key:
+Run `browse login` on the same computer as your browser. Sign in to Browserbase and
+authorize access to API keys for projects you are permitted to access. Then choose one
+project in your terminal. Subsequent commands use only that project's API key:
 
 ```bash
 browse login
@@ -56,8 +57,11 @@ browse open https://example.com --remote
 browse logout
 ```
 
-`browse login --no-browser` prints a link to open manually. By default, the key is
-stored in your OS credential store: macOS Keychain, Windows Credential Manager, or
+`browse login --no-browser` prints a link to open manually. Use `--project-id ID` to
+select a project without a prompt; it is required without an interactive terminal
+when more than one project is available. The temporary OAuth tokens stay in memory
+and are discarded after login. Any returned refresh grant is revoked before the
+selected project's API key is saved. By default, the key is stored in your OS credential store: macOS Keychain, Windows Credential Manager, or
 Linux Secret Service. Linux requires a running, unlocked Secret Service (such as
 GNOME Keyring or KWallet); login fails if it is unavailable. It never silently falls
 back to plaintext or a temporary kernel keyring.
