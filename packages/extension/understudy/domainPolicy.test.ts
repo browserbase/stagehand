@@ -57,7 +57,23 @@ describe("domain policy DNR compiler", () => {
       expect(rule.condition).toEqual({
         regexFilter: expect.any(String),
         isUrlFilterCaseSensitive: false,
-        excludedResourceTypes: [],
+        resourceTypes: [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "webtransport",
+          "webbundle",
+          "other",
+        ],
       });
       expect(["allow", "block"]).toContain(rule.action.type);
     }

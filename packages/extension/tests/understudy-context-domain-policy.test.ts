@@ -56,7 +56,7 @@ describe("BrowserContext DNR policy lifecycle", () => {
     expect(f.context.getDomainPolicy()).toBeNull();
   });
 
-  it("waits for DNR installation before publishing the policy and retains Fetch enforcement", async () => {
+  it("waits for DNR installation without changing CDP interception", async () => {
     const f = fixture();
     const started = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -73,17 +73,14 @@ describe("BrowserContext DNR policy lifecycle", () => {
     release.resolve();
     await setting;
     expect(f.context.getDomainPolicy()).toEqual(oldPolicy);
-    expect(f.page.send).toHaveBeenCalledWith("Fetch.enable", {
-      patterns: f.installed()?.fetchPatterns,
-    });
-    expect(f.page.on).toHaveBeenCalledWith("Fetch.requestPaused", expect.any(Function));
-
+    await f.context.setDomainPolicy(newPolicy);
     await f.context.setDomainPolicy(null);
-    expect(f.page.send).toHaveBeenLastCalledWith("Fetch.disable");
-    expect(f.page.off).toHaveBeenCalledWith("Fetch.requestPaused", expect.any(Function));
+    expect(f.page.send).not.toHaveBeenCalled();
+    expect(f.page.on).not.toHaveBeenCalled();
+    expect(f.page.off).not.toHaveBeenCalled();
   });
 
-  it("leaves both the reported policy and Fetch configuration unchanged if DNR fails", async () => {
+  it("leaves the reported policy unchanged if DNR fails", async () => {
     const f = fixture();
     await f.context.setDomainPolicy(oldPolicy);
     f.page.send.mockClear();
@@ -96,50 +93,24 @@ describe("BrowserContext DNR policy lifecycle", () => {
     expect(f.context.getDomainPolicy()).toEqual(newPolicy);
   });
 
-  it("restores the previous DNR and Fetch policy if Fetch configuration fails", async () => {
+  it("retains the previous policy when clearing DNR rules fails", async () => {
     const f = fixture();
     await f.context.setDomainPolicy(oldPolicy);
-    f.page.send.mockRejectedValueOnce(new Error("Fetch rejected"));
-    await expect(f.context.setDomainPolicy(newPolicy)).rejects.toThrow("Fetch rejected");
-    expect(f.context.getDomainPolicy()).toEqual(oldPolicy);
-    expect(f.installed()?.blockedDomains).toEqual(["old.test"]);
-    expect(f.page.send).toHaveBeenLastCalledWith("Fetch.enable", {
-      patterns: f.installed()?.fetchPatterns,
-    });
-  });
-
-  it("reports rollback failures and keeps the getter consistent with the installed DNR policy", async () => {
-    const f = fixture();
-    await f.context.setDomainPolicy(oldPolicy);
-    const replace = f.rules.replace.getMockImplementation()!;
-    f.rules.replace
-      .mockImplementationOnce(replace)
-      .mockRejectedValueOnce(new Error("rollback failed"));
-    f.page.send.mockRejectedValueOnce(new Error("Fetch rejected"));
-    await expect(f.context.setDomainPolicy(newPolicy)).rejects.toThrow(
-      "could not be fully rolled back",
-    );
-    expect(f.context.getDomainPolicy()).toEqual(newPolicy);
-    expect(f.installed()?.allowedDomains).toEqual(["new.test"]);
-  });
-
-  it("rolls back a failed clear", async () => {
-    const f = fixture();
-    await f.context.setDomainPolicy(oldPolicy);
-    f.page.send.mockRejectedValueOnce(new Error("disable rejected"));
-    await expect(f.context.setDomainPolicy(null)).rejects.toThrow("disable rejected");
+    f.rules.replace.mockRejectedValueOnce(new Error("clear rejected"));
+    await expect(f.context.setDomainPolicy(null)).rejects.toThrow("clear rejected");
     expect(f.context.getDomainPolicy()).toEqual(oldPolicy);
     expect(f.installed()?.blockedDomains).toEqual(["old.test"]);
   });
 
-  it("serializes updates through Fetch completion and snapshots caller input", async () => {
+  it("serializes DNR updates and snapshots caller input", async () => {
     const f = fixture();
     const started = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    f.page.send.mockImplementationOnce(async () => {
+    const replace = f.rules.replace.getMockImplementation()!;
+    f.rules.replace.mockImplementationOnce(async (policy) => {
       started.resolve();
       await release.promise;
-      return {};
+      await replace(policy);
     });
     const first = f.context.setDomainPolicy(oldPolicy);
     await started.promise;

@@ -1,4 +1,3 @@
-import type { Protocol } from "devtools-protocol";
 import type { DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
 type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
@@ -8,7 +7,6 @@ export type NormalizedDomainPolicy = {
   blockedDomains: string[];
   allowedDomainRules: DomainRule[];
   blockedDomainRules: DomainRule[];
-  fetchPatterns: Protocol.Fetch.RequestPattern[];
 };
 
 export type DomainPolicyDecision =
@@ -16,7 +14,6 @@ export type DomainPolicyDecision =
   | { action: "block"; reason: "allowedDomains" | "blockedDomains" };
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const HTTP_SCHEMES = ["http", "https"] as const;
 type DomainPolicyKey = "allowedDomains" | "blockedDomains";
 
 function canonicalizeHostname(hostname: string): string {
@@ -115,7 +112,7 @@ function getDomainPatterns(
   if (patterns === undefined) return [];
 
   // Empty arrays intentionally clear that side of the policy, but malformed
-  // runtime values should fail fast rather than silently disabling interception.
+  // runtime values should fail fast rather than silently disabling enforcement.
   if (!Array.isArray(patterns)) {
     throw new TypeError(`${key} must be an array of strings`);
   }
@@ -125,39 +122,6 @@ function getDomainPatterns(
 
 function patternHost(rule: DomainRule): string {
   return rule.type === "wildcard" ? `*.${rule.hostname}` : rule.hostname;
-}
-
-function fetchPatternHosts(rule: DomainRule): string[] {
-  const host = patternHost(rule);
-  return [host, `${host}.`];
-}
-
-function toBlocklistFetchPatterns(rules: DomainRule[]): Protocol.Fetch.RequestPattern[] {
-  const patterns: Protocol.Fetch.RequestPattern[] = [];
-
-  for (const rule of rules) {
-    for (const host of fetchPatternHosts(rule)) {
-      for (const scheme of HTTP_SCHEMES) {
-        patterns.push({
-          urlPattern: `${scheme}://${host}/*`,
-          requestStage: "Request",
-        });
-        patterns.push({
-          urlPattern: `${scheme}://${host}:*/*`,
-          requestStage: "Request",
-        });
-      }
-    }
-  }
-
-  return patterns;
-}
-
-function toAllowlistFetchPatterns(): Protocol.Fetch.RequestPattern[] {
-  return HTTP_SCHEMES.map((scheme) => ({
-    urlPattern: `${scheme}://*/*`,
-    requestStage: "Request",
-  }));
 }
 
 export function normalizeDomainPolicy(
@@ -176,9 +140,6 @@ export function normalizeDomainPolicy(
     blockedDomains: blockedDomainRules.map(patternHost),
     allowedDomainRules,
     blockedDomainRules,
-    fetchPatterns: allowedDomainRules.length
-      ? toAllowlistFetchPatterns()
-      : toBlocklistFetchPatterns(blockedDomainRules),
   };
 }
 
@@ -245,9 +206,25 @@ export function toDomainPolicyDnrRules(
       condition: {
         regexFilter,
         isUrlFilterCaseSensitive: false,
-        // Omitting both resource type fields excludes main_frame in Chrome.
-        // An empty exclusion list includes navigations and all subresources.
-        excludedResourceTypes: [],
+        // Chrome treats an empty exclusion list as omitted, which excludes
+        // main_frame. Explicitly include navigations as well as subresources.
+        resourceTypes: [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "webtransport",
+          "webbundle",
+          "other",
+        ],
       },
     });
   };

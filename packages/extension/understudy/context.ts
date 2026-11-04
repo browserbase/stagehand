@@ -99,11 +99,6 @@ export class BrowserContext {
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
-  readonly _domainPolicySessionListeners = new Map<
-    SessionId,
-    (evt: Protocol.Fetch.RequestPausedEvent) => void
-  >();
-
   readonly _sessionInit = new Set<SessionId>();
   pagesByTarget = new Map<TargetId, Page>();
   mainFrameToTarget = new Map<string, TargetId>();
@@ -372,159 +367,12 @@ export class BrowserContext {
 
     const update = this.domainPolicyTail.then(async () => {
       if (this.closing) throw new Error("Browser context is closing");
-      const previousPolicy = this.domainPolicy;
       // Do not publish the new policy until Chrome has validated and installed it.
       await rules.replace(nextPolicy);
       this.domainPolicy = nextPolicy;
-      try {
-        await this.applyDomainPolicyToSessions(nextPolicy);
-      } catch (error) {
-        const rollbackErrors: unknown[] = [];
-        try {
-          await rules.replace(previousPolicy);
-          this.domainPolicy = previousPolicy;
-        } catch (rollbackError) {
-          // The getter must continue to describe the DNR policy actually installed.
-          rollbackErrors.push(rollbackError);
-        }
-        try {
-          await this.applyDomainPolicyToSessions(this.domainPolicy);
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError);
-        }
-        if (rollbackErrors.length) {
-          throw new AggregateError(
-            [error, ...rollbackErrors],
-            "Domain policy update failed and could not be fully rolled back",
-          );
-        }
-        throw error;
-      }
     });
     this.domainPolicyTail = update.catch(() => undefined);
     await update;
-  }
-
-  private async applyDomainPolicyToSessions(
-    nextPolicy: NormalizedDomainPolicy | null,
-  ): Promise<void> {
-    const sessions: CDPSessionLike[] = [];
-    for (const sessionId of this._sessionInit) {
-      const session = this.conn.getSession(sessionId);
-      if (session) sessions.push(session);
-    }
-
-    if (!sessions.length) return;
-
-    const results = await Promise.allSettled(
-      sessions.map(async (session) => {
-        if (!nextPolicy) {
-          try {
-            await session.send("Fetch.disable");
-            this.uninstallDomainPolicyHandler(session);
-          } catch (error) {
-            throw { action: "disable", error };
-          }
-          return;
-        }
-
-        this.installDomainPolicyHandler(session);
-        try {
-          await session.send("Fetch.enable", {
-            patterns: nextPolicy.fetchPatterns,
-          });
-        } catch (error) {
-          throw { action: "enable", error };
-        }
-      }),
-    );
-
-    const failures = results
-      .map((result, index) => ({ result, session: sessions[index] }))
-      .filter(
-        (
-          entry,
-        ): entry is {
-          result: PromiseRejectedResult;
-          session: CDPSessionLike;
-        } => entry.result.status === "rejected",
-      )
-      .map((entry) => {
-        const failure = entry.result.reason as {
-          action?: "enable" | "disable";
-          error?: unknown;
-        };
-        if (failure?.action === "enable") {
-          this.uninstallDomainPolicyHandler(entry.session);
-        }
-        const reason = failure?.error ?? entry.result.reason;
-        const sid = entry.session.id ?? "unknown";
-        const message = reason instanceof Error ? reason.message : String(reason);
-        return { reason, sessionId: sid, message };
-      });
-
-    if (failures.length) {
-      this.logger.error("setDomainPolicy failed for one or more sessions", {
-        category: "ctx",
-        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
-      });
-      throw failures[0]!.reason;
-    }
-  }
-
-  installDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-    if (this._domainPolicySessionListeners.has(sessionId)) return;
-
-    const handler = (evt: Protocol.Fetch.RequestPausedEvent) => {
-      void this.handleDomainPolicyRequestPaused(session, evt);
-    };
-    this._domainPolicySessionListeners.set(sessionId, handler);
-    session.on<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-  }
-
-  uninstallDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-
-    const handler = this._domainPolicySessionListeners.get(sessionId);
-    if (!handler) return;
-
-    session.off<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-    this._domainPolicySessionListeners.delete(sessionId);
-  }
-
-  async handleDomainPolicyRequestPaused(
-    session: CDPSessionLike,
-    evt: Protocol.Fetch.RequestPausedEvent,
-  ): Promise<void> {
-    const decision = getDomainPolicyDecision(evt.request.url, this.domainPolicy);
-
-    if (decision.action === "continue") {
-      await session.send("Fetch.continueRequest", { requestId: evt.requestId }).catch(() => {});
-      return;
-    }
-
-    let hostname = "";
-    try {
-      hostname = new URL(evt.request.url).hostname.toLowerCase();
-    } catch {
-      // ignore malformed URLs for logging
-    }
-
-    this.logger.debug("Blocked request by domain policy", {
-      category: "network",
-      hostname,
-      ruleType: decision.reason,
-    });
-
-    await session
-      .send("Fetch.failRequest", {
-        requestId: evt.requestId,
-        errorReason: "BlockedByClient",
-      })
-      .catch(() => {});
   }
 
   public get clipboard(): ContextClipboard {
@@ -633,7 +481,6 @@ export class BrowserContext {
     this.closing = true;
     const closing = Promise.resolve().then(async () => {
       try {
-        // Disconnect first so outstanding Fetch calls cannot hold cleanup open.
         await this.conn.close();
       } finally {
         await this.domainPolicyTail;
@@ -657,7 +504,6 @@ export class BrowserContext {
           this.domainPolicyClosingTargets.clear();
           this.domainPolicyClosePromises.clear();
           this._sessionInit.clear();
-          this._domainPolicySessionListeners.clear();
         }
       }
     });
@@ -811,24 +657,6 @@ export class BrowserContext {
         .catch(() => false);
       return { dispatched, response };
     };
-    const queueFetchEnablePreResume = (params: object) => {
-      let error: unknown;
-      const dispatched = this.conn
-        .waitForSessionDispatch(sessionId, "Fetch.enable")
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      const response = session
-        .send("Fetch.enable", params)
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      return { dispatched, response, getError: () => error };
-    };
     const initScriptOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
@@ -856,19 +684,6 @@ export class BrowserContext {
       headerPreResumeOps.push(queuePreResume("Network.enable"));
       headerPreResumeOps.push(queuePreResume("Network.setExtraHTTPHeaders", { headers }));
     }
-    const fetchPreResumeOps: Array<{
-      dispatched: Promise<boolean>;
-      response: Promise<boolean>;
-      getError: () => unknown;
-    }> = [];
-    if (this.domainPolicy) {
-      this.installDomainPolicyHandler(session);
-      fetchPreResumeOps.push(
-        queueFetchEnablePreResume({
-          patterns: this.domainPolicy.fetchPatterns,
-        }),
-      );
-    }
     // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
@@ -888,7 +703,6 @@ export class BrowserContext {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
-        ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
       ])
     ).every(Boolean);
@@ -898,10 +712,9 @@ export class BrowserContext {
       resumeOp.dispatched,
       resumeOp.response,
     ]);
-    const [coreResults, headerResults, fetchResults, initScriptResults] = await Promise.all([
+    const [coreResults, headerResults, initScriptResults] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
-      Promise.all(fetchPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
     ]);
     // Header propagation is independent of init-script determinism but still
@@ -928,38 +741,6 @@ export class BrowserContext {
       return;
     }
     resumed = true;
-
-    if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
-      this.uninstallDomainPolicyHandler(session);
-      const fetchError = fetchPreResumeOps
-        .map((op) => op.getError())
-        .find((error) => error !== undefined);
-      const fetchErrorMessage = fetchError
-        ? fetchError instanceof Error
-          ? fetchError.message
-          : String(fetchError)
-        : "Fetch.enable failed during target attach";
-      const policyFailureMessage =
-        "Fetch.enable failed during target attach; closing target because " +
-        "Stagehand cannot guarantee domain policy enforcement";
-      this.recordPageCreationFailure(
-        info.targetId,
-        fetchError instanceof Error
-          ? fetchError
-          : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
-        policyFailureMessage,
-      );
-      this.logger.error("Closing target because domain policy could not be guaranteed", {
-        category: "ctx",
-        targetId: String(info.targetId),
-        targetType: String(info.type),
-        targetUrl: String(info.url ?? ""),
-        sessionId,
-        cdpError: fetchErrorMessage,
-      });
-      await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
-      return;
-    }
 
     const scriptsInstalled = coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
@@ -1158,18 +939,15 @@ export class BrowserContext {
     const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
     if (decision.action === "continue") return false;
 
-    this.logger.debug(
-      "Popup reached a disallowed domain before it could be intercepted; closing it",
-      {
-        category: "network",
-        targetId: String(info.targetId),
-        targetUrl: String(info.url ?? ""),
-        openerId: String(info.openerId ?? ""),
-        openerFrameId: String(info.openerFrameId ?? ""),
-        ruleType: decision.reason,
-        source,
-      },
-    );
+    this.logger.debug("Closing popup targeting a disallowed domain", {
+      category: "network",
+      targetId: String(info.targetId),
+      targetUrl: String(info.url ?? ""),
+      openerId: String(info.openerId ?? ""),
+      openerFrameId: String(info.openerFrameId ?? ""),
+      ruleType: decision.reason,
+      source,
+    });
 
     const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage: "Failed to close popup after it reached a disallowed domain",
@@ -1236,12 +1014,6 @@ export class BrowserContext {
     }
 
     this._targetSessionListeners.delete(sessionId);
-    const session = this.conn.getSession(sessionId);
-    if (session) {
-      this.uninstallDomainPolicyHandler(session);
-    } else {
-      this._domainPolicySessionListeners.delete(sessionId);
-    }
     this._sessionInit.delete(sessionId);
   }
 
