@@ -5,14 +5,21 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { describePosix } from "./helpers/platform.js";
+import { mockDirectoryOwner } from "./helpers/directory-owner.js";
 import { resolveTargetForCommand } from "../src/lib/driver/command-cli.js";
 import {
+  ensureDriverDaemon,
   getDriverStatus,
   openViaDaemon,
   runDriverCommandViaDaemon,
   stopDriverDaemon,
 } from "../src/lib/driver/daemon/client.js";
-import { getLockPath, getPidPath, getSocketPath } from "../src/lib/driver/daemon/paths.js";
+import {
+  cleanupDaemonFiles,
+  getLockPath,
+  getPidPath,
+  getSocketPath,
+} from "../src/lib/driver/daemon/paths.js";
 
 // Use a real listening socket: these tests must detect both bare connectivity
 // probes and requests that could forward credentials to an untrusted daemon.
@@ -76,11 +83,9 @@ describePosix("daemon directory validation before connections", () => {
   it.each(["unprivileged", "root"])(
     "refuses every client entry point before connecting as %s",
     async (caller) => {
-      const entry = await fs.lstat(daemonDir);
-      vi.spyOn(process, "getuid").mockReturnValue(caller === "root" ? 0 : entry.uid + 1);
-      if (caller === "root" && entry.uid === 0) {
-        vi.spyOn(fs, "lstat").mockResolvedValue(Object.assign(entry, { uid: 1 }));
-      }
+      const uid = caller === "root" ? 0 : process.getuid!();
+      vi.spyOn(process, "getuid").mockReturnValue(uid);
+      mockDirectoryOwner(daemonDir, () => uid + 1);
       const connect = vi.spyOn(net, "createConnection");
       const operations = [
         () => getDriverStatus(session),
@@ -115,9 +120,10 @@ describePosix("daemon directory validation before connections", () => {
     async ({ operation, validChecks }) => {
       const { uid } = await fs.lstat(daemonDir);
       let remainingChecks = validChecks;
-      // Simulate ownership changing after the connectivity probe, or after the
-      // status reply but before stop. Each new connection must recheck ownership.
-      vi.spyOn(process, "getuid").mockImplementation(() => (remainingChecks-- > 0 ? uid : uid + 1));
+      // Keep the caller fixed and change freshly read directory metadata after
+      // the probe or status reply. Caching ownership must not pass this test.
+      vi.spyOn(process, "getuid").mockReturnValue(uid);
+      mockDirectoryOwner(daemonDir, () => (remainingChecks-- > 0 ? uid : uid + 1));
       const connect = vi.spyOn(net, "createConnection");
 
       await expect(
@@ -132,6 +138,129 @@ describePosix("daemon directory validation before connections", () => {
       await expect(fs.readFile(getPidPath(session), "utf8")).resolves.toBe("999999");
       await expect(fs.readFile(getLockPath(session), "utf8")).resolves.toBe("999999");
       await expect(fs.access(getSocketPath(session))).resolves.toBeUndefined();
+    },
+  );
+
+  it.each(["status", "forced stop"])(
+    "revalidates before cleanup after a failed probe during %s",
+    async (operation) => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      // Leave a non-listening socket artifact so the real probe fails.
+      await fs.writeFile(getSocketPath(session), "stale socket");
+      let foreign = false;
+      mockDirectoryOwner(daemonDir, (uid) => (foreign ? uid + 1 : uid));
+      const connect = net.createConnection;
+      vi.spyOn(net, "createConnection").mockImplementation((...args) => {
+        foreign = true;
+        return connect(...args);
+      });
+      const read = vi.spyOn(fs, "readFile");
+      const unlink = vi.spyOn(fs, "unlink");
+
+      await expect(
+        operation === "status" ? getDriverStatus(session) : stopDriverDaemon(session, true),
+      ).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_not_owned" },
+      });
+
+      expect(read).not.toHaveBeenCalled();
+      expect(unlink).not.toHaveBeenCalled();
+      await expect(fs.readFile(getPidPath(session), "utf8")).resolves.toBe("999999");
+      await expect(fs.readFile(getLockPath(session), "utf8")).resolves.toBe("999999");
+      await expect(fs.readFile(getSocketPath(session), "utf8")).resolves.toBe("stale socket");
+    },
+  );
+
+  it("revalidates after reading stale PID metadata and before deleting artifacts", async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    await fs.writeFile(getSocketPath(session), "stale socket");
+    let foreign = false;
+    mockDirectoryOwner(daemonDir, (uid) => (foreign ? uid + 1 : uid));
+    const read = fs.readFile.bind(fs);
+    vi.spyOn(fs, "readFile").mockImplementation(async (...args) => {
+      const result = await read(...args);
+      if (args[0] === getPidPath(session)) foreign = true;
+      return result;
+    });
+    const unlink = vi.spyOn(fs, "unlink");
+
+    await expect(getDriverStatus(session)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_not_owned" },
+    });
+
+    expect(unlink).not.toHaveBeenCalled();
+    await expect(fs.access(getPidPath(session))).resolves.toBeUndefined();
+    await expect(fs.access(getLockPath(session))).resolves.toBeUndefined();
+    await expect(fs.access(getSocketPath(session))).resolves.toBeUndefined();
+  });
+
+  it("stops cleanup when ownership changes between artifact deletions", async () => {
+    let foreign = false;
+    mockDirectoryOwner(daemonDir, (uid) => (foreign ? uid + 1 : uid));
+    const unlink = fs.unlink.bind(fs);
+    const unlinkSpy = vi.spyOn(fs, "unlink").mockImplementation(async (file) => {
+      await unlink(file);
+      foreign = true;
+    });
+
+    await expect(cleanupDaemonFiles(session)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_not_owned" },
+    });
+
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    await expect(fs.readFile(getPidPath(session), "utf8")).resolves.toBe("999999");
+    await expect(fs.readFile(getLockPath(session), "utf8")).resolves.toBe("999999");
+  });
+
+  it.each(["stale lock removal", "lock release"])(
+    "preserves the lock after ownership loss during %s",
+    async (operation) => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      let foreign = false;
+      mockDirectoryOwner(daemonDir, (uid) => (foreign ? uid + 1 : uid));
+      const lockPath = getLockPath(session);
+      if (operation === "stale lock removal") {
+        const read = fs.readFile.bind(fs);
+        vi.spyOn(fs, "readFile").mockImplementation(async (...args) => {
+          const result = await read(...args);
+          if (args[0] === lockPath) foreign = true;
+          return result;
+        });
+      } else {
+        await fs.unlink(lockPath);
+        // Preserve the owner-mocking implementation rather than the spy itself.
+        const open = vi.mocked(fs.open).getMockImplementation()!;
+        vi.spyOn(fs, "open").mockImplementation(async (file, flags, mode) => {
+          const handle = await open(file, flags, mode);
+          if (String(file) === lockPath && flags === "wx") {
+            const write = handle.write.bind(handle);
+            vi.spyOn(handle, "write").mockImplementation(async (...args) => {
+              const result = await write(...args);
+              foreign = true;
+              return result;
+            });
+          }
+          return handle;
+        });
+      }
+      const unlink = vi.spyOn(fs, "unlink");
+
+      await expect(
+        ensureDriverDaemon({ session, target: { kind: "remote" } }),
+      ).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_not_owned" },
+      });
+
+      expect(unlink).not.toHaveBeenCalledWith(lockPath);
+      await expect(fs.readFile(lockPath, "utf8")).resolves.toBe(
+        operation === "stale lock removal" ? "999999" : String(process.pid),
+      );
     },
   );
 

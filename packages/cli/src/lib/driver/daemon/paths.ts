@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { constants, promises as fs } from "node:fs";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -9,7 +9,9 @@ export const PRIVATE_DIR_MODE = 0o700;
 export const PRIVATE_FILE_MODE = 0o600;
 
 export function runtimeDir(): string {
-  return process.env.BROWSE_DAEMON_DIR ?? path.join(os.tmpdir(), defaultRuntimeDirName());
+  const dir = process.env.BROWSE_DAEMON_DIR ?? path.join(os.tmpdir(), defaultRuntimeDirName());
+  assertNonEmptyDir(dir);
+  return dir;
 }
 
 export function sanitizeSessionName(session: string): string {
@@ -27,8 +29,8 @@ export async function ensureRuntimeDir(): Promise<string> {
 }
 
 export async function ensurePrivateDir(dir: string): Promise<void> {
-  // Normalize trailing separators so lstat inspects the directory entry itself,
-  // rather than following a symlink with a trailing slash.
+  assertNonEmptyDir(dir);
+  // Strip trailing separators so O_NOFOLLOW also rejects "symlink/".
   const resolvedDir = path.resolve(dir);
   try {
     await fs.mkdir(resolvedDir, { mode: PRIVATE_DIR_MODE, recursive: true });
@@ -36,25 +38,54 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "EEXIST" && code !== "ENOENT") throw error;
     // mkdir can report ENOENT for a dangling symlink. Inspect the entry below;
-    // if it really is missing, lstat will fail without changing anything.
+    // if it really is missing, opening it will fail without changing anything.
   }
 
-  const entry = await fs.lstat(resolvedDir);
-  if (!entry.isDirectory()) {
-    fail(`Refusing to use ${dir}: it must be a directory, not a symlink or other file.`, 1, {
-      resultCode: "daemon_dir_invalid",
-    });
+  if (process.platform === "win32") {
+    if (!(await fs.lstat(resolvedDir)).isDirectory()) failInvalidDirectory(dir);
+    return;
   }
-  // chmod is not an ownership check: root can chmod another user's directory
-  // without taking ownership, leaving that user in control of its contents.
-  if (typeof process.getuid === "function" && entry.uid !== process.getuid()) {
+
+  const handle = await fs
+    .open(resolvedDir, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
+    .catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ELOOP" || error.code === "ENOTDIR") failInvalidDirectory(dir);
+      throw error;
+    });
+  try {
+    // Inspect and chmod the same directory, even if its pathname is replaced.
+    const entry = await handle.stat();
+    if (!entry.isDirectory()) failInvalidDirectory(dir);
+    // Root must also reject foreign ownership: chmod does not change the owner.
+    if (typeof process.getuid === "function" && entry.uid !== process.getuid()) {
+      fail(
+        `Refusing to use ${dir}: it is owned by another user. Set BROWSE_DAEMON_DIR to a directory you own.`,
+        1,
+        { resultCode: "daemon_dir_not_owned" },
+      );
+    }
+    await handle.chmod(PRIVATE_DIR_MODE);
+  } finally {
+    await handle.close();
+  }
+}
+
+function assertNonEmptyDir(dir: string): void {
+  if (dir === "") {
     fail(
-      `Refusing to use ${dir}: it is owned by another user. Set BROWSE_DAEMON_DIR to a directory you own.`,
+      "Refusing to use an empty directory path. Unset BROWSE_DAEMON_DIR or set a non-empty path.",
       1,
-      { resultCode: "daemon_dir_not_owned" },
+      {
+        resultCode: "daemon_dir_invalid",
+      },
     );
   }
-  await chmodIfSupported(resolvedDir, PRIVATE_DIR_MODE);
+}
+
+function failInvalidDirectory(dir: string): never {
+  fail(`Refusing to use ${dir}: it must be a directory, not a symlink or other file.`, 1, {
+    resultCode: "daemon_dir_invalid",
+  });
 }
 
 export async function writePrivateFile(file: string, contents: string): Promise<void> {
@@ -89,7 +120,12 @@ export async function cleanupDaemonFiles(
 ): Promise<void> {
   const files = [getSocketPath(session), getPidPath(session)];
   if (includeLock) files.push(getLockPath(session));
-  await Promise.allSettled(files.map((file) => fs.unlink(file)));
+  for (const file of files) {
+    // Keep validation outside the best-effort unlink handler. Ownership loss
+    // must abort cleanup, including when it happens between artifact deletions.
+    await ensureRuntimeDir();
+    await fs.unlink(file).catch(() => undefined);
+  }
 }
 
 export function getNetworkDir(session: string): string {

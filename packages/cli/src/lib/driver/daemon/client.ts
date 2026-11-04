@@ -330,6 +330,7 @@ async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean
   const lockPath = getLockPath(session);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    await ensureRuntimeDir();
     try {
       const handle = await fs.open(lockPath, "wx", PRIVATE_FILE_MODE);
       try {
@@ -348,10 +349,12 @@ async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean
 }
 
 async function releaseLock(session: string): Promise<void> {
+  await ensureRuntimeDir();
   await fs.unlink(getLockPath(session)).catch(() => undefined);
 }
 
 async function isDaemonPidAlive(session: string): Promise<boolean> {
+  await ensureRuntimeDir();
   try {
     const contents = await fs.readFile(getPidPath(session), "utf8");
     const pid = Number(contents.trim());
@@ -363,6 +366,7 @@ async function isDaemonPidAlive(session: string): Promise<boolean> {
 }
 
 async function removeStaleLock(lockPath: string): Promise<boolean> {
+  await ensureRuntimeDir();
   let ownerPid: number | null;
   try {
     const contents = await fs.readFile(lockPath, "utf8");
@@ -374,6 +378,7 @@ async function removeStaleLock(lockPath: string): Promise<boolean> {
   }
 
   if (ownerPid && isProcessAlive(ownerPid)) return false;
+  await ensureRuntimeDir();
   await fs.unlink(lockPath).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
   });

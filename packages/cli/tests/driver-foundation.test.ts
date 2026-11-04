@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { itPosix } from "./helpers/platform.js";
+import { mockDirectoryOwner } from "./helpers/directory-owner.js";
 
 import { resolveConnectionTarget, targetsCompatible } from "../src/lib/driver/mode.js";
 import {
@@ -411,6 +412,93 @@ describe("driver foundation", () => {
     },
   );
 
+  it("rejects empty directory paths without changing the working directory permissions", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "browse-driver-empty-"));
+    cleanupPaths.push(dir);
+    if (process.platform !== "win32") await fs.chmod(dir, 0o755);
+    const before = await fs.stat(dir);
+    const previousCwd = process.cwd();
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = "";
+    process.chdir(dir);
+
+    try {
+      await expect(ensurePrivateDir("")).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+      await expect(ensureRuntimeDir()).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+      expect(runtimeDir).toThrow("empty directory path");
+      if (process.platform !== "win32") {
+        expect(() => getSocketPath("default")).toThrow("empty directory path");
+      }
+      expect(await fs.stat(dir)).toMatchObject({
+        mode: before.mode,
+        uid: before.uid,
+        ino: before.ino,
+      });
+      expect(await fs.readdir(dir)).toEqual([]);
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
+  itPosix.each(["before open", "after stat"])(
+    "does not chmod a symlink target swapped in %s",
+    async (swapAt) => {
+      const parent = await mkdtemp(join(tmpdir(), "browse-driver-swap-"));
+      cleanupPaths.push(parent);
+      const dir = join(parent, "runtime");
+      const moved = join(parent, "original");
+      const target = join(parent, "unrelated");
+      await fs.mkdir(dir);
+      await fs.mkdir(target);
+      await fs.chmod(dir, 0o755);
+      await fs.chmod(target, 0o755);
+      await fs.writeFile(join(target, "keep"), "unrelated contents");
+      const swap = async () => {
+        await fs.rename(dir, moved);
+        await fs.symlink(target, dir);
+      };
+      const open = fs.open.bind(fs);
+      let opened: Awaited<ReturnType<typeof fs.open>> | undefined;
+      const openSpy = vi.spyOn(fs, "open").mockImplementation(async (file, flags, mode) => {
+        if (String(file) !== dir) return open(file, flags, mode);
+        if (swapAt === "before open") await swap();
+        const handle = await open(file, flags, mode);
+        opened = handle;
+        if (swapAt === "after stat") {
+          const stat = handle.stat.bind(handle);
+          vi.spyOn(handle, "stat").mockImplementationOnce(async () => {
+            const entry = await stat();
+            await swap();
+            return entry;
+          });
+        }
+        return handle;
+      });
+
+      try {
+        if (swapAt === "before open") {
+          await expect(ensurePrivateDir(dir)).rejects.toMatchObject({
+            telemetry: { resultCode: "daemon_dir_invalid" },
+          });
+        } else {
+          await ensurePrivateDir(dir);
+          expect(await fileMode(moved)).toBe(0o700);
+          await expect(opened!.stat()).rejects.toMatchObject({ code: "EBADF" });
+        }
+        expect(await fileMode(target)).toBe(0o755);
+        expect(await fs.readFile(join(target, "keep"), "utf8")).toBe("unrelated contents");
+        expect(await fs.readlink(dir)).toBe(target);
+      } finally {
+        openSpy.mockRestore();
+      }
+    },
+  );
+
   itPosix("makes an existing owned directory private without changing its contents", async () => {
     const dir = await mkdtemp(join(tmpdir(), "browse-driver-owned-"));
     cleanupPaths.push(dir);
@@ -440,9 +528,7 @@ describe("driver foundation", () => {
         .mockReturnValue(caller === "root" ? 0 : before.uid + 1);
       // When the tests themselves run as root, simulate a foreign owner too.
       const ownerSpy =
-        caller === "root" && before.uid === 0
-          ? vi.spyOn(fs, "lstat").mockResolvedValue(Object.assign(before, { uid: 1 }))
-          : undefined;
+        caller === "root" && before.uid === 0 ? mockDirectoryOwner(dir, () => 1) : undefined;
 
       try {
         await expect(ensureRuntimeDir()).rejects.toMatchObject({

@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-add daemon runtime directory validation so that custom BROWSE_DAEMON_DIR paths must point to a directory owned by the current user.
+harden daemon directory checks to reject empty paths, symlinks, non-directories, and directories owned by another user on Unix.
