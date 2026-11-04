@@ -1196,17 +1196,6 @@ export class StagehandRuntime {
     return pageId;
   }
 
-  private pageNavigationResult(
-    pageId: string,
-    page: UnderstudyRuntimePage,
-    response: unknown,
-  ): PageNavigationResult {
-    const pageRef = pageRefFromUnderstudyPage(page);
-    if (!(response instanceof Response)) return { page: pageRef, response: null };
-
-    return { page: pageRef, response: this.responseDescriptor(pageId, response) };
-  }
-
   private responseDescriptor(pageId: string, response: Response) {
     return {
       responseId: this.responseHandles.register(pageId, response),
@@ -1216,6 +1205,17 @@ export class StagehandRuntime {
       headers: response.headers(),
       fromServiceWorker: response.fromServiceWorker(),
     };
+  }
+
+  private pageNavigationResult(
+    pageId: string,
+    page: UnderstudyRuntimePage,
+    response: unknown,
+  ): PageNavigationResult {
+    const pageRef = pageRefFromUnderstudyPage(page);
+    if (!(response instanceof Response)) return { page: pageRef, response: null };
+
+    return { page: pageRef, response: this.responseDescriptor(pageId, response) };
   }
 
   requireBrowserSession(): StagehandBrowserSession {
