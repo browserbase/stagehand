@@ -89,27 +89,23 @@ export function writeCredential(
 function updateCredential(credential: SavedCredential, env: NodeJS.ProcessEnv): void {
   const checked = validateCredential(credential);
   const previous = readPrivateRecord(env);
-  const account = randomUUID();
-  let nextEntry: Entry | undefined;
+  if (previous && previous.store !== "keychain")
+    fail("Invalid credential storage selection. Run browse login again.");
+  const account = previous ? accountFor(previous) : randomUUID();
+  const savedEntry = entry(account, env);
   try {
-    nextEntry = entry(account, env);
-    nextEntry.setPassword(JSON.stringify(checked));
+    savedEntry.setPassword(JSON.stringify(checked));
   } catch {
     fail(keychainUnavailable);
   }
+  // Reuse the existing OS entry; its reference does not change on later logins.
+  if (previous) return;
   try {
     writePrivateRecord({ version: 1, store: "keychain", account }, env);
-    if (previous?.store === "keychain") entry(accountFor(previous), env).deleteCredential();
   } catch {
-    // Keep the previous login usable when a write or old-entry removal fails.
+    // Only a new entry needs cleanup when its reference could not be saved.
     try {
-      if (previous) writePrivateRecord(previous, env);
-      else removePrivateRecord(env);
-    } catch {
-      /* Preserve the original storage failure. */
-    }
-    try {
-      nextEntry?.deleteCredential();
+      savedEntry.deleteCredential();
     } catch {
       /* The OS may have become locked during cleanup. */
     }

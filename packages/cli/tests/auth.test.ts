@@ -33,6 +33,7 @@ import {
 } from "../src/lib/auth/store.js";
 import { runCli } from "./helpers/run-cli.js";
 import { fakeKeyring } from "./helpers/keyring.js";
+import * as metadata from "../src/lib/auth/file-store.js";
 import { oauthProvider, otherProjectId } from "./helpers/oauth-provider.js";
 
 const directories: string[] = [];
@@ -189,6 +190,12 @@ describe.skipIf(process.platform === "win32")("saved login", () => {
 });
 
 describe("OS credential storage", () => {
+  it("treats empty config environment variables as unset", () => {
+    expect(credentialPath({ BROWSERBASE_CONFIG_DIR: "", XDG_CONFIG_HOME: "" })).toBe(
+      credentialPath({}),
+    );
+  });
+
   it("stores the key only in the OS store by default, isolates config namespaces, and deletes on logout", () => {
     const backend = fakeKeyring();
     const env = environment();
@@ -228,17 +235,47 @@ describe("OS credential storage", () => {
     expect(removeCredential(env)).toBe(true);
   });
 
-  it("restores the previous login and removes the new OS entry if replacement cleanup fails", () => {
+  it("replaces the saved login in the same OS entry without rewriting its reference", () => {
     const backend = fakeKeyring();
     const env = environment();
     writeCredential(fixture, env);
-    backend.state.failNextDelete = true;
+    const originalReference = readFileSync(credentialPath(env), "utf8");
+    const writeReference = vi.spyOn(metadata, "writePrivateRecord");
+    backend.state.rejectDelete = true;
+    const replacement = { ...fixture, apiKey: "replacement-synthetic-key" };
+    writeCredential(replacement, env);
+    expect(readCredential(env)).toEqual(replacement);
+    expect(backend.secrets.size).toBe(1);
+    expect(readFileSync(credentialPath(env), "utf8")).toBe(originalReference);
+    expect(writeReference).not.toHaveBeenCalled();
+  });
+
+  it("does not delete the existing OS entry when a replacement write fails", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    writeCredential(fixture, env);
+    const originalReference = readFileSync(credentialPath(env), "utf8");
+    backend.state.rejectWrite = true;
     expect(() => writeCredential({ ...fixture, apiKey: "replacement-synthetic-key" }, env)).toThrow(
-      "Could not update saved login",
+      "No plaintext fallback",
     );
     expect(readCredential(env)).toEqual(fixture);
     expect(backend.secrets.size).toBe(1);
-    expect(readFileSync(credentialPath(env), "utf8")).not.toContain(fixture.apiKey);
+    expect(readFileSync(credentialPath(env), "utf8")).toBe(originalReference);
+    backend.state.rejectWrite = false;
+    writeCredential({ ...fixture, apiKey: "retry-synthetic-key" }, env);
+    expect(readCredential(env)?.apiKey).toBe("retry-synthetic-key");
+  });
+
+  it("removes a new OS entry if its first reference cannot be saved", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    vi.spyOn(metadata, "writePrivateRecord").mockImplementation(() => {
+      throw new Error("disk full");
+    });
+    expect(() => writeCredential(fixture, env)).toThrow("Could not update saved login");
+    expect(backend.secrets.size).toBe(0);
+    expect(existsSync(credentialPath(env))).toBe(false);
   });
 });
 

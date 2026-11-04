@@ -163,7 +163,7 @@ export function resolveConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.BROWSERBASE_CONFIG_DIR) {
     return env.BROWSERBASE_CONFIG_DIR;
   }
-  const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  const xdg = env.XDG_CONFIG_HOME || join(homedir(), ".config");
   return join(xdg, "browserbase");
 }
 

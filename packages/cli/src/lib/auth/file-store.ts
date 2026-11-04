@@ -12,16 +12,13 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 
 import { fail } from "../errors.js";
+import { resolveConfigDir } from "../identity.js";
 
 export function credentialPath(env: NodeJS.ProcessEnv = process.env): string {
-  const root =
-    env.BROWSERBASE_CONFIG_DIR ||
-    join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "browserbase");
-  return join(resolve(root), "auth", "credential.json");
+  return join(resolve(resolveConfigDir(env)), "auth", "credential.json");
 }
 
 // A private directory prevents other users replacing entries between checks and
