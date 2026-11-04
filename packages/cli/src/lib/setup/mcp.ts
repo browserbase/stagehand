@@ -100,7 +100,7 @@ export function updateTomlMcp(raw: string, entry: McpEntry): string {
     mcp_servers: { stagehand: expected.mcp_servers.stagehand },
   });
   const result = `${kept.join("\n").trimEnd()}\n\n${block}`.trimStart();
-  if (!isDeepStrictEqual(parseToml(result), expected)) {
+  if (!isDeepStrictEqual(parseToml(result), parseToml(stringifyToml(expected)))) {
     throw new Error(
       "Cannot safely update this Codex MCP config. Move the stagehand entry into its own [mcp_servers.stagehand] table and retry.",
     );

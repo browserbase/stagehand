@@ -568,7 +568,7 @@ importers:
     devDependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
-        version: 1.32.2(zod@4.6.6)
+        version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@types/archiver':
         specifier: ^8.0.0
         version: 8.0.0
@@ -584,6 +584,9 @@ importers:
       oclif:
         specifier: ^4.23.1
         version: 4.24.0(@types/node@20.19.43)(supports-color@8.1.1)
+      stagehand-middleware:
+        specifier: ^0.1.1
+        version: 0.1.2(@browserbasehq/stagehand@packages+sdk-ts)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -610,7 +613,7 @@ importers:
         version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)
       '@braintrust/otel':
         specifier: ^0.2.1
-        version: 0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6))
+        version: 0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6))
       '@browserbasehq/sdk':
         specifier: 'catalog:'
         version: 2.16.0
@@ -655,7 +658,7 @@ importers:
         version: 1.8.1
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.32.2(zod@4.6.6)
+        version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -673,7 +676,7 @@ importers:
         version: 5.0.220(zod@4.6.6)
       braintrust:
         specifier: ^3.21.0
-        version: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6)
+        version: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6)
       browse:
         specifier: workspace:*
         version: link:../cli
@@ -1103,7 +1106,7 @@ importers:
         version: link:../../sdk-ts
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.32.2(zod@4.6.6)
+        version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -1228,7 +1231,7 @@ importers:
         version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.32.2(zod@4.6.6)
+        version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       ai:
         specifier: catalog:eve
         version: 7.0.122(zod@4.6.6)
@@ -1418,7 +1421,7 @@ importers:
         version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
-        version: 1.32.2(zod@4.6.6)
+        version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       typebox:
         specifier: 'catalog:'
         version: 1.3.7
@@ -8618,6 +8621,12 @@ packages:
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
+  stagehand-middleware@0.1.2:
+    resolution: {integrity: sha512-WeTllk4Kx7t6H1y0GJKPWXuphGeRN/rMiVXUNvwHd3Sw7Un0qgMc2BHc1H6v3+vMaTyE4u7VOX3GNtqdyQGEbA==}
+    engines: {node: '>=22.18.0'}
+    peerDependencies:
+      '@browserbasehq/stagehand': '>=4.3.0 <5'
+
   standardwebhooks@1.1.1:
     resolution: {integrity: sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ==}
 
@@ -9699,7 +9708,7 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       zod: 4.6.6
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.224
@@ -10271,13 +10280,13 @@ snapshots:
   '@braintrust/bt-win32-x64@0.12.0':
     optional: true
 
-  '@braintrust/otel@0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6))':
+  '@braintrust/otel@0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-http': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
-      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6)
+      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6)
 
   '@browserbasehq/sdk@2.16.0':
     dependencies:
@@ -10297,7 +10306,7 @@ snapshots:
       '@anthropic-ai/sdk': 0.39.0
       '@browserbasehq/sdk': 2.16.0
       '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       ai: 5.0.220(zod@4.6.6)
       devtools-protocol: 0.0.1642743
       fetch-cookie: 3.2.0
@@ -10851,7 +10860,7 @@ snapshots:
       protobufjs: 7.6.5
       ws: 8.21.0(bufferutil@4.1.0)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -10864,7 +10873,7 @@ snapshots:
       protobufjs: 7.6.5
       ws: 8.21.0(bufferutil@4.1.0)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -11367,7 +11376,7 @@ snapshots:
       '@isaacs/ttlcache': 2.1.5
       '@lukeed/uuid': 2.0.1
       '@mastra/schema-compat': 1.3.5(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
@@ -11405,7 +11414,7 @@ snapshots:
     dependencies:
       '@mastra/core': 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)
       '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       exit-hook: 5.1.0
       fast-deep-equal: 3.1.3
     transitivePeerDependencies:
@@ -11772,14 +11781,14 @@ snapshots:
 
   '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
       zod: 4.6.6
     optionalDependencies:
       react: 19.2.3
       react-dom: 18.3.1(react@19.2.3)
 
-  '@modelcontextprotocol/sdk@1.32.2(zod@4.6.6)':
+  '@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6)':
     dependencies:
       '@hono/node-server': 2.1.6(hono@4.13.13)
       ajv: 8.20.0
@@ -11790,7 +11799,7 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
       express: 5.2.1
-      express-rate-limit: 8.6.0(express@5.2.1)
+      express-rate-limit: 8.6.0(express@5.2.1)(supports-color@8.1.1)
       hono: 4.13.13
       jose: 6.2.4
       json-schema-typed: 8.0.2
@@ -12821,14 +12830,9 @@ snapshots:
 
   '@vercel/detect-agent@1.2.3': {}
 
-  '@vercel/functions@1.6.0(@aws-sdk/credential-provider-web-identity@3.972.77)':
-    optionalDependencies:
-      '@aws-sdk/credential-provider-web-identity': 3.972.77
-
   '@vercel/functions@1.6.0(@aws-sdk/credential-provider-web-identity@3.972.83)':
     optionalDependencies:
       '@aws-sdk/credential-provider-web-identity': 3.972.83
-    optional: true
 
   '@vercel/oidc@3.1.0': {}
 
@@ -13239,49 +13243,6 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6):
-    dependencies:
-      '@next/env': 14.2.35
-      '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.77)
-      acorn: 8.18.0
-      acorn-import-attributes: 1.9.5(acorn@8.18.0)
-      ajv: 8.20.0
-      argparse: 2.0.1
-      astring: 1.9.0
-      cjs-module-lexer: 2.2.1
-      cli-progress: 3.12.0
-      cli-table3: 0.6.5
-      cors: 2.8.6
-      dotenv: 16.6.1
-      esbuild: 0.28.1
-      esquery: 1.7.0
-      eventsource-parser: 1.1.2
-      express: 5.2.1
-      http-errors: 2.0.1
-      meriyah: 6.1.4
-      minimatch: 10.2.5
-      module-details-from-path: 1.0.4
-      mustache: 4.2.0
-      pluralize: 8.0.0
-      semifies: 1.0.0
-      source-map: 0.7.6
-      termi-link: 1.1.0
-      unplugin: 2.3.11
-      uuid: 11.1.1
-      zod: 4.6.6
-      zod-to-json-schema: 3.25.2(zod@4.6.6)
-    optionalDependencies:
-      '@braintrust/bt-darwin-arm64': 0.12.0
-      '@braintrust/bt-darwin-x64': 0.12.0
-      '@braintrust/bt-linux-arm64': 0.12.0
-      '@braintrust/bt-linux-x64': 0.12.0
-      '@braintrust/bt-linux-x64-musl': 0.12.0
-      '@braintrust/bt-win32-arm64': 0.12.0
-      '@braintrust/bt-win32-x64': 0.12.0
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-provider-web-identity'
-      - supports-color
-
   braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6):
     dependencies:
       '@next/env': 14.2.35
@@ -13324,7 +13285,6 @@ snapshots:
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-web-identity'
       - supports-color
-    optional: true
 
   buffer-crc32@0.2.13: {}
 
@@ -14227,7 +14187,7 @@ snapshots:
 
   expr-eval-fork@3.0.3: {}
 
-  express-rate-limit@8.6.0(express@5.2.1):
+  express-rate-limit@8.6.0(express@5.2.1)(supports-color@8.1.1):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       express: 5.2.1
@@ -14442,7 +14402,7 @@ snapshots:
       '@aws-sdk/lib-storage': 3.1145.0(@aws-sdk/client-s3@3.1145.0)
       '@aws-sdk/s3-presigned-post': 3.1145.0
       '@aws-sdk/s3-request-presigner': 3.1145.0
-      '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@opentelemetry/api': 1.9.1
       ai: 7.0.155(zod@4.6.6)
       basic-ftp: 6.2.1
@@ -17807,6 +17767,11 @@ snapshots:
       escape-string-regexp: 2.0.0
 
   stackback@0.0.2: {}
+
+  stagehand-middleware@0.1.2(@browserbasehq/stagehand@packages+sdk-ts):
+    dependencies:
+      '@browserbasehq/stagehand': link:packages/sdk-ts
+      zod: 4.6.6
 
   standardwebhooks@1.1.1:
     dependencies:
