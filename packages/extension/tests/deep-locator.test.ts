@@ -36,4 +36,22 @@ describe("planDeepXPathTarget", () => {
       finalSelector: "xpath=/html/body/div",
     });
   });
+
+  it("keeps a slash inside a string literal in the same step", () => {
+    expect(planDeepXPathTarget('//button[normalize-space()="Sign in / Register"]')).toEqual({
+      frameHopSelectors: [],
+      finalSelector: 'xpath=//button[normalize-space()="Sign in / Register"]',
+    });
+    expect(planDeepXPathTarget("xpath=//iframe[1]//td[text()='10 / 16']")).toEqual({
+      frameHopSelectors: ["xpath=//iframe[1]"],
+      finalSelector: "xpath=//td[text()='10 / 16']",
+    });
+  });
+
+  it("does not hop on an iframe that only appears inside a predicate", () => {
+    expect(planDeepXPathTarget('//a[contains(@href, "/iframe/")]//span')).toEqual({
+      frameHopSelectors: [],
+      finalSelector: 'xpath=//a[contains(@href, "/iframe/")]//span',
+    });
+  });
 });
