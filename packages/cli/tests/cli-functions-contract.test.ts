@@ -532,6 +532,132 @@ exit 0
     );
   }, 30_000);
 
+  it.each([false, true])(
+    "authenticates runtime polls and completion without changing invocation access (runtime error: %s)",
+    async (runtimeError) => {
+      const cwd = await createTempDir("functions-dev-runtime-auth-");
+      const port = await getFreePort();
+      const controlDir = await createTempDir("functions-dev-runtime-control-");
+      const invocationFile = join(controlDir, "invocation.json");
+      const releaseFile = join(controlDir, "release");
+      await writeRuntimeEntrypoint(cwd, {
+        runtimeControl: { invocationFile, releaseFile, runtimeError },
+      });
+
+      await withServer(
+        async (request, response) => {
+          if (request.method === "POST" && request.path === "/v1/sessions") {
+            jsonResponse(response, 200, {
+              connectUrl: "ws://example.test/devtools",
+              id: "sess_auth",
+            });
+            return;
+          }
+          if (request.method === "POST" && request.path === "/v1/sessions/sess_auth") {
+            jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
+            return;
+          }
+          jsonResponse(response, 404, { error: "not found" });
+        },
+        async ({ baseUrl, requests }) => {
+          const child = spawn(
+            process.execPath,
+            [
+              join(repoRoot, "bin/run.js"),
+              "functions",
+              "dev",
+              "runtime-entry.mjs",
+              "--port",
+              String(port),
+              "--api-key",
+              "test-key",
+              "--base-url",
+              baseUrl,
+            ],
+            { cwd, env: { ...process.env, NODE_ENV: "test" }, stdio: ["ignore", "pipe", "pipe"] },
+          );
+          cleanupProcesses.push(child);
+          let stderr = "";
+          child.stderr.on("data", (chunk) => {
+            stderr += chunk.toString();
+          });
+          const stdout = await waitForStdout(child, '"ok": true');
+          const publicUrl = `http://127.0.0.1:${port}`;
+          expect(JSON.parse(stdout)).toEqual({ ok: true, runtimeConnected: true, url: publicUrl });
+
+          // Exercise both a local process and a browser origin admitted by the existing CORS policy.
+          const headers: Record<string, string> = runtimeError
+            ? { origin: `http://localhost:${port}` }
+            : {};
+          const rejectRuntimeRequest = async (path: string, method = "GET") => {
+            const response = await fetch(`${publicUrl}${path}`, {
+              method,
+              headers,
+              ...(method === "POST" ? { body: JSON.stringify({ handledBy: "other caller" }) } : {}),
+              signal: AbortSignal.timeout(2_000),
+            });
+            expect(response.status).toBe(404);
+            await expect(response.json()).resolves.toEqual({ error: "Not found." });
+          };
+          const wrongPrefix = `/${"0".repeat(64)}`;
+          for (const prefix of ["", wrongPrefix]) {
+            await rejectRuntimeRequest(`${prefix}/2018-06-01/runtime/invocation/next`);
+          }
+          expect(requests).toHaveLength(0);
+
+          // Keep the legitimate invocation active while attempting to forge its completion.
+          const invocation = fetch(`${publicUrl}/v1/functions/test-function/invoke`, {
+            method: "POST",
+            headers: { ...headers, "content-type": "application/json" },
+            body: JSON.stringify({ params: { answer: 42 } }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          // Attach a rejection handler immediately while the test exercises other requests.
+          void invocation.catch(() => {});
+          try {
+            const { requestId, runtimeApi } = JSON.parse(
+              await waitForFileText(invocationFile, "requestId"),
+            );
+            const token = new URL(`http://${runtimeApi}`).pathname.slice(1);
+            expect(token).toMatch(/^[a-f0-9]{64}$/);
+            expect(stdout).not.toContain(token);
+            expect(stderr).not.toContain(token);
+            for (const prefix of ["", wrongPrefix, `/${token}extra`]) {
+              await rejectRuntimeRequest(`${prefix}/2018-06-01/runtime/invocation/next`);
+              for (const endpoint of ["response", "error"]) {
+                await rejectRuntimeRequest(
+                  `${prefix}/2018-06-01/runtime/invocation/${requestId}/${endpoint}`,
+                  "POST",
+                );
+              }
+            }
+            // Unauthorized completions must not release the active Browserbase session.
+            expect(requests).toHaveLength(1);
+          } finally {
+            await writeFile(releaseFile, "ready");
+          }
+
+          const response = await invocation;
+          expect(response.status).toBe(runtimeError ? 500 : 200);
+          await expect(response.json()).resolves.toEqual(
+            runtimeError
+              ? {
+                  error: {
+                    errorMessage: "Expected runtime error",
+                    errorType: "Error",
+                    stackTrace: [],
+                  },
+                }
+              : { ok: true, params: { answer: 42 }, sessionId: "sess_auth", secrets: {} },
+          );
+          await waitForRequests(requests, 2);
+          expectRequest(requests[1], "POST", "/v1/sessions/sess_auth", "test-key");
+        },
+      );
+    },
+    30_000,
+  );
+
   it("blocks browser origins outside loopback before creating a session", async () => {
     const cwd = await createTempDir("functions-dev-cors-");
     const port = await getFreePort();
@@ -948,12 +1074,16 @@ async function createFakePackageManagerBin(
 
 async function writeRuntimeEntrypoint(
   cwd: string,
-  options: { malformedResponse?: boolean; runtimeStatusLog?: string } = {},
+  options: {
+    malformedResponse?: boolean;
+    runtimeStatusLog?: string;
+    runtimeControl?: { invocationFile: string; releaseFile: string; runtimeError: boolean };
+  } = {},
 ): Promise<void> {
   await writeFile(
     join(cwd, "runtime-entry.mjs"),
     `
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const manifestsDir = join(process.cwd(), ".browserbase", "functions", "manifests");
@@ -965,11 +1095,26 @@ writeFileSync(join(manifestsDir, "test-function.json"), JSON.stringify({
 
 const runtimeApi = process.env.AWS_LAMBDA_RUNTIME_API;
 const runtimeStatusLog = ${options.runtimeStatusLog ? JSON.stringify(options.runtimeStatusLog) : "null"};
+const runtimeControl = ${JSON.stringify(options.runtimeControl ?? null)};
 
 while (true) {
   const next = await fetch(\`http://\${runtimeApi}/2018-06-01/runtime/invocation/next\`);
   const requestId = next.headers.get("Lambda-Runtime-Aws-Request-Id");
   const event = await next.json();
+  if (runtimeControl) {
+    writeFileSync(runtimeControl.invocationFile, JSON.stringify({ requestId, runtimeApi }), { mode: 0o600 });
+    while (!existsSync(runtimeControl.releaseFile)) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (runtimeControl.runtimeError) {
+      await fetch(\`http://\${runtimeApi}/2018-06-01/runtime/invocation/\${requestId}/error\`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ errorMessage: "Expected runtime error", errorType: "Error", stackTrace: [] }),
+      });
+      continue;
+    }
+  }
   ${
     options.malformedResponse
       ? `
