@@ -90,7 +90,7 @@
     "topicSeparator": " ",
     "topics": {
       "auth": {
-        "description": "Inspect your Browserbase CLI login."
+        "description": "Check whether you're logged in to the Browserbase platform."
       },
       "cloud": {
         "description": "Manage Browserbase cloud resources and APIs."
