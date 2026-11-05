@@ -1,5 +1,21 @@
 # browse
 
+## 0.11.4
+
+### Patch Changes
+
+- [#3379](https://github.com/browserbase/stagehand/pull/3379) [`73fdba0`](https://github.com/browserbase/stagehand/commit/73fdba0fe6adcd9d032c81bd5e7d83b890a5a1ef) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove unused deepmerge dependency
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3275](https://github.com/browserbase/stagehand/pull/3275) [`63078cf`](https://github.com/browserbase/stagehand/commit/63078cf85ddfe189da88204539ec30d41959378b) Thanks [@shrey150](https://github.com/shrey150)! - Update extension upload instructions to use `--stagehand` flag.
+
+- [#3289](https://github.com/browserbase/stagehand/pull/3289) [`aa67fee`](https://github.com/browserbase/stagehand/commit/aa67fee03ef7b899f9f505350e6410d207496450) Thanks [@shrey150](https://github.com/shrey150)! - Add `--stagehand` flag to `browse cloud extensions upload`.
+
+- [#3400](https://github.com/browserbase/stagehand/pull/3400) [`ce298c6`](https://github.com/browserbase/stagehand/commit/ce298c60bd7e617e38d67db8db7d34de9d37cd18) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - require token for local functions runtime requests
+
+- [#3391](https://github.com/browserbase/stagehand/pull/3391) [`3fbda6b`](https://github.com/browserbase/stagehand/commit/3fbda6b67d45f140e8338ed5afc6b0c84d3ced44) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Harden daemon directory checks to reject empty paths, symlinks, non-directories, and, on Unix, foreign-owned directories or unsafe parent locations.
+
 ## 0.11.3
 
 ### Patch Changes
