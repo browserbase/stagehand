@@ -18,11 +18,7 @@ import {
   verifiedFlag,
 } from "./flags.js";
 import { getDriverStatus } from "./daemon/client.js";
-import {
-  hasChromeArgFlags,
-  resolveConnectionTarget,
-  type DriverModeFlags,
-} from "./mode.js";
+import { hasChromeArgFlags, resolveConnectionTarget, type DriverModeFlags } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
@@ -74,15 +70,10 @@ export async function runDriverCommandFromFlags(
 ): Promise<void> {
   const session = sessionName(flags.session);
   const target = await resolveTargetForCommand(session, flags);
-  outputJson(
-    await runDriverCommandWithTarget(session, target, command, params),
-  );
+  outputJson(await runDriverCommandWithTarget(session, target, command, params));
 }
 
-export async function resolveTargetForCommand(
-  session: string,
-  flags: DriverFlags,
-) {
+export async function resolveTargetForCommand(session: string, flags: DriverFlags) {
   const hasExplicitTarget = hasExplicitDriverTarget(flags);
   if (!hasExplicitTarget || hasModeOnlyFlag(flags)) {
     const status = await getDriverStatus(session);
@@ -100,37 +91,34 @@ export async function resolveTargetForCommand(
 export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
   return Boolean(
     flags.local ||
-      flags.remote ||
-      flags["auto-connect"] ||
-      flags.cdp ||
-      hasChromeArgFlags(flags) ||
-      flags["target-id"] ||
-      flags.headed ||
-      flags.headless ||
-      flags.verified ||
-      flags.proxies,
+    flags.remote ||
+    flags["auto-connect"] ||
+    flags.cdp ||
+    hasChromeArgFlags(flags) ||
+    flags["target-id"] ||
+    flags.headed ||
+    flags.headless ||
+    flags.verified ||
+    flags.proxies,
   );
 }
 
 function hasModeOnlyFlag(flags: DriverFlags): boolean {
   return Boolean(
     (flags.local || flags.remote) &&
-      !flags["auto-connect"] &&
-      !flags.cdp &&
-      !hasChromeArgFlags(flags) &&
-      !flags["target-id"] &&
-      !flags.headed &&
-      !flags.headless &&
-      !flags.verified &&
-      !flags.proxies &&
-      flags.local !== flags.remote,
+    !flags["auto-connect"] &&
+    !flags.cdp &&
+    !hasChromeArgFlags(flags) &&
+    !flags["target-id"] &&
+    !flags.headed &&
+    !flags.headless &&
+    !flags.verified &&
+    !flags.proxies &&
+    flags.local !== flags.remote,
   );
 }
 
-function targetMatchesRequestedMode(
-  target: ConnectionTarget,
-  flags: DriverFlags,
-): boolean {
+function targetMatchesRequestedMode(target: ConnectionTarget, flags: DriverFlags): boolean {
   if (flags.local) return target.kind === "managed-local";
   if (flags.remote) return target.kind === "remote";
   return false;
@@ -144,9 +132,7 @@ export function parseClip(
     /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/,
   );
   if (!match) {
-    throw new Error(
-      "Invalid clip. Use x,y,width,height, for example 0,0,800,600.",
-    );
+    throw new Error("Invalid clip. Use x,y,width,height, for example 0,0,800,600.");
   }
 
   const [, x, y, width, height] = match;

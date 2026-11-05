@@ -2177,20 +2177,16 @@ function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[
     const section = {
       children: children.slice(index + 1, nextHeading < 0 ? undefined : nextHeading),
     } satisfies MdxNode;
-    const paramFields = findElements(section, "ParamField").map(
-      (field): DocumentedField => ({
-        key: stringAttribute(field, "path"),
-        optional: hasAttribute(field, "optional"),
-        type: stringAttribute(field, "type"),
-      }),
-    );
-    const responseFields = findElements(section, "ResponseField").map(
-      (field): DocumentedField => ({
-        key: stringAttribute(field, "name"),
-        optional: hasAttribute(field, "optional"),
-        type: stringAttribute(field, "type"),
-      }),
-    );
+    const paramFields = findElements(section, "ParamField").map((field): DocumentedField => ({
+      key: stringAttribute(field, "path"),
+      optional: hasAttribute(field, "optional"),
+      type: stringAttribute(field, "type"),
+    }));
+    const responseFields = findElements(section, "ResponseField").map((field): DocumentedField => ({
+      key: stringAttribute(field, "name"),
+      optional: hasAttribute(field, "optional"),
+      type: stringAttribute(field, "type"),
+    }));
     return [
       {
         methodName,

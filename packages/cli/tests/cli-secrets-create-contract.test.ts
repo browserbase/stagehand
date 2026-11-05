@@ -32,9 +32,9 @@ function suite() {
 async function keypair() {
   const crypto = suite();
   const pair = await crypto.kem.generateKeyPair();
-  const publicKey = Buffer.from(
-    await crypto.kem.serializePublicKey(pair.publicKey),
-  ).toString("base64");
+  const publicKey = Buffer.from(await crypto.kem.serializePublicKey(pair.publicKey)).toString(
+    "base64",
+  );
   return { crypto, pair, publicKey };
 }
 
@@ -55,9 +55,7 @@ describe("secret CLI HTTP contracts", () => {
           "secrets",
           "create",
           "SERVICE_TOKEN",
-          ...(source === "stdin"
-            ? ["--stdin"]
-            : ["--env", "BROWSE_TEST_SECRET_VALUE"]),
+          ...(source === "stdin" ? ["--stdin"] : ["--env", "BROWSE_TEST_SECRET_VALUE"]),
           "--base-url",
           server.baseUrl,
         ],
@@ -83,18 +81,16 @@ describe("secret CLI HTTP contracts", () => {
         ["secretKey", "sealedSecretValue", "keypairId"].sort(),
       );
       expect(body.secretKey).toBe("SERVICE_TOKEN");
-      expect(server.requests[1]!.headers["content-type"]).toBe(
-        "application/json",
-      );
+      expect(server.requests[1]!.headers["content-type"]).toBe("application/json");
       const blob = Buffer.from(body.sealedSecretValue, "base64");
       const recipient = await crypto.createRecipientContext({
         recipientKey: pair.privateKey,
         enc: new Uint8Array(blob.subarray(0, 32)).buffer,
       });
       expect(
-        Buffer.from(
-          await recipient.open(new Uint8Array(blob.subarray(32)).buffer),
-        ).toString("utf8"),
+        Buffer.from(await recipient.open(new Uint8Array(blob.subarray(32)).buffer)).toString(
+          "utf8",
+        ),
       ).toBe(value);
       expect(server.requests[1]!.bodyText).not.toContain("token-🔑");
       expect(result.stdout + result.stderr).not.toContain("token-🔑");
@@ -106,15 +102,7 @@ describe("secret CLI HTTP contracts", () => {
       jsonResponse(response, 403, { message: "Forbidden" }),
     );
     const result = await runCli(
-      [
-        "cloud",
-        "secrets",
-        "create",
-        "TOKEN",
-        "--stdin",
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["cloud", "secrets", "create", "TOKEN", "--stdin", "--base-url", server.baseUrl],
       { env, stdin: "private-value" },
     );
     expect(result.exitCode).not.toBe(0);
@@ -130,15 +118,7 @@ describe("secret CLI HTTP contracts", () => {
         jsonResponse(response, 200, { id: "keypair-1", publicKey }),
       );
       const result = await runCli(
-        [
-          "cloud",
-          "secrets",
-          "create",
-          "TOKEN",
-          "--stdin",
-          "--base-url",
-          server.baseUrl,
-        ],
+        ["cloud", "secrets", "create", "TOKEN", "--stdin", "--base-url", server.baseUrl],
         { env, stdin: "private-value" },
       );
       expect(result.exitCode).not.toBe(0);
@@ -168,15 +148,7 @@ describe("secret CLI HTTP contracts", () => {
       }
     });
     const result = await runCli(
-      [
-        "cloud",
-        "secrets",
-        "create",
-        "TOKEN",
-        "--stdin",
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["cloud", "secrets", "create", "TOKEN", "--stdin", "--base-url", server.baseUrl],
       { env, stdin: "private-value" },
     );
     expect(result.exitCode).not.toBe(0);
@@ -196,15 +168,7 @@ describe("environment secret input validation", () => {
       jsonResponse(response, 200, {}),
     );
     const result = await runCli(
-      [
-        "cloud",
-        "secrets",
-        "create",
-        "TOKEN",
-        "--base-url",
-        server.baseUrl,
-        ...flags,
-      ],
+      ["cloud", "secrets", "create", "TOKEN", "--base-url", server.baseUrl, ...flags],
       {
         env: {
           ...env,
