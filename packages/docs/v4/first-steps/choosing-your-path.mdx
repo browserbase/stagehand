@@ -1,5 +1,5 @@
 ---
-title: "Choosing Your Path"
+title: "Choosing your path"
 sidebarTitle: "CLI vs SDK vs MCP"
 description: "Pick the right Stagehand integration: SDK for building agent apps, browse CLI for coding agents, or hosted MCP for zero-install browser tools."
 ---
@@ -81,14 +81,15 @@ The skill teaches your agent the CLI's commands, best practices, and troubleshoo
 
 Set `BROWSERBASE_API_KEY` and use `--remote` when the task needs:
 
-- Hosted browsers that bypass bot detection
+- Hosted browsers for better reliability and isolation
 - CAPTCHA solving
-- Residential proxies
 - Session persistence across runs
+
+For bot-detection bypass, add `--verified` (requires Scale plan). For residential proxies, add `--proxies residential`.
 
 ## Hosted MCP for zero-install browser tools
 
-The hosted Browserbase MCP server puts `navigate`, `act`, `observe`, and `extract` tools in any MCP client — no local install, no local browser. Requires a [Browserbase API key](https://www.browserbase.com/overview).
+The hosted Browserbase MCP server puts `navigate`, `act`, `observe`, and `extract` tools in any MCP client. No local install or browser is required. Requires a [Browserbase API key](https://www.browserbase.com/overview).
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \

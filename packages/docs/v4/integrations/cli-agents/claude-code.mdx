@@ -11,7 +11,7 @@ npm install -g browse
 npx skills add browserbase/stagehand --skill browse
 ```
 
-The CLI gives your agent a local browser with no API keys required. The facade integration below is for developers embedding the Claude Agent SDK programmatically.
+The CLI gives your agent a local browser with no API keys required. The SDK example below is for developers embedding the Claude Agent SDK programmatically; the later section covers the Claude Code CLI MCP setup.
 </Note>
 
 The Claude Code integration connects a Claude Agent SDK `query` loop to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.

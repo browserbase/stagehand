@@ -30,7 +30,7 @@ Requires Node.js 22.18+ and Chrome/Chromium. No LLM key or Browserbase account n
 
 - **`packages/sdk-ts`** — TypeScript SDK published as `@browserbasehq/stagehand`
 - **`packages/sdk-python`** — Python SDK published as `stagehand`
-- **`packages/sdk-go`** — Go SDK
+- **Go SDK** — [README](https://github.com/browserbase/stagehand-go)
 - **`packages/cli`** — The `browse` CLI for terminal-based browser automation
 - **`packages/docs`** — Documentation site source
 - **[llms-full.txt](https://docs.stagehand.dev/llms-full.txt)** — Full v4 documentation for LLM context

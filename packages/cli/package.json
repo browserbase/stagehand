@@ -2,7 +2,7 @@
   "name": "browse",
   "version": "0.11.3",
   "private": false,
-  "description": "Browser automation CLI for AI agents: local Chrome, Browserbase cloud, snapshots, skills, and MCP workflows.",
+  "description": "Browser automation CLI for AI agents: local Chrome, Browserbase cloud, snapshots, and skills.",
   "keywords": [
     "agent",
     "ai",
@@ -15,7 +15,6 @@
     "cli",
     "codex",
     "cursor",
-    "mcp",
     "playwright",
     "skills"
   ],
