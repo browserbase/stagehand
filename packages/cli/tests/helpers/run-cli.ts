@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -22,6 +23,11 @@ export function runCli(args: string[], options: RunCliOptions = {}): Promise<Cli
       cwd: options.cwd ?? repoRoot,
       env: {
         ...process.env,
+        // CLI tests must not inherit browser preferences or credentials saved by setup.
+        BROWSE_BROWSER: undefined,
+        BROWSERBASE_CONFIG_DIR: options.env?.XDG_CONFIG_HOME
+          ? undefined
+          : join(tmpdir(), `browse-cli-tests-config-${process.pid}`),
         BROWSE_DISABLE_UPDATE_CHECK: "1",
         NODE_ENV: "test",
         ...options.env,

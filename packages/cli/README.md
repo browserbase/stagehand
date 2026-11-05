@@ -43,6 +43,22 @@ browse screenshot --path page.png
 browse stop
 ```
 
+## Set up your coding agent
+
+Run `browse setup` to install the browse skill, connect Stagehand MCP, or both. Choose local Chrome or Browserbase cloud, then select Claude Code, Codex, Cursor, or OpenCode v2.
+
+```bash
+browse setup                 # Interactive setup (also: npx browse setup or bunx browse setup)
+browse setup --mode both --browser local --agent claude --agent codex --yes
+browse setup --mode mcp --browser cloud --agent cursor --project --yes
+```
+
+Setup configures agents globally. Add `--project` for the current project only, then restart your agent.
+
+Local Chrome needs no API key. Cloud setup can save your Browserbase key in `~/.config/browserbase/browse.json`, or you can export `BROWSERBASE_API_KEY` before starting your agent. Environment credentials take precedence. CLI commands use the browser preference saved by global setup unless you pass `--local` or `--remote`; `--project` setup leaves it unchanged.
+
+Stagehand MCP installs a standalone server with `run`, `snapshot`, and `screenshot` tools. Installation requires Node.js 22.18+, npm, and internet access. To update it, rerun setup and restart your agent.
+
 ## How it works
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
@@ -53,17 +69,17 @@ On Unix, custom `BROWSE_DAEMON_DIR` locations must be owned by you and have trus
 
 Every driver command accepts the same flags to pick where the browser runs. Mix and match per command:
 
-| Flag                                 | Target                                                                             |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| _(default)_                          | Managed local browser, or remote when `BROWSERBASE_API_KEY` is set                 |
-| `--local`                            | Managed local browser (add `--headed` / `--headless`)                              |
-| `--remote`                           | Remote Browserbase session (uses `BROWSERBASE_API_KEY`)                            |
-| `--auto-connect`                     | Auto-discover and attach to a local Chrome with remote debugging enabled           |
-| `--cdp <url\|port>`                  | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`)              |
-| `--target-id <id>`                   | Select a specific CDP target when attaching to an existing browser                 |
-| `--chrome-arg <flag>`                | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only) |
-| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only)         |
-| `--no-default-chrome-args`           | Launch without any of Chrome's default args (managed-local only)                   |
+| Flag                                 | Target                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| _(default)_                          | Saved `browse setup` preference; otherwise local, or remote when `BROWSERBASE_API_KEY` is set |
+| `--local`                            | Managed local browser (add `--headed` / `--headless`)                                         |
+| `--remote`                           | Remote Browserbase session (uses `BROWSERBASE_API_KEY`)                                       |
+| `--auto-connect`                     | Auto-discover and attach to a local Chrome with remote debugging enabled                      |
+| `--cdp <url\|port>`                  | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`)                         |
+| `--target-id <id>`                   | Select a specific CDP target when attaching to an existing browser                            |
+| `--chrome-arg <flag>`                | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only)            |
+| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only)                    |
+| `--no-default-chrome-args`           | Launch without any of Chrome's default args (managed-local only)                              |
 
 ```bash
 browse open https://example.com                 # default target
