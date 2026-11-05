@@ -195,7 +195,12 @@ async function authorize({
       req.url.startsWith("//")
     )
       return reject(400);
-    const url = new URL(req.url, redirectUri);
+    let url: URL;
+    try {
+      url = new URL(req.url, redirectUri);
+    } catch {
+      return reject(400);
+    }
     if (url.origin !== new URL(redirectUri).origin) return reject(400);
     if (url.pathname !== "/callback") return reject(404);
     if (req.method !== "GET") return reject(405);

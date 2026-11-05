@@ -1,4 +1,6 @@
 import { Config } from "@oclif/core";
+import { spawn, type ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,6 +21,11 @@ import {
 vi.mock("../src/lib/auth/login.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/lib/auth/login.js")>()),
   login: vi.fn(),
+}));
+
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
+  spawn: vi.fn(),
 }));
 
 const directories: string[] = [];
@@ -53,6 +60,39 @@ describe.skipIf(process.platform === "win32")("login command", () => {
     expect(output).toContain(`API key saved as plaintext in a private file: ${credentialPath()}`);
     expect(output).toContain("Signed in.");
     expect(output).not.toContain(credential.apiKey);
+  });
+
+  it("finishes login while the browser opener remains running", async () => {
+    const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-opener-test-")));
+    directories.push(directory);
+    vi.stubEnv("BROWSERBASE_CONFIG_DIR", directory);
+    fakeKeyring();
+    const credential = {
+      apiKey: "synthetic-opener-key",
+      projectId: "00000000-0000-4000-8000-000000000001",
+      apiOrigin: productionApiOrigin,
+    };
+    const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+    vi.mocked(spawn).mockImplementation(() => {
+      queueMicrotask(() => child.emit("spawn"));
+      return child as ChildProcess;
+    });
+    vi.mocked(login).mockImplementation(async (options) => {
+      await options!.openBrowser!("https://example.invalid/authorize");
+      return { ...credential };
+    });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: credential.projectId })));
+    const config = await Config.load(fileURLToPath(new URL("..", import.meta.url)));
+    const command = new Login([], config);
+    vi.spyOn(command, "log").mockImplementation(() => {});
+    await command.run();
+    expect(spawn).toHaveBeenCalledWith(expect.any(String), expect.any(Array), {
+      stdio: "ignore",
+      detached: true,
+      windowsHide: true,
+    });
+    expect(child.unref).toHaveBeenCalledOnce();
+    expect(readCredential()).toEqual(credential);
   });
 
   it("preserves the previous login when SIGINT arrives during project verification", async () => {

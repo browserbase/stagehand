@@ -48,9 +48,9 @@ export async function functionsRequest(
 ): Promise<Response> {
   let response: Response;
   try {
-    const request = config.credential ? credentialFetch(config.credential) : fetch;
+    const request =
+      config.credential?.source === "saved" ? credentialFetch(config.credential) : fetch;
     response = await request(new URL(path, config.baseUrl), {
-      redirect: "error",
       ...init,
       headers: {
         "x-bb-api-key": config.apiKey,

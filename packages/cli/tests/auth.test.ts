@@ -1,6 +1,6 @@
-import { toFile } from "@browserbasehq/sdk";
-import { createBrowserbaseClient } from "../src/lib/cloud/api.js";
+import Browserbase, { toFile } from "@browserbasehq/sdk";
 import { createServer } from "node:http";
+import { connect } from "node:net";
 import type { AddressInfo } from "node:net";
 import {
   chmodSync,
@@ -19,7 +19,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { credentialFetch, resolveCredential } from "../src/lib/auth/credentials.js";
+import {
+  credentialFetch,
+  resolveCredential,
+  sdkCredentialFetch,
+} from "../src/lib/auth/credentials.js";
 import { login, loginProvider, readLoginJson } from "../src/lib/auth/login.js";
 import {
   credentialPath,
@@ -302,6 +306,21 @@ describe("browser authorization", () => {
           const callback = provider.callbackFor(value);
           expect(new URL(value).pathname).toBe("/cli/authorize");
           expect(new URL(value).searchParams.has("code_verifier")).toBe(false);
+          const malformedResponse = await new Promise<string>((resolve, reject) => {
+            let response = "";
+            const socket = connect(Number(callback.port), "127.0.0.1", () => {
+              socket.write(
+                `GET /\\% HTTP/1.1\r\nHost: ${callback.host}\r\nConnection: close\r\n\r\n`,
+              );
+            });
+            socket.setEncoding("utf8");
+            socket.setTimeout(1000, () => socket.destroy(new Error("Callback timed out")));
+            socket.on("error", reject);
+            socket.on("data", (chunk) => (response += chunk));
+            socket.on("end", () => resolve(response));
+          });
+          expect(malformedResponse).toMatch(/^HTTP\/1\.1 400 /);
+          expect(provider.state.exchanges).toBe(0);
           const state = callback.searchParams.get("state")!;
           callback.searchParams.set("state", "wrong-state");
           expect((await fetch(callback)).status).toBe(400);
@@ -548,9 +567,15 @@ describe("authenticated SDK transport", () => {
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     try {
-      const client = createBrowserbaseClient({
+      const credential = {
         apiKey: "synthetic-test-key",
         baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        source: "saved" as const,
+      };
+      const client = new Browserbase({
+        apiKey: credential.apiKey,
+        baseURL: credential.baseUrl,
+        fetch: sdkCredentialFetch(credential),
       });
       const extension = await client.extensions.create({
         file: await toFile(Buffer.from("synthetic-extension-archive"), "example.zip"),

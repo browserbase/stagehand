@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { access, mkdtemp, open as openFile, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { itPosix } from "./helpers/platform.js";
 
+import { resolveConfigDir } from "../src/lib/identity.js";
 import { resolveConnectionTarget, targetsCompatible } from "../src/lib/driver/mode.js";
 import {
   ensureRuntimeDir,
@@ -1302,7 +1303,7 @@ describe("driver foundation", () => {
       BROWSERBASE_API_KEY: "client-key",
       BROWSERBASE_PROJECT_ID: "client-project",
       BROWSERBASE_BASE_URL: "",
-      BROWSERBASE_CONFIG_DIR: "",
+      BROWSERBASE_CONFIG_DIR: resolve(resolveConfigDir({})),
       XDG_CONFIG_HOME: "",
     });
     await expect(collectForwardedEnv({})).resolves.toMatchObject({ BROWSERBASE_API_KEY: "" });

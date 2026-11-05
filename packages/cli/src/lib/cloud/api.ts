@@ -84,7 +84,7 @@ export function createBrowserbaseClient(args: { apiKey?: string; baseUrl?: strin
   return new Browserbase({
     apiKey,
     baseURL: credential?.baseUrl ?? resolveBaseUrl(args),
-    ...(credential ? { fetch: sdkCredentialFetch(credential) } : {}),
+    ...(credential?.source === "saved" ? { fetch: sdkCredentialFetch(credential) } : {}),
     defaultHeaders: attributionHeaders(),
   });
 }
@@ -175,7 +175,7 @@ export async function requestBrowserbase(
   try {
     const credential = resolveCredential(args);
     const apiKey = credential?.apiKey ?? resolveApiKey(args);
-    const request = credential ? credentialFetch(credential) : fetch;
+    const request = credential?.source === "saved" ? credentialFetch(credential) : fetch;
     response = await request(new URL(pathname, credential?.baseUrl ?? resolveApiBaseUrl(args)), {
       ...init,
       headers: {
