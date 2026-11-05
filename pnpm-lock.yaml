@@ -241,6 +241,9 @@ catalogs:
     '@browserbasehq/sdk':
       specifier: ^2.16.0
       version: 2.16.0
+    '@browserbasehq/sdk-functions':
+      specifier: 1.0.2
+      version: 1.0.2
     '@changesets/apply-release-plan':
       specifier: 7.1.1
       version: 7.1.1
@@ -495,7 +498,7 @@ importers:
         version: runtime:24.22.2
       openai:
         specifier: 'catalog:'
-        version: 6.48.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 6.48.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.4)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       oxfmt:
         specifier: 'catalog:'
         version: 0.76.0
@@ -578,6 +581,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.6
     devDependencies:
+      '@browserbasehq/sdk-functions':
+        specifier: 'catalog:'
+        version: 1.0.2
       '@types/archiver':
         specifier: ^8.0.0
         version: 8.0.0
@@ -604,10 +610,10 @@ importers:
     devDependencies:
       '@mdx-js/mdx':
         specifier: 'catalog:'
-        version: 3.1.1(supports-color@8.1.1)
+        version: 3.1.1
       mint:
         specifier: 'catalog:'
-        version: 4.2.788(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
+        version: 4.2.788(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
 
   packages/evals:
     dependencies:
@@ -616,10 +622,10 @@ importers:
         version: 2.0.3
       '@anthropic-ai/claude-agent-sdk':
         specifier: 'catalog:'
-        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)
+        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)
       '@braintrust/otel':
         specifier: ^0.2.1
-        version: 0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(supports-color@8.1.1)(zod@4.6.6))
+        version: 0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6))
       '@browserbasehq/sdk':
         specifier: 'catalog:'
         version: 2.16.0
@@ -682,7 +688,7 @@ importers:
         version: 5.0.220(zod@4.6.6)
       braintrust:
         specifier: ^3.21.0
-        version: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(supports-color@8.1.1)(zod@4.6.6)
+        version: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6)
       browse:
         specifier: workspace:*
         version: link:../cli
@@ -774,7 +780,7 @@ importers:
         version: 24.13.2
       ffmpeg-static:
         specifier: 'catalog:'
-        version: 5.3.0(supports-color@8.1.1)
+        version: 5.3.0
       tsx:
         specifier: 'catalog:'
         version: 4.23.1
@@ -860,7 +866,7 @@ importers:
         version: 17.4.2
       files-sdk:
         specifier: ^2.6.0
-        version: 2.6.2(@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6))(@aws-sdk/client-s3@3.1145.0)(@aws-sdk/lib-storage@3.1145.0(@aws-sdk/client-s3@3.1145.0))(@aws-sdk/s3-presigned-post@3.1145.0)(@aws-sdk/s3-request-presigner@3.1145.0)(@opentelemetry/api@1.9.1)(ai@7.0.155(zod@4.6.6))(basic-ftp@6.2.1)(google-auth-library@10.9.1(supports-color@8.1.1))(hono@4.13.13)(openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(zod@4.6.6)
+        version: 2.6.2(@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6))(@aws-sdk/client-s3@3.1145.0)(@aws-sdk/lib-storage@3.1145.0(@aws-sdk/client-s3@3.1145.0))(@aws-sdk/s3-presigned-post@3.1145.0)(@aws-sdk/s3-request-presigner@3.1145.0)(@opentelemetry/api@1.9.1)(ai@7.0.155(zod@4.6.6))(basic-ftp@6.2.1)(google-auth-library@10.9.1)(hono@4.13.13)(openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -922,13 +928,13 @@ importers:
         version: 2.0.22(effect@4.0.0-rc.112)
       '@opencode/core':
         specifier: 'catalog:'
-        version: 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
+        version: 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
       '@opencode/schema':
         specifier: 'catalog:'
         version: 2.0.22
       '@opencode/server':
         specifier: 'catalog:'
-        version: 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+        version: 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@workflow/world-local':
         specifier: 'catalog:'
         version: 5.2.0(@opentelemetry/api@1.9.0)
@@ -937,7 +943,7 @@ importers:
         version: 17.4.2
       durable-harness:
         specifier: 'catalog:'
-        version: 0.0.1(642f90f7b4d469d73f74dcadef881e24)
+        version: 0.0.1(c62d8deae755356d39c7747b679f7c2f)
       proper-lockfile:
         specifier: 'catalog:'
         version: 4.1.2
@@ -1018,10 +1024,10 @@ importers:
         version: 1.5.0(esbuild@0.28.2)(ws@8.21.0(bufferutil@4.1.0))
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-durable':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(esbuild@0.28.2)(supports-color@8.1.1)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(esbuild@0.28.2)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2
@@ -1122,7 +1128,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 'catalog:'
-        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)
+        version: 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)
       '@browserbasehq/stagehand-integrations':
         specifier: workspace:*
         version: link:../core
@@ -1336,7 +1342,7 @@ importers:
         version: 7.0.122(zod@4.6.6)
       eve:
         specifier: catalog:eve
-        version: 0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(supports-color@8.1.1)(zod@4.6.6))
+        version: 0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6))
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1366,7 +1372,7 @@ importers:
         version: 7.0.122(zod@4.6.6)
       eve:
         specifier: 'catalog:'
-        version: 0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(supports-color@8.1.1)(zod@4.6.6))
+        version: 0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6))
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -1413,7 +1419,7 @@ importers:
         version: link:../core
       '@google/genai':
         specifier: 'catalog:'
-        version: 1.52.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)
+        version: 1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1438,10 +1444,10 @@ importers:
         version: link:../core
       '@mastra/core':
         specifier: 'catalog:'
-        version: 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)
       '@mastra/mcp':
         specifier: 'catalog:'
-        version: 1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1472,10 +1478,10 @@ importers:
         version: link:../core
       '@mastra/core':
         specifier: 'catalog:'
-        version: 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)
       '@mastra/mcp':
         specifier: 'catalog:'
-        version: 1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(zod@4.6.6)
+        version: 1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
       zod:
         specifier: 'catalog:'
         version: 4.6.6
@@ -1526,7 +1532,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
@@ -1547,7 +1553,7 @@ importers:
         version: link:../core
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.2(supports-color@8.1.1)(zod@4.6.6)
@@ -1733,12 +1739,6 @@ packages:
 
   '@ai-sdk/gateway@3.0.104':
     resolution: {integrity: sha512-ZKX5n74io8VIRlhIMSLWVlvT3sXC8Z7cZ9GHuWBWZDVi96+62AIsWuLGvMfcBA1STYuSoDrp6rIziZmvrTq0TA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/gateway@3.0.228':
-    resolution: {integrity: sha512-X0qaGP27bIBQhZBjWzGskqMnjz+hYQZzjgCztrpOhdKlVSAstUSQPpUrbuhu4D69eV6oKh7Q4lCD+181wthpcg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2481,6 +2481,10 @@ packages:
       '@opentelemetry/exporter-trace-otlp-http': '>=0.35.0'
       '@opentelemetry/sdk-trace-base': '>=1.9.0'
       braintrust: '>=1.0.0-0'
+
+  '@browserbasehq/sdk-functions@1.0.2':
+    resolution: {integrity: sha512-ZGc6qXzqFMxWYGA/hd3FfD9QEhYaMBD5G4vPNvShe6JkvN9zFmAidqFDwm3HgdlpChVmDZ+b0LtnTyKqJsNOWA==}
+    hasBin: true
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
@@ -3527,6 +3531,10 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  '@isaacs/cliui@8.0.2':
+    resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
+    engines: {node: '>=12'}
 
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
@@ -4641,6 +4649,10 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
+  '@pkgjs/parseargs@0.11.0':
+    resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
+    engines: {node: '>=14'}
+
   '@playwright/mcp@0.0.82':
     resolution: {integrity: sha512-OCqftfb8H4dnqm/njbTBRk3seUvUPttOlJUxCtEzXGETYOlRH5Qt3bbXIjmZIuWAxD9RF+yg1ASrPeXvm0y5cA==}
     engines: {node: '>=18'}
@@ -5631,12 +5643,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  ai@6.0.322:
-    resolution: {integrity: sha512-grrCsBVCP7RmC5H2D76/bRMfcCP3ppSa1dzGzODi0FzmGVbW3Q25Oh5kdwxNPHA3o8e0SJ5Urbpye3dpLCzacA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   ai@7.0.122:
     resolution: {integrity: sha512-Un4yVROG+BMd6Q62xUxb9yV+wlTrUGeXhRtg5ltEFDV0p3lOYQaQHK9ozB6rdPdqlH3LyaszfbFdUkZ1p00nIQ==}
     engines: {node: '>=22'}
@@ -5726,6 +5732,14 @@ packages:
 
   anynum@1.0.1:
     resolution: {integrity: sha512-N6//FLET/tXYNM/F6ABca1oH6fWB+KlTt909Le28WMDBk8oaT4vY17DCrwg2MvmuqUKt3Ni4N5dGJ/EoBgcO6A==}
+
+  archiver-utils@5.0.2:
+    resolution: {integrity: sha512-wuLJMmIBQYCsGZgYLTy5FIB2pF6Lfb6cXMSF8Qywwk3t20zWnAi7zLcQFdKQmIB8wyZpY5ER38x08GbwtR2cLA==}
+    engines: {node: '>= 14'}
+
+  archiver@7.0.1:
+    resolution: {integrity: sha512-ZcbTaIqJOfCc03QwD468Unz/5Ir8ATtvAHsK+FdXbDIbGfihqh9mrvdcYunQzqn4HrvWWaFyaxJhGZagaJJpPQ==}
+    engines: {node: '>= 14'}
 
   archiver@8.0.0:
     resolution: {integrity: sha512-fV1orZfsnPn9BaSByR/qE67rJCLJEy2Ox5bq7nJh+jquWaNh6Sfec75kJ2T6PtdGUbPQlrVoSVCEOa5SdiTQ1g==}
@@ -6212,6 +6226,10 @@ packages:
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
 
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
+
   commander@15.0.0:
     resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
     engines: {node: '>=22.12.0'}
@@ -6230,6 +6248,10 @@ packages:
   common-ancestor-path@2.0.0:
     resolution: {integrity: sha512-dnN3ibLeoRf2HNC+OlCiNc5d2zxbLJXOtiZUudNFSXZrNSydxcCsSpRzXwfu7BBWCIfHPw+xTayeBvJCP/D8Ng==}
     engines: {node: '>= 18'}
+
+  compress-commons@6.0.2:
+    resolution: {integrity: sha512-6FqVXeETqWPoGcfzrXb37E50NP0LXT8kAMu5ooZayhWWdgEY4lBEEcbQNXtkuKQsGduxiIcI4gOTsxTmuq/bSg==}
+    engines: {node: '>= 14'}
 
   compress-commons@7.0.1:
     resolution: {integrity: sha512-g0S8KAD8qf4+V//pr3BfB1aBnARLXNz2Gx+jmHU0LEriUuoQUOPOulVquHKTJ8+EAIIO7fhseNDr9wK5Q9FKBQ==}
@@ -6306,6 +6328,10 @@ packages:
     resolution: {integrity: sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ==}
     engines: {node: '>=0.8'}
     hasBin: true
+
+  crc32-stream@6.0.0:
+    resolution: {integrity: sha512-piICUB6ei4IlTv1+653yq5+KoqfBYmj9bw6LqXoOneTMDXk5nM1qt12mFW1caG3LlJXEKW1Bp0WggEmIfQB34g==}
+    engines: {node: '>= 14'}
 
   crc32-stream@7.0.1:
     resolution: {integrity: sha512-IBWsY8xznyQrcHn8h4bC8/4ErNke5elzgG8GcqF4RFPw6aHkWWRc7Tgw6upjaTX/CT/yQgqYENkxYsTYN+hW2g==}
@@ -6792,6 +6818,9 @@ packages:
       zod:
         optional: true
 
+  eastasianwidth@0.2.0:
+    resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
+
   ecdsa-sig-formatter@1.0.11:
     resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
 
@@ -6816,6 +6845,9 @@ packages:
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
+
+  emoji-regex@9.2.2:
+    resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
 
   empathic@2.0.1:
     resolution: {integrity: sha512-YGRs8knHhKHVShLkFET/rWAU8kmHbOV5LwN938RHI0pljAJ1Gf6SzXsSmRaEzcXTtOOmVqJ5+WtQPL5uigY50Q==}
@@ -7372,6 +7404,10 @@ packages:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
     engines: {node: '>= 0.4'}
 
+  foreground-child@3.3.1:
+    resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
+    engines: {node: '>=14'}
+
   form-data-encoder@1.7.2:
     resolution: {integrity: sha512-qfqtYan3rxrnCk1VYaA4H+Ms9xdpPqvLZa6xmMgFvhO32x7/3J/ExcTd6qpxM0vH2GdMI+poehyBZvqfMTto8A==}
 
@@ -7546,6 +7582,11 @@ packages:
   glob-parent@6.0.2:
     resolution: {integrity: sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==}
     engines: {node: '>=10.13.0'}
+
+  glob@10.5.0:
+    resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    hasBin: true
 
   glob@13.0.5:
     resolution: {integrity: sha512-BzXxZg24Ibra1pbQ/zE7Kys4Ua1ks7Bn6pKLkVPZ9FZe4JQS6/Q7ef3LG1H+k7lUf5l4T3PLSyYyYJVYUvfgTw==}
@@ -8154,6 +8195,9 @@ packages:
     peerDependencies:
       ws: '*'
 
+  jackspeak@3.4.3:
+    resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
+
   jake@10.9.4:
     resolution: {integrity: sha512-wpHYzhxiVQL+IV05BLE2Xn34zW1S223hvjtqk0+gsPrwd/8JNLXJgZZM/iPFsYc1xyphF+6M6EvdE5E9MBGkDA==}
     engines: {node: '>=10'}
@@ -8431,10 +8475,6 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
-
-  loose-envify@1.4.0:
-    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
-    hasBin: true
 
   lower-case@2.0.2:
     resolution: {integrity: sha512-7fm3l3NAF9WfN6W3JOmf5drwpVqX78JtoGJ3A6W0a6ZnldM41w2fV5D490psKFTpMds8TJse/eHLFFsNHHjHgg==}
@@ -8759,6 +8799,10 @@ packages:
   minimatch@5.1.9:
     resolution: {integrity: sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==}
     engines: {node: '>=10'}
+
+  minimatch@9.0.9:
+    resolution: {integrity: sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==}
+    engines: {node: '>=16 || 14 >=14.17'}
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
@@ -9406,6 +9450,9 @@ packages:
     resolution: {integrity: sha512-5NPgf87AT2STgwa2ntRMr45jTKrYBGkVU36yT0ig/n/GMAa3oPqhZfIQ2kMEimReg0+t9kZViDVZ83qfVUlckg==}
     engines: {node: '>= 14'}
 
+  package-json-from-dist@1.0.1:
+    resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
+
   package-manager-detector@0.2.11:
     resolution: {integrity: sha512-BEnLolu+yuz22S56CU1SUKq3XC3PkwD5wv4ikR4MfGvnRVcmzXR9DwSlW2fEamyTPyXHomBJRzgapeuBvRNzJQ==}
 
@@ -9491,6 +9538,10 @@ packages:
 
   path-parse@1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==}
+
+  path-scurry@1.11.1:
+    resolution: {integrity: sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA==}
+    engines: {node: '>=16 || 14 >=14.18'}
 
   path-scurry@2.0.2:
     resolution: {integrity: sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg==}
@@ -9816,11 +9867,6 @@ packages:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
     hasBin: true
 
-  react-dom@18.3.1:
-    resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
-    peerDependencies:
-      react: ^18.3.1
-
   react-dom@19.3.1:
     resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
     peerDependencies:
@@ -9857,6 +9903,9 @@ packages:
   readable-stream@4.7.0:
     resolution: {integrity: sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  readdir-glob@1.1.3:
+    resolution: {integrity: sha512-v05I2k7xN8zXvPD9N+z/uhXPaj0sUFCe2rcWZIpBsqxfP7xXFQ0tipAd/wjj1YxWyWtUS5IDJpOG82JKt2EAVA==}
 
   readdir-glob@3.0.0:
     resolution: {integrity: sha512-AhNB2KgKeVJr16nK9LLZbJNWnYoT23ZrumNKFDebHBdkC8KHSqWo871JAUhoWC/RtjEVdqNMFpM6qrwRbaUqpw==}
@@ -10125,9 +10174,6 @@ packages:
     resolution: {integrity: sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA==}
     engines: {node: '>=11.0.0'}
 
-  scheduler@0.23.2:
-    resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
-
   scheduler@0.26.0:
     resolution: {integrity: sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==}
 
@@ -10391,6 +10437,10 @@ packages:
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
+
+  string-width@5.1.2:
+    resolution: {integrity: sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA==}
+    engines: {node: '>=12'}
 
   string-width@7.2.0:
     resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
@@ -11083,6 +11133,10 @@ packages:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
     engines: {node: '>=10'}
 
+  wrap-ansi@8.1.0:
+    resolution: {integrity: sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==}
+    engines: {node: '>=12'}
+
   wrap-ansi@9.0.2:
     resolution: {integrity: sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww==}
     engines: {node: '>=18'}
@@ -11212,6 +11266,10 @@ packages:
   yoga-layout@3.2.1:
     resolution: {integrity: sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ==}
 
+  zip-stream@6.0.1:
+    resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
+    engines: {node: '>= 14'}
+
   zip-stream@7.0.5:
     resolution: {integrity: sha512-dSvYKdvLsAHCDqPOhIwk/q5CvuWtTB3Dgpoe0uVEFjTzIOAmsQpprX25InCvrvJsirEbu1OHyy67n/kAj1Sw/w==}
     engines: {node: '>=18'}
@@ -11270,11 +11328,11 @@ packages:
 
 snapshots:
 
-  '@a2a-js/sdk@0.3.14(express@5.2.1(supports-color@8.1.1))':
+  '@a2a-js/sdk@0.3.14(express@5.2.1)':
     dependencies:
       uuid: 11.1.1
     optionalDependencies:
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
 
   '@ai-sdk/amazon-bedrock@3.0.111(zod@4.6.6)':
     dependencies:
@@ -11351,13 +11409,6 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.1.8
 
-  '@ai-sdk/gateway@3.0.228(zod@4.6.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.19
-      '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      '@vercel/oidc': 3.2.0
-      zod: 4.6.6
-
   '@ai-sdk/gateway@4.0.100(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.19
@@ -11372,14 +11423,14 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.6
 
-  '@ai-sdk/google-vertex@3.0.158(supports-color@8.1.1)(zod@4.6.6)':
+  '@ai-sdk/google-vertex@3.0.158(zod@4.6.6)':
     dependencies:
       '@ai-sdk/anthropic': 2.0.91(zod@4.6.6)
       '@ai-sdk/google': 2.0.85(zod@4.6.6)
       '@ai-sdk/openai-compatible': 1.0.46(zod@4.6.6)
       '@ai-sdk/provider': 2.0.3
       '@ai-sdk/provider-utils': 3.0.30(zod@4.6.6)
-      google-auth-library: 10.9.1(supports-color@8.1.1)
+      google-auth-library: 10.9.1
       zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
@@ -11519,14 +11570,6 @@ snapshots:
       undici: 6.29.1
       zod: 4.1.8
 
-  '@ai-sdk/provider-utils@4.0.64(zod@4.6.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.19
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.1.0
-      undici: 6.29.1
-      zod: 4.6.6
-
   '@ai-sdk/provider-utils@5.0.13(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.4
@@ -11656,7 +11699,7 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.224':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)':
+  '@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
@@ -11827,16 +11870,16 @@ snapshots:
 
   '@aws-sdk/client-bedrock-runtime@3.1127.0':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/credential-provider-node': 3.972.89
       '@aws-sdk/eventstream-handler-node': 3.972.35
       '@aws-sdk/middleware-eventstream': 3.972.30
       '@aws-sdk/middleware-websocket': 3.972.54
       '@aws-sdk/token-providers': 3.1127.0
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/node-http-handler': 4.13.0
+      '@smithy/node-http-handler': 4.14.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -11929,9 +11972,9 @@ snapshots:
 
   '@aws-sdk/credential-provider-env@3.972.77':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -11947,11 +11990,11 @@ snapshots:
 
   '@aws-sdk/credential-provider-http@3.972.79':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/node-http-handler': 4.13.0
+      '@smithy/node-http-handler': 4.14.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -11973,16 +12016,16 @@ snapshots:
 
   '@aws-sdk/credential-provider-ini@3.973.22':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/credential-provider-env': 3.972.77
       '@aws-sdk/credential-provider-http': 3.972.79
       '@aws-sdk/credential-provider-login': 3.972.84
       '@aws-sdk/credential-provider-process': 3.972.77
       '@aws-sdk/credential-provider-sso': 3.973.21
       '@aws-sdk/credential-provider-web-identity': 3.972.83
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/credential-provider-imds': 4.5.2
       '@smithy/types': 4.19.0
       tslib: 2.8.1
@@ -11998,10 +12041,10 @@ snapshots:
 
   '@aws-sdk/credential-provider-login@3.972.84':
     dependencies:
-      '@aws-sdk/core': 3.978.6
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/core': 3.979.1
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12028,7 +12071,7 @@ snapshots:
       '@aws-sdk/credential-provider-sso': 3.973.21
       '@aws-sdk/credential-provider-web-identity': 3.972.83
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/credential-provider-imds': 4.5.2
       '@smithy/types': 4.19.0
       tslib: 2.8.1
@@ -12043,9 +12086,9 @@ snapshots:
 
   '@aws-sdk/credential-provider-process@3.972.77':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12061,11 +12104,11 @@ snapshots:
 
   '@aws-sdk/credential-provider-sso@3.973.21':
     dependencies:
-      '@aws-sdk/core': 3.978.6
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/core': 3.979.1
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/token-providers': 3.1157.0
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12080,10 +12123,10 @@ snapshots:
 
   '@aws-sdk/credential-provider-web-identity@3.972.83':
     dependencies:
-      '@aws-sdk/core': 3.978.6
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/core': 3.979.1
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12110,7 +12153,7 @@ snapshots:
   '@aws-sdk/eventstream-handler-node@3.972.35':
     dependencies:
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12127,7 +12170,7 @@ snapshots:
   '@aws-sdk/middleware-eventstream@3.972.30':
     dependencies:
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12142,11 +12185,11 @@ snapshots:
 
   '@aws-sdk/middleware-websocket@3.972.54':
     dependencies:
-      '@aws-sdk/core': 3.978.6
+      '@aws-sdk/core': 3.979.1
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/signature-v4': 5.7.4
+      '@smithy/signature-v4': 5.7.5
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12225,10 +12268,10 @@ snapshots:
 
   '@aws-sdk/token-providers@3.1127.0':
     dependencies:
-      '@aws-sdk/core': 3.978.6
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/core': 3.979.1
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12243,10 +12286,10 @@ snapshots:
 
   '@aws-sdk/token-providers@3.1157.0':
     dependencies:
-      '@aws-sdk/core': 3.978.6
-      '@aws-sdk/nested-clients': 3.997.51
+      '@aws-sdk/core': 3.979.1
+      '@aws-sdk/nested-clients': 3.997.54
       '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -12391,13 +12434,28 @@ snapshots:
   '@braintrust/bt-win32-x64@0.12.0':
     optional: true
 
-  '@braintrust/otel@0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(supports-color@8.1.1)(zod@4.6.6))':
+  '@braintrust/otel@0.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-http': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
-      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(supports-color@8.1.1)(zod@4.6.6)
+      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6)
+
+  '@browserbasehq/sdk-functions@1.0.2':
+    dependencies:
+      '@browserbasehq/sdk': 2.16.0
+      archiver: 7.0.1
+      chalk: 5.6.2
+      commander: 14.0.3
+      dotenv: 17.4.2
+      tsx: 4.23.1
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - encoding
+      - react-native-b4a
 
   '@browserbasehq/sdk@2.16.0':
     dependencies:
@@ -12416,7 +12474,7 @@ snapshots:
       '@ai-sdk/provider': 2.0.3
       '@anthropic-ai/sdk': 0.39.0
       '@browserbasehq/sdk': 2.16.0
-      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)
+      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       ai: 5.0.220(zod@4.6.6)
       devtools-protocol: 0.0.1642743
@@ -12435,7 +12493,7 @@ snapshots:
       '@ai-sdk/cerebras': 1.0.51(zod@4.6.6)
       '@ai-sdk/deepseek': 1.0.48(zod@4.6.6)
       '@ai-sdk/google': 2.0.85(zod@4.6.6)
-      '@ai-sdk/google-vertex': 3.0.158(supports-color@8.1.1)(zod@4.6.6)
+      '@ai-sdk/google-vertex': 3.0.158(zod@4.6.6)
       '@ai-sdk/groq': 2.0.45(zod@4.6.6)
       '@ai-sdk/mistral': 2.0.40(zod@4.6.6)
       '@ai-sdk/openai': 2.0.115(zod@4.6.6)
@@ -12709,9 +12767,9 @@ snapshots:
       ws: 8.22.1(bufferutil@4.1.0)
     optional: true
 
-  '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12727,9 +12785,9 @@ snapshots:
       - zod
     optional: true
 
-  '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-agent-core@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12744,17 +12802,17 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-schema': 1.5.0
       '@earendil-works/pi-telemetry': 1.5.0
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)
+      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0(supports-color@8.1.1)
-      https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      http-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12769,17 +12827,17 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-schema': 1.5.0
       '@earendil-works/pi-telemetry': 1.5.0
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)
+      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0(supports-color@8.1.1)
-      https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      http-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12795,17 +12853,17 @@ snapshots:
       - zod
     optional: true
 
-  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-ai@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.6)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-schema': 1.5.0
       '@earendil-works/pi-telemetry': 1.5.0
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)
+      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)
       '@smithy/node-http-handler': 4.12.1
-      http-proxy-agent: 9.1.0(supports-color@8.1.1)
-      https-proxy-agent: 9.1.0(supports-color@8.1.1)
-      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      http-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       partial-json: 0.1.7
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12824,10 +12882,10 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-coding-agent@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.5.0
       '@earendil-works/pi-mcp': 1.5.0
       '@earendil-works/pi-tui': 1.5.0
@@ -12860,10 +12918,10 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(esbuild@0.28.2)(supports-color@8.1.1)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(esbuild@0.28.2)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.0(esbuild@0.28.2)(ws@8.21.0(bufferutil@4.1.0))
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.5.0
       '@earendil-works/pi-schema': 1.5.0
       '@earendil-works/pi-telemetry': 1.5.0
@@ -12883,10 +12941,10 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(esbuild@0.28.2)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(esbuild@0.28.2)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.0(esbuild@0.28.2)(ws@8.22.1(bufferutil@4.1.0))
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@earendil-works/pi-codemode': 1.5.0
       '@earendil-works/pi-schema': 1.5.0
       '@earendil-works/pi-telemetry': 1.5.0
@@ -13204,9 +13262,9 @@ snapshots:
 
   '@gar/promise-retry@1.0.3': {}
 
-  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)':
+  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)':
     dependencies:
-      google-auth-library: 10.9.1(supports-color@8.1.1)
+      google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.5
       ws: 8.21.0(bufferutil@4.1.0)
@@ -13217,12 +13275,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(bufferutil@4.1.0)(supports-color@8.1.1)':
+  '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(bufferutil@4.1.0)':
     dependencies:
-      google-auth-library: 10.9.1(supports-color@8.1.1)
+      google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.5
-      ws: 8.21.0(bufferutil@4.1.0)
+      ws: 8.22.1(bufferutil@4.1.0)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
     transitivePeerDependencies:
@@ -13656,6 +13714,15 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.13.2
 
+  '@isaacs/cliui@8.0.2':
+    dependencies:
+      string-width: 5.1.2
+      string-width-cjs: string-width@4.2.3
+      strip-ansi: 7.2.0
+      strip-ansi-cjs: strip-ansi@6.0.1
+      wrap-ansi: 8.1.0
+      wrap-ansi-cjs: wrap-ansi@7.0.0
+
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.3
@@ -13760,9 +13827,9 @@ snapshots:
       globby: 11.1.0
       read-yaml-file: 1.1.0
 
-  '@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6)':
+  '@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)':
     dependencies:
-      '@a2a-js/sdk': 0.3.14(express@5.2.1(supports-color@8.1.1))
+      '@a2a-js/sdk': 0.3.14(express@5.2.1)
       '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.30(zod@4.6.6)'
       '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.40(zod@4.6.6)'
       '@ai-sdk/provider-utils-v7': '@ai-sdk/provider-utils@5.0.13(zod@4.6.6)'
@@ -13776,7 +13843,7 @@ snapshots:
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
-      chat: 4.37.0(ai@7.0.155(zod@4.6.6))(supports-color@8.1.1)(zod@4.6.6)
+      chat: 4.37.0(ai@7.0.155(zod@4.6.6))(zod@4.6.6)
       croner: 10.0.1
       dotenv: 17.4.2
       execa: 9.6.1
@@ -13806,10 +13873,10 @@ snapshots:
       - utf-8-validate
       - workflow
 
-  '@mastra/mcp@1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(zod@4.6.6)':
+  '@mastra/mcp@1.15.1(@mastra/core@1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
     dependencies:
-      '@mastra/core': 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1(supports-color@8.1.1))(rxjs@7.8.2)(supports-color@8.1.1)(zod@4.6.6)
-      '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
+      '@mastra/core': 1.57.0(ai@7.0.155(zod@4.6.6))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.6.6)
+      '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       exit-hook: 5.1.0
       fast-deep-equal: 3.1.3
@@ -13828,7 +13895,7 @@ snapshots:
       zod-from-json-schema-v3: zod-from-json-schema@0.0.5
       zod-to-json-schema: 3.25.2(zod@4.6.6)
 
-  '@mdx-js/mdx@3.1.1(supports-color@8.1.1)':
+  '@mdx-js/mdx@3.1.1':
     dependencies:
       '@types/estree': 1.0.9
       '@types/estree-jsx': 1.0.5
@@ -13840,14 +13907,14 @@ snapshots:
       estree-util-is-identifier-name: 3.0.0
       estree-util-scope: 1.0.0
       estree-walker: 3.0.3
-      hast-util-to-jsx-runtime: 2.3.6(supports-color@8.1.1)
+      hast-util-to-jsx-runtime: 2.3.6
       markdown-extensions: 2.0.0
       recma-build-jsx: 1.0.0
       recma-jsx: 1.0.1(acorn@8.11.2)
       recma-stringify: 1.0.0
-      rehype-recma: 1.0.0(supports-color@8.1.1)
-      remark-mdx: 3.1.1(supports-color@8.1.1)
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      rehype-recma: 1.0.0
+      remark-mdx: 3.1.1
+      remark-parse: 11.0.0
       remark-rehype: 11.1.1
       source-map: 0.7.6
       unified: 11.0.5
@@ -13864,15 +13931,15 @@ snapshots:
       '@types/react': 19.2.17
       react: 19.2.3
 
-  '@mintlify/cli@4.0.1391(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/cli@4.0.1391(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)':
     dependencies:
       '@inquirer/prompts': 7.9.0(@types/node@24.13.2)
-      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/link-rot': 3.0.1278(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/models': 0.0.347(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/previewing': 4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/link-rot': 3.0.1278(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/models': 0.0.347
+      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/previewing': 4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(typescript@5.9.3)
+      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       adm-zip: 0.6.1
       chalk: 5.2.0
       color: 4.2.3
@@ -13882,17 +13949,17 @@ snapshots:
       inquirer: 12.3.0(@types/node@24.13.2)
       js-yaml: 4.3.2
       jsonc-parser: 3.3.1
-      mdast-util-mdx-jsx: 3.2.0(supports-color@8.1.1)
+      mdast-util-mdx-jsx: 3.2.0
       open: 8.4.2
       openid-client: 6.8.2
       posthog-node: 5.17.2
       prosemirror-model: 1.25.11
       react: 19.2.3
-      remark: 15.0.1(supports-color@8.1.1)
-      remark-frontmatter: 5.0.0(supports-color@8.1.1)
-      remark-gfm: 4.0.1(supports-color@8.1.1)
-      remark-math: 6.0.0(supports-color@8.1.1)
-      remark-mdx: 3.1.1(supports-color@8.1.1)
+      remark: 15.0.1
+      remark-frontmatter: 5.0.0
+      remark-gfm: 4.0.1
+      remark-math: 6.0.0
+      remark-mdx: 3.1.1
       remark-stringify: 11.0.0
       unified: 11.0.5
       unist-util-visit: 5.0.0
@@ -13918,13 +13985,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@mintlify/common@1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/common@1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
     dependencies:
       '@asyncapi/parser': 3.4.0
       '@mintlify/mdx': 4.0.2(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/models': 0.0.347(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@mintlify/models': 0.0.347
       '@mintlify/openapi-parser': 0.0.8
-      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       '@sindresorhus/slugify': 2.2.0
       '@types/mdast': 4.0.4
       acorn: 8.11.2
@@ -13937,21 +14004,21 @@ snapshots:
       ignore: 7.0.5
       js-yaml: 4.3.2
       lodash: 4.18.1
-      mdast-util-from-markdown: 2.0.2(supports-color@8.1.1)
-      mdast-util-gfm: 3.0.0(supports-color@8.1.1)
-      mdast-util-mdx: 3.0.0(supports-color@8.1.1)
-      mdast-util-mdx-jsx: 3.1.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.2
+      mdast-util-gfm: 3.0.0
+      mdast-util-mdx: 3.0.0
+      mdast-util-mdx-jsx: 3.1.3
       micromark-extension-gfm: 3.0.0
       micromark-extension-mdxjs: 3.0.0
       openapi-types: 12.1.3
       postcss: 8.5.23
       rehype-stringify: 10.0.1
-      remark: 15.0.1(supports-color@8.1.1)
-      remark-frontmatter: 5.0.0(supports-color@8.1.1)
-      remark-gfm: 4.0.0(supports-color@8.1.1)
-      remark-math: 6.0.0(supports-color@8.1.1)
-      remark-mdx: 3.1.0(supports-color@8.1.1)
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark: 15.0.1
+      remark-frontmatter: 5.0.0
+      remark-gfm: 4.0.0
+      remark-math: 6.0.0
+      remark-mdx: 3.1.0
+      remark-parse: 11.0.0
       remark-rehype: 11.1.1
       remark-stringify: 11.0.0
       sucrase: 3.34.0
@@ -13976,14 +14043,14 @@ snapshots:
       - ts-node
       - typescript
 
-  '@mintlify/link-rot@3.0.1278(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/link-rot@3.0.1278(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
-      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/models': 0.0.347(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/previewing': 4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/scraping': 4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/models': 0.0.347
+      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/previewing': 4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(typescript@5.9.3)
+      '@mintlify/scraping': 4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       fs-extra: 11.1.0
       unist-util-visit: 4.1.2
     transitivePeerDependencies:
@@ -14008,19 +14075,19 @@ snapshots:
     dependencies:
       '@base-ui/react': 1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)
       '@shikijs/transformers': 3.23.0
-      '@shikijs/twoslash': 3.23.0(supports-color@8.1.1)(typescript@5.9.3)
+      '@shikijs/twoslash': 3.23.0(typescript@5.9.3)
       arktype: 2.2.3
       hast-util-to-string: 3.0.1
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
-      mdast-util-gfm: 3.1.0(supports-color@8.1.1)
-      mdast-util-mdx-jsx: 3.2.0(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
+      mdast-util-gfm: 3.1.0
+      mdast-util-mdx-jsx: 3.2.0
       mdast-util-to-hast: 13.2.1
-      next-mdx-remote-client: 2.1.11(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(unified@11.0.5)
+      next-mdx-remote-client: 2.1.11(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(unified@11.0.5)
       react: 19.2.3
       react-dom: 19.3.1(react@19.2.3)
       rehype-katex: 7.0.1
-      remark-gfm: 4.0.1(supports-color@8.1.1)
-      remark-math: 6.0.0(supports-color@8.1.1)
+      remark-gfm: 4.0.1
+      remark-math: 6.0.0
       remark-smartypants: 3.0.3
       shiki: 3.23.0
       twoslash: 0.3.9(supports-color@8.1.1)(typescript@5.9.3)
@@ -14031,9 +14098,9 @@ snapshots:
       - supports-color
       - typescript
 
-  '@mintlify/models@0.0.347(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@mintlify/models@0.0.347':
     dependencies:
-      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      axios: 1.20.0
       openapi-types: 12.1.3
     transitivePeerDependencies:
       - debug
@@ -14048,11 +14115,11 @@ snapshots:
       leven: 4.1.0
       yaml: 2.9.0
 
-  '@mintlify/prebuild@1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/prebuild@1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
-      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/scraping': 4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/scraping': 4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       chalk: 5.3.0
       favicons: 7.2.0(@types/node@24.13.2)
       fflate: 0.8.3
@@ -14079,16 +14146,16 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@mintlify/previewing@4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/previewing@4.0.1302(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(typescript@5.9.3)':
     dependencies:
-      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/prebuild': 1.0.1231(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@mintlify/validation': 0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       adm-zip: 0.6.1
       better-opn: 3.0.2
       chalk: 5.2.0
       chokidar: 3.5.3
-      express: 4.22.3(supports-color@8.1.1)
+      express: 4.22.3
       fs-extra: 11.1.0
       got: 13.0.0
       ink: 6.3.0(@types/react@19.2.17)(bufferutil@4.1.0)(react@19.2.3)
@@ -14096,7 +14163,7 @@ snapshots:
       is-online: 10.0.0
       js-yaml: 4.3.2
       react: 19.2.3
-      socket.io: 4.8.0(bufferutil@4.1.0)(supports-color@8.1.1)
+      socket.io: 4.8.0(bufferutil@4.1.0)
       tar: 7.5.21
       yargs: 17.7.1
     transitivePeerDependencies:
@@ -14116,21 +14183,21 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@mintlify/scraping@4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/scraping@4.0.947(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
-      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/common': 1.0.1080(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
       fast-xml-parser: 5.7.3
       fs-extra: 11.1.1
       graphql: 16.11.0
       hast-util-to-mdast: 10.1.0
       js-yaml: 4.3.2
-      mdast-util-mdx-jsx: 3.1.3(supports-color@8.1.1)
+      mdast-util-mdx-jsx: 3.1.3
       neotraverse: 0.6.18
-      puppeteer: 24.3.1(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.9.3)
+      puppeteer: 24.3.1(bufferutil@4.1.0)(typescript@5.9.3)
       rehype-parse: 9.0.1
-      remark-gfm: 4.0.0(supports-color@8.1.1)
-      remark-mdx: 3.0.1(supports-color@8.1.1)
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-gfm: 4.0.0
+      remark-mdx: 3.0.1
+      remark-parse: 11.0.0
       remark-stringify: 11.0.0
       unified: 11.0.5
       unist-util-visit: 5.0.0
@@ -14152,10 +14219,10 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@mintlify/validation@0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@mintlify/validation@0.1.823(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
       '@mintlify/mdx': 4.0.2(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(typescript@5.9.3)
-      '@mintlify/models': 0.0.347(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@mintlify/models': 0.0.347
       fractional-indexing: 3.2.0
       js-yaml: 4.3.2
       lcm: 0.0.3
@@ -14189,14 +14256,14 @@ snapshots:
     dependencies:
       zod: 4.6.6
 
-  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
+  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@8.1.1)(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
       zod: 4.6.6
     optionalDependencies:
       react: 19.2.3
-      react-dom: 18.3.1(react@19.2.3)
+      react-dom: 19.3.1(react@19.2.3)
 
   '@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6)':
     dependencies:
@@ -14208,8 +14275,8 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1(supports-color@8.1.1)
-      express-rate-limit: 8.6.0(express@5.2.1(supports-color@8.1.1))(supports-color@8.1.1)
+      express: 5.2.1
+      express-rate-limit: 8.6.0(express@5.2.1)(supports-color@8.1.1)
       hono: 4.13.13
       jose: 6.2.4
       json-schema-typed: 8.0.2
@@ -14261,23 +14328,23 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@npmcli/agent@4.0.2(supports-color@8.1.1)':
+  '@npmcli/agent@4.0.2':
     dependencies:
       agent-base: 7.1.4
-      http-proxy-agent: 7.0.2(supports-color@8.1.1)
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
       lru-cache: 11.5.2
-      socks-proxy-agent: 8.0.5(supports-color@8.1.1)
+      socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
       - supports-color
 
-  '@npmcli/arborist@9.4.0(supports-color@8.1.1)':
+  '@npmcli/arborist@9.4.0':
     dependencies:
       '@isaacs/string-locale-compare': 1.1.0
       '@npmcli/fs': 5.0.0
       '@npmcli/installed-package-contents': 4.0.0
       '@npmcli/map-workspaces': 5.0.3
-      '@npmcli/metavuln-calculator': 9.0.3(supports-color@8.1.1)
+      '@npmcli/metavuln-calculator': 9.0.3
       '@npmcli/name-from-folder': 4.0.0
       '@npmcli/node-gyp': 5.0.0
       '@npmcli/package-json': 7.0.5
@@ -14295,7 +14362,7 @@ snapshots:
       npm-install-checks: 8.0.0
       npm-package-arg: 13.0.2
       npm-pick-manifest: 11.0.3
-      npm-registry-fetch: 19.1.1(supports-color@8.1.1)
+      npm-registry-fetch: 19.1.1
       pacote: 21.5.1(supports-color@8.1.1)
       parse-conflict-json: 5.0.1
       proc-log: 6.1.0
@@ -14347,7 +14414,7 @@ snapshots:
       glob: 13.0.5
       minimatch: 10.2.5
 
-  '@npmcli/metavuln-calculator@9.0.3(supports-color@8.1.1)':
+  '@npmcli/metavuln-calculator@9.0.3':
     dependencies:
       cacache: 20.0.4
       json-parse-even-better-errors: 5.0.0
@@ -14517,7 +14584,7 @@ snapshots:
       '@opencode-ai/pty-linux-x64-gnu': 0.1.13
       '@opencode-ai/pty-linux-x64-musl': 0.1.13
 
-  '@opencode/ai@2.0.22(supports-color@8.1.1)':
+  '@opencode/ai@2.0.22':
     dependencies:
       '@aws-sdk/credential-providers': 3.1057.0
       '@opencode/schema': 2.0.22
@@ -14525,7 +14592,7 @@ snapshots:
       '@smithy/util-utf8': 4.2.2
       aws4fetch: 1.0.20
       effect: 4.0.0-rc.112
-      google-auth-library: 10.5.0(supports-color@8.1.1)
+      google-auth-library: 10.5.0
     transitivePeerDependencies:
       - supports-color
 
@@ -14541,7 +14608,7 @@ snapshots:
       acorn: 8.15.0
       effect: 4.0.0-rc.112
 
-  '@opencode/core@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.21.0(bufferutil@4.1.0))':
+  '@opencode/core@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))':
     dependencies:
       '@ai-sdk/cohere': 3.0.27(zod@4.1.8)
       '@ai-sdk/gateway': 3.0.104(zod@4.1.8)
@@ -14555,122 +14622,10 @@ snapshots:
       '@modelcontextprotocol/client': 2.0.0
       '@modelcontextprotocol/core': 2.0.0
       '@opencode-ai/pty': 0.1.13
-      '@opencode/ai': 2.0.22(supports-color@8.1.1)
+      '@opencode/ai': 2.0.22
       '@opencode/codemode': 2.0.22
-      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
-      '@opencode/plugin-browser': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
-      '@opencode/schema': 2.0.22
-      '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
-      '@parcel/watcher': 2.5.1
-      '@silvia-odwyer/photon-node': 0.3.4
-      '@standard-schema/spec': 1.1.0
-      bun-pty: 0.4.8
-      diff: 8.0.4
-      drizzle-orm: 1.0.0-rc.5-169397b(@opentelemetry/api@1.9.0)(arktype@2.2.3)(effect@4.0.0-rc.112)(typebox@1.3.27)(zod@4.1.8)
-      effect: 4.0.0-rc.112
-      fuzzysort: 3.1.0
-      gitlab-ai-provider: 6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(graphql@16.11.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))
-      google-auth-library: 10.5.0(supports-color@8.1.1)
-      gray-matter: 4.0.3
-      htmlparser2: 8.0.2
-      http-proxy-agent: 7.0.2(supports-color@8.1.1)
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
-      ignore: 7.0.5
-      immer: 11.1.4
-      jose: 6.0.11
-      jsonc-parser: 3.3.1
-      mime-types: 3.0.2
-      tree-sitter-bash: 0.25.0
-      tree-sitter-powershell: 0.25.10
-      venice-ai-sdk-provider: 2.1.1(ai@6.0.322(zod@4.6.6))(zod@4.1.8)
-      web-tree-sitter: 0.25.10
-      which: 6.0.1
-      zod: 4.1.8
-    transitivePeerDependencies:
-      - '@aws-sdk/client-rds-data'
-      - '@aws-sdk/credential-provider-node'
-      - '@cloudflare/workers-types'
-      - '@drizzle-team/minipg'
-      - '@effect/sql-d1'
-      - '@effect/sql-libsql'
-      - '@effect/sql-mysql2'
-      - '@effect/sql-pg'
-      - '@effect/sql-pglite'
-      - '@effect/sql-sqlite-bun'
-      - '@effect/sql-sqlite-do'
-      - '@effect/sql-sqlite-node'
-      - '@effect/sql-sqlite-wasm'
-      - '@electric-sql/pglite'
-      - '@libsql/client'
-      - '@libsql/client-wasm'
-      - '@neondatabase/serverless'
-      - '@op-engineering/op-sqlite'
-      - '@opencode/theme'
-      - '@opentelemetry/api'
-      - '@opentelemetry/sdk-trace-web'
-      - '@opentelemetry/semantic-conventions'
-      - '@opentui/core'
-      - '@opentui/solid'
-      - '@planetscale/database'
-      - '@sinclair/typebox'
-      - '@smithy/hash-node'
-      - '@smithy/signature-v4'
-      - '@sqlitecloud/drivers'
-      - '@tidbcloud/serverless'
-      - '@tursodatabase/database'
-      - '@tursodatabase/database-common'
-      - '@tursodatabase/database-wasm'
-      - '@tursodatabase/serverless'
-      - '@tursodatabase/sync'
-      - '@types/better-sqlite3'
-      - '@types/emscripten'
-      - '@types/mssql'
-      - '@types/pg'
-      - '@types/sql.js'
-      - '@upstash/redis'
-      - '@vercel/postgres'
-      - '@xata.io/client'
-      - ai
-      - arktype
-      - better-sqlite3
-      - bufferutil
-      - bun-types
-      - encoding
-      - expo-sqlite
-      - graphql
-      - mssql
-      - mysql2
-      - pg
-      - postgres
-      - redis
-      - solid-js
-      - sql.js
-      - sqlite3
-      - supports-color
-      - tree-sitter
-      - typebox
-      - utf-8-validate
-      - valibot
-      - ws
-
-  '@opencode/core@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))':
-    dependencies:
-      '@ai-sdk/cohere': 3.0.27(zod@4.1.8)
-      '@ai-sdk/gateway': 3.0.104(zod@4.1.8)
-      '@ai-sdk/perplexity': 3.0.26(zod@4.1.8)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
-      '@ai-sdk/vercel': 2.0.39(zod@4.1.8)
-      '@ff-labs/fff-bun': 0.10.5
-      '@ff-labs/fff-node': 0.10.5
-      '@lydell/node-pty': 1.2.0-beta.12
-      '@modelcontextprotocol/client': 2.0.0
-      '@modelcontextprotocol/core': 2.0.0
-      '@opencode-ai/pty': 0.1.13
-      '@opencode/ai': 2.0.22(supports-color@8.1.1)
-      '@opencode/codemode': 2.0.22
-      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
-      '@opencode/plugin-browser': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
+      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
+      '@opencode/plugin-browser': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
       '@opencode/schema': 2.0.22
       '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
       '@parcel/watcher': 2.5.1
@@ -14682,11 +14637,11 @@ snapshots:
       effect: 4.0.0-rc.112
       fuzzysort: 3.1.0
       gitlab-ai-provider: 6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(graphql@16.11.0)(supports-color@8.1.1)(ws@8.22.1(bufferutil@4.1.0))
-      google-auth-library: 10.5.0(supports-color@8.1.1)
+      google-auth-library: 10.5.0
       gray-matter: 4.0.3
       htmlparser2: 8.0.2
-      http-proxy-agent: 7.0.2(supports-color@8.1.1)
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
       ignore: 7.0.5
       immer: 11.1.4
       jose: 6.0.11
@@ -14694,7 +14649,7 @@ snapshots:
       mime-types: 3.0.2
       tree-sitter-bash: 0.25.0
       tree-sitter-powershell: 0.25.10
-      venice-ai-sdk-provider: 2.1.1(ai@6.0.322(zod@4.6.6))(zod@4.1.8)
+      venice-ai-sdk-provider: 2.1.1(ai@7.0.155(zod@4.6.6))(zod@4.1.8)
       web-tree-sitter: 0.25.10
       which: 6.0.1
       zod: 4.1.8
@@ -14765,9 +14720,233 @@ snapshots:
       - valibot
       - ws
 
-  '@opencode/plugin-browser@2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)':
+  '@opencode/core@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(ws@8.21.0(bufferutil@4.1.0))':
     dependencies:
-      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
+      '@ai-sdk/cohere': 3.0.27(zod@4.1.8)
+      '@ai-sdk/gateway': 3.0.104(zod@4.1.8)
+      '@ai-sdk/perplexity': 3.0.26(zod@4.1.8)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
+      '@ai-sdk/vercel': 2.0.39(zod@4.1.8)
+      '@ff-labs/fff-bun': 0.10.5
+      '@ff-labs/fff-node': 0.10.5
+      '@lydell/node-pty': 1.2.0-beta.12
+      '@modelcontextprotocol/client': 2.0.0
+      '@modelcontextprotocol/core': 2.0.0
+      '@opencode-ai/pty': 0.1.13
+      '@opencode/ai': 2.0.22
+      '@opencode/codemode': 2.0.22
+      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
+      '@opencode/plugin-browser': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
+      '@opencode/schema': 2.0.22
+      '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
+      '@parcel/watcher': 2.5.1
+      '@silvia-odwyer/photon-node': 0.3.4
+      '@standard-schema/spec': 1.1.0
+      bun-pty: 0.4.8
+      diff: 8.0.4
+      drizzle-orm: 1.0.0-rc.5-169397b(@opentelemetry/api@1.9.0)(arktype@2.2.3)(effect@4.0.0-rc.112)(typebox@1.3.27)(zod@4.1.8)
+      effect: 4.0.0-rc.112
+      fuzzysort: 3.1.0
+      gitlab-ai-provider: 6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(graphql@16.11.0)(ws@8.21.0(bufferutil@4.1.0))
+      google-auth-library: 10.5.0
+      gray-matter: 4.0.3
+      htmlparser2: 8.0.2
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
+      ignore: 7.0.5
+      immer: 11.1.4
+      jose: 6.0.11
+      jsonc-parser: 3.3.1
+      mime-types: 3.0.2
+      tree-sitter-bash: 0.25.0
+      tree-sitter-powershell: 0.25.10
+      venice-ai-sdk-provider: 2.1.1(ai@7.0.155(zod@4.6.6))(zod@4.1.8)
+      web-tree-sitter: 0.25.10
+      which: 6.0.1
+      zod: 4.1.8
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@aws-sdk/credential-provider-node'
+      - '@cloudflare/workers-types'
+      - '@drizzle-team/minipg'
+      - '@effect/sql-d1'
+      - '@effect/sql-libsql'
+      - '@effect/sql-mysql2'
+      - '@effect/sql-pg'
+      - '@effect/sql-pglite'
+      - '@effect/sql-sqlite-bun'
+      - '@effect/sql-sqlite-do'
+      - '@effect/sql-sqlite-node'
+      - '@effect/sql-sqlite-wasm'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opencode/theme'
+      - '@opentelemetry/api'
+      - '@opentelemetry/sdk-trace-web'
+      - '@opentelemetry/semantic-conventions'
+      - '@opentui/core'
+      - '@opentui/solid'
+      - '@planetscale/database'
+      - '@sinclair/typebox'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - '@sqlitecloud/drivers'
+      - '@tidbcloud/serverless'
+      - '@tursodatabase/database'
+      - '@tursodatabase/database-common'
+      - '@tursodatabase/database-wasm'
+      - '@tursodatabase/serverless'
+      - '@tursodatabase/sync'
+      - '@types/better-sqlite3'
+      - '@types/emscripten'
+      - '@types/mssql'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - ai
+      - arktype
+      - better-sqlite3
+      - bufferutil
+      - bun-types
+      - encoding
+      - expo-sqlite
+      - graphql
+      - mssql
+      - mysql2
+      - pg
+      - postgres
+      - redis
+      - solid-js
+      - sql.js
+      - sqlite3
+      - supports-color
+      - tree-sitter
+      - typebox
+      - utf-8-validate
+      - valibot
+      - ws
+
+  '@opencode/core@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))':
+    dependencies:
+      '@ai-sdk/cohere': 3.0.27(zod@4.1.8)
+      '@ai-sdk/gateway': 3.0.104(zod@4.1.8)
+      '@ai-sdk/perplexity': 3.0.26(zod@4.1.8)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
+      '@ai-sdk/vercel': 2.0.39(zod@4.1.8)
+      '@ff-labs/fff-bun': 0.10.5
+      '@ff-labs/fff-node': 0.10.5
+      '@lydell/node-pty': 1.2.0-beta.12
+      '@modelcontextprotocol/client': 2.0.0
+      '@modelcontextprotocol/core': 2.0.0
+      '@opencode-ai/pty': 0.1.13
+      '@opencode/ai': 2.0.22
+      '@opencode/codemode': 2.0.22
+      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
+      '@opencode/plugin-browser': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
+      '@opencode/schema': 2.0.22
+      '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
+      '@parcel/watcher': 2.5.1
+      '@silvia-odwyer/photon-node': 0.3.4
+      '@standard-schema/spec': 1.1.0
+      bun-pty: 0.4.8
+      diff: 8.0.4
+      drizzle-orm: 1.0.0-rc.5-169397b(@opentelemetry/api@1.9.0)(arktype@2.2.3)(effect@4.0.0-rc.112)(typebox@1.3.27)(zod@4.1.8)
+      effect: 4.0.0-rc.112
+      fuzzysort: 3.1.0
+      gitlab-ai-provider: 6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(graphql@16.11.0)(ws@8.22.1(bufferutil@4.1.0))
+      google-auth-library: 10.5.0
+      gray-matter: 4.0.3
+      htmlparser2: 8.0.2
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
+      ignore: 7.0.5
+      immer: 11.1.4
+      jose: 6.0.11
+      jsonc-parser: 3.3.1
+      mime-types: 3.0.2
+      tree-sitter-bash: 0.25.0
+      tree-sitter-powershell: 0.25.10
+      venice-ai-sdk-provider: 2.1.1(ai@7.0.155(zod@4.6.6))(zod@4.1.8)
+      web-tree-sitter: 0.25.10
+      which: 6.0.1
+      zod: 4.1.8
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@aws-sdk/credential-provider-node'
+      - '@cloudflare/workers-types'
+      - '@drizzle-team/minipg'
+      - '@effect/sql-d1'
+      - '@effect/sql-libsql'
+      - '@effect/sql-mysql2'
+      - '@effect/sql-pg'
+      - '@effect/sql-pglite'
+      - '@effect/sql-sqlite-bun'
+      - '@effect/sql-sqlite-do'
+      - '@effect/sql-sqlite-node'
+      - '@effect/sql-sqlite-wasm'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opencode/theme'
+      - '@opentelemetry/api'
+      - '@opentelemetry/sdk-trace-web'
+      - '@opentelemetry/semantic-conventions'
+      - '@opentui/core'
+      - '@opentui/solid'
+      - '@planetscale/database'
+      - '@sinclair/typebox'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - '@sqlitecloud/drivers'
+      - '@tidbcloud/serverless'
+      - '@tursodatabase/database'
+      - '@tursodatabase/database-common'
+      - '@tursodatabase/database-wasm'
+      - '@tursodatabase/serverless'
+      - '@tursodatabase/sync'
+      - '@types/better-sqlite3'
+      - '@types/emscripten'
+      - '@types/mssql'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - ai
+      - arktype
+      - better-sqlite3
+      - bufferutil
+      - bun-types
+      - encoding
+      - expo-sqlite
+      - graphql
+      - mssql
+      - mysql2
+      - pg
+      - postgres
+      - redis
+      - solid-js
+      - sql.js
+      - sqlite3
+      - supports-color
+      - tree-sitter
+      - typebox
+      - utf-8-validate
+      - valibot
+      - ws
+
+  '@opencode/plugin-browser@2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))':
+    dependencies:
+      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
       '@opencode/schema': 2.0.22
       effect: 4.0.0-rc.112
     transitivePeerDependencies:
@@ -14782,10 +14961,10 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@opencode/plugin@2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)':
+  '@opencode/plugin@2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@opencode/ai': 2.0.22(supports-color@8.1.1)
+      '@opencode/ai': 2.0.22
       '@opencode/client': 2.0.22(effect@4.0.0-rc.112)
       '@opencode/protocol': 2.0.22
       '@opencode/schema': 2.0.22
@@ -14813,14 +14992,14 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       effect: 4.0.0-rc.112
 
-  '@opencode/server@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
+  '@opencode/server@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)':
     dependencies:
       '@effect/platform-node': 4.0.0-rc.112(bufferutil@4.1.0)(effect@4.0.0-rc.112)(redis@6.3.1(@opentelemetry/api@1.9.0))
       '@effect/platform-node-shared': 4.0.0-rc.112(bufferutil@4.1.0)(effect@4.0.0-rc.112)
-      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
+      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
       '@opencode/protocol': 2.0.22
       '@opencode/schema': 2.0.22
-      '@opencode/simulation': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@opencode/simulation': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)
       '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
       drizzle-orm: 1.0.0-rc.5-169397b(@opentelemetry/api@1.9.0)(arktype@2.2.3)(effect@4.0.0-rc.112)(typebox@1.3.27)(zod@4.6.6)
       effect: 4.0.0-rc.112
@@ -14894,11 +15073,11 @@ snapshots:
       - ws
       - zod
 
-  '@opencode/simulation@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
+  '@opencode/simulation@2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
     dependencies:
-      '@opencode/ai': 2.0.22(supports-color@8.1.1)
-      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.21.0(bufferutil@4.1.0))
-      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
+      '@opencode/ai': 2.0.22
+      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(ws@8.21.0(bufferutil@4.1.0))
+      '@opencode/plugin': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))
       '@opencode/protocol': 2.0.22
       '@opencode/util': 2.0.22(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(bufferutil@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
       '@opentui/core': 0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10)
@@ -14976,7 +15155,7 @@ snapshots:
       '@effect/opentelemetry': 4.0.0-rc.112(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.0)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.112)
       '@effect/platform-node': 4.0.0-rc.112(bufferutil@4.1.0)(effect@4.0.0-rc.112)(redis@6.3.1(@opentelemetry/api@1.9.0))
       '@effect/platform-node-shared': 4.0.0-rc.112(bufferutil@4.1.0)(effect@4.0.0-rc.112)
-      '@npmcli/arborist': 9.4.0(supports-color@8.1.1)
+      '@npmcli/arborist': 9.4.0
       '@npmcli/config': 10.8.1
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/api-logs': 0.219.0
@@ -15022,12 +15201,6 @@ snapshots:
   '@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
-
-  '@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/semantic-conventions': 1.43.0
-    optional: true
 
   '@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -15119,13 +15292,6 @@ snapshots:
       '@opentelemetry/sdk-logs': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-metrics': 2.9.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace': 2.9.0(@opentelemetry/api@1.9.1)
-
-  '@opentelemetry/resources@2.10.0(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/semantic-conventions': 1.43.0
-    optional: true
 
   '@opentelemetry/resources@2.10.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -15523,6 +15689,9 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
+  '@pkgjs/parseargs@0.11.0':
+    optional: true
+
   '@playwright/mcp@0.0.82':
     dependencies:
       playwright: 1.64.0-alpha-1789764292000
@@ -15574,12 +15743,12 @@ snapshots:
     dependencies:
       tinyexec: 1.2.4
 
-  '@puppeteer/browsers@2.7.1(supports-color@8.1.1)':
+  '@puppeteer/browsers@2.7.1':
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
-      extract-zip: 2.0.1(supports-color@8.1.1)
+      extract-zip: 2.0.1
       progress: 2.0.3
-      proxy-agent: 6.5.0(supports-color@8.1.1)
+      proxy-agent: 6.5.0
       semver: 7.8.5
       tar-fs: 3.1.3
       yargs: 17.7.3
@@ -15744,7 +15913,7 @@ snapshots:
       '@shikijs/core': 3.23.0
       '@shikijs/types': 3.23.0
 
-  '@shikijs/twoslash@3.23.0(supports-color@8.1.1)(typescript@5.9.3)':
+  '@shikijs/twoslash@3.23.0(typescript@5.9.3)':
     dependencies:
       '@shikijs/core': 3.23.0
       '@shikijs/types': 3.23.0
@@ -15768,13 +15937,13 @@ snapshots:
 
   '@sigstore/protobuf-specs@0.5.2': {}
 
-  '@sigstore/sign@4.1.1(supports-color@8.1.1)':
+  '@sigstore/sign@4.1.1':
     dependencies:
       '@gar/promise-retry': 1.0.3
       '@sigstore/bundle': 4.0.0
       '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.2
-      make-fetch-happen: 15.0.6(supports-color@8.1.1)
+      make-fetch-happen: 15.0.6
       proc-log: 6.1.0
     transitivePeerDependencies:
       - supports-color
@@ -15837,7 +16006,7 @@ snapshots:
 
   '@smithy/credential-provider-imds@4.5.2':
     dependencies:
-      '@smithy/core': 3.37.0
+      '@smithy/core': 3.38.1
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
@@ -16491,7 +16660,7 @@ snapshots:
 
   adm-zip@0.6.1: {}
 
-  agent-base@6.0.2(supports-color@8.1.1):
+  agent-base@6.0.2:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
@@ -16516,14 +16685,6 @@ snapshots:
       '@ai-sdk/provider': 2.0.3
       '@ai-sdk/provider-utils': 3.0.30(zod@4.6.6)
       '@opentelemetry/api': 1.9.0
-      zod: 4.6.6
-
-  ai@6.0.322(zod@4.6.6):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.228(zod@4.6.6)
-      '@ai-sdk/provider': 3.0.19
-      '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      '@opentelemetry/api': 1.9.1
       zod: 4.6.6
 
   ai@7.0.122(zod@4.6.6):
@@ -16595,6 +16756,30 @@ snapshots:
       picomatch: 2.3.2
 
   anynum@1.0.1: {}
+
+  archiver-utils@5.0.2:
+    dependencies:
+      glob: 10.5.0
+      graceful-fs: 4.2.11
+      is-stream: 2.0.1
+      lazystream: 1.0.1
+      lodash: 4.18.1
+      normalize-path: 3.0.0
+      readable-stream: 4.7.0
+
+  archiver@7.0.1:
+    dependencies:
+      archiver-utils: 5.0.2
+      async: 3.2.6
+      buffer-crc32: 1.0.0
+      readable-stream: 4.7.0
+      readdir-glob: 1.1.3
+      tar-stream: 3.2.0
+      zip-stream: 6.0.1
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
 
   archiver@8.0.0:
     dependencies:
@@ -16689,11 +16874,11 @@ snapshots:
 
   aws4fetch@1.0.20: {}
 
-  axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  axios@1.20.0:
     dependencies:
-      follow-redirects: 1.16.2(debug@4.4.3(supports-color@8.1.1))
+      follow-redirects: 1.16.2
       form-data: 4.0.6
-      https-proxy-agent: 5.0.1(supports-color@8.1.1)
+      https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
@@ -16771,11 +16956,11 @@ snapshots:
       readable-stream: 3.6.2
     optional: true
 
-  body-parser@1.20.9(supports-color@8.1.1):
+  body-parser@1.20.9:
     dependencies:
       bytes: 3.1.2
       content-type: 1.0.5
-      debug: 2.6.9(supports-color@8.1.1)
+      debug: 2.6.9
       depd: 2.0.0
       destroy: 1.2.0
       http-errors: 2.0.1
@@ -16788,7 +16973,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  body-parser@2.4.0(supports-color@8.1.1):
+  body-parser@2.4.0:
     dependencies:
       bytes: 3.1.2
       content-type: 2.1.0
@@ -16823,7 +17008,7 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(supports-color@8.1.1)(zod@4.6.6):
+  braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.6.6):
     dependencies:
       '@next/env': 14.2.35
       '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.77)
@@ -16840,7 +17025,7 @@ snapshots:
       esbuild: 0.28.1
       esquery: 1.7.0
       eventsource-parser: 1.1.2
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       http-errors: 2.0.1
       meriyah: 6.1.4
       minimatch: 10.2.5
@@ -16866,7 +17051,7 @@ snapshots:
       - '@aws-sdk/credential-provider-web-identity'
       - supports-color
 
-  braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(supports-color@8.1.1)(zod@4.6.6):
+  braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6):
     dependencies:
       '@next/env': 14.2.35
       '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.83)
@@ -16883,7 +17068,7 @@ snapshots:
       esbuild: 0.28.1
       esquery: 1.7.0
       eventsource-parser: 1.1.2
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       http-errors: 2.0.1
       meriyah: 6.1.4
       minimatch: 10.2.5
@@ -17076,12 +17261,12 @@ snapshots:
 
   chardet@2.2.0: {}
 
-  chat@4.37.0(ai@7.0.155(zod@4.6.6))(supports-color@8.1.1)(zod@4.6.6):
+  chat@4.37.0(ai@7.0.155(zod@4.6.6))(zod@4.6.6):
     dependencies:
       '@workflow/serde': 4.1.0-beta.2
       mdast-util-to-string: 4.0.0
-      remark-gfm: 4.0.1(supports-color@8.1.1)
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-gfm: 4.0.1
+      remark-parse: 11.0.0
       remark-stringify: 11.0.0
       remend: 1.3.0
       unified: 11.0.5
@@ -17211,6 +17396,8 @@ snapshots:
 
   comma-separated-tokens@2.0.3: {}
 
+  commander@14.0.3: {}
+
   commander@15.0.0: {}
 
   commander@2.20.3: {}
@@ -17220,6 +17407,14 @@ snapshots:
   commander@8.3.0: {}
 
   common-ancestor-path@2.0.0: {}
+
+  compress-commons@6.0.2:
+    dependencies:
+      crc-32: 1.2.2
+      crc32-stream: 6.0.0
+      is-stream: 2.0.1
+      normalize-path: 3.0.0
+      readable-stream: 4.7.0
 
   compress-commons@7.0.1:
     dependencies:
@@ -17289,6 +17484,11 @@ snapshots:
 
   crc-32@1.2.2: {}
 
+  crc32-stream@6.0.0:
+    dependencies:
+      crc-32: 1.2.2
+      readable-stream: 4.7.0
+
   crc32-stream@7.0.1:
     dependencies:
       crc-32: 1.2.2
@@ -17356,17 +17556,13 @@ snapshots:
 
   db0@0.4.1: {}
 
-  debug@2.6.9(supports-color@8.1.1):
+  debug@2.6.9:
     dependencies:
       ms: 2.0.0
-    optionalDependencies:
-      supports-color: 8.1.1
 
-  debug@4.3.7(supports-color@8.1.1):
+  debug@4.3.7:
     dependencies:
       ms: 2.1.3
-    optionalDependencies:
-      supports-color: 8.1.1
 
   debug@4.4.3(supports-color@8.1.1):
     dependencies:
@@ -17537,7 +17733,7 @@ snapshots:
       es-errors: 1.3.0
       gopd: 1.2.0
 
-  durable-harness@0.0.1(642f90f7b4d469d73f74dcadef881e24):
+  durable-harness@0.0.1(c62d8deae755356d39c7747b679f7c2f):
     dependencies:
       '@babel/parser': 7.29.12
       '@babel/traverse': 7.29.12(supports-color@8.1.1)
@@ -17553,16 +17749,16 @@ snapshots:
       ws: 8.21.3(bufferutil@4.1.0)
     optionalDependencies:
       '@earendil-works/chord': 1.5.0(esbuild@0.28.2)(ws@8.22.1(bufferutil@4.1.0))
-      '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
-      '@earendil-works/pi-durable': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(esbuild@0.28.2)(supports-color@8.1.1)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-agent-core': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-ai': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@earendil-works/pi-durable': 1.5.0(@aws-sdk/credential-provider-node@3.972.89)(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(esbuild@0.28.2)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@opencode/client': 2.0.22(effect@4.0.0-rc.112)
-      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
+      '@opencode/core': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(ws@8.22.1(bufferutil@4.1.0))
       '@opencode/schema': 2.0.22
-      '@opencode/server': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.4)(ai@6.0.322(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(supports-color@8.1.1)(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
+      '@opencode/server': 2.0.22(@aws-sdk/credential-provider-node@3.972.89)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.5.14(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(ai@7.0.155(zod@4.6.6))(arktype@2.2.3)(bufferutil@4.1.0)(graphql@16.11.0)(redis@6.3.1(@opentelemetry/api@1.9.0))(typebox@1.3.27)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       '@opentelemetry/otlp-transformer': 0.220.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources': 2.10.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.0)
       effect: 4.0.0-rc.112
       libfx: 0.0.16
       zod: 4.6.6
@@ -17571,6 +17767,8 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  eastasianwidth@0.2.0: {}
 
   ecdsa-sig-formatter@1.0.11:
     dependencies:
@@ -17592,6 +17790,8 @@ snapshots:
   emoji-regex@10.6.0: {}
 
   emoji-regex@8.0.0: {}
+
+  emoji-regex@9.2.2: {}
 
   empathic@2.0.1: {}
 
@@ -17615,7 +17815,7 @@ snapshots:
 
   engine.io-parser@5.2.3: {}
 
-  engine.io@6.6.11(bufferutil@4.1.0)(supports-color@8.1.1):
+  engine.io@6.6.11(bufferutil@4.1.0):
     dependencies:
       '@types/cors': 2.8.19
       '@types/node': 20.19.43
@@ -17894,14 +18094,14 @@ snapshots:
 
   etag@1.8.1: {}
 
-  eve@0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(supports-color@8.1.1)(zod@4.6.6)):
+  eve@0.71.2(@opentelemetry/api@1.9.1)(ai@7.0.122(zod@4.6.6))(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6)):
     dependencies:
       ai: 7.0.122(zod@4.6.6)
       nitro: 3.0.260903-beta
       undici: 8.12.3
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
-      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(supports-color@8.1.1)(zod@4.6.6)
+      braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.83)(zod@4.6.6)
 
   event-target-shim@5.0.1: {}
 
@@ -17961,29 +18161,29 @@ snapshots:
 
   expr-eval-fork@3.0.3: {}
 
-  express-rate-limit@8.6.0(express@5.2.1(supports-color@8.1.1))(supports-color@8.1.1):
+  express-rate-limit@8.6.0(express@5.2.1)(supports-color@8.1.1):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
-      express: 5.2.1(supports-color@8.1.1)
+      express: 5.2.1
       ip-address: 10.7.5
     transitivePeerDependencies:
       - supports-color
 
-  express@4.22.3(supports-color@8.1.1):
+  express@4.22.3:
     dependencies:
       accepts: 1.3.8
       array-flatten: 1.1.1
-      body-parser: 1.20.9(supports-color@8.1.1)
+      body-parser: 1.20.9
       content-disposition: 0.5.4
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.0.7
-      debug: 2.6.9(supports-color@8.1.1)
+      debug: 2.6.9
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 1.3.2(supports-color@8.1.1)
+      finalhandler: 1.3.2
       fresh: 0.5.2
       http-errors: 2.0.1
       merge-descriptors: 1.0.3
@@ -17995,8 +18195,8 @@ snapshots:
       qs: 6.16.2
       range-parser: 1.2.1
       safe-buffer: 5.2.1
-      send: 0.19.2(supports-color@8.1.1)
-      serve-static: 1.16.3(supports-color@8.1.1)
+      send: 0.19.2
+      serve-static: 1.16.3
       setprototypeof: 1.2.0
       statuses: 2.0.2
       type-is: 1.6.18
@@ -18005,10 +18205,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  express@5.2.1(supports-color@8.1.1):
+  express@5.2.1:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.4.0(supports-color@8.1.1)
+      body-parser: 2.4.0
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
@@ -18018,7 +18218,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1(supports-color@8.1.1)
+      finalhandler: 2.1.1
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -18029,9 +18229,9 @@ snapshots:
       proxy-addr: 2.0.8
       qs: 6.16.2
       range-parser: 1.2.1
-      router: 2.2.0(supports-color@8.1.1)
-      send: 1.2.1(supports-color@8.1.1)
-      serve-static: 2.2.1(supports-color@8.1.1)
+      router: 2.2.0
+      send: 1.2.1
+      serve-static: 2.2.1
       statuses: 2.0.2
       type-is: 2.1.0
       vary: 1.1.2
@@ -18048,7 +18248,7 @@ snapshots:
 
   extendable-error@0.1.7: {}
 
-  extract-zip@2.0.1(supports-color@8.1.1):
+  extract-zip@2.0.1:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       get-stream: 5.2.0
@@ -18162,11 +18362,11 @@ snapshots:
 
   fflate@0.8.3: {}
 
-  ffmpeg-static@5.3.0(supports-color@8.1.1):
+  ffmpeg-static@5.3.0:
     dependencies:
       '@derhuerst/http-basic': 8.2.4
       env-paths: 2.2.1
-      https-proxy-agent: 5.0.1(supports-color@8.1.1)
+      https-proxy-agent: 5.0.1
       progress: 2.0.3
     transitivePeerDependencies:
       - supports-color
@@ -18179,7 +18379,7 @@ snapshots:
     dependencies:
       minimatch: 5.1.9
 
-  files-sdk@2.6.2(@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6))(@aws-sdk/client-s3@3.1145.0)(@aws-sdk/lib-storage@3.1145.0(@aws-sdk/client-s3@3.1145.0))(@aws-sdk/s3-presigned-post@3.1145.0)(@aws-sdk/s3-request-presigner@3.1145.0)(@opentelemetry/api@1.9.1)(ai@7.0.155(zod@4.6.6))(basic-ftp@6.2.1)(google-auth-library@10.9.1(supports-color@8.1.1))(hono@4.13.13)(openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(zod@4.6.6):
+  files-sdk@2.6.2(@anthropic-ai/claude-agent-sdk@0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6))(@aws-sdk/client-s3@3.1145.0)(@aws-sdk/lib-storage@3.1145.0(@aws-sdk/client-s3@3.1145.0))(@aws-sdk/s3-presigned-post@3.1145.0)(@aws-sdk/s3-request-presigner@3.1145.0)(@opentelemetry/api@1.9.1)(ai@7.0.155(zod@4.6.6))(basic-ftp@6.2.1)(google-auth-library@10.9.1)(hono@4.13.13)(openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6))(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(zod@4.6.6):
     dependencies:
       aws4fetch: 1.0.20
       commander: 15.0.0
@@ -18189,7 +18389,7 @@ snapshots:
       picomatch: 4.0.7
       safe-regex2: 5.1.2
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk': 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.6))(zod@4.6.6)
+      '@anthropic-ai/claude-agent-sdk': 0.3.224(@anthropic-ai/sdk@0.129.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.6))(zod@4.6.6)
       '@aws-sdk/client-s3': 3.1145.0
       '@aws-sdk/lib-storage': 3.1145.0(@aws-sdk/client-s3@3.1145.0)
       '@aws-sdk/s3-presigned-post': 3.1145.0
@@ -18198,11 +18398,11 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       ai: 7.0.155(zod@4.6.6)
       basic-ftp: 6.2.1
-      google-auth-library: 10.9.1(supports-color@8.1.1)
+      google-auth-library: 10.9.1
       hono: 4.13.13
-      openai: 6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6)
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6)
       react: 19.2.3
-      react-dom: 18.3.1(react@19.2.3)
+      react-dom: 19.3.1(react@19.2.3)
       zod: 4.6.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -18212,9 +18412,9 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  finalhandler@1.3.2(supports-color@8.1.1):
+  finalhandler@1.3.2:
     dependencies:
-      debug: 2.6.9(supports-color@8.1.1)
+      debug: 2.6.9
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
@@ -18224,7 +18424,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  finalhandler@2.1.1(supports-color@8.1.1):
+  finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       encodeurl: 2.0.0
@@ -18244,13 +18444,16 @@ snapshots:
     dependencies:
       micromatch: 4.0.8
 
-  follow-redirects@1.16.2(debug@4.4.3(supports-color@8.1.1)):
-    optionalDependencies:
-      debug: 4.4.3(supports-color@8.1.1)
+  follow-redirects@1.16.2: {}
 
   for-each@0.3.5:
     dependencies:
       is-callable: 1.2.7
+
+  foreground-child@3.3.1:
+    dependencies:
+      cross-spawn: 7.0.6
+      signal-exit: 4.1.0
 
   form-data-encoder@1.7.2: {}
 
@@ -18350,19 +18553,19 @@ snapshots:
 
   fuzzysort@3.1.0: {}
 
-  gaxios@7.3.0(supports-color@8.1.1):
+  gaxios@7.3.0:
     dependencies:
       extend: 3.0.2
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      https-proxy-agent: 7.0.6
       node-fetch: 3.3.2
     transitivePeerDependencies:
       - supports-color
 
   gcd@0.0.1: {}
 
-  gcp-metadata@8.1.2(supports-color@8.1.1):
+  gcp-metadata@8.1.2:
     dependencies:
-      gaxios: 7.3.0(supports-color@8.1.1)
+      gaxios: 7.3.0
       google-logging-utils: 1.1.3
       json-bigint: 1.0.0
     transitivePeerDependencies:
@@ -18415,7 +18618,7 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  get-uri@6.0.5(supports-color@8.1.1):
+  get-uri@6.0.5:
     dependencies:
       basic-ftp: 6.2.1
       data-uri-to-buffer: 6.0.2
@@ -18427,29 +18630,6 @@ snapshots:
     optional: true
 
   github-slugger@2.0.0: {}
-
-  gitlab-ai-provider@6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(graphql@16.11.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0)):
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
-      '@anthropic-ai/sdk': 0.71.2(zod@3.25.76)
-      '@anycable/core': 0.9.2
-      graphql-request: 6.1.0(graphql@16.11.0)
-      isomorphic-ws: 5.0.0(ws@8.21.0(bufferutil@4.1.0))
-      openai: 6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@3.25.76)
-      socket.io-client: 4.8.4(bufferutil@4.1.0)(supports-color@8.1.1)
-      vscode-jsonrpc: 8.2.1
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-provider-node'
-      - '@smithy/hash-node'
-      - '@smithy/signature-v4'
-      - bufferutil
-      - encoding
-      - graphql
-      - supports-color
-      - utf-8-validate
-      - ws
 
   gitlab-ai-provider@6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(graphql@16.11.0)(supports-color@8.1.1)(ws@8.22.1(bufferutil@4.1.0)):
     dependencies:
@@ -18474,6 +18654,52 @@ snapshots:
       - utf-8-validate
       - ws
 
+  gitlab-ai-provider@6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(graphql@16.11.0)(ws@8.21.0(bufferutil@4.1.0)):
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
+      '@anthropic-ai/sdk': 0.71.2(zod@3.25.76)
+      '@anycable/core': 0.9.2
+      graphql-request: 6.1.0(graphql@16.11.0)
+      isomorphic-ws: 5.0.0(ws@8.21.0(bufferutil@4.1.0))
+      openai: 6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(ws@8.21.0(bufferutil@4.1.0))(zod@3.25.76)
+      socket.io-client: 4.8.4(bufferutil@4.1.0)(supports-color@8.1.1)
+      vscode-jsonrpc: 8.2.1
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - bufferutil
+      - encoding
+      - graphql
+      - supports-color
+      - utf-8-validate
+      - ws
+
+  gitlab-ai-provider@6.18.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(bufferutil@4.1.0)(graphql@16.11.0)(ws@8.22.1(bufferutil@4.1.0)):
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
+      '@anthropic-ai/sdk': 0.71.2(zod@3.25.76)
+      '@anycable/core': 0.9.2
+      graphql-request: 6.1.0(graphql@16.11.0)
+      isomorphic-ws: 5.0.0(ws@8.22.1(bufferutil@4.1.0))
+      openai: 6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(ws@8.22.1(bufferutil@4.1.0))(zod@3.25.76)
+      socket.io-client: 4.8.4(bufferutil@4.1.0)(supports-color@8.1.1)
+      vscode-jsonrpc: 8.2.1
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - bufferutil
+      - encoding
+      - graphql
+      - supports-color
+      - utf-8-validate
+      - ws
+
   glob-parent@5.1.2:
     dependencies:
       is-glob: 4.0.3
@@ -18481,6 +18707,15 @@ snapshots:
   glob-parent@6.0.2:
     dependencies:
       is-glob: 4.0.3
+
+  glob@10.5.0:
+    dependencies:
+      foreground-child: 3.3.1
+      jackspeak: 3.4.3
+      minimatch: 9.0.9
+      minipass: 7.1.3
+      package-json-from-dist: 1.0.1
+      path-scurry: 1.11.1
 
   glob@13.0.5:
     dependencies:
@@ -18511,24 +18746,24 @@ snapshots:
       merge2: 1.4.1
       slash: 3.0.0
 
-  google-auth-library@10.5.0(supports-color@8.1.1):
+  google-auth-library@10.5.0:
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
-      gaxios: 7.3.0(supports-color@8.1.1)
-      gcp-metadata: 8.1.2(supports-color@8.1.1)
+      gaxios: 7.3.0
+      gcp-metadata: 8.1.2
       google-logging-utils: 1.1.3
-      gtoken: 8.0.0(supports-color@8.1.1)
+      gtoken: 8.0.0
       jws: 4.0.1
     transitivePeerDependencies:
       - supports-color
 
-  google-auth-library@10.9.1(supports-color@8.1.1):
+  google-auth-library@10.9.1:
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
-      gaxios: 7.3.0(supports-color@8.1.1)
-      gcp-metadata: 8.1.2(supports-color@8.1.1)
+      gaxios: 7.3.0
+      gcp-metadata: 8.1.2
       google-logging-utils: 1.1.3
       jws: 4.0.1
     transitivePeerDependencies:
@@ -18589,9 +18824,9 @@ snapshots:
 
   grok-mermaid@0.2.3: {}
 
-  gtoken@8.0.0(supports-color@8.1.1):
+  gtoken@8.0.0:
     dependencies:
-      gaxios: 7.3.0(supports-color@8.1.1)
+      gaxios: 7.3.0
       jws: 4.0.1
     transitivePeerDependencies:
       - supports-color
@@ -18696,7 +18931,7 @@ snapshots:
       hast-util-is-body-ok-link: 3.0.1
       hast-util-is-element: 3.0.0
 
-  hast-util-to-estree@3.1.3(supports-color@8.1.1):
+  hast-util-to-estree@3.1.3:
     dependencies:
       '@types/estree': 1.0.9
       '@types/estree-jsx': 1.0.5
@@ -18706,9 +18941,9 @@ snapshots:
       estree-util-attach-comments: 3.0.0
       estree-util-is-identifier-name: 3.0.0
       hast-util-whitespace: 3.0.0
-      mdast-util-mdx-expression: 2.0.1(supports-color@8.1.1)
-      mdast-util-mdx-jsx: 3.2.0(supports-color@8.1.1)
-      mdast-util-mdxjs-esm: 2.0.1(supports-color@8.1.1)
+      mdast-util-mdx-expression: 2.0.1
+      mdast-util-mdx-jsx: 3.2.0
+      mdast-util-mdxjs-esm: 2.0.1
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
       style-to-js: 1.1.21
@@ -18745,7 +18980,7 @@ snapshots:
       stringify-entities: 4.0.4
       zwitch: 2.0.4
 
-  hast-util-to-jsx-runtime@2.3.6(supports-color@8.1.1):
+  hast-util-to-jsx-runtime@2.3.6:
     dependencies:
       '@types/estree': 1.0.9
       '@types/hast': 3.0.5
@@ -18754,9 +18989,9 @@ snapshots:
       devlop: 1.1.0
       estree-util-is-identifier-name: 3.0.0
       hast-util-whitespace: 3.0.0
-      mdast-util-mdx-expression: 2.0.1(supports-color@8.1.1)
-      mdast-util-mdx-jsx: 3.2.0(supports-color@8.1.1)
-      mdast-util-mdxjs-esm: 2.0.1(supports-color@8.1.1)
+      mdast-util-mdx-expression: 2.0.1
+      mdast-util-mdx-jsx: 3.2.0
+      mdast-util-mdxjs-esm: 2.0.1
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
       style-to-js: 1.1.21
@@ -18858,14 +19093,14 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-proxy-agent@7.0.2(supports-color@8.1.1):
+  http-proxy-agent@7.0.2:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-agent@9.1.0(supports-color@8.1.1):
+  http-proxy-agent@9.1.0:
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -18885,21 +19120,21 @@ snapshots:
       quick-lru: 5.1.1
       resolve-alpn: 1.2.1
 
-  https-proxy-agent@5.0.1(supports-color@8.1.1):
+  https-proxy-agent@5.0.1:
     dependencies:
-      agent-base: 6.0.2(supports-color@8.1.1)
+      agent-base: 6.0.2
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@7.0.6(supports-color@8.1.1):
+  https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@9.1.0(supports-color@8.1.1):
+  https-proxy-agent@9.1.0:
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -19239,6 +19474,12 @@ snapshots:
     dependencies:
       ws: 8.22.1(bufferutil@4.1.0)
 
+  jackspeak@3.4.3:
+    dependencies:
+      '@isaacs/cliui': 8.0.2
+    optionalDependencies:
+      '@pkgjs/parseargs': 0.11.0
+
   jake@10.9.4:
     dependencies:
       async: 3.2.6
@@ -19460,11 +19701,6 @@ snapshots:
 
   longest-streak@3.1.0: {}
 
-  loose-envify@1.4.0:
-    dependencies:
-      js-tokens: 4.0.0
-    optional: true
-
   lower-case@2.0.2:
     dependencies:
       tslib: 2.8.1
@@ -19481,10 +19717,10 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  make-fetch-happen@15.0.6(supports-color@8.1.1):
+  make-fetch-happen@15.0.6:
     dependencies:
       '@gar/promise-retry': 1.0.3
-      '@npmcli/agent': 4.0.2(supports-color@8.1.1)
+      '@npmcli/agent': 4.0.2
       '@npmcli/redact': 4.0.0
       cacache: 20.0.4
       http-cache-semantics: 4.2.0
@@ -19526,14 +19762,14 @@ snapshots:
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.0.2
 
-  mdast-util-from-markdown@2.0.2(supports-color@8.1.1):
+  mdast-util-from-markdown@2.0.2:
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       mdast-util-to-string: 4.0.0
-      micromark: 4.0.2(supports-color@8.1.1)
+      micromark: 4.0.2
       micromark-util-decode-numeric-character-reference: 2.0.2
       micromark-util-decode-string: 2.0.1
       micromark-util-normalize-identifier: 2.0.1
@@ -19543,14 +19779,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-from-markdown@2.0.3(supports-color@8.1.1):
+  mdast-util-from-markdown@2.0.3:
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       mdast-util-to-string: 4.0.0
-      micromark: 4.0.2(supports-color@8.1.1)
+      micromark: 4.0.2
       micromark-util-decode-numeric-character-reference: 2.0.2
       micromark-util-decode-string: 2.0.1
       micromark-util-normalize-identifier: 2.0.1
@@ -19560,12 +19796,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-frontmatter@2.0.1(supports-color@8.1.1):
+  mdast-util-frontmatter@2.0.1:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       escape-string-regexp: 5.0.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       micromark-extension-frontmatter: 2.0.0
     transitivePeerDependencies:
@@ -19579,91 +19815,91 @@ snapshots:
       mdast-util-find-and-replace: 3.0.2
       micromark-util-character: 2.1.1
 
-  mdast-util-gfm-footnote@2.1.0(supports-color@8.1.1):
+  mdast-util-gfm-footnote@2.1.0:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       micromark-util-normalize-identifier: 2.0.1
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-strikethrough@2.0.0(supports-color@8.1.1):
+  mdast-util-gfm-strikethrough@2.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-table@2.0.0(supports-color@8.1.1):
+  mdast-util-gfm-table@2.0.0:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       markdown-table: 3.0.4
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm-task-list-item@2.0.0(supports-color@8.1.1):
+  mdast-util-gfm-task-list-item@2.0.0:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm@3.0.0(supports-color@8.1.1):
+  mdast-util-gfm@3.0.0:
     dependencies:
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-gfm-autolink-literal: 2.0.1
-      mdast-util-gfm-footnote: 2.1.0(supports-color@8.1.1)
-      mdast-util-gfm-strikethrough: 2.0.0(supports-color@8.1.1)
-      mdast-util-gfm-table: 2.0.0(supports-color@8.1.1)
-      mdast-util-gfm-task-list-item: 2.0.0(supports-color@8.1.1)
+      mdast-util-gfm-footnote: 2.1.0
+      mdast-util-gfm-strikethrough: 2.0.0
+      mdast-util-gfm-table: 2.0.0
+      mdast-util-gfm-task-list-item: 2.0.0
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-gfm@3.1.0(supports-color@8.1.1):
+  mdast-util-gfm@3.1.0:
     dependencies:
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-gfm-autolink-literal: 2.0.1
-      mdast-util-gfm-footnote: 2.1.0(supports-color@8.1.1)
-      mdast-util-gfm-strikethrough: 2.0.0(supports-color@8.1.1)
-      mdast-util-gfm-table: 2.0.0(supports-color@8.1.1)
-      mdast-util-gfm-task-list-item: 2.0.0(supports-color@8.1.1)
+      mdast-util-gfm-footnote: 2.1.0
+      mdast-util-gfm-strikethrough: 2.0.0
+      mdast-util-gfm-table: 2.0.0
+      mdast-util-gfm-task-list-item: 2.0.0
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-math@3.0.0(supports-color@8.1.1):
+  mdast-util-math@3.0.0:
     dependencies:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       longest-streak: 3.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       unist-util-remove-position: 5.0.0
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-mdx-expression@2.0.1(supports-color@8.1.1):
+  mdast-util-mdx-expression@2.0.1:
     dependencies:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-mdx-jsx@3.1.3(supports-color@8.1.1):
+  mdast-util-mdx-jsx@3.1.3:
     dependencies:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.5
@@ -19671,7 +19907,7 @@ snapshots:
       '@types/unist': 3.0.3
       ccount: 2.0.1
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       parse-entities: 4.0.2
       stringify-entities: 4.0.4
@@ -19680,7 +19916,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-mdx-jsx@3.2.0(supports-color@8.1.1):
+  mdast-util-mdx-jsx@3.2.0:
     dependencies:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.5
@@ -19688,7 +19924,7 @@ snapshots:
       '@types/unist': 3.0.3
       ccount: 2.0.1
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       parse-entities: 4.0.2
       stringify-entities: 4.0.4
@@ -19697,23 +19933,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-mdx@3.0.0(supports-color@8.1.1):
+  mdast-util-mdx@3.0.0:
     dependencies:
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
-      mdast-util-mdx-expression: 2.0.1(supports-color@8.1.1)
-      mdast-util-mdx-jsx: 3.2.0(supports-color@8.1.1)
-      mdast-util-mdxjs-esm: 2.0.1(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
+      mdast-util-mdx-expression: 2.0.1
+      mdast-util-mdx-jsx: 3.2.0
+      mdast-util-mdxjs-esm: 2.0.1
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-mdxjs-esm@2.0.1(supports-color@8.1.1):
+  mdast-util-mdxjs-esm@2.0.1:
     dependencies:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
@@ -20027,7 +20263,7 @@ snapshots:
 
   micromark-util-types@2.0.2: {}
 
-  micromark@4.0.2(supports-color@8.1.1):
+  micromark@4.0.2:
     dependencies:
       '@types/debug': 4.1.13
       debug: 4.4.3(supports-color@8.1.1)
@@ -20093,6 +20329,10 @@ snapshots:
     dependencies:
       brace-expansion: 2.1.7
 
+  minimatch@9.0.9:
+    dependencies:
+      brace-expansion: 2.1.7
+
   minimist@1.2.8: {}
 
   minipass-collect@2.0.1:
@@ -20129,9 +20369,9 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
-  mint@4.2.788(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3):
+  mint@4.2.788(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3):
     dependencies:
-      '@mintlify/cli': 4.0.1391(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
+      '@mintlify/cli': 4.0.1391(@base-ui/react@1.7.0(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3))(@types/node@24.13.2)(@types/react@19.2.17)(bufferutil@4.1.0)(react-dom@19.3.1(react@19.2.3))(supports-color@8.1.1)(typescript@5.9.3)
     transitivePeerDependencies:
       - '@base-ui/react'
       - '@types/node'
@@ -20207,10 +20447,10 @@ snapshots:
 
   netmask@2.1.1: {}
 
-  next-mdx-remote-client@2.1.11(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(supports-color@8.1.1)(unified@11.0.5):
+  next-mdx-remote-client@2.1.11(@types/react@19.2.17)(react-dom@19.3.1(react@19.2.3))(react@19.2.3)(unified@11.0.5):
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@mdx-js/mdx': 3.1.1(supports-color@8.1.1)
+      '@mdx-js/mdx': 3.1.1
       '@mdx-js/react': 3.1.1(@types/react@19.2.17)(react@19.2.3)
       '@types/mdx': 2.0.14
       react: 19.2.3
@@ -20370,11 +20610,11 @@ snapshots:
       npm-package-arg: 13.0.2
       semver: 7.8.5
 
-  npm-registry-fetch@19.1.1(supports-color@8.1.1):
+  npm-registry-fetch@19.1.1:
     dependencies:
       '@npmcli/redact': 4.0.0
       jsonparse: 1.3.1
-      make-fetch-happen: 15.0.6(supports-color@8.1.1)
+      make-fetch-happen: 15.0.6
       minipass: 7.1.3
       minipass-fetch: 5.0.2
       minizlib: 3.1.0
@@ -20507,27 +20747,12 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6):
+  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.4)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.83
       '@smithy/signature-v4': 5.7.4
-      ws: 8.21.0(bufferutil@4.1.0)
+      ws: 8.22.1(bufferutil@4.1.0)
       zod: 4.6.6
-
-  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@3.25.76):
-    optionalDependencies:
-      '@aws-sdk/credential-provider-node': 3.972.89
-      '@smithy/signature-v4': 5.7.4
-      ws: 8.21.0(bufferutil@4.1.0)
-      zod: 3.25.76
-
-  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6):
-    optionalDependencies:
-      '@aws-sdk/credential-provider-node': 3.972.89
-      '@smithy/signature-v4': 5.7.4
-      ws: 8.21.0(bufferutil@4.1.0)
-      zod: 4.6.6
-    optional: true
 
   openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(ws@8.22.1(bufferutil@4.1.0))(zod@3.25.76):
     optionalDependencies:
@@ -20536,29 +20761,43 @@ snapshots:
       ws: 8.22.1(bufferutil@4.1.0)
       zod: 3.25.76
 
-  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6):
+  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(ws@8.21.0(bufferutil@4.1.0))(zod@3.25.76):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.89
-      '@smithy/signature-v4': 5.7.4
+      '@smithy/signature-v4': 5.7.5
+      ws: 8.21.0(bufferutil@4.1.0)
+      zod: 3.25.76
+
+  openai@6.48.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(ws@8.22.1(bufferutil@4.1.0))(zod@3.25.76):
+    optionalDependencies:
+      '@aws-sdk/credential-provider-node': 3.972.89
+      '@smithy/signature-v4': 5.7.5
+      ws: 8.22.1(bufferutil@4.1.0)
+      zod: 3.25.76
+
+  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6):
+    optionalDependencies:
+      '@aws-sdk/credential-provider-node': 3.972.89
+      '@smithy/signature-v4': 5.7.5
       undici: 7.30.1
       ws: 8.21.0(bufferutil@4.1.0)
       zod: 4.6.6
 
-  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6):
+  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@7.30.1)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.89
-      '@smithy/signature-v4': 5.7.4
+      '@smithy/signature-v4': 5.7.5
       undici: 7.30.1
       ws: 8.22.1(bufferutil@4.1.0)
       zod: 4.6.6
     optional: true
 
-  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.6.6):
+  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1(bufferutil@4.1.0))(zod@4.6.6):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.89
-      '@smithy/signature-v4': 5.7.4
+      '@smithy/signature-v4': 5.7.5
       undici: 8.12.3
-      ws: 8.21.0(bufferutil@4.1.0)
+      ws: 8.22.1(bufferutil@4.1.0)
       zod: 4.6.6
 
   openapi-types@12.1.3: {}
@@ -20691,16 +20930,16 @@ snapshots:
 
   p-try@2.2.0: {}
 
-  pac-proxy-agent@7.2.0(supports-color@8.1.1):
+  pac-proxy-agent@7.2.0:
     dependencies:
       '@tootallnate/quickjs-emscripten': 0.23.0
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@8.1.1)
-      get-uri: 6.0.5(supports-color@8.1.1)
-      http-proxy-agent: 7.0.2(supports-color@8.1.1)
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      get-uri: 6.0.5
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
       pac-resolver: 7.0.1
-      socks-proxy-agent: 8.0.5(supports-color@8.1.1)
+      socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -20708,6 +20947,8 @@ snapshots:
     dependencies:
       degenerator: 5.0.1
       netmask: 2.1.1
+
+  package-json-from-dist@1.0.1: {}
 
   package-manager-detector@0.2.11:
     dependencies:
@@ -20729,7 +20970,7 @@ snapshots:
       npm-package-arg: 13.0.2
       npm-packlist: 10.0.4
       npm-pick-manifest: 11.0.3
-      npm-registry-fetch: 19.1.1(supports-color@8.1.1)
+      npm-registry-fetch: 19.1.1
       proc-log: 6.1.0
       sigstore: 4.1.1(supports-color@8.1.1)
       ssri: 13.0.1
@@ -20818,6 +21059,11 @@ snapshots:
   path-key@4.0.0: {}
 
   path-parse@1.0.7: {}
+
+  path-scurry@1.11.1:
+    dependencies:
+      lru-cache: 10.4.3
+      minipass: 7.1.3
 
   path-scurry@2.0.2:
     dependencies:
@@ -21047,16 +21293,16 @@ snapshots:
 
   proxy-agent-negotiate@1.1.0: {}
 
-  proxy-agent@6.5.0(supports-color@8.1.1):
+  proxy-agent@6.5.0:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@8.1.1)
-      http-proxy-agent: 7.0.2(supports-color@8.1.1)
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
       lru-cache: 7.18.3
-      pac-proxy-agent: 7.2.0(supports-color@8.1.1)
+      pac-proxy-agent: 7.2.0
       proxy-from-env: 1.1.0
-      socks-proxy-agent: 8.0.5(supports-color@8.1.1)
+      socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -21082,9 +21328,9 @@ snapshots:
       end-of-stream: 1.4.5
       once: 1.4.0
 
-  puppeteer-core@24.3.1(bufferutil@4.1.0)(supports-color@8.1.1):
+  puppeteer-core@24.3.1(bufferutil@4.1.0):
     dependencies:
-      '@puppeteer/browsers': 2.7.1(supports-color@8.1.1)
+      '@puppeteer/browsers': 2.7.1
       chromium-bidi: 2.1.2(devtools-protocol@0.0.1402036)
       debug: 4.4.3(supports-color@8.1.1)
       devtools-protocol: 0.0.1402036
@@ -21098,13 +21344,13 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  puppeteer@24.3.1(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.9.3):
+  puppeteer@24.3.1(bufferutil@4.1.0)(typescript@5.9.3):
     dependencies:
-      '@puppeteer/browsers': 2.7.1(supports-color@8.1.1)
+      '@puppeteer/browsers': 2.7.1
       chromium-bidi: 2.1.2(devtools-protocol@0.0.1402036)
       cosmiconfig: 9.0.2(typescript@5.9.3)
       devtools-protocol: 0.0.1402036
-      puppeteer-core: 24.3.1(bufferutil@4.1.0)(supports-color@8.1.1)
+      puppeteer-core: 24.3.1(bufferutil@4.1.0)
       typed-query-selector: 2.12.2
     transitivePeerDependencies:
       - bare-abort-controller
@@ -21160,13 +21406,6 @@ snapshots:
       strip-json-comments: 2.0.1
     optional: true
 
-  react-dom@18.3.1(react@19.2.3):
-    dependencies:
-      loose-envify: 1.4.0
-      react: 19.2.3
-      scheduler: 0.23.2
-    optional: true
-
   react-dom@19.3.1(react@19.2.3):
     dependencies:
       react: 19.2.3
@@ -21215,6 +21454,10 @@ snapshots:
       events: 3.3.0
       process: 0.11.10
       string_decoder: 1.3.0
+
+  readdir-glob@1.1.3:
+    dependencies:
+      minimatch: 5.1.9
 
   readdir-glob@3.0.0:
     dependencies:
@@ -21321,11 +21564,11 @@ snapshots:
       hast-util-from-html: 2.0.3
       unified: 11.0.5
 
-  rehype-recma@1.0.0(supports-color@8.1.1):
+  rehype-recma@1.0.0:
     dependencies:
       '@types/estree': 1.0.9
       '@types/hast': 3.0.5
-      hast-util-to-estree: 3.1.3(supports-color@8.1.1)
+      hast-util-to-estree: 3.1.3
     transitivePeerDependencies:
       - supports-color
 
@@ -21335,41 +21578,41 @@ snapshots:
       hast-util-to-html: 9.0.5
       unified: 11.0.5
 
-  remark-frontmatter@5.0.0(supports-color@8.1.1):
+  remark-frontmatter@5.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-frontmatter: 2.0.1(supports-color@8.1.1)
+      mdast-util-frontmatter: 2.0.1
       micromark-extension-frontmatter: 2.0.0
       unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
-  remark-gfm@4.0.0(supports-color@8.1.1):
+  remark-gfm@4.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-gfm: 3.1.0(supports-color@8.1.1)
+      mdast-util-gfm: 3.1.0
       micromark-extension-gfm: 3.0.0
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-parse: 11.0.0
       remark-stringify: 11.0.0
       unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
-  remark-gfm@4.0.1(supports-color@8.1.1):
+  remark-gfm@4.0.1:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-gfm: 3.1.0(supports-color@8.1.1)
+      mdast-util-gfm: 3.1.0
       micromark-extension-gfm: 3.0.0
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-parse: 11.0.0
       remark-stringify: 11.0.0
       unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
-  remark-math@6.0.0(supports-color@8.1.1):
+  remark-math@6.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-math: 3.0.0(supports-color@8.1.1)
+      mdast-util-math: 3.0.0
       micromark-extension-math: 3.1.0
       unified: 11.0.5
     transitivePeerDependencies:
@@ -21381,31 +21624,31 @@ snapshots:
       unified: 11.0.5
       unist-util-remove: 4.0.0
 
-  remark-mdx@3.0.1(supports-color@8.1.1):
+  remark-mdx@3.0.1:
     dependencies:
-      mdast-util-mdx: 3.0.0(supports-color@8.1.1)
+      mdast-util-mdx: 3.0.0
       micromark-extension-mdxjs: 3.0.0
     transitivePeerDependencies:
       - supports-color
 
-  remark-mdx@3.1.0(supports-color@8.1.1):
+  remark-mdx@3.1.0:
     dependencies:
-      mdast-util-mdx: 3.0.0(supports-color@8.1.1)
+      mdast-util-mdx: 3.0.0
       micromark-extension-mdxjs: 3.0.0
     transitivePeerDependencies:
       - supports-color
 
-  remark-mdx@3.1.1(supports-color@8.1.1):
+  remark-mdx@3.1.1:
     dependencies:
-      mdast-util-mdx: 3.0.0(supports-color@8.1.1)
+      mdast-util-mdx: 3.0.0
       micromark-extension-mdxjs: 3.0.0
     transitivePeerDependencies:
       - supports-color
 
-  remark-parse@11.0.0(supports-color@8.1.1):
+  remark-parse@11.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-from-markdown: 2.0.3(supports-color@8.1.1)
+      mdast-util-from-markdown: 2.0.3
       micromark-util-types: 2.0.2
       unified: 11.0.5
     transitivePeerDependencies:
@@ -21432,10 +21675,10 @@ snapshots:
       mdast-util-to-markdown: 2.1.2
       unified: 11.0.5
 
-  remark@15.0.1(supports-color@8.1.1):
+  remark@15.0.1:
     dependencies:
       '@types/mdast': 4.0.4
-      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-parse: 11.0.0
       remark-stringify: 11.0.0
       unified: 11.0.5
     transitivePeerDependencies:
@@ -21566,7 +21809,7 @@ snapshots:
 
   rou3@0.9.2: {}
 
-  router@2.2.0(supports-color@8.1.1):
+  router@2.2.0:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       depd: 2.0.0
@@ -21627,11 +21870,6 @@ snapshots:
 
   sax@1.6.0: {}
 
-  scheduler@0.23.2:
-    dependencies:
-      loose-envify: 1.4.0
-    optional: true
-
   scheduler@0.26.0: {}
 
   scheduler@0.28.0: {}
@@ -21647,9 +21885,9 @@ snapshots:
 
   semver@7.8.5: {}
 
-  send@0.19.2(supports-color@8.1.1):
+  send@0.19.2:
     dependencies:
-      debug: 2.6.9(supports-color@8.1.1)
+      debug: 2.6.9
       depd: 2.0.0
       destroy: 1.2.0
       encodeurl: 2.0.0
@@ -21665,7 +21903,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  send@1.2.1(supports-color@8.1.1):
+  send@1.2.1:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       encodeurl: 2.0.0
@@ -21692,21 +21930,21 @@ snapshots:
       non-error: 0.1.0
       type-fest: 5.8.0
 
-  serve-static@1.16.3(supports-color@8.1.1):
+  serve-static@1.16.3:
     dependencies:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 0.19.2(supports-color@8.1.1)
+      send: 0.19.2
     transitivePeerDependencies:
       - supports-color
 
-  serve-static@2.2.1(supports-color@8.1.1):
+  serve-static@2.2.1:
     dependencies:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1(supports-color@8.1.1)
+      send: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
@@ -21833,7 +22071,7 @@ snapshots:
       '@sigstore/bundle': 4.0.0
       '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.2
-      '@sigstore/sign': 4.1.1(supports-color@8.1.1)
+      '@sigstore/sign': 4.1.1
       '@sigstore/tuf': 4.0.2(supports-color@8.1.1)
       '@sigstore/verify': 3.1.1
     transitivePeerDependencies:
@@ -21882,7 +22120,7 @@ snapshots:
       map-obj: 5.0.2
       type-fest: 4.41.0
 
-  socket.io-adapter@2.5.8(bufferutil@4.1.0)(supports-color@8.1.1):
+  socket.io-adapter@2.5.8(bufferutil@4.1.0):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       ws: 8.21.0(bufferutil@4.1.0)
@@ -21896,34 +22134,34 @@ snapshots:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3(supports-color@8.1.1)
       engine.io-client: 6.6.7(bufferutil@4.1.0)(supports-color@8.1.1)
-      socket.io-parser: 4.2.7(supports-color@8.1.1)
+      socket.io-parser: 4.2.7
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  socket.io-parser@4.2.7(supports-color@8.1.1):
+  socket.io-parser@4.2.7:
     dependencies:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  socket.io@4.8.0(bufferutil@4.1.0)(supports-color@8.1.1):
+  socket.io@4.8.0(bufferutil@4.1.0):
     dependencies:
       accepts: 1.3.8
       base64id: 2.0.0
       cors: 2.8.6
-      debug: 4.3.7(supports-color@8.1.1)
-      engine.io: 6.6.11(bufferutil@4.1.0)(supports-color@8.1.1)
-      socket.io-adapter: 2.5.8(bufferutil@4.1.0)(supports-color@8.1.1)
-      socket.io-parser: 4.2.7(supports-color@8.1.1)
+      debug: 4.3.7
+      engine.io: 6.6.11(bufferutil@4.1.0)
+      socket.io-adapter: 2.5.8(bufferutil@4.1.0)
+      socket.io-parser: 4.2.7
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  socks-proxy-agent@8.0.5(supports-color@8.1.1):
+  socks-proxy-agent@8.0.5:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@8.1.1)
@@ -22024,6 +22262,12 @@ snapshots:
       emoji-regex: 8.0.0
       is-fullwidth-code-point: 3.0.0
       strip-ansi: 6.0.1
+
+  string-width@5.1.2:
+    dependencies:
+      eastasianwidth: 0.2.0
+      emoji-regex: 9.2.2
+      strip-ansi: 7.2.0
 
   string-width@7.2.0:
     dependencies:
@@ -22339,7 +22583,7 @@ snapshots:
     dependencies:
       '@tufjs/models': 4.1.0
       debug: 4.4.3(supports-color@8.1.1)
-      make-fetch-happen: 15.0.6(supports-color@8.1.1)
+      make-fetch-happen: 15.0.6
     transitivePeerDependencies:
       - supports-color
 
@@ -22600,12 +22844,12 @@ snapshots:
 
   vary@1.1.2: {}
 
-  venice-ai-sdk-provider@2.1.1(ai@6.0.322(zod@4.6.6))(zod@4.1.8):
+  venice-ai-sdk-provider@2.1.1(ai@7.0.155(zod@4.6.6))(zod@4.1.8):
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.90(zod@4.1.8)
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.1.8)
-      ai: 6.0.322(zod@4.6.6)
+      ai: 7.0.155(zod@4.6.6)
     transitivePeerDependencies:
       - zod
 
@@ -22855,6 +23099,12 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
+  wrap-ansi@8.1.0:
+    dependencies:
+      ansi-styles: 6.2.3
+      string-width: 5.1.2
+      strip-ansi: 7.2.0
+
   wrap-ansi@9.0.2:
     dependencies:
       ansi-styles: 6.2.3
@@ -22956,6 +23206,12 @@ snapshots:
   yoctocolors@2.2.0: {}
 
   yoga-layout@3.2.1: {}
+
+  zip-stream@6.0.1:
+    dependencies:
+      archiver-utils: 5.0.2
+      compress-commons: 6.0.2
+      readable-stream: 4.7.0
 
   zip-stream@7.0.5:
     dependencies:

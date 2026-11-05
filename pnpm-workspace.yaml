@@ -78,6 +78,7 @@ catalog:
   "durable-harness": 0.0.1
   "libfx": 0.0.16
   "proper-lockfile": 4.1.2
+  "@browserbasehq/sdk-functions": 1.0.2
 catalogs:
   eve:
     ai: ^7.0.105

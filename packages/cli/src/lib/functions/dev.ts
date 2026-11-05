@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { fail } from "../errors.js";
 import {
@@ -332,7 +332,9 @@ export async function startFunctionsDevServer(
   }
 
   const config = resolveFunctionsApiConfig(options);
-  const runtimeApi = `${options.host}:${options.port}`;
+  // Only the spawned runtime receives this prefix; the public invoke URL stays unchanged.
+  const runtimeToken = randomBytes(32).toString("hex");
+  const runtimeApi = `${options.host}:${options.port}/${runtimeToken}`;
   const bridge = new InvocationBridge();
   const sessionManager = new BrowserSessionManager(config);
   const manifestStore = new ManifestStore();
@@ -351,6 +353,7 @@ export async function startFunctionsDevServer(
     bridge,
     manifestStore,
     sessionManager,
+    runtimeToken,
   );
   const runtime = new RuntimeProcess(entrypoint, runtimeApi, options.verbose);
   await runtime.start();
@@ -400,11 +403,14 @@ async function startServer(
   bridge: InvocationBridge,
   manifestStore: ManifestStore,
   sessionManager: BrowserSessionManager,
+  runtimeToken: string,
 ): Promise<Server> {
   const server = createServer((request, response) => {
-    routeRequest(request, response, bridge, manifestStore, sessionManager).catch((error) => {
-      handleRouteError(response, error);
-    });
+    routeRequest(request, response, bridge, manifestStore, sessionManager, runtimeToken).catch(
+      (error) => {
+        handleRouteError(response, error);
+      },
+    );
   });
 
   await new Promise<void>((resolvePromise, reject) => {
@@ -467,10 +473,15 @@ async function routeRequest(
   bridge: InvocationBridge,
   manifestStore: ManifestStore,
   sessionManager: BrowserSessionManager,
+  runtimeToken: string,
 ): Promise<void> {
   const method = request.method || "GET";
   const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
   const path = url.pathname;
+  // Authenticate runtime routes before accepting a poll or completing an invocation.
+  const runtimePath = path.startsWith(`/${runtimeToken}/`)
+    ? path.slice(runtimeToken.length + 1)
+    : "";
   const corsHeaders = corsHeadersForRequest(request);
 
   if (!corsHeaders) {
@@ -488,7 +499,7 @@ async function routeRequest(
     return;
   }
 
-  if (method === "GET" && path === "/2018-06-01/runtime/invocation/next") {
+  if (method === "GET" && runtimePath === "/2018-06-01/runtime/invocation/next") {
     bridge.holdNextConnection(response, corsHeaders);
     return;
   }
@@ -552,7 +563,7 @@ async function routeRequest(
     return;
   }
 
-  const responseMatch = path.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/response$/);
+  const responseMatch = runtimePath.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/response$/);
   if (method === "POST" && responseMatch?.[1]) {
     const requestId = responseMatch[1];
     let payload;
@@ -583,7 +594,7 @@ async function routeRequest(
     return;
   }
 
-  const errorMatch = path.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/error$/);
+  const errorMatch = runtimePath.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/error$/);
   if (method === "POST" && errorMatch?.[1]) {
     const requestId = errorMatch[1];
     let payload;
