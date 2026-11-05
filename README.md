@@ -46,38 +46,6 @@
   </a>
 </p>
 
-## Give your coding agent a browser
-
-Use the `browse` CLI to give Claude Code, Cursor, Codex, or any terminal agent a local browser — no LLM key or Browserbase account required.
-
-```bash
-npm install -g browse
-browse open https://example.com --local
-browse snapshot
-browse get title
-```
-
-Requires Node.js 22.18+ and Chrome/Chromium. Install the matching skill so your agent knows how to use it:
-
-```bash
-npx skills add browserbase/stagehand --skill browse
-```
-
-Use `--remote` with `BROWSERBASE_API_KEY` for hosted browsers, proxies, and CAPTCHA solving. Building an agent app instead? Use the [TypeScript/Python/Go SDK](#ai-that-uses-the-browser-like-humans) below.
-
-<details>
-<summary><b>Which path should I use?</b></summary>
-
-| You want to...                                                  | Use                                                           |
-| --------------------------------------------------------------- | ------------------------------------------------------------- |
-| Give your coding agent (Claude Code, Cursor, Codex) a browser   | `browse` CLI + skill                                          |
-| Build a browser agent application                               | TypeScript/Python/Go SDK                                      |
-| Add browser tools to any MCP client without installing anything | [Hosted Browserbase MCP](#give-your-coding-agent-a-browser-1) |
-
-</details>
-
----
-
 ## AI that uses the browser like humans.
 
 Sign in once, keep the session, and pull structured data out the other side.
@@ -320,6 +288,23 @@ go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 
 Local runs need [Chrome](https://www.google.com/chrome/) installed. Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
 
+<details>
+<summary><b>Using a coding agent? (Claude Code, Cursor, Codex)</b></summary>
+
+Install the `browse` CLI and skill instead of using the SDK directly:
+
+```bash
+npm install -g browse
+npx skills add browserbase/stagehand --skill browse
+browse open https://example.com --local
+browse snapshot
+browse get title
+```
+
+No LLM key or Browserbase account needed for local use. See [CLI vs SDK vs hosted MCP](https://docs.stagehand.dev/v4/first-steps/choosing-your-path) for when to use each.
+
+</details>
+
 ## Why Stagehand
 
 <table>
@@ -432,7 +417,7 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 
 </details>
 
-For local browsing without an API key, use the [`browse` CLI](#give-your-coding-agent-a-browser) instead.
+For local browsing without an API key, use the [`browse` CLI](./packages/cli#readme) instead.
 
 ## Search and fetch without a browser
 
