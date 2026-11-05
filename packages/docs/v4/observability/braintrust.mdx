@@ -1,0 +1,99 @@
+---
+title: "Braintrust"
+description: "Send Stagehand browser traces to Braintrust using OpenTelemetry."
+---
+
+Send browser operation traces to a Braintrust project using Stagehand's built-in OTLP exporter. No Braintrust SDK is required.
+
+## Setup
+
+1. Create an API key with write access to your Braintrust project.
+2. Copy the project ID from its configuration page.
+3. Set `BROWSERBASE_API_KEY`, `BRAINTRUST_API_KEY`, and `BRAINTRUST_PROJECT_ID`.
+
+The examples use the US endpoint. For the EU data plane, set `BRAINTRUST_OTLP_TRACES_ENDPOINT` to `https://api-eu.braintrust.dev/otel/v1/traces`. For self-hosted deployments, use your data plane's Universal API URL followed by `/otel/v1/traces`.
+
+The `x-bt-parent` header selects the destination. Use `project_name:<name>` instead of `project_id:<id>` to route by name. See [Braintrust's OTLP configuration](https://www.braintrust.dev/docs/integrations/sdk-integrations/opentelemetry/send-traces-and-logs).
+
+## Configure Stagehand
+
+These examples use the [v4 SDK](/v4/first-steps/installation) with a Browserbase browser. The exporter runs inside the browser extension, so the endpoint must be reachable from that browser.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.BRAINTRUST_OTLP_TRACES_ENDPOINT ?? "https://api.braintrust.dev/otel/v1/traces",
+        headers: {
+          "Authorization": `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+          "x-bt-parent": `project_id:${process.env.BRAINTRUST_PROJECT_ID}`,
+        },
+      },
+    },
+  });
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from stagehand import Stagehand, browserbase
+
+
+async def main():
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    try:
+        stagehand = await Stagehand.create(
+            browser=browser,
+            telemetry={
+                "traces": {
+                    "endpoint": os.environ.get("BRAINTRUST_OTLP_TRACES_ENDPOINT", "https://api.braintrust.dev/otel/v1/traces"),
+                    "headers": {
+                        "Authorization": f"Bearer {os.environ['BRAINTRUST_API_KEY']}",
+                        "x-bt-parent": f"project_id:{os.environ['BRAINTRUST_PROJECT_ID']}",
+                    },
+                },
+            },
+        )
+        try:
+            page = (await browser.context.pages())[0]
+            await page.goto("https://example.com")
+            await stagehand.observe("find the link on the page")
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</Tab>
+
+</Tabs>
+
+Close Stagehand before closing the browser to flush pending spans. Exports run in one-second batches; exiting without closing Stagehand can lose the final batch. Delivery is best effort, so successful cleanup does not confirm ingestion.
+
+## Verify traces
+
+Open the destination project's Logs view and find the `observe` operation and its child log spans. Stagehand supplies generic operation and log attributes, so the trace does not automatically include Braintrust LLM inputs, outputs, or token fields.
+
+If traces are missing, check the data plane region, `x-bt-parent`, and whether the key can write to that project. Confirm that Stagehand closed before the browser.
