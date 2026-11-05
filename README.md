@@ -46,6 +46,38 @@
   </a>
 </p>
 
+## Give your coding agent a browser
+
+Use the `browse` CLI to give Claude Code, Cursor, Codex, or any terminal agent a local browser — no LLM key or Browserbase account required.
+
+```bash
+npm install -g browse
+browse open https://example.com --local
+browse snapshot
+browse get title
+```
+
+Requires Node.js 22.18+ and Chrome/Chromium. Install the matching skill so your agent knows how to use it:
+
+```bash
+npx skills add browserbase/stagehand --skill browse
+```
+
+Use `--remote` with `BROWSERBASE_API_KEY` for hosted browsers, proxies, and CAPTCHA solving. Building an agent app instead? Use the [TypeScript/Python/Go SDK](#ai-that-uses-the-browser-like-humans) below.
+
+<details>
+<summary><b>Which path should I use?</b></summary>
+
+| You want to...                                                  | Use                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------- |
+| Give your coding agent (Claude Code, Cursor, Codex) a browser   | `browse` CLI + skill                                          |
+| Build a browser agent application                               | TypeScript/Python/Go SDK                                      |
+| Add browser tools to any MCP client without installing anything | [Hosted Browserbase MCP](#give-your-coding-agent-a-browser-1) |
+
+</details>
+
+---
+
 ## AI that uses the browser like humans.
 
 Sign in once, keep the session, and pull structured data out the other side.
@@ -375,9 +407,9 @@ if err != nil {
 
 [Verified mode](https://docs.browserbase.com/platform/identity/verified-customization), [residential proxies](https://docs.browserbase.com/platform/identity/proxies), [persistent contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), and [session recordings](https://docs.browserbase.com/platform/browser/observability/session-replay) come with it. [Get an API key](https://www.browserbase.com/overview) and learn how to configure your browser [here](https://docs.stagehand.dev/v4/configuration/browser).
 
-## Give your coding agent a browser
+## Hosted MCP: browser tools without installing anything
 
-The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser. Requires a [Browserbase API key](https://www.browserbase.com/overview).
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -399,6 +431,8 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 ```
 
 </details>
+
+For local browsing without an API key, use the [`browse` CLI](#give-your-coding-agent-a-browser) instead.
 
 ## Search and fetch without a browser
 
