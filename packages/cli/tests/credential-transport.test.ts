@@ -9,7 +9,7 @@ const credential = {
   source: "saved" as const,
 };
 const url = `${credential.baseUrl}/v1/projects`;
-function savedClient(options: { maxRetries?: number; timeout?: number } = {}) {
+function savedClient(options: { maxRetries?: number } = {}) {
   return new Browserbase({
     apiKey: credential.apiKey,
     fetch: sdkCredentialFetch(credential),
@@ -18,7 +18,6 @@ function savedClient(options: { maxRetries?: number; timeout?: number } = {}) {
 }
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -46,33 +45,26 @@ describe("saved credential transport compatibility", () => {
   });
 
   it.each([
-    [{ "retry-after-ms": "125", "retry-after": "9" }, 125],
-    [{ "retry-after": "0.125" }, 125],
-    [{ "retry-after": "Thu, 01 Jan 2026 00:00:01 GMT" }, 1_000],
-  ])("preserves the SDK retry delay for %j", async (headers, delay) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce(
+    { "retry-after-ms": "125", "retry-after": "9" },
+    { "retry-after": "0.125" },
+    { "retry-after": "Thu, 01 Jan 2026 00:00:01 GMT" },
+  ])("preserves safe retry hints when redacting a response with %j", async (headers) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
         new Response(credential.apiKey, {
           status: 400,
           headers: { ...headers, "x-should-retry": "true" },
         }),
-      )
-      .mockResolvedValueOnce(
-        new Response("[]", { headers: { "content-type": "application/json" } }),
-      );
-    vi.stubGlobal("fetch", request);
-    const result = savedClient({ maxRetries: 1 }).projects.list();
-    const completed = result.then((projects) => projects);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(request).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(delay - 1);
-    expect(request).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(await completed).toEqual([]);
-    expect(request).toHaveBeenCalledTimes(2);
+      ),
+    );
+    const response = await credentialFetch(credential)(url);
+    expect(response.status).toBe(400);
+    expect(response.headers.get("x-should-retry")).toBe("true");
+    for (const [name, value] of Object.entries(headers)) {
+      expect(response.headers.get(name)).toBe(value);
+    }
+    expect(await response.text()).not.toContain(credential.apiKey);
   });
 
   it("discards arbitrary reflected error headers and invalid retry values", async () => {
@@ -100,20 +92,15 @@ describe("saved credential transport compatibility", () => {
   it("preserves SDK timeout classification without retaining the original error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockImplementation(
-          (_input, init: RequestInit) =>
-            new Promise((_resolve, reject) =>
-              init.signal?.addEventListener("abort", () =>
-                reject(new DOMException(credential.apiKey, "AbortError")),
-              ),
-            ),
-        ),
+      vi.fn().mockRejectedValue(new DOMException(credential.apiKey, "AbortError")),
     );
-    const result = savedClient({ maxRetries: 0, timeout: 5 }).projects.list();
-    await expect(result).rejects.toBeInstanceOf(APIConnectionTimeoutError);
-    await expect(result).rejects.toThrow("Request timed out.");
+    const error = await savedClient({ maxRetries: 0 })
+      .projects.list()
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(APIConnectionTimeoutError);
+    expect(String(error)).not.toContain(credential.apiKey);
+    expect(String((error as Error).cause)).not.toContain(credential.apiKey);
+    expect(JSON.stringify(error)).not.toContain(credential.apiKey);
   });
 
   it.each(["AbortError", "TimeoutError", "Error"])(

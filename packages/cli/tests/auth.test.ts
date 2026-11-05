@@ -107,6 +107,25 @@ describe("browser authorization", () => {
     }
   });
 
+  it("rejects malformed login configuration before authorization without exposing its contents", async () => {
+    const provider = await oauthProvider({
+      configResponse: {
+        issuer: "https://synthetic.clerk.accounts.dev",
+        clientId: { secret: fixture.apiKey },
+        scopes: ["openid", "browserbase:project_keys:read"],
+      },
+    });
+    try {
+      const attempt = login({ ...provider, development: true });
+      await expect(attempt).rejects.toThrow("invalid login configuration");
+      await expect(attempt).rejects.not.toThrow(fixture.apiKey);
+      expect(provider.state.exchanges).toBe(0);
+      expect(provider.state.credentials).toBe(0);
+    } finally {
+      await provider.close();
+    }
+  });
+
   it("checks discovery issuer consistency", async () => {
     const provider = await oauthProvider({ discoveryIssuer: "https://wrong.example" });
     try {
@@ -153,16 +172,58 @@ describe("browser authorization", () => {
     }
   });
 
-  it("selects one permitted project while keeping the saved credential format unchanged", async () => {
-    const provider = await oauthProvider({ manyProjects: true });
+  it("accepts opaque project IDs and selects one permitted project", async () => {
+    const projects = [
+      { id: "project-example", name: "Example", organizationName: "Example organization" },
+      { id: otherProjectId, name: "Second", organizationName: "Example organization" },
+    ];
+    const provider = await oauthProvider({ projectsResponse: { projects } });
     try {
       const credential = await login({
         ...provider,
         development: true,
-        chooseProject: async () => otherProjectId,
+        chooseProject: async (available) => {
+          expect(available).toEqual(projects);
+          return "project-example";
+        },
       });
-      expect(credential.projectId).toBe(otherProjectId);
+      expect(credential.projectId).toBe("project-example");
       expect(provider.state.credentials).toBe(1);
+      expect(provider.state.revocations).toBe(1);
+    } finally {
+      await provider.close();
+    }
+  });
+
+  it.each([
+    [
+      "invalid project field",
+      {
+        projects: [
+          {
+            id: fixture.projectId,
+            name: { secret: fixture.apiKey },
+            organizationName: "Example organization",
+          },
+        ],
+      },
+    ],
+    [
+      "duplicate project IDs",
+      {
+        projects: [
+          { id: fixture.projectId, name: "Example", organizationName: "Example organization" },
+          { id: fixture.projectId, name: "Second", organizationName: "Example organization" },
+        ],
+      },
+    ],
+  ])("rejects project lists with %s and clears authorization", async (_, projectsResponse) => {
+    const provider = await oauthProvider({ projectsResponse });
+    try {
+      const attempt = login({ ...provider, development: true });
+      await expect(attempt).rejects.toThrow("invalid project list");
+      await expect(attempt).rejects.not.toThrow(fixture.apiKey);
+      expect(provider.state.credentials).toBe(0);
       expect(provider.state.revocations).toBe(1);
     } finally {
       await provider.close();

@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as oauth from "openid-client";
+import { z } from "zod";
 
 import { CommandFailure, fail } from "../errors.js";
 import {
@@ -11,11 +12,18 @@ import {
 } from "./credential.js";
 
 const requiredScopes = ["openid", "browserbase:project_keys:read"];
-export interface LoginProject {
-  id: string;
-  name: string;
-  organizationName: string;
-}
+const loginConfigSchema = z.object({
+  issuer: z.string(),
+  clientId: z.string().regex(/^[A-Za-z0-9_.-]{1,256}$/),
+  scopes: z.array(z.string()).length(requiredScopes.length),
+});
+const loginProjectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  organizationName: z.string(),
+});
+const loginProjectsSchema = z.object({ projects: z.array(loginProjectSchema) });
+export type LoginProject = z.infer<typeof loginProjectSchema>;
 
 export function loginProvider(
   dashboard?: string,
@@ -64,18 +72,11 @@ export async function readLoginJson(response: Response, maxBytes = 32768): Promi
 }
 
 function validateConfig(value: unknown, development: boolean) {
-  const record = value as { issuer?: unknown; clientId?: unknown; scopes?: unknown } | null;
-  if (
-    !record ||
-    typeof record.issuer !== "string" ||
-    typeof record.clientId !== "string" ||
-    !/^[A-Za-z0-9_.-]{1,256}$/.test(record.clientId) ||
-    !Array.isArray(record.scopes) ||
-    record.scopes.length !== requiredScopes.length ||
-    !requiredScopes.every((scope) => (record.scopes as unknown[]).includes(scope))
-  ) {
+  const parsed = loginConfigSchema.safeParse(value);
+  if (!parsed.success || !requiredScopes.every((scope) => parsed.data.scopes.includes(scope))) {
     fail("The dashboard returned an invalid login configuration.");
   }
+  const record = parsed.data;
   let issuer: URL;
   try {
     issuer = new URL(record.issuer);
@@ -137,23 +138,16 @@ async function dashboardJson(
 }
 
 function validateProjects(value: unknown): LoginProject[] {
-  const projects = (value as { projects?: unknown } | null)?.projects;
+  const parsed = loginProjectsSchema.safeParse(value);
   if (
-    !Array.isArray(projects) ||
-    projects.some(
-      (project) =>
-        !project ||
-        typeof project.id !== "string" ||
-        !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(project.id) ||
-        typeof project.name !== "string" ||
-        typeof project.organizationName !== "string",
-    ) ||
-    new Set(projects.map((project) => project.id)).size !== projects.length
+    !parsed.success ||
+    new Set(parsed.data.projects.map((project) => project.id)).size !== parsed.data.projects.length
   ) {
     fail("The dashboard returned an invalid project list.");
   }
+  const projects = parsed.data.projects;
   if (!projects.length) fail("No projects with API-key access are available for this account.");
-  return projects as LoginProject[];
+  return projects;
 }
 
 async function authorize({

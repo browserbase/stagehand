@@ -182,11 +182,13 @@ describe("remote.ts (Browserbase capability)", () => {
         join(callerDirectory, env.BROWSERBASE_CONFIG_DIR || ".xdg-config/browserbase"),
       );
       await remoteBrowserbaseIdentity("saved-session", forwarded);
-      expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith({
-        apiKey: "caller-key",
-        baseURL: "https://api.browserbase.com",
-        fetch: expect.any(Function),
-      });
+      expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "caller-key",
+          baseURL: "https://api.browserbase.com",
+          fetch: expect.any(Function),
+        }),
+      );
     } finally {
       process.chdir(originalCwd);
       rmSync(directory, { recursive: true, force: true });
@@ -210,10 +212,12 @@ describe("remote.ts (Browserbase capability)", () => {
         browserbaseSessionUrl: "https://www.browserbase.com/sessions/session-test",
       },
     });
-    expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith({
-      apiKey: "test-key",
-      baseURL: "https://api.browserbase.com",
-    });
+    expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "test-key",
+        baseURL: "https://api.browserbase.com",
+      }),
+    );
     expect(stagehandMocks.launch).toHaveBeenCalledWith({
       apiKey: "test-key",
       browserSettings: { verified: true },

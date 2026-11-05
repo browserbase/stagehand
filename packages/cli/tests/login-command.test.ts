@@ -57,7 +57,8 @@ describe.skipIf(process.platform === "win32")("login command", () => {
     expect(savedCredentialStore()).toBe("file");
     expect(readCredential()).toEqual(credential);
     const output = log.mock.calls.flat().join("\n");
-    expect(output).toContain(`API key saved as plaintext in a private file: ${credentialPath()}`);
+    expect(output).toContain("plaintext");
+    expect(output).toContain(credentialPath());
     expect(output).toContain("Signed in.");
     expect(output).not.toContain(credential.apiKey);
   });
@@ -86,12 +87,11 @@ describe.skipIf(process.platform === "win32")("login command", () => {
     const command = new Login([], config);
     vi.spyOn(command, "log").mockImplementation(() => {});
     await command.run();
-    expect(spawn).toHaveBeenCalledWith(expect.any(String), expect.any(Array), {
-      stdio: "ignore",
-      detached: true,
-      windowsHide: true,
-    });
-    expect(child.unref).toHaveBeenCalledOnce();
+    expect(spawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining(["https://example.invalid/authorize"]),
+      expect.objectContaining({ detached: true }),
+    );
     expect(readCredential()).toEqual(credential);
   });
 

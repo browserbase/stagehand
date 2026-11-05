@@ -17,6 +17,8 @@ export async function oauthProvider(
   options: {
     configScopes?: string[];
     configIssuer?: string;
+    configResponse?: unknown;
+    projectsResponse?: unknown;
     discoveryIssuer?: string;
     invalidJwt?: "audience" | "issuer" | "nonce" | "signature";
     tokenScopes?: string;
@@ -120,11 +122,15 @@ export async function oauthProvider(
     response.setHeader("content-type", "application/json");
     if (request.url === "/cli/config") {
       response.end(
-        JSON.stringify({
-          issuer: options.configIssuer ?? issuer,
-          clientId,
-          scopes: options.configScopes ?? grantScopes.split(" "),
-        }),
+        JSON.stringify(
+          "configResponse" in options
+            ? options.configResponse
+            : {
+                issuer: options.configIssuer ?? issuer,
+                clientId,
+                scopes: options.configScopes ?? grantScopes.split(" "),
+              },
+        ),
       );
       return;
     }
@@ -136,14 +142,24 @@ export async function oauthProvider(
     if (request.url === "/cli/projects") {
       state.projects++;
       response.end(
-        JSON.stringify({
-          projects: [
-            { id: projectId, name: "Example", organizationName: "Example organization" },
-            ...(options.manyProjects
-              ? [{ id: otherProjectId, name: "Second", organizationName: "Example organization" }]
-              : []),
-          ],
-        }),
+        JSON.stringify(
+          "projectsResponse" in options
+            ? options.projectsResponse
+            : {
+                projects: [
+                  { id: projectId, name: "Example", organizationName: "Example organization" },
+                  ...(options.manyProjects
+                    ? [
+                        {
+                          id: otherProjectId,
+                          name: "Second",
+                          organizationName: "Example organization",
+                        },
+                      ]
+                    : []),
+                ],
+              },
+        ),
       );
       return;
     }
