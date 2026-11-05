@@ -10,7 +10,7 @@ dependencies = [
   # Requires langgraph-sdk with the authorization fix.
   "langgraph>=1.2.14,<1.3",
   "pydantic>=2,<3",
-  "stagehand-middleware>=0.1.0,<0.2",
+  "stagehand-middleware>=0.1.2,<0.2",
   # Security minimum for the transitive MCP authentication dependency.
   "pyjwt>=2.15.0,<3",
   # Security minimum for transitive HTTP clients.

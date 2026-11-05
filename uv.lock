@@ -2209,7 +2209,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "pyjwt", specifier = ">=2.15.0,<3" },
     { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "stagehand-middleware", specifier = ">=0.1.0,<0.2" },
+    { name = "stagehand-middleware", specifier = ">=0.1.2,<0.2" },
     { name = "urllib3", specifier = ">=2.8.0,<3" },
 ]
 
@@ -2236,7 +2236,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.14,<1.3" },
     { name = "managed-deepagents" },
     { name = "stagehand", specifier = ">=4.3.0,<5" },
-    { name = "stagehand-middleware", specifier = ">=0.1.0,<0.2" },
+    { name = "stagehand-middleware", specifier = ">=0.1.2,<0.2" },
     { name = "urllib3", specifier = ">=2.8.0,<3" },
 ]
 
