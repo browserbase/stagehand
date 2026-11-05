@@ -29,14 +29,7 @@ describe("function secrets list HTTP contract", () => {
       jsonResponse(response, 200, page),
     );
     const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "list",
-        functionId,
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["functions", "secrets", "list", functionId, "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode, result.stderr).toBe(0);
@@ -96,43 +89,24 @@ describe("function secrets list HTTP contract", () => {
       jsonResponse(response, 403, { message: "Forbidden" }),
     );
     const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "list",
-        functionId,
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["functions", "secrets", "list", functionId, "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Forbidden");
   });
 
-  it.each(["0", "1001"])(
-    "rejects invalid limit %s before requesting",
-    async (limit) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "list",
-          functionId,
-          "--base-url",
-          server.baseUrl,
-          "--limit",
-          limit,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(server.requests).toHaveLength(0);
-    },
-  );
+  it.each(["0", "1001"])("rejects invalid limit %s before requesting", async (limit) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(
+      ["functions", "secrets", "list", functionId, "--base-url", server.baseUrl, "--limit", limit],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
 });
 
 describe("function secret list argument handling", () => {
@@ -140,10 +114,9 @@ describe("function secret list argument handling", () => {
     server = await startFakeBrowserbaseServer((_request, response) =>
       jsonResponse(response, 200, {}),
     );
-    const result = await runCli(
-      ["functions", "secrets", "list", "--base-url", server.baseUrl],
-      { env },
-    );
+    const result = await runCli(["functions", "secrets", "list", "--base-url", server.baseUrl], {
+      env,
+    });
     expect(result.exitCode).not.toBe(0);
     expect(server.requests).toHaveLength(0);
   });
@@ -153,21 +126,12 @@ describe("function secret list argument handling", () => {
       jsonResponse(response, 200, { data: [], limit: 20, nextCursor: null }),
     );
     const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "list",
-        "id/with?query#fragment",
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["functions", "secrets", "list", "id/with?query#fragment", "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode, result.stderr).toBe(0);
     expect(server.requests).toHaveLength(1);
-    expect(server.requests[0]?.path).toBe(
-      "/v1/functions/id%2Fwith%3Fquery%23fragment/secrets",
-    );
+    expect(server.requests[0]?.path).toBe("/v1/functions/id%2Fwith%3Fquery%23fragment/secrets");
   });
 
   it("reports a missing function", async () => {
@@ -175,14 +139,7 @@ describe("function secret list argument handling", () => {
       jsonResponse(response, 404, { message: "Function not found" }),
     );
     const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "list",
-        functionId,
-        "--base-url",
-        server.baseUrl,
-      ],
+      ["functions", "secrets", "list", functionId, "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode).not.toBe(0);

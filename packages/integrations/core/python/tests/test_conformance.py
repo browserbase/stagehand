@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,7 +34,10 @@ def load_cases() -> list[Any]:
     params = []
     for file in sorted(CASES_DIR.glob("*.json")):
         for case in json.loads(file.read_text(encoding="utf-8"))["cases"]:
-            reason = case.get("notApplicable", {}).get("python")
+            not_applicable = case.get("notApplicable", {})
+            reason = not_applicable.get("python") or (
+                not_applicable.get("windows") if sys.platform == "win32" else None
+            )
             marks = [pytest.mark.skip(reason=reason)] if reason else []
             params.append(pytest.param(case, id=f"{file.name}: {case['name']}", marks=marks))
     return params
@@ -231,6 +235,8 @@ def prepare_sandbox(case: dict[str, Any], sandbox: Path) -> None:
         elif "file" in entry:
             (sandbox / entry["file"]).parent.mkdir(parents=True, exist_ok=True)
             (sandbox / entry["file"]).write_bytes(base64.b64decode(entry["base64"]))
+        elif "hardlink" in entry:
+            os.link(sandbox / entry["target"], sandbox / entry["hardlink"])
         else:
             os.symlink(entry["target"], sandbox / entry["symlink"])
 

@@ -12,7 +12,7 @@ Browser jobs you can run, adapt, and combine. Each has a [docs page](https://doc
 
 ## Run
 
-Clone the repository so the TypeScript cookbooks can use the local SDK and root workspace:
+Clone the repository so the cookbooks can use the local SDKs and root workspaces:
 
 ```bash
 git clone --depth 1 https://github.com/browserbase/stagehand.git
@@ -37,12 +37,19 @@ Replace `paginated-catalog` with the selected cookbook's folder name. The comman
 
 ### Python
 
-Use Python 3.11+ and uv. Each Python cookbook keeps its own `pyproject.toml` and `uv.lock` and installs a published Python SDK. Copy `.env.example` to `.env`, fill in its keys, then run from the selected cookbook's `python/` directory:
+Use Python 3.11+ and uv, plus Node.js 22.18+, pnpm, and just to build the extension. Install dependencies once from the repository root:
 
 ```bash
-uv sync --locked
-uv run --locked python main.py
+just install
 ```
+
+Copy the selected cookbook's `python/.env.example` to `python/.env` and fill in its keys. Then run from the repository root:
+
+```bash
+just cookbook-python paginated-catalog
+```
+
+Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Python cookbooks keep their own `pyproject.toml` files, share the root `uv.lock` and `.venv`, and use the local Python SDK source. After building the extension, you can also run `uv run --locked python main.py` from a cookbook's `python/` directory; uv discovers the root workspace automatically.
 
 Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, print a session link, and limit browser lifetime to five minutes. Page and step limits bound work, not cost.
 

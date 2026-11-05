@@ -7,12 +7,13 @@ for browser choices and session scope.
 
 ## Run locally
 
-Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), Chrome, and a model-provider key:
+Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), Chrome, and a model-provider key.
+From the repository root, run `just install` and `pnpm --filter ./packages/extension build` first:
 
 ```bash
 export OPENAI_API_KEY=...
 cd packages/integrations/deepagents
-uv run --project examples/local --locked python examples/local/agent.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
 
 The model, instruction, and Pydantic response classes are declared directly in `agent.py` so the
@@ -24,7 +25,7 @@ Deep Agent navigates to the form, snapshots it, fills the requested fields with 
 returns a typed Pydantic summary without submitting the form:
 
 ```bash
-uv run --project examples/local --locked python examples/local/agents2.py
+uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agents2.py
 ```
 
 Both examples launch visible local Chrome. Set `headless=True` in `local_browser.launch` for
@@ -39,12 +40,26 @@ The examples pass `tools=browser_middleware.tools` so Deep Agents' default subag
 browser access. Configure the client through `Stagehand.create(...)`; see the
 [Stagehand integration guide](https://docs.langchain.com/oss/python/integrations/tools/stagehand) for usage.
 
+## Checks
+
+Run these from the repository root:
+
+```bash
+just fmt-deepagents
+just check-deepagents
+just test-deepagents
+```
+
+Formatting and lint checks cover the adapter's `src/` and `tests/` directories and both examples.
+The checks also import the examples without loading `.env` files. The tests cover the adapter and
+eval runner. These recipes are included in the root `just fmt`, `just check`, and `just test` commands.
+
 ## MCP server configuration
 
 The standalone MCP server uses the `STAGEHAND_*` settings below. To run it from the repository root:
 
 ```bash
-uv run --project packages/integrations/deepagents --locked stagehand-deepagents-mcp
+uv run --package stagehand-deepagents --locked stagehand-deepagents-mcp
 ```
 
 | Variable                      | Default | Meaning                                                                                                                                                                                                |
@@ -74,8 +89,8 @@ Our custom example in `examples/managed` owns its Browserbase sessions. Its Lang
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
 exposed to the model.
 
-The managed project's lockfile uses `websockets==15.0.1`. Browser continuity is guaranteed while
-the managed worker remains warm; durable reconnection after worker replacement is future work.
+Browser continuity is guaranteed while the managed worker remains warm; durable reconnection
+after worker replacement is future work.
 
 ### Develop and deploy the managed agent
 
@@ -89,17 +104,19 @@ From `examples/managed`, copy `.env.example` to `.env` and configure:
 Then run:
 
 ```bash
-uv sync
-uv run mda dev .
-uv run mda deploy .
+uv sync --project ../../../../.. --all-packages --locked
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda dev .
+uv run --project ../../../../.. --package stagehand-managed-deep-agent --locked mda deploy .
 ```
 
 Managed Deep Agents forwards non-reserved `.env` entries as deployment secrets. The agent model key
 and the optional Stagehand model key are independent: users can bring their own key for either,
 while Browserbase Model Gateway remains the zero-additional-key Stagehand path.
 
-The published `stagehand` wheel bundles the browser extension and `browserbase.launch` provisions
-it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
+Running the Python source through uv uses the workspace SDK and its built extension.
+The compiled managed app declares published Stagehand dependencies; the published `stagehand` wheel
+bundles the extension, and `browserbase.launch` provisions it automatically.
+Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
 
 ## Security model
 
