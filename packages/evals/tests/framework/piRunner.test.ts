@@ -86,7 +86,6 @@ describe("pi runner", () => {
         startupProfile: "tool_launch_local",
         browserSession: { provider: "local" },
         cwd: "/tmp/pi-runner",
-        env: {},
         promptInstructions: "Use browser.",
         customTools: [customTool],
         cleanup: async () => {},
