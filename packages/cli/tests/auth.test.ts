@@ -230,6 +230,21 @@ describe("browser authorization", () => {
     }
   });
 
+  it("accepts an explicit project only when it is permitted by the login", async () => {
+    const provider = await oauthProvider({ manyProjects: true });
+    try {
+      const credential = await login({ ...provider, development: true, projectId: otherProjectId });
+      expect(credential.projectId).toBe(otherProjectId);
+      await expect(
+        login({ ...provider, development: true, projectId: "not-permitted" }),
+      ).rejects.toThrow("not available");
+      expect(provider.state.credentials).toBe(1);
+      expect(provider.state.revocations).toBe(2);
+    } finally {
+      await provider.close();
+    }
+  });
+
   it("requires an interactive project chooser and clears temporary authorization", async () => {
     const provider = await oauthProvider({ manyProjects: true });
     try {

@@ -63,7 +63,7 @@ describe.skipIf(process.platform === "win32")("login command", () => {
     expect(output).not.toContain(credential.apiKey);
   });
 
-  it("finishes login while the browser opener remains running", async () => {
+  it.each([false, true])("finishes login with --no-browser=%s", async (noBrowser) => {
     const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-opener-test-")));
     directories.push(directory);
     vi.stubEnv("BROWSERBASE_CONFIG_DIR", directory);
@@ -74,24 +74,28 @@ describe.skipIf(process.platform === "win32")("login command", () => {
       apiOrigin: productionApiOrigin,
     };
     const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
-    vi.mocked(spawn).mockImplementation(() => {
-      queueMicrotask(() => child.emit("spawn"));
-      return child as ChildProcess;
-    });
+    vi.mocked(spawn)
+      .mockClear()
+      .mockImplementation(() => {
+        queueMicrotask(() => child.emit("spawn"));
+        return child as ChildProcess;
+      });
     vi.mocked(login).mockImplementation(async (options) => {
       await options!.openBrowser!("https://example.invalid/authorize");
       return { ...credential };
     });
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: credential.projectId })));
     const config = await Config.load(fileURLToPath(new URL("..", import.meta.url)));
-    const command = new Login([], config);
+    const command = new Login(noBrowser ? ["--no-browser"] : [], config);
     vi.spyOn(command, "log").mockImplementation(() => {});
     await command.run();
-    expect(spawn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.arrayContaining(["https://example.invalid/authorize"]),
-      expect.objectContaining({ detached: true }),
-    );
+    if (noBrowser) expect(spawn).not.toHaveBeenCalled();
+    else
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(["https://example.invalid/authorize"]),
+        expect.objectContaining({ detached: true }),
+      );
     expect(readCredential()).toEqual(credential);
   });
 

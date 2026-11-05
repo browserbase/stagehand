@@ -17,7 +17,7 @@ import { fail } from "../lib/errors.js";
 export default class Login extends BrowseCommand {
   static override description =
     "Sign in through your browser and save a project API key on this computer.";
-  static override examples = ["browse login"];
+  static override examples = ["browse login", "browse login --no-browser"];
   static override flags = {
     "credential-store": Flags.string({
       options: ["auto", "keychain", "file"],
@@ -25,6 +25,10 @@ export default class Login extends BrowseCommand {
       description:
         "Prefer the OS keystore with a private plaintext fallback (auto), require the keystore, or use a file.",
     }),
+    "project-id": Flags.string({
+      description: "Choose the project whose API key should be saved.",
+    }),
+    "no-browser": Flags.boolean({ description: "Print the login URL without opening a browser." }),
     development: Flags.boolean({
       description: "Use the development dashboard and API.",
       hidden: true,
@@ -55,12 +59,15 @@ export default class Login extends BrowseCommand {
         dashboard: flags.dashboard,
         development: flags.development,
         signal: controller.signal,
+        projectId: flags["project-id"],
         chooseProject,
         openBrowser: async (url) => {
           this.log(`Authorize in browser: ${url}`);
-          await openBrowser(url).catch(() =>
-            this.log("Open the URL above in a browser on this computer."),
-          );
+          if (!flags["no-browser"]) {
+            await openBrowser(url).catch(() =>
+              this.log("Open the URL above in a browser on this computer."),
+            );
+          }
         },
       });
       try {
@@ -132,7 +139,7 @@ async function openBrowser(url: string): Promise<void> {
 
 async function chooseProject(projects: LoginProject[], signal: AbortSignal): Promise<string> {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    fail("Run browse login in an interactive terminal to choose a project.");
+    fail("Use --project-id to select a project when running without an interactive terminal.");
   }
   const label = (value: string) =>
     stripVTControlCharacters(value)
