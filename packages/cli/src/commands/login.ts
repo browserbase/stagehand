@@ -128,11 +128,12 @@ async function openBrowser(url: string): Promise<void> {
         : "xdg-open";
   const args = process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "ignore" });
+    const child = spawn(command, args, { stdio: "ignore", detached: true, windowsHide: true });
     child.once("error", reject);
-    child.once("close", (code) =>
-      code === 0 ? resolve() : reject(new Error("Browser opener failed.")),
-    );
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
   });
 }
 

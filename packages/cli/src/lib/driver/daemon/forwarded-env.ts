@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+
+import { resolveConfigDir } from "../../identity.js";
 
 import { getRemote } from "../remote-binding.js";
 
@@ -34,6 +37,11 @@ export async function collectForwardedEnv(
     const value = env[key];
     // An empty value explicitly clears a daemon's stale spawn-time setting.
     forwardedEnv[key] = value ?? "";
+  }
+  if ("BROWSERBASE_CONFIG_DIR" in forwardedEnv) {
+    // A reused daemon may have a different cwd (or spawn-time config). Pin the
+    // caller's effective directory, including XDG/default resolution, before IPC.
+    forwardedEnv.BROWSERBASE_CONFIG_DIR = resolve(resolveConfigDir(env));
   }
   const fingerprint = remote.savedCredentialFingerprint(env);
   if (fingerprint) forwardedEnv.credentialFingerprint = fingerprint;

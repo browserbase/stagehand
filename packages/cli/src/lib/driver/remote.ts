@@ -174,7 +174,7 @@ export async function remoteBrowserbaseIdentity(
       new Browserbase({
         apiKey: credential.apiKey,
         baseURL: credential.baseUrl,
-        fetch: sdkCredentialFetch(credential),
+        ...(credential.source === "saved" ? { fetch: sdkCredentialFetch(credential) } : {}),
       });
     const { debuggerUrl } = await client.sessions.debug(normalizedSessionId);
     if (debuggerUrl) {
@@ -234,7 +234,16 @@ export function driverInitHints(): DriverInitHints {
 }
 
 export function remoteDoctorCheck(env: NodeJS.ProcessEnv): RemoteDoctorResult {
-  const credential = resolveCredential({}, env);
+  let credential;
+  try {
+    credential = resolveCredential({}, env);
+  } catch {
+    return {
+      ok: false,
+      message: "Saved Browserbase login could not be read or used",
+      fix: "Run browse auth status for details. Unlock your OS keystore or repair the private credential file; alternatively, use a new private BROWSERBASE_CONFIG_DIR and run browse login, or set BROWSERBASE_API_KEY.",
+    };
+  }
   if (credential) {
     return {
       ok: true,

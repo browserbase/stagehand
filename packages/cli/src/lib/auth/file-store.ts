@@ -98,8 +98,7 @@ export function readPrivateRecord(
         );
       }
       const record = JSON.parse(readFileSync(fd, "utf8"));
-      if (record.version !== 1)
-        fail("Unsupported saved credential format. Run browse login again.");
+      if (record.version !== 1) fail("Unsupported saved credential format.");
       return record;
     } finally {
       closeSync(fd);
@@ -107,7 +106,7 @@ export function readPrivateRecord(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     fail(
-      "Could not securely read saved credentials. Check the private credential directory or run browse logout.",
+      `Could not securely read saved credentials at ${path}. Restore valid credential metadata and private ownership/permissions${process.platform === "win32" ? "" : " (file 0600, auth directory 0700)"}. To sign in separately, set BROWSERBASE_CONFIG_DIR to a new private directory and run browse login. Keep the old metadata so its OS keystore entry can be removed after repair.`,
     );
   }
 }

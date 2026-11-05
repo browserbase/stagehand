@@ -71,6 +71,7 @@ export function assertCredentialDestination(credential: ResolvedCredential, valu
 
 /** The SDK also uses this transport for pagination URLs and uploads. */
 export function credentialFetch(credential: ResolvedCredential): typeof fetch {
+  if (credential.source !== "saved") return fetch;
   return async (input, init) => {
     const url = typeof input === "string" || input instanceof URL ? String(input) : input.url;
     assertCredentialDestination(credential, url);
@@ -80,24 +81,48 @@ export function credentialFetch(credential: ResolvedCredential): typeof fetch {
       if (init?.body && typeof init.body === "object" && Symbol.asyncIterator in init.body)
         requestInit.duplex = "half";
       const response = await fetch(input, requestInit);
-      if (credential.source === "saved" && !response.ok) {
+      if (!response.ok) {
         // Do not let a reflected server error print a saved key to the terminal.
         await response.body?.cancel();
         return new Response(
           JSON.stringify({ message: `Browserbase request failed (HTTP ${response.status}).` }),
           {
             status: response.status,
-            headers: { "content-type": "application/json" },
+            headers: sanitizedRetryHeaders(response.headers),
           },
         );
       }
       return response;
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+      ) {
+        // Preserve cancellation/timeout classification without reflecting the error message or cause.
+        throw new DOMException("Browserbase request was aborted or timed out.", error.name);
+      }
       fail(
         "Browserbase request failed. Check your connection and API URL; authenticated redirects are not followed.",
       );
     }
   };
+}
+
+function sanitizedRetryHeaders(headers: Headers): Headers {
+  const safe = new Headers({ "content-type": "application/json" });
+  const shouldRetry = headers.get("x-should-retry");
+  if (shouldRetry === "true" || shouldRetry === "false") safe.set("x-should-retry", shouldRetry);
+  for (const name of ["retry-after", "retry-after-ms"]) {
+    const value = headers.get(name);
+    if (value === null) continue;
+    if (/^\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value))) {
+      safe.set(name, value);
+    } else if (name === "retry-after" && Number.isFinite(Date.parse(value))) {
+      // Canonicalize dates so arbitrary server text cannot survive in an SDK error's headers.
+      safe.set(name, new Date(value).toUTCString());
+    }
+  }
+  return safe;
 }
 
 // The SDK supports native Node fetch at runtime, but its public type still

@@ -56,6 +56,64 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
     expect(removeCredential(env)).toBe(true);
   });
 
+  it.each(["malformed JSON", "unsupported version", "broad permissions"])(
+    "gives repair instructions and retains the keystore reference for %s",
+    (damage) => {
+      const backend = fakeKeyring();
+      const env = environment();
+      writeCredential(fixture, env);
+      const path = credentialPath(env);
+      const original = readFileSync(path, "utf8");
+      if (damage === "malformed JSON") writeFileSync(path, "{invalid");
+      if (damage === "unsupported version")
+        writeFileSync(path, JSON.stringify({ ...JSON.parse(original), version: 99 }));
+      if (damage === "broad permissions") chmodSync(path, 0o644);
+      let message = "";
+      try {
+        removeCredential(env);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain(path);
+      expect(message).toContain("new private directory");
+      expect(message).not.toContain("run browse logout");
+      expect(message).not.toContain(fixture.apiKey);
+      expect(existsSync(path)).toBe(true);
+      expect(backend.secrets.size).toBe(1);
+      const freshEnv = environment();
+      writeCredential(fixture, freshEnv, "file");
+      expect(readCredential(freshEnv)).toEqual(fixture);
+      // Repairing the original reference permits normal keystore cleanup.
+      writeFileSync(path, original);
+      chmodSync(path, 0o600);
+      expect(removeCredential(env)).toBe(true);
+      expect(backend.secrets.size).toBe(0);
+    },
+  );
+
+  it("reports malformed keystore references without discarding their metadata or secret", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    writeCredential(fixture, env);
+    const path = credentialPath(env);
+    const original = readFileSync(path, "utf8");
+    const damaged = JSON.stringify({ ...JSON.parse(original), account: "invalid" });
+    writeFileSync(path, damaged);
+    backend.constructor.mockClear();
+    for (const operation of [readCredential, removeCredential]) {
+      expect(() => operation(env)).toThrow(
+        "Invalid OS credential reference. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
+      );
+    }
+    expect(backend.constructor).not.toHaveBeenCalled();
+    expect(readFileSync(path, "utf8")).toBe(damaged);
+    expect(backend.secrets.size).toBe(1);
+    writeFileSync(path, original);
+    expect(readCredential(env)).toEqual(fixture);
+    expect(removeCredential(env)).toBe(true);
+    expect(backend.secrets.size).toBe(0);
+  });
+
   it("uses explicit file storage when the native keystore is unavailable", () => {
     const backend = fakeKeyring();
     backend.state.unavailable = true;

@@ -1,18 +1,23 @@
+import { realpathSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildDoctorReport } from "../src/lib/driver/doctor.js";
 import { getLockPath, getPidPath, getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { runCli } from "./helpers/run-cli.js";
+import { fakeKeyring } from "./helpers/keyring.js";
+import { credentialPath, writeCredential } from "../src/lib/auth/store.js";
+import { writePrivateRecord } from "../src/lib/auth/file-store.js";
 
 const cleanupPaths: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   while (cleanupPaths.length > 0) {
     const path = cleanupPaths.pop();
     if (path) await rm(path, { recursive: true, force: true });
@@ -76,6 +81,64 @@ describe("doctor command", () => {
       ]),
     });
   });
+
+  it("keeps the JSON report usable with corrupt saved credentials", async () => {
+    const directory = realpathSync(await tempDaemonDir());
+    const env = {
+      BROWSERBASE_API_KEY: undefined,
+      BROWSERBASE_CONFIG_DIR: directory,
+      BROWSE_DAEMON_DIR: directory,
+      BROWSE_LOAD_DOTENV: "0",
+    };
+    writePrivateRecord({ version: 1, store: "file" }, env);
+    await writeFile(credentialPath(env), '{"apiKey":"synthetic-corrupt-secret"');
+    const result = await runCli(["doctor", "--remote", "--json"], { env });
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      verdict: "fail",
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          name: "browserbase",
+          status: "fail",
+          fix: expect.stringContaining("browse auth status"),
+        }),
+      ]),
+    });
+    expect(result.stdout + result.stderr).not.toContain("synthetic-corrupt-secret");
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "reports a locked keystore without throwing",
+    async () => {
+      const directory = realpathSync(await tempDaemonDir());
+      const env = { BROWSERBASE_CONFIG_DIR: directory };
+      const keyring = fakeKeyring();
+      writeCredential(
+        {
+          apiKey: "synthetic-locked-secret",
+          projectId: "00000000-0000-4000-8000-000000000001",
+          apiOrigin: "https://api.browserbase.com",
+        },
+        env,
+      );
+      keyring.state.unavailable = true;
+      const report = await buildDoctorReport(
+        { flags: { remote: true }, session: "locked-credentials" },
+        { env, getDriverStatus: async () => null, readPackageVersion: async () => "test" },
+      );
+      expect(report).toMatchObject({
+        verdict: "fail",
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: "browserbase",
+            status: "fail",
+            fix: expect.stringContaining("Unlock your OS keystore"),
+          }),
+        ]),
+      });
+      expect(JSON.stringify(report)).not.toContain("synthetic-locked-secret");
+    },
+  );
 
   it("passes remote mode when the API key is present", async () => {
     const daemonDir = await tempDaemonDir();
