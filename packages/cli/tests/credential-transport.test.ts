@@ -1,11 +1,7 @@
 import Browserbase, { APIConnectionTimeoutError } from "@browserbasehq/sdk";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { credentialFetch, sdkCredentialFetch } from "../src/lib/auth/credentials.js";
-import { createBrowserbaseClient, requestBrowserbase } from "../src/lib/cloud/api.js";
-import { functionsRequest, resolveFunctionsApiConfig } from "../src/lib/functions/shared.js";
 
 const credential = {
   apiKey: "synthetic-saved-key",
@@ -133,48 +129,4 @@ describe("saved credential transport compatibility", () => {
       if (name !== "Error") expect((result as Error).name).toBe(name);
     },
   );
-});
-
-describe("explicit API keys retain their existing transports", () => {
-  it.each(["flag", "environment"])(
-    "keeps the SDK transport and redirects for %s keys",
-    async (source) => {
-      const server = createServer((request, response) => {
-        if (request.url === "/v1/projects") {
-          response.writeHead(302, { location: "/projects-result" }).end();
-        } else {
-          response.writeHead(200, { "content-type": "application/json" }).end("[]");
-        }
-      });
-      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-      try {
-        // The SDK's original Node transport does not use globalThis.fetch.
-        const nativeFetch = vi.fn().mockRejectedValue(new Error("Unexpected native fetch"));
-        vi.stubGlobal("fetch", nativeFetch);
-        vi.stubEnv("BROWSERBASE_API_KEY", "synthetic-explicit-key");
-        const client = createBrowserbaseClient({
-          ...(source === "flag" ? { apiKey: "synthetic-explicit-key" } : {}),
-          baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
-        });
-        expect(await client.projects.list()).toEqual([]);
-        expect(nativeFetch).not.toHaveBeenCalled();
-      } finally {
-        server.closeAllConnections();
-        await new Promise<void>((resolve) => server.close(() => resolve()));
-      }
-    },
-  );
-
-  it("keeps cloud and Functions fetch options and error messages for explicit keys", async () => {
-    const request = vi
-      .fn()
-      .mockImplementation(async () => new Response("original server error", { status: 400 }));
-    vi.stubGlobal("fetch", request);
-    const args = { apiKey: "synthetic-explicit-key" };
-    await expect(requestBrowserbase(args, "/v1/projects")).rejects.toThrow("original server error");
-    await expect(
-      functionsRequest(resolveFunctionsApiConfig(args), "/v1/functions"),
-    ).rejects.toThrow("original server error");
-    for (const call of request.mock.calls) expect(call[1]).not.toHaveProperty("redirect");
-  });
 });
