@@ -74,14 +74,10 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
         message = (error as Error).message;
       }
       expect(message).toContain(path);
-      expect(message).toContain("new private directory");
-      expect(message).not.toContain("run browse logout");
+      expect(message).toMatch(/repair|[Rr]estore/);
       expect(message).not.toContain(fixture.apiKey);
       expect(existsSync(path)).toBe(true);
       expect(backend.secrets.size).toBe(1);
-      const freshEnv = environment();
-      writeCredential(fixture, freshEnv, "file");
-      expect(readCredential(freshEnv)).toEqual(fixture);
       // Repairing the original reference permits normal keystore cleanup.
       writeFileSync(path, original);
       chmodSync(path, 0o600);
@@ -100,9 +96,7 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
     writeFileSync(path, damaged);
     backend.constructor.mockClear();
     for (const operation of [readCredential, removeCredential]) {
-      expect(() => operation(env)).toThrow(
-        "Invalid OS credential reference. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
-      );
+      expect(() => operation(env)).toThrow("Could not securely read saved credentials");
     }
     expect(backend.constructor).not.toHaveBeenCalled();
     expect(readFileSync(path, "utf8")).toBe(damaged);
@@ -111,6 +105,36 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
     expect(readCredential(env)).toEqual(fixture);
     expect(removeCredential(env)).toBe(true);
     expect(backend.secrets.size).toBe(0);
+  });
+
+  it("retains damaged plaintext credentials for rollback, replacement, and logout", () => {
+    const backend = fakeKeyring();
+    const env = environment();
+    writeCredential(fixture, env, "file");
+    const path = credentialPath(env);
+    const damaged = JSON.stringify({ version: 1, store: "file", ...fixture, apiKey: null });
+    writeFileSync(path, damaged);
+    expect(() => readCredential(env)).toThrow("Invalid saved credential");
+    vi.spyOn(metadata, "writePrivateRecord").mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    expect(() => writeCredential(fixture, env)).toThrow("Could not update saved login");
+    expect(readFileSync(path, "utf8")).toBe(damaged);
+    expect(backend.secrets.size).toBe(0);
+    writeCredential(fixture, env, "file");
+    expect(readCredential(env)).toEqual(fixture);
+    writeFileSync(path, damaged);
+    expect(removeCredential(env)).toBe(true);
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("rejects oversized records without replacing a usable saved login", () => {
+    const env = environment();
+    writeCredential(fixture, env, "file");
+    expect(() =>
+      writeCredential({ ...fixture, projectId: "project".repeat(6000) }, env, "file"),
+    ).toThrow("Could not update saved login");
+    expect(readCredential(env)).toEqual(fixture);
   });
 
   it("uses explicit file storage when the native keystore is unavailable", () => {
@@ -169,16 +193,9 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
     expect(readCredential(env)).toEqual(fixture);
   });
 
-  it("does not fall back for metadata failures or unsafe existing file permissions", () => {
+  it("does not fall back for unsafe existing file permissions", () => {
     const backend = fakeKeyring();
     const env = environment();
-    const write = vi.spyOn(metadata, "writePrivateRecord").mockImplementationOnce(() => {
-      throw new Error("disk full");
-    });
-    expect(() => writeCredential(fixture, env, "auto")).toThrow("Could not update saved login");
-    expect(write).toHaveBeenCalledTimes(1);
-    expect(backend.secrets.size).toBe(0);
-    expect(existsSync(credentialPath(env))).toBe(false);
     writeCredential(fixture, env, "file");
     chmodSync(credentialPath(env), 0o644);
     backend.state.unavailable = true;

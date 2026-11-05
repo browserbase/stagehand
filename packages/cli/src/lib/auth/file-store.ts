@@ -13,9 +13,17 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, parse, resolve } from "node:path";
+import { z } from "zod";
 
 import { fail } from "../errors.js";
 import { resolveConfigDir } from "../identity.js";
+
+const PrivateRecordSchema = z.discriminatedUnion("store", [
+  z.object({ version: z.literal(1), store: z.literal("keychain"), account: z.uuid() }),
+  // Validate the credential when it is used; logout can still remove damaged keys.
+  z.looseObject({ version: z.literal(1), store: z.literal("file") }),
+]);
+const maximumRecordBytes = 32768;
 
 export function credentialPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(resolve(resolveConfigDir(env)), "auth", "credential.json");
@@ -75,7 +83,7 @@ function checkAncestors(path: string, allowMissing = false): void {
 
 export function readPrivateRecord(
   env: NodeJS.ProcessEnv = process.env,
-): Record<string, unknown> | undefined {
+): z.infer<typeof PrivateRecordSchema> | undefined {
   const path = credentialPath(env);
   try {
     // Missing credentials must not break local commands or environment-key use.
@@ -91,15 +99,13 @@ export function readPrivateRecord(
         !info.isFile() ||
         (process.platform !== "win32" && (info.uid !== process.getuid!() || info.mode & 0o077)) ||
         info.nlink !== 1 ||
-        info.size > 32768
+        info.size > maximumRecordBytes
       ) {
         fail(
           "Saved credential file must be private, owned by you, and not linked to another file.",
         );
       }
-      const record = JSON.parse(readFileSync(fd, "utf8"));
-      if (record.version !== 1) fail("Unsupported saved credential format.");
-      return record;
+      return PrivateRecordSchema.parse(JSON.parse(readFileSync(fd, "utf8")));
     } finally {
       closeSync(fd);
     }
@@ -145,6 +151,8 @@ export function writePrivateRecord(
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   const data = JSON.stringify(record);
+  if (Buffer.byteLength(data, "utf8") > maximumRecordBytes)
+    fail("Saved credential record exceeds the supported size.");
   const path = credentialPath(env);
   const directory = dirname(path);
   if (process.platform !== "win32") checkAncestors(directory, true);

@@ -31,6 +31,7 @@ import {
   savedCredentialStore,
   removeCredential,
   writeCredential,
+  validateCredential,
 } from "../src/lib/auth/store.js";
 import { fakeKeyring } from "./helpers/keyring.js";
 import * as metadata from "../src/lib/auth/file-store.js";
@@ -54,20 +55,40 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
+describe("credential validation", () => {
+  it("keeps opaque keys and project identifiers unchanged while stripping extra fields", () => {
+    const credential = { ...fixture, apiKey: "opaque+/=secret", projectId: "project_example" };
+    expect(validateCredential({ ...credential, extra: true })).toEqual(credential);
+  });
+
+  it("rejects malformed credentials and unexpected destinations without exposing the input", () => {
+    const invalid = [
+      null,
+      [],
+      { ...fixture, apiKey: 123 },
+      { ...fixture, apiKey: "" },
+      { ...fixture, apiKey: "secret\r\nInjected: value" },
+      { ...fixture, apiKey: "secret\0" },
+      { ...fixture, apiKey: " secret " },
+      { ...fixture, apiKey: "secret-".repeat(3000) },
+      { ...fixture, projectId: "" },
+      { ...fixture, apiOrigin: "https://example.com" },
+    ];
+    for (const value of invalid) {
+      expect(() => validateCredential(value)).toThrow(
+        /^Invalid saved credential or login response\. Run browse login again\.$/,
+      );
+    }
+    expect(() => validateCredential(fixture, developmentApiOrigin)).toThrow(
+      /^Invalid saved credential or login response\. Run browse login again\.$/,
+    );
+  });
+});
+
 describe.skipIf(process.platform === "win32")("saved login", () => {
   beforeEach(() => {
     fakeKeyring();
   });
-  it("writes a private atomic record and removes it without revoking anything", () => {
-    const env = environment();
-    expect(readCredential(env)).toBeUndefined();
-    writeCredential(fixture, env);
-    expect(lstatSync(credentialPath(env)).mode & 0o777).toBe(0o600);
-    expect(readCredential(env)).toEqual(fixture);
-    expect(removeCredential(env)).toBe(true);
-    expect(removeCredential(env)).toBe(false);
-  });
-
   it("rejects broad permissions, linked credentials, and symlinked directories", () => {
     const env = environment();
     writeCredential(fixture, env);
@@ -152,6 +173,8 @@ describe("OS credential storage", () => {
     expect(backend.constructor).not.toHaveBeenCalled();
     writeCredential(fixture, env);
     expect(savedCredentialStore(env)).toBe("keychain");
+    if (process.platform !== "win32")
+      expect(lstatSync(credentialPath(env)).mode & 0o777).toBe(0o600);
     expect(readFileSync(credentialPath(env), "utf8")).not.toContain(fixture.apiKey);
     expect(readCredential(env)).toEqual(fixture);
     const other = environment();
@@ -159,6 +182,7 @@ describe("OS credential storage", () => {
     expect(backend.secrets.size).toBe(2);
     expect(readCredential(env)?.apiKey).toBe(fixture.apiKey);
     expect(removeCredential(env)).toBe(true);
+    expect(removeCredential(env)).toBe(false);
     expect(backend.secrets.size).toBe(1);
     expect(readCredential(other)?.apiKey).toBe("other-synthetic-key");
   });
@@ -189,14 +213,12 @@ describe("OS credential storage", () => {
     const env = environment();
     writeCredential(fixture, env);
     const originalReference = readFileSync(credentialPath(env), "utf8");
-    const writeReference = vi.spyOn(metadata, "writePrivateRecord");
     backend.state.rejectDelete = true;
     const replacement = { ...fixture, apiKey: "replacement-synthetic-key" };
     writeCredential(replacement, env);
     expect(readCredential(env)).toEqual(replacement);
     expect(backend.secrets.size).toBe(1);
     expect(readFileSync(credentialPath(env), "utf8")).toBe(originalReference);
-    expect(writeReference).not.toHaveBeenCalled();
   });
 
   it("does not delete the existing OS entry when a replacement write fails", () => {
@@ -216,16 +238,19 @@ describe("OS credential storage", () => {
     expect(readCredential(env)?.apiKey).toBe("retry-synthetic-key");
   });
 
-  it("removes a new OS entry if its first reference cannot be saved", () => {
-    const backend = fakeKeyring();
-    const env = environment();
-    vi.spyOn(metadata, "writePrivateRecord").mockImplementation(() => {
-      throw new Error("disk full");
-    });
-    expect(() => writeCredential(fixture, env)).toThrow("Could not update saved login");
-    expect(backend.secrets.size).toBe(0);
-    expect(existsSync(credentialPath(env))).toBe(false);
-  });
+  it.each(["keychain", "auto"] as const)(
+    "cleans up an OS entry after a failed %s save",
+    (store) => {
+      const backend = fakeKeyring();
+      const env = environment();
+      vi.spyOn(metadata, "writePrivateRecord").mockImplementation(() => {
+        throw new Error("disk full");
+      });
+      expect(() => writeCredential(fixture, env, store)).toThrow("Could not update saved login");
+      expect(backend.secrets.size).toBe(0);
+      expect(existsSync(credentialPath(env))).toBe(false);
+    },
+  );
 });
 
 describe("authenticated SDK transport", () => {

@@ -38,24 +38,10 @@ function entry(account: string, env: NodeJS.ProcessEnv): Entry {
   }
 }
 
-function accountFor(record: Record<string, unknown>): string {
-  if (typeof record.account !== "string" || !/^[a-f0-9-]{36}$/.test(record.account))
-    fail(
-      "Invalid OS credential reference. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
-    );
-  return record.account;
-}
-
 export function savedCredentialStore(
   env: NodeJS.ProcessEnv = process.env,
 ): CredentialStore | undefined {
-  const record = readPrivateRecord(env);
-  if (!record) return undefined;
-  if (record.store !== "keychain" && record.store !== "file")
-    fail(
-      "Invalid credential storage selection. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
-    );
-  return record.store;
+  return readPrivateRecord(env)?.store;
 }
 
 export function requireSupportedCredentialStore(
@@ -82,14 +68,9 @@ export function readCredential(env: NodeJS.ProcessEnv = process.env): SavedCrede
     requireFileCredentialStore();
     return validateCredential(record);
   }
-  if (record.store !== "keychain")
-    fail(
-      "Invalid credential storage selection. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
-    );
-  const account = accountFor(record);
   let value: string | null;
   try {
-    value = entry(account, env).getPassword();
+    value = entry(record.account, env).getPassword();
   } catch {
     fail(keychainUnavailable);
   }
@@ -119,13 +100,9 @@ function updateCredential(
 ): CredentialStore {
   const checked = validateCredential(credential);
   const previous = readPrivateRecord(env);
-  if (previous && previous.store !== "keychain" && previous.store !== "file")
-    fail(
-      "Invalid credential storage selection. Repair the credential metadata file or use a new private BROWSERBASE_CONFIG_DIR.",
-    );
   let store: CredentialStore = kind === "file" ? "file" : "keychain";
   const existingAccount =
-    store === "keychain" && previous?.store === "keychain" ? accountFor(previous) : undefined;
+    store === "keychain" && previous?.store === "keychain" ? previous.account : undefined;
   const account = existingAccount ?? randomUUID();
   let nextEntry: Entry | undefined;
   if (store === "keychain") {
@@ -153,7 +130,7 @@ function updateCredential(
         : { version: 1, store: "keychain", account },
       env,
     );
-    if (previous?.store === "keychain") entry(accountFor(previous), env).deleteCredential();
+    if (previous?.store === "keychain") entry(previous.account, env).deleteCredential();
   } catch {
     // Try to restore the previous login when switching storage fails.
     try {
@@ -181,13 +158,11 @@ function deleteCredential(env: NodeJS.ProcessEnv): boolean {
   const record = readPrivateRecord(env);
   if (!record) return false;
   if (record.store === "keychain") {
-    const account = accountFor(record);
     try {
-      entry(account, env).deleteCredential();
+      entry(record.account, env).deleteCredential();
     } catch {
       fail(keychainUnavailable);
     }
-  } else if (record.store === "file") requireFileCredentialStore();
-  else fail("Invalid credential storage selection. Check the credential metadata file.");
+  } else requireFileCredentialStore();
   return removePrivateRecord(env);
 }
