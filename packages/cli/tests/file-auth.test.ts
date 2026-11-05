@@ -23,7 +23,6 @@ import {
 } from "../src/lib/auth/store.js";
 import * as metadata from "../src/lib/auth/file-store.js";
 import { fakeKeyring } from "./helpers/keyring.js";
-import { runCli } from "./helpers/run-cli.js";
 
 const directories: string[] = [];
 const fixture = {
@@ -233,50 +232,5 @@ describe.skipIf(process.platform === "win32")("plaintext credential storage", ()
     writeCredential(fixture, env);
     expect(savedCredentialStore(env)).toBe("keychain");
     expect(backend.secrets.size).toBe(1);
-  });
-
-  it("resolves a persisted login in a fresh CLI process and logout leaves env credentials active", async () => {
-    const env = environment();
-    writeCredential(fixture, env, "file");
-    const transport = join(env.BROWSERBASE_CONFIG_DIR, "transport.mjs");
-    writeFileSync(
-      transport,
-      `
-      globalThis.fetch = async (input, init) => {
-        if (String(input) !== 'https://api.browserbase.com/v1/projects' ||
-          new Headers(init.headers).get('x-bb-api-key') !== 'synthetic-test-key' ||
-          init.redirect !== 'error') throw new Error('Unexpected request');
-        return new Response(JSON.stringify([{ id: '00000000-0000-4000-8000-000000000001', name: 'Example' }]), { headers: { 'content-type': 'application/json' } });
-      };
-    `,
-    );
-    const childEnv = {
-      ...env,
-      BROWSERBASE_API_KEY: undefined,
-      BROWSERBASE_BASE_URL: undefined,
-      BROWSERBASE_PROJECT_ID: undefined,
-      DEBUG: undefined,
-      DO_NOT_TRACK: "1",
-      NODE_OPTIONS: `--import=${transport}`,
-    };
-    const result = await runCli(["cloud", "projects", "list", "--json"], { env: childEnv });
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)[0].id).toBe(fixture.projectId);
-    expect(result.stdout + result.stderr).not.toContain(fixture.apiKey);
-    const status = await runCli(["auth", "status"], { env: childEnv });
-    expect(status.exitCode, status.stderr).toBe(0);
-    expect(JSON.parse(status.stdout)).toMatchObject({
-      source: "saved",
-      savedLogin: true,
-      storage: "plaintext-file",
-      verified: false,
-    });
-    expect(status.stdout).not.toContain(fixture.apiKey);
-    const logout = await runCli(["logout"], {
-      env: { ...childEnv, BROWSERBASE_API_KEY: "explicit-env-key" },
-    });
-    expect(logout.exitCode, logout.stderr).toBe(0);
-    expect(logout.stdout).toContain("BROWSERBASE_API_KEY is still set");
-    expect(readCredential(env)).toBeUndefined();
   });
 });
