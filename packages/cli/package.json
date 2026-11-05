@@ -72,6 +72,9 @@
     "typescript": "^5.8.3",
     "vitest": "catalog:"
   },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "2.1.2"
+  },
   "oclif": {
     "bin": "browse",
     "commands": "./dist/commands",
