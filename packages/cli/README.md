@@ -63,6 +63,8 @@ Stagehand MCP installs a standalone server with `run`, `snapshot`, and `screensh
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
 
+On Unix, custom `BROWSE_DAEMON_DIR` locations must be owned by you and have trusted parents owned by you or root. Shared writable parents need sticky-bit protection, as standard `/tmp` provides. These checks also apply when `TMPDIR` changes the default location.
+
 ### Browser targets
 
 Every driver command accepts the same flags to pick where the browser runs. Mix and match per command:

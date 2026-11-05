@@ -69,6 +69,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/sdk-functions": "catalog:",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/archiver": "^8.0.0",
     "@types/node": "^20.11.30",
