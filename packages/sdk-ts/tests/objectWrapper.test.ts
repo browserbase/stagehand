@@ -1,4 +1,15 @@
-import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { constants } from "node:fs";
+import {
+  mkdtemp,
+  open,
+  readFile,
+  rm,
+  symlink,
+  truncate,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -2108,6 +2119,47 @@ describe("Stagehand TS object wrapper", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it.skipIf(process.platform === "win32").each(["pipe", "symlink"])(
+    "rejects %s uploads without waiting for a FIFO writer",
+    async (kind) => {
+      const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-fifo-"));
+      const pipePath = path.join(directory, "upload.pipe");
+      execFileSync("mkfifo", [pipePath]);
+      const inputPath = kind === "symlink" ? path.join(directory, "upload-link") : pipePath;
+      if (kind === "symlink") await symlink(pipePath, inputPath);
+      const client = new FakeProtocolClient();
+      const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+      const outcome = locator.setInputFiles(inputPath).then(
+        () => ({ status: "resolved" }),
+        (error: unknown) => ({ status: "rejected", error }),
+      );
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          outcome,
+          new Promise((resolve) => {
+            timeoutId = setTimeout(() => resolve({ status: "blocked" }), 1_000);
+          }),
+        ]);
+        expect(result).toMatchObject({
+          status: "rejected",
+          error: new TypeError("setInputFiles(): expected a file"),
+        });
+        expect(client.calls).toHaveLength(0);
+      } finally {
+        clearTimeout(timeoutId);
+        // Release a blocking open on the old implementation before removing the FIFO.
+        const writer = await open(pipePath, constants.O_RDWR | constants.O_NONBLOCK);
+        try {
+          await outcome;
+        } finally {
+          await writer.close();
+          await rm(directory, { recursive: true, force: true });
+        }
+      }
+    },
+  );
 
   it("reports when file paths are unavailable outside Node.js", async () => {
     vi.doMock("node:fs/promises", () => {
