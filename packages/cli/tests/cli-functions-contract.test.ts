@@ -14,6 +14,7 @@ import {
   type CapturedRequest,
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
+import { terminateChild } from "../src/lib/child-process.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cleanupPaths: string[] = [];
@@ -25,7 +26,7 @@ afterEach(async () => {
     if (!child || child.killed) {
       continue;
     }
-    child.kill("SIGTERM");
+    terminateChild(child);
     await waitForExit(child);
   }
 
@@ -1166,7 +1167,7 @@ describe("functions scaffolding and local dev", () => {
         cleanupProcesses.push(child);
 
         await waitForStdout(child, '"ok": true', 15_000);
-        child.kill("SIGTERM");
+        terminateChild(child);
         await waitForExit(child, 5_000);
         expect(child.exitCode ?? child.signalCode).not.toBe(null);
       },
