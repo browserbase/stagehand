@@ -5,6 +5,8 @@ from typing import TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
+from stagehand.rpc_client import RPCRequestContext
+
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
 RootResultT = TypeVar("RootResultT")
@@ -18,6 +20,7 @@ class RecordingRPCClient:
         self.calls: list[tuple[str, BaseModel, object]] = []
         self.requests: dict[str, tuple[object, object, object]] = {}
         self.notifications: dict[str, tuple[object, object]] = {}
+        self.close_listeners: set[Callable[[], Awaitable[None]]] = set()
         self.closed = False
         self.close_transport_flags: list[bool] = []
 
@@ -64,6 +67,20 @@ class RecordingRPCClient:
 
         return remove
 
+    def on_request_with_context(
+        self,
+        method: str,
+        params_model: type[ParamsT],
+        result_model: type[ResultT],
+        handler: Callable[[ParamsT, RPCRequestContext], ResultT | Awaitable[ResultT]],
+    ) -> Callable[[], None]:
+        self.requests[method] = (params_model, result_model, handler)
+
+        def remove() -> None:
+            self.requests.pop(method, None)
+
+        return remove
+
     def on_notification(
         self,
         method: str,
@@ -77,6 +94,14 @@ class RecordingRPCClient:
 
         return remove
 
+    def on_close(self, listener: Callable[[], Awaitable[None]]) -> Callable[[], None]:
+        self.close_listeners.add(listener)
+
+        def remove() -> None:
+            self.close_listeners.discard(listener)
+
+        return remove
+
     async def close(
         self,
         reason: BaseException | None = None,
@@ -85,3 +110,7 @@ class RecordingRPCClient:
     ) -> None:
         self.closed = True
         self.close_transport_flags.append(close_transport)
+        listeners = list(self.close_listeners)
+        self.close_listeners.clear()
+        for listener in listeners:
+            await listener()

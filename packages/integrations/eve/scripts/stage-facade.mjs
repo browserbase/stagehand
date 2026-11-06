@@ -5,6 +5,7 @@ const destination = new URL("../extension/lib/core/", import.meta.url);
 
 await rm(destination, { force: true, recursive: true });
 for (const file of [
+  "facade/batch-sources.ts",
   "facade/contract.ts",
   "facade/runtime.ts",
   "facade/tools.ts",

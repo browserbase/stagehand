@@ -14,21 +14,15 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  if (originalIsTTY)
-    Object.defineProperty(process.stdin, "isTTY", originalIsTTY);
+  if (originalIsTTY) Object.defineProperty(process.stdin, "isTTY", originalIsTTY);
   else Reflect.deleteProperty(process.stdin, "isTTY");
 });
 
 describe("interactive secret input", () => {
   it("uses a hidden prompt on stderr and preserves whitespace", async () => {
     vi.mocked(password).mockResolvedValue("  secret value  ");
-    expect(Buffer.from(await readSecretValue({})).toString()).toBe(
-      "  secret value  ",
-    );
-    expect(password).toHaveBeenCalledWith(
-      { message: "Secret value:" },
-      { output: process.stderr },
-    );
+    expect(Buffer.from(await readSecretValue({})).toString()).toBe("  secret value  ");
+    expect(password).toHaveBeenCalledWith({ message: "Secret value:" }, { output: process.stderr });
   });
 
   it("reports cancellation without echoing the prompt error", async () => {
@@ -56,17 +50,13 @@ describe("environment secret input", () => {
     "reads an explicitly set environment property %s",
     async (env) => {
       vi.stubEnv(env, "private-value");
-      expect(Buffer.from(await readSecretValue({ env })).toString()).toBe(
-        "private-value",
-      );
+      expect(Buffer.from(await readSecretValue({ env })).toString()).toBe("private-value");
     },
   );
 
   it("preserves an explicitly empty value without prompting", async () => {
     vi.stubEnv("BROWSE_TEST_SECRET_VALUE", "");
-    expect(
-      await readSecretValue({ env: "BROWSE_TEST_SECRET_VALUE" }),
-    ).toHaveLength(0);
+    expect(await readSecretValue({ env: "BROWSE_TEST_SECRET_VALUE" })).toHaveLength(0);
     expect(password).not.toHaveBeenCalled();
   });
 });

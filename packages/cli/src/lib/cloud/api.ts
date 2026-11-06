@@ -77,10 +77,7 @@ export function resolveApiBaseUrl(args: { baseUrl?: string }): string {
   return resolveBaseUrl(args) ?? defaultBrowserbaseApiUrl;
 }
 
-export function createBrowserbaseClient(args: {
-  apiKey?: string;
-  baseUrl?: string;
-}) {
+export function createBrowserbaseClient(args: { apiKey?: string; baseUrl?: string }) {
   return new Browserbase({
     apiKey: resolveApiKey(args),
     baseURL: resolveBaseUrl(args),
@@ -136,9 +133,7 @@ export async function resolveUploadableFile(filePath: string, label: string) {
   return createReadStream(absolutePath);
 }
 
-export async function readBrowserbaseError(
-  response: Response,
-): Promise<string> {
+export async function readBrowserbaseError(response: Response): Promise<string> {
   let text: string;
   try {
     text = await response.text();
@@ -217,10 +212,7 @@ export async function requestBrowserbaseJson<T>(
   return (await response.json()) as T;
 }
 
-export async function writeOutputFile(
-  pathname: string,
-  contents: string,
-): Promise<void> {
+export async function writeOutputFile(pathname: string, contents: string): Promise<void> {
   const absolutePath = resolve(pathname);
   try {
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -232,10 +224,7 @@ export async function writeOutputFile(
   }
 }
 
-export async function writeBinaryOutput(
-  pathname: string,
-  contents: Uint8Array,
-): Promise<void> {
+export async function writeBinaryOutput(pathname: string, contents: Uint8Array): Promise<void> {
   const absolutePath = resolve(pathname);
   try {
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -254,9 +243,7 @@ export async function readStdin(): Promise<string> {
     );
   }
   const chunks: Buffer[] = [];
-  for await (const chunk of Readable.toWeb(
-    process.stdin,
-  ) as AsyncIterable<Uint8Array>) {
+  for await (const chunk of Readable.toWeb(process.stdin) as AsyncIterable<Uint8Array>) {
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8").trim();
@@ -303,18 +290,12 @@ export function deepMerge(
   return result;
 }
 
-function rethrowBrowserbaseApiError(
-  error: unknown,
-  command: BrowserbaseApiCommand,
-): never {
+function rethrowBrowserbaseApiError(error: unknown, command: BrowserbaseApiCommand): never {
   if (error instanceof CommandFailure) {
     throw error;
   }
 
-  if (
-    error instanceof APIConnectionTimeoutError ||
-    error instanceof APIConnectionError
-  ) {
+  if (error instanceof APIConnectionTimeoutError || error instanceof APIConnectionError) {
     fail(error.message, 1, {
       resultCode: "request_no_response",
       requestHadHttpResponse: false,
@@ -332,10 +313,7 @@ function rethrowBrowserbaseApiError(
   throw error;
 }
 
-function classifyBrowserbaseHttpFailure(
-  pathname: string,
-  status: number,
-): string | undefined {
+function classifyBrowserbaseHttpFailure(pathname: string, status: number): string | undefined {
   const command = resolveCommandFromPathname(pathname);
   if (!command) {
     return status === 401 ? "auth_401" : undefined;
@@ -379,10 +357,7 @@ export function classifyCommandHttpFailure(
   return classifyGenericCommandHttpFailure(command, status);
 }
 
-function classifyGenericCommandHttpFailure(
-  command: BrowserbaseApiCommand,
-  status: number,
-): string {
+function classifyGenericCommandHttpFailure(command: BrowserbaseApiCommand, status: number): string {
   if (status === 400) {
     return `${command}_bad_request`;
   }
@@ -428,9 +403,7 @@ function classifyGenericCommandHttpFailure(
   return `${command}_http_${status}`;
 }
 
-function resolveCommandFromPathname(
-  pathname: string,
-): BrowserbaseApiCommand | undefined {
+function resolveCommandFromPathname(pathname: string): BrowserbaseApiCommand | undefined {
   if (pathname === "/v1/search") {
     return "search";
   }

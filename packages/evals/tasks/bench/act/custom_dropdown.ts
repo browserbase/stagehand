@@ -13,7 +13,7 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/expand-dropdown/");
 
       await stagehand.act("choose Canada from the 'Select a Country' dropdown");
 

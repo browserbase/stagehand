@@ -5,12 +5,9 @@ export default defineBenchTask(
   { name: "extract_recipe" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
-        {
-          waitUntil: "domcontentloaded",
-        },
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/allrecipes-extract/", {
+        waitUntil: "domcontentloaded",
+      });
 
       // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/main/article/div[3]/div[3]/div[4]");

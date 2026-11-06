@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_jfk_links" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jfk/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/jfk/");
 
       const { data: extraction } = await stagehand.extract(
         "extract all the record file name and their corresponding links",

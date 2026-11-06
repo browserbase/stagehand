@@ -9,9 +9,7 @@ export default defineBenchTask(
     // CSR (closed mode shadow) root
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/oopif-in-open-shadow-dom/");
       await stagehand.act("fill 'nunya' into the first name field");
 
       // v3 used schemaless extract; v4 requires a schema.

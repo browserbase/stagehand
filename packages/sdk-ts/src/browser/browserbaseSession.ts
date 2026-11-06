@@ -9,6 +9,7 @@ import {
 import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
 import {
   BrowserbaseSessionConnectionSchema,
+  type BrowserbaseClientOptions,
   BrowserbaseSessionCreateResultSchema,
   BrowserbaseSessionRetrieveResultSchema,
   type BrowserbaseSessionConnection,
@@ -28,6 +29,7 @@ export type BrowserbaseSessionClient = {
 export type BrowserbaseSessionClientFactory = (
   apiKey: string,
   baseUrl: string,
+  clientOptions?: BrowserbaseClientOptions,
 ) => BrowserbaseSessionClient;
 
 export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
@@ -51,7 +53,11 @@ type BrowserbaseSdk = BrowserbaseExtensionSdk & {
   };
 };
 
-type BrowserbaseSdkFactory = (apiKey: string, baseUrl: string) => BrowserbaseSdk;
+type BrowserbaseSdkFactory = (
+  apiKey: string,
+  baseUrl: string,
+  clientOptions: BrowserbaseClientOptions,
+) => BrowserbaseSdk;
 
 export class BrowserbaseSessionError extends Error {
   constructor(message: string) {
@@ -63,9 +69,11 @@ export class BrowserbaseSessionError extends Error {
 export function createBrowserbaseSessionClient(
   apiKey: string,
   baseUrl: string,
+  clientOptions: BrowserbaseClientOptions = {},
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
-  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl);
+  const browserbase =
+    dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl, clientOptions);
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
@@ -168,9 +176,11 @@ export function createBrowserbaseSessionClient(
 export function createBrowserbaseApiClient(
   apiKey: string,
   baseUrl: string,
-  createSdk: BrowserbaseSdkFactory = (key, baseURL) => new Browserbase({ apiKey: key, baseURL }),
+  clientOptions: BrowserbaseClientOptions = {},
+  createSdk: BrowserbaseSdkFactory = (key, baseURL, options) =>
+    new Browserbase({ ...options, apiKey: key, baseURL }),
 ): BrowserbaseApiClient {
-  const sdk = createSdk(apiKey, baseUrl);
+  const sdk = createSdk(apiKey, baseUrl, clientOptions);
   const extensionClient = createBrowserbaseExtensionClient(apiKey, () => sdk);
 
   return {

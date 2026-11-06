@@ -95,14 +95,11 @@ describe("skills", () => {
     });
     cleanupServers.push(server);
 
-    const result = await runCli(
-      ["skills", "list", "--format", "table", "--limit", "1"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        },
+    const result = await runCli(["skills", "list", "--format", "table", "--limit", "1"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
-    );
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("yelp.com/extract-reviews");
@@ -116,14 +113,11 @@ describe("skills", () => {
     });
     cleanupServers.push(server);
 
-    const result = await runCli(
-      ["skills", "list", "--format", "table", "--limit", "1", "--all"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        },
+    const result = await runCli(["skills", "list", "--format", "table", "--limit", "1", "--all"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
-    );
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("yelp.com/extract-reviews");
@@ -132,8 +126,7 @@ describe("skills", () => {
   });
 
   it("shows full skill table values with --wide", async () => {
-    const longSlug =
-      "very-long.example.com/search-listings-with-a-really-long-generated-suffix";
+    const longSlug = "very-long.example.com/search-listings-with-a-really-long-generated-suffix";
     const { server, baseUrl } = await startFakeSkillServer({
       "/api/skills": JSON.stringify({
         skills: [{ ...catalogSkills[0], slug: longSlug }],
@@ -146,14 +139,11 @@ describe("skills", () => {
         BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
     });
-    const wideResult = await runCli(
-      ["skills", "list", "--format", "table", "--wide"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        },
+    const wideResult = await runCli(["skills", "list", "--format", "table", "--wide"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
-    );
+    });
 
     expect(narrowResult.exitCode).toBe(0);
     expect(narrowResult.stdout).not.toContain(longSlug);
@@ -170,14 +160,11 @@ describe("skills", () => {
     });
     cleanupServers.push(server);
 
-    const result = await runCli(
-      ["skills", "find", "reviews", "--format", "table"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        },
+    const result = await runCli(["skills", "find", "reviews", "--format", "table"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
-    );
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Skills matching "reviews" (1)');
@@ -206,9 +193,7 @@ describe("skills", () => {
     expect(result.stdout).toContain("Yelp Review Extraction");
     expect(result.stdout).toContain("Skill: yelp.com/extract-reviews");
     expect(result.stdout).toContain("Method: url-param");
-    expect(result.stdout).toContain(
-      "Install: browse skills add yelp.com/extract-reviews",
-    );
+    expect(result.stdout).toContain("Install: browse skills add yelp.com/extract-reviews");
   });
 
   it("limits broad skill find table matches", async () => {
@@ -240,14 +225,11 @@ describe("skills", () => {
     });
     cleanupServers.push(server);
 
-    const result = await runCli(
-      ["skills", "find", "yelp.com/extract-reviews", "--json"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        },
+    const result = await runCli(["skills", "find", "yelp.com/extract-reviews", "--json"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
       },
-    );
+    });
 
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout) as {
@@ -299,37 +281,31 @@ describe("skills", () => {
     );
   });
 
-  itPosix(
-    "fails cleanly when a non-generated skill is missing from the catalog",
-    async () => {
-      const stubDir = await createTempDir("browse-skills-missing-bin-");
-      const logPath = join(stubDir, "npx.log");
-      await writeNpxStub(stubDir, logPath);
-      // Empty server: the file API returns 404 for the requested id.
-      const { server, baseUrl } = await startFakeSkillServer({});
-      cleanupServers.push(server);
+  itPosix("fails cleanly when a non-generated skill is missing from the catalog", async () => {
+    const stubDir = await createTempDir("browse-skills-missing-bin-");
+    const logPath = join(stubDir, "npx.log");
+    await writeNpxStub(stubDir, logPath);
+    // Empty server: the file API returns 404 for the requested id.
+    const { server, baseUrl } = await startFakeSkillServer({});
+    cleanupServers.push(server);
 
-      const result = await runCli(
-        ["skills", "add", "amazon.com/buy-something-fake"],
-        {
-          env: {
-            BROWSE_SKILLS_API_BASE_URL: baseUrl,
-            PATH: stubDir,
-          },
-        },
-      );
+    const result = await runCli(["skills", "add", "amazon.com/buy-something-fake"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        PATH: stubDir,
+      },
+    });
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        'Skill "amazon.com/buy-something-fake" not found in the catalog',
-      );
-      expect(result.stderr).toContain("browse skills find amazon.com");
-      // It must NOT have shelled out to clone the browse.sh repo.
-      await expect(
-        readFile(logPath, "utf8").catch(() => ""),
-      ).resolves.not.toContain("browserbase/browse.sh");
-    },
-  );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      'Skill "amazon.com/buy-something-fake" not found in the catalog',
+    );
+    expect(result.stderr).toContain("browse skills find amazon.com");
+    // It must NOT have shelled out to clone the browse.sh repo.
+    await expect(readFile(logPath, "utf8").catch(() => "")).resolves.not.toContain(
+      "browserbase/browse.sh",
+    );
+  });
 
   itPosix(
     "installs suffix-shaped catalog skills from GitHub when the file API returns 404",
@@ -340,15 +316,12 @@ describe("skills", () => {
       const { server, baseUrl } = await startFakeSkillServer({});
       cleanupServers.push(server);
 
-      const result = await runCli(
-        ["skills", "add", "airline.example/book-flight"],
-        {
-          env: {
-            BROWSE_SKILLS_API_BASE_URL: baseUrl,
-            PATH: stubDir,
-          },
+      const result = await runCli(["skills", "add", "airline.example/book-flight"], {
+        env: {
+          BROWSE_SKILLS_API_BASE_URL: baseUrl,
+          PATH: stubDir,
         },
-      );
+      });
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).not.toContain("Downloaded");
@@ -361,9 +334,7 @@ describe("skills", () => {
   itPosix(
     "installs suffix-shaped catalog skills from GitHub when the file API is unavailable and no Blob fallback exists",
     async () => {
-      const stubDir = await createTempDir(
-        "browse-skills-suffix-unavailable-bin-",
-      );
+      const stubDir = await createTempDir("browse-skills-suffix-unavailable-bin-");
       const logPath = join(stubDir, "npx.log");
       await writeNpxStub(stubDir, logPath);
       const { server, baseUrl } = await startFakeSkillServer({
@@ -374,16 +345,13 @@ describe("skills", () => {
       });
       cleanupServers.push(server);
 
-      const result = await runCli(
-        ["skills", "add", "airline.example/book-flight"],
-        {
-          env: {
-            BROWSE_SKILLS_API_BASE_URL: baseUrl,
-            BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
-            PATH: stubDir,
-          },
+      const result = await runCli(["skills", "add", "airline.example/book-flight"], {
+        env: {
+          BROWSE_SKILLS_API_BASE_URL: baseUrl,
+          BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
+          PATH: stubDir,
         },
-      );
+      });
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).not.toContain("Downloaded");
@@ -393,84 +361,70 @@ describe("skills", () => {
     },
   );
 
-  itPosix(
-    "downloads generated skills from the Browse.sh file API before installing",
-    async () => {
-      const stubDir = await createTempDir("browse-skills-api-bin-");
-      const configHome = await createTempDir("browse-skills-config-");
-      const logPath = join(stubDir, "npx.log");
-      await writeNpxStub(stubDir, logPath);
+  itPosix("downloads generated skills from the Browse.sh file API before installing", async () => {
+    const stubDir = await createTempDir("browse-skills-api-bin-");
+    const configHome = await createTempDir("browse-skills-config-");
+    const logPath = join(stubDir, "npx.log");
+    await writeNpxStub(stubDir, logPath);
 
-      const { server, baseUrl } = await startFakeSkillServer({
-        "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": (
-          origin,
-        ) =>
-          JSON.stringify({
-            skillId: "mcdonalds.order.online/order-delivery-42q71n",
-            files: [
-              {
-                path: "SKILL.md",
-                url: `${origin}/downloads/order-delivery/SKILL.md`,
-              },
-              {
-                path: "REFERENCE.md",
-                url: `${origin}/downloads/order-delivery/REFERENCE.md`,
-              },
-            ],
-          }),
-        "/downloads/order-delivery/SKILL.md": [
-          "---",
-          "name: order-delivery",
-          "description: Place a McDonald's delivery order.",
-          "---",
-          "",
-          "# Order delivery",
-          "",
-        ].join("\n"),
-        "/downloads/order-delivery/REFERENCE.md": "Reference\n",
-      });
-      cleanupServers.push(server);
+    const { server, baseUrl } = await startFakeSkillServer({
+      "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": (origin) =>
+        JSON.stringify({
+          skillId: "mcdonalds.order.online/order-delivery-42q71n",
+          files: [
+            {
+              path: "SKILL.md",
+              url: `${origin}/downloads/order-delivery/SKILL.md`,
+            },
+            {
+              path: "REFERENCE.md",
+              url: `${origin}/downloads/order-delivery/REFERENCE.md`,
+            },
+          ],
+        }),
+      "/downloads/order-delivery/SKILL.md": [
+        "---",
+        "name: order-delivery",
+        "description: Place a McDonald's delivery order.",
+        "---",
+        "",
+        "# Order delivery",
+        "",
+      ].join("\n"),
+      "/downloads/order-delivery/REFERENCE.md": "Reference\n",
+    });
+    cleanupServers.push(server);
 
-      const result = await runCli(
-        ["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"],
-        {
-          env: {
-            BROWSE_SKILLS_API_BASE_URL: baseUrl,
-            PATH: stubDir,
-            XDG_CONFIG_HOME: configHome,
-          },
-        },
-      );
+    const result = await runCli(["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        PATH: stubDir,
+        XDG_CONFIG_HOME: configHome,
+      },
+    });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("Downloaded 2 skill files");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Downloaded 2 skill files");
 
-      const installPath = join(
-        configHome,
-        "browserbase",
-        "skills",
-        "mcdonalds.order.online",
-        "order-delivery-42q71n",
-      );
-      await expect(
-        readFile(join(installPath, "SKILL.md"), "utf8"),
-      ).resolves.toContain("name: order-delivery");
-      await expect(
-        readFile(join(installPath, "REFERENCE.md"), "utf8"),
-      ).resolves.toBe("Reference\n");
-      await expect(readFile(logPath, "utf8")).resolves.toContain(
-        `--yes skills add ${installPath}`,
-      );
-    },
-  );
+    const installPath = join(
+      configHome,
+      "browserbase",
+      "skills",
+      "mcdonalds.order.online",
+      "order-delivery-42q71n",
+    );
+    await expect(readFile(join(installPath, "SKILL.md"), "utf8")).resolves.toContain(
+      "name: order-delivery",
+    );
+    await expect(readFile(join(installPath, "REFERENCE.md"), "utf8")).resolves.toBe("Reference\n");
+    await expect(readFile(logPath, "utf8")).resolves.toContain(`--yes skills add ${installPath}`);
+  });
 
   itPosix(
     "falls back to direct SKILL.md download when the file API is unavailable for a suffix-shaped skill",
     async () => {
       const stubDir = await createTempDir("browse-skills-api-fallback-bin-");
-      const configHome = await createTempDir(
-        "browse-skills-api-fallback-config-",
-      );
+      const configHome = await createTempDir("browse-skills-api-fallback-config-");
       const logPath = join(stubDir, "npx.log");
       await writeNpxStub(stubDir, logPath);
 
@@ -513,12 +467,10 @@ describe("skills", () => {
         "mcdonalds.order.online",
         "order-delivery-42q71n",
       );
-      await expect(
-        readFile(join(installPath, "SKILL.md"), "utf8"),
-      ).resolves.toContain("name: order-delivery");
-      await expect(readFile(logPath, "utf8")).resolves.toContain(
-        `--yes skills add ${installPath}`,
+      await expect(readFile(join(installPath, "SKILL.md"), "utf8")).resolves.toContain(
+        "name: order-delivery",
       );
+      await expect(readFile(logPath, "utf8")).resolves.toContain(`--yes skills add ${installPath}`);
     },
   );
 
@@ -545,9 +497,7 @@ describe("skills", () => {
     await writeNpxStub(stubDir, logPath);
 
     const { server, baseUrl } = await startFakeSkillServer({
-      "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": (
-        origin,
-      ) =>
+      "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": (origin) =>
         JSON.stringify({
           skillId: "mcdonalds.order.online/order-delivery-42q71n",
           files: [
@@ -558,16 +508,13 @@ describe("skills", () => {
     });
     cleanupServers.push(server);
 
-    const result = await runCli(
-      ["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"],
-      {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-          PATH: stubDir,
-          XDG_CONFIG_HOME: configHome,
-        },
+    const result = await runCli(["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        PATH: stubDir,
+        XDG_CONFIG_HOME: configHome,
       },
-    );
+    });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("unsafe file path");
@@ -650,9 +597,7 @@ async function writeNpxStub(stubDir: string, logPath: string): Promise<void> {
   const stubPath = join(stubDir, "npx");
   await writeFile(
     stubPath,
-    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join(
-      "\n",
-    ),
+    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join("\n"),
   );
   await chmod(stubPath, 0o755);
   process.env.BB_STUB_LOG = logPath;

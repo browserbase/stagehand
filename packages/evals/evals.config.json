@@ -1,12 +1,14 @@
 {
+  "version": 2,
   "defaults": {
     "env": "local",
     "trials": 3,
-    "concurrency": 10,
-    "provider": null,
+    "concurrency": 3,
     "model": null,
     "api": false,
-    "verbose": false
+    "verbose": false,
+    "harness": null,
+    "successMode": null
   },
   "benchmarks": {
     "webvoyager": {
@@ -21,5 +23,9 @@
     "odysseysbench": {
       "limit": 25
     }
-  }
+  },
+  "harnesses": {},
+  "providers": {},
+  "verifier": {},
+  "campaign": {}
 }

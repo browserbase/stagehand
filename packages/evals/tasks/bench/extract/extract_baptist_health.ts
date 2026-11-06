@@ -6,7 +6,7 @@ export default defineBenchTask(
   { name: "extract_baptist_health" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/baptist-health/");
 
       const { data: result } = await stagehand.extract(
         "Extract the address, phone number, and fax number of the healthcare location.",
