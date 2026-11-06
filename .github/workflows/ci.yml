@@ -24,6 +24,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Temporary diagnostics for this PR. Remove these jobs after collecting timings.
+  browse-startup-timing:
+    name: Browse startup timing (${{ matrix.platform }})
+    if: github.head_ref == 'add-win32-env-ci' || github.ref_name == 'add-win32-env-ci'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      - name: Restore Browse Turbo cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-
+
+      - run: pnpm exec turbo run build --filter=browse
+
+      - name: Measure CLI startup
+        run: node .github/scripts/browse-startup-timing.mjs
+        env:
+          BROWSE_TIMING_OUTPUT: ${{ runner.temp }}/browse-startup-timing
+
+      - name: Upload startup timings
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browse-startup-timing-${{ runner.os }}
+          path: ${{ runner.temp }}/browse-startup-timing
+          if-no-files-found: warn
+          retention-days: 7
+
+  cancel-after-browse-startup-timing:
+    name: Cancel CI after startup timings
+    runs-on: ubuntu-latest
+    needs: [browse-startup-timing]
+    if: ${{ !cancelled() && needs.browse-startup-timing.result != 'skipped' }}
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel this workflow run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/cancel"
+
   determine-changes:
     name: Determine changes
     runs-on: ubuntu-latest
@@ -239,13 +298,13 @@ jobs:
   cancel-after-check-failure:
     name: Cancel after check failure
     runs-on: ubuntu-latest
-    # Scoped here rather than workflow-wide: this is the only job that needs to write to the
-    # Actions API, and the fan-out means ~60 other jobs would otherwise inherit the privilege.
+    # Keep Actions write permission scoped to cancellation jobs.
     permissions:
       contents: read
       actions: write
     needs: [check]
-    if: failure()
+    # Let both temporary timing jobs finish on the diagnostic branch.
+    if: failure() && github.head_ref != 'add-win32-env-ci' && github.ref_name != 'add-win32-env-ci'
     continue-on-error: true
     steps:
       - name: Cancel workflow run
