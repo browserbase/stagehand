@@ -43,7 +43,7 @@
     "prepack": "pnpm run build",
     "stage:facade": "node scripts/stage-facade.mjs",
     "test": "pnpm run stage:facade && vitest run",
-    "test:unit": "vitest run",
+    "test:unit": "pnpm run stage:facade && vitest run",
     "typecheck": "pnpm run stage:facade && tsc --noEmit"
   },
   "dependencies": {
