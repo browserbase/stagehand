@@ -1,15 +1,12 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  quoteForCmdShell,
-  shouldUseWindowsShell,
-  spawnPassthrough,
-} from "../src/lib/skills/install.js";
+import { spawnPassthrough } from "../src/lib/skills/install.js";
+import { isProcessAlive } from "../src/lib/driver/daemon/process.js";
 import { runCli } from "./helpers/run-cli.js";
 import { writeNodeExecutable } from "./helpers/node-executable.js";
 
@@ -53,16 +50,10 @@ describe("skills install", () => {
     expect(log).toContain("--yes --global --agent *");
   });
 
-  it("uses a shell for Windows command shims", () => {
-    expect(shouldUseWindowsShell("C:\\npm\\npx.cmd", "win32")).toBe(true);
-    expect(shouldUseWindowsShell("C:\\npm\\npx.bat", "win32")).toBe(true);
-    expect(shouldUseWindowsShell("/usr/local/bin/npx", "darwin")).toBe(false);
-    expect(shouldUseWindowsShell("C:\\npm\\npx.exe", "win32")).toBe(false);
-  });
-
   it("fails with a timeout message when the npx child hangs past the deadline", async () => {
     const stubDir = await createTempDir("browse-skills-timeout-bin-");
-    await writeSleepingNpxStub(stubDir);
+    const pidFile = join(stubDir, "child.pid");
+    await writeSleepingNpxStub(stubDir, pidFile);
     const start = Date.now();
 
     const result = await runCli(["skills", "install"], {
@@ -75,6 +66,9 @@ describe("skills install", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Skill install timed out after 1s");
     expect(Date.now() - start).toBeLessThan(10_000);
+    const pid = Number(await readFile(pidFile, "utf8"));
+    expect(pid).toBeGreaterThan(0);
+    await expect.poll(() => isProcessAlive(pid), { timeout: 2_000 }).toBe(false);
   });
 
   it("falls back to the GitHub installer when the catalog fetch hangs", async () => {
@@ -101,66 +95,27 @@ describe("skills install", () => {
   });
 });
 
-describe("quoteForCmdShell", () => {
-  it("leaves plain tokens untouched", () => {
-    expect(quoteForCmdShell("npx")).toBe("npx");
-    expect(quoteForCmdShell("--yes")).toBe("--yes");
-    expect(quoteForCmdShell("browserbase/browse.sh")).toBe("browserbase/browse.sh");
-    expect(quoteForCmdShell("C:\\nodejs\\npx.cmd")).toBe("C:\\nodejs\\npx.cmd");
-  });
-
-  it("quotes the default Windows Node install path", () => {
-    expect(quoteForCmdShell("C:\\Program Files\\nodejs\\npx.cmd")).toBe(
-      '"C:\\Program Files\\nodejs\\npx.cmd"',
-    );
-  });
-
-  it("quotes install paths with spaces", () => {
-    expect(quoteForCmdShell("C:\\Users\\First Last\\.config\\browserbase\\skill")).toBe(
-      '"C:\\Users\\First Last\\.config\\browserbase\\skill"',
-    );
-  });
-
-  it("doubles embedded quotes", () => {
-    expect(quoteForCmdShell('say "hi" now')).toBe('"say ""hi"" now"');
-  });
-
-  it("quotes cmd metacharacters", () => {
-    expect(quoteForCmdShell("a&b")).toBe('"a&b"');
-    expect(quoteForCmdShell("a|b")).toBe('"a|b"');
-    expect(quoteForCmdShell("a^b")).toBe('"a^b"');
-    expect(quoteForCmdShell("a<b")).toBe('"a<b"');
-    expect(quoteForCmdShell("a>b")).toBe('"a>b"');
-  });
-
-  it("quotes the empty token", () => {
-    expect(quoteForCmdShell("")).toBe('""');
-  });
-
-  it("builds an intact cmd.exe command line for a default Windows install", () => {
-    const command = "C:\\Program Files\\nodejs\\npx.cmd";
-    const args = [
-      "--yes",
-      "skills",
-      "add",
-      "C:\\Users\\First Last\\.config\\browserbase\\skills\\x\\y",
-    ];
-
-    // Before the fix Node joined the tokens unquoted, so cmd.exe split the
-    // command at the space and executed `C:\Program` ("'C:\Program' is not
-    // recognized as an internal or external command").
-    const unquoted = [command, ...args].join(" ");
-    expect(unquoted).toContain("C:\\Program Files\\");
-    expect(unquoted.startsWith('"')).toBe(false);
-
-    const quoted = [command, ...args].map(quoteForCmdShell).join(" ");
-    expect(quoted).toBe(
-      '"C:\\Program Files\\nodejs\\npx.cmd" --yes skills add "C:\\Users\\First Last\\.config\\browserbase\\skills\\x\\y"',
-    );
-  });
-});
-
 describe("spawnPassthrough", () => {
+  it.each(["bin with spaces", join("node_modules", ".bin")])(
+    "preserves literal arguments through a command shim in %s",
+    async (relativeBin) => {
+      const root = await createTempDir("browse-spawn-");
+      const bin = join(root, relativeBin);
+      await mkdir(bin, { recursive: true });
+      const log = join(root, "args.json");
+      await writeNodeExecutable(
+        bin,
+        "npx",
+        `require("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)));`,
+      );
+      const executable = join(bin, process.platform === "win32" ? "npx.cmd" : "npx");
+      const args = ["hello world", "a&b", 'say "hi"', "%PATH%", "*", "", "C:\\path with spaces\\"];
+      const result = await spawnPassthrough(executable, args, 10_000);
+      expect(result).toMatchObject({ exitCode: 0, timedOut: false });
+      expect(JSON.parse(await readFile(log, "utf8"))).toEqual(args);
+    },
+  );
+
   it("kills a hung child after the deadline and reports a timeout", async () => {
     const start = Date.now();
     const result = await spawnPassthrough(
@@ -199,11 +154,15 @@ async function writeNpxStub(stubDir: string): Promise<void> {
   );
 }
 
-async function writeSleepingNpxStub(stubDir: string): Promise<void> {
+async function writeSleepingNpxStub(stubDir: string, pidFile: string): Promise<void> {
   // Exceed the install deadline, but bound the fixture's lifetime even if a
   // Windows shell exits before its Node child. The test must return before
   // this fallback fires, so an orphaned child cannot make the timeout test pass.
-  await writeNodeExecutable(stubDir, "npx", "setTimeout(() => {}, 15_000);");
+  await writeNodeExecutable(
+    stubDir,
+    "npx",
+    `require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 15_000);`,
+  );
 }
 
 // Accepts connections but never responds, so fetches hang until aborted.

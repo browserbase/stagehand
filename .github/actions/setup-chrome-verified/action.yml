@@ -18,30 +18,20 @@ runs:
       uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
       with:
         chrome-version: ${{ inputs.chrome-version }}
-        install-dependencies: true
+        install-dependencies: ${{ runner.os == 'Linux' }}
 
     - name: Export Chrome path
       shell: bash
-      run: echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+      env:
+        CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+      run: echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
 
     - name: Verify Chrome launch
       shell: bash
       run: |
-        if ! command -v timeout >/dev/null 2>&1; then
-          timeout() {
-            shift
-            "$@"
-          }
-        fi
-        set -euo pipefail
-        chrome_path="${{ steps.setup-chrome.outputs.chrome-path }}"
-        if [ ! -x "$chrome_path" ]; then
-          echo "Chrome binary does not exist or is not executable: $chrome_path" >&2
-          exit 1
-        fi
-        if ! timeout 30s "$chrome_path" \
-          --headless=new --no-sandbox --disable-gpu --dump-dom about:blank \
-          >/dev/null 2>&1; then
-          echo "Chrome failed to launch headless: $chrome_path" >&2
-          exit 1
-        fi
+        node --input-type=module -e '
+          import { execFileSync } from "node:child_process";
+          execFileSync(process.env.CHROME_PATH, [
+            "--headless=new", "--no-sandbox", "--disable-gpu", "--dump-dom", "about:blank",
+          ], { timeout: 30_000, stdio: "ignore" });
+        '

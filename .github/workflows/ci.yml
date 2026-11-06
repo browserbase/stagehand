@@ -326,6 +326,32 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
+  browse-windows:
+    name: Browse (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.browse == 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - run: pnpm exec turbo run build --filter=browse
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm --filter browse test:cli
+
+      - run: pnpm --filter browse test:smoke
+        # Still exercise Chrome if a CLI contract test failed.
+        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
   unit-ts:
     name: TypeScript unit
     runs-on: ubuntu-latest
