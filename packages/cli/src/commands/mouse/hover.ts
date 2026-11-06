@@ -8,8 +8,7 @@ import {
 } from "../../lib/driver/command-cli.js";
 
 export default class MouseHover extends BrowseCommand {
-  static override description =
-    "Move the mouse to raw viewport coordinates in the active page.";
+  static override description = "Move the mouse to raw viewport coordinates in the active page.";
 
   static override examples = [
     "browse mouse hover 240 320",

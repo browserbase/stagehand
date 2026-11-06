@@ -98,9 +98,7 @@ describe("remoteStagehandOptions — userMetadata", () => {
       // Seed the version the way base.ts does from Config.version at startup.
       identityModule.setCliVersion("1.2.3");
 
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browser?.userMetadata as Record<string, string>;
 
@@ -122,9 +120,7 @@ describe("remoteStagehandOptions — userMetadata", () => {
     await writeFile(installIdFile, "test-install-uuid-123\n", "utf8");
 
     try {
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browser?.userMetadata as Record<string, string>;
 
@@ -145,23 +141,17 @@ describe("remoteStagehandOptions — userMetadata", () => {
 
     // Spy on resolveInstallId to simulate rejection
     const identityModule = await import("../src/lib/identity.js");
-    vi.spyOn(identityModule, "resolveInstallId").mockRejectedValue(
-      new Error("disk failure"),
-    );
+    vi.spyOn(identityModule, "resolveInstallId").mockRejectedValue(new Error("disk failure"));
 
     try {
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browser?.userMetadata as Record<string, string>;
 
       expect(meta.browse_cli).toBe("true");
       expect(typeof meta.cli_version).toBe("string");
       // install_id must NOT be present (never send an undefined/empty value)
-      expect(Object.prototype.hasOwnProperty.call(meta, "install_id")).toBe(
-        false,
-      );
+      expect(Object.prototype.hasOwnProperty.call(meta, "install_id")).toBe(false);
     } finally {
       delete process.env.BROWSERBASE_API_KEY;
     }
@@ -339,9 +329,7 @@ describe("resolveInstallId — legacy path migration", () => {
 
     expect(id).toBe(canonicalId);
     // The canonical marker is untouched.
-    const persisted = (
-      await readFile(join(bbDir, "install-id"), "utf8")
-    ).trim();
+    const persisted = (await readFile(join(bbDir, "install-id"), "utf8")).trim();
     expect(persisted).toBe(canonicalId);
   });
 
@@ -373,25 +361,19 @@ describe("getCliVersion / setCliVersion", () => {
   });
 
   it("returns the value seeded via setCliVersion", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } = await import("../src/lib/identity.js");
     setCliVersion("0.9.0");
     expect(getCliVersion()).toBe("0.9.0");
   });
 
   it("ignores an empty seed, leaving the 'unknown' fallback intact", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } = await import("../src/lib/identity.js");
     setCliVersion("");
     expect(getCliVersion()).toBe("unknown");
   });
 
   it("keeps a previously-seeded version when later seeded with empty", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } = await import("../src/lib/identity.js");
     setCliVersion("1.4.2");
     setCliVersion("");
     expect(getCliVersion()).toBe("1.4.2");
@@ -418,9 +400,7 @@ describe("BrowseCommand.init() — version seeding at lifecycle boundary", () =>
     // Load the package's real oclif Config (this is the same Config oclif
     // hands every command; its .version comes from package.json => 0.9.0).
     // fileURLToPath keeps this correct on Windows (no leading-slash artifact).
-    const config = await Config.load(
-      fileURLToPath(new URL("..", import.meta.url)),
-    );
+    const config = await Config.load(fileURLToPath(new URL("..", import.meta.url)));
 
     // Sanity: unseeded before any command init runs.
     expect(getCliVersion()).toBe("unknown");

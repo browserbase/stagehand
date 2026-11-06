@@ -6,8 +6,7 @@ import { stopDriverDaemon } from "../lib/driver/daemon/client.js";
 import { outputJson } from "../lib/output.js";
 
 export default class Stop extends BrowseCommand {
-  static override description =
-    "Stop the browse driver daemon for a named session.";
+  static override description = "Stop the browse driver daemon for a named session.";
 
   static override examples = [
     "browse stop",
