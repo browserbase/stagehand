@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- This diagnostic prints timings and traces to CI logs. */
 import { spawnSync } from "node:child_process";
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { cpus, tmpdir } from "node:os";
@@ -16,6 +17,7 @@ const env = {
   BROWSE_DISABLE_UPDATE_CHECK: "1",
   BROWSE_LOAD_DOTENV: "0",
   DO_NOT_TRACK: "1",
+  BROWSE_STARTUP_TRACE: "0",
 };
 const probes = [
   { name: "Node empty process", args: ["-e", ""] },
@@ -64,6 +66,33 @@ for (const probe of probes) {
     samples,
   });
 }
+// Keep tracing separate from the five uninstrumented timing samples above.
+const traces = [];
+for (const probe of probes.slice(1)) {
+  const start = performance.now();
+  const result = spawnSync(process.execPath, probe.args, {
+    cwd: cliRoot,
+    env: { ...env, BROWSE_STARTUP_TRACE: "1", DEBUG: "oclif:perf", DEBUG_COLORS: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  traces.push({
+    name: probe.name,
+    elapsedMs: Math.round((performance.now() - start) * 10) / 10,
+    exitCode: result.status,
+    signal: result.signal,
+    error: result.error?.message,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  });
+  console.log(`Startup trace: ${probe.name} (exit ${result.status})`);
+  console.log(result.stderr);
+  if (result.status !== 0 || result.error) {
+    console.error(result.error?.message ?? result.stderr);
+    process.exitCode = 1;
+  }
+}
 const report = {
   platform: process.platform,
   node: process.version,
@@ -71,6 +100,7 @@ const report = {
   cpu: cpus()[0]?.model,
   revision: process.env.GITHUB_SHA,
   results,
+  traces,
 };
 const summary = [
   `## Browse startup timing (${process.platform})`,
@@ -85,6 +115,21 @@ const summary = [
       `| ${result.name} | ${result.firstMs} | ${result.medianMs} | ${result.samples.map((sample) => sample.elapsedMs).join(", ")} | ${result.samples.map((sample) => sample.exitCode ?? "null").join(", ")} |`,
   ),
   "",
+  "### Startup traces",
+  "",
+  "One additional instrumented process per Browse command; excluded from the timing table. beforeOclifMs is process uptime before importing oclif (including Node startup and static imports). oclifImportMs measures the framework import; executeMs includes initialization, command handling, and the finally hook. The oclif breakdown is nested within executeMs, not additional time. Parent elapsed time also includes process launch and shutdown.",
+  "",
+  ...traces.flatMap((trace) => [
+    `#### ${trace.name}`,
+    "",
+    `Elapsed: ${trace.elapsedMs}ms. Exit code: ${trace.exitCode ?? "null"}.`,
+    "",
+    "```text",
+    trace.error ?? "",
+    trace.stderr ?? "",
+    "```",
+    "",
+  ]),
 ].join("\n");
 await mkdir(output, { recursive: true });
 await writeFile(join(output, "timings.json"), JSON.stringify(report, null, 2) + "\n");

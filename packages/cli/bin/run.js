@@ -40,5 +40,26 @@ globalThis.oclif = {
   enableAutoTranspile: false,
 };
 
-const { execute } = await import("@oclif/core");
-await execute({ dir: import.meta.url });
+// Temporary, opt-in instrumentation for the CI startup diagnostic.
+const traceStartup = process.env.BROWSE_STARTUP_TRACE === "1";
+const beforeOclifMs = traceStartup ? process.uptime() * 1000 : 0;
+const importStart = traceStartup ? performance.now() : 0;
+const { execute, settings } = await import("@oclif/core");
+const importEnd = traceStartup ? performance.now() : 0;
+if (traceStartup) settings.performanceEnabled = true;
+try {
+  await execute({ dir: import.meta.url });
+} finally {
+  if (traceStartup) {
+    // execute includes the finally hook, which oclif's own report excludes.
+    console.error(
+      "[browse-startup] " +
+        JSON.stringify({
+          beforeOclifMs,
+          oclifImportMs: importEnd - importStart,
+          executeMs: performance.now() - importEnd,
+          processUptimeMs: process.uptime() * 1000,
+        }),
+    );
+  }
+}
