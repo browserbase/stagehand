@@ -420,7 +420,8 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm --filter browse test:smoke
+      - name: Test packed Browse with Chrome
+        run: pnpm --filter browse test:smoke:package
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 

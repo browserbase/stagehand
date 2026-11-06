@@ -11,7 +11,9 @@ import { runCli } from "../helpers/run-cli.js";
 
 // Build first: pnpm exec turbo run build --filter=browse
 // Then: pnpm --filter browse test:smoke (uses CHROME_PATH or local Chrome discovery).
-describe("Browse with real Chrome", () => {
+// CI runs this scenario through the executable installed from the Browse tarball.
+const suiteName = process.env.BROWSE_SMOKE_BIN ? "Installed Browse" : "Browse";
+describe(`${suiteName} with real Chrome`, () => {
   const session = `smoke-${randomUUID().slice(0, 8)}`;
   let directory: string;
   let runtimeDir: string;
@@ -130,6 +132,7 @@ describe("Browse with real Chrome", () => {
   async function cli<T = unknown>(args: string[], timeoutMs = 40_000): Promise<T> {
     const result = await runCli([...args, "--session", session], {
       cwd: directory,
+      executable: process.env.BROWSE_SMOKE_BIN,
       timeoutMs,
       env: {
         BROWSE_DAEMON_DIR: runtimeDir,
