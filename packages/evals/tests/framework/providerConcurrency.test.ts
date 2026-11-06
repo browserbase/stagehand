@@ -456,12 +456,10 @@ describe("runGatedRow", () => {
   it("stops waiting out the Browserbase retry delay when the run aborts", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
     const controller = new AbortController();
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        error: "Browserbase session creation failed (HTTP 429).",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      error: "Browserbase session creation failed (HTTP 429).",
+    }));
     const row = runGatedRow({
       scheduler,
       modelName: "openai/gpt-5.4-mini",
@@ -484,12 +482,10 @@ describe("runGatedRow", () => {
 
   it("does not treat a 429 in a provider-less row as a provider throttle", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        error: "page returned HTTP 429 Too Many Requests",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      error: "page returned HTTP 429 Too Many Requests",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "none", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();
@@ -498,14 +494,12 @@ describe("runGatedRow", () => {
 
   it("does not re-run the agent when only the judge was rate limited", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        harnessStatus: "completed",
-        verifierError: "Google API error 429",
-        error: "Verification failed: Google API error 429",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      harnessStatus: "completed",
+      verifierError: "Google API error 429",
+      error: "Verification failed: Google API error 429",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "openai/gpt-5.4-mini", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();
@@ -542,9 +536,10 @@ describe("runGatedRow", () => {
 
   it("does not retry ordinary failures", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({ _success: false, harnessStatus: "max_turns" }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      harnessStatus: "max_turns",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "openai/gpt-5.4-mini", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();

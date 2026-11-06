@@ -1,10 +1,7 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
 
 export default class Snapshot extends BrowseCommand {
   static override description =
@@ -23,12 +20,10 @@ export default class Snapshot extends BrowseCommand {
       description: "Also include the ref maps (xpathMap, urlMap).",
     }),
     compact: Flags.boolean({
-      description:
-        "Deprecated and has no effect; use --full to include the ref maps.",
+      description: "Deprecated and has no effect; use --full to include the ref maps.",
     }),
     filter: Flags.string({
-      description:
-        "Filter output lines by text or /regex/ while preserving matching ancestors.",
+      description: "Filter output lines by text or /regex/ while preserving matching ancestors.",
       helpValue: "<text|/regex/>",
     }),
     "max-depth": Flags.integer({
