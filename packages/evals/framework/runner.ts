@@ -704,31 +704,43 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                 ),
               ),
             );
+            // Async work a row leaves behind keeps its row context; once the
+            // row is done its phases and lines are dropped so they can't
+            // redraw the row or print over the summary.
+            let rowDone = false;
             const rowContext = {
-              reportPhase: (phase: RowPhase, detail?: { sessionUrl?: string }) =>
-                options.onProgress?.({ type: "phase", ...row, phase, ...detail }),
+              reportPhase: (phase: RowPhase, detail?: { sessionUrl?: string }) => {
+                if (rowDone) return;
+                options.onProgress?.({ type: "phase", ...row, phase, ...detail });
+              },
               log: (entry: RowLogEntry) => {
+                if (rowDone) return;
                 rowLog.write(entry);
                 options.onProgress?.({ type: "log", ...row, log: entry });
               },
             };
-            const rawResult = await runGatedRow({
-              scheduler: activeScheduler,
-              modelName: input.modelName,
-              execute: (attempt) => {
-                rowLog.attempt(attempt);
-                return runInRowContext(rowContext, executeAttempt);
-              },
-              signal: options.signal,
-              onStart: () => {
-                startedAt = Date.now();
-                options.onProgress?.({ type: "started", ...row });
-              },
-              onThrottle: (throttle) =>
-                options.onProgress?.({ type: "throttled", ...row, throttle }),
-            });
-
-            await rowLog.close();
+            let rawResult: TaskResult;
+            try {
+              rawResult = await runGatedRow({
+                scheduler: activeScheduler,
+                modelName: input.modelName,
+                execute: (attempt) => {
+                  rowLog.attempt(attempt);
+                  return runInRowContext(rowContext, executeAttempt);
+                },
+                signal: options.signal,
+                onStart: () => {
+                  startedAt = Date.now();
+                  options.onProgress?.({ type: "started", ...row });
+                },
+                onThrottle: (throttle) =>
+                  options.onProgress?.({ type: "throttled", ...row, throttle }),
+              });
+            } finally {
+              // Even when the row throws, flush and close its file.
+              rowDone = true;
+              await rowLog.close();
+            }
             const result: TaskResult = rowLog.hasContent
               ? { ...rawResult, logPath: rowLog.filePath }
               : rawResult;

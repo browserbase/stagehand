@@ -459,6 +459,12 @@ export async function runCommand(
     throw err;
   }
 
+  // The harness's tool default applies to bench rows only; core-tier runs
+  // keep core.tool (or --tool).
+  if (options.benchToolSurface && tasks.some((task) => task.tier === "bench")) {
+    options = { ...options, coreToolSurface: options.benchToolSurface };
+  }
+
   if (tasks.length === 0) {
     const message = options.normalizedTarget
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
