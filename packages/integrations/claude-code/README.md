@@ -6,11 +6,11 @@ programmatically — install, export keys, one line to run.
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, build the integrations package first:
+Use Node.js 24 or later. From the repository root, build this package (turbo builds its workspace dependencies first):
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-claude-code
 ```
 
 Export credentials (Browserbase is the default and recommended backend):
@@ -23,7 +23,7 @@ export BROWSERBASE_API_KEY=bb_live_...
 ## Run
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-claude-code-facade start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+pnpm --filter @browserbasehq/stagehand-integrations-claude-code start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
 | Variable                 | Purpose                                                                                          |
