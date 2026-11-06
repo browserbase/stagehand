@@ -46,9 +46,7 @@ export async function collectForwardedEnv(
  * object's own keys — the client already filtered to the forwardable set — so
  * this carries no literal key names. Returns "" for an empty/absent set.
  */
-export function forwardedEnvSignature(
-  forwardedEnv: ForwardedEnv | undefined,
-): string {
+export function forwardedEnvSignature(forwardedEnv: ForwardedEnv | undefined): string {
   if (!forwardedEnv) return "";
   const entries = Object.entries(forwardedEnv)
     .filter(([, value]) => typeof value === "string" && value.length > 0)
