@@ -15,6 +15,7 @@ import {
 } from "../browseCliPaths.js";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   AGENT_RUN_TOOL_SERVER,
   type AgentRunToolSpec,
   type StartupProfile,
@@ -22,7 +23,9 @@ import {
 } from "../core/contracts/tool.js";
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { type EvalResultContract, readResultContract } from "./harnesses/externalRunner.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
@@ -44,6 +47,8 @@ export interface PreparedClaudeCodeToolAdapter {
   allowedTools: string[];
   settingSources: string[];
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, unknown>;
   canUseTool?: (
     toolName: string,
@@ -51,6 +56,8 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed tool_result with the originating
@@ -69,6 +76,8 @@ export interface PreparedBrowseCliHarnessAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** browse_cli owns its daemon; the Browserbase session id is not reported. */
+  browserSession: BrowserSessionInfo;
   metadata: BrowseCliToolMetadata;
   cleanup: () => Promise<void>;
 }
@@ -89,6 +98,7 @@ export const CLAUDE_CODE_TOOL_SURFACES: ToolSurface[] = [
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_facade",
+  "stagehand_facade_legacy",
 ];
 
 // The CLI skill below is written for interactive use and covers surface
@@ -123,6 +133,14 @@ the guidance below:
 - When finished, report the result in the exact \`EVAL_RESULT\` format
   requested by the harness prompt.
 `;
+
+// The addendum's last rule names the marker line; a JSON run must not be told
+// to answer in two formats.
+function evalHarnessAddendum(resultContract: EvalResultContract): string {
+  return resultContract === "marker"
+    ? EVAL_HARNESS_ADDENDUM
+    : EVAL_HARNESS_ADDENDUM.replace("in the exact `EVAL_RESULT` format", "as the JSON report");
+}
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const RUN_TOOL_SERVER = AGENT_RUN_TOOL_SERVER;
 const RUN_TOOL_NAME = AGENT_RUN_TOOL_NAME;
@@ -197,7 +215,8 @@ export async function prepareClaudeCodeToolAdapter(
     case "stagehand_code":
     case "playwright_mcp":
     case "chrome_devtools_mcp":
-    case "stagehand_facade": {
+    case "stagehand_facade":
+    case "stagehand_facade_legacy": {
       return prepareMountedCoreToolAdapter({
         ...input,
         toolSurface,
@@ -285,7 +304,7 @@ export async function prepareBrowseCliHarnessAdapter(
   input.logger.log({
     category: input.logCategory,
     message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
-    level: 1,
+    level: 2,
   });
   const env = {
     ...process.env,
@@ -321,6 +340,7 @@ export async function prepareBrowseCliHarnessAdapter(
     cwd,
     env,
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
+    browserSession: { provider: input.environment === "BROWSERBASE" ? "browserbase" : "local" },
     metadata: getBrowseCliToolMetadata(),
     cleanup: async () => {
       await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd).catch(
@@ -343,7 +363,10 @@ async function prepareMountedCoreToolAdapter(
 ): Promise<PreparedClaudeCodeToolAdapter> {
   const runtime = await startAgentToolRuntime(input);
   try {
-    return await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input);
+    return {
+      ...(await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input)),
+      browserSession: runtime.browserSession,
+    };
   } catch (error) {
     // Same bound as normal teardown — a hung cleanup must not wedge the row
     // on the setup-failure path either.
@@ -370,7 +393,7 @@ async function prepareAgentMountAdapter(
     toolSurface: ToolSurface;
     startupProfile: StartupProfile;
   },
-): Promise<PreparedClaudeCodeToolAdapter> {
+): Promise<Omit<PreparedClaudeCodeToolAdapter, "browserSession">> {
   let cwd: string | undefined;
   try {
     const mount = running.agentMount;
@@ -443,6 +466,7 @@ async function prepareAgentMountAdapter(
           observedToolMatcher: isMountToolName,
         }),
       promptInstructions: mount.promptInstructions,
+      ...(running.browserSessionLoss && { browserSessionLoss: running.browserSessionLoss }),
       ...(running.captureEvidence && {
         captureEvidence: async (): Promise<ProbeEvidence> => {
           try {
@@ -543,7 +567,7 @@ async function executeCodeExposureRunTool(input: {
     input.logger.log({
       category: "claude_code",
       message: `run tool completed: ${clip(text, 500)}`,
-      level: 1,
+      level: 2,
     });
     return {
       content: [{ type: "text", text }],
@@ -627,7 +651,7 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
   const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
   await fsp.writeFile(
     path.join(targetDir, "SKILL.md"),
-    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
+    insertAfterFrontmatter(cliSkill, evalHarnessAddendum(readResultContract("marker"))),
   );
 }
 

@@ -24,8 +24,12 @@ export type DeepagentsSessionConfig = {
   env?: Record<string, string>;
   mcpServers?: Record<string, DeepagentsMcpServerConfig>;
   systemPrompt?: string;
+  /** OpenAI reasoning summary mode requested from the model (omit for none). */
+  reasoningSummary?: "auto" | "concise" | "detailed";
   recursionLimit?: number;
   maxToolSteps?: number;
+  /** JSON schema the agent's final answer must match (`response_format`); omit for free text. */
+  resultSchema?: Record<string, unknown>;
   killGraceMs?: number;
   streamDrainMs?: number;
 };
@@ -121,7 +125,19 @@ export function normalizeDeepagentsModel(model: string): string {
 }
 
 export function buildDeepagentsRunnerArgs(runnerDir: string): string[] {
-  return ["run", "--project", runnerDir, "--locked", "python", path.join(runnerDir, "run_eval.py")];
+  // uv stops workspace discovery at the integration's intermediate pyproject.toml.
+  // Select the root explicitly for the bundled runner; custom runners retain
+  // their own project and environment.
+  const projectArgs =
+    path.resolve(runnerDir) === path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR)
+      ? [
+          "--project",
+          path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR, "../../../.."),
+          "--package",
+          "stagehand-deepagents-eval-runner",
+        ]
+      : ["--project", runnerDir];
+  return ["run", ...projectArgs, "--locked", "python", path.join(runnerDir, "run_eval.py")];
 }
 
 export async function runDeepagentsSession(input: {
@@ -192,9 +208,11 @@ export async function runDeepagentsSession(input: {
         prompt: input.prompt,
         system_prompt: input.session.systemPrompt ?? null,
         model: normalizeDeepagentsModel(input.model),
+        reasoning_summary: input.session.reasoningSummary ?? null,
         mcp_servers: input.session.mcpServers ?? {},
         recursion_limit: positiveInteger(input.session.recursionLimit, 100),
         max_tool_steps: positiveInteger(input.session.maxToolSteps, 50),
+        result_schema: input.session.resultSchema ?? null,
       }),
     );
 
@@ -446,9 +464,11 @@ export function summarizeDeepagentsEvent(event: DeepagentsEvent): {
 } {
   const type = String(event.type ?? "unknown");
   if (type === "assistant" && typeof event.text === "string") {
+    const reasoning = typeof event.reasoning === "string" ? event.reasoning : "";
+    const text = reasoning ? `${reasoning}\n${event.text}`.trim() : event.text;
     return {
-      message: `assistant: ${clip(sanitizeErrorMessage(event.text), 500)}`,
-      detail: event.text,
+      message: `assistant: ${clip(sanitizeErrorMessage(text), 500)}`,
+      detail: text,
     };
   }
   if (type === "tool_result") {

@@ -9,9 +9,7 @@ export default defineBenchTask(
     // SPIF (same process iframe)
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/closed-shadow-dom-in-spif/");
       await stagehand.act("click the button");
 
       // v3 used schemaless extract; v4 requires a schema.

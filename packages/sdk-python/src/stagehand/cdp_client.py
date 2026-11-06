@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.parse import urljoin, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+
+from typing_extensions import override
+from websockets.asyncio.client import connect as WebSocketConnect
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from stagehand._generated.protocol_version import (
     PROTOCOL_SEMVER_PATTERN,
     STAGEHAND_PROTOCOL_VERSION,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
@@ -230,6 +239,9 @@ class CDPConnectionClosedError(RuntimeError):
         super().__init__("CDP connection closed")
 
 
+_CLIENT_TARGET_URL = "about:blank#stagehand-client-connection"
+
+
 class CDPClient:
     def __init__(
         self,
@@ -244,6 +256,9 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._client_target_id: str | None = None
+        # Whether the extension shuts the browser down if this client is lost.
+        self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
@@ -253,9 +268,13 @@ class CDPClient:
         *,
         cdp_url: str,
         extension_dir: str | None = None,
+        local_extension_dir: Callable[[], str] | None = None,
         extension_id: str | None = None,
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
+        headers: Mapping[str, str] | None = None,
+        close_browser_on_disconnect: bool | None = None,
+        extension_cdp_url: str | None = None,
     ) -> CDPClient:
         """Connect without an independent lifecycle deadline.
 
@@ -263,21 +282,42 @@ class CDPClient:
         lifecycle. Direct internal callers must provide cancellation themselves.
         CDP command acknowledgements inherit that same caller-owned cancellation.
         """
-        if sum((bool(extension_dir), bool(extension_id), preloaded_extension)) != 1:
+        if (
+            sum((
+                bool(extension_dir),
+                local_extension_dir is not None,
+                bool(extension_id),
+                preloaded_extension,
+            ))
+            != 1
+        ):
             raise ValueError(
-                "Exactly one of extension_dir, extension_id, or preloaded_extension is required"
+                "Exactly one of extension_dir, local_extension_dir, extension_id, "
+                "or preloaded_extension is required"
             )
 
-        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
-        socket = await _connect_web_socket(web_socket_debugger_url)
+        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url, headers=headers)
+        web_socket_headers = headers or None
+        if web_socket_headers and not _can_forward_headers(cdp_url, web_socket_debugger_url):
+            web_socket_headers = None
+            _LOGGER.debug(
+                "CDP headers were withheld from the advertised WebSocket endpoint because "
+                "its host or port differs, or forwarding would downgrade transport security. "
+                "If the handshake is rejected, check the gateway's advertised CDP endpoint."
+            )
+        socket = await _connect_web_socket(web_socket_debugger_url, headers=web_socket_headers)
         client = cls(socket, web_socket_debugger_url)
 
         try:
             resolved_extension_id = extension_id
-            if extension_dir is not None:
+            if local_extension_dir is not None:
+                resolved_extension_id = await client._resolve_extension(
+                    load_if_not_found=True, extension_dir=local_extension_dir
+                )
+            elif extension_dir is not None:
                 resolved_extension_id = await client._load_unpacked_extension(extension_dir)
-            if preloaded_extension:
-                resolved_extension_id = await client._discover_installed_stagehand_extension_id()
+            elif preloaded_extension:
+                resolved_extension_id = await client._resolve_extension(load_if_not_found=False)
             if resolved_extension_id is None:
                 raise RuntimeError("Stagehand extension ID was not resolved")
 
@@ -306,16 +346,103 @@ class CDPClient:
                 session_id=session_id,
             )
             await client._wait_for_runtime_receiver(session_id)
+            if close_browser_on_disconnect is not None:
+                await client._register_client(
+                    close_browser_on_disconnect,
+                    extension_cdp_url or web_socket_debugger_url,
+                )
             return client
         except BaseException:
             await asyncio.shield(client.close())
             raise
 
     @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
     def service_worker(self) -> ServiceWorkerInfo:
         if self._service_worker is None:
             raise RuntimeError("Stagehand service worker is not attached")
         return self._service_worker
+
+    async def _register_client(self, close_browser_on_disconnect: bool, cdp_url: str) -> None:
+        marker = await self.send_command(
+            "Target.createTarget",
+            {"url": _CLIENT_TARGET_URL, "hidden": True, "background": True},
+        )
+        target_id = _required_string(marker, "targetId", "Target.createTarget")
+        # Chrome accepts unknown parameters: a build without hidden targets opens an
+        # ordinary tab that outlives this connection and would never signal its loss.
+        info = await self.send_command("Target.getTargetInfo", {"targetId": target_id})
+        target_info = info.get("targetInfo")
+        if not isinstance(target_info, dict) or target_info.get("type") != "other":
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            raise RuntimeError(
+                "Stagehand requires Chrome 137 or later, which supports hidden targets"
+            )
+        if not await self._client_lifecycle_command({
+            "action": "attach",
+            "targetId": target_id,
+            "cdpUrl": cdp_url,
+            "closeBrowserOnDisconnect": close_browser_on_disconnect,
+        }):
+            # The protocol handshake already rejects older extensions; this one is
+            # inconsistent.
+            await self.send_command("Target.closeTarget", {"targetId": target_id})
+            raise RuntimeError(
+                "The Stagehand extension in this browser does not support the client "
+                "watchdog; update the extension"
+            )
+        self._client_target_id = target_id
+        self._client_close_browser_on_loss = close_browser_on_disconnect
+
+    async def detach_client(self) -> None:
+        """Acknowledge intentional detach before the socket/hidden target disappears."""
+        if self._client_target_id is None or self._closed:
+            return
+        try:
+            async with asyncio.timeout(10):
+                acknowledged = await self._client_lifecycle_command({
+                    "action": "detach",
+                    "targetId": self._client_target_id,
+                })
+        except CDPConnectionClosedError:
+            # Browserbase ends a keep_alive=False session once the extension closes its own
+            # connection, which closes this one before the acknowledgement arrives: the
+            # detach happened. A failure or timeout with this connection open still raises,
+            # and so does a lost connection when the extension shuts the browser down on
+            # loss: it may not have received the detach.
+            if self._client_close_browser_on_loss:
+                raise
+            acknowledged = True
+        if not acknowledged:
+            raise RuntimeError("The Stagehand extension did not acknowledge the detach")
+        self._client_target_id = None
+
+    async def _client_lifecycle_command(self, params: dict[str, object]) -> bool:
+        """Return False when the extension has no client lifecycle support."""
+        expression = (
+            "(async () => { "
+            'if (typeof globalThis.__stagehandClientLifecycle !== "function") return false; '
+            f"await globalThis.__stagehandClientLifecycle({json.dumps(params)}); "
+            "return true; })()"
+        )
+        result = await self.send_command(
+            "Runtime.evaluate",
+            {"expression": expression, "awaitPromise": True, "returnByValue": True},
+            session_id=self._session_id,
+        )
+        value = result.get("result")
+        if (
+            result.get("exceptionDetails")
+            or not isinstance(value, dict)
+            or not isinstance(value.get("value"), bool)
+        ):
+            raise RuntimeError(
+                f"Stagehand client lifecycle failed: {result.get('exceptionDetails')}"
+            )
+        return bool(value["value"])
 
     async def send(
         self,
@@ -383,7 +510,10 @@ class CDPClient:
             message["sessionId"] = session_id
 
         try:
-            await self._socket.send(json.dumps(message, separators=(",", ":")))
+            try:
+                await self._socket.send(json.dumps(message, separators=(",", ":")))
+            except ConnectionClosed as error:
+                raise CDPConnectionClosedError() from error
             result = await response
         except BaseException:
             if not response.done():
@@ -491,12 +621,41 @@ class CDPClient:
             if error.code == -32601 or "method not found" in str(error).lower():
                 raise RuntimeError(
                     "This Chrome build does not support Extensions.loadUnpacked. "
-                    "Launch with --load-extension and connect using extension_id instead."
+                    "Preload the Stagehand extension and connect using a Chrome build "
+                    "that supports Extensions.getExtensions."
                 ) from error
             raise
         return _required_string(loaded, "id", "Extensions.loadUnpacked")
 
-    async def _discover_installed_stagehand_extension_id(self) -> str:
+    async def _resolve_extension(
+        self,
+        *,
+        load_if_not_found: bool,
+        extension_dir: Callable[[], str] | None = None,
+    ) -> str:
+        extension_id: str | None = None
+        try:
+            extension_id = await self._get_installed_stagehand_extension_id()
+        except _CDPCommandError as error:
+            unsupported = error.method == "Extensions.getExtensions" and (
+                error.code == -32601
+                or "method not found" in str(error).lower()
+                or "wasn't found" in str(error).lower()
+            )
+            if not load_if_not_found or not unsupported:
+                raise
+        if extension_id is not None:
+            return extension_id
+        if load_if_not_found:
+            if extension_dir is None:
+                raise ValueError("extension_dir is required to load the Stagehand extension")
+            return await self._load_unpacked_extension(extension_dir())
+        raise RuntimeError(
+            "Stagehand extension is not installed in the connected browser. "
+            "The extension must be included when the Browserbase session is created."
+        )
+
+    async def _get_installed_stagehand_extension_id(self) -> str | None:
         response = await self.send_command("Extensions.getExtensions")
         installed = [
             extension
@@ -514,10 +673,7 @@ class CDPClient:
             raise RuntimeError(
                 "Stagehand extension is installed in the connected browser but is disabled."
             )
-        raise RuntimeError(
-            "Stagehand extension is not installed in the connected browser. "
-            "The extension must be included when the Browserbase session is created."
-        )
+        return None
 
     async def _wait_for_service_worker(
         self,
@@ -619,33 +775,103 @@ class CDPClient:
         task.add_done_callback(finish)
 
 
-async def _connect_web_socket(url: str) -> _WebSocket:
-    from websockets.asyncio.client import connect
+class _UnsafeCDPRedirectError(RuntimeError):
+    """A redirect would expose caller headers to an unauthorized endpoint."""
 
+
+_DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+
+
+def _can_forward_headers(source: str, destination: str) -> bool:
+    """Require the same host and effective port, without a TLS downgrade."""
+    try:
+        first, second = urlsplit(source), urlsplit(destination)
+        return (
+            first.scheme in _DEFAULT_PORTS
+            and second.scheme in _DEFAULT_PORTS
+            and first.hostname is not None
+            and first.hostname == second.hostname
+            and (first.port if first.port is not None else _DEFAULT_PORTS[first.scheme])
+            == (second.port if second.port is not None else _DEFAULT_PORTS[second.scheme])
+            and not (first.scheme in ("https", "wss") and second.scheme in ("http", "ws"))
+        )
+    except ValueError:
+        return False
+
+
+class _CDPRedirectHandler(HTTPRedirectHandler):
+    @override
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> Request | None:
+        if not _can_forward_headers(req.full_url, newurl):
+            raise _UnsafeCDPRedirectError(
+                "Refusing CDP HTTP redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _CDPWebSocketConnect(WebSocketConnect):
+    @override
+    def process_redirect(self, exc: Exception) -> Exception | str:
+        if (
+            self.additional_headers
+            and isinstance(exc, InvalidStatus)
+            and exc.response.status_code in (300, 301, 302, 303, 307, 308)
+            and "Location" in exc.response.headers
+            and not _can_forward_headers(
+                self.uri, urljoin(self.uri, exc.response.headers["Location"])
+            )
+        ):
+            return _UnsafeCDPRedirectError(
+                "Refusing CDP WebSocket redirect with headers to a different host or port, "
+                "or an insecure endpoint"
+            )
+        return super().process_redirect(exc)
+
+
+async def _connect_web_socket(url: str, *, headers: Mapping[str, str] | None = None) -> _WebSocket:
     return cast(
         _WebSocket,
-        await connect(url, open_timeout=None, max_size=None),
+        await _CDPWebSocketConnect(
+            url, open_timeout=None, max_size=None, additional_headers=headers
+        ),
     )
 
 
-async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
+async def _resolve_browser_web_socket_url(
+    cdp_url: str, *, headers: Mapping[str, str] | None = None
+) -> str:
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
 
     base_url = cdp_url.rstrip("/")
     while True:
         try:
-            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version")
+            version = await asyncio.to_thread(_read_json, f"{base_url}/json/version", headers)
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
+        except _UnsafeCDPRedirectError:
+            raise
+        except HTTPError as error:
+            error.close()
+            if error.code in (401, 403):
+                raise RuntimeError(
+                    f"CDP discovery was rejected with HTTP {error.code}. "
+                    "Check the gateway credentials and access permissions."
+                ) from None
         except Exception:
             pass
         await asyncio.sleep(0.25)
 
 
-def _read_json(url: str) -> dict[str, object]:
-    with urlopen(url, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
+def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    request = Request(url, headers=dict(headers or {}))
+    # Keep the existing redirect behavior for connections without caller headers.
+    open_url = build_opener(_CDPRedirectHandler()).open if headers else urlopen
+    with open_url(request, timeout=2) as response:
         value: Any = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")

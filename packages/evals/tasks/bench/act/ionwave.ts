@@ -4,12 +4,11 @@ export default defineBenchTask(
   { name: "ionwave" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/ionwave/");
 
       await stagehand.act('Click on "Closed Bids"');
 
-      const expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/closed-bids.html";
+      const expectedUrl = "https://stagehand-eval-sites.vercel.app/sites/ionwave/closed-bids.html";
       const currentUrl = await page.url();
 
       return {

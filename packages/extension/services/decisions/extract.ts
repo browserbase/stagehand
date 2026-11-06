@@ -667,7 +667,7 @@ type Step = { role: string; nth: number };
 function routeTo(nodes: OutlineNode[], item: Item, target: OutlineNode): Step[] | undefined {
   const tops = new Set(item.map((node) => node.index));
   const steps: Step[] = [];
-  for (let at: OutlineNode = target; ; ) {
+  for (let at: OutlineNode = target; ;) {
     if (tops.has(at.index)) {
       const sameRole = item.filter((node) => node.role === at.role);
       steps.unshift({ role: at.role, nth: sameRole.indexOf(at) });
