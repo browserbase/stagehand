@@ -4,11 +4,17 @@ import path from "node:path";
 import type { ModelReasoningEffort } from "@openai/codex-sdk";
 import { saveCodexDiagnostic } from "./diagnostics.js";
 import {
+  clip,
   HarnessAdapterError,
   harnessEventLogLevel,
-  sanitizeErrorMessage,
   type HarnessLogger,
+  isRecord,
+  positiveInteger,
+  sanitizeErrorMessage,
+  toFiniteNumber,
 } from "@browserbasehq/stagehand-integrations/harness";
+
+export { clip, isRecord, toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 
 export type CodexEvent = Record<string, unknown>;
 export type { ModelReasoningEffort } from "@openai/codex-sdk";
@@ -478,26 +484,6 @@ export function readCodexErrorMessage(value: unknown): string | undefined {
   return safeJson(value);
 }
 
-export function toFiniteNumber(value: unknown): number {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim()
-        ? Number(value)
-        : 0;
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function positiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.max(1, Math.floor(value))
-    : fallback;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 export function safeJson(value: unknown): string | undefined {
   try {
     return JSON.stringify(value, (key, item: unknown) => {
@@ -516,8 +502,4 @@ export function stringifyError(value: unknown): string {
   if (value instanceof Error) return value.message;
   if (typeof value === "string") return value;
   return safeJson(value) ?? String(value);
-}
-
-export function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
