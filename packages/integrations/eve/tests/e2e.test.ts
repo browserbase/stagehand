@@ -112,28 +112,23 @@ describe("eve 1.0 tool descriptions", () => {
 describe("browser E2E status", () => {
   const hasBrowserbaseKey = !!process.env.BROWSERBASE_API_KEY;
 
-  it("reports browser E2E blocker when credentials unavailable", () => {
-    if (!hasBrowserbaseKey) {
-      console.log("\n" + "=".repeat(60));
-      console.log("BROWSER E2E NOT EXECUTED - CREDENTIALS REQUIRED");
-      console.log("=".repeat(60));
-      console.log("\nThis extension requires Browserbase for browser operations.");
-      console.log("There is no local browser mode.\n");
-      console.log("Required credential: BROWSERBASE_API_KEY");
-      console.log(`  Current status: ${process.env.BROWSERBASE_API_KEY ? "SET" : "NOT SET"}\n`);
-      console.log("Optional credentials:");
-      console.log(
-        `  BROWSERBASE_PROJECT_ID: ${process.env.BROWSERBASE_PROJECT_ID ? "SET" : "NOT SET"}`,
-      );
-      console.log(
-        `  BROWSERBASE_API_URL: ${process.env.BROWSERBASE_API_URL ? "SET" : "NOT SET"}\n`,
-      );
-      console.log("Without BROWSERBASE_API_KEY, the following cannot be verified:");
-      console.log("  - run() code execution against real browser");
-      console.log("  - snapshot() accessibility tree capture");
-      console.log("  - screenshot() image capture");
-      console.log("=".repeat(60) + "\n");
-    }
-    expect(true).toBe(true);
-  });
+  /**
+   * Browser E2E requires BROWSERBASE_API_KEY.
+   * This extension uses browserbase.launch() and has no local browser mode.
+   *
+   * Without credentials, the following cannot be verified:
+   *   - run() code execution against real browser
+   *   - snapshot() accessibility tree capture
+   *   - screenshot() image capture
+   *
+   * To run browser E2E, set:
+   *   BROWSERBASE_API_KEY (required)
+   *   BROWSERBASE_PROJECT_ID (optional)
+   */
+  it.skipIf(!hasBrowserbaseKey)(
+    "browser E2E requires BROWSERBASE_API_KEY - skipped when not set",
+    () => {
+      expect(hasBrowserbaseKey).toBe(true);
+    },
+  );
 });
