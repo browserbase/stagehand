@@ -92,6 +92,22 @@ describe("Locator nth() method tests", () => {
     expect(text2).toBe("Click me");
   });
 
+  it("nth() selects one repeated text match", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(`data:text/html,${encodeURIComponent("<main id='root'></main>")}`);
+    await page.evaluate(() => {
+      document.querySelector("#root")!.innerHTML = Array.from(
+        { length: 50 },
+        (_, index) => `<div><button>Repeated label ${index}</button></div>`,
+      ).join("");
+    });
+
+    const matches = page.locator("text=Repeated label");
+    expect(await matches.count()).toBe(50);
+    expect(await matches.nth(2).innerText()).toBe("Repeated label 2");
+    expect(await matches.nth(49).innerText()).toBe("Repeated label 49");
+  });
+
   it("nth() with shadow DOM", async () => {
     const page = await firstPage(stagehand);
 

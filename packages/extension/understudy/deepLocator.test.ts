@@ -85,9 +85,7 @@ describe("locator resolution contexts", () => {
       vi.useFakeTimers();
       const { page, root, inner } = createFrames();
       const resolveFrame = vi.spyOn(FrameLocator.prototype, "resolveFrame");
-      const lookups = (["resolveCss", "resolveText", "resolveXPath"] as const).map((method) =>
-        vi.spyOn(FrameSelectorResolver.prototype, method),
-      );
+      const resolveAtIndex = vi.spyOn(FrameSelectorResolver.prototype, "resolveAtIndex");
       const delegate =
         kind === "frame locator"
           ? frameLocatorFromFrame(page, root, "#outer")
@@ -110,9 +108,8 @@ describe("locator resolution contexts", () => {
           nodeId: 1,
         });
         expect(resolveFrame.mock.calls).toEqual([[progress], [progress]]);
-        const calls = lookups.flatMap((lookup) => lookup.mock.calls);
-        expect(calls).toHaveLength(3);
-        expect(calls.every(([, , context]) => context === progress)).toBe(true);
+        expect(resolveAtIndex.mock.calls.map(([, index]) => index)).toEqual([0, 0, 1]);
+        expect(resolveAtIndex.mock.calls.every(([, , context]) => context === progress)).toBe(true);
         expect(progress.remainingMs()).toBe(100);
       });
       expect(vi.getTimerCount()).toBe(0);

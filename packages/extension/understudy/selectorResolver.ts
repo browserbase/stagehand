@@ -19,6 +19,12 @@ export interface ResolveManyOptions {
   limit?: number;
 }
 
+const selectorHelpers = {
+  css: "resolveCssSelector",
+  text: "resolveTextSelector",
+  xpath: "resolveXPathMainWorld",
+} as const;
+
 export class FrameSelectorResolver {
   constructor(
     readonly frame: Frame,
@@ -108,21 +114,16 @@ export class FrameSelectorResolver {
   ): Promise<ResolvedNode | null> {
     progress?.throwIfStopped();
     if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 }, progress);
-    const selected = results[index] ?? null;
-    if (progress) {
-      await this.releaseNodes(
-        results.filter((node) => node !== selected),
-        progress,
-      );
-      try {
-        progress.throwIfStopped();
-      } catch (error) {
-        if (selected) void this.releaseNodes([selected], progress);
-        throw error;
-      }
-    }
-    return selected;
+    const helper = selectorHelpers[query.kind];
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
+      this.frame.frameId,
+      1000,
+      progress,
+      this.readinessOptions,
+    );
+    const expression = buildLocatorInvocation(helper, [JSON.stringify(query.value), String(index)]);
+    return this.evaluateElement(expression, contextId, progress);
   }
 
   async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
