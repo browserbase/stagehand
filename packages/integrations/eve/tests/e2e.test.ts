@@ -1,14 +1,26 @@
 /**
- * End-to-end tests for the @browserbasehq/eve extension with eve 1.0 compatibility.
+ * Structural compatibility tests for the @browserbasehq/eve extension with eve 1.0.
  *
- * These tests validate:
- * 1. Extension loads and initializes correctly with eve 1.0.0-rc.x
- * 2. Tools are properly defined with correct schemas
- * 3. Extension manifest is correctly generated for eve 1.0
+ * IMPORTANT: These tests verify build/manifest/schema compatibility only.
+ * They do NOT verify that the native tools (run/snapshot/screenshot) work correctly
+ * with actual browser operations.
  *
- * Full browser E2E tests (run/snapshot/screenshot with real Browserbase sessions)
- * require BROWSERBASE_API_KEY. When that credential is unavailable, these tests
- * verify extension loading and tool structure without browser operations.
+ * Browser E2E Requirement:
+ * ========================
+ * Full browser E2E tests require BROWSERBASE_API_KEY. This extension uses
+ * browserbase.launch() from @browserbasehq/stagehand and has no local browser mode.
+ * Without BROWSERBASE_API_KEY, browser operations cannot be tested.
+ *
+ * What these tests verify:
+ * - Extension manifest is correctly generated for eve 1.0 (formatVersion 3)
+ * - Tool exports exist with correct structure
+ * - Input schemas have expected properties
+ *
+ * What these tests do NOT verify:
+ * - Tool execution against real browsers
+ * - run() code execution
+ * - snapshot() accessibility tree capture
+ * - screenshot() image capture
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -19,7 +31,7 @@ import snapshotTool from "../extension/tools/snapshot.js";
 
 const MANIFEST_PATH = new URL("../dist/extension/_manifest.json", import.meta.url);
 
-describe("eve 1.0 extension compatibility", () => {
+describe("eve 1.0 extension manifest compatibility", () => {
   it("builds with eve 1.0 manifest format", () => {
     const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
 
@@ -30,7 +42,9 @@ describe("eve 1.0 extension compatibility", () => {
     expect(manifest.build.externalDependencies).toContain("@browserbasehq/sdk");
     expect(manifest.build.externalDependencies).toContain("@browserbasehq/stagehand");
   });
+});
 
+describe("eve 1.0 tool structure (NOT execution)", () => {
   it("exports tools with valid eve 1.0 tool structure", () => {
     for (const tool of [runTool, screenshotTool, snapshotTool]) {
       expect(typeof tool.description).toBe("string");
@@ -40,7 +54,7 @@ describe("eve 1.0 extension compatibility", () => {
     }
   });
 
-  it("run tool accepts code or actions in input schema", () => {
+  it("run tool schema accepts code or actions", () => {
     const schema = runTool.inputSchema as {
       type: string;
       properties: Record<string, { type: string }>;
@@ -65,7 +79,7 @@ describe("eve 1.0 extension compatibility", () => {
     });
   });
 
-  it("snapshot tool accepts includeIframes option", () => {
+  it("snapshot tool schema accepts includeIframes option", () => {
     const schema = snapshotTool.inputSchema as {
       type: string;
       properties: Record<string, { type: string }>;
@@ -95,33 +109,27 @@ describe("eve 1.0 tool descriptions", () => {
   });
 });
 
-describe("eve 1.0 browser E2E", () => {
+describe("browser E2E status", () => {
   const hasBrowserbaseKey = !!process.env.BROWSERBASE_API_KEY;
 
-  it.skipIf(!hasBrowserbaseKey)(
-    "requires BROWSERBASE_API_KEY for full browser E2E tests",
-    () => {
-      expect(process.env.BROWSERBASE_API_KEY).toBeDefined();
-    },
-  );
-
-  it("documents required credentials for full E2E testing", () => {
-    const requiredCredentials = ["BROWSERBASE_API_KEY"];
-    const optionalCredentials = ["BROWSERBASE_PROJECT_ID", "BROWSERBASE_API_URL"];
-
+  it("reports browser E2E blocker when credentials unavailable", () => {
     if (!hasBrowserbaseKey) {
-      console.log("\n=== Browser E2E Test Credentials ===");
-      console.log("Required for full E2E testing:");
-      for (const cred of requiredCredentials) {
-        console.log(`  - ${cred}: ${process.env[cred] ? "SET" : "NOT SET"}`);
-      }
-      console.log("Optional:");
-      for (const cred of optionalCredentials) {
-        console.log(`  - ${cred}: ${process.env[cred] ? "SET" : "NOT SET"}`);
-      }
-      console.log("===================================\n");
+      console.log("\n" + "=".repeat(60));
+      console.log("BROWSER E2E NOT EXECUTED - CREDENTIALS REQUIRED");
+      console.log("=".repeat(60));
+      console.log("\nThis extension requires Browserbase for browser operations.");
+      console.log("There is no local browser mode.\n");
+      console.log("Required credential: BROWSERBASE_API_KEY");
+      console.log(`  Current status: ${process.env.BROWSERBASE_API_KEY ? "SET" : "NOT SET"}\n`);
+      console.log("Optional credentials:");
+      console.log(`  BROWSERBASE_PROJECT_ID: ${process.env.BROWSERBASE_PROJECT_ID ? "SET" : "NOT SET"}`);
+      console.log(`  BROWSERBASE_API_URL: ${process.env.BROWSERBASE_API_URL ? "SET" : "NOT SET"}\n`);
+      console.log("Without BROWSERBASE_API_KEY, the following cannot be verified:");
+      console.log("  - run() code execution against real browser");
+      console.log("  - snapshot() accessibility tree capture");
+      console.log("  - screenshot() image capture");
+      console.log("=".repeat(60) + "\n");
     }
-
-    expect(requiredCredentials).toHaveLength(1);
+    expect(true).toBe(true);
   });
 });
