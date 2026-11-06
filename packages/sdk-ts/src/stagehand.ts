@@ -371,7 +371,7 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
 /**
  * The experimental decisions path is switched on from the environment, as JSON
  * (`{"apiKey":"…"}`), so it never becomes a field of the public create config
- * that the Python and Go SDKs would have to mirror.
+ * that the Python SDK would have to mirror.
  */
 function experimentalDecisionsFromEnv(): unknown {
   const raw =
