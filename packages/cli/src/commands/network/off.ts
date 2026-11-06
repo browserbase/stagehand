@@ -1,17 +1,10 @@
 import { BrowseCommand } from "../../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../../lib/driver/command-cli.js";
 
 export default class NetworkOff extends BrowseCommand {
-  static override description =
-    "Disable network capture for the active browser session.";
+  static override description = "Disable network capture for the active browser session.";
 
-  static override examples = [
-    "browse network off",
-    "browse network off --session research",
-  ];
+  static override examples = ["browse network off", "browse network off --session research"];
 
   static override flags = {
     ...driverCommandFlags,

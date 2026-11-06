@@ -1,15 +1,32 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { type Stagehand } from "@browserbasehq/stagehand";
+import { CDPConnectionClosedError, type Stagehand } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  BROWSER_SESSION_LOST_ERROR_PREFIX,
+  DEFAULT_ARTIFACT_DIRECTORY,
+  SCREENSHOT_ARTIFACT_CONTENT_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
+  SCREENSHOT_ARTIFACT_PATH_ERROR,
+  SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_TYPE_ERROR,
+  screenshotArtifactWriteError,
+  staleSnapshotIdError,
+  type FacadeSessionLoss,
+} from "../src/facade/contract.js";
+import {
+  StagehandFacadeInputError,
+  StagehandFacadeSessionLostError,
   StagehandFacadeCleanupError,
   StagehandFacadeTools,
   type StagehandFacadeRunReport,
 } from "../src/facade/tools.js";
 
 type FakePage = ReturnType<typeof createFakePage>;
+
+const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 type FakeRawLocator = {
   selector: string;
@@ -104,7 +121,7 @@ function createFakePage(initialUrl = "about:blank", world: FakeFrameWorld = crea
       }
       return undefined;
     }),
-    screenshot: vi.fn(async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47])),
+    screenshot: vi.fn(async () => Uint8Array.from(PNG_BYTES)),
     close: vi.fn(async () => undefined),
     on: vi.fn(async () => ({ unsubscribe: async () => undefined })),
     onCDP: vi.fn(async () => ({ unsubscribe: async () => undefined })),
@@ -191,6 +208,51 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(reports[0].batchRoundTripMs).toBeGreaterThanOrEqual(reports[0].batchRuntimeMs);
   });
 
+  it("sends quietWait in the run input only when the host turns it on", async () => {
+    const run = async (quietWait: boolean | undefined) => {
+      const fakePage = createFakePage();
+      const probe = vi.fn(async () => ({ readyState: "complete", quietMs: 1_000 }));
+      const page = Object.assign(fakePage, {
+        waitForFunction: vi.fn(async () => probe()),
+      });
+      const { stagehand, experimentalBatch } = createFakeStagehand(page);
+      const reports: StagehandFacadeRunReport[] = [];
+      const tools = new StagehandFacadeTools(stagehand, {
+        onRunReport: (r) => reports.push(r),
+        ...(quietWait !== undefined && { quietWait }),
+      });
+      await tools.run(`await page.waitForTimeout(5000); return null;`);
+      return { input: experimentalBatch.mock.calls[0][1], page, probe, report: reports[0] };
+    };
+
+    for (const quietWait of [undefined, false]) {
+      const off = await run(quietWait);
+      expect(off.input).toStrictEqual({ hiddenPageIds: ["keeper-page"] });
+      expect(off.page.waitForTimeout.mock.calls).toStrictEqual([[5_000]]);
+      expect(off.probe).not.toHaveBeenCalled();
+      expect(off.report.quietWait).toBe(false);
+      expect(off.report.telemetry.waits).toStrictEqual({
+        count: 1,
+        requestedMs: 5_000,
+        waitedMs: 5_000,
+        earlyReturns: 0,
+      });
+    }
+
+    const on = await run(true);
+    expect(on.input).toStrictEqual({ hiddenPageIds: ["keeper-page"], quietWait: true });
+    expect(on.page.waitForTimeout).not.toHaveBeenCalled();
+    expect(on.probe).toHaveBeenCalledOnce();
+    expect(on.report.quietWait).toBe(true);
+    expect(on.report.telemetry.calls["page.waitForTimeout"]).toBe(1);
+    expect(on.report.telemetry.waits).toMatchObject({
+      count: 1,
+      requestedMs: 5_000,
+      earlyReturns: 1,
+    });
+    expect(on.report.telemetry.waits.waitedMs).toBeLessThan(5_000);
+  });
+
   it("does not expose Stagehand AI methods or the raw client to the snippet", async () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     const tools = new StagehandFacadeTools(stagehand);
@@ -223,8 +285,254 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     await tools.run(`await page.screenshot({ path: "shots/first.png" }); return "ok";`);
 
     const written = await fsp.readFile(path.join(artifactRoot, "shots", "first.png"));
-    expect([...written]).toStrictEqual([0x89, 0x50, 0x4e, 0x47]);
+    expect([...written]).toStrictEqual(PNG_BYTES);
     expect(page.screenshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a non-image screenshot path before capturing", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await expect(
+      tools.run(`await page.screenshot({ path: "x.test.js", type: "png" });`),
+    ).rejects.toThrow("page.screenshot: path must end in .png, .jpg or .jpeg");
+    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(await fsp.readdir(artifactRoot)).toEqual([]);
+  });
+
+  it("saves image paths with any-case extensions through page.screenshot", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await tools.run(
+      `await page.screenshot({ path: "shots/a.JPEG" }); await page.screenshot({ path: "b.jpg" });`,
+    );
+
+    expect(page.screenshot).toHaveBeenCalledTimes(2);
+    expect(page.screenshot).toHaveBeenCalledWith({ type: "jpeg" });
+    expect((await fsp.readdir(artifactRoot)).sort()).toEqual(["b.jpg", "shots"]);
+    expect(await fsp.readdir(path.join(artifactRoot, "shots"))).toEqual(["a.JPEG"]);
+  });
+
+  it("writes nothing, not even the root, when any artifact is rejected", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const parent = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(parent);
+    const artifactRoot = path.join(parent, "artifacts");
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const png = Buffer.from(PNG_BYTES).toString("base64");
+    const text = Buffer.from("text").toString("base64");
+    for (const [rejected, message] of [
+      [{ path: "../x.png", base64: png }, SCREENSHOT_ARTIFACT_PATH_ERROR],
+      [{ path: "x.txt", base64: png }, SCREENSHOT_ARTIFACT_TYPE_ERROR],
+      [{ path: "x.png", base64: text }, SCREENSHOT_ARTIFACT_CONTENT_ERROR],
+    ] as const) {
+      const artifacts = JSON.stringify([{ path: "shots/ok.png", base64: png }, rejected]);
+      await expect(
+        tools.run(`runtime.artifacts = () => ${artifacts}; return "ok";`),
+      ).rejects.toThrow(message);
+      expect(await fsp.readdir(parent)).toEqual([]);
+    }
+  });
+
+  it("writes only PNG or JPEG files, whatever artifacts run code hands back", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const png = Buffer.from(PNG_BYTES).toString("base64");
+    const script = Buffer.from("require('child_process').execSync('id');").toString("base64");
+    for (const [artifactPath, base64, message] of [
+      [".git/config", png, SCREENSHOT_ARTIFACT_TYPE_ERROR],
+      ["x.test.js", png, SCREENSHOT_ARTIFACT_TYPE_ERROR],
+      ["x.png", script, SCREENSHOT_ARTIFACT_CONTENT_ERROR],
+      ["x.png\0.js", png, SCREENSHOT_ARTIFACT_PATH_ERROR],
+    ] as const) {
+      const artifacts = JSON.stringify([{ path: artifactPath, base64 }]);
+      await expect(
+        tools.run(`runtime.artifacts = () => ${artifacts}; return "ok";`),
+      ).rejects.toThrow(message);
+      expect(await fsp.readdir(artifactRoot)).toEqual([]);
+    }
+  });
+
+  it("rejects a directory at the artifact path", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    await fsp.mkdir(path.join(artifactRoot, "dir.png"));
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await expect(tools.run(`await page.screenshot({ path: "dir.png" });`)).rejects.toThrow(
+      SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
+    );
+    expect(await fsp.readdir(artifactRoot)).toEqual(["dir.png"]);
+  });
+
+  it("replaces an existing artifact file keeping its permissions, and writes new ones owner-only", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const target = path.join(artifactRoot, "shot.png");
+    await fsp.writeFile(target, "old");
+    await fsp.chmod(target, 0o644);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await tools.run(
+      `await page.screenshot({ path: "shot.png" }); await page.screenshot({ path: "new.png" });`,
+    );
+
+    expect([...(await fsp.readFile(target))]).toStrictEqual(PNG_BYTES);
+    expect((await fsp.stat(target)).mode & 0o777).toBe(0o644);
+    expect((await fsp.stat(path.join(artifactRoot, "new.png"))).mode & 0o777).toBe(0o600);
+    expect((await fsp.readdir(artifactRoot)).sort()).toEqual(["new.png", "shot.png"]);
+  });
+
+  it("still replaces an existing artifact when its permissions cannot be copied", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const target = path.join(artifactRoot, "shot.png");
+    await fsp.writeFile(target, "old");
+    const handle = await fsp.open(target);
+    const fileHandle = Object.getPrototypeOf(handle) as { chmod: (mode: number) => Promise<void> };
+    await handle.close();
+    const chmod = vi
+      .spyOn(fileHandle, "chmod")
+      .mockRejectedValueOnce(Object.assign(new Error("EPERM"), { code: "EPERM" }));
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    try {
+      await tools.run(`await page.screenshot({ path: "shot.png" });`);
+      expect(chmod).toHaveBeenCalledTimes(1);
+    } finally {
+      chmod.mockRestore();
+    }
+
+    expect([...(await fsp.readFile(target))]).toStrictEqual(PNG_BYTES);
+    expect(await fsp.readdir(artifactRoot)).toEqual(["shot.png"]);
+  });
+
+  it("keeps a colon in an artifact name, as in a timestamp", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await tools.run(`await page.screenshot({ path: "shot-2026-10-29T22:57:48.609Z.png" });`);
+
+    expect(await fsp.readdir(artifactRoot)).toEqual(["shot-2026-10-29T22:57:48.609Z.png"]);
+  });
+
+  it("rejects a file on the way to an artifact", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    await fsp.writeFile(path.join(artifactRoot, "a"), "keep");
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+
+    await expect(tools.run(`await page.screenshot({ path: "a/x.png" });`)).rejects.toThrow(
+      SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+    );
+    expect(await fsp.readFile(path.join(artifactRoot, "a"), "utf8")).toBe("keep");
+  });
+
+  it("rejects an overlong path component before creating any directory", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const requestedPath = `${"d".repeat(200)}/${"d".repeat(256)}/x.png`;
+
+    await expect(
+      tools.run(`await page.screenshot({ path: ${JSON.stringify(requestedPath)} });`),
+    ).rejects.toThrow(screenshotArtifactWriteError("ENAMETOOLONG"));
+    expect(await fsp.readdir(artifactRoot)).toEqual([]);
+  });
+
+  it("reports a filesystem error by its code, without host paths", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const failure = Object.assign(
+      new Error(`EACCES: permission denied, rename '${artifactRoot}/shot.png'`),
+      { code: "EACCES" },
+    );
+    const rename = vi.spyOn(fsp, "rename").mockRejectedValueOnce(failure);
+    let message = "";
+    try {
+      await tools.run(`await page.screenshot({ path: "shot.png" });`).catch((error: Error) => {
+        message = error.message;
+      });
+    } finally {
+      rename.mockRestore();
+    }
+    expect(message).toBe(screenshotArtifactWriteError("EACCES"));
+    expect(await fsp.readdir(artifactRoot)).toEqual([]);
+  });
+
+  it("removes the temporary file when the rename fails", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    tempDirs.push(artifactRoot);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const rename = vi.spyOn(fsp, "rename").mockRejectedValueOnce(new Error("rename failed"));
+    try {
+      await expect(tools.run(`await page.screenshot({ path: "shot.png" });`)).rejects.toThrow(
+        "rename failed",
+      );
+    } finally {
+      rename.mockRestore();
+    }
+    expect(await fsp.readdir(artifactRoot)).toEqual([]);
+  });
+
+  it("writes artifacts under DEFAULT_ARTIFACT_DIRECTORY when no root is set", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-cwd-"));
+    tempDirs.push(cwd);
+    const spy = vi.spyOn(process, "cwd").mockReturnValue(cwd);
+    try {
+      const tools = new StagehandFacadeTools(stagehand);
+      await tools.run(`await page.screenshot({ path: "shots/first.png" });`);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(DEFAULT_ARTIFACT_DIRECTORY).toBe("stagehand-artifacts");
+    expect(await fsp.readdir(cwd)).toEqual([DEFAULT_ARTIFACT_DIRECTORY]);
+    const written = await fsp.readFile(
+      path.join(cwd, DEFAULT_ARTIFACT_DIRECTORY, "shots", "first.png"),
+    );
+    expect([...written]).toStrictEqual(PNG_BYTES);
+  });
+
+  it("refuses a symlink as the default artifact directory but follows a configured one", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-cwd-"));
+    tempDirs.push(cwd);
+    const elsewhere = path.join(cwd, "elsewhere");
+    await fsp.mkdir(elsewhere);
+    const linked = path.join(cwd, DEFAULT_ARTIFACT_DIRECTORY);
+    await fsp.symlink(elsewhere, linked);
+    const spy = vi.spyOn(process, "cwd").mockReturnValue(cwd);
+    try {
+      await expect(
+        new StagehandFacadeTools(stagehand).run(`await page.screenshot({ path: "x.png" });`),
+      ).rejects.toThrow(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
+      expect(await fsp.readdir(elsewhere)).toEqual([]);
+      await new StagehandFacadeTools(stagehand, { artifactRoot: linked }).run(
+        `await page.screenshot({ path: "x.png" });`,
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await fsp.readdir(elsewhere)).toEqual(["x.png"]);
   });
 
   it("reports browser.close() without closing the page inside the batch", async () => {
@@ -294,7 +602,7 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     },
   );
 
-  it("confines artifacts across traversal, absolute paths, and symlinks", async () => {
+  it("confines artifacts across traversal, absolute paths, symlinks, and hard links", async () => {
     const root = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-paths-"));
     tempDirs.push(root);
     const artifactRoot = path.join(root, "artifacts");
@@ -312,11 +620,19 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
       path.join(outside, "absolute.png"),
       "linked-directory/created/sub.png",
       "linked-file.png",
+      "name.txt",
     ]) {
       await expect(
         tools.run(`await page.screenshot({ path: ${JSON.stringify(requestedPath)} });`),
       ).rejects.toThrow();
     }
+    // A hard link at the artifact path is replaced; the other link keeps its contents.
+    const hardLink = path.join(artifactRoot, "linked-hard.png");
+    await fsp.link(existing, hardLink);
+    await tools.run(`await page.screenshot({ path: "linked-hard.png" });`);
+    expect([...(await fsp.readFile(hardLink))]).toStrictEqual(PNG_BYTES);
+    expect((await fsp.stat(existing)).nlink).toBe(1);
+    expect((await fsp.readdir(artifactRoot)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
     expect(await fsp.readdir(outside)).toEqual(["existing.png"]);
     expect(await fsp.readFile(existing, "utf8")).toBe("preserve");
     expect(await fsp.readdir(root)).toEqual(["artifacts", "outside"]);
@@ -358,6 +674,46 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
 });
 
 describe("StagehandFacadeTools keeper tab", () => {
+  it("exposes stable read-only IDs for visible pages across callback batches", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    const readIds = `return {
+      active: page.pageId,
+      visible: context.pages().map(candidate => candidate.pageId),
+      writable: Reflect.set(page, "pageId", "replacement"),
+      afterWrite: page.pageId,
+    };`;
+    const expected = {
+      active: "page-1",
+      visible: ["page-1"],
+      writable: false,
+      afterWrite: "page-1",
+    };
+
+    await expect(tools.run(readIds)).resolves.toEqual(expected);
+    await expect(tools.run(readIds)).resolves.toEqual(expected);
+  });
+
+  it("selects and closes visible pages by ID without exposing the keeper", async () => {
+    const page = createFakePage();
+    const { stagehand, context, keeper } = createFakeStagehand(page);
+    const second = { ...createFakePage(), pageId: "page-2" };
+    context.pages.mockResolvedValue([page, keeper, second]);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(
+      tools.run(`
+        const target = context.pages().find(candidate => candidate.pageId === "page-2");
+        await target.bringToFront();
+        await target.close();
+        return context.pages().map(candidate => candidate.pageId);
+      `),
+    ).resolves.toEqual(["page-1"]);
+    expect(context.setActivePage).toHaveBeenLastCalledWith(second);
+    expect(second.close).toHaveBeenCalledOnce();
+    expect(keeper.close).not.toHaveBeenCalled();
+  });
+
   it("opens a hidden about:blank keeper once and hands focus back to the agent's page", async () => {
     const page = createFakePage("https://example.com");
     const { stagehand, context, keeper } = createFakeStagehand(page);
@@ -417,6 +773,362 @@ describe("StagehandFacadeTools keeper tab", () => {
     expect(context.newPage).not.toHaveBeenCalled();
   });
 });
+
+describe("StagehandFacadeTools session loss", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function batchTimeoutError() {
+    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
+    error.name = "StagehandBatchTimeoutError";
+    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
+    return error;
+  }
+
+  it("turns a batch client deadline into the terminal error and stays dead", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    const losses: FacadeSessionLoss[] = [];
+    const tools = new StagehandFacadeTools(stagehand, {
+      onSessionLost: (loss) => losses.push(loss),
+    });
+
+    const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
+    await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    await expect(first).rejects.toThrow(
+      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
+    );
+    expect(losses).toEqual([
+      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
+    ]);
+    expect(tools.sessionLoss).toBe(losses[0]);
+
+    // Every later call gets the same terminal answer without touching the browser.
+    const callsBefore = context.activePage.mock.calls.length;
+    await expect(tools.snapshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.run("return 1;")).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.screenshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    expect(context.activePage.mock.calls.length).toBe(callsBefore);
+    expect(experimentalBatch).toHaveBeenCalledTimes(1);
+    expect(losses).toHaveLength(1);
+  });
+
+  it("treats a closed RPC/CDP transport as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, context } = createFakeStagehand(page);
+    context.activePage.mockRejectedValueOnce(new Error("RPC client is closed"));
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.snapshot()).rejects.toThrow("Browser session lost (RPC client closed).");
+    expect(tools.sessionLoss?.tool).toBe("snapshot");
+  });
+
+  it("preserves socket diagnostics when a CDP error arrives before close", async () => {
+    // The SDK error-before-close path wraps the socket failure as cause,
+    // without a close code in the outer message.
+    const error = new CDPConnectionClosedError({
+      cause: new TypeError("WebSocket failed", {
+        cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }),
+      }),
+    });
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    const cause =
+      "CDP connection closed; caused by TypeError: WebSocket failed; caused by Error [UND_ERR_SOCKET]: other side closed";
+
+    await expect(tools.snapshot()).rejects.toThrow(cause);
+    await expect(tools.snapshot()).rejects.toThrow(cause);
+    expect(tools.sessionLoss?.cause).toBe(cause);
+    expect(onSessionLost).toHaveBeenCalledOnce();
+    expect(context.activePage).toHaveBeenCalledOnce();
+  });
+
+  it("redacts credentials in CDP close reasons and nested socket causes before emitting loss", async () => {
+    const socketError = new TypeError(
+      "wss://browser.example/session?signingKey=url-secret&apiKey=api-secret&token=token-secret " +
+        "sk-abcdef1234567890 bb_live_abcd1234567890 Bearer bearer-secret-value",
+    );
+    const error = new CDPConnectionClosedError({
+      code: 1006,
+      reason: "https://browser.example/?key=reason-secret",
+      cause: socketError,
+    });
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+
+    const failure = await tools.snapshot().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(StagehandFacadeSessionLostError);
+    const output = JSON.stringify({
+      message: (failure as Error).message,
+      loss: tools.sessionLoss,
+      callback: onSessionLost.mock.calls,
+    });
+    for (const secret of [
+      "url-secret",
+      "api-secret",
+      "token-secret",
+      "reason-secret",
+      "sk-abcdef1234567890",
+      "bb_live_abcd1234567890",
+      "bearer-secret-value",
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(tools.sessionLoss?.cause).toContain("close code 1006");
+    expect(tools.sessionLoss?.cause).toContain(
+      "caused by TypeError: wss://browser.example/session",
+    );
+    expect(tools.sessionLoss?.cause).toContain(
+      "signingKey=[redacted]&apiKey=[redacted]&token=[redacted]",
+    );
+  });
+
+  it("handles empty and cyclic CDP causes without losing the error type", async () => {
+    const socketError = new TypeError();
+    const error = new CDPConnectionClosedError({ cause: socketError });
+    socketError.cause = error;
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.snapshot()).rejects.toThrow("CDP connection closed; caused by TypeError");
+    expect(tools.sessionLoss?.cause).toBe("CDP connection closed; caused by TypeError");
+  });
+
+  it("does not treat an executor-side batch timeout or agent code errors as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(
+      new Error("Stagehand callback batch timed out after 60000ms"),
+    );
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.run("return 1;")).rejects.toThrow("callback batch timed out");
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("throw new Error('RPC client is closed');")).rejects.toThrow(
+      "RPC client is closed",
+    );
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("return 2;")).resolves.toBe(2);
+  });
+
+  it("disables the snapshot's own timeout so the capture deadline owns the wait", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    // page.snapshot defaults to 20s; a timeout it raised itself would not be a
+    // capture deadline and would never count toward terminal session loss.
+    expect(page.snapshot).toHaveBeenLastCalledWith({ includeIframes: true, timeout: 0 });
+  });
+
+  it("resets capture timeout count after a successful operation", async () => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    page.snapshot.mockImplementation(() => new Promise(() => undefined));
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    const timeout = async () => {
+      const rejection = expect(tools.snapshot()).rejects.toThrow("received no response");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejection;
+    };
+    await timeout();
+    await timeout();
+    await expect(tools.run("return 1;")).resolves.toBe(1);
+    await timeout();
+    await timeout();
+    expect(tools.sessionLoss).toBeUndefined();
+  });
+
+  it("ignores a late timed-out snapshot after newer IDs have been installed", async () => {
+    vi.useFakeTimers();
+    const world = createFakeWorld();
+    const page = createFakePage("https://example.com", world);
+    let resolveLate!: (value: { formattedTree: string; xpathMap: Record<string, string> }) => void;
+    page.snapshot.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLate = resolve;
+        }),
+    );
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    const rejection = expect(tools.snapshot()).rejects.toThrow("received no response");
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejection;
+    world.snapshot = { formattedTree: "new", xpathMap: { "0-2": "/new/button" } };
+    await expect(tools.snapshot()).resolves.toBe("new");
+    resolveLate({ formattedTree: "old", xpathMap: { "0-1": "/old/button" } });
+    await Promise.resolve();
+    await expect(tools.runActions([{ op: "click", id: "0-2" }])).resolves.toMatchObject({
+      completed: 1,
+    });
+    expect(page.locator).toHaveBeenLastCalledWith("xpath=/new/button");
+    await expect(tools.runActions([{ op: "click", id: "0-1" }])).rejects.toThrow();
+  });
+
+  it("latches terminal loss once and never dispatches work already queued behind it", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    const outcomes = await Promise.allSettled([
+      tools.run("return 1;"),
+      tools.snapshot(),
+      tools.screenshot(),
+      tools.run("return 2;"),
+    ]);
+    expect(
+      outcomes.every(
+        (result) =>
+          result.status === "rejected" && result.reason instanceof StagehandFacadeSessionLostError,
+      ),
+    ).toBe(true);
+    expect(onSessionLost).toHaveBeenCalledOnce();
+    expect(experimentalBatch).toHaveBeenCalledOnce();
+    expect(page.snapshot).not.toHaveBeenCalled();
+    expect(page.screenshot).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["transport", "throws"],
+    ["transport", "rejects"],
+    ["capture deadlines", "throws"],
+    ["capture deadlines", "rejects"],
+  ])("preserves terminal %s loss when its observer %s", async (failure, observer) => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    const onSessionLost = vi.fn(() => {
+      const error = new Error("diagnostic observer failed");
+      if (observer === "throws") throw error;
+      return Promise.reject(error);
+    });
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    if (failure === "transport") {
+      experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    } else {
+      page.snapshot.mockImplementation(() => new Promise(() => undefined));
+      for (let count = 0; count < 2; count++) {
+        const rejection = expect(tools.snapshot()).rejects.toThrow(
+          "page.snapshot received no response",
+        );
+        await vi.advanceTimersByTimeAsync(120_000);
+        await rejection;
+      }
+    }
+    const pending = failure === "transport" ? tools.run("return 1;") : tools.snapshot();
+    const outcome = pending.catch((error: unknown) => error);
+    if (failure !== "transport") await vi.advanceTimersByTimeAsync(120_000);
+    expect(await outcome).toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(tools.sessionLoss).toBeDefined();
+    const calls = context.activePage.mock.calls.length;
+    await expect(tools.screenshot()).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(context.activePage.mock.calls.length).toBe(calls);
+    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(onSessionLost).toHaveBeenCalledOnce();
+  });
+
+  it("does not replay successful actions when a later action fails", async () => {
+    const world = createFakeWorld();
+    world.snapshot = { formattedTree: "actions", xpathMap: { "0-1": "/first", "0-2": "/second" } };
+    world.clickErrors["xpath=/second"] = new Error("Node does not have a layout object");
+    const page = createFakePage("https://example.com", world);
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(
+      tools.runActions([
+        { op: "click", id: "0-1" },
+        { op: "click", id: "0-2" },
+      ]),
+    ).rejects.toThrow("layout object");
+    expect(experimentalBatch).toHaveBeenCalledOnce();
+    expect(world.locators.filter((locator) => locator.selector === "xpath=/first")).toHaveLength(1);
+    expect(world.locators[0]?.click).toHaveBeenCalledOnce();
+    expect(page.waitForTimeout).not.toHaveBeenCalled();
+  });
+
+  it("resolves bare backend ids and text nodes to their element XPath", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-7": "/html[1]/body[1]/a[1]", "1-9": "/html[1]/body[1]/p[1]/text()[2]" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(
+      tools.runActions([
+        { op: "click", id: "7" },
+        { op: "hover", id: "1-9" },
+      ]),
+    ).resolves.toStrictEqual({ completed: 2, url: "https://example.com" });
+    expect(world.locators.map((locator) => locator.selector)).toStrictEqual([
+      "xpath=/html[1]/body[1]/a[1]",
+      "xpath=/html[1]/body[1]/p[1]",
+    ]);
+  });
+
+  it.each([
+    ["an unknown id", "0-3"],
+    ["an ambiguous bare backend id", "7"],
+    ["a bare id containing a dash", "x-7"],
+  ])("rejects %s as stale before running any action", async (_case, id) => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "actions",
+      xpathMap: { "0-1": "/first", "0-7": "/a", "1-7": "/b" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    const error = await tools
+      .runActions([
+        { op: "click", id: "0-1" },
+        { op: "click", id },
+      ])
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(StagehandFacadeInputError);
+    expect((error as Error).message).toBe(staleSnapshotIdError(id));
+    expect(world.locators).toHaveLength(0);
+  });
+
+  it("treats a single capture deadline as recoverable, escalating to session loss only after repeated consecutive timeouts", async () => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    page.snapshot.mockImplementation(() => new Promise(() => undefined));
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    for (let i = 0; i < 2; i++) {
+      const pending = tools.snapshot();
+      const rejection = expect(pending).rejects.toThrow(
+        "page.snapshot received no response within 120000ms",
+      );
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejection;
+      expect(tools.sessionLoss).toBeUndefined();
+    }
+
+    const pending = tools.snapshot();
+    const rejection = expect(pending).rejects.toThrow("Browser session lost");
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejection;
+    expect(tools.sessionLoss?.cause).toContain("consecutive capture timeouts");
+  });
+});
+
 describe("StagehandFacadeTools.run frameLocator", () => {
   function setup(world = createFakeWorld()) {
     const page = createFakePage("https://imgur.com/memegen", world);

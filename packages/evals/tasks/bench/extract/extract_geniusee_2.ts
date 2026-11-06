@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_geniusee_2" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/geniusee/");
       // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]");
       const { data: scalability } = await stagehand.extract(

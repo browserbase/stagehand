@@ -3,6 +3,7 @@ import json
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Self, cast
+from urllib.request import Request
 
 import pytest
 
@@ -11,6 +12,7 @@ from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
+    CDPConnectionClosedError,
     ServiceWorkerInfo,
     StagehandRuntimeIncompatibleError,
 )
@@ -111,10 +113,10 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -171,10 +173,10 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -424,7 +426,7 @@ def test_json_version_probe_uses_a_short_socket_timeout(
         def __exit__(self, *_: object) -> None:
             return None
 
-    def open_url(_: str, *, timeout: object = None) -> Response:
+    def open_url(_: object, *, timeout: object = None) -> Response:
         nonlocal observed_timeout
         observed_timeout = timeout
         return Response()
@@ -438,16 +440,75 @@ def test_json_version_probe_uses_a_short_socket_timeout(
     assert observed_timeout == 2
 
 
+def test_json_version_probe_sends_the_callers_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: dict[str, str] = {}
+
+    class Response:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def open_url(request: Request, *, timeout: object = None) -> Response:
+        sent.update(request.header_items())
+        return Response()
+
+    monkeypatch.setattr(cdp_client, "build_opener", lambda *_: SimpleNamespace(open=open_url))
+    monkeypatch.setattr(cdp_client.json, "load", lambda _: {"webSocketDebuggerUrl": "wss://gw"})
+
+    cdp_client._read_json("https://gw/cdp/json/version", {"X-Api-Key": "secret"})
+    assert sent == {"X-api-key": "secret"}
+
+
+@pytest.mark.asyncio
+async def test_resolve_sends_headers_to_the_version_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[str, object]] = []
+
+    def read(url: str, headers: object = None) -> dict[str, object]:
+        seen.append((url, headers))
+        return {"webSocketDebuggerUrl": "wss://gw/devtools/browser/1"}
+
+    monkeypatch.setattr(cdp_client, "_read_json", read)
+
+    url = await cdp_client._resolve_browser_web_socket_url(
+        "https://gw/cdp", headers={"X-Api-Key": "secret"}
+    )
+    assert url == "wss://gw/devtools/browser/1"
+    assert seen == [("https://gw/cdp/json/version", {"X-Api-Key": "secret"})]
+
+
+@pytest.mark.parametrize(
+    ("cdp_url", "web_socket_url", "same"),
+    [
+        ("https://gw/cdp", "wss://gw/devtools/browser/1", True),
+        ("https://gw:443/cdp", "wss://gw/devtools/browser/1", True),
+        ("http://127.0.0.1:9222", "ws://127.0.0.1:9222/devtools/browser/1", True),
+        ("wss://gw/devtools/browser/1", "wss://gw/devtools/browser/1", True),
+        ("https://gw/cdp", "wss://elsewhere/devtools/browser/1", False),
+        ("https://gw/cdp", "wss://gw:8443/devtools/browser/1", False),
+    ],
+)
+def test_headers_follow_only_to_the_same_host(
+    cdp_url: str, web_socket_url: str, same: bool
+) -> None:
+    assert cdp_client._can_forward_headers(cdp_url, web_socket_url) is same
+
+
 @pytest.mark.asyncio
 async def test_connect_explains_when_chrome_cannot_load_an_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     socket = FakeWebSocket(lambda _: {"error": {"code": -32601, "message": "Method not found"}})
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -487,12 +548,24 @@ async def test_connect_requires_exactly_one_extension_source() -> None:
         )
 
 
-async def test_connect_discovers_a_ready_preloaded_extension(
+@pytest.mark.parametrize("mode", ["browserbase", "local", "missing", "unsupported", "incompatible"])
+async def test_connect_discovers_or_loads_extension(
     monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
+    accessed = []
+
+    def directory() -> str:
+        accessed.append(True)
+        return "/bundle"
+
     def response_for(message: dict[str, object]) -> dict[str, object]:
         method = message["method"]
         if method == "Extensions.getExtensions":
+            if mode == "unsupported":
+                return {"error": {"code": -32601, "message": "Method not found"}}
+            if mode == "missing":
+                return {"result": {"extensions": []}}
             return {
                 "result": {
                     "extensions": [
@@ -501,6 +574,9 @@ async def test_connect_discovers_a_ready_preloaded_extension(
                     ]
                 }
             }
+        if method == "Extensions.loadUnpacked":
+            assert message["params"] == {"path": "/bundle"}
+            return {"result": {"id": "preloaded"}}
         if method == "Target.getTargets":
             return {
                 "result": {
@@ -517,27 +593,40 @@ async def test_connect_discovers_a_ready_preloaded_extension(
         if method == "Target.attachToTarget":
             return {"result": {"sessionId": "worker-session"}}
         if method == "Runtime.evaluate":
-            return {"result": {"result": {"value": _ready_marker()}}}
+            readiness = _ready_marker()
+            if mode == "incompatible":
+                readiness["marker"] = _marker(_INCOMPATIBLE_PROTOCOL_VERSION)
+            return {"result": {"result": {"value": readiness}}}
         return {"result": {}}
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str) -> str:
+    async def resolve(_: str, **__: object) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str) -> FakeWebSocket:
+    async def connect(_: str, **__: object) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    if mode == "incompatible":
+        with pytest.raises(StagehandRuntimeIncompatibleError):
+            await CDPClient.connect(cdp_url="ws://browser", local_extension_dir=directory)
+        assert socket.closed
+        assert accessed == []
+        assert "Extensions.loadUnpacked" not in [message["method"] for message in socket.sent]
+        return
     client = await CDPClient.connect(
-        cdp_url="wss://browserbase",
-        preloaded_extension=True,
+        cdp_url="ws://browser",
+        preloaded_extension=mode == "browserbase",
+        local_extension_dir=directory if mode != "browserbase" else None,
     )
     try:
+        assert accessed == ([True] if mode in ("missing", "unsupported") else [])
         assert client.service_worker.extension_id == "preloaded"
         assert [message["method"] for message in socket.sent] == [
             "Extensions.getExtensions",
+            *(["Extensions.loadUnpacked"] if mode in ("missing", "unsupported") else []),
             "Target.getTargets",
             "Target.attachToTarget",
             "Runtime.enable",
@@ -552,7 +641,7 @@ async def _discover_extension_from_result(result: dict[str, object]) -> str:
     socket = FakeWebSocket(lambda _: {"result": result})
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
-        return await client._discover_installed_stagehand_extension_id()
+        return await client._resolve_extension(load_if_not_found=False)
     finally:
         await client.close()
 
@@ -595,7 +684,7 @@ async def test_installed_extension_discovery_propagates_cdp_command_errors() -> 
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
         with pytest.raises(RuntimeError, match="Extensions.getExtensions: Method not available"):
-            await client._discover_installed_stagehand_extension_id()
+            await client._resolve_extension(load_if_not_found=False)
     finally:
         await client.close()
 
@@ -703,6 +792,12 @@ class TestNegotiateRuntime:
             result = cdp_client._protocol_compatibility(client, server)
             return None if result is None else result[0]
 
+        assert reason("2.2.0", "2.1.99") == "protocol-server-too-old"
+        assert reason("2.2.0", "2.2.0") is None
+        assert reason("3.0.0", "3.0.0") is None
+        assert reason("2.2.0", "3.0.0") == "protocol-major-mismatch"
+        assert reason("3.0.0", "2.2.0") == "protocol-major-mismatch"
+        assert reason("2.1.1", "2.2.0") is None
         assert reason("1.2.4", "1.2.0") is None
         assert reason("1.2.4", "1.9.0") is None
         assert reason("1.2.4", "1.1.99") == "protocol-server-too-old"
@@ -814,3 +909,205 @@ async def test_runtime_wait_keeps_polling_an_incompatible_marker_when_fallback_i
 
     assert len(socket.sent) >= 2
     assert {message["method"] for message in socket.sent} == {"Runtime.evaluate"}
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"result": {"extensions": [_installed_extension(enabled=False)]}},
+        {"result": {"extensions": [_installed_extension("a"), _installed_extension("b")]}},
+        {"result": {"extensions": [{"id": "malformed"}]}},
+        {"error": {"code": -32000, "message": "Permission denied"}},
+    ],
+)
+async def test_local_discovery_errors_do_not_load(response: dict[str, object]) -> None:
+    socket = FakeWebSocket(lambda _: response)
+    client = CDPClient(socket, "ws://browser")
+
+    def directory() -> str:
+        pytest.fail("must not access bundled extension")
+
+    try:
+        with pytest.raises(RuntimeError):
+            await client._resolve_extension(load_if_not_found=True, extension_dir=directory)
+        assert [message["method"] for message in socket.sent] == ["Extensions.getExtensions"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("phase", ["discovery", "loading"])
+async def test_local_cancellation_closes_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+) -> None:
+    requested = asyncio.Event()
+
+    def response_for(message: dict[str, object]) -> dict[str, object] | None:
+        if phase == "loading" and message["method"] == "Extensions.getExtensions":
+            return {"result": {"extensions": []}}
+        requested.set()
+        return None
+
+    socket = FakeWebSocket(response_for)
+
+    async def connect(_: str, **__: object) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+
+    def directory() -> str:
+        if phase == "discovery":
+            pytest.fail("must not access bundled extension after cancellation")
+        return "/bundle"
+
+    task = asyncio.create_task(
+        CDPClient.connect(cdp_url="ws://browser", local_extension_dir=directory)
+    )
+    await asyncio.wait_for(requested.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert socket.closed
+    assert [message["method"] for message in socket.sent] == [
+        "Extensions.getExtensions",
+        *(["Extensions.loadUnpacked"] if phase == "loading" else []),
+    ]
+
+
+async def test_local_loading_failure_closes_connection_without_retrying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        if message["method"] == "Extensions.getExtensions":
+            return {"result": {"extensions": []}}
+        return {"error": {"code": -32000, "message": "load failed"}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def connect(_: str, **__: object) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    with pytest.raises(RuntimeError, match="load failed"):
+        await CDPClient.connect(cdp_url="ws://browser", local_extension_dir=lambda: "/bundle")
+    assert socket.closed
+    assert [message["method"] for message in socket.sent] == [
+        "Extensions.getExtensions",
+        "Extensions.loadUnpacked",
+    ]
+
+
+def _lifecycle_client(
+    target_type: str, *, attach: bool, detach: bool | BaseException = True
+) -> tuple[CDPClient, list[str]]:
+    calls: list[str] = []
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = cast(str, message["method"])
+        params = cast(dict[str, object], message.get("params") or {})
+        if method == "Runtime.evaluate":
+            action = "detach" if '"detach"' in str(params.get("expression")) else "attach"
+            calls.append(action)
+            if action == "detach" and isinstance(detach, BaseException):
+                raise detach
+            return {"result": {"result": {"value": detach if action == "detach" else attach}}}
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"result": {"targetId": "marker"}}
+        if method == "Target.getTargetInfo":
+            return {"result": {"targetInfo": {"type": target_type}}}
+        return {"result": {}}
+
+    client = CDPClient(FakeWebSocket(response_for), "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    return client, calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["page", "iframe", "worker"])
+async def test_client_registration_requires_chrome_137_for_hidden_targets(
+    target_type: str,
+) -> None:
+    client, calls = _lifecycle_client(target_type, attach=True)
+    try:
+        with pytest.raises(RuntimeError, match="requires Chrome 137 or later"):
+            await client._register_client(True, "ws://browser")
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_registration_rejects_an_extension_without_lifecycle_support() -> None:
+    client, calls = _lifecycle_client("other", attach=False)
+    try:
+        with pytest.raises(RuntimeError, match="does not support the client watchdog"):
+            await client._register_client(True, "ws://browser")
+        assert calls == [
+            "Target.createTarget",
+            "Target.getTargetInfo",
+            "attach",
+            "Target.closeTarget",
+        ]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_runs_once_when_acknowledged() -> None:
+    client, calls = _lifecycle_client("other", attach=True)
+    try:
+        await client._register_client(True, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls == ["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_when_not_acknowledged() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=False)
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="did not acknowledge the detach"):
+            await client.detach_client()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_treats_a_closed_connection_as_a_completed_detach() -> None:
+    # Browserbase ends a keep_alive=False session once the extension closes its connection.
+    client, calls = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(False, "ws://browser")
+        await client.detach_client()
+        await client.detach_client()
+        assert calls.count("detach") == 1
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_raises_a_lost_connection_when_the_browser_is_shut_down_on_loss() -> (
+    None
+):
+    client, _ = _lifecycle_client("other", attach=True, detach=CDPConnectionClosedError())
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(CDPConnectionClosedError):
+            await client.detach_client()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_detach_client_still_raises_when_detach_fails_with_the_connection_open() -> None:
+    client, _ = _lifecycle_client("other", attach=True, detach=RuntimeError("detach failed"))
+    try:
+        await client._register_client(True, "ws://browser")
+        with pytest.raises(RuntimeError, match="detach failed"):
+            await client.detach_client()
+    finally:
+        await client.close()

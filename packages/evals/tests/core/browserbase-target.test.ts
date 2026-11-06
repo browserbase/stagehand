@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { classifyThrottle } from "../../framework/providerConcurrency.js";
 import { cleanupActiveRunResources } from "../../framework/activeRunCleanup.js";
 
 const createMock = vi.fn();
@@ -135,11 +136,26 @@ describe("runner-provided Browserbase target", () => {
       await import("../../core/targets/browserbase.js");
 
     await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow(
-      "Browserbase session creation failed.",
+      /^Browserbase session creation failed\.$/,
     );
     expect(extensionDeleteMock).toHaveBeenCalledWith("extension-123", {
       headers: { "Content-Type": null },
     });
+  });
+
+  it("surfaces only the HTTP status of a failed session create", async () => {
+    createMock.mockRejectedValue(
+      Object.assign(new Error("429 rate limited for project proj-secret req_abc"), {
+        status: 429,
+      }),
+    );
+
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
+
+    const error = await launchRunnerProvidedBrowserbaseChrome().catch((err: Error) => err);
+    expect((error as Error).message).toBe("Browserbase session creation failed (HTTP 429).");
+    expect(classifyThrottle((error as Error).message)).toBe("browserbase");
   });
 
   it("releases a session that finishes creating after an active-run abort", async () => {

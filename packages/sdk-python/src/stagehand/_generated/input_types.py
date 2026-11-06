@@ -42,6 +42,14 @@ class BrowserbaseFingerprint(TypedDict):
     screen: NotRequired[BrowserbaseFingerprintScreen]
 
 
+class BrowserbaseHttpResponse(TypedDict):
+    type: Literal["response"]
+    status: int
+    status_text: str
+    headers: dict[str, str]
+    body: str
+
+
 class BrowserbaseProxyGeolocation(TypedDict):
     country: str
     city: NotRequired[str]
@@ -60,6 +68,22 @@ BrowserbaseRegion: TypeAlias = Literal["us-west-2", "us-east-1", "eu-central-1",
 class BrowserSessionMetadata(TypedDict):
     session_id: str
     region: NotRequired[BrowserbaseRegion]
+
+
+class BrowserbaseRequestParams(TypedDict):
+    operation: Literal["gateway.responses", "cache.get", "cache.set"]
+    headers: dict[str, str]
+    body: str
+    remaining_timeout_ms: NotRequired[float]
+
+
+class BrowserbaseTransportError(TypedDict):
+    type: Literal["error"]
+    reason: Literal["network", "cancelled", "timeout", "unavailable", "disconnected"]
+    message: str
+
+
+BrowserbaseRequestResult: TypeAlias = BrowserbaseHttpResponse | BrowserbaseTransportError
 
 
 class BrowserbaseViewport(TypedDict):
@@ -272,6 +296,9 @@ FieldSchema13: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema13"
 FieldSchema14: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema14"], dict[str, "FieldSchema14"]]]
 
 
+FieldSchema15: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema15"], dict[str, "FieldSchema15"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -327,10 +354,15 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema14]
+    data: NotRequired[FieldSchema15]
 
 
 JSONRPCRequestId: TypeAlias = int
+
+
+class BrowserbaseCancelParams(TypedDict):
+    request_id: JSONRPCRequestId
+    reason: Literal["cancelled", "timeout"]
 
 
 JSONRPCErrorResponseId: TypeAlias = JSONRPCRequestId | None
@@ -708,7 +740,7 @@ class PageAddInitScriptParams(TypedDict):
     source: str
 
 
-PageCDPEventParams: TypeAlias = dict[str, FieldSchema12]
+PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]
 
 
 class PageCDPEvent(TypedDict):
@@ -974,6 +1006,21 @@ class PageVoidResult(TypedDict):
     ok: Literal[True]
 
 
+class PageWaitForFunctionOptions(TypedDict):
+    polling: NotRequired[Literal["raf"] | float]
+    timeout: NotRequired[int]
+
+
+class PageWaitForFunctionParams(TypedDict):
+    page_id: str
+    expression: str
+    options: NotRequired[PageWaitForFunctionOptions]
+
+
+class PageWaitForFunctionResult(TypedDict):
+    value: FieldSchema10
+
+
 class PageWaitForLoadStateParams(TypedDict):
     page_id: str
     state: LoadState
@@ -1091,7 +1138,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema11]
+StagehandLogData: TypeAlias = dict[str, FieldSchema12]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -1168,8 +1215,7 @@ class StagehandInitParams(TypedDict):
     protocol_version: str
     client_info: ImplementationInfo
     browser_cdp_url: NotRequired[str]
-    api_key: NotRequired[str]
-    api_url: NotRequired[str]
+    browserbase: NotRequired[Literal["client"]]
     browser: NotRequired[BrowserSessionMetadata]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]
@@ -1234,7 +1280,7 @@ class WebMCPAnnotation(TypedDict):
 WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
 
 
-WebMCPJsonValue: TypeAlias = FieldSchema10
+WebMCPJsonValue: TypeAlias = FieldSchema11
 
 
 class PageWebMCPInvokeToolParams(TypedDict):

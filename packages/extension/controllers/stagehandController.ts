@@ -92,7 +92,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
@@ -106,7 +109,10 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         selfHeal: state.initParams.selfHeal,
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
         decisions: decisionsFor(via, "act"),
         openPageCount: () => runtime.requireBrowserSession().pages().length,
@@ -131,7 +137,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
@@ -143,7 +152,10 @@ export function createStagehandController(
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
         logger,
         systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
         decisions: via === "decisions" ? decisionsFor(via, "observe") : undefined,
       });
@@ -167,7 +179,10 @@ export function createStagehandController(
       }
 
       const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+      const gateway = buildGatewayContext(
+        state.initParams,
+        runtime.adapters.clientBrowserbaseRequest,
+      );
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
@@ -179,7 +194,10 @@ export function createStagehandController(
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
         logger,
         systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
         // Only the explicit method sends page or extracted content to the decision provider.
         decisions: via === "decisions" ? decisionsFor(via, "extract") : undefined,
