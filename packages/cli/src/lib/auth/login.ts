@@ -11,12 +11,18 @@ import {
   type SavedCredential,
 } from "./credential.js";
 
-const requiredScopes = ["openid", "browserbase:project_keys:read"];
-const loginConfigSchema = z.object({
-  issuer: z.string(),
-  clientId: z.string().regex(/^[A-Za-z0-9_.-]{1,256}$/),
-  scopes: z.array(z.string()).length(requiredScopes.length),
-});
+const requiredScopes = ["openid", "browserbase:api_keys:read"];
+const oauthClients = {
+  production: {
+    issuer: "https://clerk.browserbase.com",
+    // Set the registered public client ID before releasing browser login.
+    clientId: "",
+  },
+  development: {
+    issuer: "https://charming-boar-87.clerk.accounts.dev",
+    clientId: "FHYs0HMb1Ujb6ztO",
+  },
+};
 const loginProjectSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -25,10 +31,7 @@ const loginProjectSchema = z.object({
 const loginProjectsSchema = z.object({ projects: z.array(loginProjectSchema) });
 export type LoginProject = z.infer<typeof loginProjectSchema>;
 
-export function loginProvider(
-  dashboard?: string,
-  development = false,
-): { origin: string; apiOrigin: string } {
+export function loginProvider(dashboard?: string, development = false) {
   const value =
     dashboard ?? (development ? "https://dev.browserbase.com" : "https://www.browserbase.com");
   let url: URL;
@@ -50,6 +53,7 @@ export function loginProvider(
     );
   }
   return {
+    ...oauthClients[development ? "development" : "production"],
     origin: url.origin,
     apiOrigin: development ? developmentApiOrigin : productionApiOrigin,
   };
@@ -71,35 +75,6 @@ export async function readLoginJson(response: Response, maxBytes = 32768): Promi
   }
 }
 
-function validateConfig(value: unknown, development: boolean) {
-  const parsed = loginConfigSchema.safeParse(value);
-  if (!parsed.success || !requiredScopes.every((scope) => parsed.data.scopes.includes(scope))) {
-    fail("The dashboard returned an invalid login configuration.");
-  }
-  const record = parsed.data;
-  let issuer: URL;
-  try {
-    issuer = new URL(record.issuer);
-  } catch {
-    fail("Invalid login issuer.");
-  }
-  if (
-    issuer.protocol !== "https:" ||
-    issuer.username ||
-    issuer.password ||
-    issuer.port ||
-    issuer.pathname !== "/" ||
-    issuer.search ||
-    issuer.hash ||
-    (development
-      ? !issuer.hostname.endsWith(".clerk.accounts.dev")
-      : issuer.origin !== "https://clerk.browserbase.com")
-  ) {
-    fail("Invalid login issuer.");
-  }
-  return { issuer, clientId: record.clientId };
-}
-
 function providerFetch(issuer: URL, signal: AbortSignal): typeof fetch {
   return async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -116,7 +91,7 @@ async function dashboardJson(
   origin: string,
   path: string,
   signal: AbortSignal,
-  token?: string,
+  token: string,
   body?: unknown,
 ) {
   const response = await fetch(`${origin}${path}`, {
@@ -125,7 +100,7 @@ async function dashboardJson(
     signal,
     headers: {
       accept: "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      authorization: `Bearer ${token}`,
       ...(body ? { "content-type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -287,21 +262,17 @@ export async function login({
   timeoutMs?: number;
   signal?: AbortSignal;
 }): Promise<SavedCredential> {
-  const { origin, apiOrigin } = loginProvider(dashboard, development);
+  const { origin, apiOrigin, issuer: issuerUrl, clientId } = loginProvider(dashboard, development);
+  if (!clientId) fail("Browser sign-in is not available in this CLI release.");
   if (typeof openBrowser !== "function" || timeoutMs < 10 || timeoutMs > 300000)
     fail("Invalid login configuration.");
   const timeout = AbortSignal.timeout(timeoutMs);
   const activeSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let config: oauth.Configuration | undefined;
-  let issuer: URL | undefined;
+  const issuer = new URL(issuerUrl);
   let tokens: Awaited<ReturnType<typeof oauth.authorizationCodeGrant>> | undefined;
   try {
-    const settings = validateConfig(
-      await dashboardJson(origin, "/cli/config", activeSignal),
-      development,
-    );
-    issuer = settings.issuer;
-    config = await oauth.discovery(issuer, settings.clientId, undefined, oauth.None(), {
+    config = await oauth.discovery(issuer, clientId, undefined, oauth.None(), {
       timeout: 15,
       execute: [oauth.enableNonRepudiationChecks],
       [oauth.customFetch]: providerFetch(issuer, activeSignal),
@@ -343,7 +314,7 @@ export async function login({
   } finally {
     const refreshToken = tokens?.refresh_token;
     tokens = undefined;
-    if (refreshToken && config && issuer) {
+    if (refreshToken && config) {
       await revokeTemporaryGrant(config, issuer, refreshToken);
     }
     if (signal?.aborted) fail("Login canceled.");

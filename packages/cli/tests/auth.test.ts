@@ -18,7 +18,8 @@ afterEach(() => {
 
 describe("browser authorization", () => {
   it("uses a fixed production provider and requires explicit development mode for local providers", () => {
-    expect(loginProvider()).toEqual({
+    expect(loginProvider()).toMatchObject({
+      issuer: "https://clerk.browserbase.com",
       origin: "https://www.browserbase.com",
       apiOrigin: productionApiOrigin,
     });
@@ -26,7 +27,14 @@ describe("browser authorization", () => {
     expect(() => loginProvider("https://example.com", true)).toThrow();
     expect(() => loginProvider("https://www.browserbase.com@evil.example")).toThrow();
     expect(() => loginProvider("https://www.browserbase.com/path")).toThrow();
-    expect(loginProvider("http://127.0.0.1:3000", true).apiOrigin).toBe(developmentApiOrigin);
+    const development = loginProvider(undefined, true);
+    expect(development.issuer).not.toBe(loginProvider().issuer);
+    expect(development.clientId).toBeTruthy();
+    expect(loginProvider("http://127.0.0.1:3000", true)).toEqual({
+      ...development,
+      origin: "http://127.0.0.1:3000",
+      apiOrigin: developmentApiOrigin,
+    });
   });
 
   it("uses the OAuth library with signed tokens, PKCE and a real loopback callback before fetching one key", async () => {
@@ -38,6 +46,7 @@ describe("browser authorization", () => {
         openBrowser: async (value) => {
           const callback = provider.callbackFor(value);
           expect(new URL(value).pathname).toBe("/cli/authorize");
+          expect(new URL(value).searchParams.get("scope")).toBe("openid browserbase:api_keys:read");
           expect(new URL(value).searchParams.has("code_verifier")).toBe(false);
           const malformedResponse = await new Promise<string>((resolve, reject) => {
             let response = "";
@@ -95,43 +104,26 @@ describe("browser authorization", () => {
     },
   );
 
-  it("rejects issuer and scope configuration changes before opening a browser", async () => {
-    const provider = await oauthProvider({ configScopes: ["openid", "email"] });
-    try {
-      await expect(login({ ...provider, development: true })).rejects.toThrow(
-        "invalid login configuration",
-      );
-      expect(provider.state.exchanges).toBe(0);
-    } finally {
-      await provider.close();
-    }
-  });
-
-  it("rejects malformed login configuration before authorization without exposing its contents", async () => {
-    const provider = await oauthProvider({
-      configResponse: {
-        issuer: "https://synthetic.clerk.accounts.dev",
-        clientId: { secret: fixture.apiKey },
-        scopes: ["openid", "browserbase:project_keys:read"],
-      },
-    });
-    try {
-      const attempt = login({ ...provider, development: true });
-      await expect(attempt).rejects.toThrow("invalid login configuration");
-      await expect(attempt).rejects.not.toThrow(fixture.apiKey);
-      expect(provider.state.exchanges).toBe(0);
-      expect(provider.state.credentials).toBe(0);
-    } finally {
-      await provider.close();
-    }
-  });
-
   it("checks discovery issuer consistency", async () => {
     const provider = await oauthProvider({ discoveryIssuer: "https://wrong.example" });
     try {
       await expect(login({ ...provider, development: true })).rejects.toThrow(
         "Browser sign-in failed",
       );
+      expect(provider.state.exchanges).toBe(0);
+    } finally {
+      await provider.close();
+    }
+  });
+
+  it("rejects discovered endpoints outside the configured issuer before authorization", async () => {
+    const provider = await oauthProvider({ tokenEndpoint: "https://wrong.example/token" });
+    const openBrowser = vi.fn();
+    try {
+      await expect(login({ ...provider, development: true, openBrowser })).rejects.toThrow(
+        "unexpected endpoint",
+      );
+      expect(openBrowser).not.toHaveBeenCalled();
       expect(provider.state.exchanges).toBe(0);
     } finally {
       await provider.close();

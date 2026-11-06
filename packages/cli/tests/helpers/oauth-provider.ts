@@ -3,9 +3,10 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { vi } from "vitest";
 
-const issuer = "https://synthetic.clerk.accounts.dev";
-const clientId = "synthetic-public-client";
-export const grantScopes = "openid browserbase:project_keys:read";
+import { loginProvider } from "../../src/lib/auth/login.js";
+
+const { issuer, clientId } = loginProvider(undefined, true);
+export const grantScopes = "openid browserbase:api_keys:read";
 export const projectId = "00000000-0000-4000-8000-000000000001";
 export const otherProjectId = "00000000-0000-4000-8000-000000000002";
 const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -15,11 +16,9 @@ const json = (body: unknown, status = 200) =>
 
 export async function oauthProvider(
   options: {
-    configScopes?: string[];
-    configIssuer?: string;
-    configResponse?: unknown;
     projectsResponse?: unknown;
     discoveryIssuer?: string;
+    tokenEndpoint?: string;
     invalidJwt?: "audience" | "issuer" | "nonce" | "signature";
     tokenScopes?: string;
     wrongCredentialProject?: boolean;
@@ -44,7 +43,7 @@ export async function oauthProvider(
       return json({
         issuer: options.discoveryIssuer ?? issuer,
         authorization_endpoint: `${issuer}/oauth/authorize`,
-        token_endpoint: `${issuer}/oauth/token`,
+        token_endpoint: options.tokenEndpoint ?? `${issuer}/oauth/token`,
         jwks_uri: `${issuer}/jwks`,
         revocation_endpoint: `${issuer}/oauth/revoke`,
         code_challenge_methods_supported: ["S256"],
@@ -120,20 +119,6 @@ export async function oauthProvider(
   });
   const server = createServer(async (request, response) => {
     response.setHeader("content-type", "application/json");
-    if (request.url === "/cli/config") {
-      response.end(
-        JSON.stringify(
-          "configResponse" in options
-            ? options.configResponse
-            : {
-                issuer: options.configIssuer ?? issuer,
-                clientId,
-                scopes: options.configScopes ?? grantScopes.split(" "),
-              },
-        ),
-      );
-      return;
-    }
     if (request.headers.authorization !== "Bearer synthetic-access-token") {
       response.writeHead(401);
       response.end("{}");
