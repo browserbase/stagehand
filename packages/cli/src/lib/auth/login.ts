@@ -1,5 +1,3 @@
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
 import * as oauth from "openid-client";
 import { z } from "zod";
 
@@ -15,7 +13,7 @@ const requiredScopes = ["openid", "browserbase:api_keys:read"];
 const oauthClients = {
   production: {
     issuer: "https://clerk.browserbase.com",
-    // Set the registered public client ID before releasing browser login.
+    // Set the registered public client ID before releasing interactive login.
     clientId: "",
   },
   development: {
@@ -125,168 +123,75 @@ function validateProjects(value: unknown): LoginProject[] {
   return projects;
 }
 
-async function authorize({
-  config,
-  origin,
-  openBrowser,
-  signal,
-}: {
-  config: oauth.Configuration;
-  origin: string;
-  openBrowser: (url: string) => Promise<void>;
-  signal: AbortSignal;
-}) {
-  const state = oauth.randomState();
-  const nonce = oauth.randomNonce();
-  const verifier = oauth.randomPKCECodeVerifier();
-  let redirectUri = "";
-  let accepted = false;
-  let resolveCallback!: (url: URL) => void;
-  let rejectCallback!: (error: Error) => void;
-  const callback = new Promise<URL>((resolve, reject) => {
-    resolveCallback = resolve;
-    rejectCallback = reject;
-  });
-  callback.catch(() => {});
-  const abort = () => rejectCallback(new Error("Login canceled."));
-  const server = createServer((req, res) => {
-    res.setHeader("cache-control", "no-store");
-    res.setHeader("referrer-policy", "no-referrer");
-    res.setHeader("content-type", "text/plain; charset=utf-8");
-    res.setHeader("content-security-policy", "default-src 'none'; frame-ancestors 'none'");
-    const reject = (status: number) => {
-      res.writeHead(status);
-      res.end("Invalid authorization callback.");
-    };
-    if (
-      req.headers.host !== new URL(redirectUri).host ||
-      !req.url?.startsWith("/") ||
-      req.url.startsWith("//")
-    )
-      return reject(400);
-    let url: URL;
-    try {
-      url = new URL(req.url, redirectUri);
-    } catch {
-      return reject(400);
-    }
-    if (url.origin !== new URL(redirectUri).origin) return reject(400);
-    if (url.pathname !== "/callback") return reject(404);
-    if (req.method !== "GET") return reject(405);
-    if (
-      req.headers.origin &&
-      ![origin, config.serverMetadata().issuer].includes(req.headers.origin)
-    )
-      return reject(403);
-    if (accepted) return reject(409);
-    if (url.searchParams.getAll("state").length !== 1 || url.searchParams.get("state") !== state)
-      return reject(400);
-    const codes = url.searchParams.getAll("code");
-    const errors = url.searchParams.getAll("error");
-    if (
-      !(
-        (codes.length === 1 &&
-          codes[0]!.length > 0 &&
-          codes[0]!.length <= 2048 &&
-          errors.length === 0) ||
-        (errors.length === 1 && codes.length === 0)
-      )
-    )
-      return reject(400);
-    accepted = true;
-    res.end("Authorization received. Return to your terminal.", () => {
-      if (errors.length)
-        rejectCallback(
-          new CommandFailure(
-            errors[0] === "access_denied"
-              ? "Authorization denied."
-              : "Authorization failed. Restart login.",
-          ),
-        );
-      else resolveCallback(url);
-    });
-  });
-  server.on("error", () =>
-    rejectCallback(new CommandFailure("Unable to open the loopback callback listener.")),
-  );
-  try {
-    await new Promise<void>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    redirectUri = `http://127.0.0.1:${(server.address() as AddressInfo).port}/callback`;
-    signal.addEventListener("abort", abort, { once: true });
-    if (signal.aborted) abort();
-    else {
-      const providerUrl = oauth.buildAuthorizationUrl(config, {
-        redirect_uri: redirectUri,
-        scope: requiredScopes.join(" "),
-        state,
-        nonce,
-        code_challenge: await oauth.calculatePKCECodeChallenge(verifier),
-        code_challenge_method: "S256",
-      });
-      const url = new URL("/cli/authorize", origin);
-      url.search = providerUrl.search;
-      Promise.resolve()
-        .then(() => openBrowser(url.href))
-        .catch(() => rejectCallback(new CommandFailure("Could not open the authorization page.")));
-    }
-    return await oauth.authorizationCodeGrant(config, await callback, {
-      pkceCodeVerifier: verifier,
-      expectedState: state,
-      expectedNonce: nonce,
-    });
-  } finally {
-    signal.removeEventListener("abort", abort);
-    server.close();
-    server.closeAllConnections();
-  }
-}
-
-/** Authorize project-key access, then save only the selected project's API key. */
+/** Authorize API-key access and retrieve the selected project's credential. */
 export async function login({
   dashboard,
   development = false,
-  openBrowser,
+  onVerification,
   projectId,
   chooseProject,
-  timeoutMs = 300000,
+  timeoutMs = 600000,
   signal,
 }: {
   dashboard?: string;
   development?: boolean;
-  openBrowser: (url: string) => Promise<void>;
+  onVerification: (verification: { url: string; userCode: string }) => Promise<void>;
   projectId?: string;
   chooseProject?: (projects: LoginProject[], signal: AbortSignal) => Promise<string>;
   timeoutMs?: number;
   signal?: AbortSignal;
 }): Promise<SavedCredential> {
   const { origin, apiOrigin, issuer: issuerUrl, clientId } = loginProvider(dashboard, development);
-  if (!clientId) fail("Browser sign-in is not available in this CLI release.");
-  if (typeof openBrowser !== "function" || timeoutMs < 10 || timeoutMs > 300000)
+  if (!clientId) fail("Interactive sign-in is not available in this CLI release.");
+  if (typeof onVerification !== "function" || timeoutMs < 10 || timeoutMs > 600000)
     fail("Invalid login configuration.");
   const timeout = AbortSignal.timeout(timeoutMs);
   const activeSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let config: oauth.Configuration | undefined;
   const issuer = new URL(issuerUrl);
-  let tokens: Awaited<ReturnType<typeof oauth.authorizationCodeGrant>> | undefined;
+  let tokens: Awaited<ReturnType<typeof oauth.pollDeviceAuthorizationGrant>> | undefined;
+  let deviceExpiry: AbortSignal | undefined;
   try {
     config = await oauth.discovery(issuer, clientId, undefined, oauth.None(), {
       timeout: 15,
       execute: [oauth.enableNonRepudiationChecks],
       [oauth.customFetch]: providerFetch(issuer, activeSignal),
     });
-    for (const field of ["authorization_endpoint", "token_endpoint", "jwks_uri"] as const) {
+    for (const field of [
+      "device_authorization_endpoint",
+      "token_endpoint",
+      "jwks_uri",
+      "revocation_endpoint",
+    ] as const) {
       const endpoint = config.serverMetadata()[field];
       if (!endpoint || new URL(endpoint).origin !== issuer.origin)
         fail("The login provider returned an unexpected endpoint.");
     }
-    if (!config.serverMetadata().code_challenge_methods_supported?.includes("S256"))
-      fail("The login provider does not support PKCE.");
-    tokens = await authorize({ config, origin, openBrowser, signal: activeSignal });
+    const authorization = await oauth.initiateDeviceAuthorization(config, {
+      scope: requiredScopes.join(" "),
+    });
+    const verificationUrl = new URL(authorization.verification_uri);
+    const localVerification =
+      development &&
+      verificationUrl.protocol === "http:" &&
+      ["localhost", "127.0.0.1"].includes(verificationUrl.hostname);
+    if (
+      verificationUrl.username ||
+      verificationUrl.password ||
+      (verificationUrl.protocol !== "https:" && !localVerification)
+    )
+      fail("The login provider returned an invalid verification URL.");
+    deviceExpiry = AbortSignal.timeout(
+      Math.min(Math.ceil(authorization.expires_in * 1000), timeoutMs),
+    );
+    await onVerification({ url: verificationUrl.href, userCode: authorization.user_code });
+    tokens = await oauth.pollDeviceAuthorizationGrant(config, authorization, undefined, {
+      signal: AbortSignal.any([activeSignal, deviceExpiry]),
+    });
+    if (!tokens.id_token || !tokens.claims() || tokens.token_type.toLowerCase() !== "bearer")
+      fail("Sign-in did not return a valid identity and access token.");
     if (!requiredScopes.every((scope) => tokens?.scope?.split(" ").includes(scope)))
-      fail("Sign-in did not grant the required project-key access.");
+      fail("Sign-in did not grant the required API-key access.");
     const projects = validateProjects(
       await dashboardJson(origin, "/cli/projects", activeSignal, tokens.access_token),
     );
@@ -307,10 +212,15 @@ export async function login({
       fail("The dashboard returned credentials for a different project.");
     return credential;
   } catch (error) {
-    if (timeout.aborted) fail("Authorization expired. Restart login.");
     if (signal?.aborted) fail("Login canceled.");
+    if (timeout.aborted || (!tokens && deviceExpiry?.aborted))
+      fail("Authorization expired. Restart login.");
+    if (error instanceof oauth.ResponseBodyError) {
+      if (error.error === "access_denied") fail("Authorization denied.");
+      if (error.error === "expired_token") fail("Authorization expired. Restart login.");
+    }
     if (error instanceof CommandFailure) throw error;
-    throw new CommandFailure("Browser sign-in failed. Restart login.");
+    throw new CommandFailure("Device sign-in failed. Restart login.");
   } finally {
     const refreshToken = tokens?.refresh_token;
     tokens = undefined;

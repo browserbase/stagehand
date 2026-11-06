@@ -16,7 +16,7 @@ import { fail } from "../lib/errors.js";
 
 export default class Login extends BrowseCommand {
   static override description =
-    "Sign in through your browser and save a project API key on this computer.";
+    "Sign in with a device code and save a project API key on this computer.";
   static override examples = ["browse login", "browse login --no-browser"];
   static override flags = {
     "credential-store": Flags.string({
@@ -28,7 +28,9 @@ export default class Login extends BrowseCommand {
     "project-id": Flags.string({
       description: "Choose the project whose API key should be saved.",
     }),
-    "no-browser": Flags.boolean({ description: "Print the login URL without opening a browser." }),
+    "no-browser": Flags.boolean({
+      description: "Print the approval URL and device code without opening a browser.",
+    }),
     development: Flags.boolean({
       description: "Use the development dashboard and API.",
       hidden: true,
@@ -61,12 +63,19 @@ export default class Login extends BrowseCommand {
         signal: controller.signal,
         projectId: flags["project-id"],
         chooseProject,
-        openBrowser: async (url) => {
-          this.log(`Authorize in browser: ${url}`);
-          if (!flags["no-browser"]) {
-            await openBrowser(url).catch(() =>
-              this.log("Open the URL above in a browser on this computer."),
-            );
+        onVerification: async ({ url, userCode }) => {
+          this.log(`Open ${url}`);
+          this.log(`Enter code: ${stripVTControlCharacters(userCode).replace(/\p{Cc}/gu, "")}`);
+          this.log("Waiting for approval. You can use a browser on another device.");
+          if (
+            !flags["no-browser"] &&
+            process.stdin.isTTY &&
+            process.stdout.isTTY &&
+            !process.env.SSH_CONNECTION &&
+            !process.env.SSH_TTY &&
+            !process.env.CI
+          ) {
+            await openBrowser(url).catch(() => this.log("Open the URL above in your browser."));
           }
         },
       });

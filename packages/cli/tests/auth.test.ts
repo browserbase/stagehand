@@ -1,4 +1,3 @@
-import { connect } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { login, loginProvider, readLoginJson } from "../src/lib/auth/login.js";
@@ -16,7 +15,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("browser authorization", () => {
+describe("device authorization", () => {
   it("uses a fixed production provider and requires explicit development mode for local providers", () => {
     expect(loginProvider()).toMatchObject({
       issuer: "https://clerk.browserbase.com",
@@ -37,48 +36,21 @@ describe("browser authorization", () => {
     });
   });
 
-  it("uses the OAuth library with signed tokens, PKCE and a real loopback callback before fetching one key", async () => {
-    const provider = await oauthProvider();
+  it("uses the OAuth library with signed tokens and a device grant before fetching one key", async () => {
+    const provider = await oauthProvider({ tokenErrors: ["authorization_pending", "slow_down"] });
     try {
-      const credential = await login({
-        dashboard: provider.dashboard,
-        development: true,
-        openBrowser: async (value) => {
-          const callback = provider.callbackFor(value);
-          expect(new URL(value).pathname).toBe("/cli/authorize");
-          expect(new URL(value).searchParams.get("scope")).toBe("openid browserbase:api_keys:read");
-          expect(new URL(value).searchParams.has("code_verifier")).toBe(false);
-          const malformedResponse = await new Promise<string>((resolve, reject) => {
-            let response = "";
-            const socket = connect(Number(callback.port), "127.0.0.1", () => {
-              socket.write(
-                `GET /\\% HTTP/1.1\r\nHost: ${callback.host}\r\nConnection: close\r\n\r\n`,
-              );
-            });
-            socket.setEncoding("utf8");
-            socket.setTimeout(1000, () => socket.destroy(new Error("Callback timed out")));
-            socket.on("error", reject);
-            socket.on("data", (chunk) => (response += chunk));
-            socket.on("end", () => resolve(response));
-          });
-          expect(malformedResponse).toMatch(/^HTTP\/1\.1 400 /);
-          expect(provider.state.exchanges).toBe(0);
-          const state = callback.searchParams.get("state")!;
-          callback.searchParams.set("state", "wrong-state");
-          expect((await fetch(callback)).status).toBe(400);
-          callback.searchParams.set("state", state);
-          expect(
-            (await fetch(callback, { headers: { origin: "https://evil.example" } })).status,
-          ).toBe(403);
-          const response = await fetch(callback);
-          expect(response.status).toBe(200);
-          expect(await response.text()).not.toContain(fixture.apiKey);
-        },
+      const onVerification = vi.fn(async ({ url, userCode }) => {
+        expect(url).toBe(`${provider.dashboard}/cli/device`);
+        expect(userCode).toBe("TEST-CODE");
+        expect(provider.state.exchanges).toBe(0);
       });
+      const credential = await login({ ...provider, development: true, onVerification });
       expect(credential).toEqual({ ...fixture, apiOrigin: developmentApiOrigin });
+      expect(onVerification).toHaveBeenCalledTimes(1);
       expect(provider.state).toMatchObject({
-        pkceVerified: true,
-        exchanges: 1,
+        authorizationScope: "openid browserbase:api_keys:read",
+        authorizations: 1,
+        exchanges: 3,
         projects: 1,
         credentials: 1,
         revocations: 1,
@@ -88,13 +60,13 @@ describe("browser authorization", () => {
     }
   });
 
-  it.each(["issuer", "audience", "nonce", "signature"] as const)(
+  it.each(["issuer", "audience", "expired", "signature"] as const)(
     "rejects an ID token with invalid %s before requesting projects",
     async (invalidJwt) => {
       const provider = await oauthProvider({ invalidJwt });
       try {
         await expect(login({ ...provider, development: true })).rejects.toThrow(
-          "Browser sign-in failed",
+          "Device sign-in failed",
         );
         expect(provider.state.projects).toBe(0);
         expect(provider.state.credentials).toBe(0);
@@ -108,7 +80,7 @@ describe("browser authorization", () => {
     const provider = await oauthProvider({ discoveryIssuer: "https://wrong.example" });
     try {
       await expect(login({ ...provider, development: true })).rejects.toThrow(
-        "Browser sign-in failed",
+        "Device sign-in failed",
       );
       expect(provider.state.exchanges).toBe(0);
     } finally {
@@ -118,44 +90,48 @@ describe("browser authorization", () => {
 
   it("rejects discovered endpoints outside the configured issuer before authorization", async () => {
     const provider = await oauthProvider({ tokenEndpoint: "https://wrong.example/token" });
-    const openBrowser = vi.fn();
+    const onVerification = vi.fn();
     try {
-      await expect(login({ ...provider, development: true, openBrowser })).rejects.toThrow(
+      await expect(login({ ...provider, development: true, onVerification })).rejects.toThrow(
         "unexpected endpoint",
       );
-      expect(openBrowser).not.toHaveBeenCalled();
+      expect(onVerification).not.toHaveBeenCalled();
       expect(provider.state.exchanges).toBe(0);
     } finally {
       await provider.close();
     }
   });
 
-  it("fails a rejected PKCE exchange without obtaining a key", async () => {
-    const provider = await oauthProvider();
+  it("requires an ID token before requesting a project key", async () => {
+    const provider = await oauthProvider({ omitIdToken: true });
     try {
-      await expect(
-        login({
-          dashboard: provider.dashboard,
-          development: true,
-          openBrowser: async (value) => {
-            const callback = provider.callbackFor(value);
-            provider.state.authorize!.searchParams.set("code_challenge", "invalid-challenge");
-            await fetch(callback);
-          },
-        }),
-      ).rejects.toThrow("Browser sign-in failed");
-      expect(provider.state.pkceVerified).toBe(false);
-      expect(provider.state.credentials).toBe(0);
+      await expect(login({ ...provider, development: true })).rejects.toThrow("valid identity");
+      expect(provider.state.projects).toBe(0);
+      expect(provider.state.revocations).toBe(1);
     } finally {
       await provider.close();
     }
   });
 
-  it("requires project-key scope and revokes the temporary refresh grant on failure", async () => {
+  it("rejects a non-web verification URL before invoking the browser handler", async () => {
+    const provider = await oauthProvider({ verificationUri: "file:///private/example" });
+    const onVerification = vi.fn();
+    try {
+      await expect(login({ ...provider, development: true, onVerification })).rejects.toThrow(
+        "invalid verification URL",
+      );
+      expect(onVerification).not.toHaveBeenCalled();
+      expect(provider.state.exchanges).toBe(0);
+    } finally {
+      await provider.close();
+    }
+  });
+
+  it("requires API-key scope and revokes the temporary refresh grant on failure", async () => {
     const provider = await oauthProvider({ tokenScopes: "openid" });
     try {
       await expect(login({ ...provider, development: true })).rejects.toThrow(
-        "required project-key access",
+        "required API-key access",
       );
       expect(provider.state.projects).toBe(0);
       expect(provider.state.revocations).toBe(1);
@@ -314,38 +290,42 @@ describe("browser authorization", () => {
     );
   });
 
-  it("handles denial, cancellation and expiry without obtaining a key", async () => {
+  it.each([
+    ["access_denied", "denied"],
+    ["expired_token", "expired"],
+  ])("handles provider rejection %s without obtaining a key", async (error, message) => {
+    const provider = await oauthProvider({ tokenErrors: [error] });
+    try {
+      await expect(login({ ...provider, development: true })).rejects.toThrow(message);
+      expect(provider.state.credentials).toBe(0);
+    } finally {
+      await provider.close();
+    }
+  });
+
+  it("honors device expiry while waiting for approval", async () => {
+    const provider = await oauthProvider({ expiresIn: 1, interval: 1 });
+    try {
+      await expect(login({ ...provider, development: true })).rejects.toThrow("expired");
+      expect(provider.state.credentials).toBe(0);
+    } finally {
+      await provider.close();
+    }
+  });
+
+  it("cancels waiting for approval without obtaining a key", async () => {
     const provider = await oauthProvider();
+    const controller = new AbortController();
     try {
       await expect(
         login({
-          dashboard: provider.dashboard,
-          development: true,
-          timeoutMs: 20,
-          openBrowser: async () => {},
-        }),
-      ).rejects.toThrow("expired");
-      const controller = new AbortController();
-      await expect(
-        login({
-          dashboard: provider.dashboard,
+          ...provider,
           development: true,
           signal: controller.signal,
-          openBrowser: async () => controller.abort(),
+          onVerification: async () => controller.abort(),
         }),
       ).rejects.toThrow("canceled");
-      await expect(
-        login({
-          dashboard: provider.dashboard,
-          development: true,
-          openBrowser: async (value) => {
-            const callback = provider.callbackFor(value);
-            callback.searchParams.delete("code");
-            callback.searchParams.set("error", "access_denied");
-            await fetch(callback);
-          },
-        }),
-      ).rejects.toThrow("denied");
+      expect(provider.state.exchanges).toBe(0);
       expect(provider.state.credentials).toBe(0);
     } finally {
       await provider.close();
