@@ -57,6 +57,7 @@
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
     "test:cli": "vitest run",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
