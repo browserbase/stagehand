@@ -124,7 +124,7 @@
     "//#lint": {},
     "//#typecheck": {
       "dependsOn": ["@browserbasehq/stagehand#typecheck"],
-      "inputs": ["tsconfig.tooling.json", "rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
+      "inputs": ["tsconfig.tooling.json", "rules/**/*.ts", "scripts/release/**/*.ts"]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
       "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]

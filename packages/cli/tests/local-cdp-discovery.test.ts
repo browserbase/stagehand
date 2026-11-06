@@ -16,9 +16,7 @@ import {
  * the bound port so it can bake the real port into the reported
  * webSocketDebuggerUrl, mirroring how a real browser reports itself.
  */
-async function startFakeCdpServer(
-  wsPathForPort: (port: number) => string,
-): Promise<{
+async function startFakeCdpServer(wsPathForPort: (port: number) => string): Promise<{
   port: number;
   wsUrl: string;
   requestCount: () => number;
@@ -49,16 +47,8 @@ async function startFakeCdpServer(
   };
 }
 
-async function writeDevToolsActivePort(
-  dir: string,
-  port: number,
-  wsPath: string,
-): Promise<void> {
-  await writeFile(
-    join(dir, "DevToolsActivePort"),
-    `${port}\n${wsPath}\n`,
-    "utf8",
-  );
+async function writeDevToolsActivePort(dir: string, port: number, wsPath: string): Promise<void> {
+  await writeFile(join(dir, "DevToolsActivePort"), `${port}\n${wsPath}\n`, "utf8");
 }
 
 describe("local CDP discovery", () => {
@@ -67,11 +57,7 @@ describe("local CDP discovery", () => {
 
   afterEach(async () => {
     await Promise.all(servers.splice(0).map((close) => close()));
-    await Promise.all(
-      tempDirs
-        .splice(0)
-        .map((dir) => rm(dir, { recursive: true, force: true })),
-    );
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
   it("resolveWsTargetFromPort ignores a stale DevToolsActivePort file when the live browser reports a different target", async () => {
@@ -82,18 +68,12 @@ describe("local CDP discovery", () => {
       port,
       wsUrl: liveWsUrl,
       close,
-    } = await startFakeCdpServer(
-      (p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`,
-    );
+    } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`);
     servers.push(close);
 
     // Simulate a leftover file from a previous Chrome instance that used to
     // listen on this same port under a different browser id.
-    await writeDevToolsActivePort(
-      userDataDir,
-      port,
-      "/devtools/browser/stale-id",
-    );
+    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/stale-id");
 
     const resolved = await resolveWsTargetFromPort(port, {
       userDataDirs: [userDataDir],
@@ -111,16 +91,10 @@ describe("local CDP discovery", () => {
       port,
       wsUrl: liveWsUrl,
       close,
-    } = await startFakeCdpServer(
-      (p) => `ws://127.0.0.1:${p}/devtools/browser/current-id`,
-    );
+    } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/current-id`);
     servers.push(close);
 
-    await writeDevToolsActivePort(
-      userDataDir,
-      port,
-      "/devtools/browser/current-id",
-    );
+    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/current-id");
 
     const resolved = await resolveWsTargetFromPort(port, {
       userDataDirs: [userDataDir],
@@ -137,16 +111,10 @@ describe("local CDP discovery", () => {
       port,
       wsUrl: liveWsUrl,
       close,
-    } = await startFakeCdpServer(
-      (p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`,
-    );
+    } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`);
     servers.push(close);
 
-    await writeDevToolsActivePort(
-      userDataDir,
-      port,
-      "/devtools/browser/stale-id",
-    );
+    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/stale-id");
 
     const discovered = await discoverLocalCdp({
       userDataDirs: [userDataDir],
@@ -169,11 +137,7 @@ describe("local CDP discovery", () => {
     );
     servers.push(close);
 
-    await writeDevToolsActivePort(
-      userDataDir,
-      port,
-      "/devtools/browser/current-id",
-    );
+    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/current-id");
 
     const resolved = await resolveWsTargetFromPort(port, {
       userDataDirs: [userDataDir],
@@ -194,18 +158,12 @@ describe("local CDP discovery", () => {
       wsUrl: liveWsUrl,
       close,
       requestCount,
-    } = await startFakeCdpServer(
-      (p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`,
-    );
+    } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`);
     servers.push(close);
 
     // The same port shows up both as a (stale) cached candidate and as a
     // fallback port -- discovery should only hit /json/version once for it.
-    await writeDevToolsActivePort(
-      userDataDir,
-      port,
-      "/devtools/browser/stale-id",
-    );
+    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/stale-id");
 
     const discovered = await discoverLocalCdp({
       userDataDirs: [userDataDir],

@@ -40,14 +40,11 @@ describe("Node.js runtime requirement", () => {
     },
   );
 
-  it.each(["22.18.0", "22.23.3", "24.18.0"])(
-    "runs commands on supported Node.js %s",
-    (version) => {
-      const result = runWithNodeVersion(version);
+  it.each(["22.18.0", "22.23.3", "24.18.0"])("runs commands on supported Node.js %s", (version) => {
+    const result = runWithNodeVersion(version);
 
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain("browse/");
-      expect(result.stderr).not.toContain("Upgrade Node.js");
-    },
-  );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("browse/");
+    expect(result.stderr).not.toContain("Upgrade Node.js");
+  });
 });

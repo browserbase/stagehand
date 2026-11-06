@@ -33,7 +33,7 @@ Run local checks and verify completion, budget exhaustion, and resume through te
 
 - Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. The TypeScript runner can also use a local browser by setting `BROWSER_ENV=LOCAL`.
 - `CATALOG_URL` defaults to the two-page mystery category on Books to Scrape. `MAX_PAGES` defaults to 2 and accepts 1 through 100. The default completes a small category. For the full catalog, set `CATALOG_URL=https://books.toscrape.com/` and raise `MAX_PAGES` to 50. `NEXT_SELECTOR` defaults to `li.next a`; change it when adapting the target. `OUT_DIR` defaults to `out`.
-- TypeScript needs Node.js 22.18+, pnpm, and just; Python needs Python 3.11+ and uv.
+- TypeScript needs Node.js 22.18+, pnpm, and just; Python needs Python 3.11+ and uv, plus the same Node.js, pnpm, and just tools to build the extension.
 
 ## Check out and run
 
@@ -51,13 +51,16 @@ just cookbook paginated-catalog
 </Tab>
 <Tab title="Python">
 ```bash
-cd packages/examples/cookbooks/paginated-catalog/python
-cp .env.example .env
-uv sync --locked
-uv run --locked python main.py
+# From the repository root
+just install
+cp packages/examples/cookbooks/paginated-catalog/python/.env.example packages/examples/cookbooks/paginated-catalog/python/.env
+# Add the required keys to the Python .env before running
+just cookbook-python paginated-catalog
 ```
 </Tab>
 </Tabs>
+
+The Python runner builds the extension and uses the local Python SDK through the root uv workspace. Its `.env` and output files live in the cookbook's `python/` directory.
 
 ## How the job works
 
