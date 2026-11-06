@@ -34,10 +34,7 @@ export async function listCatalogSkills(
   return parseSkillsResponse(payload);
 }
 
-export function prioritizeExactSkillMatch(
-  skills: BrowserSkill[],
-  query: string,
-): BrowserSkill[] {
+export function prioritizeExactSkillMatch(skills: BrowserSkill[], query: string): BrowserSkill[] {
   const normalizedQuery = query.toLowerCase();
   return [...skills].sort((a, b) => {
     const aExact = a.slug.toLowerCase() === normalizedQuery;
@@ -53,10 +50,7 @@ interface SkillTableOptions {
   wide?: boolean;
 }
 
-export function outputSkillTable(
-  skills: BrowserSkill[],
-  options: SkillTableOptions = {},
-): void {
+export function outputSkillTable(skills: BrowserSkill[], options: SkillTableOptions = {}): void {
   const visibleSkills = skills.slice(0, options.limit ?? skills.length);
 
   if (visibleSkills.length === 0) {
@@ -126,10 +120,7 @@ export function printSkillDetail(skill: BrowserSkill): void {
   console.log(`\nInstall: browse skills add ${skill.slug}`);
 }
 
-export function exactSkillMatch(
-  skills: BrowserSkill[],
-  query: string,
-): BrowserSkill | undefined {
+export function exactSkillMatch(skills: BrowserSkill[], query: string): BrowserSkill | undefined {
   const normalizedQuery = query.toLowerCase();
   return skills.find((skill) => skill.slug.toLowerCase() === normalizedQuery);
 }
@@ -139,12 +130,8 @@ function formatList(values: string[]): string {
 }
 
 function skillsCatalogApiUrl(query?: string): URL {
-  const baseUrl =
-    process.env.BROWSE_SKILLS_API_BASE_URL || defaultSkillsApiBaseUrl;
-  const url = new URL(
-    "api/skills",
-    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
-  );
+  const baseUrl = process.env.BROWSE_SKILLS_API_BASE_URL || defaultSkillsApiBaseUrl;
+  const url = new URL("api/skills", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
 
   if (query) {
     url.searchParams.set("q", query);
@@ -167,9 +154,7 @@ async function requestSkillsJson(url: URL): Promise<unknown> {
       },
     });
   } catch (error) {
-    fail(
-      `Failed to fetch skills: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    fail(`Failed to fetch skills: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   if (!response.ok) {
@@ -192,9 +177,7 @@ function parseSkillsResponse(payload: unknown): BrowserSkill[] {
     fail('Invalid skills response: expected {"skills":[...]}.');
   }
 
-  return payload.skills.map((skill, index) =>
-    parseSkill(skill, `skills[${index}]`),
-  );
+  return payload.skills.map((skill, index) => parseSkill(skill, `skills[${index}]`));
 }
 
 function parseSkill(payload: unknown, context: string): BrowserSkill {
@@ -214,33 +197,19 @@ function parseSkill(payload: unknown, context: string): BrowserSkill {
     tags: stringArrayField(payload.tags, context, "tags"),
     source: stringField(payload.source, context, "source"),
     updated: stringField(payload.updated, context, "updated"),
-    recommendedMethod: stringField(
-      payload.recommendedMethod,
-      context,
-      "recommendedMethod",
-    ),
+    recommendedMethod: stringField(payload.recommendedMethod, context, "recommendedMethod"),
     verified: booleanField(payload.verified, context, "verified"),
     proxies: booleanField(payload.proxies, context, "proxies"),
     sourceUrl: stringField(payload.sourceUrl, context, "sourceUrl"),
     partner: booleanField(payload.partner, context, "partner"),
-    screenshotUrls: stringArrayField(
-      payload.screenshotUrls,
-      context,
-      "screenshotUrls",
-    ),
+    screenshotUrls: stringArrayField(payload.screenshotUrls, context, "screenshotUrls"),
     installCount: numberField(payload.installCount, context, "installCount"),
   };
 }
 
-function requiredString(
-  value: unknown,
-  context: string,
-  field: string,
-): string {
+function requiredString(value: unknown, context: string, field: string): string {
   if (typeof value !== "string" || value.length === 0) {
-    fail(
-      `Invalid skills response for ${context}: ${field} must be a non-empty string.`,
-    );
+    fail(`Invalid skills response for ${context}: ${field} must be a non-empty string.`);
   }
 
   return value;
@@ -270,18 +239,9 @@ function numberField(value: unknown, context: string, field: string): number {
   return value;
 }
 
-function stringArrayField(
-  value: unknown,
-  context: string,
-  field: string,
-): string[] {
-  if (
-    !Array.isArray(value) ||
-    value.some((entry) => typeof entry !== "string")
-  ) {
-    fail(
-      `Invalid skills response for ${context}: ${field} must be an array of strings.`,
-    );
+function stringArrayField(value: unknown, context: string, field: string): string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    fail(`Invalid skills response for ${context}: ${field} must be an array of strings.`);
   }
 
   return value;

@@ -7,10 +7,7 @@ import {
   getNetworkDir,
   writePrivateFile,
 } from "./daemon/paths.js";
-import {
-  NetworkCdpSidecar,
-  type NetworkCdpSession,
-} from "./network-cdp-sidecar.js";
+import { NetworkCdpSidecar, type NetworkCdpSession } from "./network-cdp-sidecar.js";
 
 interface PendingRequest {
   body: string | null;
@@ -60,9 +57,7 @@ export class NetworkCapture {
     page: StagehandV4Page,
     browserWebSocketDebuggerUrl: string,
   ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
-    return this.runLifecycle(() =>
-      this.enableNow(page, browserWebSocketDebuggerUrl),
-    );
+    return this.runLifecycle(() => this.enableNow(page, browserWebSocketDebuggerUrl));
   }
 
   async disable(): Promise<{
@@ -91,10 +86,7 @@ export class NetworkCapture {
     this.requestStartTimes.clear();
     this.responseMetadata.clear();
 
-    const cdpSession = await this.sidecar.attach(
-      browserWebSocketDebuggerUrl,
-      page.pageId,
-    );
+    const cdpSession = await this.sidecar.attach(browserWebSocketDebuggerUrl, page.pageId);
     this.cdpSession = cdpSession;
     try {
       await cdpSession.send("Network.enable", {
@@ -175,9 +167,7 @@ export class NetworkCapture {
       await Promise.all(
         entries
           .filter((entry) => entry.isDirectory())
-          .map((entry) =>
-            fs.rm(path.join(dir, entry.name), { recursive: true }),
-          ),
+          .map((entry) => fs.rm(path.join(dir, entry.name), { recursive: true })),
       );
       this.counter = 0;
       this.pendingRequests.clear();
@@ -194,10 +184,7 @@ export class NetworkCapture {
     }
   }
 
-  private addListener(
-    event: string,
-    listener: (params: unknown) => void,
-  ): void {
+  private addListener(event: string, listener: (params: unknown) => void): void {
     this.cdpSession?.on(event, listener);
     this.listeners.push([event, listener]);
   }
@@ -320,10 +307,7 @@ export class NetworkCapture {
       getRequestDirName(this.counter++, request.method, request.url),
     );
     await ensurePrivateDir(requestDir);
-    await writePrivateFile(
-      path.join(requestDir, "request.json"),
-      JSON.stringify(request, null, 2),
-    );
+    await writePrivateFile(path.join(requestDir, "request.json"), JSON.stringify(request, null, 2));
     return requestDir;
   }
 
@@ -354,11 +338,7 @@ export class NetworkCapture {
   }
 }
 
-function getRequestDirName(
-  counter: number,
-  method: string,
-  url: string,
-): string {
+function getRequestDirName(counter: number, method: string, url: string): string {
   try {
     const parsed = new URL(url);
     const domain = sanitizeForFilename(parsed.hostname, 30);

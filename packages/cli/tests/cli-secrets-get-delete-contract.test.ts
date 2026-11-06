@@ -67,30 +67,18 @@ describe("project secrets get/delete HTTP contracts", () => {
     });
   });
 
-  it.each(["get", "delete"])(
-    "%s escapes the ID as a single URL segment",
-    async (command) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "cloud",
-          "secrets",
-          command,
-          "id/with?query#fragment",
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode, result.stderr).toBe(0);
-      expect(server.requests).toHaveLength(1);
-      expect(server.requests[0]?.path).toBe(
-        "/v1/secrets/id%2Fwith%3Fquery%23fragment",
-      );
-    },
-  );
+  it.each(["get", "delete"])("%s escapes the ID as a single URL segment", async (command) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(
+      ["cloud", "secrets", command, "id/with?query#fragment", "--base-url", server.baseUrl],
+      { env },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(server.requests).toHaveLength(1);
+    expect(server.requests[0]?.path).toBe("/v1/secrets/id%2Fwith%3Fquery%23fragment");
+  });
 
   it.each([
     ["get", 404, "Secret not found"],
@@ -107,18 +95,14 @@ describe("project secrets get/delete HTTP contracts", () => {
     expect(result.stderr).toContain(message);
   });
 
-  it.each(["get", "delete"])(
-    "%s requires a secret ID before requesting",
-    async (command) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        ["cloud", "secrets", command, "--base-url", server.baseUrl],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(server.requests).toHaveLength(0);
-    },
-  );
+  it.each(["get", "delete"])("%s requires a secret ID before requesting", async (command) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(["cloud", "secrets", command, "--base-url", server.baseUrl], {
+      env,
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
 });

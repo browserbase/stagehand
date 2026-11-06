@@ -8,6 +8,7 @@ import {
   listBenchHarnessesForTaskKind,
 } from "../../framework/benchHarness.js";
 import { executeBenchTask } from "../../framework/benchRunner.js";
+import { runInRowContext } from "../../framework/rowContext.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 
 const tempDirs: string[] = [];
@@ -112,6 +113,34 @@ describe("bench runner", () => {
     expect(result).toMatchObject({ _success: true });
     expect(closeMock).toHaveBeenCalledTimes(1);
     expect(browserCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports session then agent phases around the Stagehand harness start", async () => {
+    const taskFile = writeDefinitionTask(
+      makeTempDir(),
+      "phase_task.mjs",
+      `return { _success: true };`,
+    );
+    const task: DiscoveredTask = {
+      name: "act/phase_task",
+      tier: "bench",
+      primaryCategory: "act",
+      categories: ["act"],
+      tags: [],
+      isLegacy: false,
+      filePath: taskFile,
+    };
+    const phases: string[] = [];
+    await runInRowContext({ reportPhase: (phase) => phases.push(phase) }, () =>
+      executeBenchTask({ name: task.name, modelName: "gpt-4o-mini" as AvailableModel }, task, {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "LOCAL",
+        harness: "stagehand",
+        verbose: false,
+      }),
+    );
+    expect(phases).toEqual(["session", "agent"]);
   });
 
   it("preserves task error messages", async () => {

@@ -1,8 +1,4 @@
-import {
-  ensureDriverDaemon,
-  openViaDaemon,
-  runDriverCommandViaDaemon,
-} from "./daemon/client.js";
+import { ensureDriverDaemon, openViaDaemon, runDriverCommandViaDaemon } from "./daemon/client.js";
 import type { DriverCommandName } from "./commands/types.js";
 import type { ConnectionTarget } from "./types.js";
 

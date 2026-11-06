@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, jsonSchema, Output } from "ai";
+import { boundFetch } from "./boundFetch.js";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { z } from "zod/v4";
 import {
@@ -138,6 +139,8 @@ export function createAiSdkLanguageModel(
   const connection = {
     apiKey: config.apiKey,
     headers: config.headers,
+    // Load-time fetch ref (see boundFetch), not the ambient global.
+    fetch: boundFetch,
   };
 
   switch (provider) {

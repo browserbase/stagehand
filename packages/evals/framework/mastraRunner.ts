@@ -22,6 +22,8 @@ import {
 } from "./harnesses/externalRunner.js";
 import { mastraAdapter } from "./harnesses/mastraAdapter.js";
 import type { PreparedMastraToolAdapter } from "./mastraToolAdapter.js";
+import { openAiReasoningProviderOptions } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -75,16 +77,29 @@ export async function runMastraAgent({
     captureEvidence: toolAdapter.captureEvidence,
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
+    browserSessionLoss: toolAdapter.browserSessionLoss,
   };
+  const maxSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_MASTRA_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   const result = await runExternalHarnessTask({
     harness: "mastra",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Mastra did not report success",
-    runSession: async (prompt): Promise<ExternalHarnessSessionOutcome<MastraSessionResult>> => {
+    stepBudget: maxSteps,
+    stepBudgetUnit: "model_steps",
+    systemPromptMode: "native",
+    runSession: async (
+      prompt,
+      systemPrompt,
+    ): Promise<ExternalHarnessSessionOutcome<MastraSessionResult>> => {
       const sessionResult = await runMastraSession({
         prompt,
         model,
@@ -92,10 +107,12 @@ export async function runMastraAgent({
         sdk: sdk ?? (await loadMastraSdk()),
         signal,
         session: {
-          maxSteps: readMastraMaxSteps(),
+          instructions: `${systemPrompt}\n\nUse the available browser/web tools to complete the task.`,
+          maxSteps,
           mcpServers: toolAdapter?.mcpServers,
           tools: toolAdapter?.tools,
           mcpTimeoutMs: readPositiveIntEnv("EVAL_MASTRA_MCP_TIMEOUT_MS"),
+          providerOptions: openAiReasoningProviderOptions(model),
         },
         onToolResult: toolAdapter?.onToolResult,
       });
@@ -146,14 +163,6 @@ export async function runMastraAgent({
   return result;
 }
 
-function readMastraMaxSteps(): number {
-  for (const key of ["EVAL_MASTRA_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const value = readPositiveIntEnv(key);
-    if (value) return value;
-  }
-  return 50;
-}
-
 function readPositiveIntEnv(key: string): number | undefined {
   const parsed = Number.parseInt(process.env[key] ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -163,6 +172,7 @@ function normalizeMastraUsage(usage: MastraTokenUsage): ExternalHarnessUsage {
   const inputTokens = toFiniteNumber(usage.inputTokens);
   const outputTokens = toFiniteNumber(usage.outputTokens);
   return {
+    reported: usage.reported,
     inputTokens,
     outputTokens,
     cachedInputTokens: toFiniteNumber(usage.cachedInputTokens),

@@ -4,9 +4,7 @@ export default defineBenchTask(
   { name: "iframe_scroll" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc-scroll/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-same-proc-scroll/");
       await stagehand.act("scroll down 50% inside the iframe");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));

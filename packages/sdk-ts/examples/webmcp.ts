@@ -1,6 +1,6 @@
 import { localBrowser, Stagehand } from "../src/index.js";
 
-const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
+const webMCPTestSite = "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/";
 
 const browser = await localBrowser.launch({ headless: false });
 const stagehand = await Stagehand.create({ browser });

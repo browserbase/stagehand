@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -33,12 +34,17 @@ export type ServiceWorkerInfo = {
 
 export type CDPClientOptions = {
   cdpUrl: string;
+  headers?: Record<string, string>;
   extensionDir?: string;
+  /** Discover an installed runtime first; load this directory only if absent or unsupported. */
+  localExtensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
+  /** Factory-owned lifecycle policy; never infer process ownership from a CDP URL. */
+  clientLifecycle?: { closeBrowserOnDisconnect: boolean; extensionCdpUrl?: string };
   signal: AbortSignal;
 };
 
@@ -67,11 +73,17 @@ type VersionResponse = {
   status: number;
   statusText: string;
   json(): Promise<unknown>;
+  headers?: Pick<Headers, "get">;
+  body?: { cancel(): Promise<void> } | null;
 };
 
 type ResolveBrowserWebSocketUrlOptions = {
   pollIntervalMs?: number;
-  fetchFn?: (url: string, init?: { signal?: AbortSignal }) => Promise<VersionResponse>;
+  headers?: Record<string, string>;
+  fetchFn?: (
+    url: string,
+    init?: { signal?: AbortSignal; headers?: Record<string, string>; redirect?: RequestRedirect },
+  ) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
   signal: AbortSignal;
 };
@@ -200,11 +212,17 @@ const InstalledExtensionsResultSchema = z.looseObject({
 const STAGEHAND_EXTENSION_NAME = "Stagehand Runtime";
 
 export class CDPConnectionClosedError extends Error {
-  constructor(options?: ErrorOptions) {
-    super("CDP connection closed", options);
+  constructor(options?: ErrorOptions & { code?: number; reason?: string }) {
+    const detail =
+      options?.code !== undefined
+        ? ` (close code ${options.code}${options.reason ? `: ${options.reason}` : ""})`
+        : "";
+    super(`CDP connection closed${detail}`, options);
     this.name = "CDPConnectionClosedError";
   }
 }
+
+const CLIENT_TARGET_URL = "about:blank#stagehand-client-connection";
 
 export class CDPClient {
   onmessage?: (message: unknown) => void | Promise<void>;
@@ -216,6 +234,16 @@ export class CDPClient {
   sessionId: string | undefined;
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
+  private clientTargetId?: string;
+  /** Whether the extension shuts the browser down if this client is lost. */
+  private clientCloseBrowserOnLoss = false;
+  private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
+  private heartbeatAbort?: AbortController;
+  private readonly connectedAt = Date.now();
+  private lastMsgAt = this.connectedAt;
+  private lastSentAt = this.connectedAt;
+  private lastMethod = "";
 
   constructor(
     readonly socket: WebSocket,
@@ -223,55 +251,148 @@ export class CDPClient {
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
+      if (this.closed) return;
+      this.lastMsgAt = Date.now();
       this.handleMessage(event.data).catch((error: unknown) => {
-        const normalized = asError(error);
-        this.rejectPending(normalized);
-        this.onerror?.(normalized);
+        this.finishDrop(asError(error), "error");
       });
     });
 
-    this.socket.addEventListener("close", () => {
-      if (this.closed) return;
-      this.closed = true;
-      const reason = new CDPConnectionClosedError();
-      this.rejectPending(reason);
-      this.onclose?.(reason);
+    this.socket.addEventListener("close", (event) => {
+      const { code, reason: closeReason } = event as Event & { code?: number; reason?: string };
+      this.finishDrop(new CDPConnectionClosedError({ code, reason: closeReason }), "close", code);
     });
 
     this.socket.addEventListener("error", (event) => {
-      if (this.closed) return;
-      this.closed = true;
       const socketError = asError((event as Event & { error?: unknown }).error ?? event);
-      const reason = new CDPConnectionClosedError({ cause: socketError });
-      this.rejectPending(reason);
+      this.finishDrop(new CDPConnectionClosedError({ cause: socketError }), "error");
+    });
+    this.startHeartbeat();
+  }
+
+  /** Browser-level traffic only; no replay, transport replacement or reconnection. */
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      if (this.closed || this.socket.readyState !== WebSocket.OPEN || this.heartbeatAbort) return;
+      const controller = new AbortController();
+      this.heartbeatAbort = controller;
+      const timeout = setTimeout(
+        () => controller.abort(new Error("CDP heartbeat timed out")),
+        Math.min(this.heartbeatMs, 10_000),
+      );
+      timeout.unref?.();
+      void this.sendCommand("Browser.getVersion", {}, undefined, controller.signal)
+        .catch(() => undefined)
+        .finally(() => {
+          clearTimeout(timeout);
+          if (this.heartbeatAbort === controller) this.heartbeatAbort = undefined;
+        });
+    }, this.heartbeatMs);
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+    this.heartbeatAbort?.abort(new Error("CDP heartbeat stopped"));
+    this.heartbeatAbort = undefined;
+  }
+
+  private finishDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (this.closed) return;
+    // Mark terminal before closing the socket: synchronous error->close must
+    // notify once and retain the original error rather than the cleanup close.
+    this.closed = true;
+    this.logDrop(reason, kind, code);
+    this.stopHeartbeat();
+    this.rejectPending(reason);
+    if (kind === "error") {
       try {
         this.socket.close();
       } catch {
-        // The transport is already terminal; preserve the original socket failure.
+        /* preserve the terminal error */
       }
       this.onerror?.(reason);
-    });
+    } else {
+      this.onclose?.(reason);
+    }
+  }
+
+  private logDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (process.env.STAGEHAND_CDP_LOG !== "1") return;
+    const now = Date.now();
+    const line = `CDP_DROP ${JSON.stringify({
+      ts: new Date(now).toISOString(),
+      kind,
+      code: code ?? null,
+      idle_ms: now - this.lastMsgAt,
+      since_send_ms: now - this.lastSentAt,
+      age_ms: now - this.connectedAt,
+      pending: this.pending.size,
+      last_method: /^[A-Za-z][A-Za-z0-9_.]*$/u.test(this.lastMethod) ? this.lastMethod : "",
+      reason: cdpDiagnosticReason(reason),
+    })}\n`;
+    // Diagnostics never change the connection's terminal outcome.
+    try {
+      process.stderr.write(line);
+    } catch {
+      /* best effort */
+    }
+    const file = process.env.STAGEHAND_CDP_LOG_FILE;
+    if (file) {
+      try {
+        appendFileSync(file, line);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const signal = options.signal;
-    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, { signal });
+    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
+      signal,
+      headers: options.headers,
+    });
     throwIfAborted(signal);
-    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal);
+    let headers = options.headers;
+    if (
+      headers &&
+      Object.keys(headers).length > 0 &&
+      !canForwardCDPHeaders(options.cdpUrl, webSocketDebuggerUrl)
+    ) {
+      headers = undefined;
+      if (process.env.STAGEHAND_CDP_LOG === "1") {
+        try {
+          process.stderr.write(
+            "CDP headers were withheld from the advertised WebSocket endpoint because its host or port differs, or forwarding would downgrade transport security. If the handshake is rejected, check the gateway's advertised CDP endpoint.\n",
+          );
+        } catch {
+          /* Diagnostics must not interrupt the connection. */
+        }
+      }
+    }
+    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, headers);
 
     const client = new CDPClient(socket, webSocketDebuggerUrl);
 
     try {
       let extensionId: string;
-      if (options.extensionDir) {
+      if (options.localExtensionDir) {
+        extensionId = await resolveExtension(client, {
+          loadIfNotFound: true,
+          extensionDir: options.localExtensionDir,
+          signal,
+        });
+      } else if (options.extensionDir) {
         extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
       } else if (options.extensionId) {
         extensionId = options.extensionId;
       } else if (options.preloadedExtension) {
-        extensionId = await discoverInstalledStagehandExtensionId(client, { signal });
+        extensionId = await resolveExtension(client, { loadIfNotFound: false, signal });
       } else {
         throw new Error(
-          "Exactly one of extensionDir, extensionId, or preloadedExtension is required",
+          "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
       const serviceWorker = await waitForServiceWorker(client, {
@@ -312,6 +433,9 @@ export class CDPClient {
         allowFallbackInstall: options.allowFallbackInstall,
         signal,
       });
+      if (options.clientLifecycle) {
+        await client.registerClient(options.clientLifecycle, signal);
+      }
       return client;
     } catch (error) {
       client.close();
@@ -324,6 +448,98 @@ export class CDPClient {
       throw new Error("Stagehand service worker is not attached");
     }
     return this.attachedServiceWorker;
+  }
+
+  private async registerClient(
+    policy: NonNullable<CDPClientOptions["clientLifecycle"]>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const { targetId } = await this.sendCommand<{ targetId: string }>(
+      "Target.createTarget",
+      { url: CLIENT_TARGET_URL, hidden: true, background: true },
+      undefined,
+      signal,
+    );
+    // Chrome accepts unknown parameters: a build without hidden targets opens an
+    // ordinary tab that outlives this connection and would never signal its loss.
+    const { targetInfo } = await this.sendCommand<{ targetInfo: { type: string } }>(
+      "Target.getTargetInfo",
+      { targetId },
+      undefined,
+      signal,
+    );
+    if (targetInfo.type !== "other") {
+      await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
+      throw new Error("Stagehand requires Chrome 137 or later, which supports hidden targets");
+    }
+    const supported = await this.clientLifecycleCommand(
+      {
+        action: "attach",
+        targetId,
+        cdpUrl: policy.extensionCdpUrl ?? this.webSocketDebuggerUrl,
+        closeBrowserOnDisconnect: policy.closeBrowserOnDisconnect,
+      },
+      signal,
+    );
+    if (!supported) {
+      // The protocol handshake already rejects older extensions; this one is inconsistent.
+      await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
+      throw new Error(
+        "The Stagehand extension in this browser does not support the client watchdog; update the extension",
+      );
+    }
+    this.clientTargetId = targetId;
+    this.clientCloseBrowserOnLoss = policy.closeBrowserOnDisconnect;
+  }
+
+  /** Acknowledged intentional detach, before the client's socket/marker disappears. */
+  async detachClient(): Promise<void> {
+    if (!this.clientTargetId || this.closed) return;
+    let acknowledged: boolean;
+    try {
+      acknowledged = await this.clientLifecycleCommand(
+        { action: "detach", targetId: this.clientTargetId },
+        AbortSignal.timeout(10_000),
+      );
+    } catch (error) {
+      // Browserbase ends a keepAlive: false session once the extension closes its own
+      // connection, which closes this one before the acknowledgement arrives: the detach
+      // happened. A failure or timeout with this connection still open is still an error.
+      // When the extension shuts the browser down on loss, a lost connection means it did
+      // not get the detach: the browser is closing, so do not report a clean disconnect.
+      if (!(error instanceof CDPConnectionClosedError) || this.clientCloseBrowserOnLoss) {
+        throw error;
+      }
+      acknowledged = true;
+    }
+    if (!acknowledged) throw new Error("The Stagehand extension did not acknowledge the detach");
+    this.clientTargetId = undefined;
+  }
+
+  /** Resolves false when the extension has no client lifecycle support. */
+  private async clientLifecycleCommand(params: JsonObject, signal: AbortSignal): Promise<boolean> {
+    const result = await this.sendCommand<RuntimeEvaluateResult>(
+      "Runtime.evaluate",
+      {
+        expression: `(async () => {
+          if (typeof globalThis.__stagehandClientLifecycle !== "function") return false;
+          await globalThis.__stagehandClientLifecycle(${JSON.stringify(params)});
+          return true;
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      this.sessionId,
+      signal,
+    );
+    if (result.exceptionDetails || typeof result.result?.value !== "boolean") {
+      throw new Error(
+        result.exceptionDetails?.exception?.description ??
+          result.exceptionDetails?.text ??
+          "Stagehand client lifecycle registration failed",
+      );
+    }
+    return result.result.value;
   }
 
   async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {
@@ -358,6 +574,7 @@ export class CDPClient {
     signal?: AbortSignal,
   ): Promise<Result> {
     throwIfAborted(signal);
+    if (this.closed) throw new CDPConnectionClosedError();
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
     }
@@ -387,6 +604,8 @@ export class CDPClient {
       }
       try {
         this.socket.send(JSON.stringify(message));
+        this.lastSentAt = Date.now();
+        if (method !== "Browser.getVersion") this.lastMethod = method;
       } catch (error) {
         this.pending.delete(id);
         signal?.removeEventListener("abort", onAbort);
@@ -398,11 +617,19 @@ export class CDPClient {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.stopHeartbeat();
+    const onclose = this.onclose;
     this.onmessage = undefined;
     this.onclose = undefined;
     this.onerror = undefined;
-    this.rejectPending(new Error("CDP client closed"));
-    this.socket.close();
+    const reason = new Error("CDP client closed");
+    this.rejectPending(reason);
+    try {
+      this.socket.close();
+    } finally {
+      // Explicit close must notify RPC even without a socket close event.
+      onclose?.(reason);
+    }
   }
 
   async handleMessage(data: unknown): Promise<void> {
@@ -456,15 +683,24 @@ export class CDPClient {
   }
 }
 
-type CDPWebSocketFactory = (url: string) => WebSocket;
+type CDPWebSocketFactory = (url: string, headers?: Record<string, string>) => WebSocket;
 
 export async function openCDPWebSocket(
   url: string,
   signal: AbortSignal,
-  createSocket: CDPWebSocketFactory = (socketUrl) => new WebSocket(socketUrl),
+  createSocket: CDPWebSocketFactory = (socketUrl, socketHeaders) => {
+    // Node supports handshake headers, but the DOM WebSocket declaration omits this overload.
+    const NodeWebSocket = WebSocket as typeof WebSocket & {
+      new (url: string, options: { headers: Record<string, string> }): WebSocket;
+    };
+    return socketHeaders
+      ? new NodeWebSocket(socketUrl, { headers: socketHeaders })
+      : new WebSocket(socketUrl);
+  },
+  headers?: Record<string, string>,
 ): Promise<WebSocket> {
   throwIfAborted(signal);
-  const socket = createSocket(url);
+  const socket = headers === undefined ? createSocket(url) : createSocket(url, headers);
 
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
@@ -543,10 +779,44 @@ export async function waitForRuntimeReady(
   }
 }
 
-export async function discoverInstalledStagehandExtensionId(
+/** @internal Discover the runtime, optionally loading a bundled extension if needed. */
+export async function resolveExtension(
+  cdp: CDPCommandSender,
+  options: {
+    signal: AbortSignal;
+    loadIfNotFound: boolean;
+    extensionDir?: string;
+  },
+): Promise<string> {
+  let id: string | undefined;
+  try {
+    id = await getInstalledStagehandExtensionId(cdp, options);
+  } catch (error) {
+    if (
+      !options.loadIfNotFound ||
+      !isExtensionCommandUnavailable(error, "Extensions.getExtensions")
+    ) {
+      throw error;
+    }
+  }
+  throwIfAborted(options.signal);
+  if (id !== undefined) return id;
+  if (options.loadIfNotFound) {
+    if (!options.extensionDir) {
+      throw new Error("extensionDir is required to load the Stagehand extension");
+    }
+    return await loadUnpackedExtension(cdp, options.extensionDir, options.signal);
+  }
+  throw new Error(
+    "Stagehand extension is not installed in the connected browser. " +
+      "The extension must be included when the Browserbase session is created.",
+  );
+}
+
+async function getInstalledStagehandExtensionId(
   cdp: CDPCommandSender,
   options: { signal: AbortSignal },
-): Promise<string> {
+): Promise<string | undefined> {
   throwIfAborted(options.signal);
   const response = await cdp.sendCommand<unknown>(
     "Extensions.getExtensions",
@@ -570,10 +840,7 @@ export async function discoverInstalledStagehandExtensionId(
   if (installed.length > 0) {
     throw new Error("Stagehand extension is installed in the connected browser but is disabled.");
   }
-  throw new Error(
-    "Stagehand extension is not installed in the connected browser. " +
-      "The extension must be included when the Browserbase session is created.",
-  );
+  return undefined;
 }
 
 async function evaluateRuntimeReadiness(
@@ -683,9 +950,9 @@ export async function loadUnpackedExtension(
       signal,
     );
   } catch (error) {
-    if (isExtensionsLoadUnpackedUnavailable(error)) {
+    if (isExtensionCommandUnavailable(error, "Extensions.loadUnpacked")) {
       throw new Error(
-        "This Chrome build does not support Extensions.loadUnpacked. Launch with --load-extension and connect using extensionId instead.",
+        "This Chrome build does not support Extensions.loadUnpacked. Preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions.",
         { cause: error },
       );
     }
@@ -700,6 +967,77 @@ export async function loadUnpackedExtension(
   return loaded.id;
 }
 
+/** @internal Require the same host and effective port, without downgrading TLS. */
+export function canForwardCDPHeaders(source: string, destination: string): boolean {
+  const ports: Record<string, string> = {
+    "http:": "80",
+    "ws:": "80",
+    "https:": "443",
+    "wss:": "443",
+  };
+  try {
+    const first = new URL(source);
+    const second = new URL(destination);
+    return Boolean(
+      ports[first.protocol] &&
+      ports[second.protocol] &&
+      first.hostname &&
+      first.hostname === second.hostname &&
+      (first.port || ports[first.protocol]) === (second.port || ports[second.protocol]) &&
+      !(["https:", "wss:"].includes(first.protocol) && ["http:", "ws:"].includes(second.protocol)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+class CDPDiscoveryError extends Error {}
+
+async function fetchCDPVersion(
+  url: string,
+  options: ResolveBrowserWebSocketUrlOptions,
+): Promise<VersionResponse> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const authenticated = options.headers !== undefined && Object.keys(options.headers).length > 0;
+  for (let redirects = 0; ; redirects++) {
+    const response = await abortable(
+      fetchFn(url, {
+        signal: options.signal,
+        ...(options.headers === undefined ? {} : { headers: options.headers }),
+        ...(authenticated ? { redirect: "manual" as const } : {}),
+      }),
+      options.signal,
+    );
+    if (!response.ok) await response.body?.cancel();
+    if (response.status === 401 || response.status === 403) {
+      throw new CDPDiscoveryError(
+        `CDP discovery was rejected with HTTP ${response.status}. Check the gateway credentials and access permissions.`,
+      );
+    }
+    if (!authenticated || ![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers?.get("location");
+    if (!location) return response;
+    let destination: URL;
+    try {
+      destination = new URL(location, url);
+    } catch {
+      throw new CDPDiscoveryError("Invalid CDP HTTP redirect.");
+    }
+    if (
+      !canForwardCDPHeaders(url, destination.href) ||
+      !["http:", "https:"].includes(destination.protocol) ||
+      destination.username ||
+      destination.password
+    ) {
+      throw new CDPDiscoveryError(
+        "Refusing CDP HTTP redirect with headers to a different host or port, an insecure transport, or a URL containing credentials.",
+      );
+    }
+    if (redirects >= 20) throw new CDPDiscoveryError("Too many CDP HTTP redirects.");
+    url = destination.href;
+  }
+}
+
 export async function resolveBrowserWebSocketUrl(
   cdpUrl: string,
   options: ResolveBrowserWebSocketUrlOptions,
@@ -708,17 +1046,13 @@ export async function resolveBrowserWebSocketUrl(
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;
 
   const pollIntervalMs = options.pollIntervalMs ?? 250;
-  const fetchFn = options.fetchFn ?? fetch;
   const delayFn = options.delayFn ?? delay;
   const baseUrl = cdpUrl.replace(/\/$/, "");
 
   while (true) {
     throwIfAborted(options.signal);
     try {
-      const response = await abortable(
-        fetchFn(`${baseUrl}/json/version`, { signal: options.signal }),
-        options.signal,
-      );
+      const response = await fetchCDPVersion(`${baseUrl}/json/version`, options);
 
       if (response.ok) {
         const version = (await abortable(response.json(), options.signal)) as {
@@ -726,7 +1060,8 @@ export async function resolveBrowserWebSocketUrl(
         };
         if (version.webSocketDebuggerUrl) return version.webSocketDebuggerUrl;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof CDPDiscoveryError) throw error;
       throwIfAborted(options.signal);
     }
 
@@ -747,18 +1082,60 @@ function delay(ms: number): Promise<void> {
   return abortableDelay(ms);
 }
 
-function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
+function isExtensionCommandUnavailable(error: unknown, method: string): boolean {
   if (!(error instanceof Error)) return false;
 
   const cause = CDPCommandErrorCauseSchema.safeParse(error.cause);
   if (!cause.success) return false;
 
   return (
-    cause.data.method === "Extensions.loadUnpacked" &&
+    cause.data.method === method &&
     (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
   );
 }
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function cdpHeartbeatMs(raw: string | undefined): number {
+  const value = Number(raw);
+  return raw?.trim() && Number.isInteger(value) && value >= 1_000 && value <= 2_147_483_647
+    ? value
+    : 20_000;
+}
+
+/** Keep transport causes useful without serializing errors, payloads or arbitrary objects. */
+function cdpDiagnosticReason(reason: Error): string {
+  const messages: string[] = [];
+  const seen = new Set<Error>();
+  let current: unknown = reason;
+  for (let depth = 0; depth < 4; depth++) {
+    try {
+      if (typeof current === "string") {
+        messages.push(sanitizeCdpDiagnostic(current));
+        break;
+      }
+      if (!(current instanceof Error) || seen.has(current)) break;
+      seen.add(current);
+      if (typeof current.message === "string" && current.message)
+        messages.push(sanitizeCdpDiagnostic(current.message));
+      current = current.cause;
+    } catch {
+      // A diagnostic accessor must not interrupt rejection or transport cleanup.
+      break;
+    }
+  }
+  return (messages.join(": ") || "CDP connection closed").slice(0, 160);
+}
+
+/** The diagnostic contains no payloads or connection URLs, including close text URLs. */
+function sanitizeCdpDiagnostic(message: string): string {
+  return message
+    .replace(/(?:https?|wss?):\/\/[^\s"']+/giu, "[url]")
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]+|bb_(?:live|test)_[A-Za-z0-9_-]+|AIza[A-Za-z0-9_-]{20,})/gu,
+      "[redacted]",
+    )
+    .replace(/\bBearer\s+[^\s]+/giu, "Bearer [redacted]");
 }
