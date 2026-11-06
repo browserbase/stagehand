@@ -9,8 +9,7 @@ import {
 } from "../../lib/driver/command-cli.js";
 
 export default class MouseClick extends BrowseCommand {
-  static override description =
-    "Click raw viewport coordinates in the active page.";
+  static override description = "Click raw viewport coordinates in the active page.";
 
   static override examples = [
     "browse mouse click 240 320",

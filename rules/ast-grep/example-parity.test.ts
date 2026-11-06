@@ -1,13 +1,14 @@
-import { readdir, readFile } from "node:fs/promises";
-import go from "@ast-grep/lang-go";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ python });
 
 const exampleDirectories = {
-  go: new URL("../../packages/sdk-go/examples/", import.meta.url),
   python: new URL("../../packages/sdk-python/examples/", import.meta.url),
   typescript: new URL("../../packages/sdk-ts/examples/", import.meta.url),
 } as const;
@@ -15,7 +16,6 @@ const exampleDirectories = {
 type ExampleLanguage = keyof typeof exampleDirectories;
 
 const exampleExtensions: Record<ExampleLanguage, string> = {
-  go: ".go",
   python: ".py",
   typescript: ".ts",
 };
@@ -33,67 +33,17 @@ describe("example name normalization", () => {
   });
 });
 
-describe("All language examples remain in sync", () => {
-  it("provides the same examples in every SDK", async () => {
-    const inventories = {
-      go: (await examples("go")).map(({ name }) => name),
-      python: (await examples("python")).map(({ name }) => name),
-      typescript: (await examples("typescript")).map(({ name }) => name),
-    };
-
-    expect(inventories.python).toStrictEqual(inventories.typescript);
-    expect(inventories.go).toStrictEqual(inventories.typescript);
-    expect(inventories.typescript.length).toBeGreaterThan(0);
+describe("TypeScript and Python examples remain in sync", () => {
+  it("provides the same examples in both active SDKs", async () => {
+    await assertExampleInventory(exampleDirectories);
   });
 
   it("calls the same public SDK operations in every matching example", async () => {
-    const typescriptExamples = await examples("typescript");
-    const pythonExamples = new Map(
-      (await examples("python")).map((example) => [example.name, example]),
-    );
-    const goExamples = new Map((await examples("go")).map((example) => [example.name, example]));
-
-    for (const typescript of typescriptExamples) {
-      const pythonExample = pythonExamples.get(typescript.name);
-      const goExample = goExamples.get(typescript.name);
-      expect(pythonExample, `${typescript.name} must have a Python example`).toBeDefined();
-      expect(goExample, `${typescript.name} must have a Go example`).toBeDefined();
-      if (!pythonExample || !goExample) continue;
-
-      const typescriptRoot = parse("typescript", await readFile(typescript.url, "utf8")).root();
-      const pythonRoot = parse("python", await readFile(pythonExample.url, "utf8")).root();
-      const goRoot = parse("go", await readFile(goExample.url, "utf8")).root();
-
-      expect(
-        publicSdkOperations(pythonRoot, "python"),
-        `${typescript.name} must call the same public SDK operations in Python and TypeScript`,
-      ).toStrictEqual(publicSdkOperations(typescriptRoot, "typescript"));
-      expect(
-        publicSdkOperations(goRoot, "go"),
-        `${typescript.name} must call the same public SDK operations in Go and TypeScript`,
-      ).toStrictEqual(publicSdkOperations(typescriptRoot, "typescript"));
-    }
-  });
-
-  it("recognizes generic Go operations through an aliased SDK import", () => {
-    const root = parse(
-      "go",
-      `package main
-
-import sh "github.com/browserbase/stagehand/packages/sdk-go/v4"
-
-func main() {
-	client, err := sh.Create(ctx, options)
-	result, err := sh.Extract[pageInfo](ctx, client, "extract page info", nil)
-	_, _ = result, err
-}`,
-    ).root();
-
-    expect(publicSdkOperations(root, "go")).toStrictEqual(["stagehand.extract"]);
+    await assertExampleOperations(exampleDirectories);
   });
 
   it("uses the public SDK lifecycle required by each example", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of ["typescript", "python"] as const) {
       for (const example of await examples(language)) {
         const root = parse(language, await readFile(example.url, "utf8")).root();
         const stagehand = stagehandVariable(root, language);
@@ -101,40 +51,31 @@ func main() {
         const usesOnlyBrowserbaseServices =
           operations.length > 0 &&
           operations.every((operation) => operation.startsWith("browserbase."));
-        const publicImport =
-          language === "go"
-            ? root
-                .findAll({ rule: { kind: "import_spec" } })
-                .find((node) =>
-                  node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go/v4"'),
-                )
-            : root.find({
-                rule: {
-                  pattern:
-                    language === "typescript"
-                      ? 'import { $$$IMPORTS } from "../src/index.js"'
-                      : "from stagehand import $$$IMPORTS",
-                },
-              });
+        const publicImport = root.find({
+          rule: {
+            pattern:
+              language === "typescript"
+                ? 'import { $$$IMPORTS } from "../src/index.js"'
+                : "from stagehand import $$$IMPORTS",
+          },
+        });
 
         expect(
           publicImport,
           `${language} ${example.file} must import the public SDK`,
         ).toBeDefined();
         if (usesOnlyBrowserbaseServices) {
-          if (language !== "go") {
-            expect(
-              publicImport
-                ?.getMultipleMatches("IMPORTS")
-                .some((node) => node.text() === "browserbase"),
-              `${language} ${example.file} must import public browserbase services`,
-            ).toBe(true);
-          }
+          expect(
+            publicImport
+              ?.getMultipleMatches("IMPORTS")
+              .some((node) => node.text() === "browserbase"),
+            `${language} ${example.file} must import public browserbase services`,
+          ).toBe(true);
           expect(
             stagehand,
             `${language} ${example.file} must not construct Stagehand for browserless services`,
           ).toBeUndefined();
-        } else if (language !== "go") {
+        } else {
           expect(
             publicImport?.getMultipleMatches("IMPORTS").some((node) => node.text() === "Stagehand"),
             `${language} ${example.file} must import public Stagehand`,
@@ -159,11 +100,6 @@ func main() {
             root.find({ rule: { pattern: `await ${stagehand}.close()` } }),
             `${language} ${example.file} must close Stagehand`,
           ).not.toBeNull();
-        } else if (language === "go") {
-          expect(
-            goCalls(root).some(({ object, method }) => object === stagehand && method === "Close"),
-            `${language} ${example.file} must close Stagehand`,
-          ).toBe(true);
         } else {
           expect(
             root.find({ rule: { pattern: `${stagehand} = await Stagehand.create($$$ARGS)` } }),
@@ -183,30 +119,107 @@ func main() {
   });
 });
 
+describe("active SDK example coverage regressions", () => {
+  it.each([
+    { name: "accepts a new TS/Python example without Go", missing: "none", part: "none" },
+    { name: "rejects a missing TypeScript example", missing: "typescript", part: "example" },
+    { name: "rejects a missing Python example", missing: "python", part: "example" },
+    { name: "rejects a missing TypeScript operation", missing: "typescript", part: "operation" },
+    { name: "rejects a missing Python operation", missing: "python", part: "operation" },
+  ] as const)("$name", async ({ missing, part }) => {
+    const directory = await mkdtemp(join(tmpdir(), "sdk-example-parity-"));
+    try {
+      const directories = {
+        typescript: pathToFileURL(`${join(directory, "typescript")}/`),
+        python: pathToFileURL(`${join(directory, "python")}/`),
+      };
+      const fixtures = {
+        typescript: `const client = await Stagehand.create({});
+const page = await client.browser.context.newPage();
+await page.freshFeature();
+await client.close();`,
+        python: `client = await Stagehand.create()
+page = await client.browser.context.new_page()
+await page.fresh_feature()
+await client.close()`,
+      };
+      for (const language of ["typescript", "python"] as const) {
+        await mkdir(directories[language]);
+        if (missing === language && part === "example") continue;
+        const source =
+          missing === language && part === "operation"
+            ? fixtures[language].replace(/^await page\..+$/mu, "")
+            : fixtures[language];
+        // Different spellings exercise filename normalization as well as discovery.
+        const file = language === "typescript" ? "freshFeature.ts" : "fresh_feature.py";
+        await writeFile(new URL(file, directories[language]), source);
+      }
+      if (part === "example") {
+        await expect(assertExampleInventory(directories)).rejects.toThrow(
+          "TS/Python must provide matching examples",
+        );
+      } else {
+        await assertExampleInventory(directories);
+        const check = assertExampleOperations(directories);
+        if (part === "operation")
+          await expect(check).rejects.toThrow("must call the same public SDK operations");
+        else await expect(check).resolves.toBeUndefined();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+async function assertExampleInventory(directories: Record<ExampleLanguage, URL>): Promise<void> {
+  const inventories = {
+    python: (await examples("python", directories.python)).map(({ name }) => name),
+    typescript: (await examples("typescript", directories.typescript)).map(({ name }) => name),
+  };
+
+  expect(inventories.python, "TS/Python must provide matching examples").toStrictEqual(
+    inventories.typescript,
+  );
+  expect(inventories.typescript.length).toBeGreaterThan(0);
+}
+
+async function assertExampleOperations(directories: Record<ExampleLanguage, URL>): Promise<void> {
+  const typescriptExamples = await examples("typescript", directories.typescript);
+  const pythonExamples = new Map(
+    (await examples("python", directories.python)).map((example) => [example.name, example]),
+  );
+
+  for (const typescript of typescriptExamples) {
+    const pythonExample = pythonExamples.get(typescript.name);
+    expect(pythonExample, `${typescript.name} must have a Python example`).toBeDefined();
+    if (!pythonExample) continue;
+
+    const typescriptRoot = parse("typescript", await readFile(typescript.url, "utf8")).root();
+    const pythonRoot = parse("python", await readFile(pythonExample.url, "utf8")).root();
+
+    expect(
+      publicSdkOperations(pythonRoot, "python"),
+      `${typescript.name} must call the same public SDK operations in Python and TypeScript`,
+    ).toStrictEqual(publicSdkOperations(typescriptRoot, "typescript"));
+  }
+}
+
 async function examples(
   language: ExampleLanguage,
+  directory: URL = exampleDirectories[language],
 ): Promise<Array<{ file: string; name: string; url: URL }>> {
   const extension = exampleExtensions[language];
-  return (await readdir(exampleDirectories[language]))
+  return (await readdir(directory))
     .filter((file) => file.endsWith(extension))
     .map((file) => ({
       file,
       name: normalizeExampleName(file.slice(0, -extension.length)),
-      url: new URL(file, exampleDirectories[language]),
+      url: new URL(file, directory),
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function stagehandVariable(root: SgNode, language: ExampleLanguage): string | undefined {
-  if (language === "go") {
-    const sdkPackage = goSdkPackage(root);
-    if (!sdkPackage) return undefined;
-    return root
-      .find({ rule: { pattern: `$STAGEHAND, $ERR := ${sdkPackage}.Create($$$ARGS)` } })
-      ?.getMatch("STAGEHAND")
-      ?.text();
-  }
-
   const construction = root.find({
     rule: {
       pattern:
@@ -221,12 +234,7 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
 
 function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] {
   const stagehand = stagehandVariable(root, language);
-  if (!stagehand) return browserbaseServiceOperations(root, language);
-
-  if (language === "go") {
-    const sdkPackage = goSdkPackage(root);
-    return sdkPackage ? goPublicSdkOperations(root, stagehand, sdkPackage) : [];
-  }
+  if (!stagehand) return browserbaseServiceOperations(root);
 
   const assignments = root.findAll({
     rule: { pattern: language === "typescript" ? "const $NAME = $VALUE" : "$NAME = $VALUE" },
@@ -259,20 +267,7 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
     .sort();
 }
 
-function browserbaseServiceOperations(root: SgNode, language: ExampleLanguage): string[] {
-  if (language === "go") {
-    const sdkPackage = goSdkPackage(root);
-    if (!sdkPackage) return [];
-    return goCalls(root)
-      .flatMap(({ object, method }) => {
-        if (object !== sdkPackage) return [];
-        if (method === "SearchBrowserbase") return ["browserbase.search"];
-        if (method === "FetchBrowserbase") return ["browserbase.fetch"];
-        return [];
-      })
-      .sort();
-  }
-
+function browserbaseServiceOperations(root: SgNode): string[] {
   return root
     .findAll({ rule: { pattern: "$OBJECT.$METHOD($$$ARGS)" } })
     .flatMap((call) => {
@@ -283,76 +278,6 @@ function browserbaseServiceOperations(root: SgNode, language: ExampleLanguage): 
         : [];
     })
     .sort();
-}
-
-function goPublicSdkOperations(root: SgNode, stagehand: string, sdkPackage: string): string[] {
-  const assignedValues = goAssignedValues(root);
-  const contextObjects = new Set(
-    assignedValues.flatMap(({ name, value }) => {
-      const target = goCallTarget(value);
-      return target?.object === `${stagehand}.Browser()` && target.method === "Context"
-        ? [name]
-        : [];
-    }),
-  );
-  const pageObjects = new Set(
-    assignedValues.flatMap(({ name, value }) => {
-      const target = goCallTarget(value);
-      return target && contextObjects.has(target.object) ? [name] : [];
-    }),
-  );
-
-  const operations = goCalls(root).flatMap(({ object, method }) => {
-    if (object === sdkPackage && method === "Extract") return ["stagehand.extract"];
-    if (object === stagehand && method !== "Browser" && method !== "Close") {
-      return [`stagehand.${snakeCase(method)}`];
-    }
-    if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];
-    if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
-    return [];
-  });
-  return operations.sort();
-}
-
-function goSdkPackage(root: SgNode): string | undefined {
-  const sdkImport = root
-    .findAll({ rule: { kind: "import_spec" } })
-    .find((node) => node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go/v4"'));
-  if (!sdkImport) return undefined;
-
-  return (
-    sdkImport
-      .children()
-      .find((child) => child.isNamed() && child.kind() === "package_identifier")
-      ?.text() ?? "stagehand"
-  );
-}
-
-function goAssignedValues(root: SgNode): Array<{ name: string; value: SgNode }> {
-  return root.findAll({ rule: { kind: "short_var_declaration" } }).flatMap((assignment) => {
-    const [names, values] = assignment.children().filter((child) => child.isNamed());
-    const name = names?.children().find((child) => child.isNamed());
-    const value = values?.children().find((child) => child.isNamed());
-    return name && value ? [{ name: name.text(), value }] : [];
-  });
-}
-
-function goCalls(root: SgNode): Array<{ object: string; method: string }> {
-  return root.findAll({ rule: { kind: "call_expression" } }).flatMap((call) => {
-    const target = goCallTarget(call);
-    return target ? [target] : [];
-  });
-}
-
-function goCallTarget(node: SgNode): { object: string; method: string } | undefined {
-  if (node.kind() !== "call_expression") return undefined;
-  let called: SgNode | undefined = node.children().find((child) => child.isNamed());
-  if (called?.kind() === "index_expression") {
-    called = called.children().find((child) => child.isNamed());
-  }
-  if (called?.kind() !== "selector_expression") return undefined;
-  const [object, method] = called.children().filter((child) => child.isNamed());
-  return object && method ? { object: object.text(), method: method.text() } : undefined;
 }
 
 function snakeCase(value: string): string {

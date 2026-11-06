@@ -4,7 +4,7 @@ import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/sc
 import {
   CDPClient,
   CDPConnectionClosedError,
-  discoverInstalledStagehandExtensionId,
+  resolveExtension,
   openCDPWebSocket,
   stagehandMessageExpression,
   waitForRuntimeReady,
@@ -141,6 +141,36 @@ describe("CDP WebSocket transport", () => {
     expect(createSocket).toHaveBeenCalledWith("wss://browser.example/devtools/browser/session");
   });
 
+  it.each([false, true])(
+    "notifies explicit close once when socket.close throws: %s",
+    async (throws) => {
+      const socket = new FakeWebSocket();
+      socket.open();
+      const client = new CDPClient(socket as never, "ws://localhost/test");
+      const onclose = vi.fn(() => client.close());
+      client.onclose = onclose;
+      const pending = client.sendCommand("Browser.getVersion");
+      const rejected = expect(pending).rejects.toThrow("CDP client closed");
+      if (throws)
+        socket.close.mockImplementation(() => {
+          throw new Error("socket close failed");
+        });
+
+      if (throws) expect(() => client.close()).toThrow("socket close failed");
+      else client.close();
+      socket.closeFromRemote();
+      client.close();
+
+      await rejected;
+      expect(onclose).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "CDP client closed" }),
+      );
+      expect(socket.close).toHaveBeenCalledOnce();
+      expect(client.pending.size).toBe(0);
+      expect(client.onclose).toBeUndefined();
+    },
+  );
+
   it("normalizes an Undici socket error before close as one connection-closed failure", async () => {
     const socket = new FakeWebSocket();
     socket.open();
@@ -168,7 +198,11 @@ describe("CDP WebSocket transport", () => {
     expect(socket.close).toHaveBeenCalledOnce();
   });
 
-  it("discovers an installed extension before attaching to its ready worker", async () => {
+  it.each([
+    { preloadedExtension: true as const },
+    { localExtensionDir: "/unused" },
+    { localExtensionDir: "/unused", runtimeRequirement: { protocolVersion: "999.0.0" } },
+  ])("discovers an installed extension and enforces runtime compatibility: %j", async (source) => {
     const signal = new AbortController().signal;
     const socket = new FakeWebSocket();
     const originalWebSocket = globalThis.WebSocket;
@@ -232,13 +266,23 @@ describe("CDP WebSocket transport", () => {
     try {
       const connecting = CDPClient.connect({
         cdpUrl: "wss://browser.example/devtools/browser/session",
-        preloadedExtension: true,
+        ...source,
         signal,
       });
 
       await vi.waitFor(() => expect(createSocket).toHaveBeenCalledOnce());
       socket.open();
 
+      if ("runtimeRequirement" in source) {
+        await expect(connecting).rejects.toMatchObject({
+          name: "StagehandRuntimeIncompatibleError",
+        });
+        expect(socket.close).toHaveBeenCalledOnce();
+        expect(
+          socket.send.mock.calls.map(([raw]) => JSON.parse(raw as string).method),
+        ).not.toContain("Extensions.loadUnpacked");
+        return;
+      }
       const client = await connecting;
       expect(createSocket).toHaveBeenCalledWith("wss://browser.example/devtools/browser/session");
       expect(client.serviceWorker).toStrictEqual({
@@ -342,7 +386,7 @@ describe("installed Stagehand extension discovery", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).resolves.toBe("installed-stagehand");
     expect(sendCommand).toHaveBeenCalledOnce();
     expect(sendCommand).toHaveBeenCalledWith("Extensions.getExtensions", {}, undefined, signal);
@@ -355,7 +399,7 @@ describe("installed Stagehand extension discovery", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).rejects.toThrow(
       "Stagehand extension is not installed in the connected browser. " +
         "The extension must be included when the Browserbase session is created.",
@@ -368,7 +412,7 @@ describe("installed Stagehand extension discovery", () => {
     const sendCommand = vi.fn(async () => ({ extensions: [extension({ enabled: false })] }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).rejects.toThrow("Stagehand extension is installed in the connected browser but is disabled.");
   });
 
@@ -379,7 +423,7 @@ describe("installed Stagehand extension discovery", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).rejects.toThrow(
       "Multiple enabled Stagehand extensions are installed: stagehand-a, stagehand-z",
     );
@@ -392,7 +436,7 @@ describe("installed Stagehand extension discovery", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).rejects.toThrow();
   });
 
@@ -405,7 +449,7 @@ describe("installed Stagehand extension discovery", () => {
     });
 
     await expect(
-      discoverInstalledStagehandExtensionId(commandSender(sendCommand), { signal }),
+      resolveExtension(commandSender(sendCommand), { loadIfNotFound: false, signal }),
     ).rejects.toBe(commandError);
     expect(sendCommand).toHaveBeenCalledOnce();
   });
@@ -446,5 +490,232 @@ describe("Stagehand service worker discovery", () => {
       }),
     ).resolves.toMatchObject({ targetId: "stagehand-worker" });
     expect(sendCommand).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("local extension resolution", () => {
+  const unsupported = (method = "Extensions.getExtensions", code = -32601) =>
+    new Error("Method not found", { cause: { method, code, message: "Method not found" } });
+
+  it("reuses an installed extension without accessing the fallback directory", async () => {
+    const send = vi.fn(async () => ({ extensions: [extension(), extension({ name: "Other" })] }));
+    await expect(
+      resolveExtension(commandSender(send), {
+        loadIfNotFound: true,
+        extensionDir: "/does-not-exist",
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toBe("stagehand-extension");
+    expect(send.mock.calls).toHaveLength(1);
+  });
+
+  it.each(["missing", "unsupported"])("loads once when discovery is %s", async (mode) => {
+    const send = vi.fn(async (method: string) => {
+      if (method === "Extensions.getExtensions") {
+        if (mode === "unsupported") throw unsupported();
+        return { extensions: [] };
+      }
+      return { id: "loaded-extension" };
+    });
+    const signal = new AbortController().signal;
+    await expect(
+      resolveExtension(commandSender(send), {
+        loadIfNotFound: true,
+        extensionDir: "/bundle",
+        signal: signal,
+      }),
+    ).resolves.toBe("loaded-extension");
+    expect(send.mock.calls.map(([method]) => method)).toEqual([
+      "Extensions.getExtensions",
+      "Extensions.loadUnpacked",
+    ]);
+    expect(send).toHaveBeenLastCalledWith(
+      "Extensions.loadUnpacked",
+      { path: "/bundle" },
+      undefined,
+      signal,
+    );
+  });
+
+  it.each([
+    ["disabled", { extensions: [extension({ enabled: false })] }],
+    ["ambiguous", { extensions: [extension({ id: "a" }), extension({ id: "b" })] }],
+    ["malformed", { extensions: [{ id: "invalid" }] }],
+  ])("does not load on a %s inventory", async (_name, inventory) => {
+    const send = vi.fn(async () => inventory);
+    await expect(
+      resolveExtension(commandSender(send), {
+        loadIfNotFound: true,
+        extensionDir: "/bundle",
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow();
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    new CDPConnectionClosedError(),
+    new Error("Permission denied", {
+      cause: { method: "Extensions.getExtensions", code: -32000, message: "Permission denied" },
+    }),
+    unsupported("Other.command"),
+    new Error("Method not found"),
+  ])("preserves discovery failure without loading: %s", async (error) => {
+    const send = vi.fn(async () => {
+      throw error;
+    });
+    await expect(
+      resolveExtension(commandSender(send), {
+        loadIfNotFound: true,
+        extensionDir: "/bundle",
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBe(error);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])(
+    "does not load after cancellation during discovery (unsupported: %s)",
+    async (isUnsupported) => {
+      const controller = new AbortController();
+      const error = new Error("cancelled");
+      const send = vi.fn(async () => {
+        controller.abort(error);
+        if (isUnsupported) throw unsupported();
+        return { extensions: [] };
+      });
+      await expect(
+        resolveExtension(commandSender(send), {
+          loadIfNotFound: true,
+          extensionDir: "/bundle",
+          signal: controller.signal,
+        }),
+      ).rejects.toBe(error);
+      expect(send).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("preserves a loading failure without retrying", async () => {
+    const error = new Error("load failed");
+    const send = vi.fn(async (method: string) => {
+      if (method === "Extensions.getExtensions") return { extensions: [] };
+      throw error;
+    });
+    await expect(
+      resolveExtension(commandSender(send), {
+        loadIfNotFound: true,
+        extensionDir: "/bundle",
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBe(error);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("client lifecycle registration", () => {
+  function lifecycleClient(options: {
+    targetType: string;
+    attach: boolean;
+    detach?: boolean | Error;
+  }) {
+    const socket = new FakeWebSocket();
+    socket.open();
+    const client = new CDPClient(socket as never, "ws://localhost/test");
+    const calls: string[] = [];
+    vi.spyOn(client, "sendCommand").mockImplementation(async (method, params) => {
+      const expression = String((params as { expression?: string } | undefined)?.expression);
+      const action = expression.includes('"detach"') ? "detach" : "attach";
+      calls.push(method === "Runtime.evaluate" ? action : method);
+      if (method === "Target.createTarget") return { targetId: "marker" };
+      if (method === "Target.getTargetInfo") return { targetInfo: { type: options.targetType } };
+      if (method === "Runtime.evaluate" && action === "detach" && options.detach instanceof Error)
+        throw options.detach;
+      if (method === "Runtime.evaluate")
+        return {
+          result: { value: action === "detach" ? (options.detach ?? true) : options.attach },
+        };
+      return {};
+    });
+    const register = (closeBrowserOnDisconnect = true) =>
+      (
+        client as unknown as {
+          registerClient(
+            policy: { closeBrowserOnDisconnect: boolean },
+            signal: AbortSignal,
+          ): Promise<void>;
+        }
+      ).registerClient({ closeBrowserOnDisconnect }, new AbortController().signal);
+    return { client, calls, register };
+  }
+
+  it.each(["page", "iframe", "worker"])(
+    "closes a marker of type %s and requires Chrome 137",
+    async (targetType) => {
+      const { calls, register } = lifecycleClient({ targetType, attach: true });
+      await expect(register()).rejects.toThrow("requires Chrome 137 or later");
+      expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "Target.closeTarget"]);
+    },
+  );
+
+  it("closes the marker and rejects an extension without watchdog support", async () => {
+    const { calls, register } = lifecycleClient({ targetType: "other", attach: false });
+    await expect(register()).rejects.toThrow("does not support the client watchdog");
+    expect(calls).toEqual([
+      "Target.createTarget",
+      "Target.getTargetInfo",
+      "attach",
+      "Target.closeTarget",
+    ]);
+  });
+
+  it("detaches an armed watchdog once", async () => {
+    const { client, calls, register } = lifecycleClient({ targetType: "other", attach: true });
+    await register();
+    await client.detachClient();
+    await client.detachClient();
+    expect(calls).toEqual(["Target.createTarget", "Target.getTargetInfo", "attach", "detach"]);
+  });
+
+  it("treats the connection closing during a detach as a completed detach", async () => {
+    // Browserbase ends a keepAlive: false session once the extension closes its connection.
+    const { client, calls, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new CDPConnectionClosedError(),
+    });
+    await register(false);
+    await client.detachClient();
+    await client.detachClient();
+    expect(calls.filter((call) => call === "detach")).toHaveLength(1);
+  });
+
+  it("reports a lost connection during detach when the browser is shut down on loss", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new CDPConnectionClosedError(),
+    });
+    await register(true);
+    await expect(client.detachClient()).rejects.toBeInstanceOf(CDPConnectionClosedError);
+  });
+
+  it("still rejects a detach that fails with the connection open", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: new Error("detach timed out"),
+    });
+    await register();
+    await expect(client.detachClient()).rejects.toThrow("detach timed out");
+  });
+
+  it("rejects a detach the extension does not acknowledge", async () => {
+    const { client, register } = lifecycleClient({
+      targetType: "other",
+      attach: true,
+      detach: false,
+    });
+    await register();
+    await expect(client.detachClient()).rejects.toThrow("did not acknowledge the detach");
   });
 });

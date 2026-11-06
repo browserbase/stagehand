@@ -15,7 +15,8 @@
  */
 import { DEFAULT_BENCH_HARNESS, type Harness } from "../../framework/benchTypes.js";
 import { TRACING_ENV_VARS } from "./config.js";
-import { parseBenchHarness } from "../../framework/benchHarness.js";
+import { getBenchHarness, parseBenchHarness } from "../../framework/benchHarness.js";
+import { isBenchSuite, listBenchSuites } from "../../framework/benchSuites.js";
 
 export interface RunFlags {
   target?: string;
@@ -32,6 +33,12 @@ export interface RunFlags {
   filter?: Array<[string, string]>;
   dryRun?: boolean;
   preview?: boolean;
+  /** Emit the end-of-run summary as JSON instead of the table (CI). */
+  json?: boolean;
+  /** Stream every row's log lines above the board (`-v`). */
+  verbose?: boolean;
+  /** Stream only this row's log lines (case id prefix, e.g. `47e314cc`). */
+  follow?: string;
   /**
    * Rubric success mode for the verifier — outcome | process | both.
    *   outcome (default): binary EvaluationResult.outcomeSuccess.
@@ -56,7 +63,27 @@ export interface ConfigDefaults {
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
+  /** Default bench harness (config v2 `defaults.harness`). */
+  harness?: string | null;
+  /** Default rubric success mode (config v2 `defaults.successMode`). */
+  successMode?: string | null;
 }
+
+/**
+ * Config v2 sections that feed run resolution. Each key has an env twin and
+ * the env always wins (same rule as `tracing`), so they resolve to env
+ * overrides here rather than new code paths in the planner.
+ */
+export interface RunConfigSections {
+  benchmarks?: Record<string, { limit?: number | null }>;
+  harnesses?: Record<string, { models?: string[] | null; tool?: string | null }>;
+  providers?: Record<string, { concurrency?: number | null }>;
+  verifier?: { model?: string | null; maxUnverifiableCriteria?: number | null };
+  campaign?: { tag?: string | null };
+}
+
+/** Env twin of `campaign.tag`; the runner stamps it on experiment metadata. */
+export const CAMPAIGN_TAG_ENV = "EVAL_CAMPAIGN_TAG";
 
 export interface ResolvedRunOptions {
   target?: string;
@@ -75,19 +102,17 @@ export interface ResolvedRunOptions {
   envOverrides: Record<string, string>;
   dryRun: boolean;
   preview: boolean;
+  /** End-of-run summary as JSON (see framework/runSummary.ts). Optional so existing callers need no change. */
+  json?: boolean;
+  /** Per-provider semaphore widths from config (`providers.<p>.concurrency`); env layers on top. */
+  providerConcurrency?: Record<string, number>;
+  /** `-v`: stream every row's log lines above the board. */
   verbose: boolean;
+  /** `--follow <id>`: stream only rows whose case id starts with this. */
+  follow?: string;
 }
 
-/** Suites wired into the unified runner. */
-const SUPPORTED_BENCHMARKS = new Set([
-  "webvoyager",
-  "onlineMind2Web",
-  "webtailbench",
-  "hardbenchmark",
-  "odysseysbench",
-]);
-
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "json", "verbose"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -100,9 +125,11 @@ const VALUE_FLAGS = new Set([
   "harness",
   "filter",
   "success",
+  "follow",
 ]);
 
 const FLAG_ALIASES: Record<string, string> = {
+  v: "verbose",
   t: "trials",
   c: "concurrency",
   e: "env",
@@ -177,6 +204,8 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
+        else if (name === "json") flags.json = true;
+        else if (name === "verbose") flags.verbose = true;
         i++;
         continue;
       }
@@ -217,6 +246,9 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "harness":
           flags.harness = value;
+          break;
+        case "follow":
+          flags.follow = value;
           break;
         case "filter": {
           filters.push(parseFilter(value));
@@ -268,6 +300,8 @@ export function parseRunArgs(tokens: string[]): RunFlags {
 export function applyBenchmarkShorthand(
   target: string | undefined,
   flags: RunFlags,
+  benchmarks: RunConfigSections["benchmarks"] = {},
+  env: NodeJS.ProcessEnv = process.env,
 ): {
   target: string | undefined;
   datasetFilter?: string;
@@ -286,17 +320,28 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
+  if (!isBenchSuite(benchmarkName)) {
     throw new Error(
-      `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
+      `Unknown benchmark "${benchmarkName}". Supported: ${listBenchSuites().join(", ")}.`,
     );
   }
 
   const upper = benchmarkName.toUpperCase();
   envOverrides.EVAL_DATASET = benchmarkName;
+  const limitEnv = `EVAL_${upper}_LIMIT`;
+  const configLimit = benchmarks[benchmarkName]?.limit;
   if (flags.limit !== undefined) {
     envOverrides.EVAL_MAX_K = String(flags.limit);
-    envOverrides[`EVAL_${upper}_LIMIT`] = String(flags.limit);
+    envOverrides[limitEnv] = String(flags.limit);
+  } else if (
+    typeof configLimit === "number" &&
+    configLimit > 0 &&
+    !env[limitEnv]?.trim() &&
+    !env.EVAL_MAX_K?.trim()
+  ) {
+    // benchmarks.<suite>.limit: honored only when neither --limit nor the
+    // env twins are set, so a shell export still wins over the config file.
+    envOverrides[limitEnv] = String(configLimit);
   }
   if (flags.sample !== undefined) {
     envOverrides[`EVAL_${upper}_SAMPLE`] = String(flags.sample);
@@ -335,6 +380,7 @@ export function resolveRunOptions(
   env: NodeJS.ProcessEnv,
   core: CoreConfig = {},
   tracing: TracingConfig = {},
+  sections: RunConfigSections = {},
 ): ResolvedRunOptions {
   const parseIntEnv = (value: string | undefined): number | undefined => {
     if (!value) return undefined;
@@ -350,7 +396,7 @@ export function resolveRunOptions(
     target,
     datasetFilter: shorthandDatasetFilter,
     envOverrides,
-  } = applyBenchmarkShorthand(flags.target, flags);
+  } = applyBenchmarkShorthand(flags.target, flags, sections.benchmarks, env);
 
   const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
   const useApi = flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
@@ -366,7 +412,53 @@ export function resolveRunOptions(
     3;
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
-  const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
+  const harness = parseBenchHarness(
+    flags.harness ?? defaults.harness?.trim() ?? DEFAULT_BENCH_HARNESS,
+  );
+  const harnessConfig = sections.harnesses?.[harness];
+
+  // harnesses.<h>.models → EVAL_<H>_MODELS when the env twin is unset. The
+  // planner keeps reading env, so the precedence stays flag → env → config.
+  const harnessModels = harnessConfig?.models?.map((model) => model.trim()).filter(Boolean);
+  const modelsEnv = `EVAL_${harness.toUpperCase()}_MODELS`;
+  // Only harnesses with a default model list read the env twin; the rest
+  // (stagehand) pick models per task category.
+  if (
+    getBenchHarness(harness).defaultModels &&
+    harnessModels &&
+    harnessModels.length > 0 &&
+    !env[modelsEnv]?.trim()
+  ) {
+    envOverrides[modelsEnv] = harnessModels.join(",");
+  }
+
+  // verifier.* and campaign.tag follow the tracing rule: persisted default,
+  // env wins.
+  const verifierModel = sections.verifier?.model?.trim();
+  if (verifierModel && !env.EVAL_VERIFIER_MODEL?.trim()) {
+    envOverrides.EVAL_VERIFIER_MODEL = verifierModel;
+  }
+  const maxUnverifiable = sections.verifier?.maxUnverifiableCriteria;
+  if (
+    typeof maxUnverifiable === "number" &&
+    maxUnverifiable >= 0 &&
+    !env.EVAL_MAX_UNVERIFIABLE_CRITERIA?.trim()
+  ) {
+    envOverrides.EVAL_MAX_UNVERIFIABLE_CRITERIA = String(maxUnverifiable);
+  }
+  const campaignTag = sections.campaign?.tag?.trim();
+  if (campaignTag && !env[CAMPAIGN_TAG_ENV]?.trim()) {
+    envOverrides[CAMPAIGN_TAG_ENV] = campaignTag;
+  }
+
+  const providerConcurrency = Object.fromEntries(
+    Object.entries(sections.providers ?? {}).flatMap(([provider, section]) => {
+      const width = section?.concurrency;
+      return typeof width === "number" && Number.isInteger(width) && width > 0
+        ? [[provider.toLowerCase(), width]]
+        : [];
+    }),
+  );
 
   // Trace-sink defaults from config are applied as env overrides only when the
   // corresponding env var is unset, so a shell export or CI secret always wins.
@@ -387,9 +479,14 @@ export function resolveRunOptions(
   // Success mode resolves from --success first, then EVAL_SUCCESS_MODE env,
   // then "outcome".
   const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
+  const configSuccess = (defaults.successMode ?? "").toLowerCase();
   const successMode: SuccessMode =
     flags.success ??
-    (SUCCESS_MODES.has(envSuccess as SuccessMode) ? (envSuccess as SuccessMode) : "outcome");
+    (SUCCESS_MODES.has(envSuccess as SuccessMode)
+      ? (envSuccess as SuccessMode)
+      : SUCCESS_MODES.has(configSuccess as SuccessMode)
+        ? (configSuccess as SuccessMode)
+        : "outcome");
   envOverrides.EVAL_SUCCESS_MODE = successMode;
 
   return {
@@ -400,7 +497,9 @@ export function resolveRunOptions(
     environment,
     model: model ?? undefined,
     useApi: Boolean(useApi),
-    coreToolSurface: flags.tool ?? core.tool,
+    // harnesses.<h>.tool is the per-harness --tool default; core.tool stays
+    // the fallback so core-tier runs keep their own setting.
+    coreToolSurface: flags.tool ?? harnessConfig?.tool?.trim() ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
     datasetFilter,
@@ -408,7 +507,10 @@ export function resolveRunOptions(
     envOverrides,
     dryRun: flags.dryRun ?? false,
     preview: flags.preview ?? false,
-    verbose: defaults.verbose ?? false,
+    json: flags.json ?? false,
+    ...(Object.keys(providerConcurrency).length > 0 && { providerConcurrency }),
+    verbose: flags.verbose ?? defaults.verbose ?? false,
+    ...(flags.follow && { follow: flags.follow }),
   };
 }
 

@@ -1,11 +1,12 @@
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
+import type { ClientBrowserbaseRequest } from "./browserbaseClient.js";
 
 /**
- * HTTP client for the Stagehand API's stateless cache routes (POST /cache/get
- * and POST /cache/set). Owns transport concerns only: endpoint resolution,
- * auth headers, timeouts, and schema validation of requests going out and
- * responses coming back. All caching decisions (when to read, what to write,
+ * Client for the Stagehand API's stateless cache routes (POST /cache/get
+ * and POST /cache/set). Sends requests through the connected SDK and owns
+ * request size limits, timeouts, and response validation.
+ * All caching decisions (when to read, what to write,
  * fallback behavior) live in services/cacheService.ts, this client's only
  * consumer. See stagehand-api-v3's lib/cache/statelessCache.ts for the
  * server-side contract.
@@ -14,6 +15,9 @@ import { z } from "zod/v4";
 /** Ceiling for a single cache HTTP round-trip so a slow cache can only ever
  * add a bounded delay to the action it fronts. */
 const CACHE_REQUEST_TIMEOUT_MS = 5_000;
+
+/** Maximum UTF-8 JSON body size for a cache read or write. */
+const CACHE_REQUEST_MAX_BYTES = 25_000_000;
 
 // One raw CDP accessibility node from Accessibility.getFullAXTree, passed
 // through verbatim — the server reproduces the v3 tree shaping over the raw
@@ -63,7 +67,7 @@ export const CacheSetRequestSchema = CacheRequestBaseSchema.extend({
 });
 
 export const CacheGetResponseSchema = z.object({
-  /** Null only when the server could not build a key (empty tree / bad URL). */
+  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
   hit: z.boolean(),
   /** Present only on a hit. */
@@ -88,7 +92,7 @@ export const CacheGetResponseSchema = z.object({
 });
 
 export const CacheSetResponseSchema = z.object({
-  /** Null only when the server could not build a key. */
+  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
   /** True when the write was issued to Redis. */
   written: z.boolean(),
@@ -109,11 +113,10 @@ export type CacheSetRequest = z.infer<typeof CacheSetRequestSchema>;
 export type CacheGetResponse = z.infer<typeof CacheGetResponseSchema>;
 export type CacheSetResponse = z.infer<typeof CacheSetResponseSchema>;
 
+type CacheTransport = { request?: ClientBrowserbaseRequest };
+
 export class CacheClient {
-  constructor(
-    readonly apiUrl: string,
-    readonly apiKey: string,
-  ) {}
+  constructor(readonly transport: CacheTransport) {}
 
   async get(request: CacheGetRequest): Promise<CacheGetResponse> {
     return await this.post("/cache/get", request, CacheGetResponseSchema);
@@ -128,36 +131,84 @@ export class CacheClient {
     request: CacheGetRequest | CacheSetRequest,
     responseSchema: Schema,
   ): Promise<z.infer<Schema>> {
-    const response = await fetch(`${this.apiUrl}${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-bb-api-key": this.apiKey,
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(CACHE_REQUEST_TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Cache request ${path} failed with status ${response.status}`);
-    }
-
-    const envelope = ApiResponseEnvelopeSchema.safeParse(await response.json());
-    if (!envelope.success) {
-      throw new Error(`Cache request ${path} returned an unrecognized envelope`);
-    }
-    if (!envelope.data.success) {
-      throw new Error(
-        `Cache request ${path} rejected: ${envelope.data.message ?? "unknown error"}`,
+    const deadline = performance.now() + CACHE_REQUEST_TIMEOUT_MS;
+    const controller = new AbortController();
+    const timeout = () =>
+      controller.abort(new DOMException("Cache request timed out", "TimeoutError"));
+    const timer = setTimeout(timeout, CACHE_REQUEST_TIMEOUT_MS);
+    try {
+      const body = JSON.stringify(request);
+      if (utf8ByteLengthExceeds(body, CACHE_REQUEST_MAX_BYTES)) {
+        return responseSchema.parse(
+          path === "/cache/get"
+            ? { cacheKey: null, hit: false, missReason: "payload_too_large" }
+            : { cacheKey: null, written: false, skippedReason: "payload_too_large" },
+        );
+      }
+      const remainingTimeoutMs = Math.max(0, deadline - performance.now());
+      if (remainingTimeoutMs === 0) timeout();
+      controller.signal.throwIfAborted();
+      if (!this.transport.request) throw new Error("Client Browserbase transport is unavailable");
+      const response = await this.transport.request(
+        {
+          operation: path === "/cache/get" ? "cache.get" : "cache.set",
+          headers: { "content-type": "application/json" },
+          body,
+          remainingTimeoutMs,
+        },
+        controller.signal,
       );
-    }
 
-    const parsed = responseSchema.safeParse(envelope.data.data);
-    if (!parsed.success) {
-      throw new Error(
-        `Cache request ${path} returned an unexpected payload: ${parsed.error.message}`,
-      );
+      if (!response.ok) {
+        throw new Error(`Cache request ${path} failed with status ${response.status}`);
+      }
+
+      const envelope = ApiResponseEnvelopeSchema.safeParse(await response.json());
+      if (!envelope.success) {
+        throw new Error(`Cache request ${path} returned an unrecognized envelope`);
+      }
+      if (!envelope.data.success) {
+        throw new Error(
+          `Cache request ${path} rejected: ${envelope.data.message ?? "unknown error"}`,
+        );
+      }
+
+      const parsed = responseSchema.safeParse(envelope.data.data);
+      if (!parsed.success) {
+        throw new Error(
+          `Cache request ${path} returned an unexpected payload: ${parsed.error.message}`,
+        );
+      }
+      return parsed.data;
+    } finally {
+      clearTimeout(timer);
     }
-    return parsed.data;
   }
+}
+
+function utf8ByteLengthExceeds(value: string, limit: number): boolean {
+  if (value.length > limit) return true;
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit <= 0x7f) {
+      byteLength += 1;
+    } else if (codeUnit <= 0x7ff) {
+      byteLength += 2;
+    } else if (
+      codeUnit >= 0xd800 &&
+      codeUnit <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      byteLength += 4;
+      index += 1;
+    } else {
+      // BMP characters and lone surrogates both encode to three bytes.
+      byteLength += 3;
+    }
+    if (byteLength > limit) return true;
+  }
+  return false;
 }

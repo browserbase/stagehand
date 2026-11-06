@@ -13,7 +13,6 @@ import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
@@ -24,6 +23,7 @@ import type { EncodedId } from "../types/private/internal.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import { checkCachedAction } from "./decisions/cacheCheck.js";
@@ -57,26 +57,13 @@ type ActContext = {
   systemPrompt: string;
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
-  ensureTimeRemaining: () => void;
+  progress: Progress;
   gateway?: GatewayContext;
   decisions?: DecisionsConfig;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
-export async function act({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  selfHeal = false,
-  domSettleTimeoutMs,
-  cache,
-  gateway,
-  decisions,
-  openPageCount,
-}: {
+type ActServiceOptions = {
   params: StagehandActParams;
   page: Page;
   model: ModelConfig | ClientModelReference | undefined;
@@ -87,13 +74,37 @@ export async function act({
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  progress?: Progress;
   decisions?: DecisionsConfig;
   openPageCount?: () => number;
-}): Promise<ActResult> {
+};
+
+export async function act(options: ActServiceOptions): Promise<ActResult> {
+  return runWithProgress(
+    options.progress ?? { name: "act()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => actWithProgress(options, progress),
+  );
+}
+
+async function actWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    selfHeal = false,
+    domSettleTimeoutMs,
+    cache,
+    gateway,
+    decisions,
+    openPageCount,
+  }: ActServiceOptions,
+  progress: Progress,
+): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
-  const timeout = options?.timeout;
-  const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
   let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
     operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
@@ -106,13 +117,13 @@ export async function act({
     systemPrompt,
     selfHeal,
     domSettleTimeoutMs,
-    ensureTimeRemaining,
+    progress,
     gateway,
     decisions,
     recordUsage,
   };
 
-  ensureTimeRemaining();
+  progress.throwIfStopped();
   if (typeof actInstruction !== "string") {
     return actResult(
       await takeDeterministicAction({
@@ -165,14 +176,14 @@ export async function act({
   // settles; everything that reads or touches the page still waits for it.
   // performance.now(): tests script Date.now() for inference timing.
   const actStartedAt = performance.now();
-  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
+  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   // The cache lookup keys on the page's tree and URL, so when a cache is in
   // play the page must have settled before it; only cache-less acts overlap.
   const cacheLookup = cache !== undefined && options?.cache !== false;
   const overlapSettle = decisions !== undefined && decisions.enabled !== false && !cacheLookup;
   if (overlapSettle) settled.catch(() => {});
   else await settled;
-  ensureTimeRemaining();
+  progress.throwIfStopped();
   let actPath:
     | "llm"
     | "decisions"
@@ -195,6 +206,7 @@ export async function act({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: async (value) => {
       await settled;
       return await replayCachedActions(value, instruction, variables, context);
@@ -251,7 +263,7 @@ export async function act({
         instruction,
         variables,
         snapshotOptions,
-        ensureTimeRemaining,
+        ensureTimeRemaining: () => progress.throwIfStopped(),
         openPageCount,
         settled,
         ...(webmcp ? { webmcp } : {}),
@@ -272,6 +284,7 @@ export async function act({
         takeAction: (action) =>
           takeDeterministicAction({ action, variables, context: { ...context, selfHeal: false } }),
       }).catch((error: unknown) => {
+        progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         const message = error instanceof Error ? error.message : String(error);
         return {
@@ -311,7 +324,10 @@ export async function act({
     }
 
     await settled;
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(snapshotOptions);
+    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+      snapshotOptions,
+      progress,
+    );
 
     const actPrompt = buildActPrompt(
       instruction,
@@ -326,7 +342,7 @@ export async function act({
     if (decisionsFocusIds.length > 0 && combinedTree.length > FOCUS_MIN_TREE_CHARS) {
       const focused = focusOutline(parseOutline(combinedTree), decisionsFocusIds);
       if (focused.trim() && focused.length < combinedTree.length / 2) {
-        ensureTimeRemaining();
+        progress.throwIfStopped();
         const attempt = await getActionFromLLM({
           instruction: actPrompt,
           domElements: focused,
@@ -345,7 +361,7 @@ export async function act({
       }
     }
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     firstInference ??= await getActionFromLLM({
       instruction: actPrompt,
       domElements: combinedTree,
@@ -368,7 +384,7 @@ export async function act({
       );
     }
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     const firstResult = await takeDeterministicAction({
       action: firstInference.action,
       variables,
@@ -379,9 +395,11 @@ export async function act({
       return actResult(firstResult, operationUsage);
     }
 
-    ensureTimeRemaining();
-    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } =
-      await page.captureSnapshot(snapshotOptions);
+    progress.throwIfStopped();
+    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
+      snapshotOptions,
+      progress,
+    );
     const changedTree = diffCombinedTrees(combinedTree, nextTree);
     const secondInstruction = buildStepTwoPrompt(
       instruction,
@@ -397,7 +415,7 @@ export async function act({
       variables,
     );
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     const secondInference = await getActionFromLLM({
       instruction: secondInstruction,
       domElements: changedTree.trim() ? changedTree : nextTree,
@@ -409,7 +427,7 @@ export async function act({
       return actResult(firstResult, operationUsage);
     }
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     const secondResult = await takeDeterministicAction({
       action: secondInference.action,
       variables,
@@ -455,6 +473,7 @@ async function replayCachedActions(
     if (checking) {
       const verdict = await validateCachedAction(action, instruction, context, variables).catch(
         (error: unknown) => {
+          context.progress.throwIfStopped();
           if (error instanceof TimeoutError) throw error;
           return undefined;
         },
@@ -492,7 +511,10 @@ async function validateCachedAction(
   variables: Variables | undefined,
 ) {
   const decisions = context.decisions!;
-  const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({});
+  const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot(
+    {},
+    context.progress,
+  );
   const trace: Record<string, unknown>[] = [];
   const verdict = await checkCachedAction(
     {
@@ -501,7 +523,7 @@ async function validateCachedAction(
       trace: trace as never,
       threshold: decisions.actConfidence ?? 0.7,
       logger: context.logger,
-      ensureTimeRemaining: context.ensureTimeRemaining,
+      ensureTimeRemaining: () => context.progress.throwIfStopped(),
       redact: redactor(variables),
     },
     {
@@ -531,13 +553,22 @@ async function getActionFromLLM({
   xpathMap: Record<string, string>;
   context: ActContext;
 }): Promise<{ action?: Action; response: ActInferenceResponse }> {
-  const response = await inference.act({
-    instruction,
-    domElements,
-    generate: (input) =>
-      llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
-    userProvidedInstructions: context.systemPrompt,
-  });
+  const response = await context.progress.run("waiting for act inference", () =>
+    inference.act({
+      instruction,
+      domElements,
+      generate: (input) => {
+        context.progress.throwIfStopped();
+        return llmService.generate(
+          context.model,
+          input,
+          context.clientLLMGenerate,
+          context.gateway,
+        );
+      },
+      userProvidedInstructions: context.systemPrompt,
+    }),
+  );
   context.recordUsage(response);
 
   context.logger.info("Act inference completed", {
@@ -564,7 +595,7 @@ async function takeDeterministicAction({
   variables?: Variables;
   context: ActContext;
 }): Promise<ActResultData> {
-  context.ensureTimeRemaining();
+  context.progress.throwIfStopped();
   const method = action.method?.trim();
   if (!method || method === "not-supported") {
     context.logger.error("Action has no supported method", {
@@ -580,10 +611,14 @@ async function takeDeterministicAction({
   }
 
   const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-  const resolvedArgs = substituteVariablesInArguments(action.arguments, variables) ?? [];
+  // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
+  const resolvedArgs =
+    method === SupportedUnderstudyAction.DRAG_AND_DROP
+      ? placeholderArgs
+      : (substituteVariablesInArguments(action.arguments, variables) ?? []);
 
   try {
-    context.ensureTimeRemaining();
+    context.progress.throwIfStopped();
     await performUnderstudyMethod(
       context.page,
       context.page.mainFrame(),
@@ -591,10 +626,12 @@ async function takeDeterministicAction({
       action.selector,
       resolvedArgs,
       context.logger,
+      context.progress,
       context.domSettleTimeoutMs,
     );
     return successfulActionResult(action, method, action.selector, placeholderArgs);
   } catch (error) {
+    context.progress.throwIfStopped();
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
 
@@ -642,8 +679,11 @@ async function selfHealAction({
     : method;
 
   try {
-    context.ensureTimeRemaining();
-    const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({});
+    context.progress.throwIfStopped();
+    const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot(
+      {},
+      context.progress,
+    );
     const inferenceResult = await getActionFromLLM({
       instruction: buildActPrompt(actionInstruction, Object.values(SupportedUnderstudyAction), {}),
       domElements: combinedTree,
@@ -661,7 +701,7 @@ async function selfHealAction({
     }
 
     const selector = inferenceResult.action?.selector ?? action.selector;
-    context.ensureTimeRemaining();
+    context.progress.throwIfStopped();
     await performUnderstudyMethod(
       context.page,
       context.page.mainFrame(),
@@ -669,10 +709,12 @@ async function selfHealAction({
       selector,
       resolvedArgs,
       context.logger,
+      context.progress,
       context.domSettleTimeoutMs,
     );
     return successfulActionResult(action, method, selector, placeholderArgs);
   } catch (error) {
+    context.progress.throwIfStopped();
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     return {

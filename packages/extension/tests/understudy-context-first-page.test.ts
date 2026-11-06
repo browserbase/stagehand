@@ -62,6 +62,28 @@ describe("BrowserContext first top-level page", () => {
     vi.restoreAllMocks();
   });
 
+  it("releases domain rules and the connection if bootstrap fails", async () => {
+    const close = vi.fn(async () => {});
+    const rules = { replace: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    vi.spyOn(CdpConnection, "connect").mockResolvedValue({
+      connected: true,
+      close,
+    } as unknown as CdpConnection);
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockRejectedValue(
+      new Error("bootstrap failed"),
+    );
+
+    await expect(
+      BrowserContext.create("ws://cdp.test", {
+        ...createOptions(),
+        domainPolicyRules: rules,
+      }),
+    ).rejects.toThrow("bootstrap failed");
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(rules.close).toHaveBeenCalledOnce();
+  });
+
   it("keeps an existing top-level page without creating a fallback", async () => {
     vi.spyOn(CdpConnection, "connect").mockResolvedValue({ connected: true } as CdpConnection);
     vi.spyOn(BrowserContext.prototype, "bootstrap").mockImplementation(async function () {

@@ -1,15 +1,8 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
-import {
-  outputFormatFlags,
-  outputJson,
-  resolveOutputFormat,
-} from "../../lib/output.js";
-import {
-  listCatalogSkills,
-  outputSkillTable,
-} from "../../lib/skills/catalog.js";
+import { outputFormatFlags, outputJson, resolveOutputFormat } from "../../lib/output.js";
+import { listCatalogSkills, outputSkillTable } from "../../lib/skills/catalog.js";
 
 export default class SkillsList extends BrowseCommand {
   static override description = "List Browse.sh catalog skills.";
