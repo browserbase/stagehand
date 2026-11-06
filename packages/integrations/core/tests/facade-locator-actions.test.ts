@@ -4,7 +4,7 @@ import { createPlaywrightCompatRuntime } from "../src/facade/runtime.js";
 type Locator = {
   check(options?: { timeout?: number }): Promise<void>;
   uncheck(options?: { timeout?: number }): Promise<void>;
-  click(options?: { timeout?: number }): Promise<void>;
+  click(options?: { timeout?: number; position?: unknown; force?: boolean }): Promise<void>;
 };
 
 async function fixture({
@@ -62,6 +62,24 @@ describe("facade locator action deadlines", () => {
       await fixtureResult[kind].click(timeout === undefined ? {} : { timeout });
       expect(fixtureResult.click).toHaveBeenCalledWith({ timeout: timeout ?? 10_000 });
     });
+
+    it.each([false, true])("forwards a positioned click with force %s", async (force) => {
+      const fixtureResult = await fixture();
+      await fixtureResult[kind].click({ position: { x: 12.5, y: 0 }, force });
+      expect(fixtureResult.click).toHaveBeenCalledWith({
+        timeout: 10_000,
+        position: { x: 12.5, y: 0 },
+      });
+    });
+
+    it.each([null, {}, { x: 1 }, { x: "1", y: 2 }, { x: NaN, y: 2 }, { x: 1, y: Infinity }])(
+      "rejects malformed position %j before dispatch",
+      async (position) => {
+        const fixtureResult = await fixture();
+        await expect(fixtureResult[kind].click({ position })).rejects.toThrow(/finite x and y/);
+        expect(fixtureResult.click).not.toHaveBeenCalled();
+      },
+    );
 
     it("forwards only the budget left after finding the target", async () => {
       const fixtureResult = await fixture({ appearedAt: 100 });
