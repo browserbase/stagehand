@@ -9,7 +9,7 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/nested-dropdown/");
 
       await stagehand.act("choose 'Smog Check Technician' from the 'License Type' dropdown");
       // v3 used page.locator("#licenseType >> option:checked"); v4 locator has

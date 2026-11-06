@@ -28,9 +28,7 @@ export async function resolveWsTarget(
         signal: controller.signal,
       });
       if (!response.ok) {
-        throw new Error(
-          `Unable to resolve CDP endpoint from ${input}: HTTP ${response.status}`,
-        );
+        throw new Error(`Unable to resolve CDP endpoint from ${input}: HTTP ${response.status}`);
       }
       const payload = (await response.json()) as {
         webSocketDebuggerUrl?: string;

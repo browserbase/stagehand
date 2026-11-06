@@ -2,7 +2,8 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
@@ -22,10 +23,11 @@ export interface PreparedCursorToolAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
   cwd: string;
-  env: Record<string, string>;
-  mcpConfigPath: string;
+  mcpServers: Record<string, unknown>;
   mcpServerNames: string[];
   promptInstructions: string;
+  browserSession?: BrowserSessionInfo;
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
@@ -35,30 +37,10 @@ export interface PreparedCursorToolAdapter {
 
 export const CURSOR_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
-
-export function buildCursorMcpConfig(mcpServers: Record<string, unknown>): {
-  mcpServers: Record<string, unknown>;
-} {
-  return { mcpServers };
-}
-
-export async function writeCursorWorkspace(
-  cwd: string,
-  mcpServers: Record<string, unknown>,
-): Promise<{ mcpConfigPath: string }> {
-  const configDir = path.join(cwd, ".cursor");
-  const mcpConfigPath = path.join(configDir, "mcp.json");
-  await fsp.mkdir(configDir, { recursive: true });
-  await fsp.writeFile(
-    mcpConfigPath,
-    `${JSON.stringify(buildCursorMcpConfig(mcpServers), null, 2)}\n`,
-    { mode: 0o600 },
-  );
-  return { mcpConfigPath };
-}
 
 export function isCursorMountToolName(serverNames: string[], toolName: string): boolean {
   return serverNames.some(
@@ -108,7 +90,6 @@ export async function prepareCursorToolAdapter(
       path.join(os.tmpdir(), `stagehand-evals-cursor-${toolSurface.replace(/_/g, "-")}-`),
     );
     const capturedCwd = cwd;
-    const { mcpConfigPath } = await writeCursorWorkspace(cwd, mount.mcpServers);
     const mcpServerNames = Object.keys(mount.mcpServers);
     const recorder = runtime.running.captureEvidence
       ? new ObservationRecorder(runtime.running.captureEvidence)
@@ -131,10 +112,11 @@ export async function prepareCursorToolAdapter(
       toolSurface,
       startupProfile,
       cwd,
-      env: { ...process.env } as Record<string, string>,
-      mcpConfigPath,
+      mcpServers: mount.mcpServers,
       mcpServerNames,
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
+      browserSessionLoss: runtime.running.browserSessionLoss,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

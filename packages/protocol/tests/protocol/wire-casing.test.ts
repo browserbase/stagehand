@@ -423,12 +423,26 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("preserves opaque page payload keys", () => {
-    const evaluate = StagehandMethods.pageEvaluate;
-    const evaluation = { value: { camelCase: true, nestedValue: { staysCamelCase: true } } };
-    expect(encodeWireValue(evaluation, evaluate.resultWire)).toStrictEqual(evaluation);
-    expect(wireSchema(evaluate.result, evaluate.resultWire).parse(evaluation)).toStrictEqual(
-      evaluation,
-    );
+    const ownKeys = { toString: "payload", constructor: "data", hasOwnProperty: true };
+    const evaluation = {
+      value: {
+        ...ownKeys,
+        camelCase: true,
+        nestedValue: [{ ...ownKeys, staysCamelCase: true }],
+      },
+    };
+    for (const method of [StagehandMethods.pageEvaluate, StagehandMethods.pageWaitForFunction]) {
+      const parsed = method.result.parse(evaluation);
+      const encoded = encodeWireValue(parsed, method.resultWire);
+      const decoded = wireSchema(method.result, method.resultWire).parse(encoded);
+      for (const result of [parsed, encoded, decoded]) {
+        expect(result).toStrictEqual(evaluation);
+        const { value } = result as typeof evaluation;
+        for (const object of [value, ...value.nestedValue]) {
+          for (const key of Object.keys(ownKeys)) expect(Object.hasOwn(object, key)).toBe(true);
+        }
+      }
+    }
 
     const headers = StagehandMethods.pageSetExtraHTTPHeaders;
     const headerParams = {
@@ -467,7 +481,7 @@ describe("JSON-RPC wire casing", () => {
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info" as const,
-      apiKey: "bb_key",
+      browserbase: "client" as const,
       browser: {
         sessionId: "session_123",
         region: "eu-central-1" as const,
@@ -488,7 +502,7 @@ describe("JSON-RPC wire casing", () => {
       protocol_version: STAGEHAND_PROTOCOL_VERSION,
       client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
       log_level: "info",
-      api_key: "bb_key",
+      browserbase: "client",
       browser: {
         session_id: "session_123",
         region: "eu-central-1",

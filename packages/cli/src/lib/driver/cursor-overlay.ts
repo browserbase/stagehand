@@ -67,10 +67,7 @@ export const CURSOR_OVERLAY_SCRIPT = `(() => {
   }
 })()`;
 
-export function updateCursorOverlayPosition(position: {
-  x: number;
-  y: number;
-}): void {
+export function updateCursorOverlayPosition(position: { x: number; y: number }): void {
   const moveCursor = (
     globalThis as typeof globalThis & {
       __browseMoveCursorOverlay__?: (x: number, y: number) => void;

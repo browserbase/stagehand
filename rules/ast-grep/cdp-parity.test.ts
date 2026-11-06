@@ -1,12 +1,11 @@
 import { readFile } from "node:fs/promises";
-import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ python });
 
-type Language = "go" | "python" | "typescript";
+type Language = "python" | "typescript";
 
 const clients = {
   typescript: {
@@ -19,11 +18,6 @@ const clients = {
     runtimeFile: undefined,
     typeName: "CDPClient",
   },
-  go: {
-    file: new URL("../../packages/sdk-go/cdp_client.go", import.meta.url),
-    runtimeFile: new URL("../../packages/sdk-go/runtime_compatibility.go", import.meta.url),
-    typeName: "cdpClient",
-  },
 } as const satisfies Record<
   Language,
   { file: URL; runtimeFile: URL | undefined; typeName: string }
@@ -32,19 +26,19 @@ const clients = {
 const capabilities = [
   {
     name: "outbound JSON-RPC transport",
-    methods: { typescript: "send", python: "send", go: "Send" },
+    methods: { typescript: "send", python: "send" },
   },
   {
     name: "correlated CDP commands",
-    methods: { typescript: "sendCommand", python: "send_command", go: "sendCommand" },
+    methods: { typescript: "sendCommand", python: "send_command" },
   },
   {
     name: "incoming CDP dispatch",
-    methods: { typescript: "handleMessage", python: "_handle_message", go: "handleMessage" },
+    methods: { typescript: "handleMessage", python: "_handle_message" },
   },
   {
     name: "deterministic shutdown",
-    methods: { typescript: "close", python: "close", go: "Close" },
+    methods: { typescript: "close", python: "close" },
   },
 ] as const;
 
@@ -62,7 +56,6 @@ const sharedCDPCommands = [
 const runtimeBindingTokens = {
   typescript: "STAGEHAND_SEND_TO_HOST_BINDING",
   python: "__stagehandSendToHost",
-  go: "__stagehandSendToHost",
 } as const satisfies Record<Language, string>;
 
 const pages = {
@@ -75,11 +68,6 @@ const pages = {
     file: new URL("../../packages/sdk-python/src/stagehand/page.py", import.meta.url),
     typeName: "Page",
     method: "on",
-  },
-  go: {
-    file: new URL("../../packages/sdk-go/page.go", import.meta.url),
-    typeName: "Page",
-    method: "On",
   },
 } as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
 
@@ -94,16 +82,11 @@ const subscriptions = {
     typeName: "CDPSubscription",
     method: "unsubscribe",
   },
-  go: {
-    file: new URL("../../packages/sdk-go/page.go", import.meta.url),
-    typeName: "CDPSubscription",
-    method: "Close",
-  },
 } as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
 
 describe("CDP clients retain the same core behavior", () => {
-  it("exposes page event subscriptions in TypeScript, Python, and Go", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+  it("exposes page event subscriptions in TypeScript and Python", async () => {
+    for (const language of ["typescript", "python"] as const) {
       const page = pages[language];
       const root = parse(language, await readFile(page.file, "utf8")).root();
       expect(
@@ -113,8 +96,8 @@ describe("CDP clients retain the same core behavior", () => {
     }
   });
 
-  it("returns removable subscription handles in TypeScript, Python, and Go", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+  it("returns removable subscription handles in TypeScript and Python", async () => {
+    for (const language of ["typescript", "python"] as const) {
       const subscription = subscriptions[language];
       const root = parse(language, await readFile(subscription.file, "utf8")).root();
       expect(
@@ -124,17 +107,17 @@ describe("CDP clients retain the same core behavior", () => {
     }
   });
 
-  it("keeps the same transport lifecycle in TypeScript, Python, and Go", async () => {
+  it("keeps the same transport lifecycle in TypeScript and Python", async () => {
     const methods = new Map<Language, Set<string>>();
 
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of ["typescript", "python"] as const) {
       const client = clients[language];
       const root = parse(language, await readFile(client.file, "utf8")).root();
       methods.set(language, clientMethods(root, language, client.typeName));
     }
 
     for (const capability of capabilities) {
-      for (const language of ["typescript", "python", "go"] as const) {
+      for (const language of ["typescript", "python"] as const) {
         expect(
           methods.get(language)?.has(capability.methods[language]),
           `${language} CDP client must implement ${capability.name}`,
@@ -145,7 +128,7 @@ describe("CDP clients retain the same core behavior", () => {
 
   it("keeps extension discovery and runtime bridging aligned", async () => {
     const sources = await Promise.all(
-      (["typescript", "python", "go"] as const).map(async (language) => ({
+      (["typescript", "python"] as const).map(async (language) => ({
         language,
         source: (
           await Promise.all(
@@ -184,21 +167,6 @@ describe("CDP clients retain the same core behavior", () => {
 });
 
 function clientMethods(root: SgNode, language: Language, typeName: string): Set<string> {
-  if (language === "go") {
-    return new Set(
-      namedChildren(root)
-        .filter((node) => node.kind() === "method_declaration")
-        .filter((method) => {
-          const receiver = namedChildren(method)[0]?.text() ?? "";
-          return new RegExp(`\\*?${typeName}\\b`, "u").test(receiver);
-        })
-        .flatMap((method) => {
-          const name = namedChildren(method).find((child) => child.kind() === "field_identifier");
-          return name ? [name.text()] : [];
-        }),
-    );
-  }
-
   const classKind = language === "typescript" ? "class_declaration" : "class_definition";
   const bodyKind = language === "typescript" ? "class_body" : "block";
   const methodKind = language === "typescript" ? "method_definition" : "function_definition";

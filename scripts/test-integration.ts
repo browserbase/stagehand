@@ -37,7 +37,12 @@ export const integrationTestGroups = {
     "contextDomainPolicy",
     "contextExtraHttpHeaders",
   ],
-  "local/frames-shadow": ["coordinateClick", "iframeLocatorReadiness", "nestedDiv"],
+  "local/frames-shadow": [
+    "actIframeAttachment",
+    "coordinateClick",
+    "iframeLocatorReadiness",
+    "nestedDiv",
+  ],
   "local/input": ["clipboard", "keyboard"],
   "local/locators-read": [
     "locatorContentMethods",
@@ -61,8 +66,8 @@ export const integrationTestGroups = {
     "pageScreenshot",
     "pageScroll",
   ],
-  "local/snapshots-ai": ["observeElementIdFormat", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
+  "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
+  "local/waits-timeouts": ["waitForFunction", "waitForSelector", "waitForTimeout"],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 

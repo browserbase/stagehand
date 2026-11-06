@@ -6,7 +6,7 @@ export default defineBenchTask(
   { name: "extract_resistor_info" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/resistor/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/resistor/");
 
       const { data: result } = await stagehand.extract(
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",

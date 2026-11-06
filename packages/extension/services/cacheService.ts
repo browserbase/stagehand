@@ -14,9 +14,10 @@ import {
   type CacheMethod,
   type CdpTree,
 } from "../clients/cacheClient.js";
-import { apiUrlForRegion } from "../clients/stagehandApi.js";
+import type { ClientBrowserbaseRequest } from "../clients/browserbaseClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
+import { type Progress, runLocatorStep } from "../understudy/progress.js";
 
 /**
  * Server-side caching for act/observe/extract via the Stagehand API's
@@ -52,21 +53,17 @@ export interface CacheContext {
   defaultCaching: Caching;
 }
 
-/**
- * Builds the per-instance cache context from init params. Returns undefined
- * when caching is impossible: the stateless routes authenticate with the
- * Browserbase API key and resolve the project from the session id, so both
- * are required.
- */
-export function buildCacheContext(initParams: StagehandInitParams): CacheContext | undefined {
+/** Builds a cache context when client Browserbase transport is configured. */
+export function buildCacheContext(
+  initParams: StagehandInitParams,
+  request?: ClientBrowserbaseRequest,
+): CacheContext | undefined {
   const sessionId = initParams.browser?.sessionId;
-  if (!initParams.apiKey || !sessionId) return undefined;
+  if (!sessionId || initParams.browserbase !== "client") return undefined;
+  const client = new CacheClient({ request });
   return {
     sessionId,
-    client: new CacheClient(
-      apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
-      initParams.apiKey,
-    ),
+    client,
     defaultCaching: initParams.cache ?? true,
   };
 }
@@ -212,8 +209,10 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   logger,
   onHit,
   execute,
+  progress,
 }: {
   method: CacheMethod;
+  progress?: Progress;
   page: unknown;
   data: Record<string, unknown>;
   /** Per-request override from options.cache. */
@@ -225,13 +224,14 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   onHit: (value: unknown) => Promise<Result> | Result;
   execute: () => Promise<CacheExecuteOutcome<Result>>;
 }): Promise<Result> {
+  progress?.throwIfStopped();
   const resolvedCaching = caching ?? context?.defaultCaching ?? true;
   const cachePage = resolvedCaching !== false ? asCachePage(page) : null;
   if (bypass || !context || !cachePage) {
     return (await execute()).result;
   }
 
-  const cdpTree = await collectCdpTree(cachePage, logger);
+  const cdpTree = await collectCdpTree(cachePage, logger, progress);
   if (!cdpTree) {
     return (await execute()).result;
   }
@@ -245,9 +245,15 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   };
 
   let getResponse: CacheGetResponse | null = null;
+  let readFailureReason = "read_failed";
   try {
-    getResponse = await context.client.get(baseRequest);
+    getResponse = await runLocatorStep(progress, "reading cache", () =>
+      context.client.get(baseRequest),
+    );
   } catch (error) {
+    progress?.throwIfStopped();
+    readFailureReason =
+      error instanceof Error && error.name === "TimeoutError" ? "timeout" : "read_failed";
     logger.warn("Cache read failed; executing without cache", {
       category: "cache",
       method,
@@ -258,7 +264,9 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   let cacheMetadata: CacheMetadata;
   if (getResponse?.hit && getResponse.value !== undefined && getResponse.value !== null) {
     try {
-      const result = await onHit(getResponse.value);
+      const result = await runLocatorStep(progress, "applying cached result", async () =>
+        onHit(getResponse.value),
+      );
       result.metadata.cache = hitMetadata(getResponse);
       logger.debug("Cache hit", {
         category: "cache",
@@ -269,6 +277,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
       });
       return result;
     } catch (error) {
+      progress?.throwIfStopped();
       logger.warn("Cached value could not be applied; falling back to execution", {
         category: "cache",
         method,
@@ -286,19 +295,27 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
       missReason: cacheMetadata.missReason ?? "unknown",
     });
   } else {
-    cacheMetadata = missMetadata(null, "read_failed");
+    cacheMetadata = missMetadata(null, readFailureReason);
   }
 
+  progress?.throwIfStopped();
   const outcome = await execute();
+  progress?.throwIfStopped();
   outcome.result.metadata.cache = cacheMetadata;
 
-  if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
+  if (
+    getResponse?.missReason !== "payload_too_large" &&
+    outcome.cacheValue !== undefined &&
+    outcome.cacheValue !== null
+  ) {
     try {
-      const setResponse = await context.client.set({
-        ...baseRequest,
-        value: outcome.cacheValue,
-        llmUsage: outcome.llmUsage,
-      });
+      const setResponse = await runLocatorStep(progress, "writing cache", () =>
+        context.client.set({
+          ...baseRequest,
+          value: outcome.cacheValue,
+          llmUsage: outcome.llmUsage,
+        }),
+      );
       logger.debug(setResponse.written ? "Cache write completed" : "Cache write skipped", {
         category: "cache",
         method,
@@ -306,6 +323,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
         skippedReason: setResponse.skippedReason ?? "",
       });
     } catch (error) {
+      progress?.throwIfStopped();
       logger.warn("Cache write failed", {
         category: "cache",
         method,
@@ -349,14 +367,20 @@ function asCachePage(page: unknown): CachePage | null {
  * Collects the verbatim Accessibility.getFullAXTree nodes for every frame.
  * Returns null (skip caching) when the payload can't be assembled.
  */
-async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise<CdpTree | null> {
+async function collectCdpTree(
+  page: CachePage,
+  logger: StagehandLogger,
+  progress?: Progress,
+): Promise<CdpTree | null> {
   try {
     const mainFrame = page.mainFrame();
     const frames: CdpTree["frames"] = [];
     for (const frame of page.frames()) {
       frames.push({
         frameId: frame.frameId,
-        axNodes: await frame.getAccessibilityTree(false),
+        axNodes: await runLocatorStep(progress, "reading cache accessibility tree", () =>
+          frame.getAccessibilityTree(progress),
+        ),
       });
     }
 
@@ -365,6 +389,7 @@ async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise
       frames,
     };
   } catch (error) {
+    progress?.throwIfStopped();
     logger.warn("Failed to collect CDP tree for cache; executing without cache", {
       category: "cache",
       error: error instanceof Error ? error.message : String(error),

@@ -78,10 +78,7 @@ export async function readDevToolsActivePort(
   userDataDir: string,
 ): Promise<DevToolsActivePortInfo | null> {
   try {
-    const content = await fs.readFile(
-      path.join(userDataDir, "DevToolsActivePort"),
-      "utf8",
-    );
+    const content = await fs.readFile(path.join(userDataDir, "DevToolsActivePort"), "utf8");
     const lines = content.trim().split("\n");
     const port = Number.parseInt(lines[0]?.trim() ?? "", 10);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
@@ -151,12 +148,8 @@ async function isDevToolsActivePortFresh(
 ): Promise<boolean> {
   const liveWsUrl = await probe(info.port);
   if (!liveWsUrl) return false;
-  const expectedPathname = wsPathname(
-    buildDevToolsWsUrl(info.port, info.wsPath),
-  );
-  return (
-    expectedPathname !== null && wsPathname(liveWsUrl) === expectedPathname
-  );
+  const expectedPathname = wsPathname(buildDevToolsWsUrl(info.port, info.wsPath));
+  return expectedPathname !== null && wsPathname(liveWsUrl) === expectedPathname;
 }
 
 async function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
@@ -223,11 +216,7 @@ export async function resolveWsTargetFromPort(
 ): Promise<string> {
   const userDataDirs = options.userDataDirs ?? getChromeUserDataDirs();
   const probe = createJsonVersionProbe();
-  const devToolsUrl = await resolveDevToolsActivePortUrl(
-    port,
-    userDataDirs,
-    probe,
-  );
+  const devToolsUrl = await resolveDevToolsActivePortUrl(port, userDataDirs, probe);
   if (devToolsUrl) return devToolsUrl;
   const jsonVersionUrl = await probe(port);
   if (jsonVersionUrl) return jsonVersionUrl;

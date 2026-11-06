@@ -6,7 +6,7 @@ export default defineBenchTask(
   { name: "extract_hamilton_weather" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/hamilton-weather/");
       // The locator engine prefix is required for XPath selectors.
       const locator = page.locator(
         "xpath=/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]",

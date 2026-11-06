@@ -10,8 +10,10 @@ import {
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-/** A native @ai-sdk model instance (all providers share the LanguageModelV2 shape at one AI-SDK major). */
-type NativeMastraModel = ReturnType<ReturnType<typeof createOpenAI>>;
+/** A native @ai-sdk model instance. Providers can use different @ai-sdk/provider versions, so the types can differ. */
+type NativeMastraModel =
+  | ReturnType<ReturnType<typeof createOpenAI>>
+  | ReturnType<ReturnType<typeof createAnthropic>>;
 
 export type MastraEvent = Record<string, unknown>;
 
@@ -66,6 +68,8 @@ export type MastraSessionConfig = {
   agentId?: string;
   agentName?: string;
   modelSettings?: Record<string, unknown>;
+  /** AI SDK provider options forwarded to every model call (e.g. OpenAI reasoning summaries). */
+  providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
 };
@@ -265,6 +269,7 @@ export async function runMastraSession(input: {
         maxSteps,
         abortSignal: controller.signal,
         ...(input.session.modelSettings && { modelSettings: input.session.modelSettings }),
+        ...(input.session.providerOptions && { providerOptions: input.session.providerOptions }),
       });
 
       for await (const event of stream.fullStream) {
