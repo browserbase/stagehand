@@ -303,8 +303,8 @@ jobs:
             packages/evals/dist/**
           retention-days: 1
 
-  browse-contracts:
-    name: Browse contracts (${{ matrix.platform }})
+  browse-build:
+    name: Browse build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     needs: [determine-changes]
@@ -323,8 +323,70 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
         with:
           use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      # Keep this partial build separate from the full repository's Turbo cache.
+      - name: Restore Browse Turbo cache
+        id: browse-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-
 
       - run: pnpm exec turbo run build --filter=browse
+
+      - name: Save Browse Turbo cache
+        if: steps.browse-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ steps.browse-cache.outputs.cache-primary-key }}
+
+      - name: Upload Browse build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browse-build-${{ runner.os }}
+          # Include the root manifest so artifact paths stay relative to the repository.
+          path: |
+            package.json
+            packages/protocol/stagehand.v4.json
+            packages/extension/dist/**
+            packages/extension/artifacts/**
+            packages/sdk-ts/dist/**
+            packages/cli/dist/**
+            packages/cli/oclif.manifest.json
+          if-no-files-found: error
+          retention-days: 1
+
+  browse-contracts:
+    name: Browse contracts (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes, browse-build]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      - name: Download Browse build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: browse-build-${{ runner.os }}
+          path: .
 
       - run: pnpm --filter browse test:cli
 
@@ -332,7 +394,7 @@ jobs:
     name: Browse repo-local-smoke (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    needs: [determine-changes]
+    needs: [determine-changes, browse-build]
     if: needs.determine-changes.outputs.browse == 'true'
     strategy:
       fail-fast: false
@@ -348,8 +410,13 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
         with:
           use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
 
-      - run: pnpm exec turbo run build --filter=browse
+      - name: Download Browse build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: browse-build-${{ runner.os }}
+          path: .
 
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
@@ -362,7 +429,7 @@ jobs:
     name: Browse installed-dep-smoke (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    needs: [determine-changes]
+    needs: [determine-changes, browse-build]
     if: needs.determine-changes.outputs.browse == 'true'
     strategy:
       fail-fast: false
@@ -378,8 +445,13 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
         with:
           use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
 
-      - run: pnpm exec turbo run build --filter=browse
+      - name: Download Browse build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: browse-build-${{ runner.os }}
+          path: .
 
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
