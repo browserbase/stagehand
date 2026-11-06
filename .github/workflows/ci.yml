@@ -326,6 +326,12 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
+      - name: Smoke-test installed Browse package
+        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
+        run: pnpm --filter browse test:smoke:package
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
   browse-windows:
     name: Browse (Windows)
     runs-on: windows-2025
@@ -349,6 +355,12 @@ jobs:
       - run: pnpm --filter browse test:smoke
         # Still exercise Chrome if a CLI contract test failed.
         if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+      - name: Smoke-test installed Browse package
+        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
+        run: pnpm --filter browse test:smoke:package
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 

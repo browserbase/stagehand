@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -11,6 +11,7 @@ export interface CliResult {
 }
 
 export interface RunCliOptions {
+  executable?: string;
   cwd?: string;
   stdin?: string;
   timeoutMs?: number;
@@ -19,7 +20,9 @@ export interface RunCliOptions {
 
 export function runCli(args: string[], options: RunCliOptions = {}): Promise<CliResult> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [join(repoRoot, "bin/run.js"), ...args], {
+    const command = options.executable ?? process.execPath;
+    const commandArgs = options.executable ? args : [join(repoRoot, "bin/run.js"), ...args];
+    const child = spawn(command, commandArgs, {
       cwd: options.cwd ?? repoRoot,
       timeout: options.timeoutMs,
       killSignal: "SIGKILL",
