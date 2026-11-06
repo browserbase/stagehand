@@ -25,9 +25,7 @@ interface ResolvedChromeArgs {
   ignoreDefaultArgs?: boolean | string[];
 }
 
-function resolveHeadless(
-  flags: Pick<DriverModeFlags, "headed" | "headless">,
-): boolean {
+function resolveHeadless(flags: Pick<DriverModeFlags, "headed" | "headless">): boolean {
   if (flags.headed && flags.headless) {
     fail("Pass either --headed or --headless, not both.");
   }
@@ -44,8 +42,7 @@ export function hasChromeArgFlags(flags: DriverModeFlags): boolean {
 function chromeArgFlagsInUse(flags: DriverModeFlags): string[] {
   const names: string[] = [];
   if (flags["chrome-arg"]?.length) names.push("--chrome-arg");
-  if (flags["ignore-default-chrome-arg"]?.length)
-    names.push("--ignore-default-chrome-arg");
+  if (flags["ignore-default-chrome-arg"]?.length) names.push("--ignore-default-chrome-arg");
   if (flags["no-default-chrome-args"]) names.push("--no-default-chrome-args");
   return names;
 }
@@ -57,9 +54,7 @@ export function remoteOnlyFlagsInUse(flags: DriverModeFlags): string[] {
   return names;
 }
 
-export async function resolveConnectionTarget(
-  flags: DriverModeFlags,
-): Promise<ConnectionTarget> {
+export async function resolveConnectionTarget(flags: DriverModeFlags): Promise<ConnectionTarget> {
   const chromeArgFlags = chromeArgFlagsInUse(flags);
 
   // --verified / --proxies configure a Browserbase session at creation time, so
@@ -135,10 +130,7 @@ export async function resolveConnectionTarget(
   return managedLocalTarget(resolveHeadless(flags), resolveChromeArgs(flags));
 }
 
-function managedLocalTarget(
-  headless: boolean,
-  chromeArgs: ResolvedChromeArgs,
-): ConnectionTarget {
+function managedLocalTarget(headless: boolean, chromeArgs: ResolvedChromeArgs): ConnectionTarget {
   return {
     ...(chromeArgs.args?.length ? { chromeArgs: chromeArgs.args } : {}),
     ...(chromeArgs.ignoreDefaultArgs !== undefined
@@ -149,28 +141,18 @@ function managedLocalTarget(
   };
 }
 
-function failOnConflictingFlags(
-  flag: string,
-  candidates: Array<string | null>,
-): void {
-  const conflicts = candidates.filter((candidate): candidate is string =>
-    Boolean(candidate),
-  );
-  if (conflicts.length > 0)
-    fail(`${flag} cannot be combined with ${conflicts.join(", ")}.`);
+function failOnConflictingFlags(flag: string, candidates: Array<string | null>): void {
+  const conflicts = candidates.filter((candidate): candidate is string => Boolean(candidate));
+  if (conflicts.length > 0) fail(`${flag} cannot be combined with ${conflicts.join(", ")}.`);
 }
 
 function resolveChromeArgs(flags: DriverModeFlags): ResolvedChromeArgs {
   const args = flags["chrome-arg"]?.filter((arg) => arg.length > 0);
-  const ignoreDefaults = flags["ignore-default-chrome-arg"]?.filter(
-    (arg) => arg.length > 0,
-  );
+  const ignoreDefaults = flags["ignore-default-chrome-arg"]?.filter((arg) => arg.length > 0);
   const noDefaults = flags["no-default-chrome-args"] === true;
 
   if (noDefaults && ignoreDefaults?.length) {
-    fail(
-      "--no-default-chrome-args cannot be combined with --ignore-default-chrome-arg.",
-    );
+    fail("--no-default-chrome-args cannot be combined with --ignore-default-chrome-arg.");
   }
 
   const resolved: ResolvedChromeArgs = {};
@@ -183,10 +165,7 @@ function resolveChromeArgs(flags: DriverModeFlags): ResolvedChromeArgs {
   return resolved;
 }
 
-export function targetsCompatible(
-  left: ConnectionTarget,
-  right: ConnectionTarget,
-): boolean {
+export function targetsCompatible(left: ConnectionTarget, right: ConnectionTarget): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "managed-local" && right.kind === "managed-local")
     return (
@@ -213,10 +192,7 @@ function chromeArgsEqual(left?: string[], right?: string[]): boolean {
   return isDeepStrictEqual(left ?? [], right ?? []);
 }
 
-function ignoreDefaultArgsEqual(
-  left?: boolean | string[],
-  right?: boolean | string[],
-): boolean {
+function ignoreDefaultArgsEqual(left?: boolean | string[], right?: boolean | string[]): boolean {
   if (left === true || right === true) return left === right;
   return chromeArgsEqual(
     Array.isArray(left) ? left : undefined,

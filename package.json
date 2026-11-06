@@ -20,7 +20,7 @@
     "fmt:check": "oxfmt --check .",
     "lint": "oxlint .",
     "test": "turbo run test:unit test:browser",
-    "test:unit": "vitest run rules/ast-grep scripts",
+    "test:unit": "vitest run rules scripts",
     "test:integration": "tsx scripts/test-integration.ts",
     "typecheck": "tsc --noEmit -p tsconfig.tooling.json",
     "build": "turbo run build",

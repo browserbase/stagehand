@@ -32,7 +32,7 @@ Run local checks. With test credentials, verify fresh login and then reuse seque
 - Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
 - `BROWSERBASE_CONTEXT_ID` is optional. If it is unset, the example creates a [Browserbase context](https://docs.browserbase.com/features/contexts) and prints its ID. Save that ID in `.env` before the reuse run.
 - The example includes the test site's public `LOGIN_USER` and `LOGIN_PASSWORD`. Use credentials for your own account when adapting it.
-- TypeScript requires Node.js 22.18+, pnpm, and just. Python requires Python 3.11+ and uv.
+- TypeScript requires Node.js 22.18+, pnpm, and just. Python requires Python 3.11+ and uv, plus the same Node.js, pnpm, and just tools to build the extension.
 
 ## Check out and run
 
@@ -54,17 +54,20 @@ just cookbook persisted-login
 </Tab>
 <Tab title="Python">
 ```bash
-cd packages/examples/cookbooks/persisted-login/python
-cp .env.example .env
-uv sync --locked
+# From the repository root
+just install
+cp packages/examples/cookbooks/persisted-login/python/.env.example packages/examples/cookbooks/persisted-login/python/.env
+# Add the required keys to the Python .env before running
 # First run: authenticates and persists context
-uv run --locked python main.py
+just cookbook-python persisted-login
 
 # Second run: verifies context reuse
-uv run --locked python main.py
+just cookbook-python persisted-login
 ```
 </Tab>
 </Tabs>
+
+The Python runner builds the extension and uses the local Python SDK through the root uv workspace. Its `.env` and output files live in the cookbook's `python/` directory.
 
 Fill in `.env` before the first run. Run sequentially so context persistence finishes before reuse.
 
