@@ -311,8 +311,11 @@ Browse uses the exact published Stagehand version pinned in its `package.json`.
 From the repository root, run `pnpm install`, then
 `pnpm exec turbo run build --filter=browse`. This builds Browse without building
 the workspace SDK. Run `pnpm --filter browse test:cli` for contracts and
-`pnpm --filter browse test:smoke` for the Chrome smoke test. The smoke test requires
-Chrome and runs in the Browse Chrome smoke CI jobs on Linux and Windows.
+`pnpm --filter browse test:smoke` for a quick Chrome smoke against the local build.
+Run `pnpm --filter browse test:smoke:package` to pack Browse, install it outside the
+repository, and run the same Chrome scenario through the installed executable.
+The Browse Chrome smoke CI jobs run this packed test on Linux and Windows.
+Both commands require Chrome.
 
 For an SDK upgrade, publish the SDK first, change Browse's exact dependency
 version, run `pnpm install`, and verify the build and tests. Commit the manifest
