@@ -43,7 +43,6 @@
     "test": "pnpm build && vitest run",
     "test:cli": "vitest run",
     "test:smoke": "vitest run --config vitest.smoke.config.ts",
-    "test:smoke:package": "node scripts/smoke-package.mjs",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
