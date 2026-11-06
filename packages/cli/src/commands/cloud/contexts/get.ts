@@ -1,17 +1,12 @@
 import { Args } from "@oclif/core";
 
-import {
-  createBrowserbaseClient,
-  outputJson,
-  withBrowserbaseApi,
-} from "../../../lib/cloud/api.js";
+import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
 export default class ContextsGet extends BrowseCommand {
-  static override description =
-    "Get a Browserbase context by ID or saved name.";
+  static override description = "Get a Browserbase context by ID or saved name.";
   static override examples = [
     "browse cloud contexts get <context-id>",
     "browse cloud contexts get github",

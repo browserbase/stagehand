@@ -1,15 +1,10 @@
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { fail } from "../errors.js";
 import {
@@ -51,9 +46,7 @@ interface FunctionManifest {
 }
 
 class InvocationBridge {
-  private cleanupSessionCallback:
-    | ((sessionId: string) => Promise<void>)
-    | null = null;
+  private cleanupSessionCallback: ((sessionId: string) => Promise<void>) | null = null;
   private currentRequestId: string | null = null;
   private currentSessionId: string | null = null;
   private invokeConnection: PendingConnection | null = null;
@@ -64,10 +57,7 @@ class InvocationBridge {
     this.cleanupSessionCallback = callback;
   }
 
-  holdNextConnection(
-    response: ServerResponse,
-    corsHeaders: Record<string, string>,
-  ) {
+  holdNextConnection(response: ServerResponse, corsHeaders: Record<string, string>) {
     this.runtimeConnected = true;
     if (this.nextConnection) {
       this.nextConnection.response.writeHead(503, {
@@ -94,12 +84,7 @@ class InvocationBridge {
       return false;
     }
 
-    sendJson(
-      this.invokeConnection.response,
-      200,
-      payload ?? {},
-      this.invokeConnection.corsHeaders,
-    );
+    sendJson(this.invokeConnection.response, 200, payload ?? {}, this.invokeConnection.corsHeaders);
     try {
       await this.cleanupSession();
     } catch (error) {
@@ -204,9 +189,7 @@ class BrowserSessionManager {
       connectUrl?: string;
     };
     if (!session.id || !session.connectUrl) {
-      fail(
-        "Browserbase session create completed without returning id and connectUrl.",
-      );
+      fail("Browserbase session create completed without returning id and connectUrl.");
     }
     return {
       connectUrl: session.connectUrl,
@@ -226,12 +209,7 @@ class BrowserSessionManager {
 }
 
 class ManifestStore {
-  private readonly manifestsPath = join(
-    process.cwd(),
-    ".browserbase",
-    "functions",
-    "manifests",
-  );
+  private readonly manifestsPath = join(process.cwd(), ".browserbase", "functions", "manifests");
 
   private readonly manifests = new Map<string, FunctionManifest>();
 
@@ -270,8 +248,7 @@ class RuntimeProcess {
   async start() {
     const require = createRequire(import.meta.url);
     const tsxCli = require.resolve("tsx/cli");
-    const nodeExecutable =
-      "bun" in process.versions ? "node" : process.execPath;
+    const nodeExecutable = "bun" in process.versions ? "node" : process.execPath;
     const child = spawn(
       nodeExecutable,
       [tsxCli, "watch", "--clear-screen=false", this.entrypoint],
@@ -298,9 +275,7 @@ class RuntimeProcess {
     child.stderr?.on("data", (chunk) => {
       const text = chunk.toString().trim();
       if (text) {
-        process.stderr.write(
-          `${this.verbose ? "[runtime:error] " : ""}${text}\n`,
-        );
+        process.stderr.write(`${this.verbose ? "[runtime:error] " : ""}${text}\n`);
       }
     });
 
@@ -352,16 +327,14 @@ export async function startFunctionsDevServer(
   options: StartFunctionsDevServerOptions,
 ): Promise<void> {
   const entrypoint = await resolveEntrypoint(options.entrypoint);
-  if (
-    !Number.isInteger(options.port) ||
-    options.port < 1 ||
-    options.port > 65_535
-  ) {
+  if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
     fail("Port must be an integer between 1 and 65535.");
   }
 
   const config = resolveFunctionsApiConfig(options);
-  const runtimeApi = `${options.host}:${options.port}`;
+  // Only the spawned runtime receives this prefix; the public invoke URL stays unchanged.
+  const runtimeToken = randomBytes(32).toString("hex");
+  const runtimeApi = `${options.host}:${options.port}/${runtimeToken}`;
   const bridge = new InvocationBridge();
   const sessionManager = new BrowserSessionManager(config);
   const manifestStore = new ManifestStore();
@@ -380,6 +353,7 @@ export async function startFunctionsDevServer(
     bridge,
     manifestStore,
     sessionManager,
+    runtimeToken,
   );
   const runtime = new RuntimeProcess(entrypoint, runtimeApi, options.verbose);
   await runtime.start();
@@ -410,9 +384,7 @@ export async function startFunctionsDevServer(
 
   const shutdown = async () => {
     await runtime.stop();
-    await new Promise<void>((resolvePromise) =>
-      server.close(() => resolvePromise()),
-    );
+    await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
   };
 
   process.on("SIGINT", async () => {
@@ -431,17 +403,14 @@ async function startServer(
   bridge: InvocationBridge,
   manifestStore: ManifestStore,
   sessionManager: BrowserSessionManager,
+  runtimeToken: string,
 ): Promise<Server> {
   const server = createServer((request, response) => {
-    routeRequest(
-      request,
-      response,
-      bridge,
-      manifestStore,
-      sessionManager,
-    ).catch((error) => {
-      handleRouteError(response, error);
-    });
+    routeRequest(request, response, bridge, manifestStore, sessionManager, runtimeToken).catch(
+      (error) => {
+        handleRouteError(response, error);
+      },
+    );
   });
 
   await new Promise<void>((resolvePromise, reject) => {
@@ -492,9 +461,7 @@ function getRuntimeStartupTimeoutMs(): number {
 
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    fail(
-      "BROWSERBASE_FUNCTIONS_DEV_STARTUP_TIMEOUT_MS must be a non-negative number.",
-    );
+    fail("BROWSERBASE_FUNCTIONS_DEV_STARTUP_TIMEOUT_MS must be a non-negative number.");
   }
 
   return parsed;
@@ -506,13 +473,15 @@ async function routeRequest(
   bridge: InvocationBridge,
   manifestStore: ManifestStore,
   sessionManager: BrowserSessionManager,
+  runtimeToken: string,
 ): Promise<void> {
   const method = request.method || "GET";
-  const url = new URL(
-    request.url || "/",
-    `http://${request.headers.host || "127.0.0.1"}`,
-  );
+  const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
   const path = url.pathname;
+  // Authenticate runtime routes before accepting a poll or completing an invocation.
+  const runtimePath = path.startsWith(`/${runtimeToken}/`)
+    ? path.slice(runtimeToken.length + 1)
+    : "";
   const corsHeaders = corsHeadersForRequest(request);
 
   if (!corsHeaders) {
@@ -530,7 +499,7 @@ async function routeRequest(
     return;
   }
 
-  if (method === "GET" && path === "/2018-06-01/runtime/invocation/next") {
+  if (method === "GET" && runtimePath === "/2018-06-01/runtime/invocation/next") {
     bridge.holdNextConnection(response, corsHeaders);
     return;
   }
@@ -553,12 +522,7 @@ async function routeRequest(
     }
 
     if (bridge.hasActiveInvocation()) {
-      sendJson(
-        response,
-        503,
-        { error: "Another invocation is already in progress." },
-        corsHeaders,
-      );
+      sendJson(response, 503, { error: "Another invocation is already in progress." }, corsHeaders);
       return;
     }
 
@@ -582,9 +546,7 @@ async function routeRequest(
         ? (body as { params?: Record<string, unknown> }).params || {}
         : {};
 
-    const session = await sessionManager.createSession(
-      manifest.config?.sessionConfig,
-    );
+    const session = await sessionManager.createSession(manifest.config?.sessionConfig);
     const accepted = bridge.triggerInvocation(
       functionName,
       params,
@@ -596,19 +558,12 @@ async function routeRequest(
 
     if (!accepted) {
       await sessionManager.closeSession(session.id);
-      sendJson(
-        response,
-        503,
-        { error: "No runtime is connected yet." },
-        corsHeaders,
-      );
+      sendJson(response, 503, { error: "No runtime is connected yet." }, corsHeaders);
     }
     return;
   }
 
-  const responseMatch = path.match(
-    /^\/2018-06-01\/runtime\/invocation\/([^/]+)\/response$/,
-  );
+  const responseMatch = runtimePath.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/response$/);
   if (method === "POST" && responseMatch?.[1]) {
     const requestId = responseMatch[1];
     let payload;
@@ -639,9 +594,7 @@ async function routeRequest(
     return;
   }
 
-  const errorMatch = path.match(
-    /^\/2018-06-01\/runtime\/invocation\/([^/]+)\/error$/,
-  );
+  const errorMatch = runtimePath.match(/^\/2018-06-01\/runtime\/invocation\/([^/]+)\/error$/);
   if (method === "POST" && errorMatch?.[1]) {
     const requestId = errorMatch[1];
     let payload;
@@ -687,9 +640,7 @@ function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function waitForChildSpawn(
-  child: ReturnType<typeof spawn>,
-): Promise<void> {
+async function waitForChildSpawn(child: ReturnType<typeof spawn>): Promise<void> {
   await new Promise<void>((resolvePromise, reject) => {
     const cleanup = () => {
       child.off("error", onError);
@@ -756,9 +707,7 @@ function sendForbiddenOrigin(response: ServerResponse): void {
   response.end(JSON.stringify({ error: "Origin is not allowed." }));
 }
 
-function corsHeadersForRequest(
-  request: IncomingMessage,
-): Record<string, string> | null {
+function corsHeadersForRequest(request: IncomingMessage): Record<string, string> | null {
   const origin = request.headers.origin;
   if (origin === undefined) return baseCorsHeaders();
   if (Array.isArray(origin)) return null;
@@ -782,11 +731,7 @@ function isAllowedLoopbackOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    return (
-      url.hostname === "localhost" ||
-      url.hostname === "127.0.0.1" ||
-      url.hostname === "[::1]"
-    );
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
   } catch {
     return false;
   }

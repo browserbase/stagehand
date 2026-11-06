@@ -4,12 +4,11 @@ import type {
   ObserveResult,
   StagehandObserveParams,
 } from "@browserbasehq/stagehand-protocol/types";
-import { TimeoutError } from "../errors.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import * as cacheService from "./cacheService.js";
 import { llmObserveDriver } from "./drivers/llm/index.js";
 import { createLlmPort } from "./drivers/llmPort.js";
@@ -22,17 +21,7 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
  * This service owns the timeout, the cache and the result envelope, and asks `driver` which
  * elements match. The driver defaults to the language model; see `drivers/` for the contract.
  */
-export async function observe({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  cache,
-  gateway,
-  driver = llmObserveDriver(),
-}: {
+type ObserveServiceOptions = {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
   model: ModelConfig | ClientModelReference | undefined;
@@ -43,12 +32,32 @@ export async function observe({
   gateway?: GatewayContext;
   /** Finds the matching elements. */
   driver?: ObserveDriver;
-}): Promise<ObserveResult> {
-  const { instruction, options } = params;
-  const ensureTimeRemaining = createTimeoutGuard(
-    options?.timeout,
-    (ms) => new TimeoutError("observe()", ms),
+  /** The caller's deadline; observe() starts its own from `options.timeout` when absent. */
+  progress?: Progress;
+};
+
+export async function observe(options: ObserveServiceOptions): Promise<ObserveResult> {
+  return runWithProgress(
+    options.progress ?? { name: "observe()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => observeWithProgress(options, progress),
   );
+}
+
+async function observeWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    cache,
+    gateway,
+    driver = llmObserveDriver(),
+  }: ObserveServiceOptions,
+  progress: Progress,
+): Promise<ObserveResult> {
+  const { instruction, options } = params;
   logger.info("Starting observation", {
     category: "observation",
     ...(instruction === undefined ? {} : { instruction }),
@@ -62,6 +71,7 @@ export async function observe({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: (value) => {
       const actions = cacheService.normalizeCachedActions(value);
       if (actions.length === 0) {
@@ -73,7 +83,14 @@ export async function observe({
       };
     },
     execute: async () => {
-      const { llm, usage } = createLlmPort({ model, clientLLMGenerate, gateway, systemPrompt });
+      const { llm, usage } = createLlmPort({
+        model,
+        clientLLMGenerate,
+        gateway,
+        systemPrompt,
+        progress,
+        operation: "observe",
+      });
       const resolution = await driver.resolve({
         instruction,
         variables: options?.variables,
@@ -82,7 +99,8 @@ export async function observe({
           focusLocator: options?.locator,
           ignoreLocators: options?.ignoreLocators,
         },
-        ensureTimeRemaining,
+        progress,
+        ensureTimeRemaining: () => progress.throwIfStopped(),
         logger,
         llm,
       });

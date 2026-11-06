@@ -11,7 +11,7 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/no-js-click/");
 
       const observeResult: Action = {
         method: "click",

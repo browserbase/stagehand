@@ -3,11 +3,7 @@ import type { StagehandBrowser } from "@browserbasehq/stagehand";
 
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
-import type {
-  BrowserbaseIdentity,
-  ConnectionTarget,
-  RemoteConnectionTarget,
-} from "./types.js";
+import type { BrowserbaseIdentity, ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 export interface RemoteStagehandOptions {
   apiKey: string;

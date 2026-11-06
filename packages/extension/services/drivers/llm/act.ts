@@ -25,10 +25,13 @@ export function llmActDriver(): ActDriver {
     name: "llm",
     startsBeforeSettle: false,
     async resolve(request, handoff) {
-      const { instruction, variables, page, snapshotOptions, ensureTimeRemaining, logger } =
-        request;
+      const { instruction, variables, page, snapshotOptions, progress, logger } = request;
+      const ensureTimeRemaining = () => progress.throwIfStopped();
       await request.settled;
-      const { combinedTree, combinedXpathMap } = await page.captureSnapshot(snapshotOptions);
+      const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+        snapshotOptions,
+        progress,
+      );
       const prompt = buildActPrompt(
         instruction,
         Object.values(SupportedUnderstudyAction),
@@ -71,8 +74,10 @@ export function llmActDriver(): ActDriver {
       if (!first.response.twoStep) return resolved(firstResult);
 
       ensureTimeRemaining();
-      const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } =
-        await page.captureSnapshot(snapshotOptions);
+      const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
+        snapshotOptions,
+        progress,
+      );
       const changedTree = diffCombinedTrees(combinedTree, nextTree);
       const secondPrompt = buildStepTwoPrompt(
         instruction,

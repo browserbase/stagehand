@@ -30,16 +30,11 @@
 import "./silence-warnings.js";
 
 import process from "node:process";
-import path from "node:path";
-import dotenv from "dotenv";
-import { getPackageRootDir } from "./runtimePaths.js";
+import { loadEvalsEnv } from "./evalsEnv.js";
 // cwd `.env` first (wins), then packages/evals/.env so a repo-root launch sees
-// the keys `evals setup` saves there. dotenv never overrides existing values.
-dotenv.config({ quiet: true } as dotenv.DotenvConfigOptions);
-dotenv.config({
-  path: path.join(getPackageRootDir(), ".env"),
-  quiet: true,
-} as dotenv.DotenvConfigOptions);
+// the keys `evals setup` saves there; shell exports always win. The doctor
+// reads the same report, so what it says is loaded is what ran.
+loadEvalsEnv();
 
 // Register tsx's ESM loader so dynamic `import()` of .ts task files resolves
 // NodeNext-style .js specifiers (`"../fixtures/index.js"` → the real .ts
@@ -127,10 +122,13 @@ const args = process.argv.slice(2);
     const readline = await import("node:readline");
     const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
-    const onKeypress = (_str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
+    const { getActiveRun } = await import("./tui/liveRun.js");
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
       if (!key) return;
       if (key.name === "escape") void handleSignal("SIGINT");
       else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
+      // Live-board keys (`v` logs, `?` help); `?` arrives as a string, not a name.
+      else getActiveRun()?.onKey?.(key.name ?? str);
     };
     armArgvInput = () => {
       process.stdin.setRawMode?.(true);

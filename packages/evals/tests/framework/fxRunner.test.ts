@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
-import { buildFxPrompt, parseFxResult, runFxAgent } from "../../framework/fxRunner.js";
+import {
+  buildFxPrompt,
+  parseFxResult,
+  readFxReasoningEffort,
+  runFxAgent,
+} from "../../framework/fxRunner.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -34,13 +43,13 @@ describe("fx runner helpers", () => {
     ).toMatchObject({ success: true, summary: "done" });
   });
 
-  it("runs a fake fx session into a successful task result", async () => {
+  it("reports FX totals without counting cached input twice", async () => {
     const finalOutput = '{"success":true,"summary":"done","finalAnswer":"Example Domain"}';
     const events = JSON.stringify({
       kind: "history_turn_committed",
       payload: {
-        total_input_tokens: 42,
-        total_output_tokens: 8,
+        total_input_tokens: 1000,
+        total_output_tokens: 200,
         turn: {
           kind: "completed",
           assistant: finalOutput,
@@ -56,6 +65,7 @@ describe("fx runner helpers", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/fake/workspace",
         home: "/fake/home",
         env: { PATH: "/bin" },
@@ -64,8 +74,10 @@ describe("fx runner helpers", () => {
         cleanup: async () => {},
       },
       runProcess: async ({ args, stdin }) => {
-        expect(args).toEqual(["ask", "--json", "--auto"]);
+        expect(args).toEqual(["ask", "--json", "--auto", "--model", "openai/gpt-5.6-sol"]);
         expect(stdin).toContain("Find the heading");
+        expect(stdin.startsWith(`${EVAL_SYSTEM_PROMPT}\n\n`)).toBe(true);
+        expect(stdin.split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
         return {
           stdout: JSON.stringify({ output: finalOutput, exit_code: 0, session_id: "fx-1" }),
           stderr: "",
@@ -77,10 +89,10 @@ describe("fx runner helpers", () => {
         readEventsJsonl: async () => events,
         readUsageSnapshot: async () => ({
           snapshot: {
-            input_tokens: 42,
-            output_tokens: 8,
-            cache_read_tokens: 5,
-            reasoning_tokens: 2,
+            input_tokens: 1000,
+            output_tokens: 200,
+            cache_read_tokens: 600,
+            reasoning_tokens: 50,
           },
         }),
       },
@@ -91,14 +103,105 @@ describe("fx runner helpers", () => {
     expect(result.fxStatus).toBe("completed");
     expect(result.harnessStatus).toBe("completed");
     expect(result.finalAnswer).toBe("Example Domain");
-    expect(metrics.fx_input_tokens.value).toBe(42);
-    expect(metrics.harness_input_tokens.value).toBe(42);
-    expect(metrics.harness_output_tokens.value).toBe(8);
-    expect(metrics.harness_cached_input_tokens.value).toBe(5);
-    expect(metrics.harness_reasoning_output_tokens.value).toBe(2);
-    expect(metrics.fx_total_tokens.value).toBe(57);
-    expect(metrics.harness_total_tokens.value).toBe(57);
+    expect(metrics.fx_input_tokens.value).toBe(1000);
+    expect(metrics.harness_input_tokens.value).toBe(1000);
+    expect(metrics.harness_output_tokens.value).toBe(200);
+    expect(metrics.harness_cached_input_tokens.value).toBe(600);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(50);
+    expect(metrics.fx_total_tokens.value).toBe(1250);
+    expect(metrics.harness_total_tokens.value).toBe(1250);
     expect(metrics.harness_cost_usd).toBeUndefined();
+  });
+
+  it("grades the agent's conclusion, not its narration, when fx joins every assistant turn", async ({
+    onTestFinished,
+  }) => {
+    const trajectoryRoot = await mkdtemp(path.join(tmpdir(), "stagehand-runner-test-"));
+    onTestFinished(() => rm(trajectoryRoot, { recursive: true, force: true }));
+    // Mirrors the observed events.jsonl shape: tool steps carrying opening and
+    // interstitial narration, then a committed turn whose assistant text is
+    // the structured report. fx's `ask --json` output joins all of them.
+    const narration = "I’ll open AirAsia’s booking flow and inspect the seat price.";
+    const interstitial = "No results rendered; retrying with direct flights only.";
+    const report =
+      '{"success":true,"summary":"Searched AirAsia.","finalAnswer":"No direct flights were available."}';
+    const toolStep = (assistant: string, id: string) => ({
+      assistant,
+      tool_calls: [{ id, name: "mcp_stagehand_run", arguments_json: '{"code":"1"}' }],
+      tool_results: [
+        { tool_call_id: id, tool_name: "mcp_stagehand_run", status: "success", output: "{}" },
+      ],
+    });
+    const events = JSON.stringify({
+      kind: "history_turn_committed",
+      payload: {
+        total_input_tokens: 42,
+        total_output_tokens: 8,
+        turn: {
+          kind: "completed",
+          assistant: report,
+          terminal_reason: "completed",
+          execution: {
+            schema_version: 3,
+            tool_steps: [
+              toolStep(narration, "c1"),
+              toolStep("", "c2"),
+              toolStep(interstitial, "c3"),
+            ],
+          },
+        },
+      },
+    });
+    const logger = new EvalLogger(false);
+    const result = await runFxAgent({
+      plan,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
+      logger,
+      toolAdapter: {
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
+        cwd: "/fake/workspace",
+        home: "/fake/home",
+        env: { PATH: "/bin" },
+        promptInstructions: "Use mcp_stagehand_run.",
+        mcpServerNames: ["stagehand"],
+        observedToolMatcher: (name) => name.startsWith("mcp_"),
+        cleanup: async () => {},
+      },
+      // Malformed rubric: the trajectory is still built and traced before the
+      // verifier integration fails, which is what this test inspects.
+      verifier: {
+        trajectoryRoot,
+        v3: {} as never,
+        taskSpec: { id: "wv-fx-1", instruction: plan.instruction, precomputedRubric: {} as never },
+        dataset: "webvoyager",
+      },
+      runProcess: async () => ({
+        stdout: JSON.stringify({
+          output: `${narration}\n\n${interstitial}\n\n${report}`,
+          exit_code: 0,
+          session_id: "fx-2",
+        }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: {
+        waitForSessionDir: async () => "/fake/session",
+        readEventsJsonl: async () => events,
+      },
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.agentReportedSuccess).toBe(true);
+    expect(result.verifierError).toBeDefined();
+    expect(result.finalAnswer).toBe("No direct flights were available.");
+    expect(result.reasoning).toBe("Searched AirAsia.");
+    const messages = (result.logs ?? []).map((line) => line.message);
+    expect(messages).toContain("step 1 · think · " + narration);
+    expect(messages).toContain("step 3 · think · " + interstitial);
+    expect(messages).toContain("answer · No direct flights were available.");
+    expect(messages.some((message) => message.startsWith("answer · I’ll open"))).toBe(false);
   });
 
   it("returns a failed task result with sdk_error status when fx cannot start", async () => {
@@ -109,6 +212,7 @@ describe("fx runner helpers", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/fake/workspace",
         home: "/fake/home",
         env: { PATH: "/bin" },
@@ -140,6 +244,7 @@ describe("fx runner helpers", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/fake/workspace",
         home: "/fake/home",
         env: { PATH: "/bin" },
@@ -165,5 +270,149 @@ describe("fx runner helpers", () => {
     expect(result._success).toBe(false);
     expect(result.harnessStatus).toBe("sdk_error");
     expect(result.reasoning).toBeUndefined();
+  });
+});
+
+it.each([false, true])(
+  "preserves token usage presence through fx grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runFxAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: {
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
+        cwd: "/fake/workspace",
+        home: "/fake/home",
+        env: {},
+        promptInstructions: "Use mounted tools.",
+        mcpServerNames: ["stagehand"],
+        cleanup: async () => {},
+      },
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: finalAnswer, exit_code: 0, session_id: "fx-usage" }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: {
+        waitForSessionDir: async () => "/fake/session",
+        readEventsJsonl: async () =>
+          JSON.stringify({
+            kind: "history_turn_committed",
+            payload: {
+              ...(reported && { total_input_tokens: 0, total_output_tokens: 0 }),
+              turn: {
+                kind: "completed",
+                assistant: finalAnswer,
+                terminal_reason: "completed",
+                execution: { schema_version: 3, tool_steps: [] },
+              },
+            },
+          }),
+        readUsageSnapshot: async () => undefined,
+      },
+    });
+    expect(result.usageConvention).toBe(reported ? "openai_cached_subset" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);
+
+describe("fx 0.0.11 runner contract", () => {
+  const toolAdapter = {
+    toolSurface: "stagehand_facade" as const,
+    startupProfile: "tool_launch_local" as const,
+    browserSession: { provider: "local" as const },
+    cwd: "/fake/workspace",
+    home: "/fake/home",
+    env: {},
+    promptInstructions: "Use mounted tools.",
+    mcpServerNames: ["stagehand"],
+    cleanup: async () => {},
+  };
+  const emptyStore = {
+    waitForSessionDir: async (): Promise<undefined> => undefined,
+    readEventsJsonl: async () => "",
+  };
+
+  it("passes EVAL_FX_REASONING_EFFORT as --effort and records it", async () => {
+    const previous = process.env.EVAL_FX_REASONING_EFFORT;
+    process.env.EVAL_FX_REASONING_EFFORT = "xhigh";
+    try {
+      let captured: string[] = [];
+      const result = await runFxAgent({
+        plan,
+        model: "anthropic/claude-sonnet-5-5" as AvailableModel,
+        logger: new EvalLogger(false),
+        toolAdapter,
+        runProcess: async ({ args }) => {
+          captured = args;
+          return {
+            stdout: JSON.stringify({
+              output: "ok",
+              final_output: '{"success":true,"summary":"s","finalAnswer":"a"}',
+              exit_code: 0,
+            }),
+            stderr: "",
+            exitCode: 0,
+          };
+        },
+        store: emptyStore,
+      });
+      expect(captured).toEqual([
+        "ask",
+        "--json",
+        "--auto",
+        "--model",
+        "anthropic/claude-sonnet-5.5",
+        "--effort",
+        "xhigh",
+      ]);
+      expect(result.harnessConfiguration).toMatchObject({
+        requestedReasoningEffort: "xhigh",
+        fxModel: "anthropic/claude-sonnet-5.5",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_FX_REASONING_EFFORT;
+      else process.env.EVAL_FX_REASONING_EFFORT = previous;
+    }
+  });
+
+  it("rejects an effort fx would silently ignore", () => {
+    expect(() => readFxReasoningEffort({ EVAL_FX_REASONING_EFFORT: "turbo" })).toThrow(
+      /EVAL_FX_REASONING_EFFORT must be one of/u,
+    );
+    expect(readFxReasoningEffort({})).toBeUndefined();
+    expect(readFxReasoningEffort({ EVAL_FX_REASONING_EFFORT: "High" })).toBe("high");
+  });
+
+  it("grades the fenced report in final_output, not an empty fence left in the narration", async () => {
+    // Real fx 0.0.11 shape: `output` joins narration + the fenced report, and
+    // `final_output` is the fenced report alone.
+    const report =
+      '```json\n{"success":true,"summary":"Compared prices.","finalAnswer":"Best Buy $799.99; Microsoft $799.99"}\n```';
+    const result = await runFxAgent({
+      plan,
+      model: "anthropic/claude-sonnet-5-5" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter,
+      runProcess: async () => ({
+        stdout: JSON.stringify({
+          output: `Starting by selecting the Stagehand browser tools.\n\nNext I'll check Microsoft's site.\n\n${report}`,
+          final_output: report,
+          exit_code: 0,
+        }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: emptyStore,
+    });
+    expect(result.finalAnswer).toBe("Best Buy $799.99; Microsoft $799.99");
+    expect(result.finalAnswer).not.toContain("```");
   });
 });

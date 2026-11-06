@@ -5,12 +5,11 @@ import type {
   StagehandExtractParams,
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
-import { TimeoutError } from "../errors.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import * as cacheService from "./cacheService.js";
 import { llmExtractDriver } from "./drivers/llm/index.js";
 import { createLlmPort } from "./drivers/llmPort.js";
@@ -26,17 +25,7 @@ export { transformUrlStringsToNumericIds } from "./drivers/llm/extract.js";
  * `driver` for the values. The driver defaults to the language model; see `drivers/` for the
  * contract.
  */
-export async function extract({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  cache,
-  gateway,
-  driver = llmExtractDriver(),
-}: {
+type ExtractServiceOptions = {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
   model: ModelConfig | ClientModelReference | undefined;
@@ -47,12 +36,33 @@ export async function extract({
   gateway?: GatewayContext;
   /** Produces the values for the schema. */
   driver?: ExtractDriver;
-}): Promise<ExtractResult> {
-  const { instruction, options } = params;
-  const ensureTimeRemaining = createTimeoutGuard(
-    options?.timeout,
-    (ms) => new TimeoutError("extract()", ms),
+  /** The caller's deadline; extract() starts its own from `options.timeout` when absent. */
+  progress?: Progress;
+};
+
+export async function extract(options: ExtractServiceOptions): Promise<ExtractResult> {
+  return runWithProgress(
+    options.progress ?? { name: "extract()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => extractWithProgress(options, progress),
   );
+}
+
+async function extractWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    cache,
+    gateway,
+    driver = llmExtractDriver(),
+  }: ExtractServiceOptions,
+  progress: Progress,
+): Promise<ExtractResult> {
+  const { instruction, options } = params;
+  const ensureTimeRemaining = () => progress.throwIfStopped();
 
   // Cache keys contain DOM state, not screenshot pixels. Do not serve a
   // visual extraction from a cache entry that cannot represent its image.
@@ -68,6 +78,7 @@ export async function extract({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: (value) => ({
       data: z.json().parse(value),
       metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
@@ -77,17 +88,19 @@ export async function extract({
 
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
     ensureTimeRemaining();
-    const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
-      focusLocator: options?.locator,
-      ignoreLocators: options?.ignoreLocators,
-    });
+    const { combinedTree, combinedUrlMap } = await page.captureSnapshot(
+      {
+        focusLocator: options?.locator,
+        ignoreLocators: options?.ignoreLocators,
+      },
+      progress,
+    );
     ensureTimeRemaining();
 
-    let screenshot: Uint8Array | undefined;
-    if (options?.screenshot) {
-      screenshot = await page.screenshot({ fullPage: false, type: "png" });
-      ensureTimeRemaining();
-    }
+    const screenshot = options?.screenshot
+      ? await page.screenshot({ fullPage: false, type: "png" }, progress)
+      : undefined;
+    ensureTimeRemaining();
 
     logger.info(
       screenshot
@@ -96,7 +109,14 @@ export async function extract({
       { category: "extraction", instruction },
     );
 
-    const { llm, usage } = createLlmPort({ model, clientLLMGenerate, gateway, systemPrompt });
+    const { llm, usage } = createLlmPort({
+      model,
+      clientLLMGenerate,
+      gateway,
+      systemPrompt,
+      progress,
+      operation: "extract",
+    });
     const resolution = await driver.resolve({
       instruction,
       jsonSchema: params.schema,
@@ -106,6 +126,7 @@ export async function extract({
         urlMap: (combinedUrlMap ?? {}) as Record<string, string>,
       },
       ...(screenshot ? { screenshot } : {}),
+      progress,
       ensureTimeRemaining,
       logger,
       llm,

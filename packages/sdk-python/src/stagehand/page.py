@@ -4,6 +4,7 @@ import asyncio
 import base64
 import builtins
 import inspect
+import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, TypeVar, cast, overload
@@ -67,6 +68,9 @@ from ._generated.models import (
     PageTypeParams,
     PageUrlResult,
     PageVoidResult,
+    PageWaitForFunctionOptions,
+    PageWaitForFunctionParams,
+    PageWaitForFunctionResult,
     PageWaitForLoadStateParams,
     PageWaitForSelectorOptions,
     PageWaitForSelectorParams,
@@ -93,6 +97,9 @@ PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
 ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
+
+# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
+_UNSET_ARG = object()
 
 
 class CDPSubscription:
@@ -538,6 +545,44 @@ class Page:
             PageWaitForTimeoutParams(page_id=self.page_id, ms=ms),
             PageVoidResult,
         )
+
+    async def wait_for_function(
+        self,
+        expression: str,
+        *,
+        arg: JsonValue = cast(JsonValue, _UNSET_ARG),
+        polling: Literal["raf"] | float | None = None,
+        timeout: int | None = None,
+    ) -> JsonValue:
+        """Poll JavaScript in the page until it returns a truthy JSON value."""
+        if arg is not _UNSET_ARG:
+            try:
+                serialized_arg = json.dumps(arg, allow_nan=False)
+            except (TypeError, ValueError) as error:
+                message = "page.wait_for_function: 'arg' must be JSON-serializable."
+                raise TypeError(message) from error
+            # Like Playwright, a function expression receives arg; other expressions ignore it.
+            # The browser invokes the returned thunk once per poll. JSON.parse keeps own
+            # "__proto__" keys that an object literal would treat as a prototype.
+            parsed_arg = f"JSON.parse({json.dumps(serialized_arg)})"
+            expression = (
+                f'((value) => typeof value === "function" ? () => value({parsed_arg}) : value)'
+                f"(({expression}))"
+            )
+        params = PageWaitForFunctionParams(page_id=self.page_id, expression=expression)
+        options = PageWaitForFunctionOptions.model_validate({
+            name: value
+            for name, value in (("polling", polling), ("timeout", timeout))
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        result = await self._rpc_client.send(
+            "page.wait_for_function",
+            params,
+            PageWaitForFunctionResult,
+        )
+        return None if result.value is None else cast(JsonValue, result.value.model_dump())
 
     async def wait_for_selector(
         self,

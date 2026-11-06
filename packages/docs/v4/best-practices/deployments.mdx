@@ -36,13 +36,13 @@ The initializer installs Stagehand and creates a starter Stagehand Function in `
 
 <Step title="Upload the Stagehand extension">
 
-Stagehand needs its extension in the browser session, and a session cannot get an extension after it starts. Upload the extension one time for your project:
+Stagehand needs its extension in the browser session, and a session cannot get an extension after it starts. Upload the bundled extension one time for your project:
 
 ```bash
-browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+browse cloud extensions upload --stagehand
 ```
 
-In `index.ts`, replace `your-extension-id` with the `id` from the output.
+In `index.ts`, replace `your-extension-id` with the `id` from the output. See [Exporting the Stagehand extension](/v4/configuration/browser#exporting-the-stagehand-extension) for Python, Go, and manual installation examples.
 
 </Step>
 
@@ -87,7 +87,7 @@ defineFn(
   },
   {
     // Upload the Stagehand extension once, then paste its ID here:
-    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    //   browse cloud extensions upload --stagehand
     sessionConfig: { extensionId: "your-extension-id" },
   },
 );

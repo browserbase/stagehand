@@ -613,23 +613,21 @@ describe("decision-first act, end to end through the service", () => {
       );
     });
     vi.stubGlobal("fetch", decisionRequests);
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "structured action" },
-        outputFormat: "json_schema",
-        structuredContent: {
-          action: {
-            elementId: "0-12",
-            description: "Submit button",
-            method: "click",
-            arguments: [],
-          },
-          twoStep: false,
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "structured action" },
+      outputFormat: "json_schema",
+      structuredContent: {
+        action: {
+          elementId: "0-12",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
         },
-        usage: { inputTokens: 11, outputTokens: 4, totalTokens: 15 },
-      }),
-    );
+        twoStep: false,
+      },
+      usage: { inputTokens: 11, outputTokens: 4, totalTokens: 15 },
+    }));
     const page = {
       mainFrame: () => ({}),
       captureSnapshot: vi.fn(async () => ({

@@ -226,7 +226,7 @@ function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
         // cover (or the host chain, which counts as "hits the target").
         const hit = root.elementFromPoint(x, y) ?? document.elementFromPoint(x, y);
         const encloses = (outer: Element, inner: Element): boolean => {
-          for (let node: Node | null = inner; node; ) {
+          for (let node: Node | null = inner; node;) {
             if (node === outer || (node instanceof Element && outer.contains(node))) return true;
             const rootNode = node.getRootNode();
             node = rootNode instanceof ShadowRoot ? rootNode.host : null;

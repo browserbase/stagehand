@@ -1,11 +1,4 @@
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
@@ -55,18 +48,12 @@ describe("functions API contracts", () => {
 
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/builds"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
           jsonResponse(response, 200, { id: "build_123" });
           return;
         }
 
-        if (
-          request.method === "GET" &&
-          request.path === "/v1/functions/builds/build_123"
-        ) {
+        if (request.method === "GET" && request.path === "/v1/functions/builds/build_123") {
           jsonResponse(response, 200, {
             builtFunctions: [{ id: "fn_123", name: "my-function" }],
             id: "build_123",
@@ -79,15 +66,7 @@ describe("functions API contracts", () => {
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
-          [
-            "functions",
-            "publish",
-            "index.ts",
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ],
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
           { cwd },
         );
 
@@ -97,16 +76,9 @@ describe("functions API contracts", () => {
           status: "COMPLETED",
         });
         expectRequest(requests[0], "POST", "/v1/functions/builds", "test-key");
-        expect(requests[0]?.headers["content-type"]).toContain(
-          "multipart/form-data",
-        );
+        expect(requests[0]?.headers["content-type"]).toContain("multipart/form-data");
         expect(requests[0]?.bodyText).toContain('"entrypoint":"index.ts"');
-        expectRequest(
-          requests[1],
-          "GET",
-          "/v1/functions/builds/build_123",
-          "test-key",
-        );
+        expectRequest(requests[1], "GET", "/v1/functions/builds/build_123", "test-key");
       },
     );
   });
@@ -120,20 +92,10 @@ describe("functions API contracts", () => {
     await mkdir(join(cwd, ".browserbase", "functions", "manifests"), {
       recursive: true,
     });
-    await writeFile(
-      join(cwd, ".browserbase", "functions", "manifests", "local.json"),
-      "{}",
-    );
+    await writeFile(join(cwd, ".browserbase", "functions", "manifests", "local.json"), "{}");
 
     const result = await runCli(
-      [
-        "functions",
-        "publish",
-        "index.ts",
-        "--dry-run",
-        "--api-key",
-        "test-key",
-      ],
+      ["functions", "publish", "index.ts", "--dry-run", "--api-key", "test-key"],
       {
         cwd,
         env: {
@@ -152,63 +114,45 @@ describe("functions API contracts", () => {
     expect(output.entrypoint).toBe("index.ts");
     expect(output.files).toContain("index.ts");
     expect(output.files).toContain("package.json");
-    expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(
-      false,
-    );
+    expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(false);
   });
 
-  itPosix(
-    "generates package-lock.json without registry resolved URLs",
-    async () => {
-      const cwd = await createFunctionFixture("functions-publish-lockgen-");
-      const argsLog = join(cwd, "npm-args.log");
-      const fakeBin = await createFakePackageManagerBin(
-        "npm",
-        `#!/bin/sh\necho "$@" > "${argsLog}"\necho '{"lockfileVersion":3}' > package-lock.json\n`,
-      );
+  itPosix("generates package-lock.json without registry resolved URLs", async () => {
+    const cwd = await createFunctionFixture("functions-publish-lockgen-");
+    const argsLog = join(cwd, "npm-args.log");
+    const fakeBin = await createFakePackageManagerBin(
+      "npm",
+      `#!/bin/sh\necho "$@" > "${argsLog}"\necho '{"lockfileVersion":3}' > package-lock.json\n`,
+    );
 
-      await withServer(
-        async (request, response) => {
-          if (
-            request.method === "POST" &&
-            request.path === "/v1/functions/builds"
-          ) {
-            jsonResponse(response, 200, { id: "build_lockgen" });
-            return;
-          }
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
+          jsonResponse(response, 200, { id: "build_lockgen" });
+          return;
+        }
 
-          jsonResponse(response, 200, {
-            id: "build_lockgen",
-            status: "COMPLETED",
-          });
-        },
-        async ({ baseUrl }) => {
-          const result = await runCli(
-            [
-              "functions",
-              "publish",
-              "index.ts",
-              "--api-key",
-              "test-key",
-              "--base-url",
-              baseUrl,
-            ],
-            {
-              cwd,
-              env: {
-                PATH: `${fakeBin}:${process.env.PATH}`,
-              },
+        jsonResponse(response, 200, {
+          id: "build_lockgen",
+          status: "COMPLETED",
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli(
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
+          {
+            cwd,
+            env: {
+              PATH: `${fakeBin}:${process.env.PATH}`,
             },
-          );
+          },
+        );
 
-          expect(result.exitCode).toBe(0);
-          expect(await readFile(argsLog, "utf8")).toContain(
-            "--omit-lockfile-registry-resolved",
-          );
-        },
-      );
-    },
-  );
+        expect(result.exitCode).toBe(0);
+        expect(await readFile(argsLog, "utf8")).toContain("--omit-lockfile-registry-resolved");
+      },
+    );
+  });
 
   itPosix("prints npm output when lockfile generation fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-lockgen-fail-");
@@ -240,89 +184,67 @@ describe("functions API contracts", () => {
     expect(result.stderr).toContain("EBADDEVENGINES");
   });
 
-  itPosix(
-    "resolves local file dependencies when it generates package-lock.json",
-    async () => {
-      const cwd = await createFunctionFixture("functions-publish-local-dep-");
-      await writeFile(join(cwd, "local-sdk.tgz"), "fake tarball");
-      await writeFile(
-        join(cwd, "package.json"),
-        JSON.stringify({
-          name: "functions-fixture",
-          private: true,
-          type: "module",
-          dependencies: { "local-sdk": "file:local-sdk.tgz" },
-        }),
-      );
-      // Log outside the project so the log never lands in the publish archive.
-      const argsLog = join(
-        await createTempDir("functions-local-dep-log-"),
-        "npm-args.log",
-      );
-      // Fake npm fails unless the local dependency is next to package.json, like real npm.
-      const fakeBin = await createFakePackageManagerBin(
-        "npm",
-        `#!/bin/sh
+  itPosix("resolves local file dependencies when it generates package-lock.json", async () => {
+    const cwd = await createFunctionFixture("functions-publish-local-dep-");
+    await writeFile(join(cwd, "local-sdk.tgz"), "fake tarball");
+    await writeFile(
+      join(cwd, "package.json"),
+      JSON.stringify({
+        name: "functions-fixture",
+        private: true,
+        type: "module",
+        dependencies: { "local-sdk": "file:local-sdk.tgz" },
+      }),
+    );
+    // Log outside the project so the log never lands in the publish archive.
+    const argsLog = join(await createTempDir("functions-local-dep-log-"), "npm-args.log");
+    // Fake npm fails unless the local dependency is next to package.json, like real npm.
+    const fakeBin = await createFakePackageManagerBin(
+      "npm",
+      `#!/bin/sh
 echo "$@" > "${argsLog}"
 test -f local-sdk.tgz || { echo "npm error ENOENT local-sdk.tgz" >&2; exit 254; }
 echo '{"lockfileVersion":3}' > package-lock.json
 `,
-      );
+    );
 
-      await withServer(
-        async (request, response) => {
-          if (
-            request.method === "POST" &&
-            request.path === "/v1/functions/builds"
-          ) {
-            jsonResponse(response, 200, { id: "build_local_dep" });
-            return;
-          }
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
+          jsonResponse(response, 200, { id: "build_local_dep" });
+          return;
+        }
 
-          jsonResponse(response, 200, {
-            id: "build_local_dep",
-            status: "COMPLETED",
-          });
-        },
-        async ({ baseUrl }) => {
-          const result = await runCli(
-            [
-              "functions",
-              "publish",
-              "index.ts",
-              "--api-key",
-              "test-key",
-              "--base-url",
-              baseUrl,
-            ],
-            {
-              cwd,
-              env: {
-                PATH: `${fakeBin}:${process.env.PATH}`,
-              },
+        jsonResponse(response, 200, {
+          id: "build_local_dep",
+          status: "COMPLETED",
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli(
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
+          {
+            cwd,
+            env: {
+              PATH: `${fakeBin}:${process.env.PATH}`,
             },
-          );
+          },
+        );
 
-          expect(result.stderr).not.toContain("ENOENT");
-          expect(result.exitCode).toBe(0);
-          // Proves lockfile generation ran, so the test fails if publish ever skips it.
-          expect(await readFile(argsLog, "utf8")).toContain(
-            "--package-lock-only",
-          );
-        },
-      );
-    },
-  );
+        expect(result.stderr).not.toContain("ENOENT");
+        expect(result.exitCode).toBe(0);
+        // Proves lockfile generation ran, so the test fails if publish ever skips it.
+        expect(await readFile(argsLog, "utf8")).toContain("--package-lock-only");
+      },
+    );
+  });
 
   itPosix("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
 
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/builds"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
           jsonResponse(response, 200, { id: "build_failed" });
           return;
         }
@@ -334,15 +256,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
       },
       async ({ baseUrl }) => {
         const result = await runCli(
-          [
-            "functions",
-            "publish",
-            "index.ts",
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ],
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
           { cwd },
         );
 
@@ -358,10 +272,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
   it("invokes a deployed Function and polls invocation status", async () => {
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/fn_123/invoke") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_123",
@@ -370,10 +281,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
           return;
         }
 
-        if (
-          request.method === "GET" &&
-          request.path === "/v1/functions/invocations/inv_123"
-        ) {
+        if (request.method === "GET" && request.path === "/v1/functions/invocations/inv_123") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_123",
@@ -404,21 +312,11 @@ echo '{"lockfileVersion":3}' > package-lock.json
           results: { ok: true },
           status: "COMPLETED",
         });
-        expectRequest(
-          requests[0],
-          "POST",
-          "/v1/functions/fn_123/invoke",
-          "test-key",
-        );
+        expectRequest(requests[0], "POST", "/v1/functions/fn_123/invoke", "test-key");
         expect(requests[0]?.jsonBody).toMatchObject({
           params: { url: "https://example.com" },
         });
-        expectRequest(
-          requests[1],
-          "GET",
-          "/v1/functions/invocations/inv_123",
-          "test-key",
-        );
+        expectRequest(requests[1], "GET", "/v1/functions/invocations/inv_123", "test-key");
       },
     );
   });
@@ -426,10 +324,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
   it("exits nonzero when an invocation fails", async () => {
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/fn_123/invoke") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_failed",
@@ -488,30 +383,23 @@ describe("functions scaffolding and local dev", () => {
     expect(output.ok).toBe(true);
     expect(output.projectRoot.endsWith("demo-function")).toBe(true);
 
-    const entrypoint = await readFile(
-      join(cwd, "demo-function", "index.ts"),
-      "utf8",
+    const entrypoint = await readFile(join(cwd, "demo-function", "index.ts"), "utf8");
+    expect(entrypoint).toContain('import { defineFn } from "@browserbasehq/sdk-functions";');
+    expect(await readFile(join(cwd, "demo-function", ".env"), "utf8")).toContain(
+      "BROWSERBASE_API_KEY=",
     );
-    expect(entrypoint).toContain(
-      'import { defineFn } from "@browserbasehq/sdk-functions";',
+    expect(await readFile(join(cwd, "demo-function", "pnpm-workspace.yaml"), "utf8")).toContain(
+      "allowBuilds:\n  esbuild: true",
     );
-    expect(
-      await readFile(join(cwd, "demo-function", ".env"), "utf8"),
-    ).toContain("BROWSERBASE_API_KEY=");
-    expect(
-      await readFile(join(cwd, "demo-function", "pnpm-workspace.yaml"), "utf8"),
-    ).toContain("allowBuilds:\n  esbuild: true");
   });
 
-  itPosix(
-    "scaffolds a Stagehand project with zod matched to Stagehand",
-    async () => {
-      const cwd = await createTempDir("functions-init-stagehand-");
-      const argsLog = join(cwd, "pnpm-args.log");
-      // Fake pnpm logs each call and installs a Stagehand package.json that pins zod.
-      const fakeBin = await createFakePackageManagerBin(
-        "pnpm",
-        `#!/bin/sh
+  itPosix("scaffolds a Stagehand project with zod matched to Stagehand", async () => {
+    const cwd = await createTempDir("functions-init-stagehand-");
+    const argsLog = join(cwd, "pnpm-args.log");
+    // Fake pnpm logs each call and installs a Stagehand package.json that pins zod.
+    const fakeBin = await createFakePackageManagerBin(
+      "pnpm",
+      `#!/bin/sh
 echo "$@" >> "${argsLog}"
 case "$*" in
   *@browserbasehq/stagehand*)
@@ -521,37 +409,32 @@ case "$*" in
 esac
 exit 0
 `,
-      );
+    );
 
-      const result = await runCli(
-        ["functions", "init", "demo-function", "--package-manager", "pnpm"],
-        {
-          cwd,
-          env: {
-            PATH: `${fakeBin}:${process.env.PATH}`,
-          },
+    const result = await runCli(
+      ["functions", "init", "demo-function", "--package-manager", "pnpm"],
+      {
+        cwd,
+        env: {
+          PATH: `${fakeBin}:${process.env.PATH}`,
         },
-      );
+      },
+    );
 
-      expect(result.exitCode).toBe(0);
-      const calls = (await readFile(argsLog, "utf8")).trim().split("\n");
-      expect(calls).toContain(
-        "add @browserbasehq/sdk-functions @browserbasehq/stagehand",
-      );
-      expect(calls).toContain("add zod@4.4.3");
-      expect(calls).toContain("add -D typescript @types/node");
-      expect(calls.some((call) => call.includes("playwright-core"))).toBe(
-        false,
-      );
+    expect(result.exitCode).toBe(0);
+    const calls = (await readFile(argsLog, "utf8")).trim().split("\n");
+    expect(calls).toContain("add @browserbasehq/sdk-functions @browserbasehq/stagehand");
+    expect(calls).toContain("add zod@4.4.3");
+    expect(calls).toContain("add -D typescript @types/node");
+    expect(calls.some((call) => call.includes("playwright-core"))).toBe(false);
 
-      const projectRoot = join(cwd, "demo-function");
-      const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
-      expect(starter).toContain("browserbase.connect(");
-      // browser.close() releases the Function's session
-      expect(starter).not.toContain("await browser.close()");
-      expect(starter).toContain("Stagehand.create({ browser })");
-    },
-  );
+    const projectRoot = join(cwd, "demo-function");
+    const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
+    expect(starter).toContain("browserbase.connect(");
+    // browser.close() releases the Function's session
+    expect(starter).not.toContain("await browser.close()");
+    expect(starter).toContain("Stagehand.create({ browser })");
+  });
 
   it("runs a local dev server and invokes a function", async () => {
     const cwd = await createTempDir("functions-dev-");
@@ -568,10 +451,7 @@ exit 0
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/sessions/sess_123"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/sessions/sess_123") {
           jsonResponse(response, 200, {
             id: "sess_123",
             status: "REQUEST_RELEASE",
@@ -620,9 +500,7 @@ exit 0
           },
         );
         expect(optionsResponse.status).toBe(204);
-        expect(optionsResponse.headers.get("access-control-allow-origin")).toBe(
-          allowedOrigin,
-        );
+        expect(optionsResponse.headers.get("access-control-allow-origin")).toBe(allowedOrigin);
         expect(optionsResponse.headers.get("vary")).toBe("Origin");
         await expect(optionsResponse.text()).resolves.toBe("");
 
@@ -638,9 +516,7 @@ exit 0
           },
         );
         expect(invokeResponse.status).toBe(200);
-        expect(invokeResponse.headers.get("access-control-allow-origin")).toBe(
-          allowedOrigin,
-        );
+        expect(invokeResponse.headers.get("access-control-allow-origin")).toBe(allowedOrigin);
         await expect(invokeResponse.json()).resolves.toMatchObject({
           ok: true,
           params: { answer: 42 },
@@ -652,6 +528,259 @@ exit 0
         await waitForRequests(requests, 2);
         expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
         expectRequest(requests[1], "POST", "/v1/sessions/sess_123", "test-key");
+      },
+    );
+  }, 30_000);
+
+  it.each([false, true])(
+    "authenticates runtime polls and completion without changing invocation access (runtime error: %s)",
+    async (runtimeError) => {
+      const cwd = await createTempDir("functions-dev-runtime-auth-");
+      const port = await getFreePort();
+      const controlDir = await createTempDir("functions-dev-runtime-control-");
+      const invocationFile = join(controlDir, "invocation.json");
+      const releaseFile = join(controlDir, "release");
+      await writeRuntimeEntrypoint(cwd, {
+        runtimeControl: { invocationFile, releaseFile, runtimeError },
+      });
+
+      await withServer(
+        async (request, response) => {
+          if (request.method === "POST" && request.path === "/v1/sessions") {
+            jsonResponse(response, 200, {
+              connectUrl: "ws://example.test/devtools",
+              id: "sess_auth",
+            });
+            return;
+          }
+          if (request.method === "POST" && request.path === "/v1/sessions/sess_auth") {
+            jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
+            return;
+          }
+          jsonResponse(response, 404, { error: "not found" });
+        },
+        async ({ baseUrl, requests }) => {
+          const child = spawn(
+            process.execPath,
+            [
+              join(repoRoot, "bin/run.js"),
+              "functions",
+              "dev",
+              "runtime-entry.mjs",
+              "--port",
+              String(port),
+              "--api-key",
+              "test-key",
+              "--base-url",
+              baseUrl,
+            ],
+            { cwd, env: { ...process.env, NODE_ENV: "test" }, stdio: ["ignore", "pipe", "pipe"] },
+          );
+          cleanupProcesses.push(child);
+          let stderr = "";
+          child.stderr.on("data", (chunk) => {
+            stderr += chunk.toString();
+          });
+          const stdout = await waitForStdout(child, '"ok": true');
+          const publicUrl = `http://127.0.0.1:${port}`;
+          expect(JSON.parse(stdout)).toEqual({ ok: true, runtimeConnected: true, url: publicUrl });
+
+          // Exercise both a local process and a browser origin admitted by the existing CORS policy.
+          const headers: Record<string, string> = runtimeError
+            ? { origin: `http://localhost:${port}` }
+            : {};
+          const rejectRuntimeRequest = async (path: string, method = "GET") => {
+            const response = await fetch(`${publicUrl}${path}`, {
+              method,
+              headers,
+              ...(method === "POST" ? { body: JSON.stringify({ handledBy: "other caller" }) } : {}),
+              signal: AbortSignal.timeout(2_000),
+            });
+            expect(response.status).toBe(404);
+            await expect(response.json()).resolves.toEqual({ error: "Not found." });
+          };
+          const wrongPrefix = `/${"0".repeat(64)}`;
+          for (const prefix of ["", wrongPrefix]) {
+            await rejectRuntimeRequest(`${prefix}/2018-06-01/runtime/invocation/next`);
+          }
+          expect(requests).toHaveLength(0);
+
+          // Keep the legitimate invocation active while attempting to forge its completion.
+          const invocation = fetch(`${publicUrl}/v1/functions/test-function/invoke`, {
+            method: "POST",
+            headers: { ...headers, "content-type": "application/json" },
+            body: JSON.stringify({ params: { answer: 42 } }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          // Attach a rejection handler immediately while the test exercises other requests.
+          void invocation.catch(() => {});
+          try {
+            const { requestId, runtimeApi } = JSON.parse(
+              await waitForFileText(invocationFile, "requestId"),
+            );
+            const token = new URL(`http://${runtimeApi}`).pathname.slice(1);
+            expect(token).toMatch(/^[a-f0-9]{64}$/);
+            expect(stdout).not.toContain(token);
+            expect(stderr).not.toContain(token);
+            for (const prefix of ["", wrongPrefix, `/${token}extra`]) {
+              await rejectRuntimeRequest(`${prefix}/2018-06-01/runtime/invocation/next`);
+              for (const endpoint of ["response", "error"]) {
+                await rejectRuntimeRequest(
+                  `${prefix}/2018-06-01/runtime/invocation/${requestId}/${endpoint}`,
+                  "POST",
+                );
+              }
+            }
+            // Unauthorized completions must not release the active Browserbase session.
+            expect(requests).toHaveLength(1);
+          } finally {
+            await writeFile(releaseFile, "ready");
+          }
+
+          const response = await invocation;
+          expect(response.status).toBe(runtimeError ? 500 : 200);
+          await expect(response.json()).resolves.toEqual(
+            runtimeError
+              ? {
+                  error: {
+                    errorMessage: "Expected runtime error",
+                    errorType: "Error",
+                    stackTrace: [],
+                  },
+                }
+              : { ok: true, params: { answer: 42 }, sessionId: "sess_auth", secrets: {} },
+          );
+          await waitForRequests(requests, 2);
+          expectRequest(requests[1], "POST", "/v1/sessions/sess_auth", "test-key");
+        },
+      );
+    },
+    30_000,
+  );
+
+  it("supports the real Functions SDK through results, errors, and hot reload", async () => {
+    const cwd = await createTempDir("functions-dev-sdk-");
+    const port = await getFreePort();
+    // Keep the readiness marker outside the watched project.
+    const markerFile = join(await createTempDir("functions-dev-sdk-marker-"), "loaded.json");
+    await writeSdkEntrypoint(cwd, markerFile, 1);
+    let sessionCount = 0;
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/sessions") {
+          sessionCount += 1;
+          jsonResponse(response, 200, {
+            connectUrl: "ws://example.test/devtools",
+            id: `sess_sdk_${sessionCount}`,
+          });
+          return;
+        }
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_sdk_")) {
+          jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
+          return;
+        }
+        jsonResponse(response, 404, { error: "not found" });
+      },
+      async ({ baseUrl, requests }) => {
+        const child = spawn(
+          process.execPath,
+          [
+            join(repoRoot, "bin/run.js"),
+            "functions",
+            "dev",
+            "runtime-entry.mjs",
+            "--port",
+            String(port),
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          {
+            cwd,
+            env: {
+              ...process.env,
+              NODE_ENV: "test",
+              BROWSE_DISABLE_UPDATE_CHECK: "1",
+              DO_NOT_TRACK: "1",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        cleanupProcesses.push(child);
+        await waitForStdout(child, '"ok": true');
+        const firstWorker = JSON.parse(await waitForFileText(markerFile, '"version":1'));
+
+        // The SDK re-polls asynchronously after posting each result. Retry only the
+        // server's explicit not-ready response, without masking failures or hung invocations.
+        const invokeWhenReady = async (params: Record<string, unknown>) => {
+          const deadline = Date.now() + 10_000;
+          while (true) {
+            const response = await fetch(
+              `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ params }),
+                signal: AbortSignal.timeout(10_000),
+              },
+            );
+            if (response.status !== 503 || Date.now() >= deadline) return response;
+            await response.text();
+            await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+          }
+        };
+
+        const first = await invokeWhenReady({ answer: 42 });
+        expect(first.status).toBe(200);
+        await expect(first.json()).resolves.toEqual({
+          version: 1,
+          params: { answer: 42 },
+          sessionId: "sess_sdk_1",
+          secrets: {},
+        });
+
+        const failed = await invokeWhenReady({ fail: true });
+        expect(failed.status).toBe(500);
+        await expect(failed.json()).resolves.toMatchObject({
+          error: { errorMessage: "Expected SDK handler error", errorType: "Error" },
+        });
+
+        // A handler error must leave the SDK able to receive another invocation.
+        const recovered = await invokeWhenReady({ afterError: true });
+        expect(recovered.status).toBe(200);
+        await expect(recovered.json()).resolves.toMatchObject({
+          version: 1,
+          params: { afterError: true },
+        });
+        await waitForRequests(requests, sessionCount * 2);
+
+        await writeSdkEntrypoint(cwd, markerFile, 2);
+        const secondWorker = JSON.parse(await waitForFileText(markerFile, '"version":2'));
+        expect(secondWorker.pid).not.toBe(firstWorker.pid);
+        const reloaded = await invokeWhenReady({ afterReload: true });
+        expect(reloaded.status).toBe(200);
+        await expect(reloaded.json()).resolves.toMatchObject({
+          version: 2,
+          params: { afterReload: true },
+        });
+
+        await waitForRequests(requests, sessionCount * 2);
+        const created = requests.filter((request) => request.path === "/v1/sessions");
+        const released = requests.filter((request) =>
+          request.path.startsWith("/v1/sessions/sess_sdk_"),
+        );
+        expect(created.length).toBeGreaterThanOrEqual(4);
+        expect(released).toHaveLength(created.length);
+        for (const request of created) {
+          expectRequest(request, "POST", "/v1/sessions", "test-key");
+          expect(request.jsonBody).toEqual({ keepAlive: true });
+        }
+        for (let index = 0; index < released.length; index += 1) {
+          expectRequest(released[index], "POST", `/v1/sessions/sess_sdk_${index + 1}`, "test-key");
+          expect(released[index]?.jsonBody).toMatchObject({ status: "REQUEST_RELEASE" });
+        }
       },
     );
   }, 30_000);
@@ -712,9 +841,7 @@ exit 0
           },
         );
         expect(optionsResponse.status).toBe(403);
-        expect(
-          optionsResponse.headers.get("access-control-allow-origin"),
-        ).toBeNull();
+        expect(optionsResponse.headers.get("access-control-allow-origin")).toBeNull();
 
         const invokeResponse = await fetch(
           `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
@@ -728,9 +855,7 @@ exit 0
           },
         );
         expect(invokeResponse.status).toBe(403);
-        expect(
-          invokeResponse.headers.get("access-control-allow-origin"),
-        ).toBeNull();
+        expect(invokeResponse.headers.get("access-control-allow-origin")).toBeNull();
         await expect(invokeResponse.json()).resolves.toMatchObject({
           error: "Origin is not allowed.",
         });
@@ -863,10 +988,7 @@ exit 0
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path.startsWith("/v1/sessions/sess_")
-        ) {
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_")) {
           jsonResponse(response, 500, { message: "cleanup failed" });
           return;
         }
@@ -941,10 +1063,7 @@ exit 0
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path.startsWith("/v1/sessions/sess_")
-        ) {
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_")) {
           jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
           return;
         }
@@ -984,9 +1103,7 @@ exit 0
         expect(first.headers.get("access-control-allow-origin")).toBeNull();
         await expect(first.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
-              "Invalid runtime response payload",
-            ),
+            errorMessage: expect.stringContaining("Invalid runtime response payload"),
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n");
@@ -995,9 +1112,7 @@ exit 0
         expect(second.status).toBe(500);
         await expect(second.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
-              "Invalid runtime response payload",
-            ),
+            errorMessage: expect.stringContaining("Invalid runtime response payload"),
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n400\n");
@@ -1084,14 +1199,36 @@ async function createFakePackageManagerBin(
   return directory;
 }
 
+async function writeSdkEntrypoint(cwd: string, markerFile: string, version: number): Promise<void> {
+  // Resolve without importing: importing the SDK starts its runtime loop.
+  const sdkUrl = import.meta.resolve("@browserbasehq/sdk-functions");
+  await writeFile(
+    join(cwd, "runtime-entry.mjs"),
+    `
+import { writeFileSync } from "node:fs";
+import { defineFn } from ${JSON.stringify(sdkUrl)};
+
+defineFn("test-function", async (context, params) => {
+  if (params.fail) throw new Error("Expected SDK handler error");
+  return { version: ${version}, params, sessionId: context.session.id, secrets: context.secrets };
+}, { sessionConfig: { keepAlive: true } });
+writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify({ version: ${version}, pid: process.pid }));
+`,
+  );
+}
+
 async function writeRuntimeEntrypoint(
   cwd: string,
-  options: { malformedResponse?: boolean; runtimeStatusLog?: string } = {},
+  options: {
+    malformedResponse?: boolean;
+    runtimeStatusLog?: string;
+    runtimeControl?: { invocationFile: string; releaseFile: string; runtimeError: boolean };
+  } = {},
 ): Promise<void> {
   await writeFile(
     join(cwd, "runtime-entry.mjs"),
     `
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const manifestsDir = join(process.cwd(), ".browserbase", "functions", "manifests");
@@ -1103,11 +1240,26 @@ writeFileSync(join(manifestsDir, "test-function.json"), JSON.stringify({
 
 const runtimeApi = process.env.AWS_LAMBDA_RUNTIME_API;
 const runtimeStatusLog = ${options.runtimeStatusLog ? JSON.stringify(options.runtimeStatusLog) : "null"};
+const runtimeControl = ${JSON.stringify(options.runtimeControl ?? null)};
 
 while (true) {
   const next = await fetch(\`http://\${runtimeApi}/2018-06-01/runtime/invocation/next\`);
   const requestId = next.headers.get("Lambda-Runtime-Aws-Request-Id");
   const event = await next.json();
+  if (runtimeControl) {
+    writeFileSync(runtimeControl.invocationFile, JSON.stringify({ requestId, runtimeApi }), { mode: 0o600 });
+    while (!existsSync(runtimeControl.releaseFile)) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (runtimeControl.runtimeError) {
+      await fetch(\`http://\${runtimeApi}/2018-06-01/runtime/invocation/\${requestId}/error\`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ errorMessage: "Expected runtime error", errorType: "Error", stackTrace: [] }),
+      });
+      continue;
+    }
+  }
   ${
     options.malformedResponse
       ? `
@@ -1187,9 +1339,7 @@ async function getFreePort(): Promise<number> {
   if (!address || typeof address === "string") {
     throw new Error("Could not allocate test port.");
   }
-  await new Promise<void>((resolvePromise) =>
-    server.close(() => resolvePromise()),
-  );
+  await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
   return address.port;
 }
 
@@ -1197,22 +1347,16 @@ async function invokeLocalFunction(
   port: number,
   params: Record<string, unknown>,
 ): Promise<Response> {
-  return await fetch(
-    `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ params }),
+  return await fetch(`http://127.0.0.1:${port}/v1/functions/test-function/invoke`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
     },
-  );
+    body: JSON.stringify({ params }),
+  });
 }
 
-async function waitForFileText(
-  filePath: string,
-  expectedText: string,
-): Promise<string> {
+async function waitForFileText(filePath: string, expectedText: string): Promise<string> {
   const deadline = Date.now() + 10_000;
   let lastText = "";
   while (Date.now() < deadline) {
@@ -1222,17 +1366,13 @@ async function waitForFileText(
         return lastText;
       }
     } catch (error) {
-      if (
-        !(error instanceof Error && "code" in error && error.code === "ENOENT")
-      ) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;
       }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
-  throw new Error(
-    `Timed out waiting for ${filePath} to include ${expectedText}. Saw: ${lastText}`,
-  );
+  throw new Error(`Timed out waiting for ${filePath} to include ${expectedText}. Saw: ${lastText}`);
 }
 
 async function withServer(
@@ -1240,9 +1380,7 @@ async function withServer(
     request: CapturedRequest,
     response: Parameters<typeof jsonResponse>[0],
   ) => Promise<void> | void,
-  callback: (
-    server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>,
-  ) => Promise<void>,
+  callback: (server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>) => Promise<void>,
 ): Promise<void> {
   const server = await startFakeBrowserbaseServer(handler);
   try {
@@ -1305,10 +1443,7 @@ async function waitForStdout(
   });
 }
 
-async function waitForRequests(
-  requests: CapturedRequest[],
-  count: number,
-): Promise<void> {
+async function waitForRequests(requests: CapturedRequest[], count: number): Promise<void> {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
     if (requests.length >= count) {
@@ -1316,9 +1451,7 @@ async function waitForRequests(
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
-  throw new Error(
-    `Timed out waiting for ${count} requests. Saw ${requests.length}.`,
-  );
+  throw new Error(`Timed out waiting for ${count} requests. Saw ${requests.length}.`);
 }
 
 async function waitForExit(

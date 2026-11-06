@@ -6,6 +6,7 @@ import type { StagehandLogger } from "../../logger.js";
 import { buildActPrompt } from "../../prompt.js";
 import { SupportedUnderstudyAction } from "../../types/private/handlers.js";
 import type { Page } from "../../understudy/page.js";
+import type { Progress } from "../../understudy/progress.js";
 import { inferAction } from "./llm/act.js";
 import type { ActRequest, LlmPort } from "./types.js";
 
@@ -17,7 +18,7 @@ export type ActionRunnerEnvironment = {
   /** Whether a failed action is re-inferred once and retried, unless the caller says otherwise. */
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
-  ensureTimeRemaining: () => void;
+  progress: Progress;
 };
 
 /**
@@ -26,7 +27,8 @@ export type ActionRunnerEnvironment = {
  * so an action behaves the same whoever chose it.
  */
 export function createActionRunner(environment: ActionRunnerEnvironment): ActRequest["runAction"] {
-  const { page, logger, variables, domSettleTimeoutMs, ensureTimeRemaining } = environment;
+  const { page, logger, variables, domSettleTimeoutMs, progress } = environment;
+  const ensureTimeRemaining = () => progress.throwIfStopped();
 
   return async function runAction(action, options) {
     ensureTimeRemaining();
@@ -45,7 +47,11 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
     }
 
     const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-    const resolvedArgs = substituteVariables(action.arguments, variables) ?? [];
+    // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
+    const resolvedArgs =
+      method === SupportedUnderstudyAction.DRAG_AND_DROP
+        ? placeholderArgs
+        : (substituteVariables(action.arguments, variables) ?? []);
     const perform = async (selector: string): Promise<void> => {
       ensureTimeRemaining();
       await performUnderstudyMethod(
@@ -55,6 +61,7 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
         selector,
         resolvedArgs,
         logger,
+        progress,
         domSettleTimeoutMs,
       );
     };
@@ -63,6 +70,7 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
       await perform(action.selector);
       return succeeded(action, method, action.selector, placeholderArgs);
     } catch (error) {
+      progress.throwIfStopped();
       if (error instanceof TimeoutError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       if (!(options?.selfHeal ?? environment.selfHeal)) {
@@ -97,7 +105,7 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
 
     try {
       ensureTimeRemaining();
-      const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
+      const { combinedTree, combinedXpathMap } = await page.captureSnapshot({}, progress);
       const inferred = await inferAction(
         environment,
         buildActPrompt(instruction, Object.values(SupportedUnderstudyAction), {}),
@@ -117,6 +125,7 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
       await perform(selector);
       return succeeded(action, method, selector, placeholderArgs);
     } catch (error) {
+      progress.throwIfStopped();
       if (error instanceof TimeoutError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       return {

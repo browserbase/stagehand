@@ -8,6 +8,7 @@ import type {
 import type { z } from "zod/v4";
 import type { StagehandLogger } from "../../logger.js";
 import type { Page } from "../../understudy/page.js";
+import type { Progress } from "../../understudy/progress.js";
 
 /**
  * Drivers decide; services do everything around the decision.
@@ -63,6 +64,8 @@ export type ActRequest = {
    * that needs no page may run while it is pending.
    */
   settled: Promise<void>;
+  /** The call's shared deadline; pass it to every page step so expiry interrupts it. */
+  progress: Progress;
   /** Throws once the caller's timeout has passed. */
   ensureTimeRemaining: () => void;
   logger: StagehandLogger;
@@ -121,7 +124,7 @@ export interface CachedActionGuard {
     action: Action,
     request: Pick<
       ActRequest,
-      "instruction" | "variables" | "page" | "logger" | "ensureTimeRemaining"
+      "instruction" | "variables" | "page" | "logger" | "progress" | "ensureTimeRemaining"
     >,
   ): Promise<{ verdict: "ok" } | { verdict: "stale"; detail: string }>;
 }
@@ -136,6 +139,7 @@ export type ObserveRequest = {
   variables?: Variables;
   page: Pick<Page, "captureSnapshot">;
   snapshotOptions: SnapshotOptions;
+  progress: Progress;
   ensureTimeRemaining: () => void;
   logger: StagehandLogger;
   llm: LlmPort;
@@ -161,6 +165,7 @@ export type ExtractRequest = {
   snapshot: { tree: string; urlMap: Record<string, string> };
   /** Present for screenshot-assisted extraction. */
   screenshot?: Uint8Array;
+  progress: Progress;
   ensureTimeRemaining: () => void;
   logger: StagehandLogger;
   llm: LlmPort;

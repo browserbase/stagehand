@@ -111,6 +111,7 @@ export function decisionsActDriver(config: DecisionsConfig): ActDriver {
         // next driver sees the whole instruction.
         takeAction: (action) => request.runAction(action, { selfHeal: false }),
       }).catch((error: unknown): DecisionsActOutcome => {
+        request.progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         return { kind: "fallback", reason: `decision_error:${messageOf(error)}` };
       });
@@ -159,6 +160,7 @@ export function decisionsObserveDriver(config: DecisionsConfig): ObserveDriver {
         snapshotOptions: request.snapshotOptions,
         ensureTimeRemaining: request.ensureTimeRemaining,
       }).catch((error: unknown) => {
+        request.progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         return { kind: "fallback" as const, reason: `decision_error:${messageOf(error)}` };
       });
@@ -197,6 +199,7 @@ export function decisionsExtractDriver(
         ensureTimeRemaining: request.ensureTimeRemaining,
         gate: options.gateOnCompletion,
       }).catch((error: unknown) => {
+        request.progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         return { kind: "fallback" as const, reason: `decision_error:${messageOf(error)}` };
       });
@@ -246,7 +249,10 @@ export function decisionsCachedActionGuard(config: DecisionsConfig): CachedActio
       const redact = redactor(request.variables);
       const trace: TraceEntry[] = [];
       const verdict = await (async () => {
-        const { combinedTree, combinedXpathMap } = await request.page.captureSnapshot({});
+        const { combinedTree, combinedXpathMap } = await request.page.captureSnapshot(
+          {},
+          request.progress,
+        );
         return await checkCachedAction(
           {
             config,
@@ -266,6 +272,7 @@ export function decisionsCachedActionGuard(config: DecisionsConfig): CachedActio
         );
       })().catch((error: unknown) => {
         // A check that could not run says nothing about the action: replay as before.
+        request.progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         return undefined;
       });

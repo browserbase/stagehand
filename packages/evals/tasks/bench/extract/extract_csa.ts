@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_csa" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/csa/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/csa/");
 
       const { data: result } = await stagehand.extract(
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",

@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "ionwave_observe" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/ionwave/");
 
       const { data: observations } = await stagehand.observe();
 

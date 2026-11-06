@@ -8,23 +8,16 @@ import type { CommandFailureTelemetry } from "./errors.js";
 const browserbaseTelemetrySource = "cli";
 const browserbaseTelemetryHost = "https://us.i.posthog.com";
 const browserbaseTelemetryTimeoutMs = 400;
-const browserbaseTelemetryProjectToken =
-  "phc_CKQBSpdeU2GGyBgcBhW8ZbDnhEVbZbuzMsqhMb9YRs5x";
+const browserbaseTelemetryProjectToken = "phc_CKQBSpdeU2GGyBgcBhW8ZbDnhEVbZbuzMsqhMb9YRs5x";
 
 type TelemetryPrimitive = string | number | boolean | null;
 type TelemetryProperties = Record<string, TelemetryPrimitive>;
 
-type CliTelemetryEvent =
-  | "cli.command_invoked"
-  | "cli.command_completed"
-  | "cli.command_not_found";
+type CliTelemetryEvent = "cli.command_invoked" | "cli.command_completed" | "cli.command_not_found";
 type CliTelemetryErrorType = "oclif" | "runtime";
 
 interface CliTelemetry {
-  capture(
-    event: CliTelemetryEvent,
-    properties: TelemetryProperties,
-  ): Promise<void>;
+  capture(event: CliTelemetryEvent, properties: TelemetryProperties): Promise<void>;
 }
 
 interface CreateCliTelemetryOptions {
@@ -76,10 +69,7 @@ export function startTelemetryInvocation(startedAtMs = Date.now()): void {
   telemetryState = { startedAtMs };
 }
 
-export function captureCommandInvoked(
-  CommandClass: Command.Class,
-  cliVersion: string,
-): void {
+export function captureCommandInvoked(CommandClass: Command.Class, cliVersion: string): void {
   const state = getTelemetryState();
   const command = createCommandInvocation(CommandClass, state.startedAtMs);
   state.command = command;
@@ -126,10 +116,7 @@ export async function captureCommandCompleted(
       // Best-effort telemetry should never affect CLI behavior.
     });
 
-  await Promise.allSettled([
-    state.pendingInvokedCapture ?? Promise.resolve(),
-    completionCapture,
-  ]);
+  await Promise.allSettled([state.pendingInvokedCapture ?? Promise.resolve(), completionCapture]);
 }
 
 /**
@@ -144,12 +131,8 @@ export async function captureCommandNotFound(
 ): Promise<void> {
   await getCliTelemetry(cliVersion)
     .capture("cli.command_not_found", {
-      attempted_command: attemptedCommand
-        ? resolveCommandPath(attemptedCommand)
-        : null,
-      suggested_command: suggestedCommand
-        ? resolveCommandPath(suggestedCommand)
-        : null,
+      attempted_command: attemptedCommand ? resolveCommandPath(attemptedCommand) : null,
+      suggested_command: suggestedCommand ? resolveCommandPath(suggestedCommand) : null,
     })
     .catch(() => {
       // Best-effort telemetry should never affect CLI behavior.
@@ -180,10 +163,7 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
         return;
       }
 
-      const [distinctId, agent] = await Promise.all([
-        distinctIdPromise,
-        agentPromise,
-      ]);
+      const [distinctId, agent] = await Promise.all([distinctIdPromise, agentPromise]);
 
       await posthogCapture(transport, {
         api_key: transport.projectToken,
@@ -228,9 +208,7 @@ function createCommandInvocation(
   };
 }
 
-function commandInvokedProperties(
-  invocation: CommandInvocation,
-): TelemetryProperties {
+function commandInvokedProperties(invocation: CommandInvocation): TelemetryProperties {
   return {
     command_path: invocation.commandPath,
     top_level_command: invocation.topLevelCommand,
@@ -272,20 +250,14 @@ function commandCompletedProperties(
       ? null
       : (completion.recordedError?.code ?? inferErrorCode(completion.error)),
     result_code: resultCode,
-    http_status:
-      failureTelemetry?.httpStatus ?? runTelemetry.httpStatus ?? null,
+    http_status: failureTelemetry?.httpStatus ?? runTelemetry.httpStatus ?? null,
     request_had_http_response:
-      failureTelemetry?.requestHadHttpResponse ??
-      runTelemetry.requestHadHttpResponse ??
-      null,
+      failureTelemetry?.requestHadHttpResponse ?? runTelemetry.requestHadHttpResponse ?? null,
     skill_id: runTelemetry.skillId ?? null,
   };
 }
 
-function fallbackResultCode(
-  success: boolean,
-  errorType: CliTelemetryErrorType | null,
-): string {
+function fallbackResultCode(success: boolean, errorType: CliTelemetryErrorType | null): string {
   if (success) {
     return "ok";
   }
@@ -317,9 +289,7 @@ function resolveExitCode(error: Error | undefined): number {
   return typeof process.exitCode === "number" ? process.exitCode : 0;
 }
 
-function inferErrorType(
-  error: Error | undefined,
-): CliTelemetryErrorType | null {
+function inferErrorType(error: Error | undefined): CliTelemetryErrorType | null {
   if (!error) {
     return null;
   }
@@ -345,12 +315,8 @@ function sanitizeErrorCode(value: string): string {
   return value.replaceAll(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 80) || "Error";
 }
 
-function resolveTransportConfig(
-  env: NodeJS.ProcessEnv,
-): PostHogTransportConfig {
-  const host = normalizeHost(
-    env.BROWSERBASE_TELEMETRY_HOST ?? browserbaseTelemetryHost,
-  );
+function resolveTransportConfig(env: NodeJS.ProcessEnv): PostHogTransportConfig {
+  const host = normalizeHost(env.BROWSERBASE_TELEMETRY_HOST ?? browserbaseTelemetryHost);
   const timeoutMs = parseTimeoutMs(env.BROWSERBASE_TELEMETRY_TIMEOUT_MS);
 
   return {

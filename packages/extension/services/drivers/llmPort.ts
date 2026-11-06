@@ -5,6 +5,7 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import type { ClientLlmRequest } from "../../llm/clientLlmClient.js";
 import type { GatewayContext } from "../../llm/gatewayClient.js";
+import type { Progress } from "../../understudy/progress.js";
 import * as llmService from "../llmService.js";
 import { zeroStagehandResultUsage } from "../resultUsage.js";
 import type { LlmPort } from "./types.js";
@@ -14,6 +15,10 @@ export type LlmAccess = {
   clientLLMGenerate: ClientLlmRequest;
   gateway?: GatewayContext;
   systemPrompt?: string;
+  /** Every call waits under the operation's deadline and is abandoned when it expires. */
+  progress: Progress;
+  /** Names the wait in timeout errors: `waiting for <operation> inference`. */
+  operation: "act" | "observe" | "extract";
 };
 
 /**
@@ -26,7 +31,15 @@ export function createLlmPort(access: LlmAccess): { llm: LlmPort; usage(): Stage
   return {
     llm: {
       generate: (params) =>
-        llmService.generate(access.model, params, access.clientLLMGenerate, access.gateway),
+        access.progress.run(`waiting for ${access.operation} inference`, () => {
+          access.progress.throwIfStopped();
+          return llmService.generate(
+            access.model,
+            params,
+            access.clientLLMGenerate,
+            access.gateway,
+          );
+        }),
       record(usage) {
         spent = {
           inputTokens: spent.inputTokens + usage.prompt_tokens,

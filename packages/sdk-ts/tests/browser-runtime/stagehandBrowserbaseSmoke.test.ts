@@ -6,8 +6,8 @@ import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.j
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
 const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
-const exampleTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/example/";
-const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
+const exampleTestSite = "https://stagehand-eval-sites.vercel.app/sites/example/";
+const webMCPTestSite = "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/";
 
 describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
   let stagehand: Stagehand | undefined;

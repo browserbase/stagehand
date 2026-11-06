@@ -77,7 +77,7 @@ export function createStagehandController(
         throw new Error(`Stagehand must be initialized before ${action}`);
       }
       const { initParams } = state;
-      const gateway = buildGatewayContext(initParams);
+      const gateway = buildGatewayContext(initParams, runtime.adapters.clientBrowserbaseRequest);
       return { initParams, gateway };
     }
 
@@ -94,7 +94,10 @@ export function createStagehandController(
         model,
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
         systemPrompt: initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(initParams),
+        cache: cacheService.buildCacheContext(
+          initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
       };
     }

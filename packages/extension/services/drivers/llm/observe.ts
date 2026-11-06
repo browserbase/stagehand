@@ -13,10 +13,14 @@ export function llmObserveDriver(): ObserveDriver {
   return {
     name: "llm",
     async resolve(request) {
-      const { page, snapshotOptions, ensureTimeRemaining, logger, llm } = request;
+      const { page, snapshotOptions, progress, logger, llm } = request;
+      const ensureTimeRemaining = () => progress.throwIfStopped();
 
       ensureTimeRemaining();
-      const { combinedTree, combinedXpathMap } = await page.captureSnapshot(snapshotOptions);
+      const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+        snapshotOptions,
+        progress,
+      );
       ensureTimeRemaining();
       logger.debug("Captured accessibility snapshot for observation", {
         category: "observation",

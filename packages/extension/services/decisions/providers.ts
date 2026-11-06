@@ -212,25 +212,23 @@ const openai: DecisionProvider = {
     body: {
       model: config.model ?? "gpt-6-luna",
       input: typeof state === "string" ? state : JSON.stringify(state),
-      questions: Object.entries(questions).map(
-        ([name, question]): JsonValue =>
-          question.type === "noul"
-            ? {
-                type: "predicate",
-                name,
-                instructions: question.criteria
-                  ? `${String(question.instructions)}\nYes: ${String(question.criteria.true)}\nNo: ${String(question.criteria.false)}`
-                  : question.instructions,
-              }
-            : {
-                type: "choice",
-                name,
-                instructions: question.instructions,
-                choices: Object.entries(question.criteria).map(
-                  ([value, description]): JsonValue =>
-                    description === null || description === "" ? { value } : { value, description },
-                ),
-              },
+      questions: Object.entries(questions).map(([name, question]): JsonValue =>
+        question.type === "noul"
+          ? {
+              type: "predicate",
+              name,
+              instructions: question.criteria
+                ? `${String(question.instructions)}\nYes: ${String(question.criteria.true)}\nNo: ${String(question.criteria.false)}`
+                : question.instructions,
+            }
+          : {
+              type: "choice",
+              name,
+              instructions: question.instructions,
+              choices: Object.entries(question.criteria).map(([value, description]): JsonValue =>
+                description === null || description === "" ? { value } : { value, description },
+              ),
+            },
       ),
     },
   }),

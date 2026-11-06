@@ -12,6 +12,7 @@ import {
 import { buildBenchMatrixRow } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+import { reportRowPhase } from "./rowContext.js";
 
 function withBenchSessionUrls(
   result: TaskResult,
@@ -57,6 +58,7 @@ export async function executeBenchTask(
       );
     }
 
+    reportRowPhase("session");
     const startedHarness = await harness.start({
       task,
       input,
@@ -68,6 +70,10 @@ export async function executeBenchTask(
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
+    reportRowPhase(
+      "agent",
+      harnessCtx.sessionUrl ? { sessionUrl: harnessCtx.sessionUrl } : undefined,
+    );
     const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {

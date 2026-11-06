@@ -33,6 +33,7 @@ export {
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
+  type PageWaitForFunctionOptions,
   type ScreenshotOptions,
 } from "./page.js";
 export {
@@ -42,6 +43,8 @@ export {
   type ResponseServerAddr,
 } from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
+export { CDPConnectionClosedError } from "./cdpClient.js";
+export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { ExperimentalDecisions } from "./experimentalDecisions.js";
@@ -52,16 +55,19 @@ export type {
   RuntimeIncompatibilityReason,
   RuntimeRequirement,
 } from "./runtimeCompatibility.js";
-export type {
-  ExperimentalBatchCallback,
-  ExperimentalBatchBrowserContext,
-  ExperimentalBatchContext,
-  ExperimentalBatchExtractOptions,
-  ExperimentalBatchOptions,
+export {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchBrowserContext,
+  type ExperimentalBatchContext,
+  type ExperimentalBatchExtractOptions,
+  type ExperimentalBatchOptions,
 } from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseFetchOptions,
   BrowserbaseFetchResult,
@@ -142,3 +148,5 @@ export {
   type WebMCPResultOptions,
   type WebMCPToolsOptions,
 } from "./clientSchemas.js";
+
+export { getExtensionArchive } from "./extensionAssets.js";

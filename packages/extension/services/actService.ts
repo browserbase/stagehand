@@ -6,13 +6,12 @@ import type {
   StagehandActParams,
   StagehandResultUsage,
 } from "@browserbasehq/stagehand-protocol/types";
-import { TimeoutError } from "../errors.js";
 import { waitForDomNetworkQuiet } from "../handlers/handlerUtils/actHandlerUtils.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import * as cacheService from "./cacheService.js";
 import { createActionRunner } from "./drivers/actionRunner.js";
 import { llmActDriver } from "./drivers/llm/index.js";
@@ -27,22 +26,7 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
  * the result envelope — and asks `driver` for the one thing in the middle: which action to
  * take. The driver defaults to the language model; see `drivers/` for the contract.
  */
-export async function act({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  selfHeal = false,
-  domSettleTimeoutMs,
-  cache,
-  gateway,
-  openPageCount,
-  driver = llmActDriver(),
-  cachedActionGuard,
-  logTiming = false,
-}: {
+type ActServiceOptions = {
   params: StagehandActParams;
   page: Page;
   model: ModelConfig | ClientModelReference | undefined;
@@ -60,14 +44,47 @@ export async function act({
   cachedActionGuard?: CachedActionGuard;
   /** Log one line per act with its path, duration and LLM usage. */
   logTiming?: boolean;
-}): Promise<ActResult> {
+  /** The caller's deadline; act() starts its own from `options.timeout` when absent. */
+  progress?: Progress;
+};
+
+export async function act(options: ActServiceOptions): Promise<ActResult> {
+  return runWithProgress(
+    options.progress ?? { name: "act()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => actWithProgress(options, progress),
+  );
+}
+
+async function actWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    selfHeal = false,
+    domSettleTimeoutMs,
+    cache,
+    gateway,
+    openPageCount,
+    driver = llmActDriver(),
+    cachedActionGuard,
+    logTiming = false,
+  }: ActServiceOptions,
+  progress: Progress,
+): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
-  const ensureTimeRemaining = createTimeoutGuard(
-    options?.timeout,
-    (ms) => new TimeoutError("act()", ms),
-  );
-  const { llm, usage } = createLlmPort({ model, clientLLMGenerate, gateway, systemPrompt });
+  const ensureTimeRemaining = () => progress.throwIfStopped();
+  const { llm, usage } = createLlmPort({
+    model,
+    clientLLMGenerate,
+    gateway,
+    systemPrompt,
+    progress,
+    operation: "act",
+  });
   const runAction = createActionRunner({
     page,
     logger,
@@ -75,10 +92,10 @@ export async function act({
     variables,
     selfHeal,
     domSettleTimeoutMs,
-    ensureTimeRemaining,
+    progress,
   });
 
-  ensureTimeRemaining();
+  progress.throwIfStopped();
   // An Action is already a decision: perform it.
   if (typeof actInstruction !== "string") {
     return actResult(await runAction(actInstruction), usage());
@@ -87,7 +104,7 @@ export async function act({
   const instruction = actInstruction;
   // performance.now(): tests script Date.now() for inference timing.
   const startedAt = performance.now();
-  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
+  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   const request: ActRequest = {
     instruction,
     variables,
@@ -97,6 +114,7 @@ export async function act({
       ignoreLocators: options?.ignoreLocators,
     },
     settled,
+    progress,
     ensureTimeRemaining,
     logger,
     llm,
@@ -110,7 +128,7 @@ export async function act({
   const cacheLookup = cache !== undefined && options?.cache !== false;
   if (driver.startsBeforeSettle && !cacheLookup) settled.catch(() => {});
   else await settled;
-  ensureTimeRemaining();
+  progress.throwIfStopped();
 
   return await cacheService.withCache<ActResult>({
     method: "act",
@@ -120,6 +138,7 @@ export async function act({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: async (value) => {
       await settled;
       return await replayCachedActions(value, request, cachedActionGuard);

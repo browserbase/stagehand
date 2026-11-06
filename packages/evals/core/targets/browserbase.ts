@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerActiveRunCleanup } from "../../framework/activeRunCleanup.js";
+import { reportRowPhase } from "../../framework/rowContext.js";
 import { loadBrowserbaseSdk, resolveStagehandExtensionArchivePath } from "../runtime/coreDeps.js";
 import { evalBrowserbaseSessionOptions } from "./browserbaseSessionOptions.js";
 
@@ -207,15 +208,26 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
 
   try {
     created = await sessionPromise;
-  } catch {
+  } catch (error) {
     await cleanup();
-    throw new Error("Browserbase session creation failed.");
+    // The SDK message can carry request details, so only the HTTP status is
+    // surfaced; the runner classifies a create 429 off `(HTTP 429)`.
+    const status = (error as { status?: unknown } | undefined)?.status;
+    throw new Error(
+      typeof status === "number"
+        ? `Browserbase session creation failed (HTTP ${status}).`
+        : "Browserbase session creation failed.",
+    );
   }
 
   if (!created.id || !created.connectUrl) {
     await cleanup();
     throw new Error("Browserbase session creation returned an unexpected shape.");
   }
+
+  reportRowPhase("session", {
+    sessionUrl: `https://www.browserbase.com/sessions/${created.id}`,
+  });
 
   let debugUrl: string | undefined;
   try {
