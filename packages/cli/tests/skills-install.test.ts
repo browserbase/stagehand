@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -11,7 +11,7 @@ import {
   spawnPassthrough,
 } from "../src/lib/skills/install.js";
 import { runCli } from "./helpers/run-cli.js";
-import { itPosix } from "./helpers/platform.js";
+import { writeNodeExecutable } from "./helpers/node-executable.js";
 
 const cleanupPaths: string[] = [];
 const cleanupServers: Server[] = [];
@@ -34,8 +34,8 @@ afterEach(async () => {
 });
 
 describe("skills install", () => {
-  itPosix("installs the bundled browse CLI skill", async () => {
-    const stubDir = await createTempDir("browse-skills-install-bin-");
+  it("installs the bundled browse CLI skill", async () => {
+    const stubDir = await createTempDir("browse skills install bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir);
 
@@ -49,7 +49,7 @@ describe("skills install", () => {
     expect(result.exitCode).toBe(0);
     const log = await readFile(logPath, "utf8");
     expect(log).toContain("--yes skills add ");
-    expect(log).toContain("/skills/browse");
+    expect(log).toContain(join("skills", "browse"));
     expect(log).toContain("--yes --global --agent *");
   });
 
@@ -60,9 +60,10 @@ describe("skills install", () => {
     expect(shouldUseWindowsShell("C:\\npm\\npx.exe", "win32")).toBe(false);
   });
 
-  itPosix("fails with a timeout message when the npx child hangs past the deadline", async () => {
+  it("fails with a timeout message when the npx child hangs past the deadline", async () => {
     const stubDir = await createTempDir("browse-skills-timeout-bin-");
     await writeSleepingNpxStub(stubDir);
+    const start = Date.now();
 
     const result = await runCli(["skills", "install"], {
       env: {
@@ -73,9 +74,10 @@ describe("skills install", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Skill install timed out after 1s");
+    expect(Date.now() - start).toBeLessThan(10_000);
   });
 
-  itPosix("falls back to the GitHub installer when the catalog fetch hangs", async () => {
+  it("falls back to the GitHub installer when the catalog fetch hangs", async () => {
     const stubDir = await createTempDir("browse-skills-hang-bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir);
@@ -187,19 +189,21 @@ async function createTempDir(prefix: string): Promise<string> {
 }
 
 async function writeNpxStub(stubDir: string): Promise<void> {
-  const stubPath = join(stubDir, "npx");
-  await writeFile(
-    stubPath,
-    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join("\n"),
+  await writeNodeExecutable(
+    stubDir,
+    "npx",
+    [
+      'const { appendFileSync } = require("node:fs");',
+      'appendFileSync(process.env.BB_STUB_LOG, process.argv.slice(2).join(" ") + "\\n");',
+    ].join("\n"),
   );
-  await chmod(stubPath, 0o755);
 }
 
 async function writeSleepingNpxStub(stubDir: string): Promise<void> {
-  const stubPath = join(stubDir, "npx");
-  // PATH is stripped to the stub dir in these tests, so use an absolute path.
-  await writeFile(stubPath, ["#!/bin/sh", "exec /bin/sleep 600", ""].join("\n"));
-  await chmod(stubPath, 0o755);
+  // Exceed the install deadline, but bound the fixture's lifetime even if a
+  // Windows shell exits before its Node child. The test must return before
+  // this fallback fires, so an orphaned child cannot make the timeout test pass.
+  await writeNodeExecutable(stubDir, "npx", "setTimeout(() => {}, 15_000);");
 }
 
 // Accepts connections but never responds, so fetches hang until aborted.

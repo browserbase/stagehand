@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { itPosix } from "./helpers/platform.js";
+import { prependPath, writeNodeExecutable } from "./helpers/node-executable.js";
 
 import {
   jsonResponse,
@@ -43,8 +43,10 @@ afterEach(async () => {
 });
 
 describe("functions API contracts", () => {
-  itPosix("publishes a Functions archive and polls build status", async () => {
+  it("publishes a Functions archive and polls build status", async () => {
     const cwd = await createFunctionFixture("functions-publish-");
+    // This contract tests upload/polling; lockfile generation has its own fixtures.
+    await writeFile(join(cwd, "package-lock.json"), '{"lockfileVersion":3}\n');
 
     await withServer(
       async (request, response) => {
@@ -87,7 +89,7 @@ describe("functions API contracts", () => {
     const cwd = await createFunctionFixture("functions-dry-run-");
     const fakeBin = await createFakePackageManagerBin(
       "npm",
-      "#!/bin/sh\necho npm should not run during dry-run >&2\nexit 99\n",
+      'process.stderr.write("npm should not run during dry-run\\n"); process.exit(99);',
     );
     await mkdir(join(cwd, ".browserbase", "functions", "manifests"), {
       recursive: true,
@@ -99,7 +101,7 @@ describe("functions API contracts", () => {
       {
         cwd,
         env: {
-          PATH: `${fakeBin}:${process.env.PATH}`,
+          PATH: prependPath(fakeBin),
         },
       },
     );
@@ -117,12 +119,16 @@ describe("functions API contracts", () => {
     expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(false);
   });
 
-  itPosix("generates package-lock.json without registry resolved URLs", async () => {
+  it("generates package-lock.json without registry resolved URLs", async () => {
     const cwd = await createFunctionFixture("functions-publish-lockgen-");
     const argsLog = join(cwd, "npm-args.log");
     const fakeBin = await createFakePackageManagerBin(
       "npm",
-      `#!/bin/sh\necho "$@" > "${argsLog}"\necho '{"lockfileVersion":3}' > package-lock.json\n`,
+      [
+        'const { writeFileSync } = require("node:fs");',
+        `writeFileSync(${JSON.stringify(argsLog)}, process.argv.slice(2).join(" "));`,
+        'writeFileSync("package-lock.json", JSON.stringify({ lockfileVersion: 3 }));',
+      ].join("\n"),
     );
 
     await withServer(
@@ -143,7 +149,7 @@ describe("functions API contracts", () => {
           {
             cwd,
             env: {
-              PATH: `${fakeBin}:${process.env.PATH}`,
+              PATH: prependPath(fakeBin),
             },
           },
         );
@@ -154,11 +160,11 @@ describe("functions API contracts", () => {
     );
   });
 
-  itPosix("prints npm output when lockfile generation fails", async () => {
+  it("prints npm output when lockfile generation fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-lockgen-fail-");
     const fakeBin = await createFakePackageManagerBin(
       "npm",
-      "#!/bin/sh\necho 'npm error code EBADDEVENGINES' >&2\nexit 1\n",
+      'process.stderr.write("npm error code EBADDEVENGINES\\n"); process.exit(1);',
     );
 
     const result = await runCli(
@@ -174,7 +180,7 @@ describe("functions API contracts", () => {
       {
         cwd,
         env: {
-          PATH: `${fakeBin}:${process.env.PATH}`,
+          PATH: prependPath(fakeBin),
         },
       },
     );
@@ -184,7 +190,7 @@ describe("functions API contracts", () => {
     expect(result.stderr).toContain("EBADDEVENGINES");
   });
 
-  itPosix("resolves local file dependencies when it generates package-lock.json", async () => {
+  it("resolves local file dependencies when it generates package-lock.json", async () => {
     const cwd = await createFunctionFixture("functions-publish-local-dep-");
     await writeFile(join(cwd, "local-sdk.tgz"), "fake tarball");
     await writeFile(
@@ -201,11 +207,12 @@ describe("functions API contracts", () => {
     // Fake npm fails unless the local dependency is next to package.json, like real npm.
     const fakeBin = await createFakePackageManagerBin(
       "npm",
-      `#!/bin/sh
-echo "$@" > "${argsLog}"
-test -f local-sdk.tgz || { echo "npm error ENOENT local-sdk.tgz" >&2; exit 254; }
-echo '{"lockfileVersion":3}' > package-lock.json
-`,
+      [
+        'const { existsSync, writeFileSync } = require("node:fs");',
+        `writeFileSync(${JSON.stringify(argsLog)}, process.argv.slice(2).join(" "));`,
+        'if (!existsSync("local-sdk.tgz")) { process.stderr.write("npm error ENOENT local-sdk.tgz"); process.exit(254); }',
+        'writeFileSync("package-lock.json", JSON.stringify({ lockfileVersion: 3 }));',
+      ].join("\n"),
     );
 
     await withServer(
@@ -226,7 +233,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
           {
             cwd,
             env: {
-              PATH: `${fakeBin}:${process.env.PATH}`,
+              PATH: prependPath(fakeBin),
             },
           },
         );
@@ -239,8 +246,10 @@ echo '{"lockfileVersion":3}' > package-lock.json
     );
   });
 
-  itPosix("exits nonzero when a build fails", async () => {
+  it("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
+    // This contract tests upload/polling; lockfile generation has its own fixtures.
+    await writeFile(join(cwd, "package-lock.json"), '{"lockfileVersion":3}\n');
 
     await withServer(
       async (request, response) => {
@@ -361,7 +370,7 @@ echo '{"lockfileVersion":3}' > package-lock.json
 });
 
 describe("functions scaffolding and local dev", () => {
-  itPosix("scaffolds a Functions project", async () => {
+  it("scaffolds a Functions project", async () => {
     const cwd = await createTempDir("functions-init-");
     const fakeBin = await createFakePackageManagerBin();
 
@@ -370,7 +379,7 @@ describe("functions scaffolding and local dev", () => {
       {
         cwd,
         env: {
-          PATH: `${fakeBin}:${process.env.PATH}`,
+          PATH: prependPath(fakeBin),
         },
       },
     );
@@ -393,22 +402,23 @@ describe("functions scaffolding and local dev", () => {
     );
   });
 
-  itPosix("scaffolds a Stagehand project with zod matched to Stagehand", async () => {
+  it("scaffolds a Stagehand project with zod matched to Stagehand", async () => {
     const cwd = await createTempDir("functions-init-stagehand-");
     const argsLog = join(cwd, "pnpm-args.log");
     // Fake pnpm logs each call and installs a Stagehand package.json that pins zod.
     const fakeBin = await createFakePackageManagerBin(
       "pnpm",
-      `#!/bin/sh
-echo "$@" >> "${argsLog}"
-case "$*" in
-  *@browserbasehq/stagehand*)
-    mkdir -p node_modules/@browserbasehq/stagehand
-    echo '{"dependencies":{"zod":"4.4.3"}}' > node_modules/@browserbasehq/stagehand/package.json
-    ;;
-esac
-exit 0
-`,
+      [
+        'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        `appendFileSync(${JSON.stringify(argsLog)}, args.join(" ") + "\\n");`,
+        'if (args.includes("@browserbasehq/stagehand")) {',
+        '  const directory = join("node_modules", "@browserbasehq", "stagehand");',
+        "  mkdirSync(directory, { recursive: true });",
+        '  writeFileSync(join(directory, "package.json"), JSON.stringify({ dependencies: { zod: "4.4.3" } }));',
+        "}",
+      ].join("\n"),
     );
 
     const result = await runCli(
@@ -416,7 +426,7 @@ exit 0
       {
         cwd,
         env: {
-          PATH: `${fakeBin}:${process.env.PATH}`,
+          PATH: prependPath(fakeBin),
         },
       },
     );
@@ -1190,12 +1200,10 @@ async function createTempDir(prefix: string): Promise<string> {
 
 async function createFakePackageManagerBin(
   name = "pnpm",
-  contents = "#!/bin/sh\nexit 0\n",
+  contents = "process.exit(0);",
 ): Promise<string> {
-  const directory = await createTempDir("functions-fake-bin-");
-  const scriptPath = join(directory, name);
-  await writeFile(scriptPath, contents);
-  await chmod(scriptPath, 0o755);
+  const directory = await createTempDir("functions fake bin-");
+  await writeNodeExecutable(directory, name, contents);
   return directory;
 }
 
