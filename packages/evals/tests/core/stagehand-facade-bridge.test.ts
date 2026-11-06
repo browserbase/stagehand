@@ -270,7 +270,11 @@ describe("stagehand facade bridge", () => {
 
   it("bounds a runner tool call and ignores its late response without corrupting later calls", async () => {
     const bridge = await startBridge();
-    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 10 })).rejects.toThrow("after 10ms");
+    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 10 })).rejects.toMatchObject({
+      name: "StagehandFacadeTimeoutError",
+      timeoutMs: 10,
+      message: "Stagehand facade request timed out after 10ms",
+    });
     await expect(bridge.callTool("__delayed", {}, { timeoutMs: 200 })).resolves.toEqual({
       content: [{ type: "text", text: "late" }],
     });
@@ -489,5 +493,33 @@ describe("stagehand facade bridge", () => {
         requestTimeoutMs: 1_000,
       }),
     ).rejects.toThrow("apiKey=[redacted]");
+  });
+
+  it("passes the host display and Chrome path to the facade server", async () => {
+    const keys = ["DISPLAY", "XAUTHORITY", "CHROME_PATH"] as const;
+    const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    process.env.DISPLAY = ":42";
+    process.env.XAUTHORITY = "/tmp/xauth-test";
+    process.env.CHROME_PATH = "/opt/chrome-test";
+    try {
+      await expect(
+        startStagehandFacadeBridge({
+          server: {
+            command: process.execPath,
+            args: [
+              "-e",
+              "const e = process.env; process.stderr.write(`env ${e.DISPLAY} ${e.XAUTHORITY} ${e.CHROME_PATH}\\n`); process.exit(5)",
+            ],
+            env: {},
+          },
+          requestTimeoutMs: 1_000,
+        }),
+      ).rejects.toThrow("env :42 /tmp/xauth-test /opt/chrome-test");
+    } finally {
+      for (const key of keys) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
+    }
   });
 });

@@ -20,10 +20,7 @@ import { forwardedEnvKeys } from "../src/lib/driver/remote.js";
  * rather than silently adding a read the daemon can never see updated.
  */
 
-const driverDir = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../src/lib/driver",
-);
+const driverDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src/lib/driver");
 
 /**
  * Env vars the daemon forwards from the caller so a value set after the daemon
@@ -36,10 +33,7 @@ const FORWARDED_ENV = new Set<string>(["BROWSERBASE_API_KEY"]);
  * Env vars the driver path reads but intentionally does NOT forward: they are
  * daemon-local process configuration, not per-client session identity.
  */
-const DAEMON_LOCAL_ENV = new Set<string>([
-  "BROWSE_DAEMON_DIR",
-  "BROWSE_SESSION",
-]);
+const DAEMON_LOCAL_ENV = new Set<string>(["BROWSE_DAEMON_DIR", "BROWSE_SESSION"]);
 
 /** Matches `process.env.NAME`, `process.env["NAME"]`, and `process.env['NAME']`. */
 const ENV_READ =
@@ -87,9 +81,7 @@ describe("daemon forwarded-env drift guard", () => {
   });
 
   it("declares the two sets as disjoint", () => {
-    const overlap = [...FORWARDED_ENV].filter((name) =>
-      DAEMON_LOCAL_ENV.has(name),
-    );
+    const overlap = [...FORWARDED_ENV].filter((name) => DAEMON_LOCAL_ENV.has(name));
     expect(overlap).toEqual([]);
   });
 
@@ -99,9 +91,7 @@ describe("daemon forwarded-env drift guard", () => {
     expect(reads.size).toBeGreaterThan(0);
 
     const uncategorized = [...reads.entries()]
-      .filter(
-        ([name]) => !FORWARDED_ENV.has(name) && !DAEMON_LOCAL_ENV.has(name),
-      )
+      .filter(([name]) => !FORWARDED_ENV.has(name) && !DAEMON_LOCAL_ENV.has(name))
       .map(([name, files]) => `${name} (read in: ${files.join(", ")})`);
 
     expect(

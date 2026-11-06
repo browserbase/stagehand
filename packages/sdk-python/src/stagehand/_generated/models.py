@@ -17,6 +17,7 @@ from pydantic import (
 )
 from stagehand._validation import (
     PageScreenshotOptionsValidation,
+    StagehandInitParamsValidation,
     TelemetryConfigValidation,
     WireModel,
     WireUrl,
@@ -145,12 +146,7 @@ class Animations(StrEnum):
 
 
 class AnthropicModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^anthropic\\/(claude-3-haiku-20240307|claude-haiku-4-5-20251001|claude-haiku-4-5|claude-opus-4-0|claude-opus-4-20250514|claude-opus-4-1-20250805|claude-opus-4-1|claude-opus-4-5|claude-opus-4-5-20251101|claude-sonnet-4-0|claude-sonnet-4-20250514|claude-sonnet-4-5-20250929|claude-sonnet-4-5|claude-sonnet-4-6|claude-opus-4-6|claude-opus-4-7|claude-opus-4-8|claude-fable-5|claude-sonnet-5)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^anthropic\\/\\S+$")]
 
 
 class Browser(StrEnum):
@@ -189,6 +185,17 @@ class BrowserbaseBrowserSettings(WireModel):
     viewport: Optional[BrowserbaseViewport] = None
 
 
+class BrowserbaseCancelParams(WireModel):
+    """Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: JSONRPCRequestId
+    reason: Reason1
+
+
 class BrowserbaseContext(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -222,6 +229,22 @@ class BrowserbaseFingerprintScreen(WireModel):
     min_width: Optional[StrictFloat] = None
 
 
+class BrowserbaseHttpResponse(WireModel):
+    """Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["response"]
+    status: Annotated[StrictInt, Field(ge=200, le=599)]
+    status_text: StrictStr
+    headers: dict[StrictStr, StrictStr]
+    """Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."""
+    body: StrictStr
+    """Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"""
+
+
 class BrowserbaseProxyConfig(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -249,6 +272,20 @@ class BrowserbaseRegion(StrEnum):
     ap_southeast_1 = "ap-southeast-1"
 
 
+class BrowserbaseRequestParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    operation: Operation
+    headers: dict[StrictStr, StrictStr]
+    """Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."""
+    body: StrictStr
+    """JSON request body sent as UTF-8 text"""
+    remaining_timeout_ms: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline"""
+
+
 class BrowserbaseSessionCreateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -261,6 +298,24 @@ class BrowserbaseSessionCreateParams(WireModel):
     region: Optional[BrowserbaseRegion] = None
     timeout: Optional[StrictFloat] = None
     user_metadata: Optional[dict[StrictStr, Any]] = None
+
+
+class BrowserbaseTransportError(WireModel):
+    """Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["error"]
+    reason: Reason
+    message: StrictStr
+
+
+class BrowserbaseRequestResult(
+    RootModel[Union[BrowserbaseHttpResponse, BrowserbaseTransportError]]
+):
+    root: Union[BrowserbaseHttpResponse, BrowserbaseTransportError]
 
 
 class BrowserbaseViewport(WireModel):
@@ -284,7 +339,7 @@ class CacheMetadata(WireModel):
     threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     """Hit-count threshold in effect for this key"""
     miss_reason: Optional[StrictStr] = None
-    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)"""
     tokens_saved: Optional[CacheTokenSavings] = None
     """LLM tokens avoided by serving this request from cache; hits only"""
 
@@ -350,12 +405,7 @@ class Caret(StrEnum):
 
 
 class CerebrasModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^cerebras\\/(llama3\\.1-8b|gpt-oss-120b|qwen-3-235b-a22b-instruct-2507|qwen-3-235b-a22b-thinking-2507|zai-glm-4\\.6|zai-glm-4\\.7)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^cerebras\\/\\S+$")]
 
 
 class ClearCookieOptions(WireModel):
@@ -660,6 +710,12 @@ class FieldSchema14(
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
+class FieldSchema15(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -709,21 +765,11 @@ class FieldSchema9(
 
 
 class GoogleModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^google\\/(gemini-2\\.0-flash|gemini-2\\.0-flash-001|gemini-2\\.0-flash-lite|gemini-2\\.0-flash-lite-001|gemini-2\\.5-pro|gemini-2\\.5-flash|gemini-2\\.5-flash-image|gemini-2\\.5-flash-lite|gemini-2\\.5-flash-preview-tts|gemini-2\\.5-pro-preview-tts|gemini-2\\.5-flash-native-audio-latest|gemini-2\\.5-flash-native-audio-preview-09-2025|gemini-2\\.5-flash-native-audio-preview-12-2025|gemini-2\\.5-computer-use-preview-10-2025|gemini-3-pro-preview|gemini-3-pro-image-preview|gemini-3-flash-preview|gemini-3\\.1-pro-preview|gemini-3\\.1-pro-preview-customtools|gemini-3\\.1-flash-image-preview|gemini-3\\.1-flash-lite-preview|gemini-3\\.1-flash-tts-preview|gemini-3\\.5-flash|gemini-3\\.6-flash|gemini-pro-latest|gemini-flash-latest|gemini-flash-lite-latest|deep-research-pro-preview-12-2025|deep-research-max-preview-04-2026|deep-research-preview-04-2026|nano-banana-pro-preview|aqa|gemini-robotics-er-1\\.5-preview|gemma-3-1b-it|gemma-3-4b-it|gemma-3n-e4b-it|gemma-3n-e2b-it|gemma-3-12b-it|gemma-3-27b-it)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^google\\/\\S+$")]
 
 
 class GroqModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^groq\\/(gemma2-9b-it|llama-3\\.1-8b-instant|llama-3\\.3-70b-versatile|meta-llama\\/llama-guard-4-12b|openai\\/gpt-oss-120b|openai\\/gpt-oss-20b|deepseek-r1-distill-llama-70b|meta-llama\\/llama-4-maverick-17b-128e-instruct|meta-llama\\/llama-4-scout-17b-16e-instruct|meta-llama\\/llama-prompt-guard-2-22m|meta-llama\\/llama-prompt-guard-2-86m|moonshotai\\/kimi-k2-instruct-0905|qwen\\/qwen3-32b|llama-guard-3-8b|llama3-70b-8192|llama3-8b-8192|mixtral-8x7b-32768|qwen-qwq-32b|qwen-2\\.5-32b|deepseek-r1-distill-qwen-32b)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^groq\\/\\S+$")]
 
 
 class HttpVersion(StrEnum):
@@ -771,7 +817,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema14] = None
+    data: Optional[FieldSchema15] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1462,19 +1508,14 @@ class ObserveResult(WireModel):
 
 
 class OpenAIModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^openai\\/(gpt-4\\.1|gpt-4\\.1-2025-04-14|gpt-4\\.1-mini|gpt-4\\.1-mini-2025-04-14|gpt-4\\.1-nano|gpt-4\\.1-nano-2025-04-14|gpt-4o|gpt-4o-2024-05-13|gpt-4o-2024-08-06|gpt-4o-2024-11-20|gpt-4o-audio-preview|gpt-4o-audio-preview-2024-12-17|gpt-4o-search-preview|gpt-4o-search-preview-2025-03-11|gpt-4o-mini-search-preview|gpt-4o-mini-search-preview-2025-03-11|gpt-4o-mini|gpt-4o-mini-2024-07-18|gpt-3\\.5-turbo-0125|gpt-3\\.5-turbo|gpt-3\\.5-turbo-1106|gpt-5-chat-latest|o1|o1-2024-12-17|o3|o3-2025-04-16|o3-mini|o3-mini-2025-01-31|o4-mini|o4-mini-2025-04-16|gpt-5|gpt-5-2025-08-07|gpt-5-codex|gpt-5-mini|gpt-5-mini-2025-08-07|gpt-5-nano|gpt-5-nano-2025-08-07|gpt-5-pro|gpt-5-pro-2025-10-06|gpt-5\\.1|gpt-5\\.1-chat-latest|gpt-5\\.1-codex-mini|gpt-5\\.1-codex|gpt-5\\.1-codex-max|gpt-5\\.2|gpt-5\\.2-chat-latest|gpt-5\\.2-pro|gpt-5\\.2-codex|gpt-5\\.3-chat-latest|gpt-5\\.3-codex|gpt-5\\.4|gpt-5\\.4-2026-03-05|gpt-5\\.4-mini|gpt-5\\.4-mini-2026-03-17|gpt-5\\.4-nano|gpt-5\\.4-nano-2026-03-17|gpt-5\\.4-pro|gpt-5\\.4-pro-2026-03-05|gpt-5\\.5|gpt-5\\.5-2026-04-23|gpt-5\\.6|gpt-5\\.6-luna|gpt-5\\.6-sol|gpt-5\\.6-terra)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^openai\\/\\S+$")]
 
 
 class ModelName(
     RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
 ):
     root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
-    """An explicitly supported model name with its provider prefix"""
+    """A model name with a supported provider prefix"""
 
 
 class OperatingSystem(StrEnum):
@@ -1483,6 +1524,12 @@ class OperatingSystem(StrEnum):
     linux = "linux"
     macos = "macos"
     windows = "windows"
+
+
+class Operation(StrEnum):
+    gateway_responses = "gateway.responses"
+    cache_get = "cache.get"
+    cache_set = "cache.set"
 
 
 class Os(StrEnum):
@@ -1523,8 +1570,8 @@ class PageCDPEventNotification(WireModel):
     event: PageCDPEvent
 
 
-class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
-    root: dict[StrictStr, Optional[FieldSchema12]]
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
+    root: dict[StrictStr, Optional[FieldSchema13]]
 
 
 class PageClickOptions(WireModel):
@@ -1986,6 +2033,33 @@ class PageVoidResult(WireModel):
     ok: Literal[True]
 
 
+class PageWaitForFunctionOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    polling: Optional[Union[Literal["raf"], Polling]] = None
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+
+
+class PageWaitForFunctionParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    expression: StrictStr
+    options: Optional[PageWaitForFunctionOptions] = None
+
+
+class PageWaitForFunctionResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[FieldSchema10]
+
+
 class PageWaitForLoadStateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2082,8 +2156,25 @@ class PageWebMCPToolsResult(WireModel):
     tools: list[WebMCPToolDescriptor]
 
 
+class Polling(RootModel[StrictFloat]):
+    root: Annotated[StrictFloat, Field(gt=0.0, le=2147483647.0)]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
+
+
+class Reason(StrEnum):
+    network = "network"
+    cancelled = "cancelled"
+    timeout = "timeout"
+    unavailable = "unavailable"
+    disconnected = "disconnected"
+
+
+class Reason1(StrEnum):
+    cancelled = "cancelled"
+    timeout = "timeout"
 
 
 class ResponseAllHeadersResult(WireModel):
@@ -2220,11 +2311,10 @@ class StagehandExtractParams(WireModel):
     options: Optional[ExtractOptions] = None
 
 
-class StagehandInitParams(WireModel):
+class StagehandInitParams(StagehandInitParamsValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
-        arbitrary_types_allowed=True,
     )
     protocol_version: Annotated[
         StrictStr,
@@ -2234,9 +2324,7 @@ class StagehandInitParams(WireModel):
     ]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    api_url: Optional[WireUrl] = None
-    """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
+    browserbase: Optional[Literal["client"]] = None
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
@@ -2248,7 +2336,7 @@ class StagehandInitParams(WireModel):
         Optional[StrictInt], Field(gt=0, le=9007199254740991)
     ] = None
     cache: Optional[Caching] = None
-    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
+    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache."""
 
 
 class StagehandInitResult(WireModel):
@@ -2270,8 +2358,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema11]]]):
-    root: dict[StrictStr, Optional[FieldSchema11]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
+    root: dict[StrictStr, Optional[FieldSchema12]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2430,8 +2518,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema10]]):
-    root: Optional[FieldSchema10]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema11]]):
+    root: Optional[FieldSchema11]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2497,6 +2585,7 @@ FieldSchema11.model_rebuild()
 FieldSchema12.model_rebuild()
 FieldSchema13.model_rebuild()
 FieldSchema14.model_rebuild()
+FieldSchema15.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

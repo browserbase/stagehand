@@ -207,7 +207,7 @@ Expose the real API:
 | Element inspection | `locator.textContent()`, `locator.innerText()`, `locator.isVisible()`, `locator.isChecked()`, `locator.count()`, `locator.inputValue()` |
 | Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.keyPress()`, `page.dragAndDrop()` |
 | Tabs and state | `context.newPage()`, `context.pages()`, `context.setActivePage()`, `context.cookies()` |
-| Waiting | `page.waitForSelector()`, `page.waitForLoadState()`, `page.waitForTimeout()` |
+| Waiting | `page.waitForSelector()`, `page.waitForFunction()`, `page.waitForLoadState()`, `page.waitForTimeout()` |
 | Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
 | Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
 
@@ -436,7 +436,7 @@ The constructor is private and `init()` is gone. Get a browser from a factory, t
 + const stagehand = await Stagehand.create({ browser });
 ```
 
-Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. `stagehand.close()` doesn't close the browser. Call `browser.close()` when you're done. See [browser configuration](/v4/configuration/browser).
 
 ### Pages and the browser context
 

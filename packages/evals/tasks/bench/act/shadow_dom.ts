@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "shadow_dom" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/shadow-dom/");
       await stagehand.act("click the button");
       // v3 used schemaless extract; v4 requires a schema.
       // Single-word key to stay clear of the snake_case wire-casing bug (#14).

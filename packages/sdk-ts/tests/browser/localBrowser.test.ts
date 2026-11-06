@@ -9,7 +9,7 @@ import {
   localBrowserChromeFlags,
 } from "../../src/browser/localBrowser.js";
 
-const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
+const WEBMCP_CHROME_FLAG = "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport";
 
 const EXPECTED_DEFAULT_CHROME_FLAGS = JSON.parse(
   readFileSync(

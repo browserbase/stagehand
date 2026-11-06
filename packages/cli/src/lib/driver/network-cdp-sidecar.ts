@@ -24,10 +24,7 @@ export interface NetworkCdpSession {
   detach(): Promise<void>;
   off(event: string, listener: CdpEventListener): void;
   on(event: string, listener: CdpEventListener): void;
-  send<T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ): Promise<T>;
+  send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
 }
 
 export type NetworkCdpWebSocketFactory = (url: string) => WebSocket;
@@ -43,27 +40,20 @@ export class NetworkCdpSidecar {
   private connecting: Promise<void> | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, PendingCommand>();
-  private readonly sessions = new Map<
-    string,
-    Map<string, Set<CdpEventListener>>
-  >();
+  private readonly sessions = new Map<string, Map<string, Set<CdpEventListener>>>();
   private socket: WebSocket | null = null;
   private websocketUrl: string | null = null;
 
   constructor(
-    private readonly createWebSocket: NetworkCdpWebSocketFactory = (url) =>
-      new WebSocket(url),
+    private readonly createWebSocket: NetworkCdpWebSocketFactory = (url) => new WebSocket(url),
   ) {}
 
-  async attach(
-    websocketUrl: string,
-    targetId: string,
-  ): Promise<NetworkCdpSession> {
+  async attach(websocketUrl: string, targetId: string): Promise<NetworkCdpSession> {
     await this.ensureConnected(websocketUrl);
-    const { sessionId } = await this.sendCommand<{ sessionId: string }>(
-      "Target.attachToTarget",
-      { flatten: true, targetId },
-    );
+    const { sessionId } = await this.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+      flatten: true,
+      targetId,
+    });
     this.sessions.set(sessionId, new Map());
     return new AttachedNetworkCdpSession(this, sessionId);
   }
@@ -78,17 +68,14 @@ export class NetworkCdpSidecar {
     );
     if (
       socket &&
-      (socket.readyState === WebSocket.OPEN ||
-        socket.readyState === WebSocket.CONNECTING)
+      (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
     ) {
       socket.close();
     }
   }
 
   hasSession(sessionId: string): boolean {
-    return (
-      this.socket?.readyState === WebSocket.OPEN && this.sessions.has(sessionId)
-    );
+    return this.socket?.readyState === WebSocket.OPEN && this.sessions.has(sessionId);
   }
 
   on(sessionId: string, event: string, listener: CdpEventListener): void {
@@ -122,18 +109,15 @@ export class NetworkCdpSidecar {
   async detach(sessionId: string): Promise<void> {
     if (!this.sessions.has(sessionId)) return;
     this.sessions.delete(sessionId);
-    await this.sendCommand("Target.detachFromTarget", { sessionId }).catch(
-      () => undefined,
-    );
+    await this.sendCommand("Target.detachFromTarget", { sessionId }).catch(() => undefined);
   }
 
   private async ensureConnected(websocketUrl: string): Promise<void> {
     if (this.socket?.readyState === WebSocket.OPEN) {
       if (this.websocketUrl !== websocketUrl) {
-        throw new DriverError(
-          "The browser CDP endpoint changed during the Browse session.",
-          { code: "network_sidecar_endpoint_changed" },
-        );
+        throw new DriverError("The browser CDP endpoint changed during the Browse session.", {
+          code: "network_sidecar_endpoint_changed",
+        });
       }
       return;
     }
@@ -172,10 +156,9 @@ export class NetworkCdpSidecar {
         if (!opened) reject(failure);
       });
       socket.on("close", () => {
-        const error = new DriverError(
-          "Network capture CDP sidecar disconnected.",
-          { code: "network_sidecar_disconnected" },
-        );
+        const error = new DriverError("Network capture CDP sidecar disconnected.", {
+          code: "network_sidecar_disconnected",
+        });
         this.disconnect(socket, error);
         if (!opened) reject(connectionError(error));
       });
@@ -201,9 +184,7 @@ export class NetworkCdpSidecar {
     }
 
     const id = this.nextId++;
-    const message = sessionId
-      ? { id, method, params, sessionId }
-      : { id, method, params };
+    const message = sessionId ? { id, method, params, sessionId } : { id, method, params };
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, {
         method,
@@ -241,8 +222,7 @@ export class NetworkCdpSidecar {
     }
 
     if (message.method === "Target.detachedFromTarget") {
-      const detachedSessionId = (message.params as { sessionId?: string })
-        ?.sessionId;
+      const detachedSessionId = (message.params as { sessionId?: string })?.sessionId;
       if (detachedSessionId) this.sessions.delete(detachedSessionId);
       return;
     }
@@ -284,10 +264,7 @@ class AttachedNetworkCdpSession implements NetworkCdpSession {
     this.sidecar.on(this.sessionId, event, listener);
   }
 
-  send<T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ): Promise<T> {
+  send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     return this.sidecar.sendToSession<T>(this.sessionId, method, params);
   }
 }

@@ -11,13 +11,11 @@ export async function readSecretValue(options: {
     const value = Object.prototype.hasOwnProperty.call(process.env, options.env)
       ? process.env[options.env]
       : undefined;
-    if (value === undefined)
-      fail("The environment variable selected by --env is not set.");
+    if (value === undefined) fail("The environment variable selected by --env is not set.");
     return Buffer.from(value, "utf8");
   }
   if (options.stdin) {
-    if (process.stdin.isTTY)
-      fail("--stdin requires piped input or file redirection.");
+    if (process.stdin.isTTY) fail("--stdin requires piped input or file redirection.");
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -25,9 +23,7 @@ export async function readSecretValue(options: {
     return Buffer.concat(chunks);
   }
   if (!process.stdin.isTTY)
-    fail(
-      "Use --stdin for piped input or --env to read an environment variable.",
-    );
+    fail("Use --stdin for piped input or --env to read an environment variable.");
   try {
     return Buffer.from(
       await password({ message: "Secret value:" }, { output: process.stderr }),
