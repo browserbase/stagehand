@@ -448,6 +448,13 @@ jobs:
           path: .
 
       - run: pnpm --filter browse test:cli
+        if: runner.os != 'Windows'
+
+      # Avoid oclif spawning PowerShell to detect the shell on every CLI invocation.
+      - run: pnpm --filter browse test:cli
+        if: runner.os == 'Windows'
+        env:
+          SHELL: pwsh
 
   browse-repo-local-smoke:
     name: Browse repo-local-smoke (${{ matrix.platform }})
