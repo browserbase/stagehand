@@ -34,7 +34,7 @@ cd stagehand
 
 For TypeScript, use Node.js 22.18+, pnpm, and [just](https://just.systems/). Run `pnpm install --frozen-lockfile` once from the repository root. Copy the selected cookbook's `typescript/.env.example` to `typescript/.env`, fill in its keys, then run `just cookbook <slug>` from the root. Replace `<slug>` with the cookbook's folder name, such as `paginated-catalog`. The command builds the local SDK and extension and starts the recipe in its TypeScript directory, where `.env` and `out/` live. All TypeScript cookbooks share the root workspace and lockfile.
 
-For Python, use Python 3.11+ and uv. Each cookbook retains its own `pyproject.toml` and `uv.lock` and uses a published Python SDK. Install and run from its `python/` directory using the recipe's commands.
+For Python, use Python 3.11+ and uv, plus Node.js 22.18+, pnpm, and just to build the extension. Run `just install` once from the repository root. Copy the selected cookbook's `python/.env.example` to `python/.env`, fill in its keys, then run `just cookbook-python <slug>` from the root. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Python cookbooks use the local SDK source and share the root `uv.lock` and `.venv`; each keeps its own `pyproject.toml`.
 
 Open the cookbook's README or docs page for required keys, inputs, and output checks.
 

@@ -40,17 +40,11 @@ function withQuery(path: string, query: ListSecretsOptions): string {
   return search ? `${path}?${search}` : path;
 }
 
-export function getSecret(
-  options: SecretsApiOptions,
-  secretId: string,
-): Promise<Secret> {
+export function getSecret(options: SecretsApiOptions, secretId: string): Promise<Secret> {
   return requestBrowserbaseJson(options, secretPath(secretId));
 }
 
-export async function deleteSecret(
-  options: SecretsApiOptions,
-  secretId: string,
-): Promise<void> {
+export async function deleteSecret(options: SecretsApiOptions, secretId: string): Promise<void> {
   await requestBrowserbase(options, secretPath(secretId), { method: "DELETE" });
 }
 
@@ -101,15 +95,11 @@ export async function attachFunctionSecret(
   functionId: string,
   secretId: string,
 ): Promise<void> {
-  await requestBrowserbase(
-    options,
-    `/v1/functions/${encodeURIComponent(functionId)}/secrets`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secretId }),
-    },
-  );
+  await requestBrowserbase(options, `/v1/functions/${encodeURIComponent(functionId)}/secrets`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ secretId }),
+  });
 }
 
 export async function detachFunctionSecret(
