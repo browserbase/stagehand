@@ -49,9 +49,6 @@ jobs:
           filters: |
             browse:
               - 'packages/cli/**'
-              - 'packages/sdk-ts/**'
-              - 'packages/extension/**'
-              - 'packages/protocol/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -350,10 +347,6 @@ jobs:
           # Include the root manifest so artifact paths stay relative to the repository.
           path: |
             package.json
-            packages/protocol/stagehand.v4.json
-            packages/extension/dist/**
-            packages/extension/artifacts/**
-            packages/sdk-ts/dist/**
             packages/cli/dist/**
             packages/cli/oclif.manifest.json
           if-no-files-found: error
