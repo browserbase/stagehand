@@ -107,14 +107,12 @@ function deps(
     combinedXpathMap: xpathMap,
     combinedUrlMap: {},
   }));
-  const takeAction = vi.fn(
-    async (action: Action): Promise<ActResultData> => ({
-      success: true,
-      message: "ok",
-      actionDescription: action.description,
-      actions: [action],
-    }),
-  );
+  const takeAction = vi.fn(async (action: Action): Promise<ActResultData> => ({
+    success: true,
+    message: "ok",
+    actionDescription: action.description,
+    actions: [action],
+  }));
   const value: DecisionsActDeps = {
     page: {
       captureSnapshot,

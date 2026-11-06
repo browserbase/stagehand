@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "observe_amazon_add_to_cart" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/amazon/");
 
       const { data: observations1 } = await stagehand.observe(
         "Find and click the 'Add to Cart' button",
@@ -27,8 +27,7 @@ export default defineBenchTask(
       }
 
       const currentUrl = await page.url();
-      const expectedUrlPrefix =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
+      const expectedUrlPrefix = "https://stagehand-eval-sites.vercel.app/sites/amazon/sign-in.html";
 
       return {
         _success: currentUrl.startsWith(expectedUrlPrefix),

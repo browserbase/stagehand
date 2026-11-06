@@ -4,10 +4,7 @@ export interface SnapshotFilterOptions {
   maxDepth?: number;
 }
 
-export function formatSnapshotTree(
-  tree: string,
-  options: SnapshotFilterOptions = {},
-): string {
+export function formatSnapshotTree(tree: string, options: SnapshotFilterOptions = {}): string {
   let lines = tree.split("\n");
 
   if (options.maxDepth !== undefined) {
@@ -30,10 +27,7 @@ function filterLinesWithAncestors(lines: string[], pattern: string): string[] {
   return keepLinesWithAncestors(lines, matcher);
 }
 
-function keepLinesWithAncestors(
-  lines: string[],
-  shouldKeep: (line: string) => boolean,
-): string[] {
+function keepLinesWithAncestors(lines: string[], shouldKeep: (line: string) => boolean): string[] {
   const keep = new Set<number>();
 
   for (let index = 0; index < lines.length; index += 1) {

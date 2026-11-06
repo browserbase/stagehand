@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "observe_iframes1" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-hn/");
 
       const { data: observations } = await stagehand.observe("find the main header of the page");
 

@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "iframes_nested" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/nested-iframes/");
 
       await stagehand.act("type 'stagehand' into the 'username' field");
 

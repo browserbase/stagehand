@@ -10,8 +10,7 @@ export interface OutputFormatFlags {
 
 export const outputFormatFlags = {
   format: Flags.string({
-    description:
-      "Output format. Defaults to table in a terminal and JSON when piped.",
+    description: "Output format. Defaults to table in a terminal and JSON when piped.",
     helpValue: "<format>",
     options: ["table", "json"],
   }),
@@ -100,17 +99,13 @@ export function formatTable<Row>(
 
   const lines = [
     columns
-      .map((column, index) =>
-        padTableCell(column.header, widths[index]!, column.align),
-      )
+      .map((column, index) => padTableCell(column.header, widths[index]!, column.align))
       .join("  ")
       .trimEnd(),
     columns.map((_, index) => "-".repeat(widths[index]!)).join("  "),
     ...renderedRows.map((row) =>
       row
-        .map((cell, index) =>
-          padTableCell(cell, widths[index]!, columns[index]?.align),
-        )
+        .map((cell, index) => padTableCell(cell, widths[index]!, columns[index]?.align))
         .join("  ")
         .trimEnd(),
     ),
@@ -119,12 +114,8 @@ export function formatTable<Row>(
   return lines.join("\n");
 }
 
-function formatTableCell(
-  value: unknown,
-  options: { maxWidth?: number } = {},
-): string {
-  const text =
-    value === null || value === undefined || value === "" ? "-" : String(value);
+function formatTableCell(value: unknown, options: { maxWidth?: number } = {}): string {
+  const text = value === null || value === undefined || value === "" ? "-" : String(value);
   if (!options.maxWidth || text.length <= options.maxWidth) {
     return text;
   }
@@ -136,10 +127,6 @@ function formatTableCell(
   return `${text.slice(0, options.maxWidth - 3)}...`;
 }
 
-function padTableCell(
-  value: string,
-  width: number,
-  align: "left" | "right" = "left",
-): string {
+function padTableCell(value: string, width: number, align: "left" | "right" = "left"): string {
   return align === "right" ? value.padStart(width) : value.padEnd(width);
 }

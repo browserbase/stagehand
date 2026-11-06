@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, assert_type, cast, overload
 
 import pytest
-from pydantic import BaseModel, RootModel, StrictInt
+from pydantic import BaseModel, RootModel, StrictInt, ValidationError
 from typing_extensions import override
 
 from stagehand import (
@@ -59,6 +59,7 @@ from stagehand.browser import (
     _browser_session_metadata,
     _ClaimedBrowser,
     _WorkerInitMetadata,
+    local_browser,
 )
 from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
 from stagehand.rpc_client import RPCClient, RPCError, _JSONRPCError
@@ -79,6 +80,7 @@ class _Transport:
     def __init__(self, web_socket_debugger_url: str | None = "ws://browser") -> None:
         self.web_socket_debugger_url = web_socket_debugger_url
         self.close_calls = 0
+        self.closed = False
 
     async def close(self) -> None:
         self.close_calls += 1
@@ -89,6 +91,7 @@ def _browser_handle(
     api_key: str | None = None,
     browser_metadata: BrowserSessionMetadata | None = None,
     web_socket_debugger_url: str | None = "ws://browser",
+    extension_cdp_url: str | None = None,
 ) -> tuple[StagehandBrowser, _Transport]:
     transport = _Transport(web_socket_debugger_url)
     return (
@@ -100,6 +103,7 @@ def _browser_handle(
                 worker_init_metadata=_WorkerInitMetadata(
                     api_key=api_key,
                     browser=browser_metadata,
+                    browser_cdp_url=extension_cdp_url,
                 ),
             ),
             transport.close,
@@ -311,7 +315,7 @@ async def test_create_requires_a_factory_browser_before_validating_config() -> N
 
 
 @pytest.mark.asyncio
-async def test_create_builds_wire_params_and_worker_metadata_wins(
+async def test_create_builds_client_browserbase_wire_params(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     recording = _recording()
@@ -349,10 +353,95 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert params.browser_cdp_url == "ws://browser"
     assert params.log_level == "debug"
     assert params.model == ClientModelReference(source="client")
-    assert params.api_key == "worker-key"
-    assert str(params.api_url) == "https://api.stagehand.dev.browserbase.com"
+    assert params.browserbase == "client"
+    assert "api_key" not in params.model_fields_set
+    assert "api_url" not in params.model_fields_set
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
+    assert "browserbase.request" in recording.requests
+    assert "browserbase.cancel" in recording.notifications
+    await stagehand.close()
+    assert recording.requests == {}
+    assert recording.notifications == {}
+
+
+@pytest.mark.asyncio
+async def test_create_sends_the_extension_its_own_cdp_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle(
+        web_socket_debugger_url="wss://gateway/cdp?api_key=secret",
+        extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/abc",
+    )
+
+    await Stagehand.create(browser=browser)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.browser_cdp_url == "ws://127.0.0.1:9300/devtools/browser/abc"
+
+
+@pytest.mark.parametrize(
+    "headers", [None, {}, {"Authorization": "Bearer dummy-secret", "X-Api-Key": "dummy-key"}]
+)
+@pytest.mark.parametrize("extension_cdp_url", [None, "ws://127.0.0.1:9300/devtools/browser/abc"])
+@pytest.mark.asyncio
+async def test_local_connect_keeps_headers_out_of_extension_initialization(
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str] | None,
+    extension_cdp_url: str | None,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    client_url = "https://gateway.example/cdp"
+    resolved_url = "wss://gateway.example/devtools/browser/abc"
+    connect_arguments: list[dict[str, object]] = []
+
+    class Transport(_Transport):
+        async def send_command(self, method: str) -> dict[str, object]:
+            assert method == "Browser.close"
+            return {}
+
+    transport = Transport(resolved_url)
+
+    async def connect(**kwargs: object) -> CDPClient:
+        connect_arguments.append(kwargs)
+        return cast(CDPClient, transport)
+
+    monkeypatch.setattr(CDPClient, "connect", connect)
+    browser = await local_browser.connect(
+        cdp_url=client_url,
+        **({"headers": headers} if headers is not None else {}),
+        **({"extension_cdp_url": extension_cdp_url} if extension_cdp_url is not None else {}),
+    )
+    try:
+        stagehand = await Stagehand.create(browser=browser)
+        try:
+            assert len(connect_arguments) == 1
+            options = connect_arguments[0]
+            assert options["cdp_url"] == client_url
+            if headers:
+                assert options["headers"] == headers
+            else:
+                assert "headers" not in options
+            # The lifecycle observer now opens the extension's browser connection
+            # before Stagehand initialization. Only its URL, never client headers,
+            # is passed to that bootstrap.
+            assert options["extension_cdp_url"] == extension_cdp_url
+
+            method, params, *_ = recording.calls[0]
+            assert method == "stagehand.init"
+            assert isinstance(params, StagehandInitParams)
+            assert params.browser_cdp_url == (extension_cdp_url or resolved_url)
+            wire_params = params.model_dump_json(by_alias=True, exclude_unset=True)
+            for sensitive in ("Authorization", "X-Api-Key", "dummy-secret", "dummy-key"):
+                assert sensitive not in wire_params
+            assert "headers" not in params.model_dump(exclude_unset=True)
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
 
 
 @pytest.mark.asyncio
@@ -401,7 +490,11 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
     )
 
     params = cast(StagehandInitParams, recording.calls[0][1])
-    assert params.api_key == "caller-key"
+    assert "api_key" not in params.model_fields_set
+    assert "api_url" not in params.model_fields_set
+    assert "browserbase" not in params.model_fields_set
+    assert params.model is not None
+    assert params.model.model_dump()["api_key"] == "model-key"
     assert "browser" not in params.model_fields_set
     assert params.telemetry is not None
     assert params.telemetry.model_dump(mode="json") == telemetry
@@ -1146,3 +1239,27 @@ def test_semantic_arguments_stay_positional(method: str, positional: list[str]) 
         parameter.kind is inspect.Parameter.KEYWORD_ONLY
         for parameter in parameters[1 + len(positional) :]
     )
+
+
+@pytest.mark.parametrize(
+    "api_url",
+    [
+        "",
+        "not a URL",
+        "https://example.com?",
+        "https://example.com#",
+        "https://example.com/path?query=value",
+        "https://example.com/services/v1///",
+    ],
+)
+async def test_create_validates_api_url_before_claiming_browser(
+    monkeypatch: pytest.MonkeyPatch, api_url: str
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    with pytest.raises(ValidationError):
+        await Stagehand.create(browser=browser, api_url=api_url)
+    assert recording.calls == []
+    stagehand = await Stagehand.create(browser=browser)
+    await stagehand.close()

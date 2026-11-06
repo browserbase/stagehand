@@ -69,11 +69,11 @@ WebMCP tools are registered *by the page*. That makes them distinct from tools y
 WebMCP requires a Chromium build with the WebMCP features enabled. Stagehand ships this flag as one of the default launch flags for every local browser it starts:
 
 ```
---enable-features=WebMCPTesting,DevToolsWebMCPSupport
+--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport
 ```
 
 <Warning>
-Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
+Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
 </Warning>
 
 ## Listing tools

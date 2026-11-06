@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import asyncio
+import json
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -19,8 +20,12 @@ from run_eval import (  # noqa: E402
     RunnerConfig,
     _default_build_agent,
     aggregate_usage,
+    build_eval_model,
     extract_images,
     flatten_text,
+    message_events,
+    parse_config,
+    reasoning_text,
     run,
     sanitize_error,
 )
@@ -439,6 +444,49 @@ def test_content_blocks_and_usage_helpers() -> None:
     }
 
 
+def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
+    """langchain_openai (Responses API) puts function_call and reasoning blocks
+    in AIMessage.content; only prose is assistant text, reasoning summaries are
+    reported on their own."""
+    content = [
+        {
+            "id": "rs_0a1b",
+            "type": "reasoning",
+            "summary": [
+                {"type": "summary_text", "text": "Need the results page."},
+                {"type": "summary_text", "text": "Then read the table."},
+            ],
+        },
+        {"type": "text", "text": "Opening the results page.", "annotations": []},
+        {
+            "type": "function_call",
+            "id": "fc_05236bef",
+            "call_id": "call_vUBhdpiS",
+            "name": "run",
+            "arguments": '{"code":"await page.goto(\'https://example.com\')"}',
+            "status": "completed",
+        },
+        {"type": "tool_use", "id": "toolu_1", "name": "run", "input": {"code": "1"}},
+        {"type": "tool_call", "id": "call_2", "name": "run", "args": {"code": "2"}},
+        {"type": "reasoning", "summary": []},
+    ]
+    assert flatten_text(content) == "Opening the results page."
+    assert reasoning_text(content) == "Need the results page.\nThen read the table."
+
+    message = AIMessage(
+        content=content,
+        tool_calls=[{"id": "call_vUBhdpiS", "name": "run", "args": {"code": "1"}}],
+    )
+    event, tool_call = message_events(message, {})
+    assert event["type"] == "assistant"
+    assert event["reasoning"] == "Need the results page.\nThen read the table."
+    assert event["text"] == "Opening the results page."
+    assert "function_call" not in event["text"]
+    assert "call_vUBhdpiS" not in event["text"]
+    assert event["tool_calls"] == [{"id": "call_vUBhdpiS", "name": "run", "args": {"code": "1"}}]
+    assert tool_call["type"] == "tool_call"
+
+
 async def test_flaky_teardown_after_completion_keeps_exit_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -463,6 +511,63 @@ async def test_flaky_teardown_after_completion_keeps_exit_zero(
     assert all(event["type"] != "error" for event in events)
 
 
+def test_reasoning_text_accepts_standard_content_blocks() -> None:
+    """langchain's v1 content blocks carry the summary under `reasoning`."""
+    content = [
+        {"type": "reasoning", "reasoning": "Check the price first."},
+        {"type": "text", "text": "Checking."},
+    ]
+    assert reasoning_text(content) == "Check the price first."
+    assert flatten_text(content) == "Checking."
+
+
+def test_native_anthropic_thinking_stays_out_of_visible_assistant_text() -> None:
+    content = [
+        {"type": "thinking", "thinking": "Inspect the row before acting.", "signature": "hidden"},
+        {"type": "text", "text": "Opening the row."},
+    ]
+    event, = message_events(AIMessage(content=content), {})
+    assert event["reasoning"] == "Inspect the row before acting."
+    assert event["text"] == "Opening the row."
+    assert "signature" not in event["text"]
+
+
+def _config(model: str, reasoning_summary: str | None) -> RunnerConfig:
+    return parse_config(
+        {
+            "prompt": "task",
+            "system_prompt": None,
+            "model": model,
+            "mcp_servers": {},
+            "recursion_limit": 10,
+            "max_tool_steps": 5,
+            "reasoning_summary": reasoning_summary,
+        }
+    )
+
+
+def test_build_eval_model_requests_openai_reasoning_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    model = build_eval_model(_config("openai:gpt-5.6-luna", "detailed"))
+    assert not isinstance(model, str)
+    payload = model._get_request_payload([("human", "hi")])  # type: ignore[attr-defined]
+    assert payload["model"] == "gpt-5.6-luna"
+    assert payload["reasoning"] == {"summary": "detailed"}
+    # deepagents must still derive its harness profile key from the prebuilt model.
+    _default_build_agent(_config("openai:gpt-5.6-luna", "detailed"), [])
+
+
+def test_build_eval_model_leaves_other_providers_and_off_alone() -> None:
+    assert build_eval_model(_config("openai:gpt-5.6-luna", None)) == "openai:gpt-5.6-luna"
+    assert build_eval_model(_config("anthropic:claude-sonnet-4", "detailed")) == (
+        "anthropic:claude-sonnet-4"
+    )
+    with pytest.raises(ValueError, match="reasoning_summary"):
+        _config("openai:gpt-5.6-luna", "verbose")
+
+
 @pytest.mark.parametrize("usages", [[], [None], [{}], [{"input_tokens": None, "output_tokens": -1}], [{"total_tokens": 0}]])
 def test_usage_presence_missing(usages: list[dict[str, Any] | None]) -> None:
     assert aggregate_usage(usages)["reported"] is False
@@ -473,3 +578,104 @@ def test_usage_presence_preserves_observed_zero() -> None:
     assert result["reported"] is True
     assert result["input_tokens"] == 0
     assert result["output_tokens"] == 0
+
+
+EVAL_RESULT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+        "summary": {"type": "string"},
+        "finalAnswer": {"type": "string"},
+    },
+    "required": ["success", "summary", "finalAnswer"],
+    "additionalProperties": False,
+}
+
+
+@pytest.mark.asyncio
+async def test_structured_result_becomes_the_final_text() -> None:
+    answer = {"success": True, "summary": "found it", "finalAnswer": "42"}
+    model = ToolFakeChatModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "EvalResult", "args": answer, "id": "call-1", "type": "tool_call"}
+                    ],
+                )
+            ]
+        )
+    )
+    structured = RunnerConfig(**{**config().__dict__, "result_schema": EVAL_RESULT_SCHEMA})
+    events: list[dict[str, Any]] = []
+
+    exit_code = await run(
+        structured,
+        build_agent=lambda cfg, tools: _default_build_agent(cfg, tools, model=model),
+        emit=events.append,
+    )
+
+    assert exit_code == 0
+    final = next(event for event in events if event["type"] == "final")
+    assert json.loads(final["text"]) == answer
+
+
+def test_result_schema_is_an_object_or_null() -> None:
+    raw = {
+        "prompt": "task",
+        "system_prompt": None,
+        "model": "anthropic:claude-opus-5-5",
+        "mcp_servers": {},
+        "recursion_limit": 10,
+        "max_tool_steps": 5,
+    }
+    assert parse_config(raw).result_schema is None
+    assert parse_config({**raw, "result_schema": EVAL_RESULT_SCHEMA}).result_schema == (
+        EVAL_RESULT_SCHEMA
+    )
+    with pytest.raises(ValueError, match="result_schema"):
+        parse_config({**raw, "result_schema": "json"})
+
+
+@pytest.mark.asyncio
+async def test_structured_answer_does_not_spend_a_tool_step() -> None:
+    answer = {"success": True, "summary": "done", "finalAnswer": "42"}
+    model = ToolFakeChatModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "EvalResult", "args": answer, "id": "call-1", "type": "tool_call"}
+                    ],
+                )
+            ]
+        )
+    )
+    structured = RunnerConfig(
+        **{**config(max_tool_steps=1).__dict__, "result_schema": EVAL_RESULT_SCHEMA}
+    )
+    events: list[dict[str, Any]] = []
+
+    exit_code = await run(
+        structured,
+        build_agent=lambda cfg, tools: _default_build_agent(cfg, tools, model=model),
+        emit=events.append,
+    )
+
+    assert exit_code == 0
+    assert not any(event["type"] == "error" for event in events)
+    assert not any(
+        event.get("name") == "EvalResult"
+        for event in events
+        if event["type"] in ("tool_call", "tool_result")
+    )
+    final = next(event for event in events if event["type"] == "final")
+    assert json.loads(final["text"]) == answer
+
+
+def test_answer_tool_keeps_its_fixed_name() -> None:
+    from run_eval import _response_format
+
+    assert _response_format({**EVAL_RESULT_SCHEMA, "title": "Other"})["title"] == "EvalResult"

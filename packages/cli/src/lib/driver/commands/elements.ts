@@ -4,9 +4,7 @@ import type { DriverCommandHandlers } from "./types.js";
 
 export const elementsHandlers: DriverCommandHandlers = {
   async click(manager, params) {
-    const { selector } = z
-      .object({ selector: z.string().min(1) })
-      .parse(params);
+    const { selector } = z.object({ selector: z.string().min(1) }).parse(params);
     const page = await manager.activePage();
     await page.locator(manager.resolveSelector(selector)).click();
     return { clicked: true };
@@ -36,9 +34,7 @@ export const elementsHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    const selected = await page
-      .locator(manager.resolveSelector(selector))
-      .selectOption(values);
+    const selected = await page.locator(manager.resolveSelector(selector)).selectOption(values);
     return { selected };
   },
 
