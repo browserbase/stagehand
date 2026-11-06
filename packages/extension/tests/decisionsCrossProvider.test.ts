@@ -62,14 +62,12 @@ function logger() {
 }
 
 function actDeps(instruction: string, overrides: Partial<DecisionsActDeps> = {}) {
-  const takeAction = vi.fn(
-    async (action: Action): Promise<ActResultData> => ({
-      success: true,
-      message: "ok",
-      actionDescription: action.description,
-      actions: [action],
-    }),
-  );
+  const takeAction = vi.fn(async (action: Action): Promise<ActResultData> => ({
+    success: true,
+    message: "ok",
+    actionDescription: action.description,
+    actions: [action],
+  }));
   const deps: DecisionsActDeps = {
     page: {
       captureSnapshot: vi.fn(async () => ({
