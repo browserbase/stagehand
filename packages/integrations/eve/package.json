@@ -42,8 +42,8 @@
     "build": "pnpm run stage:facade && eve extension build",
     "prepack": "pnpm run build",
     "stage:facade": "node scripts/stage-facade.mjs",
-    "test": "pnpm run stage:facade && vitest run",
-    "test:unit": "pnpm run stage:facade && vitest run",
+    "test": "pnpm run build && vitest run",
+    "test:unit": "pnpm run build && vitest run",
     "typecheck": "pnpm run stage:facade && tsc --noEmit"
   },
   "dependencies": {
