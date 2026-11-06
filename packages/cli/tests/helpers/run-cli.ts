@@ -13,6 +13,7 @@ export interface CliResult {
 export interface RunCliOptions {
   cwd?: string;
   stdin?: string;
+  timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -20,6 +21,8 @@ export function runCli(args: string[], options: RunCliOptions = {}): Promise<Cli
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [join(repoRoot, "bin/run.js"), ...args], {
       cwd: options.cwd ?? repoRoot,
+      timeout: options.timeoutMs,
+      killSignal: "SIGKILL",
       env: {
         ...process.env,
         BROWSE_DISABLE_UPDATE_CHECK: "1",
