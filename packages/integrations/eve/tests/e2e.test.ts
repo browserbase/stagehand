@@ -122,8 +122,12 @@ describe("browser E2E status", () => {
       console.log("Required credential: BROWSERBASE_API_KEY");
       console.log(`  Current status: ${process.env.BROWSERBASE_API_KEY ? "SET" : "NOT SET"}\n`);
       console.log("Optional credentials:");
-      console.log(`  BROWSERBASE_PROJECT_ID: ${process.env.BROWSERBASE_PROJECT_ID ? "SET" : "NOT SET"}`);
-      console.log(`  BROWSERBASE_API_URL: ${process.env.BROWSERBASE_API_URL ? "SET" : "NOT SET"}\n`);
+      console.log(
+        `  BROWSERBASE_PROJECT_ID: ${process.env.BROWSERBASE_PROJECT_ID ? "SET" : "NOT SET"}`,
+      );
+      console.log(
+        `  BROWSERBASE_API_URL: ${process.env.BROWSERBASE_API_URL ? "SET" : "NOT SET"}\n`,
+      );
       console.log("Without BROWSERBASE_API_KEY, the following cannot be verified:");
       console.log("  - run() code execution against real browser");
       console.log("  - snapshot() accessibility tree capture");
