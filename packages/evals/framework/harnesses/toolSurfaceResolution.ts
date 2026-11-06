@@ -11,6 +11,8 @@ function formatList(values: ToolSurface[]): string {
   return `${values.slice(0, -1).join(", ")}, or ${values.at(-1)}`;
 }
 
+const DEFAULT_TOOL_SURFACE_PREFERENCE: ToolSurface[] = ["stagehand_facade"];
+
 /** Resolve the tool surface for a row on `harness`. */
 export function resolveToolSurface(
   harness: Pick<BenchHarness, "harness" | "supportedToolSurfaces">,
@@ -18,7 +20,14 @@ export function resolveToolSurface(
 ): ToolSurface | undefined {
   const supported = harness.supportedToolSurfaces;
   if (supported.length === 0) return requested;
-  if (requested === undefined) return supported[0];
+  // Default to the facade wherever the harness supports it: it is the surface
+  // every benchmark comparison is run on, and the list's first entry
+  // (browse_cli / playwright_code) has silently produced invalid runs when
+  // --tool was omitted.
+  if (requested === undefined)
+    return (
+      DEFAULT_TOOL_SURFACE_PREFERENCE.find((surface) => supported.includes(surface)) ?? supported[0]
+    );
   if (supported.includes(requested)) return requested;
   throw new EvalsError(
     `Harness "${harness.harness}" supports --tool ${formatList(supported)}; received "${requested}".`,

@@ -9,9 +9,7 @@ export default defineBenchTask(
     // OOPIF (out of process iframe)
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-root-in-oopif/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/closed-shadow-root-in-oopif/");
       await stagehand.act("click the button");
 
       await new Promise((resolve) => setTimeout(resolve, 1000));

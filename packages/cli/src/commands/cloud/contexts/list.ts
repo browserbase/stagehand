@@ -1,8 +1,5 @@
 import { outputJson } from "../../../lib/cloud/api.js";
-import {
-  type ContextAliasEntry,
-  listContextAliases,
-} from "../../../lib/cloud/contexts-store.js";
+import { type ContextAliasEntry, listContextAliases } from "../../../lib/cloud/contexts-store.js";
 import { BrowseCommand } from "../../../base.js";
 import {
   formatId,
@@ -13,12 +10,8 @@ import {
 } from "../../../lib/output.js";
 
 export default class ContextsList extends BrowseCommand {
-  static override description =
-    "List Browserbase contexts you have saved locally with a name.";
-  static override examples = [
-    "browse cloud contexts list",
-    "browse cloud contexts list --json",
-  ];
+  static override description = "List Browserbase contexts you have saved locally with a name.";
+  static override examples = ["browse cloud contexts list", "browse cloud contexts list --json"];
 
   static override flags = {
     ...outputFormatFlags,
@@ -36,9 +29,7 @@ export default class ContextsList extends BrowseCommand {
     }
 
     if (contexts.length === 0) {
-      console.log(
-        "No saved contexts. Create one with: browse cloud contexts create --name <name>",
-      );
+      console.log("No saved contexts. Create one with: browse cloud contexts create --name <name>");
       return;
     }
 
@@ -46,10 +37,7 @@ export default class ContextsList extends BrowseCommand {
   }
 }
 
-function outputContextsTable(
-  contexts: ContextAliasEntry[],
-  options: { wide?: boolean },
-): void {
+function outputContextsTable(contexts: ContextAliasEntry[], options: { wide?: boolean }): void {
   outputTable(
     contexts,
     [

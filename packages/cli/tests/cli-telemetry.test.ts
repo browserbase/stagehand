@@ -27,9 +27,7 @@ describe("CLI telemetry", () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-success-",
-      );
+      const installIdFile = await tempInstallIdFile("browse-telemetry-success-");
       const result = await runCli(["status"], {
         env: telemetryEnv(telemetryServer, installIdFile),
       });
@@ -39,9 +37,7 @@ describe("CLI telemetry", () => {
       const payloads = telemetryPayloads(telemetryServer);
       expect(payloads).toHaveLength(2);
       expect(
-        payloads.every(
-          (payload) => payload.properties.$process_person_profile === false,
-        ),
+        payloads.every((payload) => payload.properties.$process_person_profile === false),
       ).toBe(true);
 
       const invokedPayload = findPayload(payloads, "cli.command_invoked");
@@ -94,9 +90,7 @@ describe("CLI telemetry", () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        `browse-telemetry-agent-${agent}-`,
-      );
+      const installIdFile = await tempInstallIdFile(`browse-telemetry-agent-${agent}-`);
       const result = await runCli(["status"], {
         env: {
           ...telemetryEnv(telemetryServer, installIdFile),
@@ -108,9 +102,7 @@ describe("CLI telemetry", () => {
 
       const payloads = telemetryPayloads(telemetryServer);
       expect(payloads).toHaveLength(2);
-      expect(
-        payloads.every((payload) => payload.properties.agent === agent),
-      ).toBe(true);
+      expect(payloads.every((payload) => payload.properties.agent === agent)).toBe(true);
     } finally {
       await telemetryServer.close();
     }
@@ -150,9 +142,7 @@ describe("CLI telemetry", () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-missing-key-",
-      );
+      const installIdFile = await tempInstallIdFile("browse-telemetry-missing-key-");
       const result = await runCli(["cloud", "search", "test query"], {
         env: telemetryEnv(telemetryServer, installIdFile),
       });
@@ -182,19 +172,14 @@ describe("CLI telemetry", () => {
     });
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-runtime-",
-      );
-      const result = await runCli(
-        ["cloud", "search", "sensitive search phrase"],
-        {
-          env: {
-            ...telemetryEnv(telemetryServer, installIdFile),
-            BROWSERBASE_API_KEY: "bb_test",
-            BROWSERBASE_BASE_URL: apiServer.baseUrl,
-          },
+      const installIdFile = await tempInstallIdFile("browse-telemetry-runtime-");
+      const result = await runCli(["cloud", "search", "sensitive search phrase"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          BROWSERBASE_API_KEY: "bb_test",
+          BROWSERBASE_BASE_URL: apiServer.baseUrl,
         },
-      );
+      });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("super secret upstream detail");
@@ -206,14 +191,10 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.success).toBe(false);
       expect(completedPayload.properties.error_type).toBe("runtime");
       expect(completedPayload.properties.error_code).toBe("COMMAND_FAILURE");
-      expect(completedPayload.properties.result_code).toBe(
-        "search_internal_error",
-      );
+      expect(completedPayload.properties.result_code).toBe("search_internal_error");
       expect(completedPayload.properties.http_status).toBe(500);
       expect(completedPayload.properties.request_had_http_response).toBe(true);
-      expect(JSON.stringify(payloads)).not.toContain(
-        "super secret upstream detail",
-      );
+      expect(JSON.stringify(payloads)).not.toContain("super secret upstream detail");
       expect(JSON.stringify(payloads)).not.toContain("sensitive search phrase");
     } finally {
       await apiServer.close();
@@ -223,25 +204,18 @@ describe("CLI telemetry", () => {
 
   it("attaches the validated skill id to completion telemetry for skills add", async () => {
     const telemetryServer = await startTelemetryServer();
-    const skillsApiServer = await startFakeBrowserbaseServer(
-      (_request, response) => {
-        jsonResponse(response, 404, { error: "not found" });
-      },
-    );
+    const skillsApiServer = await startFakeBrowserbaseServer((_request, response) => {
+      jsonResponse(response, 404, { error: "not found" });
+    });
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-skill-id-",
-      );
-      const result = await runCli(
-        ["skills", "add", "example.com/extract-reviews"],
-        {
-          env: {
-            ...telemetryEnv(telemetryServer, installIdFile),
-            BROWSE_SKILLS_API_BASE_URL: skillsApiServer.baseUrl,
-          },
+      const installIdFile = await tempInstallIdFile("browse-telemetry-skill-id-");
+      const result = await runCli(["skills", "add", "example.com/extract-reviews"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          BROWSE_SKILLS_API_BASE_URL: skillsApiServer.baseUrl,
         },
-      );
+      });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("not found in the catalog");
@@ -267,13 +241,10 @@ describe("CLI telemetry", () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-skill-raw-",
-      );
-      const result = await runCli(
-        ["skills", "add", "../secret-local-path/oops"],
-        { env: telemetryEnv(telemetryServer, installIdFile) },
-      );
+      const installIdFile = await tempInstallIdFile("browse-telemetry-skill-raw-");
+      const result = await runCli(["skills", "add", "../secret-local-path/oops"], {
+        env: telemetryEnv(telemetryServer, installIdFile),
+      });
 
       expect(result.exitCode).toBe(1);
 
@@ -318,9 +289,7 @@ describe("CLI telemetry", () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-disabled-",
-      );
+      const installIdFile = await tempInstallIdFile("browse-telemetry-disabled-");
       const result = await runCli(["status"], {
         env: {
           ...telemetryEnv(telemetryServer, installIdFile),
@@ -351,10 +320,7 @@ describe("CLI telemetry", () => {
       const distinctIds = new Set(
         telemetryPayloads(telemetryServer)
           .map((payload) => payload.distinct_id)
-          .filter(
-            (value): value is string =>
-              typeof value === "string" && value.length > 0,
-          ),
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
       );
 
       expect(distinctIds.size).toBe(1);
@@ -364,17 +330,13 @@ describe("CLI telemetry", () => {
   });
 
   it("ignores collector timeouts and preserves command behavior", async () => {
-    const telemetryServer = await startFakeBrowserbaseServer(
-      async (_request, response) => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        jsonResponse(response, 200, { ok: true });
-      },
-    );
+    const telemetryServer = await startFakeBrowserbaseServer(async (_request, response) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      jsonResponse(response, 200, { ok: true });
+    });
 
     try {
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-timeout-",
-      );
+      const installIdFile = await tempInstallIdFile("browse-telemetry-timeout-");
       const startedAt = Date.now();
       const result = await runCli(["status"], {
         env: {
@@ -457,10 +419,7 @@ function asCapturePayload(body: unknown): CapturePayload {
   };
 }
 
-function findPayload(
-  payloads: CapturePayload[],
-  event: string,
-): CapturePayload {
+function findPayload(payloads: CapturePayload[], event: string): CapturePayload {
   const payload = payloads.find((candidate) => candidate.event === event);
   if (!payload) {
     throw new Error(`Missing telemetry payload for event "${event}".`);

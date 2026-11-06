@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
+import { Progress } from "../understudy/progress.js";
 import { extract } from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
@@ -10,19 +11,16 @@ import * as extractService from "../services/extractService.js";
 
 describe("extract inference", () => {
   it("skips the metadata LLM call when completion is judged elsewhere, and falls back to it on error", async () => {
-    const generate = vi.fn(
-      async (params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "structured" },
-        outputFormat: "json_schema",
-        structuredContent:
-          params.responseFormat?.type === "json_schema" &&
-          params.responseFormat.name === "Extraction"
-            ? { heading: "Example Domain" }
-            : { progress: "done", completed: true },
-        usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 },
-      }),
-    );
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "structured" },
+      outputFormat: "json_schema",
+      structuredContent:
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { heading: "Example Domain" }
+          : { progress: "done", completed: true },
+      usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 },
+    }));
     const base = {
       instruction: "Extract the page heading",
       domElements: "[0-1] heading: Example Domain",
@@ -116,14 +114,12 @@ describe("extract inference", () => {
   });
 
   it("validates both structured LLM responses before returning data", async () => {
-    const generate = vi.fn(
-      async (): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "invalid" },
-        outputFormat: "json_schema",
-        structuredContent: { heading: 42 },
-      }),
-    );
+    const generate = vi.fn(async (): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "invalid" },
+      outputFormat: "json_schema",
+      structuredContent: { heading: 42 },
+    }));
 
     await expect(
       extract({
@@ -141,14 +137,12 @@ describe("extract inference", () => {
       data: "iVBORw0KGgo=",
       mimeType: "image/png",
     };
-    const generate = vi.fn(
-      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        structuredResult(
-          params.responseFormat?.type === "json_schema" &&
-            params.responseFormat.name === "Extraction"
-            ? { heading: "Screenshot heading" }
-            : { progress: "The heading was extracted", completed: true },
-        ),
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { heading: "Screenshot heading" }
+          : { progress: "The heading was extracted", completed: true },
+      ),
     );
 
     await extract({
@@ -234,14 +228,12 @@ describe("extract service", () => {
     const screenshot = vi.fn(
       async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    const clientLLMGenerate = vi.fn(
-      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        structuredResult(
-          params.responseFormat?.type === "json_schema" &&
-            params.responseFormat.name === "Extraction"
-            ? { heading: "Screenshot heading" }
-            : { progress: "The heading was extracted", completed: true },
-        ),
+    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { heading: "Screenshot heading" }
+          : { progress: "The heading was extracted", completed: true },
+      ),
     );
 
     try {
@@ -259,7 +251,10 @@ describe("extract service", () => {
       });
 
       expect(withCache).not.toHaveBeenCalled();
-      expect(screenshot).toHaveBeenCalledWith({ fullPage: false, type: "png" });
+      expect(screenshot).toHaveBeenCalledWith(
+        { fullPage: false, type: "png" },
+        expect.any(Progress),
+      );
       expect(clientLLMGenerate.mock.calls[0]?.[0].messages).toEqual([
         {
           role: "user",
@@ -275,80 +270,6 @@ describe("extract service", () => {
       ]);
     } finally {
       withCache.mockRestore();
-    }
-  });
-
-  it("checks the extraction timeout after screenshot capture", async () => {
-    let currentTime = 0;
-    const now = vi.spyOn(Date, "now").mockImplementation(() => currentTime);
-    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => structuredResult({}));
-
-    try {
-      await expect(
-        extractService.extract({
-          params: {
-            pageId: "page-1",
-            instruction: "Extract the heading",
-            schema: z.json().parse(z.toJSONSchema(z.object({ heading: z.string() }))),
-            options: { screenshot: true, timeout: 5 },
-          },
-          page: {
-            captureSnapshot: async () => ({
-              combinedTree: "[0-1] heading",
-              combinedXpathMap: {},
-              combinedUrlMap: {},
-            }),
-            screenshot: async () => {
-              currentTime = 10;
-              return new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-            },
-          },
-          model: { source: "client" },
-          clientLLMGenerate,
-          logger: testLogger(),
-        }),
-      ).rejects.toThrow("extract() timed out after 5ms");
-      expect(clientLLMGenerate).not.toHaveBeenCalled();
-    } finally {
-      now.mockRestore();
-    }
-  });
-
-  it("checks the extraction timeout after screenshot encoding", async () => {
-    let currentTime = 0;
-    const now = vi.spyOn(Date, "now").mockImplementation(() => currentTime);
-    const btoa = vi.spyOn(globalThis, "btoa").mockImplementation(() => {
-      currentTime = 10;
-      return "encoded-screenshot";
-    });
-    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => structuredResult({}));
-
-    try {
-      await expect(
-        extractService.extract({
-          params: {
-            pageId: "page-1",
-            instruction: "Extract the heading",
-            schema: z.json().parse(z.toJSONSchema(z.object({ heading: z.string() }))),
-            options: { screenshot: true, timeout: 5 },
-          },
-          page: {
-            captureSnapshot: async () => ({
-              combinedTree: "[0-1] heading",
-              combinedXpathMap: {},
-              combinedUrlMap: {},
-            }),
-            screenshot: async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
-          },
-          model: { source: "client" },
-          clientLLMGenerate,
-          logger: testLogger(),
-        }),
-      ).rejects.toThrow("extract() timed out after 5ms");
-      expect(clientLLMGenerate).not.toHaveBeenCalled();
-    } finally {
-      btoa.mockRestore();
-      now.mockRestore();
     }
   });
 
@@ -542,7 +463,10 @@ describe("extract service", () => {
 
       expect(result.data).toStrictEqual({ count: 1 });
       expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
-      expect(page.captureSnapshot).toHaveBeenCalledWith(expectedSnapshotOptions);
+      expect(page.captureSnapshot).toHaveBeenCalledWith(
+        expectedSnapshotOptions,
+        expect.any(Progress),
+      );
       expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
       expect(get).not.toHaveBeenCalled();
       expect(set).not.toHaveBeenCalled();

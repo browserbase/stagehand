@@ -19,7 +19,7 @@
 <p align="center">
   <a href="https://docs.stagehand.dev"><strong>Docs</strong></a> ·
   <a href="https://docs.stagehand.dev/v4/first-steps/quickstart"><strong>Quickstart</strong></a> ·
-  <a href="https://github.com/browserbase/stagehand/stargazers"><strong>⭐ Star this repo</strong></a>
+  <a href="https://github.com/browserbase/stagehand"><strong>⭐ Star this repo</strong></a>
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
     </picture>
   </a>
   <a href="https://deepwiki.com/browserbase/stagehand">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+    <img alt="Ask DeepWiki" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/deepwiki.svg" width="156" height="32" />
   </a>
 </p>
 
@@ -452,10 +452,10 @@ console.log(fetched.content);
   </tr>
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/integrations/overview">Integrations</a></td>
-    <td>CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
+    <td>Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
   </tr>
   <tr>
-    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="./packages/sdk-go/README.md">Go SDK</a></td>
+    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="https://github.com/browserbase/stagehand/blob/v4-go/packages/sdk-go/README.md">Go SDK</a></td>
     <td>Language-specific guides</td>
   </tr>
   <tr>
@@ -468,7 +468,7 @@ console.log(fetched.content);
 
 Stagehand is built in the open, and the fastest way to shape it is to show up.
 
-- **[⭐ Star this repo](https://github.com/browserbase/stagehand/stargazers)** — it is how most people find Stagehand
+- **[⭐ Star this repo](https://github.com/browserbase/stagehand)** — it is how most people find Stagehand
 - **[💬 Join the Discord](https://discord.gg/stagehand)** — questions, support, and what we are building next
 - **[🐛 Open an issue](https://github.com/browserbase/stagehand/issues)** — bug reports are the most useful contribution
 - **[𝕏 Follow @stagehanddev](https://x.com/stagehanddev)** — releases and demos

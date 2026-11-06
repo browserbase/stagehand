@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import type { AvailableModel } from "stagehand-v3";
 import {
   DEEPAGENTS_SYSTEM_PROMPT,
@@ -10,6 +11,7 @@ import {
   type DeepagentsProcessSpawner,
 } from "../../framework/deepagentsRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_RESULT_SCHEMA } from "../../framework/harnesses/externalRunner.js";
 import type { PreparedDeepagentsToolAdapter } from "../../framework/deepagentsToolAdapter.js";
 import { EvalLogger } from "../../logger.js";
 
@@ -96,6 +98,7 @@ describe("Deep Agents runner", () => {
         env: {},
         promptInstructions: "Use mounted tools.",
         mcpServers: {},
+        browserSession: { provider: "local" },
         observedToolMatcher: () => false,
         cleanup: async () => {},
       }) satisfies PreparedDeepagentsToolAdapter;
@@ -112,6 +115,11 @@ describe("Deep Agents runner", () => {
 
     expect(payloads[0]?.system_prompt).not.toContain("snapshot");
     expect(payloads[1]?.system_prompt).toContain("snapshot");
+    for (const payload of payloads) {
+      expect(String(payload.system_prompt).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+      expect(payload.prompt).toContain(plan.instruction);
+      expect(payload.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+    }
   });
 
   it("parses direct and marker JSON results", () => {
@@ -174,4 +182,71 @@ describe("Deep Agents runner", () => {
     expect(result.deepagentsStatus).toBe("max_turns");
     expect(result.error).toContain("recursion");
   });
+
+  it("switches to the structured-output contract when asked", async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const spawn: DeepagentsProcessSpawner = () => {
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      let raw = "";
+      stdin.on("data", (chunk) => (raw += chunk.toString()));
+      stdin.on("finish", () => payloads.push(JSON.parse(raw)));
+      queueMicrotask(() => {
+        stdout.write(
+          `${JSON.stringify({ type: "final", text: '{"success":true,"summary":"done","finalAnswer":"ok"}' })}\n`,
+        );
+        stdout.write(`${JSON.stringify({ type: "usage" })}\n`);
+        stdout.end();
+        stderr.end();
+      });
+      return {
+        stdin,
+        stdout,
+        stderr,
+        exited: Promise.resolve({ code: 0, signal: null }),
+        kill: () => {},
+      };
+    };
+    const run = (contract?: string) =>
+      runDeepagentsAgent({
+        plan,
+        model: "anthropic/claude-opus-5-5" as AvailableModel,
+        logger: new EvalLogger(false),
+        spawn,
+        env: contract === undefined ? {} : { EVAL_RESULT_CONTRACT: contract },
+      });
+
+    const structured = await run("structured_output");
+    await run();
+
+    expect(structured.finalAnswer).toBe("ok");
+    expect(payloads[0]?.result_schema).toEqual(EVAL_RESULT_SCHEMA);
+    expect(payloads[0]?.prompt).toContain("return compact JSON matching this schema");
+    expect(JSON.stringify(payloads[0])).not.toContain("EVAL_RESULT");
+    expect(payloads[1]?.result_schema).toBeNull();
+    expect(payloads[1]?.prompt).toContain("EVAL_RESULT:");
+    await expect(run("json")).rejects.toThrow(/EVAL_RESULT_CONTRACT/);
+  });
 });
+
+it.each([false, true])(
+  "preserves token usage presence through deepagents grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runDeepagentsAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      spawn: eventSpawner([
+        { type: "final", text: finalAnswer },
+        { type: "usage", reported, input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      ]),
+    });
+    expect(result.usageConvention).toBe(reported ? "openai_cached_subset" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);
