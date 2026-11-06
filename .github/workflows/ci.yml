@@ -225,7 +225,6 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
       - run: pnpm test:unit
-      - run: pnpm --filter browse test:cli
       - run: uv lock --check
       - run: uv sync --all-packages --locked
       - run: uv run --locked python scripts/generate.py --check
@@ -304,40 +303,45 @@ jobs:
             packages/evals/dist/**
           retention-days: 1
 
-  browse-smoke:
-    name: Browse Chrome smoke (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [determine-changes]
-    if: needs.determine-changes.outputs.browse == 'true'
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: ./.github/actions/setup-node-pnpm
-        with:
-          use-prebuilt-artifacts: "false"
-
-      - run: pnpm exec turbo run build --filter=browse
-
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
-      - run: pnpm --filter browse test:smoke
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-
-      - name: Smoke-test installed Browse package
-        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
-        run: pnpm --filter browse test:smoke:package
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-
-  browse-windows:
-    name: Browse (Windows)
-    runs-on: windows-2025
+  browse-contracts:
+    name: Browse contracts (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     needs: [determine-changes]
     if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - run: pnpm exec turbo run build --filter=browse
+
+      - run: pnpm --filter browse test:cli
+
+  browse-repo-local-smoke:
+    name: Browse repo-local-smoke (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -350,17 +354,37 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm --filter browse test:cli
-
       - run: pnpm --filter browse test:smoke
-        # Still exercise Chrome if a CLI contract test failed.
-        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
-      - name: Smoke-test installed Browse package
-        if: ${{ !cancelled() && steps.setup-chrome.outcome == 'success' }}
-        run: pnpm --filter browse test:smoke:package
+  browse-installed-dep-smoke:
+    name: Browse installed-dep-smoke (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - run: pnpm exec turbo run build --filter=browse
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm --filter browse test:smoke:package
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
