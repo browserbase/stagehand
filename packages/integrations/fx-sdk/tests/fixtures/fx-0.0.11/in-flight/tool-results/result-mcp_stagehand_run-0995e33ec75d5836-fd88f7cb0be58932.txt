@@ -1,0 +1,1 @@
+{"server": "stagehand", "tool": "mcp_stagehand_run", "result": {"content": [{"type": "text", "text": "{\"url\":\"https://www.hostelworld.com/\",\"title\":\"Hostels in Lisbon\"}"}]}}

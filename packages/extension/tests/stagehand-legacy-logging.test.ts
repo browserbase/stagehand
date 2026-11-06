@@ -8,6 +8,7 @@ import { StagehandLogger } from "../logger.js";
 import type { StagehandTracing } from "../tracing.js";
 import type { Frame } from "../understudy/frame.js";
 import type { Page } from "../understudy/page.js";
+import { Progress } from "../understudy/progress.js";
 
 const PACKAGES_ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -41,7 +42,15 @@ describe("Stagehand legacy logging migration", () => {
     } as unknown as Frame;
 
     await expect(
-      performUnderstudyMethod({} as Page, frame, "unsupported", "button", [], logger),
+      performUnderstudyMethod(
+        {} as Page,
+        frame,
+        "unsupported",
+        "button",
+        [],
+        logger,
+        new Progress("act()", 0),
+      ),
     ).rejects.toThrow("Method unsupported not supported");
 
     expect(logs).toContainEqual(

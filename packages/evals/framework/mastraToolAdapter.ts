@@ -11,12 +11,14 @@ import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import { startCodeBridge } from "./codexCodeBridge.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
@@ -25,6 +27,7 @@ import { ObservationRecorder, type StepObservation } from "./observationRecorder
 export const MASTRA_RUN_TOOL_NAME = "stagehand_browser_run";
 export const MASTRA_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_code",
@@ -48,9 +51,13 @@ export interface PreparedMastraToolAdapter {
   startupProfile: StartupProfile;
   cwd: string;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
   observedToolMatcher?: (name: string) => boolean;
@@ -104,7 +111,7 @@ export async function prepareMastraToolAdapter(
       input.logger.log({
         category: "mastra",
         message: `Initialized ${toolSurface} MCP mount for Mastra (servers: ${serverNames.join(", ")}).`,
-        level: 1,
+        level: 2,
         auxiliary: {
           startupProfile: { value: startupProfile, type: "string" },
           environment: { value: input.environment, type: "string" },
@@ -116,7 +123,11 @@ export async function prepareMastraToolAdapter(
         startupProfile,
         cwd,
         promptInstructions: mount.promptInstructions,
+        browserSession: runtime.browserSession,
         mcpServers,
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...evidenceFields,
         ...(recorder && {
           onToolResult: (name: string) => {
@@ -146,7 +157,7 @@ export async function prepareMastraToolAdapter(
           code: z.string().describe(mount.runTool.codeParamDescription),
         }),
         execute: async (toolInput: Record<string, unknown>) =>
-          executeViaCodeBridge(bridge!.port, String(toolInput.code)),
+          executeViaCodeBridge(bridge!.port, String(toolInput.code), bridge!.token),
       });
       const scopeNames = [...Object.keys(mount.handles), "startUrl", "task", "console"].join(", ");
       const promptInstructions = [
@@ -160,7 +171,11 @@ export async function prepareMastraToolAdapter(
         startupProfile,
         cwd,
         promptInstructions,
+        browserSession: runtime.browserSession,
         tools: { [MASTRA_RUN_TOOL_NAME]: tool },
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...evidenceFields,
         observedToolMatcher: (name) => name === MASTRA_RUN_TOOL_NAME,
         cleanup: async () => {
@@ -234,11 +249,12 @@ export function mastraToolNameMatcher(serverNames: string[]): (name: string) => 
 export async function executeViaCodeBridge(
   port: number,
   code: string,
+  token: string,
 ): Promise<{ ok: true; result: string } | { ok: false; error: string }> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/run`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ code }),
     });
     const payload: unknown = await response.json();

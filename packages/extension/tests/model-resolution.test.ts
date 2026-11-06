@@ -1,13 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
-  GoogleModelIdSchema,
-  GroqModelIdSchema,
-  ModelConfigSchema,
-  ModelNameSchema,
-  OpenAIModelIdSchema,
-} from "@browserbasehq/stagehand-protocol/schemas";
+import { ModelConfigSchema, ModelNameSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   StagehandInitParams,
   StagehandResultMetadata,
@@ -51,7 +43,7 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
     state: { getState: () => ({ status: "initialized", initParams }) },
     resolveUnderstudyPage: vi.fn(() => ({})),
     resolvePage: vi.fn(() => ({})),
-    adapters: { clientLLMGenerate: vi.fn() },
+    adapters: { clientLLMGenerate: vi.fn(), clientBrowserbaseRequest: vi.fn() },
     metrics: { record: vi.fn() },
     runWithTelemetryContext: async (_scope: symbol, _logger: unknown, run: () => unknown) =>
       await run(),
@@ -60,21 +52,21 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 
 describe("model configuration", () => {
   describe("supported models", () => {
-    it("accepts every explicitly supported model", () => {
-      const providers = [
-        ["openai", OpenAIModelIdSchema.options],
-        ["anthropic", AnthropicModelIdSchema.options],
-        ["google", GoogleModelIdSchema.options],
-        ["groq", GroqModelIdSchema.options],
-        ["cerebras", CerebrasModelIdSchema.options],
-      ] as const;
+    it.each(["openai", "anthropic", "google", "groq", "cerebras"])(
+      "accepts an unknown model from %s",
+      (provider) => {
+        const modelName = `${provider}/future-model-v1`;
+        expect(ModelNameSchema.parse(modelName)).toBe(modelName);
+        expect(ModelConfigSchema.parse({ modelName })).toEqual({ modelName });
+      },
+    );
 
-      for (const [provider, modelIds] of providers) {
-        for (const modelId of modelIds) {
-          expect(ModelNameSchema.safeParse(`${provider}/${modelId}`).success).toBe(true);
-        }
-      }
-    });
+    it.each(["openai/", "openai/model id", "openai/ model", "openai/model\n", "gpt-5"])(
+      "rejects a malformed model name %j",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
 
     it("accepts a provider model ID that contains additional slashes", () => {
       expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
@@ -84,12 +76,8 @@ describe("model configuration", () => {
       expect(ModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success).toBe(false);
     });
 
-    it("rejects an unsupported model from a supported provider", () => {
-      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(false);
-    });
-
-    it("rejects a model under the wrong provider prefix", () => {
-      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(false);
+    it("leaves model availability checks to the provider", () => {
+      expect(ModelNameSchema.parse("openai/claude-sonnet-4-6")).toBe("openai/claude-sonnet-4-6");
     });
 
     it("accepts a known model with provider credentials and headers", () => {
@@ -142,7 +130,7 @@ describe("model configuration", () => {
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it("routes every primitive without a model through the Browserbase gateway", async () => {
+    it("routes every primitive without a model through the client Gateway", async () => {
       const act = vi.spyOn(actService, "act").mockResolvedValue({
         data: { success: true, message: "", actionDescription: "", actions: [] },
         metadata,
@@ -155,12 +143,11 @@ describe("model configuration", () => {
         data: [],
         metadata,
       });
-      const controller = createStagehandController(
-        runtimeWith({
-          apiKey: "bb-api-key",
-          browser: { sessionId: "session-123", region: "eu-central-1" },
-        } as StagehandInitParams),
-      );
+      const runtime = runtimeWith({
+        browserbase: "client",
+        browser: { sessionId: "session-123", region: "eu-central-1" },
+      } as StagehandInitParams);
+      const controller = createStagehandController(runtime);
 
       await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
       await controller.extract(
@@ -173,10 +160,15 @@ describe("model configuration", () => {
         expect(service).toHaveBeenCalledWith(
           expect.objectContaining({
             model: undefined,
-            gateway: {
-              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-              apiKey: "bb-api-key",
+            cache: expect.objectContaining({
               sessionId: "session-123",
+              defaultCaching: true,
+              client: expect.objectContaining({
+                transport: { request: runtime.adapters.clientBrowserbaseRequest },
+              }),
+            }),
+            gateway: {
+              request: runtime.adapters.clientBrowserbaseRequest,
             },
           }),
         );
@@ -218,6 +210,52 @@ describe("model configuration", () => {
   describe("per-call models", () => {
     it.todo("uses the initialized model when a call does not provide one");
     it.todo("uses the complete per-call model when a call provides one");
-    it.todo("does not inherit initialized credentials into a per-call model");
+    it.each([
+      { modelName: "openai/gpt-5", apiKey: "provider-key", headers: { "x-default": "value" } },
+      { source: "client" },
+    ] as const)(
+      "does not inherit an initialized model into a keyless override: %j",
+      async (model) => {
+        const act = vi.spyOn(actService, "act").mockResolvedValue({
+          data: { success: true, message: "", actionDescription: "", actions: [] },
+          metadata,
+        });
+        const extract = vi
+          .spyOn(extractService, "extract")
+          .mockResolvedValue({ data: {}, metadata });
+        const observe = vi
+          .spyOn(observeService, "observe")
+          .mockResolvedValue({ data: [], metadata });
+        const runtime = runtimeWith({
+          browserbase: "client",
+          browser: { sessionId: "session-123" },
+          model,
+        } as StagehandInitParams);
+        const controller = createStagehandController(runtime);
+        const override = { modelName: "anthropic/future-model" } as const;
+        await controller.act(
+          { pageId: "page-1", instruction: "Click", options: { model: override } },
+          handlerContext,
+        );
+        await controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {}, options: { model: override } },
+          handlerContext,
+        );
+        await controller.observe(
+          { pageId: "page-1", options: { model: override } },
+          handlerContext,
+        );
+        for (const service of [act, extract, observe]) {
+          expect(service).toHaveBeenCalledWith(
+            expect.objectContaining({
+              model: override,
+              gateway: {
+                request: runtime.adapters.clientBrowserbaseRequest,
+              },
+            }),
+          );
+        }
+      },
+    );
   });
 });

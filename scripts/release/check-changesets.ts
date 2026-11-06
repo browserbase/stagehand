@@ -2,10 +2,10 @@ import parseChangeset from "@changesets/parse";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { assertNoGoChangeset } from "./release-scope.ts";
 
 const allowedPackages = new Set([
   "@browserbasehq/stagehand",
-  "@browserbasehq/stagehand-go",
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
   "@browserbasehq/stagehand-extension",
@@ -20,6 +20,8 @@ export function validateChangeset(contents: string, file: string): void {
   } catch (error) {
     throw new Error(`${file} does not contain valid changeset frontmatter`, { cause: error });
   }
+
+  assertNoGoChangeset(releases, file);
 
   if (
     releases.some(({ name }) => name === "browse") &&

@@ -1,4 +1,5 @@
 import { RPCClient } from "./rpcClient.js";
+import { RPCResponseTimeoutError } from "./rpcErrors.js";
 import {
   DefaultExtractDataSchema,
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
@@ -21,6 +22,8 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
+import { resolveBrowserbaseConnection } from "./browserbaseConnection.js";
+import { registerBrowserbaseTransport } from "./browserbaseRpc.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
 import {
   StagehandClientActOptionsSchema,
@@ -45,7 +48,12 @@ import {
 } from "./browser/factories.js";
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
-import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
+import {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchOptions,
+} from "./batch.js";
 
 type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
@@ -61,6 +69,9 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   "safeParse" in value &&
   typeof value.safeParse === "function";
 
+// setTimeout treats larger delays as 1ms; MAX_CALLBACK_BATCH_TIMEOUT_MS leaves 10s below this.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
 
@@ -69,6 +80,7 @@ export class Stagehand {
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
+  private removeBrowserbaseTransport: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
 
@@ -154,47 +166,68 @@ export class Stagehand {
     if (nativeFunctionSourcePattern.test(callbackSource)) {
       throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
     }
+    const clientTimeout = Math.min(timeout + CALLBACK_BATCH_CLIENT_GRACE_MS, MAX_TIMER_DELAY_MS);
 
-    const result: CallbackBatchResult = await this.connectedRpcClient.send(
-      StagehandMethods.stagehandCallbackBatch,
-      {
-        callbackSource,
-        ...(parsedInput === undefined ? {} : { input: parsedInput }),
-        options: {
-          ...(options.page ? { pageId: options.page.pageId } : {}),
-          timeout,
+    let result: CallbackBatchResult;
+    try {
+      result = await this.connectedRpcClient.send(
+        StagehandMethods.stagehandCallbackBatch,
+        {
+          callbackSource,
+          ...(parsedInput === undefined ? {} : { input: parsedInput }),
+          options: {
+            ...(options.page ? { pageId: options.page.pageId } : {}),
+            timeout,
+          },
         },
-      },
-    );
+        { responseTimeoutMs: clientTimeout },
+      );
+    } catch (error) {
+      if (error instanceof RPCResponseTimeoutError) {
+        throw new StagehandBatchTimeoutError({ timeout, clientTimeout }, { cause: error });
+      }
+      throw error;
+    }
     return result.value as Awaited<Result>;
   }
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
     const createConfig = this.createConfig;
+    const browserbaseConnection = resolveBrowserbaseConnection(
+      createConfig,
+      browser.workerInitMetadata,
+    );
     const rpcClient = new RPCClient(browser.cdpClient);
     this.rpcClient = rpcClient;
 
     try {
+      this.removeBrowserbaseTransport = registerBrowserbaseTransport(
+        rpcClient,
+        browserbaseConnection,
+      );
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
         handleStagehandNotification(notification, createConfig.logging),
       );
       if (createConfig.model && "generate" in createConfig.model) {
-        this.removeClientLLMHandler = rpcClient.onRequest(
-          StagehandMethods.llmGenerate,
-          createConfig.model.generate,
+        const { generate } = createConfig.model;
+        this.removeClientLLMHandler = rpcClient.onRequest(StagehandMethods.llmGenerate, (params) =>
+          generate(params),
         );
       }
 
       this.initRequestStarted = true;
       await rpcClient.sendStagehandInit(
-        stagehandCreateParamsForWorker(createConfig, browser),
+        stagehandCreateParamsForWorker(createConfig, browser, browserbaseConnection !== undefined),
         signal,
       );
       attachStagehandBrowserContext(
         this.browserHandle,
         new BrowserContext(rpcClient, () => this.browserHandle.close()),
+        () => this.close(),
       );
     } catch (error) {
+      this.removeBrowserbaseTransport?.();
+      this.removeBrowserbaseTransport = undefined;
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
       this.removeNotificationListener?.();
@@ -301,6 +334,8 @@ export class Stagehand {
           }
         }
       } finally {
+        this.removeBrowserbaseTransport?.();
+        this.removeBrowserbaseTransport = undefined;
         this.removeClientLLMHandler?.();
         this.removeClientLLMHandler = undefined;
         this.removeNotificationListener?.();
@@ -332,17 +367,22 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
+  hasBrowserbaseConnection: boolean,
 ) {
-  const { logging, model, ...protocolParams } = createConfig;
+  const { logging, model, apiKey: _apiKey, apiUrl: _apiUrl, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   return StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-    browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,
+    browserCdpUrl:
+      browser.workerInitMetadata.browserCdpUrl ?? browser.cdpClient.webSocketDebuggerUrl,
     logLevel: logging.level,
     ...protocolParams,
-    ...browser.workerInitMetadata,
+    ...(browser.workerInitMetadata.browser === undefined
+      ? {}
+      : { browser: browser.workerInitMetadata.browser }),
+    ...(hasBrowserbaseConnection ? { browserbase: "client" } : {}),
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
   });
 }

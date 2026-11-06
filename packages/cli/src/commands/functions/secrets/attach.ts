@@ -4,8 +4,7 @@ import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { attachFunctionSecret } from "../../../lib/secrets/api.js";
 
 export default class FunctionSecretsAttach extends BrowseCommand {
-  static override description =
-    "Attach an existing project secret to a function.";
+  static override description = "Attach an existing project secret to a function.";
   static override examples = [
     "browse functions secrets attach <functionId> <secretId>",
     "browse functions secrets attach 7b6e1c42-8d93-4a15-b2f0-9c6d3e8a5041 d2c4f48f-38e9-4b82-a36a-2b373fd14a65",
@@ -16,8 +15,7 @@ export default class FunctionSecretsAttach extends BrowseCommand {
       required: true,
     }),
     secretId: Args.string({
-      description:
-        "Project secret ID (e.g. d2c4f48f-38e9-4b82-a36a-2b373fd14a65).",
+      description: "Project secret ID (e.g. d2c4f48f-38e9-4b82-a36a-2b373fd14a65).",
       required: true,
     }),
   };

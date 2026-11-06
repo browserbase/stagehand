@@ -7,6 +7,7 @@
 
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import type { ClientOptions } from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
@@ -54,23 +55,105 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
+// Validate the whole map before record parsing so errors never contain header names or values.
+const CDPHeadersSchema = z.preprocess(
+  (value) => {
+    try {
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value) ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+      )
+        return null;
+      const entries = Object.entries(value);
+      if (
+        !entries.every(
+          ([name, content]) =>
+            name.length > 0 &&
+            !/[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(name) &&
+            typeof content === "string" &&
+            !/[^\t\x20-\x7e]/.test(content) &&
+            content === content.replace(/^[ \t]+|[ \t]+$/g, ""),
+        )
+      )
+        return null;
+      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
+      return Object.fromEntries(entries);
+    } catch {
+      return null;
+    }
+  },
+  z.record(z.string(), z.string(), {
+    error:
+      "headers must map valid HTTP header names to ASCII string values without leading or trailing spaces or tabs",
+  }),
+);
+
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    /** Headers for client-side CDP discovery and WebSocket connections. */
+    headers: CDPHeadersSchema.optional(),
+    extensionId: z.string().optional(),
+    /**
+     * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
+     * Defaults to the client's URL. Set this when the client connects through
+     * a gateway the extension cannot or should not use.
+     */
+    extensionCdpUrl: z
+      .url({ protocol: /^wss?$/, hostname: /.+/ })
+      .refine(
+        (value) => {
+          try {
+            return new URL(value).port !== "0";
+          } catch {
+            return false;
+          }
+        },
+        { message: "Port must be between 1 and 65535" },
+      )
+      .optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
 export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 
+/**
+ * HTTP settings for the Browserbase SDK client that Stagehand creates for session and extension
+ * management. `apiKey` and `baseUrl` stay top-level so one key authenticates both Browserbase and
+ * the Stagehand runtime.
+ */
+export type BrowserbaseClientOptions = Pick<
+  ClientOptions,
+  "timeout" | "maxRetries" | "defaultHeaders" | "defaultQuery" | "fetch"
+>;
+
+const BrowserbaseClientOptionsSchema: z.ZodType<
+  BrowserbaseClientOptions,
+  BrowserbaseClientOptions
+> = z.strictObject({
+  timeout: z.int().nonnegative().optional(),
+  maxRetries: z.int().nonnegative().optional(),
+  defaultHeaders: z.record(z.string(), z.string().nullable().optional()).optional(),
+  defaultQuery: z.record(z.string(), z.string().optional()).optional(),
+  fetch: z
+    .custom<NonNullable<ClientOptions["fetch"]>>((value) => typeof value === "function", {
+      message: "fetch must be a function",
+    })
+    .optional(),
+});
+
 type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
+  clientOptions?: BrowserbaseClientOptions;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl: string;
+  clientOptions?: BrowserbaseClientOptions;
 };
 
 /**
@@ -81,6 +164,7 @@ export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    clientOptions: BrowserbaseClientOptionsSchema.optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })
@@ -93,19 +177,20 @@ export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    clientOptions: BrowserbaseClientOptionsSchema.optional(),
     sessionId: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    extensionId: z.string().optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
 
-const BrowserbaseClientOptionsSchema = {
+const BrowserbaseCredentialsShape = {
   apiKey: z.string().min(1),
   baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
 };
 
 export const BrowserbaseSearchOptionsSchema = z
   .strictObject({
-    ...BrowserbaseClientOptionsSchema,
+    ...BrowserbaseCredentialsShape,
     query: z.string().min(1).max(200),
     numResults: z.int().min(1).max(25).optional(),
   })
@@ -113,7 +198,7 @@ export const BrowserbaseSearchOptionsSchema = z
 
 export const BrowserbaseFetchOptionsSchema = z
   .strictObject({
-    ...BrowserbaseClientOptionsSchema,
+    ...BrowserbaseCredentialsShape,
     url: z.url(),
     allowInsecureSsl: z.boolean().optional(),
     allowRedirects: z.boolean().optional(),
@@ -243,14 +328,35 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
 
-export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
-  protocolVersion: true,
-  clientInfo: true,
-  browserCdpUrl: true,
-  logLevel: true,
-  browser: true,
-})
+export const StagehandClientCreateConfigSchema = z
+  .strictObject(StagehandInitParamsSchema.shape)
+  .omit({
+    browserbase: true,
+    protocolVersion: true,
+    clientInfo: true,
+    browserCdpUrl: true,
+    logLevel: true,
+    browser: true,
+  })
   .extend({
+    apiKey: z.string().min(1).optional().meta({
+      description:
+        "Browserbase API key. A Browserbase browser uses the key supplied to its launch/connect factory; this option does not override that key.",
+    }),
+    apiUrl: z
+      .url({ protocol: /^https?$/ })
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
     logging: StagehandClientLoggingConfigSchema.default({
       level: "info",
@@ -280,9 +386,17 @@ export type StagehandClientActOptions = z.input<typeof StagehandClientActOptions
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
-export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
+export interface LocalBrowserConnectOptions extends z.infer<
+  typeof LocalBrowserConnectOptionsSchema
+> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string | undefined;
+}
 export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
-export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
+export interface BrowserbaseConnectOptions extends z.input<typeof BrowserbaseConnectOptionsSchema> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string | undefined;
+}
 export type BrowserbaseSearchOptions = z.input<typeof BrowserbaseSearchOptionsSchema>;
 export type BrowserbaseFetchOptions = z.input<typeof BrowserbaseFetchOptionsSchema>;
 export type BrowserbaseSearchResult = z.infer<typeof BrowserbaseSearchResultSchema>;

@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "prev_chunk" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
         const halfPage = document.body.scrollHeight / 2;

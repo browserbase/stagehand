@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { BenchTaskMeta, DiscoveredTask, TaskDefinition, TaskRegistry, Tier } from "./types.js";
+import { listBenchSuiteTaskNames } from "./benchSuites.js";
 
 const TIERS = ["core", "bench"] as const satisfies readonly Tier[];
 
@@ -179,13 +180,8 @@ async function loadTaskModule(
  * suites/), not task files: they run exclusively through the external
  * harnesses, so discovery registers them as virtual entries.
  */
-const AGENT_SUITE_NAMES = [
-  "agent/webvoyager",
-  "agent/onlineMind2Web",
-  "agent/webtailbench",
-  "agent/hardbenchmark",
-  "agent/odysseysbench",
-] as const;
+// From the suite registry, so `b:<suite>`, the planner and discovery can't drift.
+const AGENT_SUITE_NAMES = listBenchSuiteTaskNames();
 
 export async function discoverTasks(tasksRoot: string, eager = false): Promise<TaskRegistry> {
   const tasks: DiscoveredTask[] = [];
