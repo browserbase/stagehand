@@ -20,40 +20,37 @@ afterEach(async () => {
 });
 
 describe("function secret attach HTTP contract", () => {
-  it.each([false, true])(
-    "posts the IDs and handles 204 (key override: %s)",
-    async (override) => {
-      server = await startFakeBrowserbaseServer((_request, response) => {
-        response.writeHead(204);
-        response.end();
-      });
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "attach",
-          functionId,
-          secretId,
-          "--base-url",
-          server.baseUrl,
-          ...(override ? ["--api-key", "override-key"] : []),
-        ],
-        { env },
-      );
-      expect(result.exitCode, result.stderr).toBe(0);
-      expect(result.stdout.trim()).toBe("");
-      expect(server.requests).toHaveLength(1);
-      expect(server.requests[0]).toMatchObject({
-        method: "POST",
-        path: `/v1/functions/${functionId}/secrets`,
-        headers: {
-          "x-bb-api-key": override ? "override-key" : "test-key",
-          "content-type": "application/json",
-        },
-      });
-      expect(server.requests[0]!.jsonBody).toEqual({ secretId });
-    },
-  );
+  it.each([false, true])("posts the IDs and handles 204 (key override: %s)", async (override) => {
+    server = await startFakeBrowserbaseServer((_request, response) => {
+      response.writeHead(204);
+      response.end();
+    });
+    const result = await runCli(
+      [
+        "functions",
+        "secrets",
+        "attach",
+        functionId,
+        secretId,
+        "--base-url",
+        server.baseUrl,
+        ...(override ? ["--api-key", "override-key"] : []),
+      ],
+      { env },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe("");
+    expect(server.requests).toHaveLength(1);
+    expect(server.requests[0]).toMatchObject({
+      method: "POST",
+      path: `/v1/functions/${functionId}/secrets`,
+      headers: {
+        "x-bb-api-key": override ? "override-key" : "test-key",
+        "content-type": "application/json",
+      },
+    });
+    expect(server.requests[0]!.jsonBody).toEqual({ secretId });
+  });
 
   it("escapes the function ID as one path segment", async () => {
     server = await startFakeBrowserbaseServer((_request, response) => {
@@ -73,54 +70,31 @@ describe("function secret attach HTTP contract", () => {
       { env },
     );
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(server.requests[0]?.path).toBe(
-      "/v1/functions/id%2Fwith%3Fquery%23fragment/secrets",
-    );
+    expect(server.requests[0]?.path).toBe("/v1/functions/id%2Fwith%3Fquery%23fragment/secrets");
   });
 
-  it.each([400, 403, 404])(
-    "reports HTTP %s without retrying",
-    async (status) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, status, { message: "Attachment rejected" }),
-      );
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "attach",
-          functionId,
-          secretId,
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stderr).toContain("Attachment rejected");
-      expect(server.requests).toHaveLength(1);
-    },
-  );
+  it.each([400, 403, 404])("reports HTTP %s without retrying", async (status) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, status, { message: "Attachment rejected" }),
+    );
+    const result = await runCli(
+      ["functions", "secrets", "attach", functionId, secretId, "--base-url", server.baseUrl],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Attachment rejected");
+    expect(server.requests).toHaveLength(1);
+  });
 
-  it.each([{ ids: [] }, { ids: [functionId] }])(
-    "requires both IDs: $ids",
-    async ({ ids }) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "functions",
-          "secrets",
-          "attach",
-          ...ids,
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(server.requests).toHaveLength(0);
-    },
-  );
+  it.each([{ ids: [] }, { ids: [functionId] }])("requires both IDs: $ids", async ({ ids }) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(
+      ["functions", "secrets", "attach", ...ids, "--base-url", server.baseUrl],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
 });

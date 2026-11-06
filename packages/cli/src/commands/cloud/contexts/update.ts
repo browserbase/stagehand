@@ -6,8 +6,7 @@ import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
 export default class ContextsUpdate extends BrowseCommand {
-  static override description =
-    "Refresh the upload URL for a Browserbase context.";
+  static override description = "Refresh the upload URL for a Browserbase context.";
   static override examples = [
     "browse cloud contexts update <context-id>",
     "browse cloud contexts update github",

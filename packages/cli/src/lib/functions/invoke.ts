@@ -27,9 +27,7 @@ interface InvocationResponse {
   results?: unknown;
 }
 
-export async function invokeFunction(
-  options: InvokeFunctionOptions,
-): Promise<void> {
+export async function invokeFunction(options: InvokeFunctionOptions): Promise<void> {
   const config = resolveFunctionsApiConfig(options);
 
   if (options.checkStatus) {
@@ -58,11 +56,7 @@ export async function invokeFunction(
   }
 
   const finalStatus = await pollUntil(
-    () =>
-      functionsGet<InvocationResponse>(
-        config,
-        `/v1/functions/invocations/${invocation.id}`,
-      ),
+    () => functionsGet<InvocationResponse>(config, `/v1/functions/invocations/${invocation.id}`),
     {
       done: (result) => !["PENDING", "RUNNING"].includes(result.status),
       intervalMs: 1_000,
