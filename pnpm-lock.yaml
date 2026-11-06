@@ -503,8 +503,8 @@ importers:
         specifier: ^2.14.0
         version: 2.16.0
       '@browserbasehq/stagehand':
-        specifier: workspace:*
-        version: link:../sdk-ts
+        specifier: 4.4.0
+        version: 4.4.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -2203,6 +2203,10 @@ packages:
         optional: true
       puppeteer-core:
         optional: true
+
+  '@browserbasehq/stagehand@4.4.0':
+    resolution: {integrity: sha512-Va2HZwdKjmqbCXIMc3wzCcG54hJToscEKoHo+pdRNIKmTqHJDF/ZvqrvMUQbRi8fXtXNncnoo9qhwvlXbsH2SA==}
+    engines: {node: '>=22.18.0'}
 
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
@@ -10412,6 +10416,15 @@ snapshots:
       - encoding
       - supports-color
       - utf-8-validate
+
+  '@browserbasehq/stagehand@4.4.0':
+    dependencies:
+      '@browserbasehq/sdk': 2.16.0
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - encoding
 
   '@bufbuild/protobuf@1.10.0': {}
 

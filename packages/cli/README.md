@@ -301,6 +301,29 @@ auto-loading with no warning.
 | `BROWSE_SESSION`      | Default session name (alternative to `-s, --session`)                                                                                        |
 | `BROWSE_LOAD_DOTENV`  | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
+## Developing Browse
+
+Browse uses the exact published Stagehand version pinned in its `package.json`.
+From the repository root, run `pnpm install`, then
+`pnpm exec turbo run build --filter=browse`. This builds Browse without building
+the workspace SDK. Run `pnpm --filter browse test:cli` for contracts,
+`pnpm --filter browse test:smoke` for the repository Chrome smoke test, and
+`pnpm --filter browse test:smoke:package` to test an isolated installation.
+The smoke tests require Chrome.
+
+For an SDK upgrade, publish the SDK first, change Browse's exact dependency
+version, run `pnpm install`, and verify the build and tests. Commit the manifest
+and lockfile together.
+
+To experiment with unreleased SDK changes, temporarily change only Browse's
+`@browserbasehq/stagehand` dependency to `workspace:*` and run `pnpm install`.
+Build the local SDK with
+`pnpm exec turbo run build --filter=@browserbasehq/stagehand`, then build and test
+Browse. Keep this override and its lockfile changes uncommitted. When finished,
+restore the published version in Browse's manifest and run `pnpm install` again.
+Rebuild and rerun the tests against the published SDK before submitting changes.
+Release checks reject the local override.
+
 ## Links
 
 - [browse.sh](https://browse.sh) — open web skills catalog
