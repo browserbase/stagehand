@@ -2,6 +2,8 @@ import spawn from "cross-spawn";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
+import { terminateChild } from "../../src/lib/child-process.js";
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export interface CliResult {
@@ -24,8 +26,6 @@ export function runCli(args: string[], options: RunCliOptions = {}): Promise<Cli
     const commandArgs = options.executable ? args : [join(repoRoot, "bin/run.js"), ...args];
     const child = spawn(command, commandArgs, {
       cwd: options.cwd ?? repoRoot,
-      timeout: options.timeoutMs,
-      killSignal: "SIGKILL",
       env: {
         ...process.env,
         BROWSE_DISABLE_UPDATE_CHECK: "1",
@@ -34,6 +34,16 @@ export function runCli(args: string[], options: RunCliOptions = {}): Promise<Cli
       },
       stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
+
+    // Native spawn timeouts kill only cmd.exe on Windows, leaving its CLI child alive.
+    let timedOut = false;
+    const deadline =
+      options.timeoutMs && options.timeoutMs > 0
+        ? setTimeout(() => {
+            timedOut = true;
+            terminateChild(child, "SIGKILL");
+          }, options.timeoutMs)
+        : undefined;
 
     if (options.stdin !== undefined) {
       child.stdin?.on("error", () => {});
@@ -48,8 +58,20 @@ export function runCli(args: string[], options: RunCliOptions = {}): Promise<Cli
     child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      clearTimeout(deadline);
+      reject(error);
+    });
     child.on("close", (exitCode) => {
+      clearTimeout(deadline);
+      if (timedOut) {
+        reject(
+          new Error(
+            `CLI timed out after ${options.timeoutMs}ms: ${[command, ...commandArgs].join(" ")}\nstdout: ${stdout}\nstderr: ${stderr}`,
+          ),
+        );
+        return;
+      }
       resolvePromise({ exitCode, stdout, stderr });
     });
   });
