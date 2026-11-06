@@ -19,11 +19,22 @@ const env = {
   DO_NOT_TRACK: "1",
   BROWSE_STARTUP_TRACE: "0",
 };
+// Ensure the Windows baseline exercises automatic shell detection.
+if (process.platform === "win32") delete env.SHELL;
 const probes = [
   { name: "Node empty process", args: ["-e", ""] },
   { name: "Browse --version", args: [binary, "--version"] },
   { name: "Browse cloud fetch --help", args: [binary, "cloud", "fetch", "--help"] },
 ];
+if (process.platform === "win32") {
+  probes.push(
+    ...probes.slice(1).map((probe) => ({
+      ...probe,
+      name: `${probe.name} (SHELL=pwsh)`,
+      env: { SHELL: "pwsh" },
+    })),
+  );
+}
 const results = [];
 for (const probe of probes) {
   const samples = [];
@@ -32,7 +43,7 @@ for (const probe of probes) {
     // Match runCli: direct Node execution, CLI cwd, and captured stdout/stderr.
     const result = spawnSync(process.execPath, probe.args, {
       cwd: cliRoot,
-      env,
+      env: { ...env, ...probe.env },
       stdio: ["ignore", "pipe", "pipe"],
       encoding: "utf8",
       timeout: 30_000,
@@ -72,7 +83,13 @@ for (const probe of probes.slice(1)) {
   const start = performance.now();
   const result = spawnSync(process.execPath, probe.args, {
     cwd: cliRoot,
-    env: { ...env, BROWSE_STARTUP_TRACE: "1", DEBUG: "oclif:perf", DEBUG_COLORS: "0" },
+    env: {
+      ...env,
+      ...probe.env,
+      BROWSE_STARTUP_TRACE: "1",
+      DEBUG: "oclif:perf",
+      DEBUG_COLORS: "0",
+    },
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
     timeout: 30_000,
@@ -107,6 +124,8 @@ const summary = [
   `Node: ${process.version}. CPU: ${report.cpu}.`,
   "",
   "Five fresh processes per probe; median includes all five. First means the first measured invocation after building, not a cold machine. Times include execution and shutdown.",
+  "",
+  "Windows runs each Browse probe with automatic shell detection and with SHELL=pwsh to compare the CI workaround on the same runner.",
   "",
   "| Probe | First (ms) | Median (ms) | All samples (ms) | Exit codes |",
   "| --- | ---: | ---: | --- | --- |",
