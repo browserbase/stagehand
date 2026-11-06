@@ -11,7 +11,7 @@ import { runCli } from "../helpers/run-cli.js";
 
 // Build first: pnpm exec turbo run build --filter=browse
 // Then: pnpm --filter browse test:smoke (uses CHROME_PATH or local Chrome discovery).
-// test:smoke:package runs this same scenario through the installed npm executable.
+// CI runs this scenario through the executable installed from the Browse tarball.
 const suiteName = process.env.BROWSE_SMOKE_BIN ? "Installed Browse" : "Browse";
 describe(`${suiteName} with real Chrome`, () => {
   const session = `smoke-${randomUUID().slice(0, 8)}`;

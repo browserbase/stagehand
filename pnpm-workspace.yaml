@@ -3,6 +3,9 @@ packages:
   - packages/integrations/*
   - packages/examples/cookbooks/*/typescript
 
+# Only explicit workspace: dependencies should resolve to local packages.
+linkWorkspacePackages: false
+
 catalogMode: prefer
 
 catalog:
