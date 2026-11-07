@@ -7,6 +7,7 @@ import {
   StagehandCuaExecutor,
   UNSUPPORTED_TOOLSET_MEMBERS,
   type CuaFacadeTools,
+  type StagehandCuaExecutorOptions,
 } from "../src/index.js";
 
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
@@ -64,18 +65,26 @@ function fakeFacade(overrides: Partial<CuaFacadeTools> = {}) {
     },
     screenshot: async (options) => {
       calls.push({ kind: "screenshot", options });
-      return { data: "UE5H", mimeType: "image/png" };
+      const type = (options as { type?: string } | undefined)?.type;
+      return type === "jpeg"
+        ? { data: "SlBFRw==", mimeType: "image/jpeg" }
+        : { data: "UE5H", mimeType: "image/png" };
     },
     ...overrides,
   };
   return { calls, tools };
 }
 
-function executor(facade = fakeFacade(), onMutation?: (toolUseId: string) => Promise<void>) {
+function executor(
+  facade = fakeFacade(),
+  onMutation?: (toolUseId: string) => Promise<void>,
+  options: Partial<Omit<StagehandCuaExecutorOptions, "tools" | "logger" | "onMutation">> = {},
+) {
   return {
     exec: new StagehandCuaExecutor({
       tools: facade.tools,
       logger,
+      ...options,
       ...(onMutation && { onMutation }),
     }),
     calls: facade.calls,
@@ -291,9 +300,33 @@ describe("StagehandCuaExecutor", () => {
     calls.length = 0;
     const zoom = await exec.execute("zoom", { region: [0, 0, 100, 50] }, ctx);
     expect(calls).toHaveLength(1);
-    expect(lastRun(calls)).toContain("clip: { x: 0, y: 0, width: 100, height: 50 }");
+    expect(lastRun(calls)).toContain(
+      'page.screenshot({"type":"png","clip":{"x":0,"y":0,"width":100,"height":50}})',
+    );
     expect(zoom.content).toEqual([
       { type: "image", source: { type: "base64", media_type: "image/png", data: "value" } },
+    ]);
+  });
+
+  it("uses configured screenshot type and quality for screenshots and zoom", async () => {
+    const { exec, calls } = executor(fakeFacade(), undefined, {
+      screenshot: { type: "jpeg", quality: 80 },
+    });
+
+    const result = await exec.execute("screenshot", {}, ctx);
+    expect(calls).toEqual([{ kind: "screenshot", options: { type: "jpeg", quality: 80 } }]);
+    expect(result.content).toEqual([
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "SlBFRw==" } },
+    ]);
+
+    calls.length = 0;
+    const zoom = await exec.execute("zoom", { region: [0, 0, 100, 50] }, ctx);
+    expect(calls).toHaveLength(1);
+    expect(lastRun(calls)).toContain(
+      'page.screenshot({"type":"jpeg","quality":80,"clip":{"x":0,"y":0,"width":100,"height":50}})',
+    );
+    expect(zoom.content).toEqual([
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "value" } },
     ]);
   });
 
