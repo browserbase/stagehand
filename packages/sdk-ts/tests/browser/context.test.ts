@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BrowserContext } from "../../src/browserContext.js";
+import type { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
 import {
   attachStagehandBrowserContext,
   claimStagehandBrowserHandle,

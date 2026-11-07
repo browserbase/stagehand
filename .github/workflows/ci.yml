@@ -51,6 +51,7 @@ jobs:
               - 'packages/sdk-ts/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared-object-model/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -59,6 +60,7 @@ jobs:
             extension:
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared-object-model/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -66,7 +68,9 @@ jobs:
               - 'packages/sdk-ts/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared-object-model/**'
               - 'packages/integrations/**'
+              - 'rules/ast-grep/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -80,6 +84,7 @@ jobs:
               - 'packages/sdk-python/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared-object-model/**'
               - 'pnpm-lock.yaml'
               - '.github/**'
             deepagents-runner:

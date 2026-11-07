@@ -5,7 +5,7 @@ import {
   invalidateStagehandBrowser,
 } from "../../src/browser/factories.js";
 import { attachStagehandBrowserContext } from "../../src/browser/index.js";
-import type { BrowserContext } from "../../src/browserContext.js";
+import type { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
 import {
   CDPConnectionClosedError,
   type CDPClient,

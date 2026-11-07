@@ -1,0 +1,37 @@
+{
+  "name": "@browserbasehq/stagehand-shared-object-model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base64": "./src/base64.ts",
+    "./batch": "./src/batch.ts",
+    "./browserClipboard": "./src/browserClipboard.ts",
+    "./browserContext": "./src/browserContext.ts",
+    "./clientLocatorOptions": "./src/clientLocatorOptions.ts",
+    "./commandClient": "./src/commandClient.ts",
+    "./fileUpload": "./src/fileUpload.ts",
+    "./locator": "./src/locator.ts",
+    "./objectModelPlatform": "./src/objectModelPlatform.ts",
+    "./objectModelSchemas": "./src/objectModelSchemas.ts",
+    "./page": "./src/page.ts",
+    "./pageScripts": "./src/pageScripts.ts",
+    "./response": "./src/response.ts",
+    "./webmcp": "./src/webmcp.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. packages/shared-object-model/tests",
+    "test:unit": "vitest run --root ../.. packages/shared-object-model/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@browserbasehq/stagehand-protocol": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

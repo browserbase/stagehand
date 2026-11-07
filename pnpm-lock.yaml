@@ -946,6 +946,9 @@ importers:
       '@browserbasehq/stagehand-protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@browserbasehq/stagehand-shared-object-model':
+        specifier: workspace:*
+        version: link:../shared-object-model
       '@types/chrome':
         specifier: 'catalog:'
         version: 0.2.2
@@ -1491,6 +1494,9 @@ importers:
       '@browserbasehq/stagehand-protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@browserbasehq/stagehand-shared-object-model':
+        specifier: workspace:*
+        version: link:../shared-object-model
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
@@ -1500,6 +1506,25 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.22.3(publint@0.3.21)(tsx@4.23.1)(typescript@5.9.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.6(@types/node@24.13.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/shared-object-model:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.6
+    devDependencies:
+      '@browserbasehq/stagehand-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
