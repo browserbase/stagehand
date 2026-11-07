@@ -278,7 +278,7 @@ export class LifecycleWatcher {
       timeout: remaining,
       totalBudgetMs: this.timeout,
       idleTimeMs: idleWindow,
-      filter: this.buildIdleFilter(),
+      filter: mainDocumentIdleFilter(this.currentLoaderId, this.page.mainFrameId()),
     });
 
     return this.idleHandle.promise.catch((error) => {
@@ -310,23 +310,24 @@ export class LifecycleWatcher {
       handle.dispose();
     }
   }
+}
 
-  buildIdleFilter(): (info: NetworkRequestInfo) => boolean {
-    const loaderId = this.currentLoaderId;
-    const mainFrameId = this.page.mainFrameId();
+/** Requests that keep the main-frame document identified by `loaderId` from being network-idle. */
+export function mainDocumentIdleFilter(
+  loaderId: string | undefined,
+  mainFrameId: string,
+): (info: NetworkRequestInfo) => boolean {
+  return (info: NetworkRequestInfo) => {
+    if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
 
-    return (info: NetworkRequestInfo) => {
-      if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
+    if (loaderId) {
+      return info.loaderId === loaderId;
+    }
 
-      if (loaderId && info.loaderId) {
-        return info.loaderId === loaderId;
-      }
+    if (!info.loaderId && info.frameId) {
+      return info.frameId === mainFrameId;
+    }
 
-      if (!info.loaderId && info.frameId) {
-        return info.frameId === mainFrameId;
-      }
-
-      return true;
-    };
-  }
+    return true;
+  };
 }
