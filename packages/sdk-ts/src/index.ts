@@ -25,6 +25,7 @@ export {
   type PageClickOptions,
   type PageDragAndDropOptions,
   type PageEventListener,
+  type ResponseListener,
   type ToolsAddedListener,
   type ToolsRemovedListener,
   type PageKeyPressOptions,

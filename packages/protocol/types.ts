@@ -172,6 +172,7 @@ import type {
   PageEventNotificationSchema,
   PageToolsAddedNotificationSchema,
   PageToolsRemovedNotificationSchema,
+  PageResponseNotificationSchema,
   WebMCPToolIdentitySchema,
   PageLocatorSchema,
   PageNavigationResultSchema,
@@ -327,6 +328,7 @@ export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageSubscriptionEventName = z.infer<typeof PageSubscriptionEventNameSchema>;
 export type PageEventNotification = z.infer<typeof PageEventNotificationSchema>;
 export type PageToolsAddedNotification = z.infer<typeof PageToolsAddedNotificationSchema>;
+export type PageResponseNotification = z.infer<typeof PageResponseNotificationSchema>;
 export type PageToolsRemovedNotification = z.infer<typeof PageToolsRemovedNotificationSchema>;
 export type WebMCPToolIdentity = z.infer<typeof WebMCPToolIdentitySchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
