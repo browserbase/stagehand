@@ -100,6 +100,8 @@ export class BrowserContext {
 
   readonly _targetSessionListeners = new Set<SessionId>();
   readonly _sessionInit = new Set<SessionId>();
+  /** Pages whose frame-registry detach already prunes descendant ownership. */
+  private readonly frameOwnerPruneBound = new WeakSet<Page>();
   pagesByTarget = new Map<TargetId, Page>();
   mainFrameToTarget = new Map<string, TargetId>();
   sessionOwnerPage = new Map<SessionId, Page>();
@@ -1033,9 +1035,7 @@ export class BrowserContext {
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
-    for (const [frameId, owner] of this.frameOwnerPage) {
-      if (owner === page) this.frameOwnerPage.delete(frameId);
-    }
+    this.removeFrameOwnersForPage(page);
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);
@@ -1069,10 +1069,60 @@ export class BrowserContext {
   }
 
   /**
+   * Drop `frameId` and every descendant that is still owned by `page`.
+   * The frame graph is the descendant source, so this must run before that
+   * graph removes the subtree. Frames mapped to another page are left alone.
+   */
+  private pruneFrameOwnerPage(frameId: string, page: Page): void {
+    const frameIds: string[] = [];
+    const seen = new Set<string>();
+    const visit = (id: string) => {
+      if (!seen.add(id)) return;
+      frameIds.push(id);
+      const children = page.registry.frames.get(id)?.children;
+      if (!children) return;
+      for (const child of children) visit(child);
+    };
+    visit(frameId);
+    for (const id of frameIds) {
+      if (this.frameOwnerPage.get(id) === page) this.frameOwnerPage.delete(id);
+    }
+  }
+
+  /**
+   * Page close removes the main frame, its descendants, and any other frame
+   * still mapped to this page (for example an OOPIF adopted before it was
+   * linked into the frame graph).
+   */
+  private removeFrameOwnersForPage(page: Page): void {
+    this.pruneFrameOwnerPage(page.mainFrameId(), page);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) this.frameOwnerPage.delete(frameId);
+    }
+  }
+
+  /**
+   * Child-session listeners call `registry.onFrameDetached` before the
+   * `Page.frameDetached` bridge on this context. Bind once so that first
+   * removal still drops descendant `frameOwnerPage` entries. Swaps keep them.
+   */
+  private bindFrameOwnerPrune(page: Page): void {
+    if (this.frameOwnerPruneBound.has(page)) return;
+    this.frameOwnerPruneBound.add(page);
+    const registry = page.registry;
+    const detach = registry.onFrameDetached.bind(registry);
+    registry.onFrameDetached = (frameId: string, reason: string) => {
+      if (reason !== "swap") this.pruneFrameOwnerPage(frameId, page);
+      detach(frameId, reason);
+    };
+  }
+
+  /**
    * Wire Page-domain frame events for a session into the owning Page & mappings.
    * Attachments preserve live adopted OOPIF ownership while updating topology.
    */
   installFrameEventBridges(sessionId: SessionId, owner: Page): void {
+    this.bindFrameOwnerPrune(owner);
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
@@ -1111,10 +1161,10 @@ export class BrowserContext {
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
+      // Prune before the page drops the subtree. `swap` keeps ownership for the
+      // replacement session; child-session listeners prune through the registry hook.
+      if (evt.reason !== "swap") this.pruneFrameOwnerPage(evt.frameId, owner);
       owner.onFrameDetached(evt.frameId, evt.reason ?? "remove");
-      if (evt.reason !== "swap") {
-        this.frameOwnerPage.delete(evt.frameId);
-      }
     });
 
     session.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {

@@ -364,6 +364,142 @@ describe("BrowserContext OOPIF adoption", () => {
     expect([...context.frameOwnerPage.values()]).not.toContain(page);
   });
 
+  function attachSameOriginChain(browser: BrowserWithLoadedOopif): void {
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: "child-frame", parentFrameId: MAIN_FRAME },
+      PAGE_SESSION,
+    );
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: "grandchild-frame", parentFrameId: "child-frame" },
+      PAGE_SESSION,
+    );
+  }
+
+  it.each(["page session", "editor session"])(
+    "prunes descendant frame owners when the outer frame detaches on the %s",
+    async (source) => {
+      const browser = new BrowserWithLoadedOopif({ nested: true });
+      const { context, page } = await connect(browser);
+      await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+      await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+      expect(page.registry.getParent(NESTED_FRAME)).toBe(EDITOR_FRAME);
+      attachSameOriginChain(browser);
+      await context.conn.messageQueue;
+      expect(context.frameOwnerPage.get("child-frame")).toBe(page);
+      expect(context.frameOwnerPage.get("grandchild-frame")).toBe(page);
+
+      browser.emitEvent(
+        "Page.frameDetached",
+        { frameId: EDITOR_FRAME, reason: "remove" },
+        source === "page session" ? PAGE_SESSION : EDITOR_SESSION,
+      );
+      browser.emitEvent("Page.frameDetached", { frameId: "child-frame" }, PAGE_SESSION);
+      await context.conn.messageQueue;
+
+      expect(context.pages()).toEqual([page]);
+      expect(context.frameOwnerPage.has(EDITOR_FRAME)).toBe(false);
+      expect(context.frameOwnerPage.has(NESTED_FRAME)).toBe(false);
+      expect(context.frameOwnerPage.has("child-frame")).toBe(false);
+      expect(context.frameOwnerPage.has("grandchild-frame")).toBe(false);
+      expect(context.frameOwnerPage.get(MAIN_FRAME)).toBe(page);
+    },
+  );
+
+  it("keeps descendant frame owners when a frame process swaps", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true });
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+    attachSameOriginChain(browser);
+    await context.conn.messageQueue;
+
+    browser.emitEvent(
+      "Page.frameDetached",
+      { frameId: EDITOR_FRAME, reason: "swap" },
+      EDITOR_SESSION,
+    );
+    browser.emitEvent(
+      "Page.frameDetached",
+      { frameId: "child-frame", reason: "swap" },
+      PAGE_SESSION,
+    );
+    await context.conn.messageQueue;
+
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get(NESTED_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get("child-frame")).toBe(page);
+    expect(context.frameOwnerPage.get("grandchild-frame")).toBe(page);
+    expect(context.frameOwnerPage.get(MAIN_FRAME)).toBe(page);
+  });
+
+  it("clears nested frame owners on page close and keeps another page", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true });
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+    browser.attach(OTHER_PAGE_SESSION, OTHER_PAGE_TARGET);
+    await vi.waitFor(() => expect(context.pages()).toHaveLength(2));
+    const other = context.pages().find((candidate) => candidate !== page)!;
+
+    attachSameOriginChain(browser);
+    browser.emitEvent(
+      "Page.frameAttached",
+      { frameId: "other-child", parentFrameId: OTHER_PAGE_FRAME },
+      OTHER_PAGE_SESSION,
+    );
+    await context.conn.messageQueue;
+    expect(context.frameOwnerPage.get("grandchild-frame")).toBe(page);
+    expect(context.frameOwnerPage.get("other-child")).toBe(other);
+
+    browser.emitEvent("Target.targetDestroyed", { targetId: PAGE_TARGET.targetId });
+    await context.conn.messageQueue;
+
+    expect(context.pages()).toEqual([other]);
+    for (const frameId of [
+      MAIN_FRAME,
+      EDITOR_FRAME,
+      NESTED_FRAME,
+      "child-frame",
+      "grandchild-frame",
+    ]) {
+      expect(context.frameOwnerPage.has(frameId)).toBe(false);
+    }
+    expect(context.frameOwnerPage.get(OTHER_PAGE_FRAME)).toBe(other);
+    expect(context.frameOwnerPage.get("other-child")).toBe(other);
+  });
+
+  it("does not accumulate descendant frame owners across repeated subtree removal", async () => {
+    const browser = new BrowserWithLoadedOopif();
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    const before = context.frameOwnerPage.size;
+
+    for (let index = 0; index < 20; index++) {
+      const child = `child-${index}`;
+      const grandchild = `grandchild-${index}`;
+      browser.emitEvent(
+        "Page.frameAttached",
+        { frameId: child, parentFrameId: MAIN_FRAME },
+        PAGE_SESSION,
+      );
+      browser.emitEvent(
+        "Page.frameAttached",
+        { frameId: grandchild, parentFrameId: child },
+        PAGE_SESSION,
+      );
+      await context.conn.messageQueue;
+      browser.emitEvent("Page.frameDetached", { frameId: child }, PAGE_SESSION);
+      await context.conn.messageQueue;
+      expect(context.frameOwnerPage.has(child)).toBe(false);
+      expect(context.frameOwnerPage.has(grandchild)).toBe(false);
+    }
+
+    expect(context.frameOwnerPage.size).toBe(before);
+    expect(context.frameOwnerPage.get(MAIN_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+  });
+
   it.each(["page close", "parent session detach", "late parent event after page close"])(
     "does not adopt a late nested OOPIF through a stale owner after %s",
     async (scenario) => {
