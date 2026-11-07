@@ -55,7 +55,8 @@ type Inflight = {
   logger: CdpTelemetryLogger;
 };
 
-type CdpTelemetryLogger = Pick<StagehandLogger, "debug" | "error">;
+type CdpTelemetryLogger = Pick<StagehandLogger, "debug" | "error"> &
+  Partial<Pick<StagehandLogger, "isEnabled">>;
 
 type EventHandler = (params: unknown) => void;
 type SessionDispatchWaiter = {
@@ -210,13 +211,17 @@ export class CdpConnection implements CDPSessionLike {
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
     const logger = this.telemetryLogger();
-    logger.debug("CDP call", {
-      requestId: id,
-      method,
-      sessionId: null,
-      targetId: null,
-      params: JSON.stringify(params ?? {}),
-    });
+    if (logger.isEnabled?.("debug") ?? true) {
+      logger.debug("CDP call", {
+        requestId: id,
+        method,
+        sessionId: null,
+        targetId: null,
+        params: JSON.stringify(params ?? {}),
+      });
+    }
+    // Serialization can fail; do not retain an inflight call that was never sent.
+    const serializedPayload = JSON.stringify(payload);
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
         resolve: resolve as (v: unknown) => void,
@@ -231,7 +236,7 @@ export class CdpConnection implements CDPSessionLike {
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    this.transport.send(JSON.stringify(payload));
+    this.transport.send(serializedPayload);
     return p as Promise<R>;
   }
 
@@ -407,12 +412,15 @@ export class CdpConnection implements CDPSessionLike {
       }
 
       const { method, params, sessionId } = msg;
-      this.telemetryLogger().debug("CDP message", {
-        method,
-        sessionId: sessionId ?? null,
-        targetId: this.targetIdForSession(sessionId),
-        params: JSON.stringify(params ?? {}),
-      });
+      const logger = this.telemetryLogger();
+      if (logger.isEnabled?.("debug") ?? true) {
+        logger.debug("CDP message", {
+          method,
+          sessionId: sessionId ?? null,
+          targetId: this.targetIdForSession(sessionId),
+          params: JSON.stringify(params ?? {}),
+        });
+      }
 
       const dispatch = () => {
         if (sessionId) {
@@ -442,13 +450,17 @@ export class CdpConnection implements CDPSessionLike {
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
     const logger = this.telemetryLogger();
-    logger.debug("CDP call", {
-      requestId: id,
-      method,
-      sessionId,
-      targetId: this.targetIdForSession(sessionId),
-      params: JSON.stringify(params ?? {}),
-    });
+    if (logger.isEnabled?.("debug") ?? true) {
+      logger.debug("CDP call", {
+        requestId: id,
+        method,
+        sessionId,
+        targetId: this.targetIdForSession(sessionId),
+        params: JSON.stringify(params ?? {}),
+      });
+    }
+    // Serialization can fail; do not retain an inflight call that was never sent.
+    const serializedPayload = JSON.stringify(payload);
 
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
@@ -471,7 +483,7 @@ export class CdpConnection implements CDPSessionLike {
       waiter.resolve();
       break;
     }
-    this.transport.send(JSON.stringify(payload));
+    this.transport.send(serializedPayload);
     return p as Promise<R>;
   }
 
