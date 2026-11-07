@@ -1137,6 +1137,44 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
 
 
 @pytest.mark.asyncio
+async def test_observe_omits_unset_instruction_from_the_wire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action = Action(selector="a", description="More information")
+    usage = StagehandResultUsage(input_tokens=1, output_tokens=1, reasoning_tokens=0)
+    recording = _recording({
+        "context.active_page": PageRef(page_id="active-page"),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache": {"status": "DISABLED"}, "usage": usage},
+        }),
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    await stagehand.observe()
+    await stagehand.observe("Find the link")
+
+    # RPCClient.send serializes with exclude_unset, so an explicit None becomes null on the wire.
+    observe_payloads = [
+        json.loads(
+            cast(StagehandObserveParams, params).model_dump_json(
+                by_alias=True,
+                exclude_unset=True,
+                warnings="none",
+            )
+        )
+        for method, params, _ in recording.calls
+        if method == "stagehand.observe"
+    ]
+    assert observe_payloads == [
+        {"page_id": "active-page"},
+        {"page_id": "active-page", "instruction": "Find the link"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_stagehand_act_observe_and_extract_reject_cross_page_locators(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
