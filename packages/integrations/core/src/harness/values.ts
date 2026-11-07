@@ -1,6 +1,8 @@
 // Value helpers shared by the harness session adapters (event parsing, usage
 // accounting, transcript clipping).
 
+/** Any non-null object, arrays included — unlike the stricter non-array guards in the
+ * facade tools and the cursor adapter. Check `Array.isArray` first where it matters. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
