@@ -1254,6 +1254,8 @@ class StagehandObserveParams(TypedDict):
 class WebMCPAnnotation(TypedDict):
     read_only: NotRequired[bool]
     untrusted_content: NotRequired[bool]
+    consequential: NotRequired[bool]
+    debugging: NotRequired[bool]
     autosubmit: NotRequired[bool]
 
 
