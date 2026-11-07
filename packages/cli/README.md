@@ -55,9 +55,9 @@ Every driver command accepts the same flags to pick where the browser runs. Mix 
 
 | Flag                                 | Target                                                                             |
 | ------------------------------------ | ---------------------------------------------------------------------------------- |
-| _(default)_                          | Managed local browser, or remote when `BROWSERBASE_API_KEY` is set                 |
+| _(default)_                          | Managed local browser, or remote with an API key or saved login                    |
 | `--local`                            | Managed local browser (add `--headed` / `--headless`)                              |
-| `--remote`                           | Remote Browserbase session (uses `BROWSERBASE_API_KEY`)                            |
+| `--remote`                           | Remote Browserbase session (uses an API key or saved login)                        |
 | `--auto-connect`                     | Auto-discover and attach to a local Chrome with remote debugging enabled           |
 | `--cdp <url\|port>`                  | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`)              |
 | `--target-id <id>`                   | Select a specific CDP target when attaching to an existing browser                 |
@@ -212,7 +212,7 @@ browse skills add mcdonalds.order.online/order-delivery-42q71n
 
 ## Browserbase cloud commands
 
-Manage projects, sessions, contexts, and extensions, or call the Fetch and Search APIs directly. These commands use `BROWSERBASE_API_KEY`.
+Manage projects, sessions, contexts, and extensions, or call the Fetch and Search APIs directly. These commands use your saved login or `BROWSERBASE_API_KEY`.
 
 ```bash
 # Projects

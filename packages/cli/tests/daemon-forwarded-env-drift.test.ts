@@ -27,7 +27,13 @@ const driverDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src/lib/d
  * started is honored. Seeded with the API key; kept in sync with the runtime
  * source of truth (`forwardedEnvKeys()` in remote.ts) by an assertion below.
  */
-const FORWARDED_ENV = new Set<string>(["BROWSERBASE_API_KEY"]);
+const FORWARDED_ENV = new Set<string>([
+  "BROWSERBASE_API_KEY",
+  "BROWSERBASE_CONFIG_DIR",
+  "BROWSERBASE_BASE_URL",
+  "BROWSERBASE_PROJECT_ID",
+  "XDG_CONFIG_HOME",
+]);
 
 /**
  * Env vars the driver path reads but intentionally does NOT forward: they are
