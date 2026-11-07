@@ -1,5 +1,6 @@
 const STAGEHAND_SERVICE_WORKER_HEARTBEAT_PORT = "StagehandExtensionServiceWorkerHeartbeat";
-const STAGEHAND_SERVICE_WORKER_HEARTBEAT_INTERVAL_MS = 1_000;
+// Chrome 114+ requires a sent message, not just an open port, to reset the 30s idle timer.
+const STAGEHAND_SERVICE_WORKER_HEARTBEAT_INTERVAL_MS = 20_000;
 
 let port: chrome.runtime.Port | null = null;
 
