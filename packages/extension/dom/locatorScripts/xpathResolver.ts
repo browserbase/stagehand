@@ -1,4 +1,9 @@
-import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
+import {
+  applyPredicates,
+  applyPredicatesPerParent,
+  parseXPathSteps,
+  type XPathStep,
+} from "./xpathParser.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -103,7 +108,7 @@ export function resolveXPathComposedMatches(
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) => matchesTag(candidate, step));
-      const matches = applyPredicates(tagMatches, step.predicates);
+      const matches = applyStepPredicates(tagMatches, step);
 
       for (const candidate of matches) {
         if (!seen.has(candidate)) {
@@ -150,7 +155,7 @@ function resolveStagehandShadowHopMatches(
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) => matchesTag(candidate, step));
-      const matches = applyPredicates(tagMatches, step.predicates);
+      const matches = applyStepPredicates(tagMatches, step);
 
       for (const candidate of matches) {
         if (!seen.has(candidate)) {
@@ -165,6 +170,13 @@ function resolveStagehandShadowHopMatches(
   }
 
   return current as Element[];
+}
+
+// A descendant step pools candidates from many parents, a child step from one.
+function applyStepPredicates(candidates: Element[], step: XPathStep): Element[] {
+  return step.axis === "desc"
+    ? applyPredicatesPerParent(candidates, step.predicates)
+    : applyPredicates(candidates, step.predicates);
 }
 
 function matchesTag(element: Element, step: XPathStep): boolean {
