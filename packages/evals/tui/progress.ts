@@ -180,6 +180,13 @@ export class ProgressRenderer {
   private timer?: NodeJS.Timeout;
   private renderedLines = 0;
   private cursorHidden = false;
+  /**
+   * Shows the cursor again if the process exits while the board hides it
+   * (esc / Ctrl+C / SIGTERM call process.exit mid-run).
+   */
+  private readonly restoreCursorOnExit = (): void => {
+    if (this.cursorHidden) this.raw("\x1b[?25h");
+  };
   private total?: number;
   private queue?: ConcurrencyQueueSnapshot;
   private lastQueueLinePrintedAt?: number;
@@ -611,6 +618,7 @@ export class ProgressRenderer {
     if (!this.cursorHidden) {
       this.raw("\x1b[?25l");
       this.cursorHidden = true;
+      process.once("exit", this.restoreCursorOnExit);
     }
     this.timer = setInterval(() => {
       this.frame = (this.frame + 1) % SPINNER.length;
@@ -627,6 +635,7 @@ export class ProgressRenderer {
     if (this.cursorHidden) {
       this.raw("\x1b[?25h");
       this.cursorHidden = false;
+      process.removeListener("exit", this.restoreCursorOnExit);
     }
   }
 

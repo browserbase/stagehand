@@ -281,6 +281,28 @@ describe("ProgressRenderer board", () => {
     renderer.dispose();
   });
 
+  it("shows the cursor again if the process exits mid-run, and unhooks on dispose", () => {
+    const out: string[] = [];
+    const stream = Object.assign(Object.create(process.stdout), {
+      columns: 120,
+      write: (chunk: string) => {
+        out.push(String(chunk));
+        return true;
+      },
+    }) as NodeJS.WriteStream;
+    const before = new Set(process.listeners("exit"));
+    const renderer = new ProgressRenderer({ animated: true, stream, now: () => 0 });
+    renderer.onStart(suiteRow(...CASES[0]));
+    expect(out.join("")).toContain("\x1b[?25l");
+    const added = process.listeners("exit").filter((listener) => !before.has(listener));
+    expect(added).toHaveLength(1);
+    out.length = 0;
+    (added[0] as () => void)();
+    expect(out.join("")).toContain("\x1b[?25h");
+    renderer.dispose();
+    expect(process.listeners("exit")).not.toContain(added[0]);
+  });
+
   it("logLine scrolls a line above the board and redraws the board under it", () => {
     const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
     renderer.onStart(suiteRow(...CASES[0]));

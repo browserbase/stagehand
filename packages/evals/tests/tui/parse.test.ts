@@ -202,7 +202,9 @@ describe("resolveRunOptions: config v2 sections", () => {
       EVAL_MAX_UNVERIFIABLE_CRITERIA: "2",
       EVAL_CAMPAIGN_TAG: "facade-batch-0831",
     });
-    expect(resolved.coreToolSurface).toBe("stagehand_facade");
+    // The harness tool default is for bench rows; core-tier runs keep core.tool.
+    expect(resolved.benchToolSurface).toBe("stagehand_facade");
+    expect(resolved.coreToolSurface).toBeUndefined();
     expect(resolved.providerConcurrency).toEqual({ openai: 6, anthropic: 4 });
 
     const shadowed = resolveRunOptions(
@@ -223,6 +225,7 @@ describe("resolveRunOptions: config v2 sections", () => {
     expect(shadowed.envOverrides.EVAL_MAX_UNVERIFIABLE_CRITERIA).toBeUndefined();
     expect(shadowed.envOverrides.EVAL_CAMPAIGN_TAG).toBeUndefined();
     expect(shadowed.coreToolSurface).toBe("browse_cli");
+    expect(shadowed.benchToolSurface).toBe("browse_cli");
   });
 
   it("honours benchmarks.<suite>.limit only when --limit and the env twins are unset", () => {
