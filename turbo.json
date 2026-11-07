@@ -89,7 +89,7 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations-fx-sdk#build": {
+    "@browserbasehq/stagehand-integrations-fx#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -236,8 +236,8 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-integrations-fx-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-fx-sdk#build"],
+    "@browserbasehq/stagehand-integrations-fx#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-fx#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -312,7 +312,7 @@
     "@browserbasehq/stagehand-integrations-deepagents-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations-fx-sdk#typecheck": {
+    "@browserbasehq/stagehand-integrations-fx#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-cursor#typecheck": {

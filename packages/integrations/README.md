@@ -16,7 +16,7 @@ else, never restated.
 | `cursor/`      | Cursor SDK example over MCP/stdio, plus the `cursor` harness adapter (session library) used by evals.                                                                        |
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |
 | `eve/`         | Eve example with the tools bound natively via `defineTool` (Eve has no external-process tool mounting).                                                                      |
-| `fx/`          | fx configuration templates and skill — fx consumes the facade via its user-global MCP config.                                                                                |
+| `fx/`          | fx configuration templates and skill (fx consumes the facade via its user-global MCP config), plus the fx harness adapter used by evals.                                     |
 | `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                      |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
