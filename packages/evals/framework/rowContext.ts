@@ -48,6 +48,11 @@ export function reportRowPhase(phase: RowPhase, detail?: RowPhaseDetail): void {
   storage.getStore()?.reportPhase(phase, detail);
 }
 
+/** True inside a row that collects logs. */
+export function inRowContext(): boolean {
+  return Boolean(storage.getStore()?.log);
+}
+
 /** Send a log line to the current row; returns false outside a row (caller decides). */
 export function logToRow(entry: RowLogEntry): boolean {
   const context = storage.getStore();

@@ -35,13 +35,17 @@ export interface CellSummary {
   ungraded: number;
   /** Rows re-run once after provider or Browserbase backpressure. */
   retried: number;
+  /** Rows the user stopped (never started, or killed by a hard stop): not graded, not in the pass rate. */
+  stopped: number;
 }
 
 /**
  * Why a row failed. `gated`: the judge passed it and a deterministic outcome
  * gate (no_browser_use, no_final_answer, ungrounded_answer) failed it.
+ * `stopped`: the user stopped the run before the row ran (or hard-stopped it
+ * mid-run); it says nothing about the agent.
  */
-export type FailureKind = "sdk_error" | "max_turns" | "ungraded" | "gated" | "fail";
+export type FailureKind = "sdk_error" | "max_turns" | "ungraded" | "gated" | "fail" | "stopped";
 
 /** A row's outcome: `pass`, or the kind of failure. */
 export type RowOutcome = "pass" | FailureKind;
@@ -73,7 +77,8 @@ export interface RunSummaryJson {
   judgeModel?: string;
   trajectoryGroup?: string;
   logDir?: string;
-  summary: { passed: number; failed: number; total: number; passRate: number };
+  /** `failed` and `passRate` exclude stopped rows; `stopped` counts them. */
+  summary: { passed: number; failed: number; stopped: number; total: number; passRate: number };
   /** Summed across rows; cost only where the harness reports it. */
   usage: RunUsage;
   /** How many rows each outcome gate failed (judge passed). */
@@ -134,6 +139,7 @@ const FAILURE_ORDER: Record<FailureKind, number> = {
   ungraded: 2,
   gated: 3,
   fail: 4,
+  stopped: 5,
 };
 
 function readToolSurface(input: EvalInput): string | undefined {
@@ -179,8 +185,10 @@ export function summarizeCells(results: SummaryRow[], harness: string): CellSumm
       gated: 0,
       ungraded: 0,
       retried: 0,
+      stopped: 0,
     };
     cell.total += 1;
+    if (isStopped(output)) cell.stopped += 1;
     if (output._success) cell.passed += 1;
     if (output.harnessStatus === "max_turns") cell.maxTurns += 1;
     if (output.harnessStatus === "sdk_error") cell.sdkError += 1;
@@ -246,7 +254,13 @@ function isGated(output: Record<string, unknown>): boolean {
   );
 }
 
+/** The user stopped this row (see `stoppedByUser` in runner.ts). */
+export function isStopped(output: Record<string, unknown>): boolean {
+  return output.stoppedByUser === true;
+}
+
 function classifyFailure(output: Record<string, unknown>): FailureKind {
+  if (isStopped(output)) return "stopped";
   if (output.harnessStatus === "sdk_error") return "sdk_error";
   if (output.harnessStatus === "max_turns") return "max_turns";
   if (isUngraded(output)) return "ungraded";
@@ -292,6 +306,8 @@ export function buildRunSummaryJson(input: {
 }): RunSummaryJson {
   const passed = input.results.filter((row) => row.output._success).length;
   const total = input.results.length;
+  const stopped = input.results.filter((row) => isStopped(row.output)).length;
+  const ran = total - stopped;
   const verifier = summarizeVerifier(input.results);
   return {
     experimentName: input.experimentName,
@@ -301,9 +317,10 @@ export function buildRunSummaryJson(input: {
     ...(input.logDir && { logDir: input.logDir }),
     summary: {
       passed,
-      failed: total - passed,
+      failed: ran - passed,
+      stopped,
       total,
-      passRate: total === 0 ? 0 : Math.round((passed / total) * 100),
+      passRate: ran === 0 ? 0 : Math.round((passed / ran) * 100),
     },
     usage: summarizeUsage(input.results),
     gates: summarizeGates(input.results),

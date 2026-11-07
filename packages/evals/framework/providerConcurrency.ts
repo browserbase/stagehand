@@ -538,7 +538,12 @@ const defaultSleep = (ms: number, signal?: AbortSignal) =>
   });
 
 /** Row returned when the run is aborted before this row got a slot. */
-export const ABORTED_ROW: TaskResult = { _success: false, error: "aborted by user", logs: [] };
+export const ABORTED_ROW: TaskResult = {
+  _success: false,
+  error: "stopped before it ran",
+  stoppedByUser: true,
+  logs: [],
+};
 
 /**
  * Execute a row under its provider slot, retrying once on backpressure (see

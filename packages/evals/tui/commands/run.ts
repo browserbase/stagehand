@@ -8,7 +8,13 @@
  */
 
 import { bold, dim, cyan, red, yellow, separator, stripAnsi } from "../format.js";
-import { ProgressRenderer, formatElapsed, rowDisplayName, type ProgressRow } from "../progress.js";
+import {
+  ProgressRenderer,
+  formatElapsed,
+  isRendererWriting,
+  rowDisplayName,
+  type ProgressRow,
+} from "../progress.js";
 import { setActiveRun } from "../liveRun.js";
 import { printCellTable, printFailures, printModelSummary, printResultsTable } from "../results.js";
 import {
@@ -40,7 +46,7 @@ import {
 } from "../../framework/verifierGate.js";
 
 import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js";
-import { logToRow } from "../../framework/rowContext.js";
+import { inRowContext, logToRow } from "../../framework/rowContext.js";
 import { format } from "node:util";
 import {
   PROVIDER_CONCURRENCY_ENV,
@@ -651,6 +657,7 @@ export async function runCommand(
       const result = await withConsoleCapture(
         run,
         options.verbose ? (text) => progress.logLine(`  ${dim(text)}`) : undefined,
+        { captureStreams: interactive },
       );
       renderRunSummary(result, options, progress, {
         isBenchRun,
@@ -839,14 +846,21 @@ function sortKeys<T extends Record<string, unknown>>(obj: T): T {
 }
 
 /**
- * Console output during a run. Inside a row it belongs to that row: it goes
- * to the row's log file (and the live stream when enabled) instead of
- * scribbling over the board. Outside a row (Braintrust, the runner itself)
- * it's dropped unless `outside` is given.
+ * Output during a run. Inside a row it belongs to that row: it goes to the
+ * row's log file (and the live stream when enabled) instead of scribbling
+ * over the board. Outside a row (Braintrust, the runner itself) it's dropped
+ * unless `outside` is given.
+ *
+ * With `captureStreams` (the animated board), direct process.stdout /
+ * process.stderr writes are captured the same way, line by line: anything
+ * that bypasses console (the Stagehand SDK writes its log lines straight to
+ * stderr) would otherwise land between the board's redraws and corrupt every
+ * frame. The board's own writes pass through untouched.
  */
 async function withConsoleCapture<T>(
   fn: () => Promise<T>,
   outside?: (text: string) => void,
+  { captureStreams = false }: { captureStreams?: boolean } = {},
 ): Promise<T> {
   const original = {
     log: console.log,
@@ -866,9 +880,72 @@ async function withConsoleCapture<T>(
   console.debug = route(2);
   console.warn = route(1);
   console.error = route(0);
+  const restoreStreams = captureStreams
+    ? [
+        captureStream(process.stdout, "stdout", outside),
+        captureStream(process.stderr, "stderr", outside),
+      ]
+    : [];
   try {
     return await fn();
   } finally {
     Object.assign(console, original);
+    for (const restore of restoreStreams) restore();
   }
+}
+
+/**
+ * Route direct writes to `stream` into the current row's log, line by line.
+ * Returns the restore function. `[stagehand] …` lines inside a row are
+ * dropped: the SDK also hands them to `onLog`, which already logs them to the
+ * row (as `stagehand-sdk`).
+ */
+function captureStream(
+  stream: NodeJS.WriteStream,
+  category: "stdout" | "stderr",
+  outside?: (text: string) => void,
+): () => void {
+  const originalWrite = stream.write;
+  let pending = "";
+  const emit = (line: string): void => {
+    if (line.trim() === "") return;
+    if (inRowContext()) {
+      if (/^\[stagehand\] /.test(line)) return;
+      logToRow({ category, message: line, level: category === "stderr" ? 0 : 1 });
+      return;
+    }
+    outside?.(line);
+  };
+  stream.write = function (
+    this: NodeJS.WriteStream,
+    chunk: unknown,
+    encoding?: unknown,
+    callback?: unknown,
+  ): boolean {
+    if (isRendererWriting()) {
+      return (originalWrite as (...args: unknown[]) => boolean).call(
+        this,
+        chunk,
+        encoding,
+        callback,
+      );
+    }
+    const text =
+      typeof chunk === "string"
+        ? chunk
+        : Buffer.from(chunk as Uint8Array).toString(
+            typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8",
+          );
+    const lines = (pending + text).split("\n");
+    pending = lines.pop() ?? "";
+    for (const line of lines) emit(line.replace(/\r$/, ""));
+    const done = typeof encoding === "function" ? encoding : callback;
+    if (typeof done === "function") queueMicrotask(() => (done as () => void)());
+    return true;
+  } as typeof stream.write;
+  return () => {
+    stream.write = originalWrite;
+    if (pending) emit(pending);
+    pending = "";
+  };
 }
