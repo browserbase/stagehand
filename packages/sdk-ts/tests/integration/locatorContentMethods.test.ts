@@ -59,6 +59,23 @@ describe("Locator content methods (textContent, innerHtml, innerText, inputValue
     expect(text).not.toContain("Hidden");
   });
 
+  it("Locator.innerText() returns an empty string when all text is hidden", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          `<!doctype html><html><body>
+            <div id="display-none"><span style="display:none">Hidden</span></div>
+            <div id="visibility-hidden" style="visibility:hidden">Hidden</div>
+          </body></html>`,
+        ),
+    );
+
+    expect(await page.locator("#display-none").innerText()).toBe("");
+    expect(await page.locator("#visibility-hidden").innerText()).toBe("");
+  });
+
   it("Locator.innerHtml() returns HTML markup", async () => {
     const page = await firstPage(stagehand);
 

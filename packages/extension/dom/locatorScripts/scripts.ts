@@ -486,7 +486,7 @@ export function readElementInnerText(this: Element): string {
   try {
     const element = this as HTMLElement;
     const inner = (element as HTMLElement & { innerText?: unknown }).innerText;
-    if (typeof inner === "string" && inner.length > 0) {
+    if (typeof inner === "string") {
       return inner;
     }
     const fallback = element.textContent;
