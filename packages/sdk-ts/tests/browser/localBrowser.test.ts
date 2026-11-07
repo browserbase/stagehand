@@ -191,6 +191,67 @@ describe("local browser Chrome flags", () => {
       ),
     ).not.toContain("--window-size=1280,800");
   });
+
+  // Chrome parses --disable-features and --enable-features as a single value
+  // each: a second occurrence replaces the first outright rather than adding to
+  // it. Since the defaults are emitted before options.args, these switches have
+  // to be merged or a caller passing one of their own silently drops every
+  // default feature name.
+  const featureValues = (flags: string[], name: string): string[] =>
+    flags.filter((flag) => flag.startsWith(`${name}=`));
+
+  it("emits a single --disable-features carrying both the defaults and the caller's", () => {
+    const flags = localBrowserChromeFlags(
+      { args: ["--disable-features=ExampleFeature"] },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+
+    expect(featureValues(flags, "--disable-features")).toStrictEqual([
+      `${DEFAULT_CHROME_FLAGS[0]},ExampleFeature`,
+    ]);
+  });
+
+  it("keeps the WebMCP flag when the caller passes their own --enable-features", () => {
+    const flags = localBrowserChromeFlags(
+      { args: ["--enable-features=ExampleFeature"] },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+
+    expect(featureValues(flags, "--enable-features")).toStrictEqual([
+      `${WEBMCP_CHROME_FLAG},ExampleFeature`,
+    ]);
+  });
+
+  it("merges repeated feature switches in order without duplicating a value", () => {
+    const flags = localBrowserChromeFlags(
+      { args: ["--disable-features=Translate,First", "--mute-audio", "--disable-features=Second"] },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+
+    expect(flags[0]).toBe(`${DEFAULT_CHROME_FLAGS[0]},First,Second`);
+    expect(featureValues(flags, "--disable-features")).toHaveLength(1);
+    expect(flags).toContain("--mute-audio");
+  });
+
+  it("leaves the caller's switch alone when the defaults are ignored entirely", () => {
+    const flags = localBrowserChromeFlags(
+      { ignoreDefaultArgs: true, args: ["--disable-features=ExampleFeature"] },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+
+    expect(featureValues(flags, "--disable-features")).toStrictEqual([
+      "--disable-features=ExampleFeature",
+    ]);
+    expect(featureValues(flags, "--enable-features")).toStrictEqual([]);
+  });
 });
 
 describe("local browser launch lifecycle", () => {
