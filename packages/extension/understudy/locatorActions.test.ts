@@ -3,7 +3,9 @@ import { TimeoutError } from "../errors.js";
 import { createStagehandRuntime } from "../runtime.js";
 import {
   assignFilePayloadsToInputElement,
+  codeInputIndex,
   fillElementValue,
+  focusedInputIndexAfterInput,
   prepareElementForTyping,
 } from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
@@ -618,6 +620,63 @@ describe("locator action deadlines", () => {
     expect(send.mock.calls.some(([method]) => method.startsWith("Input."))).toBe(false);
     gate.resolve({});
     await vi.advanceTimersByTimeAsync(0);
+  });
+
+  function createCodeInputLocator(focusAfterEachChar: number[]) {
+    const fixture = createFillLocator();
+    const focused = [...focusAfterEachChar];
+    const respond = fixture.send.getMockImplementation()!;
+    fixture.send.mockImplementation((method, params) => {
+      const declaration = (params as { functionDeclaration?: string } | undefined)
+        ?.functionDeclaration;
+      if (declaration === codeInputIndex.toString())
+        return Promise.resolve({ result: { value: 0 } });
+      if (declaration === focusedInputIndexAfterInput.toString())
+        return Promise.resolve({ result: { value: focused.shift() ?? -1 } });
+      return respond(method, params);
+    });
+    return fixture;
+  }
+
+  it.each([
+    ["fill", [1, 2, 3], ["1", "2", "3", "4"]],
+    ["type", [1, 2, 3], ["1", "2", "3", "4"]],
+    ["fill", [1, 1], ["1", "2", "34"]],
+    ["fill", [-1], ["1", "234"]],
+  ] as const)("%s follows focus %j across code inputs", async (method, focus, chunks) => {
+    const { locator, send } = createCodeInputLocator([...focus]);
+    const progress = createProgress();
+    await (method === "fill"
+      ? locator.fill("1234", progress)
+      : locator.type("1234", undefined, progress));
+    expect(
+      send.mock.calls.filter(([name]) => name === "Input.insertText").map(([, params]) => params),
+    ).toEqual(chunks.map((text) => ({ text })));
+    expect(send.mock.calls.filter(([name]) => name === "Runtime.releaseObject")).toHaveLength(
+      method === "fill" ? 2 : 1,
+    );
+  });
+
+  it("bounds waiting for code input focus & stops inserting", async () => {
+    const { locator, send } = createCodeInputLocator([1, 2, 3]);
+    const gate = deferred();
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) =>
+      (params as { functionDeclaration?: string } | undefined)?.functionDeclaration ===
+      focusedInputIndexAfterInput.toString()
+        ? gate.promise
+        : respond(method, params),
+    );
+    const pending = locator.fill("1234", createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    gate.resolve({ result: { value: 1 } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([name]) => name === "Input.insertText")).toEqual([
+      ["Input.insertText", { text: "1" }],
+    ]);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node-2" });
   });
 
   it.each([undefined, 0, 100])("includes highlight duration in timeout %s", async (timeout) => {

@@ -3,10 +3,12 @@ import { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import {
   assignFilePayloadsToInputElement,
+  codeInputIndex,
   dispatchDomClick,
   ensureFileInputElement,
   fillElementValue,
   focusElement,
+  focusedInputIndexAfterInput,
   isElementChecked,
   isElementVisible,
   prepareElementForTyping,
@@ -591,10 +593,23 @@ export class Locator {
 
         const valueToType = typeof result?.value === "string" ? result.value : value;
 
-        let prepared = false;
+        // The prepared handle stays alive until the text is inserted so insertText() can
+        // inspect the element without resolving it again.
+        let prepObjectId: Protocol.Runtime.RemoteObjectId | undefined;
+        const releasePrep = async () => {
+          if (!prepObjectId) return;
+          const objectId = prepObjectId;
+          prepObjectId = undefined;
+          const work = () =>
+            session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+          if (progress) await progress.cleanup(work);
+          else await work();
+          progress?.throwIfStopped();
+        };
+
         try {
-          const { objectId: prepObjectId } = await this.resolveNode(progress);
           try {
+            prepObjectId = (await this.resolveNode(progress)).objectId;
             const prepRes = await runLocatorStep(progress, "preparing text input", () =>
               session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
                 objectId: prepObjectId,
@@ -602,51 +617,41 @@ export class Locator {
                 returnByValue: true,
               }),
             );
-            prepared = Boolean(prepRes.result.value);
-          } finally {
-            const releasePrep = () =>
-              session
-                .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
-                .catch(() => {});
-            if (progress) await progress.cleanup(releasePrep);
-            else await releasePrep();
+            if (!prepRes.result.value) await releasePrep();
+          } catch (error) {
+            await releasePrep();
             progress?.throwIfStopped();
+            if (progress && isCdpClosedError(error)) throw error;
+            // Ordinary preparation failures can still fall back to typing.
           }
-        } catch (error) {
-          progress?.throwIfStopped();
-          if (progress && isCdpClosedError(error)) throw error;
-          // Ordinary preparation failures can still fall back to typing.
-        }
 
-        if (!prepared && valueToType.length > 0) {
-          await this.type(valueToType, undefined, progress);
-          return;
-        }
-
-        if (valueToType.length === 0) {
-          // Simulate deleting the currently selected text to clear the field.
-          await runLocatorStep(progress, "dispatching keyboard events", () =>
-            session.send<never>("Input.dispatchKeyEvent", {
-              type: "keyDown",
-              key: "Backspace",
-              code: "Backspace",
-              windowsVirtualKeyCode: 8,
-              nativeVirtualKeyCode: 8,
-            } as Protocol.Input.DispatchKeyEventRequest),
-          );
-          await runLocatorStep(progress, "dispatching keyboard events", () =>
-            session.send<never>("Input.dispatchKeyEvent", {
-              type: "keyUp",
-              key: "Backspace",
-              code: "Backspace",
-              windowsVirtualKeyCode: 8,
-              nativeVirtualKeyCode: 8,
-            } as Protocol.Input.DispatchKeyEventRequest),
-          );
-        } else {
-          await runLocatorStep(progress, "inserting text", () =>
-            session.send<never>("Input.insertText", { text: valueToType }),
-          );
+          if (valueToType.length === 0) {
+            // Simulate deleting the currently selected text to clear the field.
+            await runLocatorStep(progress, "dispatching keyboard events", () =>
+              session.send<never>("Input.dispatchKeyEvent", {
+                type: "keyDown",
+                key: "Backspace",
+                code: "Backspace",
+                windowsVirtualKeyCode: 8,
+                nativeVirtualKeyCode: 8,
+              } as Protocol.Input.DispatchKeyEventRequest),
+            );
+            await runLocatorStep(progress, "dispatching keyboard events", () =>
+              session.send<never>("Input.dispatchKeyEvent", {
+                type: "keyUp",
+                key: "Backspace",
+                code: "Backspace",
+                windowsVirtualKeyCode: 8,
+                nativeVirtualKeyCode: 8,
+              } as Protocol.Input.DispatchKeyEventRequest),
+            );
+          } else if (prepObjectId) {
+            await this.insertText(valueToType, prepObjectId, progress);
+          } else {
+            await this.type(valueToType, undefined, progress);
+          }
+        } finally {
+          await releasePrep();
         }
 
         return;
@@ -692,9 +697,7 @@ export class Locator {
       );
 
       if (!options?.delay) {
-        await runLocatorStep(progress, "inserting text", () =>
-          session.send<never>("Input.insertText", { text }),
-        );
+        await this.insertText(text, objectId, progress);
         return;
       }
 
@@ -724,6 +727,53 @@ export class Locator {
       else await release();
       progress?.throwIfStopped();
     }
+  }
+
+  /**
+   * Insert text into the focused element with `Input.insertText`.
+   *
+   * Code forms often use one input per character and move focus after each input event, so
+   * inserting a whole code at once leaves it all in the first box. For an input that looks like
+   * one of those boxes, insert one character at a time while focus keeps moving forward, then
+   * insert whatever is left in one step.
+   */
+  private async insertText(
+    text: string,
+    objectId: Protocol.Runtime.RemoteObjectId,
+    progress?: Progress,
+  ): Promise<void> {
+    const session = this.frame.session;
+    const insert = (chunk: string) =>
+      runLocatorStep(progress, "inserting text", () =>
+        session.send<never>("Input.insertText", { text: chunk }),
+      );
+    const inputIndex = async (fn: (this: Element) => number | Promise<number>, step: string) => {
+      const res = await runLocatorStep(progress, step, () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: fn.toString(),
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
+      return typeof res.result.value === "number" ? res.result.value : -1;
+    };
+
+    const chars = Array.from(text);
+    let current = chars.length > 1 ? await inputIndex(codeInputIndex, "evaluating element") : -1;
+    if (current < 0) {
+      await insert(text);
+      return;
+    }
+
+    let next = 0;
+    while (next < chars.length - 1) {
+      await insert(chars[next++]);
+      const focused = await inputIndex(focusedInputIndexAfterInput, "waiting for focus to advance");
+      if (focused <= current) break;
+      current = focused;
+    }
+    await insert(chars.slice(next).join(""));
   }
 
   /**
