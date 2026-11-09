@@ -7,8 +7,25 @@
  * values don't leak across REPL commands.
  */
 
-import { bold, dim, cyan, red, yellow, separator, stripAnsi } from "../format.js";
-import { ProgressRenderer, formatElapsed, rowDisplayName, type ProgressRow } from "../progress.js";
+import {
+  bold,
+  dim,
+  cyan,
+  red,
+  yellow,
+  separator,
+  stripAnsi,
+  getTerminalWidth,
+  truncateText,
+  visibleLength,
+} from "../format.js";
+import {
+  ProgressRenderer,
+  formatElapsed,
+  isRendererWriting,
+  rowDisplayName,
+  type ProgressRow,
+} from "../progress.js";
 import { setActiveRun } from "../liveRun.js";
 import { printCellTable, printFailures, printModelSummary, printResultsTable } from "../results.js";
 import {
@@ -16,6 +33,7 @@ import {
   buildRunSummaryJson,
   collectFailures,
   isDeadJudgeRun,
+  isStopped,
   summarizeCells,
   summarizeVerifier,
 } from "../../framework/runSummary.js";
@@ -40,8 +58,9 @@ import {
 } from "../../framework/verifierGate.js";
 
 import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js";
-import { logToRow } from "../../framework/rowContext.js";
+import { currentRowContext, logToRow, type RowContext } from "../../framework/rowContext.js";
 import { format } from "node:util";
+import path from "node:path";
 import {
   PROVIDER_CONCURRENCY_ENV,
   ProviderConcurrency,
@@ -207,6 +226,20 @@ function buildVerifierContextLine(options: ResolvedRunOptions): string {
   ].join("  ");
 }
 
+/** Pack `a  b  c` (two-space separated parts) into lines no wider than `width`. */
+function wrapParts(line: string, width: number): string[] {
+  const lines: string[] = [];
+  for (const part of line.split("  ")) {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && visibleLength(last) + 2 + visibleLength(part) <= width) {
+      lines[lines.length - 1] = `${last}  ${part}`;
+    } else {
+      lines.push(part);
+    }
+  }
+  return lines;
+}
+
 /** `Running:` / `Plan:` / context / judge lines printed before the progress block. */
 export function renderRunHeader(
   options: ResolvedRunOptions,
@@ -217,8 +250,14 @@ export function renderRunHeader(
   const isBenchRun = tasks.some((task) => task.tier === "bench");
   print(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
   print(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  print(`  ${buildRunContextLine(options, tasks, matrix)}`);
-  if (isBenchRun) print(`  ${buildVerifierContextLine(options)}`);
+  // On a narrow terminal the parts wrap at their separators, not mid-word.
+  const width = getTerminalWidth() - 2;
+  for (const line of wrapParts(buildRunContextLine(options, tasks, matrix), width)) {
+    print(`  ${line}`);
+  }
+  if (isBenchRun) {
+    for (const line of wrapParts(buildVerifierContextLine(options), width)) print(`  ${line}`);
+  }
   print(separator());
   print("");
 }
@@ -245,21 +284,25 @@ export function renderRunSummary(
     logDir: result.logDir,
   });
   const deadJudge = isDeadJudgeRun(summaryJson.verifier);
+  // Stopped rows say nothing about the agent or the judge; the gates below
+  // only look at rows that ran.
+  const ranResults = result.results.filter((row) => !isStopped(row.output));
 
   if (options.json) {
     progress.dispose();
     process.stdout.write(`${JSON.stringify(summaryJson, null, 2)}\n`);
     if (deadJudge) process.exitCode = 1;
-    applyVerifiabilityGate(result.results, options.harness);
+    applyVerifiabilityGate(ranResults, options.harness);
     return;
   }
 
   progress.printSummary({ totals: !isBenchRun });
 
-  if (result.results.length > 0 && options.verbose) {
-    printResultsTable(result.results);
-  } else if (result.results.length > 0 && !isBenchRun) {
-    printModelSummary(result.results);
+  // Bench runs get the per-cell table and grouped failures below; the
+  // row-by-row table only helps small core runs.
+  if (result.results.length > 0 && !isBenchRun) {
+    if (options.verbose) printResultsTable(result.results);
+    else printModelSummary(result.results);
   }
   if (isBenchRun && result.results.length > 0) {
     console.log(`  ${buildSummaryHeadline(options, summaryJson, elapsedMs)}`);
@@ -282,8 +325,16 @@ export function renderRunSummary(
     // banner below states once; listing them all would bury the rest.
     const failures = collectFailures(result.results, options.harness);
     printFailures(deadJudge ? failures.filter((failure) => failure.kind !== "ungraded") : failures);
+    if (summaryJson.summary.stopped > 0) {
+      console.log(
+        dim(
+          `  ⊘ ${summaryJson.summary.stopped} stopped — not run or killed by the stop; left out of the pass rate`,
+        ),
+      );
+      console.log("");
+    }
   }
-  applyVerifiabilityGate(result.results, options.harness);
+  applyVerifiabilityGate(ranResults, options.harness);
 
   if (deadJudge) {
     const verifier = summarizeVerifier(result.results);
@@ -296,18 +347,28 @@ export function renderRunSummary(
     process.exitCode = 1;
   }
 
-  console.log(
-    dim(
-      `  Experiment: ${result.experimentName}${result.experimentUrl ? `  ${result.experimentUrl}` : ""}`,
-    ),
-  );
+  // A URL is never cut or wrapped: it goes on its own line when it doesn't fit.
+  const experiment = `  Experiment: ${result.experimentName}`;
+  const urlFits =
+    result.experimentUrl !== undefined &&
+    experiment.length + 2 + result.experimentUrl.length <= getTerminalWidth();
+  console.log(dim(urlFits ? `${experiment}  ${result.experimentUrl}` : experiment));
+  if (result.experimentUrl && !urlFits) console.log(dim(`    ${result.experimentUrl}`));
   if (result.trajectoryGroup) {
     console.log(dim(`  Trajectories: ${result.trajectoryGroup}`));
   }
   if (result.logDir && result.results.some((row) => typeof row.output.logPath === "string")) {
-    console.log(dim(`  Logs: ${result.logDir}`));
+    console.log(dim(`  Logs: ${displayPath(result.logDir)}`));
   }
   console.log("");
+}
+
+/** A path relative to the cwd when it's inside it, so it fits on one line. */
+function displayPath(target: string): string {
+  const relative = path.relative(process.cwd(), target);
+  const inside = relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+  // Forward slashes on every platform, like the other paths the CLI prints.
+  return inside ? relative.split(path.sep).join("/") : target;
 }
 
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
@@ -324,7 +385,9 @@ function buildSummaryHeadline(
   );
   const { usage } = summary;
   const parts = [
-    formatCount(summary.summary.total, "run"),
+    summary.summary.stopped > 0
+      ? `stopped after ${summary.summary.total - summary.summary.stopped} of ${formatCount(summary.summary.total, "run")}`
+      : formatCount(summary.summary.total, "run"),
     ...(elapsedMs !== undefined ? [formatElapsed(elapsedMs)] : []),
     ...(usage.totalTokens > 0 ? [`${COMPACT.format(usage.totalTokens)} tokens`] : []),
     ...(usage.costUsd !== undefined
@@ -403,14 +466,43 @@ type LogMode = "off" | "all" | "one";
 
 const LOG_MODE_CYCLE: Record<LogMode, LogMode> = { off: "all", all: "one", one: "off" };
 
-/** `14:02:11 47e314cc codex   tool browser_navigate …` — one streamed log line. */
-function formatStreamLine(event: RunProgressEvent): string {
+/**
+ * `14:02:11 47e314cc gpt-4.1-mini codex  tool browser_navigate …` — one
+ * streamed log line, attributed to the row (and its model when the run spans
+ * several, since one task runs once per model).
+ */
+export function formatStreamLine(event: RunProgressEvent, showModel: boolean): string {
   const at = new Date().toTimeString().slice(0, 8);
-  const who = event.case?.shortId ?? event.taskName ?? "run";
+  const model =
+    showModel && event.modelName
+      ? ` ${event.modelName.slice(event.modelName.indexOf("/") + 1)}`
+      : "";
+  const who = `${event.case?.shortId ?? event.taskName ?? "run"}${model}`;
   const entry = event.log!;
   const text = `${dim(at)} ${cyan(who)} ${dim(entry.category)}  ${entry.message}`;
   return `  ${entry.level === 0 ? red(stripAnsi(text)) : text}`;
 }
+
+/**
+ * Whether a row's log line is worth streaming. The SDK's info chatter
+ * (`stagehand.init`, `Act inference completed`, …) fires several times per
+ * row and drowns everything else; it stays in the row's log file.
+ */
+export function isStreamWorthy(entry: { category: string; level?: number }): boolean {
+  return !(entry.category === "stagehand-sdk" && (entry.level ?? 1) >= 2);
+}
+
+/** The line as is when it fits the terminal, else cut (losing its colors) to fit. */
+function fitLine(text: string, stream: NodeJS.WriteStream): string {
+  const width = getTerminalWidth(100, stream) - 1;
+  return visibleLength(text) <= width ? text : truncateText(text, width);
+}
+
+const LOG_MODE_HELP: Record<LogMode, string> = {
+  off: "off",
+  all: "all rows",
+  one: "one row",
+};
 
 function progressRow(event: RunProgressEvent): ProgressRow {
   return {
@@ -547,24 +639,68 @@ export async function runCommand(
   let logMode: LogMode = options.follow ? "one" : options.verbose ? "all" : "off";
   let followedRowKey: string | undefined;
   let helpOpen = false;
-  const running = new Map<string, { startedAt: number; shortId?: string }>();
+  const running = new Map<string, { startedAt: number; label: string }>();
+  const finishRow = (rowKey: string | undefined): void => {
+    if (!rowKey) return;
+    running.delete(rowKey);
+    if (logMode === "one" && rowKey === followedRowKey) {
+      followOldest();
+      refreshHints();
+    }
+  };
   const followsRow = (event: RunProgressEvent): boolean => {
     if (followedRowKey) return event.rowKey === followedRowKey;
     const prefix = options.follow;
     if (!prefix) return false;
     return Boolean(event.case?.id?.startsWith(prefix) || event.taskName?.includes(prefix));
   };
+  const showModel = uniqueStringValues(matrix, "model", { requireTruthy: true }).length > 1;
   const streamsLog = (event: RunProgressEvent): boolean =>
-    logMode === "all" || (logMode === "one" && followsRow(event));
+    (logMode === "all" || (logMode === "one" && followsRow(event))) && isStreamWorthy(event.log!);
   const refreshHints = (): void => {
     if (!interactive) return;
-    const followed = followedRowKey ? running.get(followedRowKey)?.shortId : options.follow;
-    const mode = logMode === "one" ? `one${followed ? ` (${followed})` : ""}` : logMode;
+    const followed = followedRowKey ? running.get(followedRowKey)?.label : options.follow;
+    const mode = logMode === "one" && followed ? `one · ${followed}` : LOG_MODE_HELP[logMode];
+    progress.setFollowed(logMode === "one" ? followedRowKey : undefined);
     progress.setKeyHints(
       helpOpen
-        ? `esc stop (twice: stop now) · v logs: off → all → one → off (now ${mode}) · ? close help`
+        ? [
+            `esc   stop after the rows in flight · again: stop them now`,
+            `v     logs above the board: off → all rows → one row (▸) → off`,
+            `      now: ${mode}`,
+            `?     close this help`,
+            `      every case also writes its own log under .trajectories/<run>/logs/`,
+          ].join("\n")
         : `esc stop · v logs: ${mode} · ? help`,
     );
+  };
+  // A row can emit the same line dozens of times in a burst (`CDP response
+  // failed`); print it once and say how often it repeated.
+  let lastStream: { key: string; repeats: number } | undefined;
+  const flushRepeats = (): void => {
+    if (lastStream && lastStream.repeats > 0) {
+      progress.logLine(
+        dim(
+          `           ↳ repeated ${lastStream.repeats} more time${lastStream.repeats === 1 ? "" : "s"}`,
+        ),
+      );
+    }
+    lastStream = undefined;
+  };
+  const streamLine = (event: RunProgressEvent): void => {
+    const key = `${event.rowKey ?? event.taskName}|${event.log!.category}|${event.log!.message}`;
+    if (lastStream?.key === key) {
+      lastStream.repeats += 1;
+      return;
+    }
+    flushRepeats();
+    lastStream = { key, repeats: 0 };
+    progress.logLine(fitLine(formatStreamLine(event, showModel), humanStream));
+  };
+  // "one" follows the oldest running row; when it finishes, the next oldest.
+  const followOldest = (): void => {
+    const oldest = [...running.entries()].sort((a, b) => a[1].startedAt - b[1].startedAt)[0];
+    followedRowKey = oldest?.[0];
   };
   refreshHints();
   // Key handlers (REPL and argv keypress listeners) reach the run through the
@@ -575,8 +711,7 @@ export async function runCommand(
       if (name === "v") {
         logMode = LOG_MODE_CYCLE[logMode];
         if (logMode === "one") {
-          const oldest = [...running.entries()].sort((a, b) => a[1].startedAt - b[1].startedAt)[0];
-          followedRowKey = oldest?.[0];
+          followOldest();
           if (!followedRowKey && !options.follow) logMode = "off";
         } else {
           followedRowKey = undefined;
@@ -622,21 +757,26 @@ export async function runCommand(
             if (event.type === "planned") {
               progress.onPlanned(event.total ?? 0);
             } else if (event.type === "log" && event.log) {
-              if (streamsLog(event)) progress.logLine(formatStreamLine(event));
+              // One screen line each: wrapped lines read as noise, and the
+              // full text is in the row's log file.
+              if (streamsLog(event)) streamLine(event);
             } else if (event.type === "started" && event.taskName) {
               if (event.rowKey) {
-                running.set(event.rowKey, { startedAt: Date.now(), shortId: event.case?.shortId });
+                running.set(event.rowKey, {
+                  startedAt: Date.now(),
+                  label: `${rowDisplayName(progressRow(event))}${showModel && event.modelName ? ` ${event.modelName.slice(event.modelName.indexOf("/") + 1)}` : ""}`,
+                });
               }
               progress.onStart(progressRow(event));
             } else if (event.type === "phase" && event.taskName && event.phase) {
               progress.onPhase(progressRow(event), event.phase, event.sessionUrl);
             } else if (event.type === "passed" && event.taskName) {
-              if (event.rowKey) running.delete(event.rowKey);
+              finishRow(event.rowKey);
               progress.onPass(progressRow(event), event.durationMs, {
                 sessionUrl: event.sessionUrl,
               });
             } else if (event.type === "failed" && event.taskName) {
-              if (event.rowKey) running.delete(event.rowKey);
+              finishRow(event.rowKey);
               progress.onFail(progressRow(event), {
                 error: event.error,
                 outcome: event.outcome,
@@ -654,7 +794,11 @@ export async function runCommand(
       const result = await withConsoleCapture(
         run,
         options.verbose ? (text) => progress.logLine(`  ${dim(text)}`) : undefined,
+        // Line-per-event output (CI, pipes) can't be corrupted, so raw
+        // writes pass through there as before unless -v prints them attributed.
+        { captureStreams: interactive || options.verbose },
       );
+      flushRepeats();
       renderRunSummary(result, options, progress, {
         isBenchRun,
         elapsedMs: Date.now() - runStartedAt,
@@ -844,14 +988,21 @@ function sortKeys<T extends Record<string, unknown>>(obj: T): T {
 }
 
 /**
- * Console output during a run. Inside a row it belongs to that row: it goes
- * to the row's log file (and the live stream when enabled) instead of
- * scribbling over the board. Outside a row (Braintrust, the runner itself)
- * it's dropped unless `outside` is given.
+ * Output during a run. Inside a row it belongs to that row: it goes to the
+ * row's log file (and the live stream when enabled) instead of scribbling
+ * over the board. Outside a row (Braintrust, the runner itself) it's dropped
+ * unless `outside` is given.
+ *
+ * With `captureStreams` (the animated board), direct process.stdout /
+ * process.stderr writes are captured the same way, line by line: anything
+ * that bypasses console (the Stagehand SDK writes its log lines straight to
+ * stderr) would otherwise land between the board's redraws and corrupt every
+ * frame. The board's own writes pass through untouched.
  */
 async function withConsoleCapture<T>(
   fn: () => Promise<T>,
   outside?: (text: string) => void,
+  { captureStreams = false }: { captureStreams?: boolean } = {},
 ): Promise<T> {
   const original = {
     log: console.log,
@@ -871,9 +1022,80 @@ async function withConsoleCapture<T>(
   console.debug = route(2);
   console.warn = route(1);
   console.error = route(0);
+  const restoreStreams = captureStreams
+    ? [
+        captureStream(process.stdout, "stdout", outside),
+        captureStream(process.stderr, "stderr", outside),
+      ]
+    : [];
   try {
     return await fn();
   } finally {
     Object.assign(console, original);
+    for (const restore of restoreStreams) restore();
   }
+}
+
+/**
+ * Route direct writes to `stream` into the current row's log, line by line.
+ * Returns the restore function. `[stagehand] …` lines inside a row are
+ * dropped: the SDK also hands them to `onLog`, which already logs them to the
+ * row (as `stagehand-sdk`).
+ */
+function captureStream(
+  stream: NodeJS.WriteStream,
+  category: "stdout" | "stderr",
+  outside?: (text: string) => void,
+): () => void {
+  const originalWrite = stream.write;
+  // One partial-line buffer per row (and one for output outside any row):
+  // concurrent rows interleave their chunks, and a shared buffer would glue
+  // row A's fragment onto row B's next line.
+  const pending = new Map<RowContext | undefined, string>();
+  const emit = (line: string, context: RowContext | undefined): void => {
+    if (line.trim() === "") return;
+    if (context?.log) {
+      if (/^\[stagehand\] /.test(line)) return;
+      context.log({ category, message: line, level: category === "stderr" ? 0 : 1 });
+      return;
+    }
+    outside?.(line);
+  };
+  stream.write = function (
+    this: NodeJS.WriteStream,
+    chunk: unknown,
+    encoding?: unknown,
+    callback?: unknown,
+  ): boolean {
+    if (isRendererWriting()) {
+      return (originalWrite as (...args: unknown[]) => boolean).call(
+        this,
+        chunk,
+        encoding,
+        callback,
+      );
+    }
+    const text =
+      typeof chunk === "string"
+        ? chunk
+        : Buffer.from(chunk as Uint8Array).toString(
+            typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8",
+          );
+    const context = currentRowContext();
+    const lines = ((pending.get(context) ?? "") + text).split("\n");
+    const rest = lines.pop() ?? "";
+    if (rest) pending.set(context, rest);
+    else pending.delete(context);
+    for (const line of lines) emit(line.replace(/\r$/, ""), context);
+    const done = typeof encoding === "function" ? encoding : callback;
+    if (typeof done === "function") queueMicrotask(() => (done as () => void)());
+    return true;
+  } as typeof stream.write;
+  return () => {
+    stream.write = originalWrite;
+    // Unterminated last lines go to the row that wrote them, though the run
+    // has left every row's context by now.
+    for (const [context, rest] of pending) emit(rest, context);
+    pending.clear();
+  };
 }

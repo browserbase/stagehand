@@ -110,12 +110,14 @@ const args = process.argv.slice(2);
   const isQuietFlag = (a: string): boolean => a === "--quiet" || a === "-q";
   const replLaunch = args.length === 0 || args.every(isQuietFlag);
 
-  // Argv mode: Esc behaves like Ctrl+C. The REPL has its own keypress
-  // handler that does cooperative-then-aggressive abort instead — this
-  // path is only active when no arg-less REPL is running.
+  // Argv mode: during a run, Esc stops it like the REPL does — the first
+  // press after in-flight rows, the next one now — and the summary still
+  // prints. Outside a run (and always for Ctrl+C) it exits.
   //
   // Note: raw mode disables the OS-level Ctrl+C → SIGINT translation,
   // so we forward it ourselves.
+  const argvAbortRef = { current: null as AbortController | null };
+  let argvRunStopped = false;
   let cleanupArgvInput = (): void => {};
   let armArgvInput = (): void => {};
   if (!replLaunch && args.length > 0 && process.stdin.isTTY) {
@@ -123,10 +125,18 @@ const args = process.argv.slice(2);
     const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
     const { getActiveRun } = await import("./tui/liveRun.js");
+    const { stopRunOnEscape } = await import("./framework/activeRunCleanup.js");
     const onKeypress = (str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
       if (!key) return;
-      if (key.name === "escape") void handleSignal("SIGINT");
-      else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
+      if (key.name === "escape") {
+        const controller = argvAbortRef.current;
+        if (!controller) void handleSignal("SIGINT");
+        else
+          stopRunOnEscape(controller, (mode) => {
+            getActiveRun()?.setStopping(mode);
+            argvRunStopped = true;
+          });
+      } else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
       // Live-board keys (`v` logs, `?` help); `?` arrives as a string, not a name.
       else getActiveRun()?.onKey?.(key.name ?? str);
     };
@@ -176,7 +186,8 @@ const args = process.argv.slice(2);
       setRegistry: (r) => {
         registry = r;
       },
-      abortRef: null,
+      // The run command sets `current` while it runs, so Esc can stop it.
+      abortRef: argvAbortRef,
       contextPath: null,
       // Welcome flows own stdin (raw-byte Esc/Ctrl+C listener + clack).
       // Release the Esc-exits-CLI handler first: left attached, Node's
@@ -208,5 +219,8 @@ const args = process.argv.slice(2);
       }
     }
     cleanupArgvInput();
+    // A stopped run may leave a task retrying against its closed session;
+    // don't let that keep the process alive after the summary has printed.
+    if (argvRunStopped) await handleSignal("SIGINT");
   }
 })();

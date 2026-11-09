@@ -46,6 +46,7 @@ export { discoverTasks, resolveTarget } from "./discovery.js";
 export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPlanner.js";
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
+import { endHardStop, hardStop, isHardStopped, whenHardStopped } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 import { resolveVerifierModel } from "./verifierModel.js";
@@ -53,7 +54,7 @@ import { describeCase, rowKey, type CaseLabel } from "./caseIdentity.js";
 import { runInRowContext, type RowLogEntry, type RowPhase } from "./rowContext.js";
 import { RowLogNames, RowLogWriter, resolveRunLogDir, rowLogFileName } from "./rowLog.js";
 import path from "node:path";
-import { classifyRowOutcome, type RowOutcome } from "./runSummary.js";
+import { classifyRowOutcome, readReason, type RowOutcome } from "./runSummary.js";
 import {
   ProviderConcurrency,
   interleaveByProvider,
@@ -61,6 +62,9 @@ import {
   type ConcurrencyQueueSnapshot,
   type ThrottleRecord,
 } from "./providerConcurrency.js";
+
+/** How long in-flight rows get to fail on their own after a hard stop. */
+export const HARD_STOP_GRACE_MS = 3_000;
 
 export interface RunProgressEvent {
   type:
@@ -591,9 +595,10 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     // page operation. The cleanup path inside executeBenchTask handles the
     // throw; finished tasks' cleanup is a no-op via onceAsync.
     const onAggressiveAbort = async (): Promise<void> => {
-      if (readAbortMode(options.signal) !== "aggressive") return;
-      const { cleanupActiveRunResources } = await import("./activeRunCleanup.js");
-      await cleanupActiveRunResources();
+      if (!options.signal || readAbortMode(options.signal) !== "aggressive") return;
+      // Shared with abortActiveRun, so a direct abort("aggressive") also marks
+      // the run hard-stopped and releases rows waiting on whenHardStopped.
+      await hardStop(options.signal);
     };
     options.signal?.addEventListener("abort", () => {
       void onAggressiveAbort();
@@ -632,10 +637,16 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             // from spinning up.
             if (options.signal?.aborted) {
               activeScheduler.markFinished();
-              options.onProgress?.({ type: "failed", ...row, error: "aborted" });
+              options.onProgress?.({
+                type: "failed",
+                ...row,
+                outcome: "stopped",
+                error: "stopped before it ran",
+              });
               return {
                 _success: false,
-                error: "aborted by user",
+                error: "stopped before it ran",
+                stoppedByUser: true,
                 logs: [],
               };
             }
@@ -723,7 +734,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             };
             let rawResult: TaskResult;
             try {
-              rawResult = await runGatedRow({
+              const gated = runGatedRow({
                 scheduler: activeScheduler,
                 modelName: input.modelName,
                 execute: (attempt) => {
@@ -738,6 +749,48 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                 onThrottle: (throttle) =>
                   options.onProgress?.({ type: "throttled", ...row, throttle }),
               });
+              // After a hard stop the sessions are closed, but a task can
+              // keep retrying against its dead session for minutes. Give rows
+              // a moment to fail on their own, then stop waiting for them.
+              // The grace timer only exists while this row is still running:
+              // it is cleared when the row settles and never armed afterwards.
+              let rowSettled = false;
+              let graceTimer: NodeJS.Timeout | undefined;
+              rawResult = options.signal
+                ? await Promise.race([
+                    gated,
+                    whenHardStopped(options.signal).then(
+                      () =>
+                        new Promise<TaskResult>((resolve) => {
+                          if (rowSettled) return;
+                          graceTimer = setTimeout(
+                            () =>
+                              resolve({
+                                _success: false,
+                                error: "stopped while running",
+                                stoppedByUser: true,
+                                logs: [],
+                              }),
+                            HARD_STOP_GRACE_MS,
+                          );
+                        }),
+                    ),
+                  ]).finally(() => {
+                    rowSettled = true;
+                    clearTimeout(graceTimer);
+                  })
+                : await gated;
+              // A hard stop kills in-flight rows; their failure is the stop,
+              // not the agent.
+              if (!rawResult._success && isHardStopped(options.signal)) {
+                rawResult = { ...rawResult, stoppedByUser: true };
+              }
+              // The row's file ends with why it failed, so the log alone
+              // explains the result.
+              const failureReason = rawResult._success ? undefined : readReason(rawResult);
+              if (failureReason) {
+                rowLog.write({ category: "runner", message: `✗ ${failureReason}`, level: 0 });
+              }
             } finally {
               // Even when the row throws, flush and close its file.
               rowDone = true;
@@ -754,7 +807,9 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
               outcome: classifyRowOutcome(result),
               ...(typeof result.sessionUrl === "string" && { sessionUrl: result.sessionUrl }),
               ...(typeof result.logPath === "string" && { logPath: result.logPath }),
-              error: result._success ? undefined : formatProgressError(result.error),
+              error: result._success
+                ? undefined
+                : (readReason(result) ?? formatProgressError(result.error)),
             });
 
             return result;
@@ -820,6 +875,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     };
   } finally {
     scheduler?.dispose();
+    endHardStop();
     if (traceTransport === "otel") {
       try {
         await shutdownTracing();

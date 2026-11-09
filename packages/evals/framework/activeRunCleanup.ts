@@ -8,7 +8,25 @@ export function onceAsync(fn: () => Promise<void>): () => Promise<void> {
   };
 }
 
+/**
+ * Set by a hard stop and cleared when the run ends. A row that was still
+ * starting its session when the sweep ran registers its cleanup afterwards;
+ * while this is set, that late registration is cleaned up on the spot.
+ */
+let hardStopInEffect = false;
+
+/** The run that was hard-stopped has ended; later runs register normally. */
+export function endHardStop(): void {
+  hardStopInEffect = false;
+}
+
 export function registerActiveRunCleanup(cleanup: () => Promise<void>): () => void {
+  if (hardStopInEffect) {
+    void Promise.resolve()
+      .then(cleanup)
+      .catch(() => {});
+    return () => {};
+  }
   const key = Symbol("active-run-cleanup");
   activeRunCleanups.set(key, cleanup);
   return () => {
@@ -22,6 +40,57 @@ export async function cleanupActiveRunResources(): Promise<void> {
   await Promise.allSettled(cleanups.map(([, cleanup]) => Promise.resolve().then(cleanup)));
 }
 
+const hardStopped = new WeakSet<AbortSignal>();
+const hardStopWaiters = new WeakMap<AbortSignal, { promise: Promise<void>; resolve: () => void }>();
+
+function hardStopWaiter(signal: AbortSignal): { promise: Promise<void>; resolve: () => void } {
+  let waiter = hardStopWaiters.get(signal);
+  if (!waiter) {
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => (resolve = done));
+    waiter = { promise, resolve };
+    hardStopWaiters.set(signal, waiter);
+  }
+  return waiter;
+}
+
+/**
+ * Resolves once the run has been stopped hard and its sessions are closed.
+ * Rows race against it: a task that keeps retrying against its dead session
+ * must not hold the run open after the user said "stop now".
+ */
+export function whenHardStopped(signal: AbortSignal): Promise<void> {
+  return hardStopWaiter(signal).promise;
+}
+
+/**
+ * True once the run was stopped hard (in-flight rows killed). The signal's
+ * reason can't say so: AbortController keeps its first reason, and a hard stop
+ * usually follows a cooperative one.
+ */
+export function isHardStopped(signal: AbortSignal | undefined): boolean {
+  return signal !== undefined && hardStopped.has(signal);
+}
+
+const hardStops = new WeakMap<AbortSignal, Promise<void>>();
+
+/**
+ * Stop the run hard: mark it, close its sessions, then release the rows
+ * waiting on `whenHardStopped`. Every caller for the same run (a repeated
+ * Esc, the runner's own abort listener) shares the first cleanup, so the
+ * waiter never resolves before the sessions are closed.
+ */
+export function hardStop(signal: AbortSignal): Promise<void> {
+  let stopping = hardStops.get(signal);
+  if (!stopping) {
+    hardStopped.add(signal);
+    hardStopInEffect = true;
+    stopping = cleanupActiveRunResources().finally(() => hardStopWaiter(signal).resolve());
+    hardStops.set(signal, stopping);
+  }
+  return stopping;
+}
+
 export async function abortActiveRun(
   controller: AbortController,
   mode: "cooperative" | "aggressive",
@@ -29,5 +98,19 @@ export async function abortActiveRun(
   // AbortController keeps the first reason forever. A second Escape therefore
   // cannot upgrade a cooperative abort by calling abort("aggressive") again.
   if (!controller.signal.aborted) controller.abort(mode);
-  if (mode === "aggressive") await cleanupActiveRunResources();
+  if (mode === "aggressive") await hardStop(controller.signal);
+}
+
+/**
+ * Esc during a run: the first press stops after in-flight rows, a second
+ * press within `windowMs` (or any press once already stopping) stops now.
+ * Shared by the REPL and argv mode so both behave the same.
+ */
+export function stopRunOnEscape(
+  controller: AbortController,
+  onStopping: (mode: "cooperative" | "aggressive") => void,
+): void {
+  const mode = controller.signal.aborted ? "aggressive" : "cooperative";
+  onStopping(mode);
+  void abortActiveRun(controller, mode);
 }

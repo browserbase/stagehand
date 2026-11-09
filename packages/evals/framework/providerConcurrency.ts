@@ -543,7 +543,12 @@ const defaultSleep = (ms: number, signal?: AbortSignal) =>
   });
 
 /** Row returned when the run is aborted before this row got a slot. */
-export const ABORTED_ROW: TaskResult = { _success: false, error: "aborted by user", logs: [] };
+export const ABORTED_ROW: TaskResult = {
+  _success: false,
+  error: "stopped before it ran",
+  stoppedByUser: true,
+  logs: [],
+};
 
 /**
  * Execute a row under its provider slot, retrying once on backpressure (see
@@ -573,7 +578,12 @@ export async function runGatedRow(options: RunGatedRowOptions): Promise<TaskResu
           signal,
         );
       } catch (error) {
-        if (error instanceof AbortedWhileQueued) return decorate(ABORTED_ROW, throttleInfo);
+        if (error instanceof AbortedWhileQueued) {
+          // Stopped while queued for its retry: the first attempt did run.
+          const row =
+            attempt > 1 ? { ...ABORTED_ROW, error: "stopped before its retry" } : ABORTED_ROW;
+          return decorate(row, throttleInfo);
+        }
         throw error;
       }
       const source = classifyResultThrottle(result);

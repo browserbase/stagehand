@@ -22,7 +22,7 @@ import { printExtendedWelcome, printTipLine } from "./welcome.js";
 import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
 import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
 import { welcomeEnabled } from "./welcome/index.js";
-import { abortActiveRun } from "../framework/activeRunCleanup.js";
+import { abortActiveRun, stopRunOnEscape } from "../framework/activeRunCleanup.js";
 import { getActiveRun } from "./liveRun.js";
 
 export type ReplOptions = {
@@ -174,18 +174,24 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   });
   rlRef = rl;
 
-  // Esc → either pop one context level (idle) or abort the in-flight run
-  // (cooperative; double-press escalates to aggressive — the runner closes
-  // V3 sessions immediately so the in-flight task throws).
-  let lastEscAt = 0;
-  const DOUBLE_ESC_WINDOW_MS = 1500;
+  // Esc → either pop one context level (idle) or stop the in-flight run:
+  // the first press after in-flight rows, the next one now (the runner closes
+  // sessions immediately so in-flight rows throw).
+  const showStopping = (mode: "cooperative" | "aggressive"): void => {
+    // A live board shows the stop itself; printing would break its redraw.
+    const board = getActiveRun();
+    if (board) board.setStopping(mode);
+    else
+      console.log(
+        mode === "aggressive"
+          ? red("\n  ✗ Stopping now…")
+          : yellow("\n  ⚠ Stopping after in-flight rows… (press Esc again to stop now)"),
+      );
+  };
 
   const abortImmediately = (): void => {
     if (!abortRef.current) return;
-    // A live board shows the stop itself; printing would break its redraw.
-    const board = getActiveRun();
-    if (board) board.setStopping("aggressive");
-    else console.log(red("\n  ✗ Aborting immediately…"));
+    showStopping("aggressive");
     void abortActiveRun(abortRef.current, "aggressive");
   };
 
@@ -209,20 +215,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
       }
       return;
     }
-    const now = Date.now();
-    const isDouble = now - lastEscAt < DOUBLE_ESC_WINDOW_MS;
-    lastEscAt = now;
-    if (isDouble) {
-      abortImmediately();
-    } else {
-      const board = getActiveRun();
-      if (board) board.setStopping("cooperative");
-      else
-        console.log(
-          yellow("\n  ⚠ Aborting after current task… (press Esc again to abort immediately)"),
-        );
-      void abortActiveRun(abortRef.current, "cooperative");
-    }
+    stopRunOnEscape(abortRef.current, showStopping);
   };
   process.stdin.on("keypress", onKeypress);
 

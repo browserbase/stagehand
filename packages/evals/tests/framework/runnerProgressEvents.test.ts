@@ -75,7 +75,7 @@ describe("runner progress events carry row identity", () => {
     delete process.env.EVAL_TRAJECTORY_MODEL;
   });
 
-  async function startRun(events: RunProgressEvent[]) {
+  async function startRun(events: RunProgressEvent[], signal?: AbortSignal) {
     const { runEvals } = await import("../../framework/runner.js");
     const run = runEvals({
       tasks: [SUITE],
@@ -87,6 +87,7 @@ describe("runner progress events carry row identity", () => {
       },
       harness: "codex",
       trials: 2,
+      signal,
       onProgress: (event) => {
         events.push(event);
       },
@@ -270,6 +271,108 @@ describe("runner progress events carry row identity", () => {
     // Both rows closed their files, including the one that threw.
     expect(close).toHaveBeenCalledTimes(2);
     close.mockRestore();
+  });
+
+  it("reports rows the user stopped as stopped, not failed", async () => {
+    const { abortActiveRun } = await import("../../framework/activeRunCleanup.js");
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    const controller = new AbortController();
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events, controller.signal);
+
+    // In flight when the run is hard-stopped: its failure is the stop.
+    let failInFlight!: () => void;
+    vi.mocked(executeBenchTask).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          failInFlight = () => resolve({ _success: false, error: "CDP connection closed" });
+        }),
+    );
+    const inFlight = task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    await vi.waitFor(() => expect(events.some((e) => e.type === "started")).toBe(true));
+    await abortActiveRun(controller, "cooperative");
+    await abortActiveRun(controller, "aggressive");
+    failInFlight();
+    // Not started yet: never runs.
+    const queued = await task(input("bbbbbbbb00000000bbbbbbbb00000000", "b.com"), {
+      trialIndex: 0,
+    });
+    releaseEval?.();
+    await run;
+
+    expect(await inFlight).toMatchObject({ _success: false, stoppedByUser: true });
+    expect(queued).toMatchObject({ _success: false, stoppedByUser: true });
+    const outcomes = events
+      .filter((e) => e.type === "failed")
+      .map((e) => [e.case?.domain, e.outcome]);
+    expect(outcomes).toEqual(
+      expect.arrayContaining([
+        ["a.com", "stopped"],
+        ["b.com", "stopped"],
+      ]),
+    );
+    expect(vi.mocked(executeBenchTask)).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting for a row that never ends after a hard stop", async () => {
+    const { abortActiveRun } = await import("../../framework/activeRunCleanup.js");
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    const controller = new AbortController();
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events, controller.signal);
+    // A task retrying against its closed session: it never settles.
+    vi.mocked(executeBenchTask).mockImplementationOnce(() => new Promise(() => {}));
+    const hung = task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    await vi.waitFor(() => expect(events.some((e) => e.type === "started")).toBe(true));
+
+    const stoppedAt = Date.now();
+    await abortActiveRun(controller, "aggressive");
+    await expect(hung).resolves.toMatchObject({
+      _success: false,
+      stoppedByUser: true,
+      error: "stopped while running",
+    });
+    expect(Date.now() - stoppedAt).toBeLessThan(6_000);
+    expect(events.find((e) => e.type === "failed")?.outcome).toBe("stopped");
+    releaseEval?.();
+    await run;
+  }, 15_000);
+
+  it('treats a direct abort("aggressive") as a hard stop too', async () => {
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    const { isHardStopped } = await import("../../framework/activeRunCleanup.js");
+    const controller = new AbortController();
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events, controller.signal);
+    vi.mocked(executeBenchTask).mockImplementationOnce(() => new Promise(() => {}));
+    const hung = task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    await vi.waitFor(() => expect(events.some((e) => e.type === "started")).toBe(true));
+
+    // No abortActiveRun: the runner's own abort listener must do the marking.
+    controller.abort("aggressive");
+    await expect(hung).resolves.toMatchObject({ _success: false, stoppedByUser: true });
+    expect(isHardStopped(controller.signal)).toBe(true);
+    releaseEval?.();
+    await run;
+  }, 15_000);
+
+  it("ends a failed row's log with why it failed, including a task's own message", async () => {
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events);
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    vi.mocked(executeBenchTask).mockImplementationOnce(async () => ({
+      _success: false,
+      message: "Scroll position is not halfway down the page.",
+    }));
+    await task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    releaseEval?.();
+    await run;
+
+    const done = events.find((e) => e.type === "failed");
+    expect(done?.error).toBe("Scroll position is not halfway down the page.");
+    expect(fs.readFileSync(done!.logPath!, "utf8")).toMatch(
+      /\[runner\] ERROR ✗ Scroll position is not halfway down the page\.\n$/,
+    );
   });
 
   it("emits started only once the provider slot is acquired", async () => {

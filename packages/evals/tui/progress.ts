@@ -53,6 +53,8 @@ export interface ProgressRow {
 }
 
 interface RowState {
+  /** rowIdentity of the row, to match the followed row. */
+  key: string;
   name: string;
   question?: string;
   model?: string;
@@ -114,6 +116,8 @@ function outcomeLabel(outcome: RowOutcome | undefined): {
       return { text: outcome, tone: yellow };
     case "sdk_error":
       return { text: "sdk_error", tone: red };
+    case "stopped":
+      return { text: "stopped", tone: dim };
     default:
       return { text: "failed", tone: red };
   }
@@ -127,6 +131,7 @@ const OUTCOME_ICON: Record<RowOutcome, string> = {
   ungraded: yellow("?"),
   sdk_error: red("✗"),
   fail: red("✗"),
+  stopped: dim("⊘"),
 };
 
 const PHASE_TONE: Record<RowPhase, (s: string) => string> = {
@@ -150,11 +155,24 @@ function percentile(values: number[], p: number): number | undefined {
   return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
 }
 
+/**
+ * True while a renderer is writing. Run-time output capture (run.ts) patches
+ * stdout/stderr so foreign writes can't land inside the board; it lets the
+ * renderer's own writes through by checking this. Renderer writes are all
+ * synchronous, so a counter is enough.
+ */
+let rendererWriting = 0;
+export function isRendererWriting(): boolean {
+  return rendererWriting > 0;
+}
+
 export class ProgressRenderer {
   private rows = new Map<string, RowState>();
   private passed = 0;
   private failed = 0;
   private maxTurns = 0;
+  /** Rows the user stopped; they are not failures. */
+  private stopped = 0;
   private readonly animated: boolean;
   private readonly progressBar: boolean;
   private readonly out: NodeJS.WriteStream;
@@ -176,6 +194,10 @@ export class ProgressRenderer {
   private lastQueueLinePrintedAt?: number;
   private stopping?: StopMode;
   private keyHints?: string;
+  /** Set by printSummary: the last frame is just the status line. */
+  private finalFrame = false;
+  /** Row whose logs stream in "one" mode; marked on the board. */
+  private followed?: string;
 
   constructor(options: ProgressRendererOptions = {}) {
     this.out = options.stream ?? process.stdout;
@@ -195,6 +217,7 @@ export class ProgressRenderer {
   onStart(row: ProgressRow): void {
     const name = rowDisplayName(row);
     this.rows.set(rowIdentity(row), {
+      key: rowIdentity(row),
       name,
       question: row.case?.question,
       model: row.model,
@@ -244,12 +267,13 @@ export class ProgressRenderer {
   ): void {
     this.finish(row, "failed", details);
     if (details.outcome === "max_turns") this.maxTurns++;
+    else if (details.outcome === "stopped") this.stopped++;
     else this.failed++;
     this.afterFinish();
     if (!this.animated) {
       const label = outcomeLabel(details.outcome);
       this.printEventLine(
-        red("✗"),
+        OUTCOME_ICON[details.outcome ?? "fail"],
         rowDisplayName(row),
         row.model,
         label.tone(label.text),
@@ -308,7 +332,13 @@ export class ProgressRenderer {
       );
   }
 
-  /** Key hints shown under the board (`esc stop · v logs · ? help`). */
+  /** Mark the row whose logs are streaming (`v` → one); undefined clears it. */
+  setFollowed(rowKey: string | undefined): void {
+    this.followed = rowKey;
+    if (this.animated && this.renderedLines > 0) this.redraw();
+  }
+
+  /** Key hints shown under the board (`esc stop · v logs · ? help`); may span lines. */
   setKeyHints(hints: string | undefined): void {
     this.keyHints = hints;
     if (this.animated && this.renderedLines > 0) this.redraw();
@@ -337,6 +367,7 @@ export class ProgressRenderer {
     this.queue = undefined;
     this.keyHints = undefined;
     this.stopping = undefined;
+    this.finalFrame = true;
     if (this.animated && this.renderedLines > 0) {
       // Leave the final state of the board on screen, minus live-only lines.
       this.clearBoard();
@@ -349,7 +380,7 @@ export class ProgressRenderer {
     const total = this.passed + this.failed + this.maxTurns;
     const failed = this.failed + this.maxTurns;
     this.line(
-      `  ${bold("Results:")} ${green(`${this.passed} passed`)}, ${red(`${failed} failed`)} ${dim(`(${total} total)`)}`,
+      `  ${bold("Results:")} ${green(`${this.passed} passed`)}, ${red(`${failed} failed`)} ${dim(`(${total} ran${this.stopped > 0 ? `, ${this.stopped} stopped` : ""})`)}`,
     );
     if (total > 0) {
       const pct = Math.round((this.passed / total) * 100);
@@ -385,6 +416,8 @@ export class ProgressRenderer {
   boardLines(): string[] {
     const width = this.width();
     const lines: string[] = [this.statusLine(width)];
+    // After the run only the status line stays: the summary below says the rest.
+    if (this.finalFrame) return lines;
     if (this.queue)
       lines.push(`  ${dim(truncateText(formatConcurrencyQueueLine(this.queue), width - 4))}`);
     if (this.stopping) {
@@ -411,7 +444,7 @@ export class ProgressRenderer {
     const budget = Math.max(6, this.terminalRows() - RESERVED_TERMINAL_ROWS - lines.length);
     const recentCount = Math.min(RECENT_ROWS, finished.length);
     const recentLines = recentCount > 0 ? recentCount + 2 : 0; // blank + "recent" + rows
-    const hintLines = this.keyHints ? 2 : 0;
+    const hintLines = this.keyHints ? this.keyHints.split("\n").length + 1 : 0;
     const runningBudget = Math.max(1, budget - recentLines - hintLines - 1);
     const shownRunning = running.slice(0, runningBudget);
 
@@ -438,12 +471,17 @@ export class ProgressRenderer {
         lines.push(`  ${dim(`… ${finished.length - recentCount} more finished`)}`);
       }
     }
-    if (this.keyHints) lines.push("", `  ${dim(this.keyHints)}`);
+    if (this.keyHints) {
+      lines.push(
+        "",
+        ...this.keyHints.split("\n").map((hint) => `  ${dim(truncateText(hint, width - 4))}`),
+      );
+    }
     return lines;
   }
 
   private statusLine(width: number): string {
-    const done = this.passed + this.failed + this.maxTurns;
+    const done = this.passed + this.failed + this.maxTurns + this.stopped;
     const total = this.total ?? done;
     const barWidth = Math.max(10, Math.min(30, Math.floor(width * 0.22)));
     const filled = total > 0 ? Math.min(barWidth, Math.round((done / total) * barWidth)) : 0;
@@ -452,10 +490,11 @@ export class ProgressRenderer {
       green(`✓ ${this.passed}`),
       red(`✗ ${this.failed}`),
       ...(this.maxTurns > 0 ? [yellow(`⏱ ${this.maxTurns}`)] : []),
+      ...(this.stopped > 0 ? [dim(`⊘ ${this.stopped} stopped`)] : []),
     ].join("  ");
     const elapsed = this.now() - this.startedAt;
     const eta =
-      done >= 3 && total > done
+      done >= 3 && total > done && !this.stopping
         ? ` · eta ~${Math.ceil(((elapsed / done) * (total - done)) / 60_000)}m`
         : "";
     return `  ${bar}  ${done}/${total}   ${counts}   ${dim(`${formatElapsed(elapsed)}${eta}`)}`;
@@ -473,7 +512,11 @@ export class ProgressRenderer {
     showModel: boolean,
     p75: number | undefined,
   ): string {
-    const spinner = blue(SPINNER[this.frame % SPINNER.length]);
+    // The row whose logs are streaming gets a pointer instead of a spinner.
+    const spinner =
+      this.followed && row.key === this.followed
+        ? cyan("▸")
+        : blue(SPINNER[this.frame % SPINNER.length]);
     const elapsedMs = this.now() - row.startedAt;
     const elapsed = formatElapsed(elapsedMs);
     const elapsedCell = p75 !== undefined && elapsedMs > p75 ? yellow(elapsed) : dim(elapsed);
@@ -495,14 +538,19 @@ export class ProgressRenderer {
     const icon = OUTCOME_ICON[row.outcome ?? "fail"];
     const kind = row.outcome === "pass" ? padRight("", 10) : label.tone(padRight(label.text, 10));
     const prefix = `  ${icon} ${padRight(this.rowLabel(row, showModel), labelWidth)}  ${kind} `;
-    const parts = [
-      row.durationMs !== undefined ? formatElapsed(row.durationMs) : undefined,
-      // Failures link their session; rubric fails also carry the reason.
-      row.outcome !== "pass" ? row.sessionUrl : undefined,
-      // No outcome: a row that failed before it ran (e.g. aborted while queued).
-      row.outcome === "fail" || row.outcome === undefined ? row.error : undefined,
-    ].filter(Boolean);
-    const tail = truncateText(parts.join(" · "), Math.max(10, width - visibleLength(prefix) - 2));
+    const duration = row.durationMs !== undefined ? formatElapsed(row.durationMs) : undefined;
+    // The reason is what tells you why; a session URL is only worth showing
+    // whole (a truncated URL can't be opened), so it goes last and drops out
+    // when it doesn't fit.
+    const reason =
+      row.outcome !== "pass" && row.error ? row.error.replace(/\s+/g, " ").trim() : undefined;
+    const room = Math.max(10, width - visibleLength(prefix) - 2);
+    const head = [duration, reason].filter(Boolean).join(" · ");
+    const url = row.outcome !== "pass" ? row.sessionUrl : undefined;
+    const tail =
+      url && visibleLength(head) + 3 + url.length <= room
+        ? `${head} · ${url}`
+        : truncateText(head, room);
     return `${prefix}${dim(tail)}`;
   }
 
@@ -516,6 +564,7 @@ export class ProgressRenderer {
     const key = rowIdentity(row);
     const previous = this.rows.get(key);
     this.rows.set(key, {
+      key,
       name: rowDisplayName(row),
       question: row.case?.question,
       model: row.model,
@@ -551,9 +600,12 @@ export class ProgressRenderer {
 
   private clearBoard(): void {
     if (this.renderedLines > 0) {
-      readline.moveCursor(this.out, 0, -this.renderedLines);
-      readline.cursorTo(this.out, 0);
-      readline.clearScreenDown(this.out);
+      const lines = this.renderedLines;
+      this.writing(() => {
+        readline.moveCursor(this.out, 0, -lines);
+        readline.cursorTo(this.out, 0);
+        readline.clearScreenDown(this.out);
+      });
     }
     this.renderedLines = 0;
   }
@@ -578,7 +630,7 @@ export class ProgressRenderer {
   private printProgressBar(): void {
     const total = this.total ?? 0;
     if (total <= 0) return;
-    const completed = this.passed + this.failed + this.maxTurns;
+    const completed = this.passed + this.failed + this.maxTurns + this.stopped;
     const barWidth = Math.max(12, Math.min(34, Math.floor(this.width() * 0.24)));
     const filled = Math.min(barWidth, Math.round((completed / total) * barWidth));
     const pct = Math.round((completed / total) * 100);
@@ -620,11 +672,20 @@ export class ProgressRenderer {
     return Math.max(FALLBACK_TERMINAL_ROWS, rows);
   }
 
+  private writing(fn: () => void): void {
+    rendererWriting++;
+    try {
+      fn();
+    } finally {
+      rendererWriting--;
+    }
+  }
+
   private raw(text: string): void {
-    this.out.write(text);
+    this.writing(() => this.out.write(text));
   }
 
   private line(text = ""): void {
-    this.out.write(`${text}\n`);
+    this.writing(() => this.out.write(`${text}\n`));
   }
 }

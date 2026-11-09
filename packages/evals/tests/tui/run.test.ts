@@ -1005,12 +1005,14 @@ describe("end-of-run summary", () => {
     expect(output).toContain(
       "Judge: google/gemini-3.5-flash  Success: outcome  Trajectories: on (.trajectories)",
     );
-    expect(output).toMatch(/codex × stagehand_facade × openai\/gpt-5.4-mini\s+50% 1\/2\s+0\s+1/);
+    // Only the count columns some cell uses: here sdk_error.
+    expect(output).toMatch(/cell\s+pass\s+sdk_error$/m);
+    expect(output).toMatch(/codex × stagehand_facade × openai\/gpt-5.4-mini\s+50% 1\/2\s+1$/m);
     expect(output).toContain(
       "Verifiability: judge google/gemini-3.5-flash · 0/6 criteria unverifiable across 2 graded runs · 0 ungraded",
     );
     expect(output).toMatch(
-      /✗ t2\s+sdk_error\s+rate_limit_exceeded \(429\) https:\/\/www.browserbase.com\/sessions\/9ab0/,
+      /✗ t2 gpt-5\.4-mini\s+sdk_error\s+rate_limit_exceeded \(429\)\s+https:\/\/www.browserbase.com\/sessions\/9ab0/,
     );
     // One headline instead of a second pass rate; the cell row carries it.
     expect(output).toMatch(/^ {2}hardbenchmark · 2 runs · \d+s$/m);
@@ -1019,6 +1021,28 @@ describe("end-of-run summary", () => {
       "Experiment: agent/hardbenchmark-a1b2  https://www.braintrust.dev/app/x/experiments/agent%2Fhardbenchmark-a1b2",
     );
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("wraps the run header at its separators on a narrow terminal", async () => {
+    const savedColumns = process.stdout.columns;
+    process.stdout.columns = 64;
+    try {
+      mockRun([]);
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      await runCommand(benchOptions, registry());
+      const lines = log.mock.calls
+        .flatMap(([line]) => stripAnsi(String(line)).split("\n"))
+        .filter((line) =>
+          /Env:|Harness:|Tool:|Concurrency:|Judge:|Success:|Trajectories:/.test(line),
+        );
+      expect(lines.length).toBeGreaterThan(2);
+      for (const line of lines) expect(line.length).toBeLessThanOrEqual(64);
+      // Parts stay whole: each starts a line or follows a two-space separator.
+      expect(lines.join("\n")).toMatch(/^ {2}Trajectories: on \(\.trajectories\)$/m);
+    } finally {
+      process.stdout.columns = savedColumns;
+    }
   });
 
   it("marks trajectories off when CI is set", async () => {
@@ -1359,6 +1383,173 @@ describe("log streaming and live keys", () => {
     expect(text).not.toContain("off-again");
     expect(seen).toEqual(["false"]);
     expect(getActiveRun()).toBeUndefined();
+  });
+
+  it("captures direct stdout/stderr writes while the board is animated", async () => {
+    const { runInRowContext } = await import("../../framework/rowContext.js");
+    const entries: unknown[] = [];
+    const body = async () => {
+      await runInRowContext(
+        { reportPhase: () => {}, log: (entry) => entries.push(entry) },
+        async () => {
+          // The SDK writes its log lines straight to stderr (and hands them to
+          // onLog, which logs them to the row): the raw copy is dropped.
+          process.stderr.write("[stagehand] INFO stagehand.init\n");
+          process.stderr.write("plain std");
+          process.stderr.write("err line\nsecond line\n");
+          process.stdout.write(Buffer.from("from a buffer\n"));
+        },
+      );
+      process.stdout.write("outside any row\n");
+    };
+    const savedTty = process.stdout.isTTY;
+    process.stdout.isTTY = true;
+    try {
+      mockRunWith(body);
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const quiet = await capture(() => runCommand(options, makeRegistry([makeTask()])));
+      expect(entries).toEqual([
+        { category: "stderr", message: "plain stderr line", level: 0 },
+        { category: "stderr", message: "second line", level: 0 },
+        { category: "stdout", message: "from a buffer", level: 1 },
+      ]);
+      // Nothing foreign reached the terminal, on either stream.
+      expect(stderr).not.toHaveBeenCalled();
+      for (const foreign of ["[stagehand]", "plain stderr", "from a buffer", "outside any row"]) {
+        expect(quiet).not.toContain(foreign);
+      }
+      // The streams are restored after the run.
+      process.stderr.write("after the run\n");
+      expect(stderr).toHaveBeenCalledWith("after the run\n");
+
+      vi.restoreAllMocks();
+      mockRunWith(body);
+      vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const verbose = await capture(() =>
+        runCommand({ ...options, verbose: true }, makeRegistry([makeTask()])),
+      );
+      // -v prints what happens outside a row, above the board.
+      expect(verbose).toContain("outside any row");
+    } finally {
+      process.stdout.isTTY = savedTty;
+    }
+  });
+
+  it("buffers partial lines per row, so concurrent rows don't splice each other's output", async () => {
+    const { runInRowContext } = await import("../../framework/rowContext.js");
+    const seen: Record<string, string[]> = { a: [], b: [] };
+    const context = (name: string) => ({
+      reportPhase: () => {},
+      log: (entry: { message: string }) => seen[name].push(entry.message),
+    });
+    const savedTty = process.stdout.isTTY;
+    process.stdout.isTTY = true;
+    try {
+      mockRunWith(async () => {
+        let resumeA!: () => void;
+        const paused = new Promise<void>((resolve) => (resumeA = resolve));
+        const a = runInRowContext(context("a"), async () => {
+          process.stdout.write("from a, part one");
+          await paused;
+          process.stdout.write(" and part two\nunterminated tail from a");
+        });
+        await runInRowContext(context("b"), async () => {
+          process.stdout.write("all of b\n");
+        });
+        resumeA();
+        await a;
+      });
+      await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    } finally {
+      process.stdout.isTTY = savedTty;
+    }
+    expect(seen.b).toEqual(["all of b"]);
+    // The tail has no newline: it is flushed to its row when the run ends.
+    expect(seen.a).toEqual(["from a, part one and part two", "unterminated tail from a"]);
+  });
+
+  it("leaves raw writes alone in line-per-event mode, where nothing can be corrupted", async () => {
+    mockRunWith(() => {
+      process.stderr.write("[stagehand] INFO stagehand.init\n");
+    });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    // Pinned: under a PTY the suite's own stdout is a TTY.
+    const savedTty = process.stdout.isTTY;
+    process.stdout.isTTY = false;
+    try {
+      await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    } finally {
+      process.stdout.isTTY = savedTty;
+    }
+    expect(stderr).toHaveBeenCalledWith("[stagehand] INFO stagehand.init\n");
+  });
+
+  it("streams warnings and errors from the SDK but not its per-step info chatter", async () => {
+    const sdk = (message: string, level: number) => ({
+      type: "log",
+      ...A,
+      log: { category: "stagehand-sdk", message, level },
+    });
+    mockRunWith((e) => {
+      e({ type: "started", ...A });
+      e(sdk("stagehand.init", 2));
+      e(sdk("Cache read failed", 1));
+      e(sdk("CDP response failed", 0));
+    });
+    const text = await capture(() =>
+      runCommand({ ...options, verbose: true }, makeRegistry([makeTask()])),
+    );
+    expect(text).not.toContain("stagehand.init");
+    expect(text).toContain("Cache read failed");
+    expect(text).toContain("CDP response failed");
+  });
+
+  it("prints a line a row repeats in a burst once, with a repeat count", async () => {
+    mockRunWith((e) => {
+      e({ type: "started", ...A });
+      for (let i = 0; i < 5; i++) e(logEvent(A, "CDP response failed"));
+      e(logEvent(A, "moved on"));
+      e(logEvent(B, "CDP response failed"));
+    });
+    const text = await capture(() =>
+      runCommand({ ...options, verbose: true }, makeRegistry([makeTask()])),
+    );
+    // A's five identical lines print once; B's same text is a different row.
+    expect(text.match(/aaaaaaaa codex {2}CDP response failed/g)).toHaveLength(1);
+    expect(text).toContain("↳ repeated 4 more times");
+    expect(text).toMatch(/bbbbbbbb codex {2}CDP response failed/);
+    expect(text.indexOf("↳ repeated 4 more times")).toBeLessThan(text.indexOf("moved on"));
+  });
+
+  it("names the model on stream lines when the run spans several", async () => {
+    const { formatStreamLine } = await import("../../tui/commands/run.js");
+    const event = {
+      type: "log" as const,
+      taskName: "act/dropdown",
+      modelName: "openai/gpt-4.1-mini",
+      log: { category: "console", message: "hello", level: 1 },
+    };
+    expect(stripAnsi(formatStreamLine(event, true))).toMatch(
+      /act\/dropdown gpt-4\.1-mini console {2}hello$/,
+    );
+    expect(stripAnsi(formatStreamLine(event, false))).toMatch(/act\/dropdown console {2}hello$/);
+  });
+
+  it("in one-row mode, follows the next oldest row when the followed one finishes", async () => {
+    const { getActiveRun } = await import("../../tui/liveRun.js");
+    mockRunWith((e) => {
+      e({ type: "started", ...A });
+      e({ type: "started", ...B });
+      const run = getActiveRun()!;
+      run.onKey?.("v"); // all
+      run.onKey?.("v"); // one → A
+      e(logEvent(B, "b-while-following-a"));
+      e({ type: "passed", ...A });
+      e(logEvent(B, "b-after-a-finished"));
+    });
+    const text = await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    expect(text).not.toContain("b-while-following-a");
+    expect(text).toContain("b-after-a-finished");
   });
 
   it("console output inside a row goes to that row's log, not the terminal", async () => {
