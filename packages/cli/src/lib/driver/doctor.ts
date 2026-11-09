@@ -101,6 +101,15 @@ export async function buildDoctorReport(
     checks.push(await daemonCheck(options.session, status, paths, deps));
   }
 
+  if (status?.initError) {
+    checks.push({
+      details: { error: status.initError },
+      message: `last start failed: ${status.initError.split("\n")[0]}`,
+      name: "browser",
+      status: "fail",
+    });
+  }
+
   if (status?.browserbaseSessionId) {
     const { browserbaseSessionId, browserbaseSessionUrl, browserbaseDebugUrl } = status;
 

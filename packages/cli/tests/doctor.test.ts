@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildDoctorReport } from "../src/lib/driver/doctor.js";
+import { buildDoctorReport, renderDoctorReport } from "../src/lib/driver/doctor.js";
 import { getLockPath, getPidPath, getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { runCli } from "./helpers/run-cli.js";
 
@@ -242,6 +242,41 @@ describe("doctor command", () => {
 });
 
 describe("doctor report builder", () => {
+  it("fails when the daemon's last browser start failed", async () => {
+    const report = await buildDoctorReport(
+      {
+        flags: {},
+        session: "default",
+      },
+      {
+        env: { BROWSERBASE_API_KEY: "" },
+        getDriverStatus: async () => ({
+          browserConnected: false,
+          initError: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details",
+          initialized: false,
+          mode: "managed-local",
+          pages: [],
+          pid: process.pid,
+          session: "default",
+          target: { headless: true, kind: "managed-local" },
+        }),
+        readPackageVersion: async () => "0.0.0-test",
+      },
+    );
+
+    expect(report.verdict).toBe("fail");
+    expect(report.next).toBeUndefined();
+    expect(report.checks).toContainEqual({
+      details: { error: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details" },
+      message: "last start failed: connect ECONNREFUSED 127.0.0.1:9222",
+      name: "browser",
+      status: "fail",
+    });
+    expect(renderDoctorReport(report)).toContain(
+      "[fail] browser last start failed: connect ECONNREFUSED 127.0.0.1:9222",
+    );
+  });
+
   it("keeps the default session out of status suggestions", async () => {
     const report = await buildDoctorReport(
       {
