@@ -61,13 +61,15 @@ export class LifecycleWatcher {
     waitUntil: LoadState;
     timeout: number;
     navigationCommandId: number;
+    /** When the navigation's `timeout` started counting; defaults to now. */
+    startTime?: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
     this.networkManager = params.networkManager;
     this.waitUntil = params.waitUntil;
     this.timeout = params.timeout;
-    this.startTime = Date.now();
+    this.startTime = params.startTime ?? Date.now();
     this.deadline = this.startTime + this.timeout;
     this.navigationCommandId = params.navigationCommandId;
     this.idleStartTime = this.startTime;
@@ -229,25 +231,30 @@ export class LifecycleWatcher {
    * `Page.navigate` only answers once the navigation commits, so a server that never
    * responds would otherwise hold the call past its timeout.
    */
-  async awaitNavigationCommand<T>(command: Promise<T>): Promise<T> {
-    return await this.beforeNavigationStartDeadline(command, this.deadline);
+  async awaitNavigationCommand<T>(method: string, command: Promise<T>): Promise<T> {
+    return await this.beforeNavigationStartDeadline(command, this.deadline, method);
   }
 
   /** Wait for a new-document or same-document main-frame navigation to begin. */
   async awaitNavigationStart(deadline: number): Promise<boolean> {
     if (this.navigationStarted) return this.sameDocumentNavigation;
-    return await this.beforeNavigationStartDeadline(this.navigationStartPromise, deadline);
+    return await this.beforeNavigationStartDeadline(
+      this.navigationStartPromise,
+      deadline,
+      "Navigation start",
+    );
   }
 
   private async beforeNavigationStartDeadline<T>(
     operation: Promise<T>,
     deadline: number,
+    label: string,
   ): Promise<T> {
     const remaining = this.timeRemaining(deadline);
     let timer: ReturnType<typeof setTimeout> | null = null;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
-        reject(new TimeoutError("Navigation start", this.timeout));
+        reject(new TimeoutError(label, this.timeout));
       }, remaining);
     });
 
