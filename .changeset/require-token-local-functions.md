@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-require token for local functions runtime requests
+Add token validation to internal local Functions runtime requests
