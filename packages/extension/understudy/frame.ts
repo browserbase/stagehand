@@ -1,6 +1,6 @@
 // lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
-import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
+import { type CDPSessionLike, ensureCdpDomainEnabled, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -51,7 +51,7 @@ export class Frame implements FrameManager {
 
   /** DOM.getNodeForLocation → DOM.describeNode */
   async getNodeAtLocation(x: number, y: number): Promise<Protocol.DOM.Node> {
-    await this.session.send("DOM.enable");
+    await ensureCdpDomainEnabled(this.session, "DOM");
     const { backendNodeId } = await this.session.send<{
       backendNodeId: Protocol.DOM.BackendNodeId;
     }>("DOM.getNodeForLocation", {
@@ -72,7 +72,7 @@ export class Frame implements FrameManager {
   async getLocationForSelector(
     selector: string,
   ): Promise<{ x: number; y: number; width: number; height: number }> {
-    await this.session.send("DOM.enable");
+    await ensureCdpDomainEnabled(this.session, "DOM");
 
     const { root } = await this.session.send<{ root: Protocol.DOM.Node }>("DOM.getDocument");
 
@@ -136,7 +136,7 @@ export class Frame implements FrameManager {
     progress?: Progress,
   ): Promise<R> {
     progress?.throwIfStopped();
-    await this.session.send("Runtime.enable").catch(() => {});
+    await ensureCdpDomainEnabled(this.session, "Runtime").catch(() => {});
     const contextId = await this.getMainWorldExecutionContextId(progress);
 
     const isString = typeof pageFunctionOrExpression === "string";
@@ -248,7 +248,7 @@ export class Frame implements FrameManager {
   ): Promise<Protocol.Runtime.EvaluateResponse & { contextId: number }> {
     const { progress } = options;
     await runLocatorStep(progress, "enabling runtime", () =>
-      this.session.send("Runtime.enable").catch((error) => {
+      ensureCdpDomainEnabled(this.session, "Runtime").catch((error) => {
         if (progress && isCdpClosedError(error)) throw error;
       }),
     );

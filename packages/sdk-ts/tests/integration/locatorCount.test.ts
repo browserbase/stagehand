@@ -96,4 +96,29 @@ describe("Locator count() method tests", () => {
 
     expect(count).toBe(2);
   });
+
+  it("keeps repeated locator operations working across navigation and new pages", async () => {
+    const page = await firstPage(stagehand);
+    const html = "data:text/html," + encodeURIComponent('<input id="value"><button>Save</button>');
+    for (let navigation = 0; navigation < 2; navigation++) {
+      await page.goto(html + encodeURIComponent(`<p>${navigation}</p>`));
+      for (let index = 0; index < 5; index++) {
+        const value = `${navigation}-${index}`;
+        await page.locator("#value").fill(value);
+        expect(await page.locator("#value").inputValue()).toBe(value);
+        expect(await page.locator("button").count()).toBe(1);
+      }
+    }
+
+    const other = await stagehand.browser.context.newPage();
+    try {
+      await other.goto(html);
+      await other.locator("#value").fill("new page");
+      expect(await other.locator("#value").inputValue()).toBe("new page");
+      expect(await other.locator("button").count()).toBe(1);
+      expect(await page.locator("#value").inputValue()).toBe("1-4");
+    } finally {
+      await other.close();
+    }
+  });
 });
