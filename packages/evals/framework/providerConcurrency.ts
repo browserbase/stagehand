@@ -11,9 +11,12 @@
  * Scope: one `evals run` process. Separately launched runs do not share these
  * limits; running several cells under one cap is the matrix planner's job.
  *
- * Widths come from `EVAL_PROVIDER_CONCURRENCY` (`openai=3,anthropic=3`) over
- * `providers.<p>.concurrency` in config; providers without an entry get
- * `DEFAULT_PROVIDER_WIDTH`. Every width is clamped to the global cap.
+ * By default there is no per-provider cap: the global `-c` is the only
+ * limit, and rows are interleaved across providers (see
+ * `interleaveByProvider`), so the slots split evenly between them. A cap is
+ * opt-in: `EVAL_PROVIDER_CONCURRENCY` (`openai=6,anthropic=4`) over
+ * `providers.<p>.concurrency` in config, clamped to the global cap. Capped
+ * providers get their width; the others share what is left.
  *
  * Throttling: when the agent's own provider call fails with a 429 / connect
  * timeout, that provider's width is halved for `THROTTLE_WINDOW_MS` (further
@@ -30,7 +33,6 @@ import type { MetricValue } from "./harnesses/externalRunner.js";
 import type { TaskResult } from "./types.js";
 
 export const PROVIDER_CONCURRENCY_ENV = "EVAL_PROVIDER_CONCURRENCY";
-export const DEFAULT_PROVIDER_WIDTH = 3;
 export const THROTTLE_WINDOW_MS = 60_000;
 export const BROWSERBASE_RETRY_DELAY_MS = 20_000;
 export const PROVIDER_RETRY_DELAY_MS = 10_000;
@@ -158,6 +160,11 @@ export function interleaveByProvider<T>(
   return interleaved;
 }
 
+/** gcd(a, b); with 0 as the identity, so it folds over a list. */
+export function greatestCommonDivisor(a: number, b: number): number {
+  return b === 0 ? a : greatestCommonDivisor(b, a % b);
+}
+
 export interface SemaphoreSnapshot {
   /** Slots currently held. */
   active: number;
@@ -169,6 +176,8 @@ export interface SemaphoreSnapshot {
   waiting: number;
   /** Epoch ms until which the width stays halved, if throttled. */
   throttledUntil?: number;
+  /** No per-provider cap was set: only the global cap limits this provider. */
+  uncapped?: boolean;
 }
 
 /**
@@ -280,8 +289,6 @@ export interface ProviderConcurrencyOptions {
   globalConcurrency: number;
   /** Explicit widths (from env or config). Keys are lower-cased provider names. */
   widths?: Record<string, number>;
-  /** Width for providers without an explicit entry. */
-  defaultProviderWidth?: number;
   throttleWindowMs?: number;
   now?: () => number;
   /** Fired after every state transition; the TUI queue line reads from this. */
@@ -299,11 +306,18 @@ export interface ThrottleRecord {
   extended?: boolean;
 }
 
+export interface ProviderShare {
+  /** The provider's cap, or its even share of what the caps leave. */
+  width: number;
+  capped: boolean;
+  /** Rows per interleave round; the weights never add up to more than the global cap. */
+  weight: number;
+}
+
 /** Per-provider gating for one `runEvals` call. */
 export class ProviderConcurrency {
   readonly globalConcurrency: number;
   private readonly widths: Record<string, number>;
-  private readonly defaultProviderWidth: number;
   private readonly throttleWindowMs: number;
   private readonly now: () => number;
   private readonly onChange?: (snapshot: ConcurrencyQueueSnapshot) => void;
@@ -325,7 +339,6 @@ export class ProviderConcurrency {
     this.widths = Object.fromEntries(
       Object.entries(options.widths ?? {}).map(([key, width]) => [key.toLowerCase(), width]),
     );
-    this.defaultProviderWidth = options.defaultProviderWidth ?? DEFAULT_PROVIDER_WIDTH;
     this.throttleWindowMs = options.throttleWindowMs ?? THROTTLE_WINDOW_MS;
     this.now = options.now ?? Date.now;
     this.onChange = options.onChange;
@@ -353,7 +366,67 @@ export class ProviderConcurrency {
   /** Configured width for a provider, clamped to the global cap. */
   configuredWidth(name: string): number {
     const explicit = this.widths[name.toLowerCase()];
-    return Math.min(explicit ?? this.defaultProviderWidth, this.globalConcurrency);
+    return Math.min(explicit ?? this.globalConcurrency, this.globalConcurrency);
+  }
+
+  /** Whether a per-provider cap was set (env or config) for this provider. */
+  isCapped(name: string): boolean {
+    return this.widths[name.toLowerCase()] !== undefined;
+  }
+
+  /**
+   * How the global cap splits across the providers of a run.
+   *
+   * `width` is what the header shows: a capped provider's cap, or an uncapped
+   * one's even share of what the caps leave (the remainder goes to the first
+   * ones, at least 1 each). Nothing enforces an uncapped share; uncapped
+   * providers take freed slots.
+   *
+   * `weight` is what the interleave uses: the widths, scaled down when they
+   * add up to more than the global cap (caps of 8 and 6 under `-c 10` weigh
+   * 6 and 4), so one round of the interleave never exceeds the cap and the
+   * first slots split in proportion.
+   */
+  shares(providers: Iterable<string | undefined>): Map<string, ProviderShare> {
+    const names = new Set<string>();
+    for (const provider of providers) if (provider) names.add(provider.toLowerCase());
+    const sorted = [...names].sort();
+    const uncapped = sorted.filter((name) => !this.isCapped(name));
+    const cappedTotal = sorted
+      .filter((name) => this.isCapped(name))
+      .reduce((sum, name) => sum + this.configuredWidth(name), 0);
+    const remaining = Math.max(0, this.globalConcurrency - cappedTotal);
+    const each = Math.floor(remaining / Math.max(1, uncapped.length));
+    const extra = remaining % Math.max(1, uncapped.length);
+    const widths = sorted.map((name) =>
+      this.isCapped(name)
+        ? this.configuredWidth(name)
+        : Math.max(1, each + (uncapped.indexOf(name) < extra ? 1 : 0)),
+    );
+
+    let weights = widths;
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    if (total > this.globalConcurrency) {
+      // Largest-remainder scaling to the global cap, at least 1 each.
+      const exact = widths.map((width) => (width * this.globalConcurrency) / total);
+      weights = exact.map((value) => Math.max(1, Math.floor(value)));
+      let leftover = this.globalConcurrency - weights.reduce((sum, weight) => sum + weight, 0);
+      const byFraction = exact
+        .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+        .sort((a, b) => b.fraction - a.fraction);
+      for (const { index } of byFraction) {
+        if (leftover <= 0) break;
+        weights[index] += 1;
+        leftover -= 1;
+      }
+    }
+
+    return new Map(
+      sorted.map((name, index) => [
+        name,
+        { width: widths[index], capped: this.isCapped(name), weight: weights[index] },
+      ]),
+    );
   }
 
   /** Planned executions (testcases × trials) for the queued count. */
@@ -399,7 +472,15 @@ export class ProviderConcurrency {
     const semaphore = this.semaphore(name);
     const widthBefore = semaphore.width;
     const alreadyThrottled = (this.throttledUntil.get(name) ?? 0) > this.now();
-    if (!alreadyThrottled) semaphore.setWidth(Math.max(1, Math.floor(semaphore.baseWidth / 2)));
+    if (!alreadyThrottled) {
+      // A capped provider halves its cap. An uncapped one has no cap to
+      // halve, so it halves what it was actually running (the throttled row
+      // has released its slot, hence the + 1).
+      const from = this.isCapped(name)
+        ? semaphore.baseWidth
+        : Math.min(semaphore.baseWidth, semaphore.active + 1);
+      semaphore.setWidth(Math.max(1, Math.floor(from / 2)));
+    }
     this.throttledUntil.set(name, this.now() + this.throttleWindowMs);
     this.throttled++;
 
@@ -433,6 +514,7 @@ export class ProviderConcurrency {
         baseWidth: semaphore.baseWidth,
         waiting: semaphore.waiting,
         ...(this.throttledUntil.has(name) && { throttledUntil: this.throttledUntil.get(name) }),
+        ...(!this.isCapped(name) && { uncapped: true }),
       };
     }
     const queued =
@@ -469,29 +551,41 @@ export class ProviderConcurrency {
 
 /**
  * Format the live queue line:
- * `running 6 · queued 41 · anthropic 4/4 · openai 2/6↓ · throttled 1`
- * Throttled semaphores show their halved width with `↓`.
+ * `running 6 · queued 41 · anthropic 4/4 · openai 2 · google 3/8↓ · throttled 1`
+ * A capped provider shows `active/width`; an uncapped one only its active
+ * count, since nothing but the global cap limits it. Throttled semaphores
+ * show their halved width with `↓`.
  */
 export function formatConcurrencyQueueLine(snapshot: ConcurrencyQueueSnapshot): string {
   const parts = [`running ${snapshot.running}`, `queued ${snapshot.queued}`];
   for (const [name, semaphore] of Object.entries(snapshot.semaphores)) {
-    const throttledMark = semaphore.throttledUntil !== undefined ? "↓" : "";
-    parts.push(`${name} ${semaphore.active}/${semaphore.width}${throttledMark}`);
+    const throttled = semaphore.throttledUntil !== undefined;
+    parts.push(
+      semaphore.uncapped && !throttled
+        ? `${name} ${semaphore.active}`
+        : `${name} ${semaphore.active}/${semaphore.width}${throttled ? "↓" : ""}`,
+    );
   }
   if (snapshot.throttled > 0) parts.push(`throttled ${snapshot.throttled}`);
   return parts.join(" · ");
 }
 
-/** Describe configured widths for the run header: `anthropic 4 · openai 6`. */
+/**
+ * Describe how the cap splits for the run header:
+ * `anthropic 4 (capped) · google ~23 · openai ~23`. Uncapped shares are
+ * approximate (`~`): they are what the interleave aims for, not a limit.
+ * Empty when one uncapped provider has the whole cap to itself.
+ */
 export function describeProviderWidths(
   scheduler: ProviderConcurrency,
   providers: Iterable<string | undefined>,
 ): string {
-  const names = new Set<string>();
-  for (const provider of providers) if (provider) names.add(provider.toLowerCase());
-  return [...names]
-    .sort()
-    .map((name) => `${name} ${scheduler.configuredWidth(name)}`)
+  const shares = [...scheduler.shares(providers)];
+  if (shares.length === 1 && !shares[0][1].capped) return "";
+  return shares
+    .map(([name, share]) =>
+      share.capped ? `${name} ${share.width} (capped)` : `${name} ~${share.width}`,
+    )
     .join(" · ");
 }
 

@@ -57,7 +57,9 @@ import path from "node:path";
 import { classifyRowOutcome, readReason, type RowOutcome } from "./runSummary.js";
 import {
   ProviderConcurrency,
+  greatestCommonDivisor,
   interleaveByProvider,
+  providerFromModel,
   runGatedRow,
   type ConcurrencyQueueSnapshot,
   type ThrottleRecord,
@@ -516,13 +518,20 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
     });
     const activeScheduler = scheduler;
-    // Interleaved in proportion to provider widths so every provider's rows
-    // reach Braintrust's global slots early instead of queueing behind the
-    // first provider's semaphore.
+    // Interleaved in proportion to each provider's share of the cap, so the
+    // global slots split across providers instead of all going to the first
+    // one's rows: evenly when nothing is capped, by width when something is.
+    const planned = generateTestcases(options.tasks, options);
+    const shares = activeScheduler.shares(
+      planned.map((testcase) => providerFromModel(testcase.input.modelName)),
+    );
+    // Reduced by their gcd, so equal shares alternate row by row.
+    const weights = [...shares.values()].map((share) => share.weight);
+    const divisor = weights.reduce(greatestCommonDivisor, 0) || 1;
     const testcases = interleaveByProvider(
-      generateTestcases(options.tasks, options),
+      planned,
       (testcase) => testcase.input.modelName,
-      (provider) => (provider ? activeScheduler.configuredWidth(provider) : 1),
+      (provider) => (provider ? (shares.get(provider)?.weight ?? divisor) / divisor : 1),
     );
     // Braintrust runs every testcase once per trial; counts are per execution.
     const plannedExecutions = testcases.length * trials;

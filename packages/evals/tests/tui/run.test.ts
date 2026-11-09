@@ -543,9 +543,8 @@ describe("deriveCategoryFilter", () => {
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("Running: act");
     expect(output).toContain("Plan: 2 tasks × 1 model × 4 trials = 8 runs");
-    expect(output).toContain(
-      "Env: BROWSERBASE  Harness: stagehand  Concurrency: 25 global · openai 3",
-    );
+    // The whole line: a per-provider default would show up after the number.
+    expect(output).toMatch(/^ {2}Env: BROWSERBASE {2}Harness: stagehand {2}Concurrency: 25$/m);
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });
 
@@ -622,7 +621,7 @@ describe("deriveCategoryFilter", () => {
     }
 
     const header = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
-    expect(header).toContain("Concurrency: 10 global · openai 6");
+    expect(header).toContain("Concurrency: 10 · openai 6 (capped)");
     const stream = stdout.mock.calls.map(([chunk]) => stripAnsi(String(chunk))).join("");
     expect(stream).toContain("running 1 · queued 1 · openai 1/3↓ · throttled 1");
     expect(stream).toContain("act/alpha: openai throttled — width 6 → 3 for 60s, retrying");
@@ -654,7 +653,7 @@ describe("deriveCategoryFilter", () => {
     try {
       delete process.env.EVAL_PROVIDER_CONCURRENCY;
       await runCommand(options, registry);
-      expect(heading()).toContain("Concurrency: 10 global · openai 4");
+      expect(heading()).toContain("Concurrency: 10 · openai 4 (capped)");
       // The config widths reach the runner, which layers the env on top itself.
       expect(runEvalsMock).toHaveBeenCalledWith(
         expect.objectContaining({ providerConcurrency: { openai: 4, anthropic: 5 } }),
@@ -663,7 +662,7 @@ describe("deriveCategoryFilter", () => {
       log.mockClear();
       process.env.EVAL_PROVIDER_CONCURRENCY = "openai=6";
       await runCommand(options, registry);
-      expect(heading()).toContain("Concurrency: 10 global · openai 6");
+      expect(heading()).toContain("Concurrency: 10 · openai 6 (capped)");
       expect(heading()).not.toContain("openai 4");
     } finally {
       if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;

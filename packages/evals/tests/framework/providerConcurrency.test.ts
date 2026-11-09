@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ABORTED_ROW,
-  DEFAULT_PROVIDER_WIDTH,
   PROVIDER_CONCURRENCY_ENV,
   ProviderConcurrency,
   Semaphore,
@@ -275,10 +274,14 @@ describe("ProviderConcurrency", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("defaults every provider to 3 and clamps to the global cap", () => {
+  it("leaves providers uncapped by default and clamps explicit caps to the global cap", () => {
     expect(new ProviderConcurrency({ globalConcurrency: 2 }).configuredWidth("openai")).toBe(2);
     const wide = new ProviderConcurrency({ globalConcurrency: 10 });
-    expect(wide.configuredWidth("openai")).toBe(DEFAULT_PROVIDER_WIDTH);
+    expect(wide.configuredWidth("openai")).toBe(10);
+    expect(wide.isCapped("openai")).toBe(false);
+    expect(
+      new ProviderConcurrency({ globalConcurrency: 10, widths: { OpenAI: 4 } }).isCapped("openai"),
+    ).toBe(true);
     expect(
       new ProviderConcurrency({ globalConcurrency: 10, widths: { anthropic: 40 } }).configuredWidth(
         "Anthropic",
@@ -331,6 +334,25 @@ describe("ProviderConcurrency", () => {
     d.open();
     await Promise.all(runs);
     expect(scheduler.snapshot().running).toBe(0);
+  });
+
+  it("halves what an uncapped provider was actually running, not the global cap", async () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 50, now: clock });
+    // 16 openai rows in flight; one of them is throttled and releases its slot.
+    const release: Array<() => void> = [];
+    const rows = Array.from({ length: 16 }, () =>
+      scheduler.withProvider("openai", () => new Promise<void>((resolve) => release.push(resolve))),
+    );
+    await flush();
+    release.pop()!();
+    await flush();
+    // Half of 50 would be 25, above what was running: no backpressure at all.
+    expect(scheduler.throttle("openai", "429")).toMatchObject({ widthBefore: 50, widthAfter: 8 });
+    vi.advanceTimersByTime(THROTTLE_WINDOW_MS);
+    expect(scheduler.snapshot().semaphores.openai).toMatchObject({ width: 50, uncapped: true });
+    for (const done of release) done();
+    await Promise.all(rows);
+    scheduler.dispose();
   });
 
   it("halves once per window: a burst of 429s extends instead of collapsing to 1", () => {
@@ -624,11 +646,99 @@ describe("queue line formatting", () => {
     ).toBe("running 1 · queued 0");
   });
 
-  it("describes configured widths for the run header", () => {
-    const scheduler = new ProviderConcurrency({ globalConcurrency: 10, widths: { openai: 6 } });
-    expect(describeProviderWidths(scheduler, ["openai", "anthropic", undefined, "openai"])).toBe(
-      "anthropic 3 · openai 6",
+  it("describes how the cap splits for the run header", () => {
+    const capped = new ProviderConcurrency({ globalConcurrency: 10, widths: { openai: 6 } });
+    // openai keeps its cap; anthropic gets what is left.
+    expect(describeProviderWidths(capped, ["openai", "anthropic", undefined, "openai"])).toBe(
+      "anthropic ~4 · openai 6 (capped)",
     );
-    expect(describeProviderWidths(scheduler, [undefined])).toBe("");
+    expect(describeProviderWidths(capped, [undefined])).toBe("");
+    const open = new ProviderConcurrency({ globalConcurrency: 50 });
+    expect(describeProviderWidths(open, ["openai", "anthropic", "google"])).toBe(
+      "anthropic ~17 · google ~17 · openai ~16",
+    );
+    // One uncapped provider has the whole cap: nothing to add to the number.
+    expect(describeProviderWidths(open, ["openai"])).toBe("");
+  });
+
+  it("splits the cap: capped providers keep their width, the rest share what is left", () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 50, widths: { anthropic: 4 } });
+    expect([...scheduler.shares(["openai", "anthropic", "google", undefined])]).toEqual([
+      ["anthropic", { width: 4, capped: true, weight: 4 }],
+      ["google", { width: 23, capped: false, weight: 23 }],
+      ["openai", { width: 23, capped: false, weight: 23 }],
+    ]);
+    // Caps that use up the whole budget still leave the others one slot each;
+    // the weights are then scaled back to the cap.
+    const tight = new ProviderConcurrency({ globalConcurrency: 4, widths: { anthropic: 4 } });
+    expect([...tight.shares(["anthropic", "openai"])]).toEqual([
+      ["anthropic", { width: 4, capped: true, weight: 3 }],
+      ["openai", { width: 1, capped: false, weight: 1 }],
+    ]);
+  });
+
+  it("hands the remainder of an uneven split to the first uncapped providers", () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 11, widths: { anthropic: 6 } });
+    const shares = scheduler.shares(["anthropic", "google", "openai"]);
+    // 5 left for two providers: 3 + 2, so the weights add up to the cap.
+    expect([...shares.values()].map((share) => share.weight)).toEqual([6, 3, 2]);
+    const even = new ProviderConcurrency({ globalConcurrency: 50 });
+    expect(
+      [...even.shares(["anthropic", "google", "openai"]).values()].map((share) => share.width),
+    ).toEqual([17, 17, 16]);
+  });
+
+  it("scales caps that add up to more than -c, so the first slots split in proportion", () => {
+    const scheduler = new ProviderConcurrency({
+      globalConcurrency: 10,
+      widths: { openai: 8, anthropic: 6 },
+    });
+    const shares = scheduler.shares(["openai", "anthropic"]);
+    expect(shares.get("openai")).toEqual({ width: 8, capped: true, weight: 6 });
+    expect(shares.get("anthropic")).toEqual({ width: 6, capped: true, weight: 4 });
+
+    const rows = [
+      ...Array.from({ length: 20 }, () => ({ model: "openai/a" })),
+      ...Array.from({ length: 20 }, () => ({ model: "anthropic/b" })),
+    ];
+    const order = interleaveByProvider(
+      rows,
+      (row) => row.model,
+      (provider) => shares.get(provider ?? "")?.weight ?? 1,
+    );
+    // -c 10 admits the first ten: 6 openai and 4 anthropic, all runnable.
+    expect(order.slice(0, 10).filter((row) => row.model === "openai/a")).toHaveLength(6);
+  });
+
+  it("shows an uncapped provider by its active count only", () => {
+    expect(
+      formatConcurrencyQueueLine({
+        running: 20,
+        queued: 30,
+        throttled: 0,
+        semaphores: {
+          anthropic: { active: 4, width: 4, baseWidth: 4, waiting: 3 },
+          openai: { active: 16, width: 50, baseWidth: 50, waiting: 0, uncapped: true },
+        },
+      }),
+    ).toBe("running 20 · queued 30 · anthropic 4/4 · openai 16");
+    // Throttled: its halved width matters again.
+    expect(
+      formatConcurrencyQueueLine({
+        running: 8,
+        queued: 30,
+        throttled: 1,
+        semaphores: {
+          openai: {
+            active: 8,
+            width: 8,
+            baseWidth: 50,
+            waiting: 5,
+            uncapped: true,
+            throttledUntil: 1,
+          },
+        },
+      }),
+    ).toBe("running 8 · queued 30 · openai 8/8↓ · throttled 1");
   });
 });

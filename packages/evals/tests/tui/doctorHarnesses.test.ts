@@ -343,13 +343,29 @@ describe("buildHarnessMatrix", () => {
     );
     expect(low.harnesses.find((row) => row.harness === "mastra")?.extra).toMatchObject({
       status: "ok",
-      label: "heap n/a at concurrency 3",
+      label: "heap n/a at concurrency 4",
     });
 
-    // -c 10 alone doesn't reach 5 in-process sessions: openai defaults to 3 wide.
-    const capped = await buildHarnessMatrix(
+    // With no provider cap, -c 10 is 10 in-process sessions.
+    const uncapped = await buildHarnessMatrix(
       options({
         env: { OPENAI_API_KEY: "sk", NODE_OPTIONS: "--max-old-space-size=4096" },
+        concurrency: 10,
+      }),
+    );
+    expect(uncapped.harnesses.find((row) => row.harness === "pi")?.extra).toMatchObject({
+      status: "warn",
+      label: "heap 4096 MB < 12288 at concurrency 10",
+    });
+
+    // A provider cap below 5 keeps -c 10 under the threshold.
+    const capped = await buildHarnessMatrix(
+      options({
+        env: {
+          OPENAI_API_KEY: "sk",
+          NODE_OPTIONS: "--max-old-space-size=4096",
+          EVAL_PROVIDER_CONCURRENCY: "openai=3",
+        },
         concurrency: 10,
       }),
     );
