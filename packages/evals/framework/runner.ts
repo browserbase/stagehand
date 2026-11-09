@@ -46,7 +46,7 @@ export { discoverTasks, resolveTarget } from "./discovery.js";
 export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPlanner.js";
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
-import { hardStop, isHardStopped, whenHardStopped } from "./activeRunCleanup.js";
+import { endHardStop, hardStop, isHardStopped, whenHardStopped } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 import { resolveVerifierModel } from "./verifierModel.js";
@@ -883,6 +883,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     };
   } finally {
     scheduler?.dispose();
+    endHardStop();
     if (traceTransport === "otel") {
       try {
         await shutdownTracing();
