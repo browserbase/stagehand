@@ -134,7 +134,7 @@ describe("driver commands", () => {
                 target: {
                   kind: "managed-local",
                   headless: true,
-                  chromeArgs: ["--renderer-cmd-prefix=attacker-controlled-program"],
+                  chromeArgs: ["--renderer-cmd-prefix=unknown-program"],
                 },
               },
             })}\n`,
