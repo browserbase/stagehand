@@ -47,6 +47,10 @@ browse stop
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
 
+Commands without target flags reuse the running session's browser, including its headed mode, custom Chrome arguments, or remote settings. Passing only `--local` or `--remote` also reuses a session in that mode. Explicit launch options must match the running session; use `browse stop --session <name>` before changing them.
+
+If a daemon disappears after a command selects it, that command fails instead of starting a replacement from the daemon's reported settings. To start a new session, run `browse open <url> --session <name>` with your desired target and launch flags again. When no daemon is running, Browse uses the current command's flags and environment defaults; previous launch settings are not saved.
+
 On Unix, custom `BROWSE_DAEMON_DIR` locations must be owned by you and have trusted parents owned by you or root. Shared writable parents need sticky-bit protection, as standard `/tmp` provides. These checks also apply when `TMPDIR` changes the default location.
 
 ### Browser targets
