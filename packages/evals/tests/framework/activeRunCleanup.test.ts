@@ -5,6 +5,7 @@ import {
   isHardStopped,
   registerActiveRunCleanup,
   stopRunOnEscape,
+  whenHardStopped,
 } from "../../framework/activeRunCleanup.js";
 
 describe("active run cleanup", () => {
@@ -58,6 +59,29 @@ describe("active run cleanup", () => {
     expect(shown).toEqual(["cooperative", "aggressive"]);
     expect(isHardStopped(undefined)).toBe(false);
 
+    unregister();
+  });
+
+  it("shares one cleanup across repeated hard stops and waits for it", async () => {
+    let finishCleanup!: () => void;
+    const cleanup = vi.fn(() => new Promise<void>((resolve) => (finishCleanup = resolve)));
+    const unregister = registerActiveRunCleanup(cleanup);
+    const controller = new AbortController();
+    let released = false;
+    void whenHardStopped(controller.signal).then(() => (released = true));
+
+    const first = abortActiveRun(controller, "aggressive");
+    // A second Esc while the sessions are still closing.
+    const second = abortActiveRun(controller, "aggressive");
+    // Long enough for a second, empty cleanup to finish and release early.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(released).toBe(false);
+
+    finishCleanup();
+    await Promise.all([first, second]);
+    expect(released).toBe(true);
+    expect(cleanup).toHaveBeenCalledTimes(1);
     unregister();
   });
 });

@@ -46,7 +46,7 @@ export { discoverTasks, resolveTarget } from "./discovery.js";
 export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPlanner.js";
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
-import { isHardStopped, whenHardStopped } from "./activeRunCleanup.js";
+import { hardStop, isHardStopped, whenHardStopped } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 import { resolveVerifierModel } from "./verifierModel.js";
@@ -595,9 +595,10 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     // page operation. The cleanup path inside executeBenchTask handles the
     // throw; finished tasks' cleanup is a no-op via onceAsync.
     const onAggressiveAbort = async (): Promise<void> => {
-      if (readAbortMode(options.signal) !== "aggressive") return;
-      const { cleanupActiveRunResources } = await import("./activeRunCleanup.js");
-      await cleanupActiveRunResources();
+      if (!options.signal || readAbortMode(options.signal) !== "aggressive") return;
+      // Shared with abortActiveRun, so a direct abort("aggressive") also marks
+      // the run hard-stopped and releases rows waiting on whenHardStopped.
+      await hardStop(options.signal);
     };
     options.signal?.addEventListener("abort", () => {
       void onAggressiveAbort();
@@ -751,13 +752,18 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
               // After a hard stop the sessions are closed, but a task can
               // keep retrying against its dead session for minutes. Give rows
               // a moment to fail on their own, then stop waiting for them.
+              // The grace timer only exists while this row is still running:
+              // it is cleared when the row settles and never armed afterwards.
+              let rowSettled = false;
+              let graceTimer: NodeJS.Timeout | undefined;
               rawResult = options.signal
                 ? await Promise.race([
                     gated,
                     whenHardStopped(options.signal).then(
                       () =>
                         new Promise<TaskResult>((resolve) => {
-                          setTimeout(
+                          if (rowSettled) return;
+                          graceTimer = setTimeout(
                             () =>
                               resolve({
                                 _success: false,
@@ -769,7 +775,10 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                           );
                         }),
                     ),
-                  ])
+                  ]).finally(() => {
+                    rowSettled = true;
+                    clearTimeout(graceTimer);
+                  })
                 : await gated;
               // A hard stop kills in-flight rows; their failure is the stop,
               // not the agent.

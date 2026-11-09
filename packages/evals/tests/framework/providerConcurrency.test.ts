@@ -544,6 +544,40 @@ describe("runGatedRow", () => {
     expect(scheduler.snapshot()).toMatchObject({ running: 0, queued: 0 });
   });
 
+  it("says a row stopped before its retry when it is aborted while queued for one", async () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 8, widths: { openai: 1 } });
+    const controller = new AbortController();
+    let endBackoff!: () => void;
+    const retried = runGatedRow({
+      scheduler,
+      modelName: "openai/gpt-5.4-mini",
+      signal: controller.signal,
+      execute: async () => throttledRow,
+      sleep: () => new Promise<void>((resolve) => (endBackoff = resolve)),
+    });
+    await flush();
+    // While the first row backs off, another takes the only slot.
+    let finishOther!: () => void;
+    const other = runGatedRow({
+      scheduler,
+      modelName: "openai/gpt-5.4-mini",
+      signal: controller.signal,
+      execute: () => new Promise((resolve) => (finishOther = () => resolve({ _success: true }))),
+    });
+    await flush();
+    endBackoff();
+    await flush();
+    controller.abort("cooperative");
+    expect(await retried).toMatchObject({
+      _success: false,
+      stoppedByUser: true,
+      error: "stopped before its retry",
+    });
+    finishOther();
+    await other;
+    scheduler.dispose();
+  });
+
   it("does not retry ordinary failures", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
     const execute = vi.fn(async (): Promise<TaskResult> => ({

@@ -131,6 +131,22 @@ describe("printFailures", () => {
     );
   });
 
+  it("gives a grouped failure one session to open", () => {
+    printFailures(
+      ["a", "b"].map((id): FailureRow => ({
+        kind: "fail",
+        harness: "stagehand",
+        task: `act/${id}`,
+        model: "openai/gpt-4.1-mini",
+        reason: "unable to click on the button",
+        sessionUrl: `https://www.browserbase.com/sessions/${id}`,
+      })),
+    );
+    const lines = output().split("\n");
+    expect(lines[1]).toMatch(/✗ 2×\s+fail\s+unable to click on the button/);
+    expect(lines[2]).toBe("      e.g. https://www.browserbase.com/sessions/a");
+  });
+
   it("points a shared credential failure at the doctor, largest group first", () => {
     const keyFailures: FailureRow[] = ["a", "b", "c"].map((id) => ({
       kind: "fail",

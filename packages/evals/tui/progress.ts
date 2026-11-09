@@ -273,7 +273,7 @@ export class ProgressRenderer {
     if (!this.animated) {
       const label = outcomeLabel(details.outcome);
       this.printEventLine(
-        red("✗"),
+        OUTCOME_ICON[details.outcome ?? "fail"],
         rowDisplayName(row),
         row.model,
         label.tone(label.text),
@@ -630,7 +630,7 @@ export class ProgressRenderer {
   private printProgressBar(): void {
     const total = this.total ?? 0;
     if (total <= 0) return;
-    const completed = this.passed + this.failed + this.maxTurns;
+    const completed = this.passed + this.failed + this.maxTurns + this.stopped;
     const barWidth = Math.max(12, Math.min(34, Math.floor(this.width() * 0.24)));
     const filled = Math.min(barWidth, Math.round((completed / total) * barWidth));
     const pct = Math.round((completed / total) * 100);

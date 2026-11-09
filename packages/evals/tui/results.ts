@@ -183,6 +183,9 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
         const casesRoom = room - reason.length - 3;
         const casesShown = casesRoom >= 12 ? ` · ${truncateText(cases, casesRoom)}` : "";
         console.log(`${head}${tone(reason)}  ${cyan(who)}${dim(casesShown)}`);
+        // One session to open; the rest are in --json.
+        const example = group.find((failure) => failure.sessionUrl)?.sessionUrl;
+        if (example) console.log(`      ${dim(`e.g. ${example}`)}`);
       }
     } else {
       const harness = showHarness ? `${first.harness} ` : "";

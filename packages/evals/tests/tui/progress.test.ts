@@ -260,6 +260,20 @@ describe("ProgressRenderer board", () => {
     expect(text).not.toContain("queued 0");
   });
 
+  it("line-per-event mode marks stopped rows as stopped and counts them as done", () => {
+    const renderer = new ProgressRenderer({ animated: false, progressBar: true });
+    renderer.onPlanned(2);
+    written.length = 0;
+    renderer.onFail(suiteRow(...CASES[0]), {
+      outcome: "stopped",
+      error: "stopped before it ran",
+    });
+    const text = written.join("");
+    expect(text).toMatch(/⊘ 47e314cc recreation\.gov/);
+    expect(text).not.toMatch(/✗ 47e314cc/);
+    expect(text).toContain("50% | 1/2 datapoints");
+  });
+
   it("counts stopped rows apart from failures and marks them", () => {
     const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
     renderer.onPlanned(3);

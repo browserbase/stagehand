@@ -578,7 +578,12 @@ export async function runGatedRow(options: RunGatedRowOptions): Promise<TaskResu
           signal,
         );
       } catch (error) {
-        if (error instanceof AbortedWhileQueued) return decorate(ABORTED_ROW, throttleInfo);
+        if (error instanceof AbortedWhileQueued) {
+          // Stopped while queued for its retry: the first attempt did run.
+          const row =
+            attempt > 1 ? { ...ABORTED_ROW, error: "stopped before its retry" } : ABORTED_ROW;
+          return decorate(row, throttleInfo);
+        }
         throw error;
       }
       const source = classifyResultThrottle(result);

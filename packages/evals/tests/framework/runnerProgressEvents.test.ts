@@ -338,6 +338,24 @@ describe("runner progress events carry row identity", () => {
     await run;
   }, 15_000);
 
+  it('treats a direct abort("aggressive") as a hard stop too', async () => {
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    const { isHardStopped } = await import("../../framework/activeRunCleanup.js");
+    const controller = new AbortController();
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events, controller.signal);
+    vi.mocked(executeBenchTask).mockImplementationOnce(() => new Promise(() => {}));
+    const hung = task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    await vi.waitFor(() => expect(events.some((e) => e.type === "started")).toBe(true));
+
+    // No abortActiveRun: the runner's own abort listener must do the marking.
+    controller.abort("aggressive");
+    await expect(hung).resolves.toMatchObject({ _success: false, stoppedByUser: true });
+    expect(isHardStopped(controller.signal)).toBe(true);
+    releaseEval?.();
+    await run;
+  }, 15_000);
+
   it("ends a failed row's log with why it failed, including a task's own message", async () => {
     const events: RunProgressEvent[] = [];
     const { run, task } = await startRun(events);

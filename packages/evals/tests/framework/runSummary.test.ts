@@ -89,6 +89,25 @@ describe("summarizeCells", () => {
     });
   });
 
+  it("keeps stopped rows out of the verifier, gate and failure-kind counts", () => {
+    // A row killed by a hard stop can carry anything: here a verifier error
+    // and a harness status, which must not read as ungraded or sdk_error.
+    const results = [
+      row("a", "openai/gpt-5.4-mini", {
+        stoppedByUser: true,
+        verifierError: "aborted",
+        harnessStatus: "sdk_error",
+        judgeOutcomeSuccess: true,
+        outcomeGates: ["no_browser_use"],
+      }),
+    ];
+    const json = buildRunSummaryJson({ results, harness: "codex", experimentName: "x" });
+    expect(json.verifier).toMatchObject({ attempted: 0, ungraded: 0 });
+    expect(json.deadJudge).toBe(false);
+    expect(json.gates).toEqual({});
+    expect(json.cells[0]).toMatchObject({ stopped: 1, sdkError: 0, ungraded: 0, gated: 0 });
+  });
+
   it("uses a task's own message as the failure reason", () => {
     const [failure] = collectFailures(
       [row("act/iframe_scroll", "openai/gpt-4.1-mini", { message: "not halfway down the page" })],

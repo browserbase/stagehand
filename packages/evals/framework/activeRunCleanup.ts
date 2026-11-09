@@ -54,6 +54,24 @@ export function isHardStopped(signal: AbortSignal | undefined): boolean {
   return signal !== undefined && hardStopped.has(signal);
 }
 
+const hardStops = new WeakMap<AbortSignal, Promise<void>>();
+
+/**
+ * Stop the run hard: mark it, close its sessions, then release the rows
+ * waiting on `whenHardStopped`. Every caller for the same run (a repeated
+ * Esc, the runner's own abort listener) shares the first cleanup, so the
+ * waiter never resolves before the sessions are closed.
+ */
+export function hardStop(signal: AbortSignal): Promise<void> {
+  let stopping = hardStops.get(signal);
+  if (!stopping) {
+    hardStopped.add(signal);
+    stopping = cleanupActiveRunResources().finally(() => hardStopWaiter(signal).resolve());
+    hardStops.set(signal, stopping);
+  }
+  return stopping;
+}
+
 export async function abortActiveRun(
   controller: AbortController,
   mode: "cooperative" | "aggressive",
@@ -61,14 +79,7 @@ export async function abortActiveRun(
   // AbortController keeps the first reason forever. A second Escape therefore
   // cannot upgrade a cooperative abort by calling abort("aggressive") again.
   if (!controller.signal.aborted) controller.abort(mode);
-  if (mode === "aggressive") {
-    hardStopped.add(controller.signal);
-    try {
-      await cleanupActiveRunResources();
-    } finally {
-      hardStopWaiter(controller.signal).resolve();
-    }
-  }
+  if (mode === "aggressive") await hardStop(controller.signal);
 }
 
 /**

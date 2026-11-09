@@ -1435,12 +1435,52 @@ describe("log streaming and live keys", () => {
     }
   });
 
+  it("buffers partial lines per row, so concurrent rows don't splice each other's output", async () => {
+    const { runInRowContext } = await import("../../framework/rowContext.js");
+    const seen: Record<string, string[]> = { a: [], b: [] };
+    const context = (name: string) => ({
+      reportPhase: () => {},
+      log: (entry: { message: string }) => seen[name].push(entry.message),
+    });
+    const savedTty = process.stdout.isTTY;
+    process.stdout.isTTY = true;
+    try {
+      mockRunWith(async () => {
+        let resumeA!: () => void;
+        const paused = new Promise<void>((resolve) => (resumeA = resolve));
+        const a = runInRowContext(context("a"), async () => {
+          process.stdout.write("from a, part one");
+          await paused;
+          process.stdout.write(" and part two\nunterminated tail from a");
+        });
+        await runInRowContext(context("b"), async () => {
+          process.stdout.write("all of b\n");
+        });
+        resumeA();
+        await a;
+      });
+      await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    } finally {
+      process.stdout.isTTY = savedTty;
+    }
+    expect(seen.b).toEqual(["all of b"]);
+    // The tail has no newline: it is flushed to its row when the run ends.
+    expect(seen.a).toEqual(["from a, part one and part two", "unterminated tail from a"]);
+  });
+
   it("leaves raw writes alone in line-per-event mode, where nothing can be corrupted", async () => {
     mockRunWith(() => {
       process.stderr.write("[stagehand] INFO stagehand.init\n");
     });
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    // Pinned: under a PTY the suite's own stdout is a TTY.
+    const savedTty = process.stdout.isTTY;
+    process.stdout.isTTY = false;
+    try {
+      await capture(() => runCommand(options, makeRegistry([makeTask()])));
+    } finally {
+      process.stdout.isTTY = savedTty;
+    }
     expect(stderr).toHaveBeenCalledWith("[stagehand] INFO stagehand.init\n");
   });
 

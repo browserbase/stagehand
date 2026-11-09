@@ -33,6 +33,7 @@ import {
   buildRunSummaryJson,
   collectFailures,
   isDeadJudgeRun,
+  isStopped,
   summarizeCells,
   summarizeVerifier,
 } from "../../framework/runSummary.js";
@@ -57,7 +58,7 @@ import {
 } from "../../framework/verifierGate.js";
 
 import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js";
-import { inRowContext, logToRow } from "../../framework/rowContext.js";
+import { currentRowContext, logToRow, type RowContext } from "../../framework/rowContext.js";
 import { format } from "node:util";
 import path from "node:path";
 import {
@@ -283,12 +284,15 @@ export function renderRunSummary(
     logDir: result.logDir,
   });
   const deadJudge = isDeadJudgeRun(summaryJson.verifier);
+  // Stopped rows say nothing about the agent or the judge; the gates below
+  // only look at rows that ran.
+  const ranResults = result.results.filter((row) => !isStopped(row.output));
 
   if (options.json) {
     progress.dispose();
     process.stdout.write(`${JSON.stringify(summaryJson, null, 2)}\n`);
     if (deadJudge) process.exitCode = 1;
-    applyVerifiabilityGate(result.results, options.harness);
+    applyVerifiabilityGate(ranResults, options.harness);
     return;
   }
 
@@ -330,7 +334,7 @@ export function renderRunSummary(
       console.log("");
     }
   }
-  applyVerifiabilityGate(result.results, options.harness);
+  applyVerifiabilityGate(ranResults, options.harness);
 
   if (deadJudge) {
     const verifier = summarizeVerifier(result.results);
@@ -362,7 +366,9 @@ export function renderRunSummary(
 /** A path relative to the cwd when it's inside it, so it fits on one line. */
 function displayPath(target: string): string {
   const relative = path.relative(process.cwd(), target);
-  return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? relative : target;
+  const inside = relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+  // Forward slashes on every platform, like the other paths the CLI prints.
+  return inside ? relative.split(path.sep).join("/") : target;
 }
 
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
@@ -1042,12 +1048,15 @@ function captureStream(
   outside?: (text: string) => void,
 ): () => void {
   const originalWrite = stream.write;
-  let pending = "";
-  const emit = (line: string): void => {
+  // One partial-line buffer per row (and one for output outside any row):
+  // concurrent rows interleave their chunks, and a shared buffer would glue
+  // row A's fragment onto row B's next line.
+  const pending = new Map<RowContext | undefined, string>();
+  const emit = (line: string, context: RowContext | undefined): void => {
     if (line.trim() === "") return;
-    if (inRowContext()) {
+    if (context?.log) {
       if (/^\[stagehand\] /.test(line)) return;
-      logToRow({ category, message: line, level: category === "stderr" ? 0 : 1 });
+      context.log({ category, message: line, level: category === "stderr" ? 0 : 1 });
       return;
     }
     outside?.(line);
@@ -1072,16 +1081,21 @@ function captureStream(
         : Buffer.from(chunk as Uint8Array).toString(
             typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8",
           );
-    const lines = (pending + text).split("\n");
-    pending = lines.pop() ?? "";
-    for (const line of lines) emit(line.replace(/\r$/, ""));
+    const context = currentRowContext();
+    const lines = ((pending.get(context) ?? "") + text).split("\n");
+    const rest = lines.pop() ?? "";
+    if (rest) pending.set(context, rest);
+    else pending.delete(context);
+    for (const line of lines) emit(line.replace(/\r$/, ""), context);
     const done = typeof encoding === "function" ? encoding : callback;
     if (typeof done === "function") queueMicrotask(() => (done as () => void)());
     return true;
   } as typeof stream.write;
   return () => {
     stream.write = originalWrite;
-    if (pending) emit(pending);
-    pending = "";
+    // Unterminated last lines go to the row that wrote them, though the run
+    // has left every row's context by now.
+    for (const [context, rest] of pending) emit(rest, context);
+    pending.clear();
   };
 }

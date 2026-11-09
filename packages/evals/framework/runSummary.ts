@@ -126,7 +126,7 @@ export function summarizeUsage(results: SummaryRow[]): RunUsage {
 export function summarizeGates(results: SummaryRow[]): Record<string, number> {
   const gates: Record<string, number> = {};
   for (const { output } of results) {
-    if (output._success || !isGated(output)) continue;
+    if (output._success || isStopped(output) || !isGated(output)) continue;
     for (const gate of output.outcomeGates as string[]) gates[gate] = (gates[gate] ?? 0) + 1;
   }
   return gates;
@@ -188,7 +188,13 @@ export function summarizeCells(results: SummaryRow[], harness: string): CellSumm
       stopped: 0,
     };
     cell.total += 1;
-    if (isStopped(output)) cell.stopped += 1;
+    if (isStopped(output)) {
+      // A stopped row says nothing about the agent or the judge: whatever
+      // error it carries is the stop's doing.
+      cell.stopped += 1;
+      cells.set(key, cell);
+      continue;
+    }
     if (output._success) cell.passed += 1;
     if (output.harnessStatus === "max_turns") cell.maxTurns += 1;
     if (output.harnessStatus === "sdk_error") cell.sdkError += 1;
@@ -210,6 +216,9 @@ export function summarizeVerifier(results: SummaryRow[]): VerifierSummary {
     passesWithoutBrowserUse: 0,
   };
   for (const { output } of results) {
+    // Stopped rows don't count: a killed row's verifier error would read as
+    // an ungraded run and could trip the dead-judge exit.
+    if (isStopped(output)) continue;
     if (isGraded(output)) {
       summary.attempted += 1;
       summary.graded += 1;
