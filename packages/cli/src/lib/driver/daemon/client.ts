@@ -135,7 +135,7 @@ export async function stopDriverDaemon(
   }
 }
 
-function assertCompatibleTarget(
+export function assertCompatibleTarget(
   session: string,
   status: DriverStatus,
   target: ConnectionTarget,
