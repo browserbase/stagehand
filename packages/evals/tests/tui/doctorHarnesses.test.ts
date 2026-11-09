@@ -346,6 +346,18 @@ describe("buildHarnessMatrix", () => {
       label: "heap n/a at concurrency 4",
     });
 
+    // With no provider cap, -c 10 is 10 in-process sessions.
+    const uncapped = await buildHarnessMatrix(
+      options({
+        env: { OPENAI_API_KEY: "sk", NODE_OPTIONS: "--max-old-space-size=4096" },
+        concurrency: 10,
+      }),
+    );
+    expect(uncapped.harnesses.find((row) => row.harness === "pi")?.extra).toMatchObject({
+      status: "warn",
+      label: "heap 4096 MB < 12288 at concurrency 10",
+    });
+
     // A provider cap below 5 keeps -c 10 under the threshold.
     const capped = await buildHarnessMatrix(
       options({

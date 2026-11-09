@@ -655,7 +655,7 @@ describe("queue line formatting", () => {
     expect(describeProviderWidths(capped, [undefined])).toBe("");
     const open = new ProviderConcurrency({ globalConcurrency: 50 });
     expect(describeProviderWidths(open, ["openai", "anthropic", "google"])).toBe(
-      "anthropic ~16 · google ~16 · openai ~16",
+      "anthropic ~17 · google ~17 · openai ~16",
     );
     // One uncapped provider has the whole cap: nothing to add to the number.
     expect(describeProviderWidths(open, ["openai"])).toBe("");
@@ -664,16 +664,50 @@ describe("queue line formatting", () => {
   it("splits the cap: capped providers keep their width, the rest share what is left", () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 50, widths: { anthropic: 4 } });
     expect([...scheduler.shares(["openai", "anthropic", "google", undefined])]).toEqual([
-      ["anthropic", { width: 4, capped: true }],
-      ["google", { width: 23, capped: false }],
-      ["openai", { width: 23, capped: false }],
+      ["anthropic", { width: 4, capped: true, weight: 4 }],
+      ["google", { width: 23, capped: false, weight: 23 }],
+      ["openai", { width: 23, capped: false, weight: 23 }],
     ]);
-    // Caps that use up the whole budget still leave the others one slot each.
+    // Caps that use up the whole budget still leave the others one slot each;
+    // the weights are then scaled back to the cap.
     const tight = new ProviderConcurrency({ globalConcurrency: 4, widths: { anthropic: 4 } });
-    expect(tight.shares(["anthropic", "openai"]).get("openai")).toEqual({
-      width: 1,
-      capped: false,
+    expect([...tight.shares(["anthropic", "openai"])]).toEqual([
+      ["anthropic", { width: 4, capped: true, weight: 3 }],
+      ["openai", { width: 1, capped: false, weight: 1 }],
+    ]);
+  });
+
+  it("hands the remainder of an uneven split to the first uncapped providers", () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 11, widths: { anthropic: 6 } });
+    const shares = scheduler.shares(["anthropic", "google", "openai"]);
+    // 5 left for two providers: 3 + 2, so the weights add up to the cap.
+    expect([...shares.values()].map((share) => share.weight)).toEqual([6, 3, 2]);
+    const even = new ProviderConcurrency({ globalConcurrency: 50 });
+    expect(
+      [...even.shares(["anthropic", "google", "openai"]).values()].map((share) => share.width),
+    ).toEqual([17, 17, 16]);
+  });
+
+  it("scales caps that add up to more than -c, so the first slots split in proportion", () => {
+    const scheduler = new ProviderConcurrency({
+      globalConcurrency: 10,
+      widths: { openai: 8, anthropic: 6 },
     });
+    const shares = scheduler.shares(["openai", "anthropic"]);
+    expect(shares.get("openai")).toEqual({ width: 8, capped: true, weight: 6 });
+    expect(shares.get("anthropic")).toEqual({ width: 6, capped: true, weight: 4 });
+
+    const rows = [
+      ...Array.from({ length: 20 }, () => ({ model: "openai/a" })),
+      ...Array.from({ length: 20 }, () => ({ model: "anthropic/b" })),
+    ];
+    const order = interleaveByProvider(
+      rows,
+      (row) => row.model,
+      (provider) => shares.get(provider ?? "")?.weight ?? 1,
+    );
+    // -c 10 admits the first ten: 6 openai and 4 anthropic, all runnable.
+    expect(order.slice(0, 10).filter((row) => row.model === "openai/a")).toHaveLength(6);
   });
 
   it("shows an uncapped provider by its active count only", () => {

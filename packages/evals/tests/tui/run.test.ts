@@ -543,7 +543,8 @@ describe("deriveCategoryFilter", () => {
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("Running: act");
     expect(output).toContain("Plan: 2 tasks × 1 model × 4 trials = 8 runs");
-    expect(output).toContain("Env: BROWSERBASE  Harness: stagehand  Concurrency: 25");
+    // The whole line: a per-provider default would show up after the number.
+    expect(output).toMatch(/^ {2}Env: BROWSERBASE {2}Harness: stagehand {2}Concurrency: 25$/m);
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });
 

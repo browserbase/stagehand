@@ -525,12 +525,13 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const shares = activeScheduler.shares(
       planned.map((testcase) => providerFromModel(testcase.input.modelName)),
     );
-    const widths = [...shares.values()].map((share) => share.width);
-    const divisor = widths.reduce(greatestCommonDivisor, 0) || 1;
+    // Reduced by their gcd, so equal shares alternate row by row.
+    const weights = [...shares.values()].map((share) => share.weight);
+    const divisor = weights.reduce(greatestCommonDivisor, 0) || 1;
     const testcases = interleaveByProvider(
       planned,
       (testcase) => testcase.input.modelName,
-      (provider) => (provider ? (shares.get(provider)?.width ?? divisor) / divisor : 1),
+      (provider) => (provider ? (shares.get(provider)?.weight ?? divisor) / divisor : 1),
     );
     // Braintrust runs every testcase once per trial; counts are per execution.
     const plannedExecutions = testcases.length * trials;

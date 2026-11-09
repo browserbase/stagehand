@@ -411,6 +411,8 @@ describe("runner progress events carry row identity", () => {
   it("hands Braintrust the rows interleaved across providers", async () => {
     const saved = process.env.EVAL_CODEX_MODELS;
     process.env.EVAL_CODEX_MODELS = "openai/gpt-5.4-mini,anthropic/claude-sonnet-5";
+    // An inherited cap would change the split this asserts.
+    vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", undefined);
     try {
       const { run } = await startRun([]);
       releaseEval?.();
@@ -421,6 +423,7 @@ describe("runner progress events carry row identity", () => {
       // providers alternate one row at a time.
       expect(providers.slice(0, 2).sort()).toEqual(["anthropic", "openai"]);
     } finally {
+      vi.unstubAllEnvs();
       if (saved === undefined) delete process.env.EVAL_CODEX_MODELS;
       else process.env.EVAL_CODEX_MODELS = saved;
     }

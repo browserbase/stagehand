@@ -306,6 +306,14 @@ export interface ThrottleRecord {
   extended?: boolean;
 }
 
+export interface ProviderShare {
+  /** The provider's cap, or its even share of what the caps leave. */
+  width: number;
+  capped: boolean;
+  /** Rows per interleave round; the weights never add up to more than the global cap. */
+  weight: number;
+}
+
 /** Per-provider gating for one `runEvals` call. */
 export class ProviderConcurrency {
   readonly globalConcurrency: number;
@@ -367,31 +375,58 @@ export class ProviderConcurrency {
   }
 
   /**
-   * How the global cap splits across the providers of a run: capped
-   * providers get their width, the rest share what is left evenly (at least
-   * 1 each). This is what the interleave aims for and what the header shows;
-   * nothing enforces it for uncapped providers, which take freed slots.
+   * How the global cap splits across the providers of a run.
+   *
+   * `width` is what the header shows: a capped provider's cap, or an uncapped
+   * one's even share of what the caps leave (the remainder goes to the first
+   * ones, at least 1 each). Nothing enforces an uncapped share; uncapped
+   * providers take freed slots.
+   *
+   * `weight` is what the interleave uses: the widths, scaled down when they
+   * add up to more than the global cap (caps of 8 and 6 under `-c 10` weigh
+   * 6 and 4), so one round of the interleave never exceeds the cap and the
+   * first slots split in proportion.
    */
-  shares(providers: Iterable<string | undefined>): Map<string, { width: number; capped: boolean }> {
+  shares(providers: Iterable<string | undefined>): Map<string, ProviderShare> {
     const names = new Set<string>();
     for (const provider of providers) if (provider) names.add(provider.toLowerCase());
-    const capped = [...names].filter((name) => this.isCapped(name));
-    const uncapped = [...names].filter((name) => !this.isCapped(name));
-    const cappedTotal = capped.reduce((sum, name) => sum + this.configuredWidth(name), 0);
-    const each = Math.max(
-      1,
-      Math.floor(Math.max(0, this.globalConcurrency - cappedTotal) / Math.max(1, uncapped.length)),
+    const sorted = [...names].sort();
+    const uncapped = sorted.filter((name) => !this.isCapped(name));
+    const cappedTotal = sorted
+      .filter((name) => this.isCapped(name))
+      .reduce((sum, name) => sum + this.configuredWidth(name), 0);
+    const remaining = Math.max(0, this.globalConcurrency - cappedTotal);
+    const each = Math.floor(remaining / Math.max(1, uncapped.length));
+    const extra = remaining % Math.max(1, uncapped.length);
+    const widths = sorted.map((name) =>
+      this.isCapped(name)
+        ? this.configuredWidth(name)
+        : Math.max(1, each + (uncapped.indexOf(name) < extra ? 1 : 0)),
     );
-    const shares = new Map<string, { width: number; capped: boolean }>();
-    for (const name of [...names].sort()) {
-      shares.set(
-        name,
-        this.isCapped(name)
-          ? { width: this.configuredWidth(name), capped: true }
-          : { width: each, capped: false },
-      );
+
+    let weights = widths;
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    if (total > this.globalConcurrency) {
+      // Largest-remainder scaling to the global cap, at least 1 each.
+      const exact = widths.map((width) => (width * this.globalConcurrency) / total);
+      weights = exact.map((value) => Math.max(1, Math.floor(value)));
+      let leftover = this.globalConcurrency - weights.reduce((sum, weight) => sum + weight, 0);
+      const byFraction = exact
+        .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+        .sort((a, b) => b.fraction - a.fraction);
+      for (const { index } of byFraction) {
+        if (leftover <= 0) break;
+        weights[index] += 1;
+        leftover -= 1;
+      }
     }
-    return shares;
+
+    return new Map(
+      sorted.map((name, index) => [
+        name,
+        { width: widths[index], capped: this.isCapped(name), weight: weights[index] },
+      ]),
+    );
   }
 
   /** Planned executions (testcases × trials) for the queued count. */
