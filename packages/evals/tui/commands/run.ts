@@ -545,12 +545,6 @@ export async function runCommand(
     throw err;
   }
 
-  // The harness's tool default applies to bench rows only; core-tier runs
-  // keep core.tool (or --tool).
-  if (options.benchToolSurface && tasks.some((task) => task.tier === "bench")) {
-    options = { ...options, coreToolSurface: options.benchToolSurface };
-  }
-
   if (tasks.length === 0) {
     const message = options.normalizedTarget
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
@@ -746,6 +740,9 @@ export async function runCommand(
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+          // The harness's tool default applies to bench rows only, so a mixed
+          // run's core rows keep core.tool.
+          benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
           coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
           providerConcurrency: options.providerConcurrency,
           verbose: options.verbose,
@@ -927,6 +924,7 @@ async function buildDryRunMatrix(
         categoryFilter,
         datasetFilter: options.datasetFilter,
         coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+        benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
         coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
       });
 
@@ -943,6 +941,7 @@ async function buildDryRunMatrix(
               {
                 ...options,
                 coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+                benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
                 coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
               },
               testcase.input.params,

@@ -291,8 +291,12 @@ describe("deriveCategoryFilter", () => {
       },
       makeRegistry([makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] })]),
     );
+    // Passed separately, so a mixed run's core rows still get core.tool.
     expect(runEvalsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ coreToolSurface: "browse_cli" }),
+      expect.objectContaining({
+        coreToolSurface: "understudy_code",
+        benchToolSurface: "browse_cli",
+      }),
     );
   });
 
