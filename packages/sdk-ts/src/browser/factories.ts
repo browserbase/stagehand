@@ -146,7 +146,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, clientOptions, ...sessionOptions } =
+        const { apiKey, baseUrl, clientOptions, extensionCdpUrl, ...sessionOptions } =
           BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
           const sessionPromise = createBrowserbase(apiKey, baseUrl, clientOptions).createSession(
@@ -182,6 +182,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
                 sessionId: session.sessionId,
                 ...(sessionOptions.region === undefined ? {} : { region: sessionOptions.region }),
               },
+              ...(extensionCdpUrl === undefined ? {} : { browserCdpUrl: extensionCdpUrl }),
             },
           });
         });
