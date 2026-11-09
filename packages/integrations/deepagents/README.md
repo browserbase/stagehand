@@ -38,7 +38,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 The examples pass `tools=browser_middleware.tools` so Deep Agents' default subagent also has
 browser access. Configure the client through `Stagehand.create(...)`; see the
-[Stagehand integration guide](https://docs.langchain.com/oss/python/integrations/tools/stagehand) for usage.
+[Stagehand package page](https://pypi.org/project/langchain-stagehand/) for usage.
 
 ## Checks
 
