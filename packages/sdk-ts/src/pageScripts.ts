@@ -8,10 +8,33 @@ export type InitScriptSource<Arg> =
 export function normalizeEvaluationExpression<R, Arg>(
   expression: string | ((arg: Arg) => R | Promise<R>),
   arg?: Arg,
+  caller = "page.evaluate",
 ): string {
   if (typeof expression === "string") return expression;
 
-  return `(${expression.toString()})(${serializeArgument(arg, "page.evaluate")})`;
+  return `(${expression.toString()})(${serializeArgument(arg, caller)})`;
+}
+
+export function normalizeFunctionWaitExpression<R, Arg>(
+  expression: string | ((arg: Arg) => R | Promise<R>),
+  arg?: Arg,
+  caller = "page.waitForFunction",
+): string {
+  // The browser invokes an expression that evaluates to a function exactly once per poll, so
+  // callbacks and bound function strings become thunks and their own results are never invoked.
+  if (typeof expression === "function") {
+    return `() => (${expression.toString()})(${parsedArgument(arg, caller)})`;
+  }
+  if (arg === undefined) return expression;
+
+  // Like Playwright, a string that evaluates to a function receives arg; other expressions ignore it.
+  return `((value) => typeof value === "function" ? () => value(${parsedArgument(arg, caller)}) : value)((${expression}))`;
+}
+
+// JSON.parse keeps own "__proto__" keys that an object literal would treat as a prototype.
+function parsedArgument(arg: unknown, caller: string): string {
+  if (arg === undefined) return "undefined";
+  return `JSON.parse(${JSON.stringify(serializeArgument(arg, caller))})`;
 }
 
 export async function normalizeInitScriptSource<Arg>(
@@ -60,7 +83,8 @@ function serializeArgument(arg: unknown, caller: string): string {
     throw new TypeError(`${caller}: 'arg' must be JSON-serializable.`);
   }
 
-  const serialized = JSON.stringify(parsed.data);
+  // Serialize the validated input itself: zod's parsed copy drops own "__proto__" keys.
+  const serialized = JSON.stringify(arg);
   if (serialized === undefined) {
     throw new TypeError(`${caller}: 'arg' must be JSON-serializable.`);
   }

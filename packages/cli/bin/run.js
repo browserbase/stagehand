@@ -1,5 +1,16 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { config as loadDotenvConfig } from "dotenv";
+import satisfies from "semver/functions/satisfies.js";
+
+const require = createRequire(import.meta.url);
+const { engines } = require("../package.json");
+if (!satisfies(process.versions.node, engines.node)) {
+  console.error(
+    `[browse] Node.js ${engines.node} is required; found ${process.versions.node}. Upgrade Node.js and rerun browse.`,
+  );
+  process.exit(1);
+}
 
 // `BROWSE_LOAD_DOTENV` controls whether `browse` auto-loads a `.env` file
 // from the current working directory. This is deprecated: a future release
@@ -10,15 +21,12 @@ import { config as loadDotenvConfig } from "dotenv";
 // the implicit default get a heads-up before the default changes.
 const dotenvToggle = process.env.BROWSE_LOAD_DOTENV;
 const dotenvOptedOut =
-  dotenvToggle !== undefined &&
-  ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
+  dotenvToggle !== undefined && ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
 
 if (!dotenvOptedOut) {
   const keysBeforeLoad = new Set(Object.keys(process.env));
   const { parsed } = loadDotenvConfig();
-  const appliedFromDotenv = Object.keys(parsed ?? {}).filter(
-    (key) => !keysBeforeLoad.has(key),
-  );
+  const appliedFromDotenv = Object.keys(parsed ?? {}).filter((key) => !keysBeforeLoad.has(key));
 
   if (appliedFromDotenv.length > 0 && dotenvToggle === undefined) {
     console.error(

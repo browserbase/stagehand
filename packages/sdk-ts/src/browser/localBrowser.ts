@@ -39,7 +39,7 @@ export const DEFAULT_CHROME_FLAGS = [
   "--propagate-iph-for-testing",
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
-  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+  "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ] as const;
 
 type ChromeProcessExit = {

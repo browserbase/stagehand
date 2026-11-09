@@ -55,6 +55,7 @@ PYDANTIC_CONFIG = GenerateConfig(
     ],
     type_mappings=["string+byte=string", "string+uuid=string"],
     base_class_map={
+        "StagehandInitParams": "stagehand._validation.StagehandInitParamsValidation",
         "PageScreenshotOptions": "stagehand._validation.PageScreenshotOptionsValidation",
         "TelemetryConfig": "stagehand._validation.TelemetryConfigValidation",
     },

@@ -1,0 +1,199 @@
+---
+title: "OpenAI Toolset"
+sidebarTitle: "OpenAI Toolset"
+description: "Give GPT browser tools through the OpenAI SDK, with Stagehand driving local Chrome or a Browserbase session."
+---
+
+Connect GPT to a browser with `StagehandBrowserDriver`. The OpenAI SDK runs the model's tool loop, and Stagehand handles browser interactions such as navigation, screenshots, and form input.
+
+## Prerequisites
+
+- An OpenAI API key and access to a model that supports the browser toolset.
+- Google Chrome for the local example, or a Browserbase API key for a hosted session.
+- Node.js 22.18 or later and pnpm for TypeScript, or Python 3.11 or later and uv for Python.
+
+## Install the integration
+
+Clone the [OpenAI Toolset repository](https://github.com/browserbase/openai-cua-toolset):
+
+```bash
+git clone https://github.com/browserbase/openai-cua-toolset.git
+cd openai-cua-toolset
+```
+
+<Tabs>
+  <Tab title="TypeScript">
+    Install the OpenAI SDK and Stagehand from npm:
+
+```bash
+cd typescript
+pnpm add openai@7.33.0 stagehand-openai-sdk
+```
+
+    Import the driver from the [`stagehand-openai-sdk` npm package](https://www.npmjs.com/package/stagehand-openai-sdk).
+  </Tab>
+  <Tab title="Python">
+    Create an environment and install the OpenAI SDK and Stagehand from PyPI:
+
+```bash
+cd python
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python 'openai>=3.31.0,<4' stagehand-openai-sdk
+```
+
+    Import the driver as `stagehand_openai_sdk` from the [`stagehand-openai-sdk` Python package](https://pypi.org/project/stagehand-openai-sdk/).
+  </Tab>
+</Tabs>
+
+## Run a browser task
+
+Export your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Replace the repository's `example.ts` or `example.py` with the matching example below. Both launch headless Chrome, ask GPT to read the heading on `example.com`, and print the final answer.
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript example.ts
+import OpenAI from "openai";
+import { ResponsesToolRunner } from "openai/helpers/responses-tool-runner";
+import {
+  StagehandBrowserDriver,
+  createBrowserToolset,
+} from "stagehand-openai-sdk";
+
+const driver = await StagehandBrowserDriver.launch({
+  headless: true,
+  allowedDomains: ["example.com", "iana.org"],
+});
+
+try {
+  const browser = createBrowserToolset(driver);
+  const runner = new ResponsesToolRunner({ browser });
+  const response = await runner.run(
+    new OpenAI(),
+    {
+      model: "gpt-6-luna",
+      store: false,
+      input: "Open example.com and tell me the page heading.",
+    },
+    { maxSteps: 20 },
+  );
+  console.log(response.output_text);
+} finally {
+  await driver.close();
+}
+```
+
+    Run from the repository's `typescript` directory:
+
+```bash
+pnpm exec tsx example.ts
+```
+  </Tab>
+  <Tab title="Python">
+```python example.py
+import asyncio
+import os
+
+from openai import AsyncOpenAI
+from openai.lib.responses_tool_runner import AsyncResponsesToolRunner
+from stagehand_openai_sdk import StagehandBrowserDriver, create_browser_toolset
+
+
+async def main() -> None:
+    driver = await StagehandBrowserDriver.launch(
+        headless=True,
+        allowed_domains=["example.com", "iana.org"],
+    )
+
+    try:
+        browser = create_browser_toolset(driver)
+        runner = AsyncResponsesToolRunner(browser=browser)
+        async with AsyncOpenAI() as client:
+            response = await runner.run(
+                client,
+                {
+                    "model": "gpt-6-luna",
+                    "store": False,
+                    "input": "Open example.com and tell me the page heading.",
+                },
+                max_steps=20,
+            )
+            print(response.output_text)
+    finally:
+        await driver.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+    Run from the repository's `python` directory:
+
+```bash
+.venv/bin/python example.py
+```
+  </Tab>
+</Tabs>
+
+Look for a response identifying the heading as **Example Domain**. Wrap the driver with `createBrowserToolset` in TypeScript or `create_browser_toolset` in Python, then pass the toolset to the Responses tool runner. Keep the same driver throughout the loop so tabs and page state remain available.
+
+The tool runner doesn't close the browser. Use `finally` in both languages to close the driver when the task finishes or fails.
+
+## Use Browserbase
+
+Export your Browserbase API key:
+
+```bash
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+
+Replace the `StagehandBrowserDriver.launch` call with the matching factory below. Keep the tool loop and cleanup code from the previous example.
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+const apiKey = process.env.BROWSERBASE_API_KEY;
+if (!apiKey) throw new Error("Set BROWSERBASE_API_KEY before running this example.");
+
+const driver = await StagehandBrowserDriver.browserbase({
+  apiKey,
+  allowedDomains: ["example.com", "iana.org"],
+});
+```
+  </Tab>
+  <Tab title="Python">
+```python
+driver = await StagehandBrowserDriver.browserbase(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    allowed_domains=["example.com", "iana.org"],
+)
+```
+  </Tab>
+</Tabs>
+
+This creates a Browserbase session, so you don't need local Chrome. The toolset doesn't support downloads in Browserbase sessions.
+
+## Domain restrictions
+
+Set `allowedDomains` and `blockedDomains` in TypeScript, or `allowed_domains` and `blocked_domains` in Python, to restrict HTTP and HTTPS requests and WebSocket handshakes. A domain entry includes its subdomains; blocked entries take precedence.
+
+<Warning>
+Domain restrictions don't cover WebRTC or other non-HTTP traffic. Don't treat these lists as complete network isolation.
+</Warning>
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Missing browser toolset or runner exports | Use an OpenAI SDK release with the browser helpers: 7.33.0 or later for TypeScript, or 3.31.0 or later for Python. |
+| Local Chrome doesn't launch | Install Google Chrome, or pass `chromePath` in TypeScript or `chrome_path` in Python to `launch`. |
+| Navigation is blocked | Add the task's required domains to the allow list and check the block list. |
+| Every tool call fails with "Browser operation failed." in TypeScript | Check for duplicate OpenAI SDK installations with `pnpm why openai` and deduplicate to one copy. |
+| The browser connection is lost | Close the driver and create a new instance. |
+
+For additional configuration and examples, see the [OpenAI Toolset repository](https://github.com/browserbase/openai-cua-toolset).

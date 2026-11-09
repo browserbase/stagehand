@@ -17,6 +17,7 @@ from pydantic import (
 )
 from stagehand._validation import (
     PageScreenshotOptionsValidation,
+    StagehandInitParamsValidation,
     TelemetryConfigValidation,
     WireModel,
     WireUrl,
@@ -184,6 +185,17 @@ class BrowserbaseBrowserSettings(WireModel):
     viewport: Optional[BrowserbaseViewport] = None
 
 
+class BrowserbaseCancelParams(WireModel):
+    """Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: JSONRPCRequestId
+    reason: Reason1
+
+
 class BrowserbaseContext(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -217,6 +229,22 @@ class BrowserbaseFingerprintScreen(WireModel):
     min_width: Optional[StrictFloat] = None
 
 
+class BrowserbaseHttpResponse(WireModel):
+    """Buffered HTTP response with SDK-normalized headers and text. Redirect responses are returned without following them."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["response"]
+    status: Annotated[StrictInt, Field(ge=200, le=599)]
+    status_text: StrictStr
+    headers: dict[StrictStr, StrictStr]
+    """Lowercase names with one value per name after SDK HTTP normalization; repeated fields are collapsed. Header bytes use Latin-1 code points. content-encoding and content-length are omitted."""
+    body: StrictStr
+    """Fully buffered response body decoded as UTF-8 text, with a leading BOM removed and invalid byte sequences replaced"""
+
+
 class BrowserbaseProxyConfig(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -244,6 +272,20 @@ class BrowserbaseRegion(StrEnum):
     ap_southeast_1 = "ap-southeast-1"
 
 
+class BrowserbaseRequestParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    operation: Operation
+    headers: dict[StrictStr, StrictStr]
+    """Application headers. SDKs validate names and values, omit caller-supplied Host, Content-Length, hop-by-hop and forwarding headers, and supply x-bb-api-key and, for gateway.responses, x-bb-session-id."""
+    body: StrictStr
+    """JSON request body sent as UTF-8 text"""
+    remaining_timeout_ms: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Remaining caller budget in milliseconds, including response-body buffering; omission adds no transport deadline"""
+
+
 class BrowserbaseSessionCreateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -256,6 +298,24 @@ class BrowserbaseSessionCreateParams(WireModel):
     region: Optional[BrowserbaseRegion] = None
     timeout: Optional[StrictFloat] = None
     user_metadata: Optional[dict[StrictStr, Any]] = None
+
+
+class BrowserbaseTransportError(WireModel):
+    """Transport failure without an HTTP response; disconnected is synthesized locally when RPC closes"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["error"]
+    reason: Reason
+    message: StrictStr
+
+
+class BrowserbaseRequestResult(
+    RootModel[Union[BrowserbaseHttpResponse, BrowserbaseTransportError]]
+):
+    root: Union[BrowserbaseHttpResponse, BrowserbaseTransportError]
 
 
 class BrowserbaseViewport(WireModel):
@@ -279,7 +339,7 @@ class CacheMetadata(WireModel):
     threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     """Hit-count threshold in effect for this key"""
     miss_reason: Optional[StrictStr] = None
-    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "timeout" (the cache read exceeded its budget), "read_failed" (another cache read failure), "payload_too_large" (the serialized cache request exceeds 25,000,000 UTF-8 bytes), and "replay_failed" (a cached value was found but could not be applied)"""
     tokens_saved: Optional[CacheTokenSavings] = None
     """LLM tokens avoided by serving this request from cache; hits only"""
 
@@ -650,6 +710,12 @@ class FieldSchema14(
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
+class FieldSchema15(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -751,7 +817,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema14] = None
+    data: Optional[FieldSchema15] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1460,6 +1526,12 @@ class OperatingSystem(StrEnum):
     windows = "windows"
 
 
+class Operation(StrEnum):
+    gateway_responses = "gateway.responses"
+    cache_get = "cache.get"
+    cache_set = "cache.set"
+
+
 class Os(StrEnum):
     windows = "windows"
     mac = "mac"
@@ -1498,8 +1570,8 @@ class PageCDPEventNotification(WireModel):
     event: PageCDPEvent
 
 
-class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
-    root: dict[StrictStr, Optional[FieldSchema12]]
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
+    root: dict[StrictStr, Optional[FieldSchema13]]
 
 
 class PageClickOptions(WireModel):
@@ -1961,6 +2033,33 @@ class PageVoidResult(WireModel):
     ok: Literal[True]
 
 
+class PageWaitForFunctionOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    polling: Optional[Union[Literal["raf"], Polling]] = None
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+
+
+class PageWaitForFunctionParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    expression: StrictStr
+    options: Optional[PageWaitForFunctionOptions] = None
+
+
+class PageWaitForFunctionResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[FieldSchema10]
+
+
 class PageWaitForLoadStateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2057,8 +2156,25 @@ class PageWebMCPToolsResult(WireModel):
     tools: list[WebMCPToolDescriptor]
 
 
+class Polling(RootModel[StrictFloat]):
+    root: Annotated[StrictFloat, Field(gt=0.0, le=2147483647.0)]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
+
+
+class Reason(StrEnum):
+    network = "network"
+    cancelled = "cancelled"
+    timeout = "timeout"
+    unavailable = "unavailable"
+    disconnected = "disconnected"
+
+
+class Reason1(StrEnum):
+    cancelled = "cancelled"
+    timeout = "timeout"
 
 
 class ResponseAllHeadersResult(WireModel):
@@ -2195,11 +2311,10 @@ class StagehandExtractParams(WireModel):
     options: Optional[ExtractOptions] = None
 
 
-class StagehandInitParams(WireModel):
+class StagehandInitParams(StagehandInitParamsValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
-        arbitrary_types_allowed=True,
     )
     protocol_version: Annotated[
         StrictStr,
@@ -2209,9 +2324,7 @@ class StagehandInitParams(WireModel):
     ]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    api_url: Optional[WireUrl] = None
-    """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
+    browserbase: Optional[Literal["client"]] = None
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
@@ -2223,7 +2336,7 @@ class StagehandInitParams(WireModel):
         Optional[StrictInt], Field(gt=0, le=9007199254740991)
     ] = None
     cache: Optional[Caching] = None
-    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
+    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache."""
 
 
 class StagehandInitResult(WireModel):
@@ -2245,8 +2358,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema11]]]):
-    root: dict[StrictStr, Optional[FieldSchema11]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
+    root: dict[StrictStr, Optional[FieldSchema12]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2405,8 +2518,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema10]]):
-    root: Optional[FieldSchema10]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema11]]):
+    root: Optional[FieldSchema11]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2472,6 +2585,7 @@ FieldSchema11.model_rebuild()
 FieldSchema12.model_rebuild()
 FieldSchema13.model_rebuild()
 FieldSchema14.model_rebuild()
+FieldSchema15.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

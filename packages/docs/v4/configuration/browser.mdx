@@ -472,12 +472,12 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session without `keepAlive` enabled.
+When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session.
 </Note>
 
 ### Alternative: Browserbase SDK
 
-If you prefer to manage sessions directly, upload the Stagehand extension to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
+If you prefer to manage sessions directly, [export the Stagehand extension](#exporting-the-stagehand-extension) and upload it to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
 
 <Note>
 The extension ID used to create the session is the uploaded-extension resource ID returned by the Browserbase Extensions API. `browserbase.launch()` handles this upload and session configuration automatically.
@@ -563,7 +563,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-#### Connecting over CDP
+### Connecting over CDP
 
 `localBrowser.connect()` attaches to a running Chromium browser through its DevTools endpoint. It discovers an installed Stagehand extension first, then loads the bundled extension if none is found or discovery is unsupported. Loading requires a shared filesystem. For Browserbase sessions, use `browserbase.connect()` with the session ID; the extension must already be installed.
 
@@ -613,9 +613,163 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
+#### Connecting with authentication headers
+
+If the browser service you connect to requires authentication headers, pass them using `headers` (TypeScript and Python) or `Headers` (Go). This lets you authenticate without putting credentials in the connection URL.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const browser = await localBrowser.connect({
+  cdpUrl: "https://gateway.example/cdp",
+  headers: { "X-Api-Key": process.env.CDP_GATEWAY_API_KEY! },
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+browser = await local_browser.connect(
+    cdp_url="https://gateway.example/cdp",
+    headers={"X-Api-Key": os.environ["CDP_GATEWAY_API_KEY"]},
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL:  "https://gateway.example/cdp",
+	Headers: map[string]string{"X-Api-Key": os.Getenv("CDP_GATEWAY_API_KEY")},
+})
+if err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+- Headers are sent with HTTP discovery and the client's WebSocket connection. They are only forwarded to the same host and port, without switching from a secure connection to an insecure one.
+- Headers are never passed to the extension. Its connection must work without them, using a signed URL or [a separate CDP URL](#a-separate-cdp-url-for-the-extension).
+
+#### A separate CDP URL for the extension
+
+If the client connects through a proxy or authenticated gateway, you can give the extension a separate browser-level CDP WebSocket URL:
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.connect({
+  cdpUrl: "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+  extensionCdpUrl: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+});
+const stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+from stagehand import Stagehand, local_browser
+
+browser = await local_browser.connect(
+    cdp_url="wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+    extension_cdp_url="ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+)
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL:          "wss://gateway.example/cdp?token=YOUR_GATEWAY_TOKEN",
+	ExtensionCDPURL: "ws://127.0.0.1:9300/devtools/browser/BROWSER_ID",
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+The override must use `ws://` or `wss://`, include a host, and use a port between 1 and 65535 if specified. Both endpoints must reach the same browser. When the option is omitted (`None` in Python or an empty string in Go), the extension uses the client's resolved CDP WebSocket URL.
+
+In this example, `127.0.0.1` refers to the browser's environment. The extension can use any host reachable from inside Chrome. Using a separate endpoint keeps the gateway URL and its credentials out of the extension and avoids routing the extension's CDP commands through the gateway.
+
+
 <Note>
-Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
+`browser.close()` closes the browser, including one you attached to with `localBrowser.connect()`. To detach without closing it, call `browser.disconnect()`.
 </Note>
+
+#### Disconnecting without closing the browser
+
+`browser.disconnect()` closes Stagehand's connection without closing the browser or releasing its Browserbase session. Use it when the browser holds state you want to keep, such as a signed-in profile. It also closes the attached Stagehand instance, including the extension's own connection to the browser, so you can connect again later and create a new instance:
+
+<Warning>
+**On Browserbase, `keepAlive` controls whether the session survives a disconnect, not `disconnect()`.** With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes. That includes `browser.disconnect()`, a dropped network connection, or your process exiting. To keep a Browserbase session running after you disconnect, create it with `keepAlive: true`.
+</Warning>
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+let browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+let stagehand = await Stagehand.create({ browser });
+// ...
+await browser.disconnect(); // closes stagehand; Chrome and its tabs keep running
+
+// Later, attach again to the same Chrome
+browser = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
+# ...
+await browser.disconnect()  # closes stagehand; Chrome and its tabs keep running
+
+# Later, attach again to the same Chrome
+browser = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+`Disconnect` isn't available in the Go SDK.
+</Tab>
+</Tabs>
+
+After `disconnect()` the handle is finished: repeated `disconnect()` calls do nothing, and `browser.close()` throws because the connection is gone. To close the browser later, connect again and close the new handle. Use `browser.cdpUrl` (`browser.cdp_url` in Python) for a local browser, or `browser.sessionId` (`browser.session_id`) for a Browserbase session.
+
+| Browser | After `browser.disconnect()` | To close it later |
+| --- | --- | --- |
+| **Local, `launch()`** | Chrome keeps running | `localBrowser.connect({ cdpUrl })`, then `close()`. The temporary profile stays on disk |
+| **Local, `connect()`** | Browser keeps running | `localBrowser.connect({ cdpUrl })`, then `close()` |
+| **Browserbase, `keepAlive: true`** | Session keeps running until its timeout | `browserbase.connect({ apiKey, sessionId })`, then `close()` |
+| **Browserbase, `keepAlive: false` (default)** | **Browserbase ends the session** | Nothing left to close |
+
+If the connection drops without `disconnect()`, for example because your process crashed or was killed, `browser.connected` becomes `false` while `browser.closed` stays `false`, because `browser.close()` still has work to do: it releases a Browserbase session through the Browserbase API, and does nothing for a local browser. The Stagehand extension notices the lost connection inside the browser:
+
+- Stagehand closes a local browser it launched without `keepAlive`, so the browser doesn't outlive your process.
+- Other local browsers keep running. The extension releases the Stagehand instance and its own connection, so you can connect again and create a new instance.
+- On Browserbase, the extension releases the instance and its own connection, and the session follows its `keepAlive` setting: with `keepAlive: true` it keeps running and you can connect again; otherwise Browserbase ends it.
+
+This requires Chrome 137 or later. Stagehand also rejects a browser whose Stagehand extension speaks an older protocol version than your SDK requires, for example a Browserbase session launched by an SDK release from before this change: launch a new session, or connect with the SDK version that launched it.
+
+Only one Stagehand client can be attached to a browser at a time. Connecting a second client while the first is still connected fails with `A Stagehand client is already connected`.
 
 ## Local environment
 
@@ -814,7 +968,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
   "--window-size=1280,800",
-  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+  "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -825,7 +979,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
     "--window-size=1280,800",
-    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    "--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </Tab>
@@ -836,14 +990,14 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-unsafe-extension-debugging",
 	"--remote-allow-origins=*",
 	"--window-size=1280,800",
-	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+	"--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
 </Tab>
 </Tabs>
 
 <Note>
-`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
+`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp) across supported Chrome versions. `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
@@ -897,13 +1051,90 @@ stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 
 Set the ignore-default-args option to `true` to remove all default arguments. Use a list to remove only exact matches while preserving the rest.
 
+## Exporting the Stagehand extension
+
+Each SDK exposes the extension bundled with its installed version as ZIP bytes. Use this archive to upload the extension to Browserbase or extract it for local installation in Chrome. These helpers do not require a Stagehand instance or a browser session and do not write files themselves.
+
+<Tabs>
+<Tab title="TypeScript">
+`getExtensionArchive()` returns `Promise<Uint8Array>`.
+
+```typescript
+import { writeFile } from "node:fs/promises";
+import { getExtensionArchive } from "@browserbasehq/stagehand";
+
+const archive = await getExtensionArchive();
+await writeFile("stagehand-extension.zip", archive);
+```
+</Tab>
+<Tab title="Python">
+`get_extension_archive()` returns `bytes` synchronously.
+
+```python
+from pathlib import Path
+from stagehand import get_extension_archive
+
+archive = get_extension_archive()
+Path("stagehand-extension.zip").write_bytes(archive)
+```
+</Tab>
+<Tab title="Go">
+`ExtensionArchive()` returns an independent copy of the archive as `[]byte`.
+
+```go
+package main
+
+import (
+    "log"
+    "os"
+
+    stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func main() {
+    archive := stagehand.ExtensionArchive()
+    if err := os.WriteFile("stagehand-extension.zip", archive, 0o644); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+</Tab>
+</Tabs>
+
+### Upload to Browserbase
+
+Upload `stagehand-extension.zip` using the Browserbase Extensions API or the [CLI deployment workflow](/v4/best-practices/deployments). Include the returned extension ID when creating the session, as shown in [Alternative: Browserbase SDK](#alternative-browserbase-sdk). `browserbase.launch()` handles the upload automatically when you omit an extension ID.
+
+### Load unpacked in Chrome
+
+1. Extract `stagehand-extension.zip` to a folder.
+2. Open `chrome://extensions` and enable **Developer mode**.
+3. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
+
+The archive contains `manifest.json` at its root. **Load unpacked** requires the extracted files on disk; it cannot accept ZIP bytes or a ZIP file directly. Keep the extracted folder available while the extension is installed.
+
+You can also extract the archive directly from Python:
+
+```python
+import io
+import zipfile
+from stagehand import get_extension_archive
+
+with zipfile.ZipFile(io.BytesIO(get_extension_archive())) as archive:
+    archive.extractall("stagehand-extension")
+```
+
+Select the `stagehand-extension` folder in **Load unpacked**. To attach Stagehand to that browser, it must also expose a DevTools endpoint; see [Connecting over CDP](#connecting-over-cdp).
+
 ## Advanced configuration
 
 ### Keep alive
 
-The keep-alive option controls whether the browser remains running after `close()` is called.
+Keep-alive decides whether a launched browser survives when your client goes away without closing it: when your process exits or loses its connection, and on Browserbase also after `browser.disconnect()`. That lets you reconnect to it later. `stagehand.close()` only ends the Stagehand instance and never closes the browser, with or without keep-alive. Call `browser.close()` when you're done. It closes the browser even with keep-alive on.
 
-By default, Stagehand terminates the browser it launched and cleans up all resources when it shuts down. Turning keep-alive on keeps the browser running independently so you can reconnect to it later.
+<Note>
+Keeping sessions alive is available on the Browserbase Startup plan and above.
+</Note>
 
 <Tabs>
 <Tab title="TypeScript">
@@ -917,9 +1148,8 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 const sessionId = browser.sessionId!;
 
-// The browser session continues running after close()
-await stagehand.close();
-await browser.close();
+// Let go of the session: this also closes stagehand, and keepAlive keeps it running
+await browser.disconnect();
 
 // Later, reconnect to the same Browserbase session
 const browser2 = await browserbase.connect({
@@ -927,6 +1157,12 @@ const browser2 = await browserbase.connect({
   sessionId,
 });
 const stagehand2 = await Stagehand.create({ browser: browser2 });
+
+// End the session when you're done
+await stagehand2.close();
+// This doesn't delete the extension that launch() uploaded.
+// Pass extensionId to launch() to reuse one upload, or delete the upload separately.
+await browser2.close();
 ```
 </Tab>
 
@@ -944,9 +1180,8 @@ stagehand = await Stagehand.create(browser=browser)
 session_id = browser.session_id
 assert session_id is not None
 
-# The browser session continues running after close()
-await stagehand.close()
-await browser.close()
+# Let go of the session: this also closes stagehand, and keep_alive keeps it running
+await browser.disconnect()
 
 # Later, reconnect to the same Browserbase session
 browser2 = await browserbase.connect(
@@ -954,6 +1189,12 @@ browser2 = await browserbase.connect(
     session_id=session_id,
 )
 stagehand2 = await Stagehand.create(browser=browser2)
+
+# End the session when you're done
+await stagehand2.close()
+# This doesn't delete the extension that launch() uploaded.
+# Pass extension_id to launch() to reuse one upload, or delete the upload separately.
+await browser2.close()
 ```
 </Tab>
 
@@ -975,11 +1216,8 @@ if err != nil {
 }
 sessionID := browser.SessionID()
 
-// The browser session continues running after Close()
+// The session keeps running after client.Close()
 if err := client.Close(ctx); err != nil {
-	return err
-}
-if err := browser.Close(ctx); err != nil {
 	return err
 }
 
@@ -998,18 +1236,26 @@ client2, err := stagehand.Create(ctx, stagehand.CreateOptions{
 if err != nil {
 	return err
 }
-defer func() { err = errors.Join(err, client2.Close(ctx)) }()
+// End the session when you're done. browser2.Close() doesn't delete the extension that
+// LaunchBrowserbase uploaded. Pass ExtensionID to reuse one upload, or delete the upload separately.
+defer func() { err = errors.Join(err, client2.Close(ctx), browser2.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
 
 #### Behavior by environment
 
-| Behavior | keep-alive on | keep-alive off (default) |
-| --- | --- | --- |
-| **Browserbase** | Session stays active after `close()` | Session is terminated via API |
-| **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
-| **Attached over CDP** | Always left running | Always left running (Stagehand never owns the browser) |
+<Warning>
+With `keepAlive: false` (the default), Browserbase ends the session when **any** CDP connection to it closes, including `browser.disconnect()` or your process exiting.
+</Warning>
+
+| Environment | After `stagehand.close()` | After `browser.close()` | After `browser.disconnect()` |
+| --- | --- | --- | --- |
+| **Browserbase, `launch()`, `keepAlive: true`** | Session keeps running until `browser.close()` or its timeout | Ends the session | Session keeps running until its timeout |
+| **Browserbase, `launch()`, `keepAlive: false`** | Session keeps running while the connection stays open | Ends the session | **Browserbase ends the session** |
+| **Local, `launch()`** | Chrome keeps running | Closes Chrome and removes the temp profile, unless `preserveUserDataDir` is set | Chrome keeps running |
+| **Browserbase, `connect()`** | Session keeps running | Ends the session | Session keeps running only if it has `keepAlive: true` |
+| **Local, `connect()`** | Browser keeps running | Closes the browser | Browser keeps running |
 
 #### Local environment
 
@@ -1029,7 +1275,6 @@ await page.goto("https://example.com");
 
 // Browser window stays open after the script exits
 await stagehand.close();
-await browser.close();
 ```
 </Tab>
 
@@ -1046,7 +1291,6 @@ await page.goto("https://example.com")
 
 # Browser window stays open after the script exits
 await stagehand.close()
-await browser.close()
 ```
 </Tab>
 
@@ -1082,21 +1326,13 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 }
 
 // Browser window stays open after the program exits
-return errors.Join(client.Close(ctx), browser.Close(ctx))
+return client.Close(ctx)
 ```
 </Tab>
 </Tabs>
 
 <Note>
 A temporary user data directory is deleted when a local browser shuts down. Set `userDataDir` (or turn on the preserve option) if you want the profile to survive.
-</Note>
-
-#### Browserbase environment
-
-On Browserbase, keep-alive keeps the cloud session active so you can reconnect later with `browserbase.connect()`. This is useful for long-running workflows that span multiple script executions.
-
-<Note>
-Keeping sessions alive is available on the Browserbase Startup plan and above.
 </Note>
 
 ### Fixed CDP debugging port

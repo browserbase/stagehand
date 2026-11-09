@@ -1,12 +1,7 @@
 import { generateText } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  buildGatewayContext,
-  createGatewayLanguageModel,
-  fetchWithoutModel,
-} from "../llm/gatewayClient.js";
+import { buildGatewayContext, createGatewayLanguageModel } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
-import { boundFetch } from "../llm/boundFetch.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
@@ -16,12 +11,6 @@ vi.mock("ai", () => ({
   Output: {
     object: vi.fn((options: unknown) => options),
   },
-}));
-
-// Credentialed requests go through the load-time fetch reference, not the
-// ambient global, so the test drives that reference directly.
-vi.mock("../llm/boundFetch.js", () => ({
-  boundFetch: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -37,48 +26,27 @@ const initParams = {
   clientInfo: { name: "test", version: "1" },
   logLevel: "info",
   model: { modelName: "openai/gpt-5" },
-  apiKey: "bb-api-key",
+  browserbase: "client",
   browser: { sessionId: "session-123", region: "eu-central-1" },
 } satisfies StagehandInitParams;
 
 describe("buildGatewayContext", () => {
-  it("builds the context from the Browserbase API key, session, and region", () => {
-    expect(buildGatewayContext(initParams)).toEqual({
-      apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
-      apiKey: "bb-api-key",
-      sessionId: "session-123",
+  it("builds a context from the client marker, session, and request adapter", () => {
+    const request = vi.fn();
+    expect(buildGatewayContext(initParams, request)).toEqual({
+      request,
     });
   });
 
-  it("returns undefined without a Browserbase API key or session", () => {
-    expect(buildGatewayContext({ ...initParams, apiKey: undefined })).toBeUndefined();
+  it("requires the client marker and a session", () => {
+    expect(buildGatewayContext({ ...initParams, browserbase: undefined })).toBeUndefined();
     expect(buildGatewayContext({ ...initParams, browser: undefined })).toBeUndefined();
-  });
-
-  it("uses an explicit Stagehand API URL instead of the regional default", () => {
-    expect(
-      buildGatewayContext({
-        ...initParams,
-        apiUrl: "https://api.stagehand.dev.browserbase.com/",
-      }),
-    ).toEqual({
-      apiUrl: "https://api.stagehand.dev.browserbase.com/v1",
-      apiKey: "bb-api-key",
-      sessionId: "session-123",
-    });
   });
 });
 
 describe("createGatewayLanguageModel", () => {
   it("creates a Responses API model against the gateway endpoint with the full model slug", () => {
-    const model = createGatewayLanguageModel(
-      { modelName: "openai/gpt-5" },
-      {
-        apiUrl: "https://api.stagehand.browserbase.com/v1",
-        apiKey: "bb-api-key",
-        sessionId: "session-123",
-      },
-    );
+    const model = createGatewayLanguageModel({ modelName: "openai/gpt-5" }, {});
 
     expect(model).toMatchObject({
       provider: "openai.responses",
@@ -87,29 +55,12 @@ describe("createGatewayLanguageModel", () => {
   });
 
   it("uses an internal placeholder when Browserbase will select the model", () => {
-    const model = createGatewayLanguageModel(undefined, {
-      apiUrl: "https://api.stagehand.browserbase.com/v1",
-      apiKey: "bb-api-key",
-      sessionId: "session-123",
-    });
+    const model = createGatewayLanguageModel(undefined, {});
 
     expect(model).toMatchObject({
       provider: "openai.responses",
       modelId: "auto",
     });
-  });
-});
-
-describe("fetchWithoutModel", () => {
-  it("passes non-JSON string bodies through unchanged", async () => {
-    const response = {} as Response;
-    vi.mocked(boundFetch).mockResolvedValue(response);
-    const init = { method: "POST", body: "not-json" };
-
-    await expect(fetchWithoutModel("https://gateway.example/request", init)).resolves.toBe(
-      response,
-    );
-    expect(boundFetch).toHaveBeenCalledWith("https://gateway.example/request", init);
   });
 });
 
@@ -126,11 +77,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {
-      apiUrl: "https://api.stagehand.browserbase.com/v1",
-      apiKey: "bb-api-key",
-      sessionId: "session-123",
-    });
+    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {});
 
     expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,11 +97,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate(undefined, input, vi.fn(), {
-      apiUrl: "https://api.stagehand.browserbase.com/v1",
-      apiKey: "bb-api-key",
-      sessionId: "session-123",
-    });
+    await llmService.generate(undefined, input, vi.fn(), {});
 
     expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -186,11 +129,7 @@ describe("llmService.generate gateway routing", () => {
         { modelName: "openai/gpt-5" },
         { ...input, stopSequences: ["STOP"] },
         vi.fn(),
-        {
-          apiUrl: "https://api.stagehand.browserbase.com/v1",
-          apiKey: "bb-api-key",
-          sessionId: "session-123",
-        },
+        {},
       ),
     ).rejects.toThrow(/does not support stop sequences/);
     expect(generateText).not.toHaveBeenCalled();

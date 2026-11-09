@@ -518,7 +518,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
       `import * as actService from ${JSON.stringify(extensionModulePath("services/actService.ts"))};`,
       `import * as extractService from ${JSON.stringify(extensionModulePath("services/extractService.ts"))};`,
       `import * as observeService from ${JSON.stringify(extensionModulePath("services/observeService.ts"))};`,
-      `import { LLMProvider } from ${JSON.stringify(extensionModulePath("llm/LLMProvider.ts"))};`,
+      `import * as llmService from ${JSON.stringify(extensionModulePath("services/llmService.ts"))};`,
       `import { StagehandLogger } from ${JSON.stringify(extensionModulePath("logger.ts"))};`,
       `import { withTimeout } from ${JSON.stringify(extensionModulePath("timeoutConfig.ts"))};`,
       `import { CdpConnection } from ${JSON.stringify(extensionModulePath("understudy/cdp.ts"))};`,
@@ -526,7 +526,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
       `import { Locator } from ${JSON.stringify(extensionModulePath("understudy/locator.ts"))};`,
       `import { Page } from ${JSON.stringify(extensionModulePath("understudy/page.ts"))};`,
       `import { Response } from ${JSON.stringify(extensionModulePath("understudy/response.ts"))};`,
-      "const graph = [actService.act, extractService.extract, observeService.observe, LLMProvider, StagehandLogger, withTimeout, CdpConnection, BrowserContext, Locator, Page, Response];",
+      "const graph = [actService.act, extractService.extract, observeService.observe, llmService.generate, StagehandLogger, withTimeout, CdpConnection, BrowserContext, Locator, Page, Response];",
       "(globalThis as typeof globalThis & { __stagehandExtensionGraph?: string[] }).__stagehandExtensionGraph = graph.map((value) => value.name);",
     ].join("\n"),
   );

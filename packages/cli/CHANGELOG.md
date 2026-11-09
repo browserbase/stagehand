@@ -1,5 +1,17 @@
 # browse
 
+## 0.11.3
+
+### Patch Changes
+
+- [#3273](https://github.com/browserbase/stagehand/pull/3273) [`10e0bd8`](https://github.com/browserbase/stagehand/commit/10e0bd848b9a6af4a206f0da0443b8723553639c) Thanks [@shrey150](https://github.com/shrey150)! - Require Node.js 22.18+ for Browse CLI.
+
+## 0.11.2
+
+### Patch Changes
+
+- [#3139](https://github.com/browserbase/stagehand/pull/3139) [`e48dc5b`](https://github.com/browserbase/stagehand/commit/e48dc5b2d2f0a0a2ed23226cacc562243e2cc888) Thanks [@shrey150](https://github.com/shrey150)! - Add `--provider` and `--mode` flags to `browse cloud search`.
+
 ## 0.11.1
 
 ### Patch Changes

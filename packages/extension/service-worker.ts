@@ -1,3 +1,4 @@
+import { requestBrowserbase } from "./clients/browserbaseClient.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
@@ -13,10 +14,13 @@ import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
+import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
+import { ClientLifecycle } from "./clientLifecycle.js";
 
 export type StagehandServiceWorkerScope = {
+  __stagehandClientLifecycle?: (input: unknown) => Promise<void>;
   __stagehand_runtime?: RuntimeDescriptor;
   __stagehandReceiveFromHost?: (
     raw: unknown,
@@ -31,24 +35,43 @@ export function startStagehandServiceWorker(
 ): RPCClient {
   const chromeRuntimeClient = new ChromeRuntimeClient(scope, STAGEHAND_SEND_TO_HOST_BINDING);
   let rpcClient: RPCClient | undefined;
+  let domainPolicyManager: DomainPolicyDnrManager | undefined;
   const activeRuntime =
     runtime ??
     createStagehandRuntime({
       browserSessionFactory: async (cdpUrl, logger, bootstrapLogger) => {
-        const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
-        if (!locatorRuntimeResponse.ok) {
-          throw new Error(
-            `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
-          );
+        domainPolicyManager ??= new DomainPolicyDnrManager(
+          chrome.declarativeNetRequest,
+          chrome.runtime.id,
+        );
+        const domainPolicyRules = await domainPolicyManager.openSession();
+        try {
+          const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
+          if (!locatorRuntimeResponse.ok) {
+            throw new Error(
+              `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
+            );
+          }
+          return await BrowserContext.create(cdpUrl, {
+            websocketFactory: browserWebSocketFactory,
+            logger,
+            blankPageUrl: chrome.runtime.getURL("blank.html"),
+            fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
+            chromeTabs: new ChromeTabTargetAdapter(chrome),
+            bootstrapLogger,
+            domainPolicyRules,
+          });
+        } catch (error) {
+          try {
+            await domainPolicyRules.close();
+          } catch (cleanupError) {
+            throw new AggregateError(
+              [error, cleanupError],
+              "Browser session initialization and domain policy cleanup failed",
+            );
+          }
+          throw error;
         }
-        return BrowserContext.create(cdpUrl, {
-          websocketFactory: browserWebSocketFactory,
-          logger,
-          blankPageUrl: chrome.runtime.getURL("blank.html"),
-          fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
-          chromeTabs: new ChromeTabTargetAdapter(chrome),
-          bootstrapLogger,
-        });
       },
       emitLog: (log) => {
         void rpcClient?.notify(StagehandNotifications.log, log).catch((error: unknown) => {
@@ -75,6 +98,10 @@ export function startStagehandServiceWorker(
             console.error("[stagehand] Failed to emit page event notification", error);
           });
       },
+      clientBrowserbaseRequest: async (params, signal) => {
+        if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
+        return await requestBrowserbase(rpcClient, params, signal);
+      },
       clientLLMGenerate: async (params) => {
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);
@@ -83,6 +110,37 @@ export function startStagehandServiceWorker(
 
   const router = new RPCRouter(activeRuntime);
   rpcClient = new RPCClient(chromeRuntimeClient, router);
+  const lifecycle = new ClientLifecycle({
+    connection: async (cdpUrl) => {
+      await activeRuntime.ensureBrowserConnection(cdpUrl);
+      const session = activeRuntime.browserSession;
+      if (!(session instanceof BrowserContext)) {
+        throw new Error("Stagehand client lifecycle requires a CDP browser connection");
+      }
+      return session.conn;
+    },
+    rejectClientCallbacks: () => rpcClient?.releaseClient(),
+    closeConnection: () => activeRuntime.disconnectBrowser(),
+    disposeClient: () => activeRuntime.disposeStagehandInstance(),
+    onError: (error) => {
+      // The client transport may be gone; do not report through RPC.
+      // oxlint-disable-next-line no-console
+      console.error("Stagehand client lifecycle cleanup failed", error);
+    },
+  });
+  scope.__stagehandClientLifecycle = async (input) => {
+    const action =
+      typeof input === "object" && input !== null && "action" in input ? input.action : undefined;
+    try {
+      await lifecycle.handle(input);
+    } catch (error) {
+      // A failed detach leaves the SDK handle open: keep serving its reverse requests.
+      if (action === "detach") rpcClient?.acceptClient();
+      throw error;
+    }
+    // Only a successful attach may serve a new client's reverse requests.
+    if (action === "attach") rpcClient?.acceptClient();
+  };
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {

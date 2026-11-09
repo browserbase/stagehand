@@ -55,10 +55,65 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
+// Validate the whole map before record parsing so errors never contain header names or values.
+const CDPHeadersSchema = z.preprocess(
+  (value) => {
+    try {
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value) ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+      )
+        return null;
+      const entries = Object.entries(value);
+      if (
+        !entries.every(
+          ([name, content]) =>
+            name.length > 0 &&
+            !/[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(name) &&
+            typeof content === "string" &&
+            !/[^\t\x20-\x7e]/.test(content) &&
+            content === content.replace(/^[ \t]+|[ \t]+$/g, ""),
+        )
+      )
+        return null;
+      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
+      return Object.fromEntries(entries);
+    } catch {
+      return null;
+    }
+  },
+  z.record(z.string(), z.string(), {
+    error:
+      "headers must map valid HTTP header names to ASCII string values without leading or trailing spaces or tabs",
+  }),
+);
+
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
+    /** Headers for client-side CDP discovery and WebSocket connections. */
+    headers: CDPHeadersSchema.optional(),
     extensionId: z.string().optional(),
+    /**
+     * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
+     * Defaults to the client's URL. Set this when the client connects through
+     * a gateway the extension cannot or should not use.
+     */
+    extensionCdpUrl: z
+      .url({ protocol: /^wss?$/, hostname: /.+/ })
+      .refine(
+        (value) => {
+          try {
+            return new URL(value).port !== "0";
+          } catch {
+            return false;
+          }
+        },
+        { message: "Port must be between 1 and 65535" },
+      )
+      .optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
@@ -273,14 +328,35 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
 
-export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
-  protocolVersion: true,
-  clientInfo: true,
-  browserCdpUrl: true,
-  logLevel: true,
-  browser: true,
-})
+export const StagehandClientCreateConfigSchema = z
+  .strictObject(StagehandInitParamsSchema.shape)
+  .omit({
+    browserbase: true,
+    protocolVersion: true,
+    clientInfo: true,
+    browserCdpUrl: true,
+    logLevel: true,
+    browser: true,
+  })
   .extend({
+    apiKey: z.string().min(1).optional().meta({
+      description:
+        "Browserbase API key. A Browserbase browser uses the key supplied to its launch/connect factory; this option does not override that key.",
+    }),
+    apiUrl: z
+      .url({ protocol: /^https?$/ })
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
     logging: StagehandClientLoggingConfigSchema.default({
       level: "info",

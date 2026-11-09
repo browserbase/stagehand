@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
+from urllib.parse import urlparse
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -17,7 +18,7 @@ from ._generated.models import (
     StagehandResultMetadata,
     TelemetryConfig,
 )
-from ._validation import WireModel, WireUrl
+from ._validation import WireHeaders, WireModel, WireUrl, WireWebSocketUrl
 from .browserbase_session import DEFAULT_BROWSERBASE_URL
 from .client_types import Cache as CacheInput
 
@@ -102,11 +103,16 @@ class LocalBrowserLaunchOptions(WireModel):
 
 
 class LocalBrowserConnectOptions(WireModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    # Headers may carry credentials, so validation errors never echo the input.
+    model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
 
     cdp_url: Annotated[str, Field(min_length=1)]
     extension_id: str | None = None
     """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+    extension_cdp_url: WireWebSocketUrl | None = None
+    """Browser-level CDP WebSocket the extension dials, when it differs from `cdp_url`."""
+    headers: WireHeaders | None = None
+    """HTTP headers sent with the CDP connection, e.g. a gateway's credentials."""
 
 
 class BrowserbaseClientOptions(WireModel):
@@ -215,7 +221,7 @@ class StagehandClientCreateConfig(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     api_key: Annotated[str | None, Field(min_length=1)] = None
-    api_url: Annotated[str | None, Field(min_length=1)] = None
+    api_url: Annotated[WireUrl | None, Field(min_length=1)] = None
     model: ModelConfig | ClientLLM | None = None
     telemetry: TelemetryConfig | None = None
     system_prompt: str | None = None
@@ -225,6 +231,18 @@ class StagehandClientCreateConfig(WireModel):
     ] = None
     cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
+
+    @field_validator("api_url")
+    @classmethod
+    def validate_api_url(cls, value: str | None) -> str | None:
+        if value is not None:
+            if urlparse(value).scheme not in {"http", "https"}:
+                raise ValueError("Stagehand api_url must use HTTP or HTTPS")
+            if "?" in value or "#" in value:
+                raise ValueError("Stagehand api_url must not include a query string or fragment")
+            if urlparse(value).path.rstrip("/").endswith("/v1"):
+                raise ValueError("Stagehand api_url must be a service origin without /v1")
+        return value
 
 
 StagehandClientCreateConfig.model_rebuild(_types_namespace={**vars(_models), **globals()})

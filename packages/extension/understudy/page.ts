@@ -46,6 +46,7 @@ import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { waitForFunction, type FunctionWaitOptions } from "./functionWait.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
   applyMaskOverlays,
@@ -381,7 +382,7 @@ export class Page {
 
   /**
    * Parent/child session emitted a `frameAttached`.
-   * Topology update + ownership stamped to **emitting session**.
+   * Topology update + ownership stamped to the session selected by Context.
    */
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
@@ -462,7 +463,11 @@ export class Page {
    * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
-  public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
+  public adoptOopifSession(
+    childSession: CDPSessionLike,
+    childMainFrameId: string,
+    onFrameTreeSeeded?: () => void,
+  ): void {
     if (this.disposed) return;
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
@@ -487,9 +492,8 @@ export class Page {
     childSession.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
       this.onFrameNavigated(evt.frame, childSession);
     });
-    childSession.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
-      this.onFrameAttached(evt.frameId, evt.parentFrameId ?? null, childSession);
-    });
+    // Frame attachments are handled by BrowserContext.installFrameEventBridges,
+    // whose ownership guard protects adopted nested OOPIFs from late parent events.
     childSession.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
     });
@@ -512,6 +516,7 @@ export class Page {
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
           this.reconcilePendingWebMCPTools();
+          onFrameTreeSeeded?.();
         }
       } catch {
         // If snapshot races, live events will still converge the registry.
@@ -1745,6 +1750,19 @@ export class Page {
    */
   async waitForTimeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Poll an expression in the page's main world until its value is truthy. */
+  async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
+    return waitForFunction(
+      () => {
+        if (this.disposed) throw new Error("Page is disposed");
+        if (!this.conn.connected) throw new Error("CDP connection closed: function wait stopped");
+        return this.mainFrameWrapper;
+      },
+      expression,
+      options,
+    );
   }
 
   /**
