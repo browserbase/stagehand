@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   abortActiveRun,
   cleanupActiveRunResources,
+  endHardStop,
   isHardStopped,
   registerActiveRunCleanup,
   stopRunOnEscape,
@@ -9,6 +10,9 @@ import {
 } from "../../framework/activeRunCleanup.js";
 
 describe("active run cleanup", () => {
+  // A hard stop stays in effect until its run ends; here each test is a run.
+  afterEach(() => endHardStop());
+
   it("upgrades a cooperative abort by cleaning active resources", async () => {
     const cleanup = vi.fn(async () => {});
     const unregister = registerActiveRunCleanup(cleanup);
@@ -82,6 +86,24 @@ describe("active run cleanup", () => {
     await Promise.all([first, second]);
     expect(released).toBe(true);
     expect(cleanup).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it("cleans up a session that registers after the hard stop swept", async () => {
+    const controller = new AbortController();
+    await abortActiveRun(controller, "aggressive");
+
+    // A row that was still starting its session when the sweep ran.
+    const late = vi.fn(async () => {});
+    registerActiveRunCleanup(late);
+    await vi.waitFor(() => expect(late).toHaveBeenCalledTimes(1));
+
+    // Once that run has ended, registrations wait for their own cleanup again.
+    endHardStop();
+    const next = vi.fn(async () => {});
+    const unregister = registerActiveRunCleanup(next);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(next).not.toHaveBeenCalled();
     unregister();
   });
 });

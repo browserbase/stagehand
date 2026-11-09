@@ -8,7 +8,25 @@ export function onceAsync(fn: () => Promise<void>): () => Promise<void> {
   };
 }
 
+/**
+ * Set by a hard stop and cleared when the run ends. A row that was still
+ * starting its session when the sweep ran registers its cleanup afterwards;
+ * while this is set, that late registration is cleaned up on the spot.
+ */
+let hardStopInEffect = false;
+
+/** The run that was hard-stopped has ended; later runs register normally. */
+export function endHardStop(): void {
+  hardStopInEffect = false;
+}
+
 export function registerActiveRunCleanup(cleanup: () => Promise<void>): () => void {
+  if (hardStopInEffect) {
+    void Promise.resolve()
+      .then(cleanup)
+      .catch(() => {});
+    return () => {};
+  }
   const key = Symbol("active-run-cleanup");
   activeRunCleanups.set(key, cleanup);
   return () => {
@@ -66,6 +84,7 @@ export function hardStop(signal: AbortSignal): Promise<void> {
   let stopping = hardStops.get(signal);
   if (!stopping) {
     hardStopped.add(signal);
+    hardStopInEffect = true;
     stopping = cleanupActiveRunResources().finally(() => hardStopWaiter(signal).resolve());
     hardStops.set(signal, stopping);
   }

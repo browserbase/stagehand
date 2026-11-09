@@ -106,6 +106,14 @@ describe("summarizeCells", () => {
     expect(json.deadJudge).toBe(false);
     expect(json.gates).toEqual({});
     expect(json.cells[0]).toMatchObject({ stopped: 1, sdkError: 0, ungraded: 0, gated: 0 });
+    // A retry that happened before the stop still counts as a retry.
+    const retried = [
+      row("b", "openai/gpt-5.4-mini", {
+        stoppedByUser: true,
+        providerThrottled: { retried: true },
+      }),
+    ];
+    expect(summarizeCells(retried, "codex")[0]).toMatchObject({ stopped: 1, retried: 1 });
   });
 
   it("uses a task's own message as the failure reason", () => {

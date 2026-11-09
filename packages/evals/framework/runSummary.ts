@@ -188,6 +188,8 @@ export function summarizeCells(results: SummaryRow[], harness: string): CellSumm
       stopped: 0,
     };
     cell.total += 1;
+    // A retry that already happened counts, whatever became of the row.
+    if ((output.providerThrottled as { retried?: boolean } | undefined)?.retried) cell.retried += 1;
     if (isStopped(output)) {
       // A stopped row says nothing about the agent or the judge: whatever
       // error it carries is the stop's doing.
@@ -200,7 +202,6 @@ export function summarizeCells(results: SummaryRow[], harness: string): CellSumm
     if (output.harnessStatus === "sdk_error") cell.sdkError += 1;
     if (!output._success && isGated(output)) cell.gated += 1;
     if (isUngraded(output)) cell.ungraded += 1;
-    if ((output.providerThrottled as { retried?: boolean } | undefined)?.retried) cell.retried += 1;
     cells.set(key, cell);
   }
   return [...cells.values()];
