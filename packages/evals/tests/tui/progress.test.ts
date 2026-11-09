@@ -228,7 +228,8 @@ describe("ProgressRenderer board", () => {
     renderer.setStopping("cooperative");
     const lines = board(renderer);
     // 4 done in 4 min → 6 left at ~1 min each.
-    expect(lines[0]).toMatch(/4\/10\s+✓ 2\s+✗ 1\s+⏱ 1\s+4m00s · eta ~6m$/);
+    // While stopping, the eta is meaningless and drops out.
+    expect(lines[0]).toMatch(/4\/10\s+✓ 2\s+✗ 1\s+⏱ 1\s+4m00s$/);
     expect(lines[1]).toContain("running 0 · queued 6");
     expect(lines[2]).toContain("⚠ stopping after in-flight rows · esc again to stop now");
     expect(lines.at(-1)).toBe("  esc stop");
@@ -251,10 +252,72 @@ describe("ProgressRenderer board", () => {
     written.length = 0;
     renderer.printSummary();
     const text = written.join("");
-    expect(text).toContain("47e314cc recreation.gov");
-    expect(text).toContain("Results: 1 passed, 0 failed (1 total)");
+    // The final frame is the status line; the summary below lists outcomes.
+    expect(text).toMatch(/1\/1\s+✓ 1/);
+    expect(text).not.toContain("47e314cc recreation.gov");
+    expect(text).toContain("Results: 1 passed, 0 failed (1 ran)");
     expect(text).not.toContain("esc stop");
     expect(text).not.toContain("queued 0");
+  });
+
+  it("counts stopped rows apart from failures and marks them", () => {
+    const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
+    renderer.onPlanned(3);
+    renderer.onPass(suiteRow(...CASES[0]), 1000);
+    renderer.onFail(suiteRow(...CASES[1]), { outcome: "fail", error: "wrong answer" });
+    renderer.onFail(suiteRow(...CASES[2]), {
+      outcome: "stopped",
+      error: "stopped before it ran",
+    });
+    const lines = board(renderer);
+    expect(lines[0]).toMatch(/3\/3\s+✓ 1\s+✗ 1\s+⊘ 1 stopped/);
+    expect(lines.join("\n")).toMatch(/⊘ e81f4c0d amazon\.com\s+stopped\s+stopped before it ran/);
+    renderer.dispose();
+  });
+
+  it("puts the reason before the session URL and never shows a cut URL", () => {
+    const url = "https://www.browserbase.com/sessions/f43c25cd-547e-4b8f-9a1e-0123456789ab";
+    const wide = Object.assign(Object.create(process.stdout), {
+      columns: 160,
+      write: () => true,
+    }) as NodeJS.WriteStream;
+    const narrow = Object.assign(Object.create(process.stdout), {
+      columns: 100,
+      write: () => true,
+    }) as NodeJS.WriteStream;
+    for (const [stream, showsUrl] of [
+      [wide, true],
+      [narrow, false],
+    ] as const) {
+      const renderer = new ProgressRenderer({ animated: true, stream, now: () => 0 });
+      renderer.onFail(suiteRow(...CASES[0]), {
+        outcome: "fail",
+        error: "invalid x-api-key",
+        durationMs: 4000,
+        sessionUrl: url,
+      });
+      const line = board(renderer).find((text) => text.includes("47e314cc"))!;
+      expect(line).toMatch(/failed\s+4s · invalid x-api-key/);
+      expect(line.includes(url)).toBe(showsUrl);
+      expect(line).not.toMatch(/https:\/\/\S*…/);
+      renderer.dispose();
+    }
+  });
+
+  it("marks the followed row and lays multi-line key help under the board", () => {
+    const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
+    const followed = suiteRow(...CASES[1]);
+    renderer.onStart(suiteRow(...CASES[0]));
+    renderer.onStart(followed);
+    renderer.setFollowed(followed.rowKey);
+    renderer.setKeyHints("esc   stop\nv     logs\n?     close this help");
+    const lines = board(renderer);
+    expect(lines.find((text) => text.includes("9b2c07aa"))).toMatch(/^ {2}▸ 9b2c07aa/);
+    expect(lines.find((text) => text.includes("47e314cc"))).not.toMatch(/▸/);
+    expect(lines.slice(-3)).toEqual(["  esc   stop", "  v     logs", "  ?     close this help"]);
+    renderer.setFollowed(undefined);
+    expect(board(renderer).join("\n")).not.toContain("▸");
+    renderer.dispose();
   });
 
   it("shows the error of a failed row that has no outcome (aborted before it ran)", () => {

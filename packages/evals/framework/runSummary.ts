@@ -239,8 +239,18 @@ export function isDeadJudgeRun(verifier: VerifierSummary): boolean {
   return verifier.attempted > 0 && verifier.graded === 0;
 }
 
-function readReason(output: Record<string, unknown>): string | undefined {
-  for (const candidate of [output.harnessStopReason, output.verifierError, output.error]) {
+/**
+ * Why a row failed, in the row's own words: the harness stop reason, the
+ * verifier error, the thrown error, or the `message` a task returns when its
+ * own check fails.
+ */
+export function readReason(output: Record<string, unknown>): string | undefined {
+  for (const candidate of [
+    output.harnessStopReason,
+    output.verifierError,
+    output.error,
+    output.message,
+  ]) {
     if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
   }
   return undefined;

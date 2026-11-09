@@ -89,6 +89,30 @@ describe("summarizeCells", () => {
     });
   });
 
+  it("uses a task's own message as the failure reason", () => {
+    const [failure] = collectFailures(
+      [row("act/iframe_scroll", "openai/gpt-4.1-mini", { message: "not halfway down the page" })],
+      "stagehand",
+    );
+    expect(failure).toMatchObject({ kind: "fail", reason: "not halfway down the page" });
+  });
+
+  it("counts stopped rows apart: not failures, not in the pass rate", () => {
+    const results = [
+      row("a", "openai/gpt-5.4-mini", { _success: true }),
+      row("b", "openai/gpt-5.4-mini", { _success: false, error: "wrong" }),
+      row("c", "openai/gpt-5.4-mini", {
+        _success: false,
+        error: "stopped before it ran",
+        stoppedByUser: true,
+      }),
+    ];
+    const json = buildRunSummaryJson({ results, harness: "stagehand", experimentName: "x" });
+    expect(json.summary).toEqual({ passed: 1, failed: 1, stopped: 1, total: 3, passRate: 50 });
+    expect(json.cells[0]).toMatchObject({ total: 3, passed: 1, stopped: 1 });
+    expect(json.failures.map((failure) => failure.kind).sort()).toEqual(["fail", "stopped"]);
+  });
+
   it("omits the tool surface from the key when the row has none", () => {
     const [cell] = summarizeCells(
       [
@@ -186,7 +210,7 @@ describe("buildRunSummaryJson", () => {
       judgeModel: "google/gemini-3.5-flash",
       trajectoryGroup: "agent_hardbenchmark__x",
     });
-    expect(json.summary).toEqual({ passed: 3, failed: 3, total: 6, passRate: 50 });
+    expect(json.summary).toEqual({ passed: 3, failed: 3, stopped: 0, total: 6, passRate: 50 });
     expect(json.cells).toHaveLength(2);
     expect(json.failures).toHaveLength(3);
     expect(json.deadJudge).toBe(false);
@@ -199,7 +223,7 @@ describe("buildRunSummaryJson", () => {
     const json = buildRunSummaryJson({ results: [], harness: "codex", experimentName: "empty" });
     expect(json).toEqual({
       experimentName: "empty",
-      summary: { passed: 0, failed: 0, total: 0, passRate: 0 },
+      summary: { passed: 0, failed: 0, stopped: 0, total: 0, passRate: 0 },
       usage: { totalTokens: 0, costRows: 0 },
       gates: {},
       cells: [],

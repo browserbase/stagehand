@@ -53,6 +53,8 @@ export interface ProgressRow {
 }
 
 interface RowState {
+  /** rowIdentity of the row, to match the followed row. */
+  key: string;
   name: string;
   question?: string;
   model?: string;
@@ -192,6 +194,10 @@ export class ProgressRenderer {
   private lastQueueLinePrintedAt?: number;
   private stopping?: StopMode;
   private keyHints?: string;
+  /** Set by printSummary: the last frame is just the status line. */
+  private finalFrame = false;
+  /** Row whose logs stream in "one" mode; marked on the board. */
+  private followed?: string;
 
   constructor(options: ProgressRendererOptions = {}) {
     this.out = options.stream ?? process.stdout;
@@ -211,6 +217,7 @@ export class ProgressRenderer {
   onStart(row: ProgressRow): void {
     const name = rowDisplayName(row);
     this.rows.set(rowIdentity(row), {
+      key: rowIdentity(row),
       name,
       question: row.case?.question,
       model: row.model,
@@ -325,7 +332,13 @@ export class ProgressRenderer {
       );
   }
 
-  /** Key hints shown under the board (`esc stop · v logs · ? help`). */
+  /** Mark the row whose logs are streaming (`v` → one); undefined clears it. */
+  setFollowed(rowKey: string | undefined): void {
+    this.followed = rowKey;
+    if (this.animated && this.renderedLines > 0) this.redraw();
+  }
+
+  /** Key hints shown under the board (`esc stop · v logs · ? help`); may span lines. */
   setKeyHints(hints: string | undefined): void {
     this.keyHints = hints;
     if (this.animated && this.renderedLines > 0) this.redraw();
@@ -354,6 +367,7 @@ export class ProgressRenderer {
     this.queue = undefined;
     this.keyHints = undefined;
     this.stopping = undefined;
+    this.finalFrame = true;
     if (this.animated && this.renderedLines > 0) {
       // Leave the final state of the board on screen, minus live-only lines.
       this.clearBoard();
@@ -402,6 +416,8 @@ export class ProgressRenderer {
   boardLines(): string[] {
     const width = this.width();
     const lines: string[] = [this.statusLine(width)];
+    // After the run only the status line stays: the summary below says the rest.
+    if (this.finalFrame) return lines;
     if (this.queue)
       lines.push(`  ${dim(truncateText(formatConcurrencyQueueLine(this.queue), width - 4))}`);
     if (this.stopping) {
@@ -428,7 +444,7 @@ export class ProgressRenderer {
     const budget = Math.max(6, this.terminalRows() - RESERVED_TERMINAL_ROWS - lines.length);
     const recentCount = Math.min(RECENT_ROWS, finished.length);
     const recentLines = recentCount > 0 ? recentCount + 2 : 0; // blank + "recent" + rows
-    const hintLines = this.keyHints ? 2 : 0;
+    const hintLines = this.keyHints ? this.keyHints.split("\n").length + 1 : 0;
     const runningBudget = Math.max(1, budget - recentLines - hintLines - 1);
     const shownRunning = running.slice(0, runningBudget);
 
@@ -455,7 +471,12 @@ export class ProgressRenderer {
         lines.push(`  ${dim(`… ${finished.length - recentCount} more finished`)}`);
       }
     }
-    if (this.keyHints) lines.push("", `  ${dim(this.keyHints)}`);
+    if (this.keyHints) {
+      lines.push(
+        "",
+        ...this.keyHints.split("\n").map((hint) => `  ${dim(truncateText(hint, width - 4))}`),
+      );
+    }
     return lines;
   }
 
@@ -491,7 +512,11 @@ export class ProgressRenderer {
     showModel: boolean,
     p75: number | undefined,
   ): string {
-    const spinner = blue(SPINNER[this.frame % SPINNER.length]);
+    // The row whose logs are streaming gets a pointer instead of a spinner.
+    const spinner =
+      this.followed && row.key === this.followed
+        ? cyan("▸")
+        : blue(SPINNER[this.frame % SPINNER.length]);
     const elapsedMs = this.now() - row.startedAt;
     const elapsed = formatElapsed(elapsedMs);
     const elapsedCell = p75 !== undefined && elapsedMs > p75 ? yellow(elapsed) : dim(elapsed);
@@ -539,6 +564,7 @@ export class ProgressRenderer {
     const key = rowIdentity(row);
     const previous = this.rows.get(key);
     this.rows.set(key, {
+      key,
       name: rowDisplayName(row),
       question: row.case?.question,
       model: row.model,

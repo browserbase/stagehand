@@ -62,20 +62,24 @@ export function printCellTable(cells: CellSummary[]): void {
   const cellWidth = stacked ? 0 : longestCell;
   const indent = stacked ? "    " : `  ${" ".repeat(cellWidth)} `;
 
+  // No padding after the last column: trailing spaces show up when copied.
   const headerRow = [
     ...(stacked ? [] : [bold(padRight("cell", cellWidth))]),
-    bold(padRight("pass", passWidth)),
-    ...columns.map(([name]) => bold(padRight(name, name.length + 2))),
+    bold(columns.length > 0 ? padRight("pass", passWidth) : "pass"),
+    ...columns.map(([name], index) =>
+      bold(index === columns.length - 1 ? name : padRight(name, name.length + 2)),
+    ),
   ].join(" ");
-  console.log(`${stacked ? "    " : "  "}${headerRow.trimEnd()}`);
+  console.log(`${stacked ? "    " : "  "}${headerRow}`);
 
   for (const cell of cells) {
     const ran = cell.total - (cell.stopped ?? 0);
     const pct = ran === 0 ? 0 : Math.round((cell.passed / ran) * 100);
     const passCell = `${passRateColor(pct)(padLeft(`${pct}%`, 4))} ${gray(`${cell.passed}/${ran}`)}`;
-    const numeric = columns.map(([name, read]) => {
+    const numeric = columns.map(([name, read], index) => {
       const count = read(cell);
-      const text = padRight(String(count), name.length + 2);
+      const text =
+        index === columns.length - 1 ? String(count) : padRight(String(count), name.length + 2);
       if (count === 0) return dim(text);
       return name === "gated" || name === "ungraded" ? yellow(text) : text;
     });
@@ -101,8 +105,12 @@ const FAILURE_ICON: Record<FailureRow["kind"], string> = {
   stopped: dim("⊘"),
 };
 
+/** A task returned `_success: false` without saying why. */
+const NO_REASON = "task check failed (no reason given)";
+
 /** Reasons that mean a credential, not the agent, failed the row. */
-const AUTH_REASON = /api[ _-]?key|unauthori[sz]ed|\b401\b|\b403\b|authentication|permission denied/i;
+const AUTH_REASON =
+  /api[ _-]?key|unauthori[sz]ed|\b401\b|\b403\b|authentication|permission denied/i;
 
 const shortModel = (model: string): string => model.slice(model.indexOf("/") + 1);
 
@@ -125,7 +133,7 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
   const groups = new Map<string, FailureRow[]>();
   for (const failure of real) {
     // Multi-line SDK errors would break the row; one line, whitespace collapsed.
-    const reason = failure.reason?.replace(/\s+/g, " ").trim() ?? "";
+    const reason = rootCause(failure.reason?.replace(/\s+/g, " ").trim() ?? "");
     const key = `${failure.kind}\u0000${reason}`;
     groups.set(key, [...(groups.get(key) ?? []), { ...failure, reason }]);
   }
@@ -140,34 +148,58 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
     const first = group[0];
     const icon = FAILURE_ICON[first.kind];
     const kind = padRight(first.kind, 10);
-    const hint = first.reason && AUTH_REASON.test(first.reason)
-      ? ` ${yellow("→ check the key: evals doctor --probe")}`
-      : "";
+    const hintText =
+      first.reason && AUTH_REASON.test(first.reason) ? "→ check the key: evals doctor --probe" : "";
+    const reasonText = first.reason || NO_REASON;
+    const tone = first.reason ? gray : dim;
     if (group.length > 1) {
       const models = [...new Set(group.map((failure) => shortModel(failure.model)))];
-      const who =
-        models.length <= 2
-          ? models.join(", ")
-          : `${models.length} models`;
-      const count = padRight(`${group.length}×`, 5);
-      const fixed = 4 + 5 + 1 + 10 + 1 + who.length + 2 + visibleLength(hint);
-      const reason = first.reason
-        ? gray(truncateText(first.reason, Math.max(16, width - fixed)))
-        : dim("(no reason recorded)");
-      console.log(`  ${icon} ${count} ${kind} ${reason}  ${cyan(who)}${hint}`);
+      const who = models.length <= 2 ? models.join(", ") : `${models.length} models`;
+      const head = `  ${icon} ${padRight(`${group.length}×`, 5)} ${kind} `;
+      const room = width - visibleLength(head) - 2 - who.length - 1;
+      if (hintText) {
+        // A credential failure points at the doctor; which cases doesn't matter.
+        const hintInline = room - hintText.length - 2 >= 16;
+        const reason = truncateText(
+          reasonText,
+          Math.max(16, room - (hintInline ? hintText.length + 2 : 0)),
+        );
+        console.log(
+          `${head}${tone(reason)}  ${cyan(who)}${hintInline ? `  ${yellow(hintText)}` : ""}`,
+        );
+        if (!hintInline) console.log(`      ${yellow(hintText)}`);
+      } else {
+        // Which cases, most frequent first: `act/iframe_scroll ×3, act/login ×2, …`.
+        const perCase = new Map<string, number>();
+        for (const failure of group) {
+          const id = failure.task.split(" ")[0];
+          perCase.set(id, (perCase.get(id) ?? 0) + 1);
+        }
+        const cases = [...perCase.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([id, n]) => (n > 1 ? `${id} ×${n}` : id))
+          .join(", ");
+        const reason = truncateText(reasonText, Math.max(16, Math.floor(room * 0.55)));
+        const casesRoom = room - reason.length - 3;
+        const casesShown = casesRoom >= 12 ? ` · ${truncateText(cases, casesRoom)}` : "";
+        console.log(`${head}${tone(reason)}  ${cyan(who)}${dim(casesShown)}`);
+      }
     } else {
       const harness = showHarness ? `${first.harness} ` : "";
-      const label = `${harness}${first.task} ${shortModel(first.model)}`;
-      const fixed = 4 + visibleLength(label) + 2 + 10 + 1 + visibleLength(hint);
+      const head = `  ${icon} ${harness}${first.task} ${shortModel(first.model)}  ${kind} `;
+      const room = width - visibleLength(head) - 1;
+      const hintInline = hintText !== "" && room - hintText.length - 2 >= 16;
+      const afterHint = room - (hintInline ? hintText.length + 2 : 0);
       const urlInline =
-        first.sessionUrl !== undefined && width - fixed - first.sessionUrl.length - 2 >= 16;
-      const reasonWidth = Math.max(16, width - fixed - (urlInline ? first.sessionUrl!.length + 2 : 0));
-      const reason = first.reason
-        ? gray(truncateText(first.reason, reasonWidth))
-        : dim("(no reason recorded)");
-      console.log(
-        `  ${icon} ${label}  ${kind} ${reason}${urlInline ? `  ${dim(first.sessionUrl!)}` : ""}${hint}`,
+        first.sessionUrl !== undefined && afterHint - first.sessionUrl.length - 2 >= 16;
+      const reason = truncateText(
+        reasonText,
+        Math.max(16, afterHint - (urlInline ? first.sessionUrl!.length + 2 : 0)),
       );
+      console.log(
+        `${head}${tone(reason)}${urlInline ? `  ${dim(first.sessionUrl!)}` : ""}${hintInline ? `  ${yellow(hintText)}` : ""}`,
+      );
+      if (hintText && !hintInline) console.log(`      ${yellow(hintText)}`);
       if (first.sessionUrl && !urlInline) console.log(`      ${dim(first.sessionUrl)}`);
     }
     printed += 1;
@@ -177,6 +209,19 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
     console.log(dim(`  … ${real.length - shownRows} more — --json has the full list`));
   }
   console.log("");
+}
+
+/**
+ * Tasks wrap an underlying error in their own words (`error attempting to
+ * select an option: invalid x-api-key`). For a credential failure the last
+ * `: ` segment is the cause, so rows with different wrappers group together.
+ */
+function rootCause(reason: string): string {
+  if (!AUTH_REASON.test(reason)) return reason;
+  const at = reason.lastIndexOf(": ");
+  if (at < 0) return reason;
+  const tail = reason.slice(at + 2).trim();
+  return tail && AUTH_REASON.test(tail) ? tail : reason;
 }
 
 /** Infra first, then budget, then self-reported, then rubric. */

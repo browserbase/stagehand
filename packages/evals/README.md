@@ -91,15 +91,15 @@ Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `b
 
 ![evals run --preview output](./assets/readme/preview.png)
 
-A live run draws one row per case in flight: case id and site, the task, the phase it's in (`session` → `agent` → `verify`) and how long it has been running. Elapsed time turns yellow once a row outlasts three quarters of the finished ones. Rows waiting for a provider slot are counted in the queue line rather than shown; the `↓` marks a provider whose width was halved after a 429. The last few finishes show their outcome, and failures their session URL:
+A live run draws one row per case in flight: case id and site, the task, the phase it's in (`session` → `agent` → `verify`) and how long it has been running. Elapsed time turns yellow once a row outlasts three quarters of the finished ones. Rows waiting for a provider slot are counted in the queue line rather than shown; the `↓` marks a provider whose width was halved after a 429. The last few finishes show their outcome, and failures their reason (plus the session URL when it fits whole):
 
 ![Live bench run](./assets/readme/run-live.png)
 
-Every case that logs anything gets its own file under `.trajectories/<run>/logs/` (with the provider in the name), whether or not you're watching. `-v` streams those lines above the board, attributed by case id; `--follow <id>` streams one case. While a run is going, `v` cycles the stream off → all → one (the oldest running case) → off, `?` shows the keys, and `esc` stops the run:
+Every case that logs anything gets its own file under `.trajectories/<run>/logs/` (with the provider in the name), whether or not you're watching. `-v` streams those lines above the board, attributed by case (and model, when the run has several); `--follow <id>` streams one case. The stream carries warnings, errors and the task's own output; the SDK's per-step info lines stay in the file, and a line repeated in a burst prints once with a count. While a run is going, `v` cycles the stream off → all rows → one row (the oldest running case, marked `▸`) → off and `?` shows the keys. `esc` stops the run after the rows in flight; a second `esc` stops those now. Either way the summary still prints: rows that never ran count as `stopped`, not failed, and stay out of the pass rate:
 
 ![Live bench run with -v](./assets/readme/run-verbose.png)
 
-The end-of-run summary has one line per cell (harness × tool × model) with the pass rate, the failure kinds that aren't the agent's fault or aren't what they look like (`max_turns`, `sdk_error`, `gated`: the judge passed it, a deterministic check such as "never used the browser" failed it, and `ungraded`), and `retried`: rows retried after a provider 429, which may still have passed. Infra failures are listed with their reason and session URL; rubric fails by case id. `--json` emits the same as an object:
+The end-of-run summary has one line per cell (harness × tool × model) with the pass rate, the failure kinds that aren't the agent's fault or aren't what they look like (`max_turns`, `sdk_error`, `gated`: the judge passed it, a deterministic check such as "never used the browser" failed it, and `ungraded`), and `retried`: rows retried after a provider 429, which may still have passed. A count column only appears when some cell uses it. Failures are grouped by reason, largest group first (`36× fail invalid x-api-key claude-haiku-4-5 → check the key: evals doctor --probe`); one-off failures keep their case, model and session URL. `--json` emits the same as an object:
 
 ![Run summary](./assets/readme/run-summary.png)
 
