@@ -116,6 +116,8 @@ export interface RunEvalsOptions {
   datasetFilter?: string;
   harness?: Harness;
   coreToolSurface?: ToolSurface;
+  /** Tool surface for bench rows; core rows keep `coreToolSurface`. */
+  benchToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;

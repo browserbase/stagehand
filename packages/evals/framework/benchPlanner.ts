@@ -47,6 +47,8 @@ export interface BenchPlanOptions {
   datasetFilter?: string;
   harness?: Harness;
   coreToolSurface?: ToolSurface;
+  /** `--tool`, else `harnesses.<h>.tool`: wins over `coreToolSurface` for bench rows. */
+  benchToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
 }
 
@@ -154,7 +156,10 @@ export function buildBenchMatrixRow(
   const environment = options.environment ?? "LOCAL";
   const useApi = Boolean(options.useApi);
   const harnessImpl = getBenchHarness(harness);
-  const toolSurface = resolveToolSurface(harnessImpl, options.coreToolSurface);
+  const toolSurface = resolveToolSurface(
+    harnessImpl,
+    options.benchToolSurface ?? options.coreToolSurface,
+  );
   const startupProfile =
     harnessImpl.supportedToolSurfaces.length === 0
       ? options.coreStartupProfile

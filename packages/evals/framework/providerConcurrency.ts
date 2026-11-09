@@ -536,8 +536,9 @@ const defaultSleep = (ms: number, signal?: AbortSignal) =>
       signal?.removeEventListener("abort", done);
       resolve();
     };
+    // Kept referenced: a retry wait must not let an otherwise idle process
+    // exit before the retry runs.
     const timer = setTimeout(done, ms);
-    timer.unref?.();
     signal?.addEventListener("abort", done, { once: true });
   });
 
