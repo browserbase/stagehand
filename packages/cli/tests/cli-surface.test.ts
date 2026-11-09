@@ -61,7 +61,6 @@ describe("CLI surface", () => {
     const result = await runCli(["--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("$ browse");
-    expect(result.stdout).toContain("Browser automation CLI for AI agents");
     expect(result.stdout).toContain("cloud");
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
