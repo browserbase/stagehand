@@ -167,9 +167,9 @@ function buildRunContextLine(
 }
 
 /**
- * `10 global · anthropic 3 · openai 3` — the per-provider widths that will
- * actually gate the run, so a 10-wide config against one provider reads as
- * what it is. Falls back to the bare number when no row has a provider.
+ * `50 · anthropic 4 (capped) · google ~23 · openai ~23` — how the global cap
+ * splits across the run's providers. Just the number when one uncapped
+ * provider (or none) has it all.
  */
 function describeConcurrency(
   options: ResolvedRunOptions,
@@ -184,7 +184,7 @@ function describeConcurrency(
     scheduler,
     matrix.map((row) => (typeof row.provider === "string" ? row.provider : undefined)),
   );
-  return widths ? `${global} global · ${widths}` : String(global);
+  return widths ? `${global} · ${widths}` : String(global);
 }
 
 /**

@@ -68,7 +68,7 @@ function printSection(name: ConfigSectionName, config: ConfigFile): void {
   }
   const envHint: Record<ConfigSectionName, string> = {
     harnesses: "env twin: EVAL_<HARNESS>_MODELS (wins over harnesses.<h>.models)",
-    providers: `env twin: ${PROVIDER_CONCURRENCY_ENV}, e.g. openai=6,anthropic=4 (wins over providers.*)`,
+    providers: `optional caps; without one a provider shares -c with the others. env twin: ${PROVIDER_CONCURRENCY_ENV}, e.g. anthropic=4 (wins over providers.*)`,
     verifier: `env twins: ${VERIFIER_MODEL_ENV}, EVAL_MAX_UNVERIFIABLE_CRITERIA (win over verifier.*)`,
     campaign: "env twin: EVAL_CAMPAIGN_TAG (wins over campaign.tag)",
   };
