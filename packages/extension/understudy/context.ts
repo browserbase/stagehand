@@ -2,7 +2,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
-import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
+import type { CDPSessionLike, CdpSession, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type {
@@ -24,7 +24,9 @@ import {
 import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
+import type { DomainPolicyRuleSession } from "./domainPolicyDnr.js";
 import type { ChromeTabTargetController } from "./chromeTabs.js";
+import { CLIENT_TARGET_URL } from "../clientLifecycle.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -58,6 +60,7 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  if (info.url === CLIENT_TARGET_URL) return true;
   // Top-level pages should always be tracked — the initial URL may be a
   // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
   // web content, and the target identity stays the same.
@@ -67,7 +70,7 @@ function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
-  return info.type === "page" && ti.subtype !== "iframe";
+  return info.type === "page" && ti.subtype !== "iframe" && info.url !== CLIENT_TARGET_URL;
 }
 
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
@@ -92,20 +95,18 @@ export class BrowserContext {
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
+    private readonly domainPolicyRules?: DomainPolicyRuleSession,
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
-  readonly _domainPolicySessionListeners = new Map<
-    SessionId,
-    (evt: Protocol.Fetch.RequestPausedEvent) => void
-  >();
-
   readonly _sessionInit = new Set<SessionId>();
   pagesByTarget = new Map<TargetId, Page>();
   mainFrameToTarget = new Map<string, TargetId>();
   sessionOwnerPage = new Map<SessionId, Page>();
   frameOwnerPage = new Map<string, Page>();
   pendingOopifByMainFrame = new Map<string, SessionId>();
+  pendingOopifParentByMainFrame = new Map<string, string>();
+  adoptedOopifSessionByFrame = new Map<string, SessionId>();
   createdAtByTarget = new Map<TargetId, number>();
   typeByTarget = new Map<TargetId, TargetType>();
   pendingCreatedTargetUrl = new Map<TargetId, string>();
@@ -122,6 +123,9 @@ export class BrowserContext {
   readonly initScripts: string[] = [];
   extraHttpHeaders: Record<string, string> | null = null;
   domainPolicy: NormalizedDomainPolicy | null = null;
+  private domainPolicyTail: Promise<void> = Promise.resolve();
+  private closing = false;
+  private closePromise?: Promise<void>;
   _clipboard?: ContextClipboard;
 
   get connected(): boolean {
@@ -165,6 +169,7 @@ export class BrowserContext {
       blankPageUrl: string;
       fallbackLocatorScriptSource: string;
       chromeTabs: ChromeTabTargetController;
+      domainPolicyRules?: DomainPolicyRuleSession;
       logger: StagehandLogger;
       bootstrapLogger?: StagehandLogger;
     },
@@ -179,6 +184,7 @@ export class BrowserContext {
         opts?.localBrowserLaunchOptions ?? null,
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
+        opts.domainPolicyRules,
       );
       const bootstrap = async () => {
         await ctx.bootstrap();
@@ -186,14 +192,26 @@ export class BrowserContext {
           await ctx.newPage();
         }
       };
-      if (opts.bootstrapLogger) {
-        await conn.runWithTelemetryContext(
-          Symbol("browser.bootstrap"),
-          opts.bootstrapLogger,
-          bootstrap,
-        );
-      } else {
-        await bootstrap();
+      try {
+        if (opts.bootstrapLogger) {
+          await conn.runWithTelemetryContext(
+            Symbol("browser.bootstrap"),
+            opts.bootstrapLogger,
+            bootstrap,
+          );
+        } else {
+          await bootstrap();
+        }
+      } catch (error) {
+        try {
+          await ctx.close();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Browser context initialization and cleanup failed",
+          );
+        }
+        throw error;
       }
       return ctx;
     };
@@ -343,125 +361,18 @@ export class BrowserContext {
 
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     const nextPolicy = normalizeDomainPolicy(policy);
-    this.domainPolicy = nextPolicy;
+    if (this.closing) throw new Error("Browser context is closing");
+    const rules = this.domainPolicyRules;
+    if (!rules) throw new Error("Domain policy DNR enforcement is unavailable");
 
-    const sessions: CDPSessionLike[] = [];
-    for (const sessionId of this._sessionInit) {
-      const session = this.conn.getSession(sessionId);
-      if (session) sessions.push(session);
-    }
-
-    if (!sessions.length) return;
-
-    const results = await Promise.allSettled(
-      sessions.map(async (session) => {
-        if (!nextPolicy) {
-          try {
-            await session.send("Fetch.disable");
-            this.uninstallDomainPolicyHandler(session);
-          } catch (error) {
-            throw { action: "disable", error };
-          }
-          return;
-        }
-
-        this.installDomainPolicyHandler(session);
-        try {
-          await session.send("Fetch.enable", {
-            patterns: nextPolicy.fetchPatterns,
-          });
-        } catch (error) {
-          throw { action: "enable", error };
-        }
-      }),
-    );
-
-    const failures = results
-      .map((result, index) => ({ result, session: sessions[index] }))
-      .filter(
-        (
-          entry,
-        ): entry is {
-          result: PromiseRejectedResult;
-          session: CDPSessionLike;
-        } => entry.result.status === "rejected",
-      )
-      .map((entry) => {
-        const failure = entry.result.reason as {
-          action?: "enable" | "disable";
-          error?: unknown;
-        };
-        if (failure?.action === "enable") {
-          this.uninstallDomainPolicyHandler(entry.session);
-        }
-        const reason = failure?.error ?? entry.result.reason;
-        const sid = entry.session.id ?? "unknown";
-        const message = reason instanceof Error ? reason.message : String(reason);
-        return { reason, sessionId: sid, message };
-      });
-
-    if (failures.length) {
-      this.logger.error("setDomainPolicy failed for one or more sessions", {
-        category: "ctx",
-        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
-      });
-      throw failures[0]!.reason;
-    }
-  }
-
-  installDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-    if (this._domainPolicySessionListeners.has(sessionId)) return;
-
-    const handler = (evt: Protocol.Fetch.RequestPausedEvent) => {
-      void this.handleDomainPolicyRequestPaused(session, evt);
-    };
-    this._domainPolicySessionListeners.set(sessionId, handler);
-    session.on<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-  }
-
-  uninstallDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-
-    const handler = this._domainPolicySessionListeners.get(sessionId);
-    if (!handler) return;
-
-    session.off<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-    this._domainPolicySessionListeners.delete(sessionId);
-  }
-
-  async handleDomainPolicyRequestPaused(
-    session: CDPSessionLike,
-    evt: Protocol.Fetch.RequestPausedEvent,
-  ): Promise<void> {
-    const decision = getDomainPolicyDecision(evt.request.url, this.domainPolicy);
-
-    if (decision.action === "continue") {
-      await session.send("Fetch.continueRequest", { requestId: evt.requestId }).catch(() => {});
-      return;
-    }
-
-    let hostname = "";
-    try {
-      hostname = new URL(evt.request.url).hostname.toLowerCase();
-    } catch {
-      // ignore malformed URLs for logging
-    }
-
-    this.logger.debug("Blocked request by domain policy", {
-      category: "network",
-      hostname,
-      ruleType: decision.reason,
+    const update = this.domainPolicyTail.then(async () => {
+      if (this.closing) throw new Error("Browser context is closing");
+      // Do not publish the new policy until Chrome has validated and installed it.
+      await rules.replace(nextPolicy);
+      this.domainPolicy = nextPolicy;
     });
-
-    await session
-      .send("Fetch.failRequest", {
-        requestId: evt.requestId,
-        errorReason: "BlockedByClient",
-      })
-      .catch(() => {});
+    this.domainPolicyTail = update.catch(() => undefined);
+    await update;
   }
 
   public get clipboard(): ContextClipboard {
@@ -565,21 +476,43 @@ export class BrowserContext {
   /**
    * Close CDP and clear all mappings. Best-effort cleanup.
    */
-  async close(): Promise<void> {
-    await this.conn.close();
-    this.pagesByTarget.clear();
-    this.mainFrameToTarget.clear();
-    this.sessionOwnerPage.clear();
-    this.frameOwnerPage.clear();
-    this.pendingOopifByMainFrame.clear();
-    this.createdAtByTarget.clear();
-    this.typeByTarget.clear();
-    this.pendingCreatedTargetUrl.clear();
-    this.pageCreationFailures.clear();
-    this.pendingInitialTopLevelTargets.clear();
-    this.pendingNewPageTargets.clear();
-    this.domainPolicyClosingTargets.clear();
-    this.domainPolicyClosePromises.clear();
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    const closing = Promise.resolve().then(async () => {
+      try {
+        await this.conn.close();
+      } finally {
+        await this.domainPolicyTail;
+        try {
+          await this.domainPolicyRules?.close();
+          this.domainPolicy = null;
+        } finally {
+          this.pagesByTarget.clear();
+          this.mainFrameToTarget.clear();
+          this.sessionOwnerPage.clear();
+          this.frameOwnerPage.clear();
+          this.pendingOopifByMainFrame.clear();
+          this.pendingOopifParentByMainFrame.clear();
+          this.adoptedOopifSessionByFrame.clear();
+          this.createdAtByTarget.clear();
+          this.typeByTarget.clear();
+          this.pendingCreatedTargetUrl.clear();
+          this.pageCreationFailures.clear();
+          this.pendingInitialTopLevelTargets.clear();
+          this.pendingNewPageTargets.clear();
+          this.domainPolicyClosingTargets.clear();
+          this.domainPolicyClosePromises.clear();
+          this._sessionInit.clear();
+        }
+      }
+    });
+    this.closePromise = closing.catch((error) => {
+      // Keep cleanup retryable if Chrome rejects removal of the session rules.
+      this.closePromise = undefined;
+      throw error;
+    });
+    return this.closePromise;
   }
 
   /**
@@ -724,24 +657,6 @@ export class BrowserContext {
         .catch(() => false);
       return { dispatched, response };
     };
-    const queueFetchEnablePreResume = (params: object) => {
-      let error: unknown;
-      const dispatched = this.conn
-        .waitForSessionDispatch(sessionId, "Fetch.enable")
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      const response = session
-        .send("Fetch.enable", params)
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      return { dispatched, response, getError: () => error };
-    };
     const initScriptOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
@@ -769,19 +684,6 @@ export class BrowserContext {
       headerPreResumeOps.push(queuePreResume("Network.enable"));
       headerPreResumeOps.push(queuePreResume("Network.setExtraHTTPHeaders", { headers }));
     }
-    const fetchPreResumeOps: Array<{
-      dispatched: Promise<boolean>;
-      response: Promise<boolean>;
-      getError: () => unknown;
-    }> = [];
-    if (this.domainPolicy) {
-      this.installDomainPolicyHandler(session);
-      fetchPreResumeOps.push(
-        queueFetchEnablePreResume({
-          patterns: this.domainPolicy.fetchPatterns,
-        }),
-      );
-    }
     // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
@@ -801,7 +703,6 @@ export class BrowserContext {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
-        ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
       ])
     ).every(Boolean);
@@ -811,10 +712,9 @@ export class BrowserContext {
       resumeOp.dispatched,
       resumeOp.response,
     ]);
-    const [coreResults, headerResults, fetchResults, initScriptResults] = await Promise.all([
+    const [coreResults, headerResults, initScriptResults] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
-      Promise.all(fetchPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
     ]);
     // Header propagation is independent of init-script determinism but still
@@ -841,38 +741,6 @@ export class BrowserContext {
       return;
     }
     resumed = true;
-
-    if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
-      this.uninstallDomainPolicyHandler(session);
-      const fetchError = fetchPreResumeOps
-        .map((op) => op.getError())
-        .find((error) => error !== undefined);
-      const fetchErrorMessage = fetchError
-        ? fetchError instanceof Error
-          ? fetchError.message
-          : String(fetchError)
-        : "Fetch.enable failed during target attach";
-      const policyFailureMessage =
-        "Fetch.enable failed during target attach; closing target because " +
-        "Stagehand cannot guarantee domain policy enforcement";
-      this.recordPageCreationFailure(
-        info.targetId,
-        fetchError instanceof Error
-          ? fetchError
-          : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
-        policyFailureMessage,
-      );
-      this.logger.error("Closing target because domain policy could not be guaranteed", {
-        category: "ctx",
-        targetId: String(info.targetId),
-        targetType: String(info.type),
-        targetUrl: String(info.url ?? ""),
-        sessionId,
-        cdpError: fetchErrorMessage,
-      });
-      await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
-      return;
-    }
 
     const scriptsInstalled = coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
@@ -928,6 +796,7 @@ export class BrowserContext {
         this.pendingCreatedTargetUrl.delete(info.targetId);
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this.installFrameEventBridges(sessionId, page);
+        this.adoptPendingOopifsByParent();
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
         await this.applyInitScriptsToPage(page, {
@@ -942,32 +811,21 @@ export class BrowserContext {
           await session.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
         const childMainId = frameTree.frame.id;
 
-        // Try to find owner Page now (it may already have the node in its tree)
-        let owner = this.frameOwnerPage.get(childMainId);
-        if (!owner) {
-          for (const p of this.pagesByTarget.values()) {
-            const tree = p.asProtocolFrameTree(p.mainFrameId());
-            const has = (function find(n: Protocol.Page.FrameTree): boolean {
-              if (n.frame.id === childMainId) return true;
-              for (const c of n.childFrames ?? []) if (find(c)) return true;
-              return false;
-            })(tree);
-            if (has) {
-              owner = p;
-              break;
-            }
-          }
-        }
+        // Remote frames are missing from the parent's frame tree, so fall back to the
+        // page that owns the parent frame (pre-existing or nested OOPIFs).
+        const parentFrameId = frameTree.frame.parentId;
+        const owner =
+          this.findPageOwningFrame(childMainId) ??
+          (parentFrameId ? this.findPageOwningFrame(parentFrameId) : undefined);
 
         if (owner) {
-          owner.adoptOopifSession(session, childMainId);
-          this.sessionOwnerPage.set(sessionId, owner);
-          this.installFrameEventBridges(sessionId, owner);
-          // Prime the execution-context registry so later lookups succeed even if
-          // the frame navigates before we issue a command.
-          void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+          this.adoptOopif(owner, session, childMainId);
+          this.adoptPendingOopifsByParent();
         } else {
           this.pendingOopifByMainFrame.set(childMainId, sessionId);
+          if (parentFrameId) {
+            this.pendingOopifParentByMainFrame.set(childMainId, parentFrameId);
+          }
         }
       } catch {
         // page.getFrameTree failed. Most likely was an ad iframe
@@ -975,6 +833,93 @@ export class BrowserContext {
       }
     } finally {
       await resume();
+    }
+  }
+
+  /**
+   * Page whose frame graph contains `frameId`, including adopted OOPIF roots.
+   */
+  findPageOwningFrame(frameId: string): Page | undefined {
+    const known = this.frameOwnerPage.get(frameId);
+    if (known) {
+      // Cached ownership can outlive a page or a subtree pruned on session detach.
+      if (
+        this.pagesByTarget.get(known.targetId()) === known &&
+        known.registry.frames.has(frameId)
+      ) {
+        return known;
+      }
+      this.frameOwnerPage.delete(frameId);
+    }
+    for (const p of this.pagesByTarget.values()) {
+      if (p.listAllFrameIds().includes(frameId)) return p;
+    }
+    return undefined;
+  }
+
+  adoptOopif(owner: Page, session: CdpSession, childMainId: string): void {
+    owner.adoptOopifSession(session, childMainId, () => {
+      // Seeding can reveal same-origin parents of OOPIFs that are still pending.
+      this.adoptPendingOopifsByParent();
+    });
+    this.adoptedOopifSessionByFrame.set(childMainId, session.id);
+    this.sessionOwnerPage.set(session.id, owner);
+    this.frameOwnerPage.set(childMainId, owner);
+    this.installFrameEventBridges(session.id, owner);
+    // Prime the execution-context registry so later lookups succeed even if
+    // the frame navigates before we issue a command.
+    void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+  }
+
+  private removePendingOopif(frameId: string): void {
+    this.pendingOopifByMainFrame.delete(frameId);
+    this.pendingOopifParentByMainFrame.delete(frameId);
+  }
+
+  private removePendingOopifsForPage(page: Page): void {
+    const pageFrameIds = new Set([page.mainFrameId(), ...page.registry.frames.keys()]);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) pageFrameIds.add(frameId);
+    }
+
+    // Follow pending parent chains too, but keep frames with unknown page ownership.
+    let removed: boolean;
+    do {
+      removed = false;
+      for (const [frameId] of this.pendingOopifByMainFrame) {
+        const parentId = this.pendingOopifParentByMainFrame.get(frameId);
+        if (!pageFrameIds.has(frameId) && (!parentId || !pageFrameIds.has(parentId))) continue;
+        pageFrameIds.add(frameId);
+        this.removePendingOopif(frameId);
+        removed = true;
+      }
+    } while (removed);
+  }
+
+  /**
+   * An OOPIF that already existed when we attached (e.g. reconnecting to a live
+   * browser, or a nested OOPIF) never emits `frameAttached` on its parent, so the
+   * pending map would hold it forever. Adopt it once the page owning its parent is known.
+   */
+  adoptPendingOopifsByParent(): void {
+    let adopted = true;
+    while (adopted) {
+      adopted = false;
+      for (const [childMainId, parentFrameId] of Array.from(
+        this.pendingOopifParentByMainFrame.entries(),
+      )) {
+        const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
+        const child = childSessionId ? this.conn.getSession(childSessionId) : undefined;
+        if (!child) {
+          this.removePendingOopif(childMainId);
+          continue;
+        }
+        const owner = this.findPageOwningFrame(parentFrameId);
+        if (!owner) continue;
+        this.removePendingOopif(childMainId);
+        this.adoptOopif(owner, child, childMainId);
+        adopted = true;
+      }
     }
   }
 
@@ -994,18 +939,15 @@ export class BrowserContext {
     const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
     if (decision.action === "continue") return false;
 
-    this.logger.debug(
-      "Popup reached a disallowed domain before it could be intercepted; closing it",
-      {
-        category: "network",
-        targetId: String(info.targetId),
-        targetUrl: String(info.url ?? ""),
-        openerId: String(info.openerId ?? ""),
-        openerFrameId: String(info.openerFrameId ?? ""),
-        ruleType: decision.reason,
-        source,
-      },
-    );
+    this.logger.debug("Closing popup targeting a disallowed domain", {
+      category: "network",
+      targetId: String(info.targetId),
+      targetUrl: String(info.url ?? ""),
+      openerId: String(info.openerId ?? ""),
+      openerFrameId: String(info.openerFrameId ?? ""),
+      ruleType: decision.reason,
+      source,
+    });
 
     const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage: "Failed to close popup after it reached a disallowed domain",
@@ -1050,6 +992,10 @@ export class BrowserContext {
    * - Drop any staged child for this session.
    */
   onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
+    // Remove known pending descendants before detaching prunes the page's frame graph.
+    const closingPage = targetId ? this.pagesByTarget.get(targetId) : undefined;
+    if (closingPage) this.removePendingOopifsForPage(closingPage);
+
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
       owner.detachOopifSession(sessionId);
@@ -1061,16 +1007,13 @@ export class BrowserContext {
     }
 
     for (const [fid, sid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
+      if (sid === sessionId) this.removePendingOopif(fid);
+    }
+    for (const [fid, sid] of Array.from(this.adoptedOopifSessionByFrame.entries())) {
+      if (sid === sessionId) this.adoptedOopifSessionByFrame.delete(fid);
     }
 
     this._targetSessionListeners.delete(sessionId);
-    const session = this.conn.getSession(sessionId);
-    if (session) {
-      this.uninstallDomainPolicyHandler(session);
-    } else {
-      this._domainPolicySessionListeners.delete(sessionId);
-    }
     this._sessionInit.delete(sessionId);
   }
 
@@ -1086,18 +1029,16 @@ export class BrowserContext {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    this.removePendingOopifsForPage(page);
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
-    this.frameOwnerPage.delete(mainId);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) this.frameOwnerPage.delete(frameId);
+    }
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);
-    }
-
-    for (const [fid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      const owner = this.frameOwnerPage.get(fid);
-      if (!owner || owner === page) this.pendingOopifByMainFrame.delete(fid);
     }
 
     this.pagesByTarget.delete(targetId);
@@ -1129,7 +1070,7 @@ export class BrowserContext {
 
   /**
    * Wire Page-domain frame events for a session into the owning Page & mappings.
-   * We forward the *emitting session* with every event so Page can stamp ownership precisely.
+   * Attachments preserve live adopted OOPIF ownership while updating topology.
    */
   installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
@@ -1138,19 +1079,18 @@ export class BrowserContext {
     session.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
       const { frameId, parentFrameId } = evt;
 
-      owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+      // Record the parent edge even if the child's subtree seed is still pending or failed.
+      // A live adopted OOPIF session keeps ownership instead of the parent emitter.
+      const adoptedSessionId = this.adoptedOopifSessionByFrame.get(frameId);
+      const adoptedSession = adoptedSessionId ? this.conn.getSession(adoptedSessionId) : undefined;
+      owner.onFrameAttached(frameId, parentFrameId ?? null, adoptedSession ?? session);
 
       // If we were waiting for this id (OOPIF child), adopt now.
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
       if (pendingChildSessionId) {
         const child = this.conn.getSession(pendingChildSessionId);
-        if (child) {
-          owner.adoptOopifSession(child, frameId);
-          this.sessionOwnerPage.set(child.id, owner);
-          // Wire bridges for the child so its Page events keep flowing.
-          this.installFrameEventBridges(pendingChildSessionId, owner);
-        }
-        this.pendingOopifByMainFrame.delete(frameId);
+        this.removePendingOopif(frameId);
+        if (child) this.adoptOopif(owner, child, frameId);
       }
 
       // Track Page ownership for quick reverse lookups (debug helpers).
@@ -1165,6 +1105,9 @@ export class BrowserContext {
         }
         this.frameOwnerPage.set(newRoot, owner);
       }
+
+      // The new frame may be the parent of an OOPIF still waiting for adoption.
+      this.adoptPendingOopifsByParent();
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {

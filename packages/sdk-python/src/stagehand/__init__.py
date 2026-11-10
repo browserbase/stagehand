@@ -75,6 +75,7 @@ from .client_types import (
     LLMGenerateOutput,
     StagehandClientLoggingConfig,
 )
+from .extension_assets import get_extension_archive
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
 from .page import (
@@ -172,5 +173,6 @@ __all__ = [
     "WebMCPTool",
     "WebMCPToolResponse",
     "browserbase",
+    "get_extension_archive",
     "local_browser",
 ]

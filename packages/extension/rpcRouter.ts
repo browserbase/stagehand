@@ -358,6 +358,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageWaitForSelector, request.params),
           context,
         );
+      case "page.wait_for_function":
+        return this.pageController.waitForFunction(
+          parseParams(StagehandMethods.pageWaitForFunction, request.params),
+          context,
+        );
       case "page.screenshot":
         return this.pageController.screenshot(
           parseParams(StagehandMethods.pageScreenshot, request.params),

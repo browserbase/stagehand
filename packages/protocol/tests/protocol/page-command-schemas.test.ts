@@ -23,11 +23,44 @@ import {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
+  PageWaitForFunctionParamsSchema,
+  PageWaitForFunctionResultSchema,
 } from "../../schemas.js";
 
 const pageId = "page-1";
 
 describe("page command schemas", () => {
+  it("validates function wait polling and deadlines without changing returned JSON", () => {
+    for (const polling of [undefined, "raf", 0.5, 100, 2_147_483_647]) {
+      expect(
+        PageWaitForFunctionParamsSchema.parse({
+          pageId,
+          expression: "window.ready",
+          options: { polling, timeout: 0 },
+        }),
+      ).toEqual({ pageId, expression: "window.ready", options: { polling, timeout: 0 } });
+    }
+    for (const polling of [0, -1, Infinity, 2_147_483_648, "mutation"]) {
+      expect(
+        PageWaitForFunctionParamsSchema.safeParse({
+          pageId,
+          expression: "true",
+          options: { polling },
+        }).success,
+      ).toBe(false);
+    }
+    for (const timeout of [-1, 0.5, Infinity]) {
+      expect(
+        PageWaitForFunctionParamsSchema.safeParse({
+          pageId,
+          expression: "true",
+          options: { timeout },
+        }).success,
+      ).toBe(false);
+    }
+    const result = { value: { nested_value: { camelCase: [true, 3] } } };
+    expect(PageWaitForFunctionResultSchema.parse(result)).toEqual(result);
+  });
   it("defines navigation params", () => {
     expect(
       PageReloadParamsSchema.parse({

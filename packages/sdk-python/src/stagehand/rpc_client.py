@@ -5,6 +5,7 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -35,6 +36,7 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.webmcp_tools": 1_000,
 }
 _UNBOUNDED_BY_DEFAULT_METHODS = {
+    "page.wait_for_function",
     "stagehand.init",
     "stagehand.close",
     "stagehand.act",
@@ -67,7 +69,7 @@ SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 _RequestId = Annotated[int, Field(ge=0, le=_MAX_REQUEST_ID, strict=True)]
 _Params = dict[str, JsonValue] | list[JsonValue] | None
-_RequestHandler = Callable[[BaseModel], Awaitable[BaseModel]]
+_RequestHandler = Callable[[BaseModel, "RPCRequestContext"], Awaitable[BaseModel]]
 _NotificationListener = Callable[[BaseModel], Coroutine[object, object, None]]
 
 
@@ -127,6 +129,11 @@ class RPCError(RuntimeError):
         super().__init__(error.message)
 
 
+@dataclass(frozen=True)
+class RPCRequestContext:
+    request_id: int
+
+
 class RPCClient:
     def __init__(self, transport: _Transport) -> None:
         self._transport = transport
@@ -145,6 +152,7 @@ class RPCClient:
         ] = {}
         self._pending_notifications: list[_JSONRPCNotification] = []
         self._inbound_tasks: set[asyncio.Task[None]] = set()
+        self._close_listeners: dict[object, Callable[[], Awaitable[None]]] = {}
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
@@ -239,11 +247,22 @@ class RPCClient:
         result_model: type[ResultT],
         handler: Callable[[ParamsT], ResultT | Awaitable[ResultT]],
     ) -> Callable[[], None]:
+        return self.on_request_with_context(
+            method, params_model, result_model, lambda params, _context: handler(params)
+        )
+
+    def on_request_with_context(
+        self,
+        method: str,
+        params_model: type[ParamsT],
+        result_model: type[ResultT],
+        handler: Callable[[ParamsT, RPCRequestContext], ResultT | Awaitable[ResultT]],
+    ) -> Callable[[], None]:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
 
-        async def handle(params: BaseModel) -> BaseModel:
-            result = handler(cast(ParamsT, params))
+        async def handle(params: BaseModel, context: RPCRequestContext) -> BaseModel:
+            result = handler(cast(ParamsT, params), context)
             if inspect.isawaitable(result):
                 return cast(BaseModel, await result)
             return result
@@ -309,6 +328,18 @@ class RPCClient:
 
         return remove
 
+    def on_close(self, listener: Callable[[], Awaitable[None]]) -> Callable[[], None]:
+        """Register cleanup to run after incoming request tasks have stopped."""
+        if self._closed:
+            raise RuntimeError("RPC client is closed") from self._close_reason
+        token = object()
+        self._close_listeners[token] = listener
+
+        def remove() -> None:
+            self._close_listeners.pop(token, None)
+
+        return remove
+
     async def close(
         self,
         reason: BaseException | None = None,
@@ -341,8 +372,18 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        if close_transport:
-            await self._transport.close()
+        listeners = list(self._close_listeners.values())
+        self._close_listeners.clear()
+        try:
+            results = await asyncio.gather(
+                *(listener() for listener in listeners), return_exceptions=True
+            )
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
+        finally:
+            if close_transport:
+                await self._transport.close()
 
     async def _read(self) -> None:
         try:
@@ -460,7 +501,7 @@ class RPCClient:
             return
 
         try:
-            result = await handler(params)
+            result = await handler(params, RPCRequestContext(request_id=request.id))
         except Exception as error:
             await self._send_error(
                 request.id,
@@ -470,6 +511,8 @@ class RPCClient:
             )
             return
 
+        if self._closed:
+            return
         try:
             validated_result = result_model.model_validate(result, strict=True)
             encoded_result = validated_result.model_dump_json(
@@ -502,6 +545,8 @@ class RPCClient:
         message: str,
         data: JsonValue | None = None,
     ) -> None:
+        if self._closed:
+            return
         response = _JSONRPCErrorResponse(
             jsonrpc="2.0",
             id=request_id,
@@ -558,6 +603,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.screenshot",
         "page.pdf",
         "page.snapshot",
+        "page.wait_for_function",
         "page.wait_for_selector",
         "page.webmcp_tools",
         "page.webmcp_invocation_result",
@@ -569,10 +615,12 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         operation_timeout_ms = _numeric_property(params, "ms")
 
     if operation_timeout_ms is not None:
-        if (
-            method in {"page.pdf", "page.snapshot", "page.wait_for_selector"}
-            and operation_timeout_ms == 0
-        ):
+        if operation_timeout_ms == 0 and method in {
+            "page.pdf",
+            "page.snapshot",
+            "page.wait_for_function",
+            "page.wait_for_selector",
+        }:
             return None
         return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000
 

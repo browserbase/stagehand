@@ -13,6 +13,7 @@
  * runs inside an async function whose arguments are the mount's handle
  * names plus startUrl, task, and console — names, not order, bind values.
  */
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
@@ -58,6 +59,7 @@ function stringifyResult(value: unknown): string {
 
 export interface CodeBridge {
   port: number;
+  token: string;
   close: () => Promise<void>;
 }
 
@@ -107,7 +109,22 @@ export async function startCodeBridge(input: {
     }
   }
 
+  // Loopback bridge shares this process's live credentials, so gate it: a
+  // per-bridge bearer token (constant-time compared) and no cross-origin
+  // (browser / DNS-rebind) callers.
+  const token = randomBytes(32).toString("hex");
+  const expectedAuthorization = Buffer.from(`Bearer ${token}`);
+
   const server = http.createServer((req, res) => {
+    const authorization = Buffer.from(req.headers.authorization ?? "");
+    if (
+      req.headers.origin !== undefined ||
+      authorization.length !== expectedAuthorization.length ||
+      !timingSafeEqual(authorization, expectedAuthorization)
+    ) {
+      res.writeHead(403).end();
+      return;
+    }
     if (req.method !== "POST" || req.url !== "/run") {
       res.writeHead(404).end();
       return;
@@ -159,6 +176,7 @@ export async function startCodeBridge(input: {
 
   return {
     port,
+    token,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
@@ -172,7 +190,7 @@ export async function startCodeBridge(input: {
  * tiny: read a snippet file (or stdin), post to the bridge, print the
  * result text; non-zero exit on execution error so the agent notices.
  */
-export function buildBridgeClientScript(port: number): string {
+export function buildBridgeClientScript(port: number, token: string): string {
   return `#!/usr/bin/env node
 // browser_run.mjs — execute a browser-automation snippet via the eval bridge.
 // Usage: node browser_run.mjs <snippet-file>   (or pipe the snippet on stdin)
@@ -182,7 +200,7 @@ const file = process.argv[2];
 const code = file ? readFileSync(file, "utf8") : readFileSync(0, "utf8");
 const res = await fetch("http://127.0.0.1:${port}/run", {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", authorization: "Bearer ${token}" },
   body: JSON.stringify({ code }),
 });
 const payload = await res.json();

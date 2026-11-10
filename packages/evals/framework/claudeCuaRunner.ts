@@ -15,6 +15,9 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   runExternalHarnessTask,
+  type EvalResultContract,
+  readResultContract,
+  requestedResult,
 } from "./harnesses/externalRunner.js";
 import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
@@ -42,8 +45,9 @@ export const CLAUDE_CUA_CAPABLE_MODELS = [
   "claude-fable-5-1",
 ] as const;
 
-export const CLAUDE_CUA_SYSTEM_PROMPT =
-  "You are being evaluated on a browser task. Complete it with the browser tools only and finish by printing the requested EVAL_RESULT line.";
+export function claudeCuaSystemPrompt(resultContract: EvalResultContract): string {
+  return `You are being evaluated on a browser task. Complete it with the browser tools only and finish by printing ${requestedResult(resultContract)}.`;
+}
 
 export interface ClaudeCuaRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -60,7 +64,11 @@ export function buildClaudeCuaPrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
 ): string {
-  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
+  return buildExternalHarnessPrompt({
+    plan,
+    toolInstructions,
+    resultContract: readResultContract("marker"),
+  });
 }
 
 /**
@@ -117,6 +125,7 @@ export async function runClaudeCuaAgent(input: ClaudeCuaRunnerInput): Promise<Ta
     harnessDefault: 50,
   });
   const thinking = resolveClaudeCuaThinking();
+  const resultContract = readResultContract("marker");
   return runExternalHarnessTask({
     harness: "claude_cua",
     plan,
@@ -124,7 +133,7 @@ export async function runClaudeCuaAgent(input: ClaudeCuaRunnerInput): Promise<Ta
     logger,
     toolAdapter,
     verifier,
-    resultContract: "marker",
+    resultContract,
     fallbackErrorMessage: "claude_cua did not report success",
     stepBudget: maxTurns,
     stepBudgetUnit: "turns",
@@ -141,7 +150,7 @@ export async function runClaudeCuaAgent(input: ClaudeCuaRunnerInput): Promise<Ta
         signal,
         maxTurns,
         tools: toolAdapter.executor,
-        systemPrompt: `${systemPrompt}\n\n${CLAUDE_CUA_SYSTEM_PROMPT}`,
+        systemPrompt: `${systemPrompt}\n\n${claudeCuaSystemPrompt(resultContract)}`,
         thinking,
         ...(client && { client }),
       });

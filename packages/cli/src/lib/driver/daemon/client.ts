@@ -35,10 +35,7 @@ const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 
-export async function ensureDriverDaemon({
-  session,
-  target,
-}: EnsureDaemonOptions): Promise<void> {
+export async function ensureDriverDaemon({ session, target }: EnsureDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
   const existing = await tryDriverStatus(session);
   if (existing) {
@@ -48,13 +45,9 @@ export async function ensureDriverDaemon({
 
   const locked = await acquireLock(session);
   if (!locked) {
-    fail(
-      `Timed out waiting for driver daemon lock for session "${session}".`,
-      1,
-      {
-        resultCode: "daemon_lock_timeout",
-      },
-    );
+    fail(`Timed out waiting for driver daemon lock for session "${session}".`, 1, {
+      resultCode: "daemon_lock_timeout",
+    });
   }
 
   try {
@@ -105,9 +98,7 @@ export async function runDriverCommandViaDaemon(
   });
 }
 
-export async function getDriverStatus(
-  session: string,
-): Promise<DriverStatus | null> {
+export async function getDriverStatus(session: string): Promise<DriverStatus | null> {
   return tryDriverStatus(session);
 }
 
@@ -129,6 +120,7 @@ export async function stopDriverDaemon(
       type: "stop",
     });
   } catch (error) {
+    if (isRuntimeDirFailure(error)) throw error;
     if (
       !force &&
       error instanceof CommandFailure &&
@@ -143,7 +135,7 @@ export async function stopDriverDaemon(
   }
 }
 
-function assertCompatibleTarget(
+export function assertCompatibleTarget(
   session: string,
   status: DriverStatus,
   target: ConnectionTarget,
@@ -165,16 +157,26 @@ async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
       id: requestId(),
       type: "status",
     });
-  } catch {
+  } catch (error) {
+    if (isRuntimeDirFailure(error)) throw error;
     await cleanupStaleDaemonFiles(session);
     return null;
   }
 }
 
-async function sendDriverRequest<T>(
-  session: string,
-  request: DriverRequest,
-): Promise<T> {
+function isRuntimeDirFailure(error: unknown): boolean {
+  return (
+    error instanceof CommandFailure &&
+    (error.telemetry.resultCode === "daemon_dir_not_owned" ||
+      error.telemetry.resultCode === "daemon_dir_invalid" ||
+      error.telemetry.resultCode === "daemon_dir_unsafe_parent")
+  );
+}
+
+async function sendDriverRequest<T>(session: string, request: DriverRequest): Promise<T> {
+  // Validate here too: command requests can carry credentials and may be sent
+  // directly, without a preceding status probe.
+  await ensureRuntimeDir();
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
     const socket = net.createConnection(socketPath);
@@ -198,21 +200,15 @@ async function sendDriverRequest<T>(
     };
 
     const incompleteResponseError = (): Error => {
-      const detail = buffer
-        ? "with an incomplete response"
-        : "without a response";
+      const detail = buffer ? "with an incomplete response" : "without a response";
       return new Error(`Driver daemon session "${session}" closed ${detail}.`);
     };
 
     const timeout = setTimeout(() => {
       failRequest(
-        new CommandFailure(
-          `Timed out waiting for driver daemon session "${session}".`,
-          1,
-          {
-            resultCode: "daemon_socket_timeout",
-          },
-        ),
+        new CommandFailure(`Timed out waiting for driver daemon session "${session}".`, 1, {
+          resultCode: "daemon_socket_timeout",
+        }),
       );
     }, daemonRequestTimeoutMs(request));
 
@@ -224,16 +220,12 @@ async function sendDriverRequest<T>(
       const newline = buffer.indexOf("\n");
       if (newline === -1) return;
       try {
-        const response = ResponseSchema.parse(
-          JSON.parse(buffer.slice(0, newline)),
-        );
+        const response = ResponseSchema.parse(JSON.parse(buffer.slice(0, newline)));
         if (response.type === "error") {
           failRequest(
             new CommandFailure(response.error, 1, {
               ...(response.code ? { resultCode: response.code } : {}),
-              ...(response.httpStatus !== undefined
-                ? { httpStatus: response.httpStatus }
-                : {}),
+              ...(response.httpStatus !== undefined ? { httpStatus: response.httpStatus } : {}),
             }),
           );
           return;
@@ -262,8 +254,7 @@ async function sendDriverRequest<T>(
 export function daemonRequestTimeoutMs(request: DriverRequest): number {
   if (request.type !== "open") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
   return Math.min(
-    OPEN_INITIALIZATION_ALLOWANCE_MS +
-      (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
+    OPEN_INITIALIZATION_ALLOWANCE_MS + (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
     MAX_NODE_TIMER_DELAY_MS,
   );
 }
@@ -278,14 +269,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
 
   const child = spawn(
     process.execPath,
-    [
-      entrypoint,
-      "daemon",
-      "--session",
-      session,
-      "--target",
-      JSON.stringify(target),
-    ],
+    [entrypoint, "daemon", "--session", session, "--target", JSON.stringify(target)],
     {
       detached: true,
       env: process.env,
@@ -295,10 +279,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
   child.unref();
 }
 
-async function waitForSocketReady(
-  socketPath: string,
-  timeoutMs: number,
-): Promise<void> {
+async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isSocketConnectable(socketPath, 500)) return;
@@ -307,10 +288,10 @@ async function waitForSocketReady(
   throw new Error(`Driver daemon socket was not ready after ${timeoutMs}ms.`);
 }
 
-function isSocketConnectable(
-  socketPath: string,
-  timeoutMs: number,
-): Promise<boolean> {
+async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+  // Guard even the initial status probe, before accepting settings from a daemon.
+  // This also protects readiness probes while waiting for a new daemon to start.
+  await ensureRuntimeDir();
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath);
     const timer = setTimeout(() => {
@@ -346,13 +327,11 @@ async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
   }
 }
 
-async function acquireLock(
-  session: string,
-  timeoutMs = 10_000,
-): Promise<boolean> {
+async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean> {
   const lockPath = getLockPath(session);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    await ensureRuntimeDir();
     try {
       const handle = await fs.open(lockPath, "wx", PRIVATE_FILE_MODE);
       try {
@@ -371,10 +350,12 @@ async function acquireLock(
 }
 
 async function releaseLock(session: string): Promise<void> {
+  await ensureRuntimeDir();
   await fs.unlink(getLockPath(session)).catch(() => undefined);
 }
 
 async function isDaemonPidAlive(session: string): Promise<boolean> {
+  await ensureRuntimeDir();
   try {
     const contents = await fs.readFile(getPidPath(session), "utf8");
     const pid = Number(contents.trim());
@@ -386,6 +367,7 @@ async function isDaemonPidAlive(session: string): Promise<boolean> {
 }
 
 async function removeStaleLock(lockPath: string): Promise<boolean> {
+  await ensureRuntimeDir();
   let ownerPid: number | null;
   try {
     const contents = await fs.readFile(lockPath, "utf8");
@@ -397,6 +379,7 @@ async function removeStaleLock(lockPath: string): Promise<boolean> {
   }
 
   if (ownerPid && isProcessAlive(ownerPid)) return false;
+  await ensureRuntimeDir();
   await fs.unlink(lockPath).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
   });
@@ -412,12 +395,8 @@ function isDaemonUnavailableError(error: Error): boolean {
   return code === "ECONNREFUSED" || code === "ENOENT";
 }
 
-function daemonNotRunningError(
-  session: string,
-  request: DriverRequest,
-): CommandFailure {
-  const sessionFlag =
-    session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
+function daemonNotRunningError(session: string, request: DriverRequest): CommandFailure {
+  const sessionFlag = session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
   const startCommand =
     request.type === "open"
       ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`

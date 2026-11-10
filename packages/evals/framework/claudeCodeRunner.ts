@@ -18,6 +18,8 @@ import {
   runExternalHarnessTask,
   type MetricValue,
   type ParsedEvalResult,
+  readResultContract,
+  requestedResult,
 } from "./harnesses/externalRunner.js";
 import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
@@ -46,7 +48,11 @@ export function buildClaudeCodePrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
 ): string {
-  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
+  return buildExternalHarnessPrompt({
+    plan,
+    toolInstructions,
+    resultContract: readResultContract("marker"),
+  });
 }
 
 export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
@@ -69,6 +75,7 @@ export async function runClaudeCodeAgent({
     dataset: plan.dataset,
     harnessDefault: 50,
   });
+  const resultContract = readResultContract("marker");
   return runExternalHarnessTask({
     harness: "claude_code",
     plan,
@@ -76,7 +83,7 @@ export async function runClaudeCodeAgent({
     logger,
     toolAdapter,
     verifier,
-    resultContract: "marker",
+    resultContract,
     fallbackErrorMessage: "Claude Code did not report success",
     stepBudget: maxTurns,
     stepBudgetUnit: "turns",
@@ -102,7 +109,7 @@ export async function runClaudeCodeAgent({
           settingSources: toolAdapter?.settingSources ?? [],
           systemPromptPreset: {
             preset: "claude_code",
-            append: `${systemPrompt}\n\nYou are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.`,
+            append: `${systemPrompt}\n\nYou are being evaluated. Do not edit repository files. Complete the browser task and emit ${requestedResult(resultContract)}.`,
           },
         },
         onToolResult: toolAdapter?.onToolResult,

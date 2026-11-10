@@ -11,6 +11,7 @@ export default defineConfig({
       "packages/docs/tests/**/*.test.ts",
       "packages/evals/tests/**/*.test.ts",
       "packages/integrations/core/tests/**/*.test.ts",
+      "packages/integrations/middleware/tests/**/*.test.ts",
       "packages/integrations/claude-agent-sdk/tests/**/*.test.ts",
       "packages/integrations/claude-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/gemini-cua-sdk/tests/**/*.test.ts",
@@ -25,6 +26,7 @@ export default defineConfig({
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
+      "rules/oxlint/**/*.test.ts",
       "scripts/**/*.test.ts",
     ],
     // Integration specs launch real Chrome and are owned solely by

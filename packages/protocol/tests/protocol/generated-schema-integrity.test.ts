@@ -92,6 +92,16 @@ describe("generated Stagehand schema integrity", () => {
     );
   });
 
+  it("requires browser metadata for client Browserbase transport in the generated contract", async () => {
+    const protocol = await readProtocol();
+    const params = asRecord(asRecord(protocol.$defs).StagehandInitParams);
+    expect(params.dependentRequired).toStrictEqual({ browserbase: ["browser"] });
+    expect(params.required).not.toContain("browser");
+    expect(params.additionalProperties).toBe(false);
+    expect(asRecord(params.properties)).not.toHaveProperty("api_key");
+    expect(asRecord(params.properties)).not.toHaveProperty("api_url");
+  });
+
   it("keeps telemetry optional when it is omitted from stagehand.init", async () => {
     const protocol = await readProtocol();
     const methods = asRecord(asRecord(asRecord(protocol.properties).methods).properties);

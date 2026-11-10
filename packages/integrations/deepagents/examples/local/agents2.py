@@ -3,22 +3,12 @@ from __future__ import annotations
 import asyncio
 
 import dotenv
-from _client import SERVER_NAME, create_stagehand_client
 from deepagents import create_deep_agent
-from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_stagehand import StagehandMiddleware
 from pydantic import BaseModel, ConfigDict, Field
+from stagehand import Stagehand, local_browser
 
 dotenv.load_dotenv()
-
-BROWSER_INSTRUCTIONS = """You control one persistent browser through exactly three tools:
-- snapshot: inspect the active page and hydrate bracketed element IDs.
-- run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
-- screenshot: inspect the rendered page visually.
-
-Navigate to the requested form, take a snapshot, identify the requested fields, and fill them with
-the supplied mock data. Prefer one batched run actions call after taking the snapshot. Do not submit
-the form unless explicitly asked.
-"""
 
 
 class FilledField(BaseModel):
@@ -51,18 +41,21 @@ and then every other field with data of your choice.
 Do not submit the form. Return a summary of the fields you successfully filled."""
     response_format = FormFillResult
 
-    client = create_stagehand_client()
-
-    async with client.session(SERVER_NAME) as session:
-        tools = await load_mcp_tools(session)
+    browser = await local_browser.launch(headless=False)
+    try:
+        stagehand = await Stagehand.create(browser=browser)
+        browser_middleware = StagehandMiddleware(stagehand=stagehand)
         agent = create_deep_agent(
             model=model,
-            tools=tools,
-            system_prompt=BROWSER_INSTRUCTIONS,
+            # Deep Agents inherits explicit tools into its default subagent.
+            tools=browser_middleware.tools,
+            middleware=[browser_middleware],
             response_format=response_format,
         )
         result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
         response: FormFillResult = result["structured_response"]
+    finally:
+        await browser.close()
 
     print(response.model_dump_json(indent=2))
 

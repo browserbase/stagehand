@@ -9,10 +9,7 @@ export type ConnectionTarget =
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };
 
-export type RemoteConnectionTarget = Extract<
-  ConnectionTarget,
-  { kind: "remote" }
->;
+export type RemoteConnectionTarget = Extract<ConnectionTarget, { kind: "remote" }>;
 
 /**
  * Browserbase session identity for a live remote session. Populated only once a
