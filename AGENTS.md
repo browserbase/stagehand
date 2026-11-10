@@ -10,7 +10,7 @@ Stagehand is the SDK for building browser agents. Choose the path that fits your
 | ---------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------ |
 | Build a browser agent application                                | TypeScript/Python/Go SDK | [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart) |
 | Give a coding agent (Claude Code, Cursor, Codex) a local browser | `browse` CLI + skill     | [CLI README](./packages/cli/README.md)                             |
-| Add browser tools to an MCP client without installing anything   | Hosted Browserbase MCP   | [MCP setup](https://docs.stagehand.dev/v3/integrations/mcp/setup)  |
+| Add browser tools to an MCP client without installing anything   | Hosted Browserbase MCP   | [MCP setup](https://docs.stagehand.dev/v4/first-steps/choosing-your-path#hosted-mcp-for-zero-install-browser-tools) |
 
 ## Using a coding agent?
 
