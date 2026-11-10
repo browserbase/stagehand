@@ -55,6 +55,8 @@ interface DaemonInspection {
 }
 
 const DEFAULT_URL = "https://example.com";
+const CDP_DEBUG_PORT_FIX = "start Chrome with --remote-debugging-port=9222";
+const REMOTE_AUTH_CODES = new Set(["remote_auth_401", "remote_auth_403"]);
 
 export async function buildDoctorReport(
   options: BuildDoctorReportOptions,
@@ -99,6 +101,19 @@ export async function buildDoctorReport(
 
   if (!checks.some((check) => check.name === "daemon")) {
     checks.push(await daemonCheck(options.session, status, paths, deps));
+  }
+
+  if (status?.initError) {
+    checks.push({
+      details: {
+        error: status.initError,
+        ...(status.initErrorCode === undefined ? {} : { code: status.initErrorCode }),
+      },
+      fix: await startFailureFix(status, options.session),
+      message: `last start failed: ${status.initError.split("\n")[0]}`,
+      name: "browser",
+      status: "fail",
+    });
   }
 
   if (status?.browserbaseSessionId) {
@@ -306,7 +321,7 @@ async function checkTargetPrerequisite(
     }
 
     return {
-      fix: "start Chrome with --remote-debugging-port=9222",
+      fix: CDP_DEBUG_PORT_FIX,
       message: "no debuggable local browser found",
       name: "cdp",
       status: "fail",
@@ -323,6 +338,44 @@ async function checkTargetPrerequisite(
   }
 
   return null;
+}
+
+/**
+ * Suggest the next step after a failed browser start. The daemon records a
+ * stable code when the failure had one (a `DriverError` code such as
+ * `remote_auth_401` or `no_chrome_found`, or a Node errno); a daemon from an
+ * older build sends only the message, so each case also matches the text.
+ * Only the remote case names the API key, and it reads that text from the
+ * remote capability so the local-only build stays key-free.
+ */
+async function startFailureFix(status: DriverStatus, session: string): Promise<string> {
+  const code = status.initErrorCode ?? "";
+  const error = status.initError ?? "";
+  const { kind } = status.target;
+
+  if (
+    kind === "remote" &&
+    (REMOTE_AUTH_CODES.has(code) || /\b40[13]\b|Unauthorized|Forbidden/.test(error))
+  ) {
+    const hint = (await getRemote()).driverInitHints().remoteAuthFailure;
+    return `${hint}, then run browse stop --session ${session} and retry`;
+  }
+
+  if (
+    kind === "managed-local" &&
+    (code === "no_chrome_found" || /No Chrome|CHROME_PATH/.test(error))
+  ) {
+    return "install Chrome or Chromium, or set CHROME_PATH, then retry";
+  }
+
+  if (
+    (kind === "cdp" || kind === "auto-connect") &&
+    (code === "ECONNREFUSED" || /ECONNREFUSED|CDP|debuggable local browser/i.test(error))
+  ) {
+    return CDP_DEBUG_PORT_FIX;
+  }
+
+  return `browse stop --session ${session} --force, then retry`;
 }
 
 async function inspectDaemonFiles(
