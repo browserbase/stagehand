@@ -494,4 +494,32 @@ describe("stagehand facade bridge", () => {
       }),
     ).rejects.toThrow("apiKey=[redacted]");
   });
+
+  it("passes the host display and Chrome path to the facade server", async () => {
+    const keys = ["DISPLAY", "XAUTHORITY", "CHROME_PATH"] as const;
+    const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    process.env.DISPLAY = ":42";
+    process.env.XAUTHORITY = "/tmp/xauth-test";
+    process.env.CHROME_PATH = "/opt/chrome-test";
+    try {
+      await expect(
+        startStagehandFacadeBridge({
+          server: {
+            command: process.execPath,
+            args: [
+              "-e",
+              "const e = process.env; process.stderr.write(`env ${e.DISPLAY} ${e.XAUTHORITY} ${e.CHROME_PATH}\\n`); process.exit(5)",
+            ],
+            env: {},
+          },
+          requestTimeoutMs: 1_000,
+        }),
+      ).rejects.toThrow("env :42 /tmp/xauth-test /opt/chrome-test");
+    } finally {
+      for (const key of keys) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
+    }
+  });
 });

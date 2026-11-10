@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CacheClient, CacheGetResponseSchema } from "../clients/cacheClient.js";
 
 /**
@@ -52,26 +52,92 @@ describe("CacheGetResponseSchema", () => {
 });
 
 describe("CacheClient", () => {
-  it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
-    const client = new CacheClient("http://cache.test/v1", "bb-key");
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
-        headers: { "content-type": "application/json" },
-      })) as typeof fetch;
+  const maxBodyBytes = 25_000_000;
+  const baseRequest = {
+    method: "extract" as const,
+    sessionId: "session-1",
+    url: "https://example.com",
+    cdpTree: { rootFrameId: "frame-1", frames: [] },
+    data: {},
+  };
 
-    try {
-      await expect(
-        client.get({
-          method: "extract",
-          sessionId: "session-1",
-          url: "https://example.com",
-          cdpTree: { rootFrameId: "frame-1", frames: [] },
-          data: {},
+  it.each([
+    ["get", -1],
+    ["get", 0],
+    ["get", 1],
+    ["set", -1],
+    ["set", 0],
+    ["set", 1],
+  ] as const)(
+    "checks the %s body at a %s-byte offset from the limit",
+    async (operation, offset) => {
+      const success =
+        operation === "get" ? { cacheKey: "key", hit: false } : { cacheKey: "key", written: true };
+      const send = vi.fn(
+        async () => new Response(JSON.stringify({ success: true, data: success })),
+      );
+      const client = new CacheClient({ request: send });
+      const getRequest = { ...baseRequest, data: { padding: "" } };
+      const setRequest = { ...getRequest, value: { answer: 42 } };
+      const input = operation === "get" ? getRequest : setRequest;
+      input.data.padding = "x".repeat(
+        maxBodyBytes + offset - Buffer.byteLength(JSON.stringify(input)),
+      );
+      expect(Buffer.byteLength(JSON.stringify(input))).toBe(maxBodyBytes + offset);
+      const result =
+        operation === "get" ? await client.get(getRequest) : await client.set(setRequest);
+      expect(result).toEqual(
+        offset > 0
+          ? {
+              cacheKey: null,
+              ...(operation === "get"
+                ? { hit: false, missReason: "payload_too_large" }
+                : { written: false, skippedReason: "payload_too_large" }),
+            }
+          : success,
+      );
+      expect(send).toHaveBeenCalledTimes(offset > 0 ? 0 : 1);
+    },
+  );
+
+  it.each(
+    ["é", "界", "😀"].flatMap((character) => [0, 1].map((offset) => ({ character, offset }))),
+  )(
+    "counts UTF-8 bytes for $character at a $offset-byte offset from the limit",
+    async ({ character, offset }) => {
+      const miss = { cacheKey: "key", hit: false };
+      const send = vi.fn(async () => new Response(JSON.stringify({ success: true, data: miss })));
+      const client = new CacheClient({ request: send });
+      const input = { ...baseRequest, data: { padding: "" } };
+      const paddingBytes = maxBodyBytes + offset - Buffer.byteLength(JSON.stringify(input));
+      const width = Buffer.byteLength(character);
+      input.data.padding =
+        character.repeat(Math.floor(paddingBytes / width)) + "x".repeat(paddingBytes % width);
+      const body = JSON.stringify(input);
+      expect(body.length).toBeLessThan(maxBodyBytes);
+      expect(Buffer.byteLength(body)).toBe(maxBodyBytes + offset);
+      await expect(client.get(input)).resolves.toEqual(
+        offset > 0 ? { cacheKey: null, hit: false, missReason: "payload_too_large" } : miss,
+      );
+      expect(send).toHaveBeenCalledTimes(offset > 0 ? 0 : 1);
+    },
+  );
+
+  it("surfaces an unexpected payload instead of returning a half-parsed response", async () => {
+    const client = new CacheClient({
+      request: async () =>
+        new Response(JSON.stringify({ success: true, data: { cacheKey: "key", hit: "yes" } }), {
+          headers: { "content-type": "application/json" },
         }),
-      ).rejects.toThrow(/unexpected payload/);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    });
+    await expect(
+      client.get({
+        method: "extract",
+        sessionId: "session-1",
+        url: "https://example.com",
+        cdpTree: { rootFrameId: "frame-1", frames: [] },
+        data: {},
+      }),
+    ).rejects.toThrow(/unexpected payload/);
   });
 });

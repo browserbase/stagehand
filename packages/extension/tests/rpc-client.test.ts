@@ -383,6 +383,47 @@ describe("worker RPCClient", () => {
     },
   );
 
+  it.each([
+    { api_key: "old-key" },
+    { api_url: "https://example.com" },
+    { apiKey: "old-key" },
+    { apiUrl: "https://example.com" },
+  ])("rejects removed init options before invoking initialization: %j", async (options) => {
+    const responses: Array<Record<string, unknown>> = [];
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string): void {
+          responses.push(JSON.parse(payload) as Record<string, unknown>);
+        },
+      },
+      "sendToHost",
+    );
+    const runtime = createRuntime();
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime, { initializeStagehand }));
+    try {
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 12,
+          method: "stagehand.init",
+          params: {
+            protocol_version: STAGEHAND_PROTOCOL_VERSION,
+            client_info: { name: "stagehand-sdk-test", version: "4.0.0" },
+            ...options,
+          },
+        }),
+      );
+      expect(responses).toMatchObject([
+        { id: 12, error: { code: -32602, data: { name: "ZodError" } } },
+      ]);
+      expect(initializeStagehand).not.toHaveBeenCalled();
+      expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
+    } finally {
+      client.close();
+    }
+  });
+
   it("rejects a malformed protocol version as invalid params on the wire", async () => {
     const responses: Array<Record<string, unknown>> = [];
     const runtimeClient = new ChromeRuntimeClient(

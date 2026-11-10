@@ -28,6 +28,8 @@ export type DeepagentsSessionConfig = {
   reasoningSummary?: "auto" | "concise" | "detailed";
   recursionLimit?: number;
   maxToolSteps?: number;
+  /** JSON schema the agent's final answer must match (`response_format`); omit for free text. */
+  resultSchema?: Record<string, unknown>;
   killGraceMs?: number;
   streamDrainMs?: number;
 };
@@ -123,7 +125,19 @@ export function normalizeDeepagentsModel(model: string): string {
 }
 
 export function buildDeepagentsRunnerArgs(runnerDir: string): string[] {
-  return ["run", "--project", runnerDir, "--locked", "python", path.join(runnerDir, "run_eval.py")];
+  // uv stops workspace discovery at the integration's intermediate pyproject.toml.
+  // Select the root explicitly for the bundled runner; custom runners retain
+  // their own project and environment.
+  const projectArgs =
+    path.resolve(runnerDir) === path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR)
+      ? [
+          "--project",
+          path.resolve(DEFAULT_DEEPAGENTS_RUNNER_DIR, "../../../.."),
+          "--package",
+          "stagehand-deepagents-eval-runner",
+        ]
+      : ["--project", runnerDir];
+  return ["run", ...projectArgs, "--locked", "python", path.join(runnerDir, "run_eval.py")];
 }
 
 export async function runDeepagentsSession(input: {
@@ -198,6 +212,7 @@ export async function runDeepagentsSession(input: {
         mcp_servers: input.session.mcpServers ?? {},
         recursion_limit: positiveInteger(input.session.recursionLimit, 100),
         max_tool_steps: positiveInteger(input.session.maxToolSteps, 50),
+        result_schema: input.session.resultSchema ?? null,
       }),
     );
 

@@ -16,6 +16,7 @@ import {
   metricValue,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
+  readResultContract,
 } from "./harnesses/externalRunner.js";
 import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
@@ -51,7 +52,7 @@ export function buildCursorPrompt(
   return buildExternalHarnessPrompt({
     plan,
     toolInstructions: composeCursorToolInstructions(toolInstructions),
-    resultContract: "marker",
+    resultContract: readResultContract("marker"),
   });
 }
 
@@ -92,7 +93,7 @@ export async function runCursorAgent({
     implementation: { name: "sdk", version: 1, sdkVersion: CURSOR_SDK_VERSION },
     toolAdapter: adapterLike,
     verifier,
-    resultContract: "marker",
+    resultContract: readResultContract("marker"),
     fallbackErrorMessage: "Cursor SDK did not report success",
     stepBudget: maxToolSteps,
     stepBudgetUnit: "tool_calls",

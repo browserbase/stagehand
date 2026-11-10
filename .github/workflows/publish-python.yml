@@ -17,6 +17,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Keep pnpm run/exec from replacing the filtered install after alpha versioning.
+      pnpm_config_verify_deps_before_run: "false"
     outputs:
       version: ${{ steps.package-version.outputs.version }}
     steps:
@@ -32,7 +35,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version: "24.22.1"
           cache: pnpm
 
       - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
@@ -52,11 +55,11 @@ jobs:
           version: "0.11.29"
           working-directory: packages/sdk-python
           enable-cache: true
-          cache-dependency-glob: packages/sdk-python/uv.lock
+          cache-dependency-glob: uv.lock
 
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
-      - run: just install
+      - run: just _install-python-release
 
       - name: Apply alpha version
         if: inputs.alpha

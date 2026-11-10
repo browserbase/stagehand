@@ -116,6 +116,10 @@ export async function assertCliAlphaVersion(repositoryRoot: string): Promise<voi
   }
 }
 
+// Published by hand from a release commit, never by the Release workflow. They are
+// also in the Changesets ignore list, so release PRs never version them.
+export const MANUALLY_PUBLISHED_PACKAGES = new Set(["stagehand-middleware"]);
+
 // Changesets 2.x publish does not honor config.ignore. Give each package exactly
 // one publisher, while retaining Changesets' registry checks, tags and OIDC path.
 // These flags exist only during publishing; they never enter a release commit.
@@ -128,7 +132,9 @@ export async function withPublishScope(
   const originals = new Map<string, string>();
   try {
     for (const pkg of packages) {
-      if (belongsToScope(pkg.packageJson.name, scope) || pkg.packageJson.private) continue;
+      const { name } = pkg.packageJson;
+      if (pkg.packageJson.private) continue;
+      if (belongsToScope(name, scope) && !MANUALLY_PUBLISHED_PACKAGES.has(name)) continue;
       const file = path.join(pkg.dir, "package.json");
       const original = await readFile(file, "utf8");
       originals.set(file, original);

@@ -41,6 +41,11 @@ type PendingRequest = {
   reject(error: Error): void;
 };
 
+type SendOptions = {
+  signal?: AbortSignal;
+  onAbort?: (requestId: number, reason: unknown) => void | Promise<void>;
+};
+
 const ERROR_DATA = {
   methodNotFound: { type: "stagehand.unknown_command" },
 } as const;
@@ -50,6 +55,7 @@ export class RPCClient {
   nextRequestId = 1;
   pending = new Map<number, PendingRequest>();
   closed = false;
+  private clientConnected = true;
 
   constructor(
     readonly runtime: ChromeRuntimeClient,
@@ -64,8 +70,11 @@ export class RPCClient {
   async send<Method extends RPCMethod>(
     method: Method,
     params: z.input<Method["params"]>,
+    options: SendOptions = {},
   ): Promise<z.output<Method["result"]>> {
+    options.signal?.throwIfAborted();
     if (this.closed) throw new Error("RPC client is closed");
+    if (!this.clientConnected) throw new Error("Stagehand client disconnected");
 
     const parentContext = context.active();
     const span = this.router.runtime.tracing.tracer.startSpan(
@@ -94,13 +103,38 @@ export class RPCClient {
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
 
-        const response = this.waitForResponse(id, method);
-        const [, result] = await Promise.all([
-          this.runtime.send(request).catch((error: unknown) => {
-            this.rejectPending(id, asError(error));
-          }),
-          response,
-        ]);
+        const { signal } = options;
+        let dispatched = false;
+        let aborted = false;
+        const notifyAbort = () => {
+          if (this.closed) return;
+          // Notification failure must not prolong or replace local cancellation.
+          try {
+            void Promise.resolve(options.onAbort?.(id, signal?.reason)).catch(() => {});
+          } catch {}
+        };
+        const abort = () => {
+          if (!this.pending.has(id)) return;
+          aborted = true;
+          this.rejectPending(id, asError(signal?.reason));
+          if (dispatched) notifyAbort();
+        };
+        const response = this.waitForResponse(id, method, () =>
+          signal?.removeEventListener("abort", abort),
+        );
+        signal?.addEventListener("abort", abort, { once: true });
+        if (signal?.aborted) {
+          abort();
+          return (await response) as z.output<Method["result"]>;
+        }
+        const dispatch = this.runtime.send(request).then(
+          () => {
+            dispatched = true;
+            if (aborted) notifyAbort();
+          },
+          (error: unknown) => this.rejectPending(id, asError(error)),
+        );
+        const [, result] = await Promise.all([dispatch, response]);
 
         return result as z.output<Method["result"]>;
       });
@@ -137,9 +171,31 @@ export class RPCClient {
     this.runtime.close();
   }
 
-  waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
+  /** Fail reverse RPCs whose client disappeared, allowing instance disposal to drain. */
+  releaseClient(): void {
+    this.clientConnected = false;
+    for (const [id] of this.pending) {
+      this.rejectPending(id, new Error("Stagehand client disconnected"));
+    }
+  }
+
+  acceptClient(): void {
+    this.clientConnected = true;
+  }
+
+  waitForResponse(id: number, method: RPCMethod, cleanup: () => void = () => {}): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { method, resolve, reject });
+      this.pending.set(id, {
+        method,
+        resolve(value) {
+          cleanup();
+          resolve(value);
+        },
+        reject(error) {
+          cleanup();
+          reject(error);
+        },
+      });
     });
   }
 

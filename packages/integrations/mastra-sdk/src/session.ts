@@ -10,8 +10,10 @@ import {
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 
-/** A native @ai-sdk model instance (all providers share the LanguageModelV2 shape at one AI-SDK major). */
-type NativeMastraModel = ReturnType<ReturnType<typeof createOpenAI>>;
+/** A native @ai-sdk model instance. Providers can use different @ai-sdk/provider versions, so the types can differ. */
+type NativeMastraModel =
+  | ReturnType<ReturnType<typeof createOpenAI>>
+  | ReturnType<ReturnType<typeof createAnthropic>>;
 
 export type MastraEvent = Record<string, unknown>;
 

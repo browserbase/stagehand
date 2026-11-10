@@ -29,6 +29,8 @@ npm install -g browse
 
 ## Quick start
 
+Requires Node.js 22.18+.
+
 ```bash
 npm install -g browse
 
@@ -45,21 +47,27 @@ browse stop
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
 
+Commands without target flags reuse the running session's browser, including its headed mode, custom Chrome arguments, or remote settings. Passing only `--local` or `--remote` also reuses a session in that mode. Explicit launch options must match the running session; use `browse stop --session <name>` before changing them.
+
+If a daemon disappears after a command selects it, that command fails instead of starting a replacement from the daemon's reported settings. To start a new session, run `browse open <url> --session <name>` with your desired target and launch flags again. When no daemon is running, Browse uses the current command's flags and environment defaults; previous launch settings are not saved.
+
+On Unix, custom `BROWSE_DAEMON_DIR` locations must be owned by you and have trusted parents owned by you or root. Shared writable parents need sticky-bit protection, as standard `/tmp` provides. These checks also apply when `TMPDIR` changes the default location.
+
 ### Browser targets
 
 Every driver command accepts the same flags to pick where the browser runs. Mix and match per command:
 
-| Flag | Target |
-|------|--------|
-| _(default)_ | Managed local browser, or remote when `BROWSERBASE_API_KEY` is set |
-| `--local` | Managed local browser (add `--headed` / `--headless`) |
-| `--remote` | Remote Browserbase session (uses `BROWSERBASE_API_KEY`) |
-| `--auto-connect` | Auto-discover and attach to a local Chrome with remote debugging enabled |
-| `--cdp <url\|port>` | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`) |
-| `--target-id <id>` | Select a specific CDP target when attaching to an existing browser |
-| `--chrome-arg <flag>` | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only) |
-| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only) |
-| `--no-default-chrome-args` | Launch without any of Chrome's default args (managed-local only) |
+| Flag                                 | Target                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| _(default)_                          | Managed local browser, or remote when `BROWSERBASE_API_KEY` is set                 |
+| `--local`                            | Managed local browser (add `--headed` / `--headless`)                              |
+| `--remote`                           | Remote Browserbase session (uses `BROWSERBASE_API_KEY`)                            |
+| `--auto-connect`                     | Auto-discover and attach to a local Chrome with remote debugging enabled           |
+| `--cdp <url\|port>`                  | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`)              |
+| `--target-id <id>`                   | Select a specific CDP target when attaching to an existing browser                 |
+| `--chrome-arg <flag>`                | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only) |
+| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only)         |
+| `--no-default-chrome-args`           | Launch without any of Chrome's default args (managed-local only)                   |
 
 ```bash
 browse open https://example.com                 # default target
@@ -182,15 +190,15 @@ browse cdp 9222    # Attach to a CDP endpoint and stream DevTools events (--doma
 
 These apply across driver commands:
 
-| Flag | Description |
-|------|-------------|
-| `-s, --session <name>` | Named browser session (or `BROWSE_SESSION` env var) |
-| `--local` / `--remote` | Choose a managed local or remote Browserbase browser |
-| `--headed` / `--headless` | Window visibility for managed local sessions |
-| `--auto-connect` | Attach to a local Chrome with remote debugging enabled |
-| `--cdp <url\|port>` | Attach directly to a CDP endpoint |
-| `--target-id <id>` | Select a specific CDP target |
-| `--json` | Emit machine-readable JSON (available on most commands) |
+| Flag                      | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| `-s, --session <name>`    | Named browser session (or `BROWSE_SESSION` env var)     |
+| `--local` / `--remote`    | Choose a managed local or remote Browserbase browser    |
+| `--headed` / `--headless` | Window visibility for managed local sessions            |
+| `--auto-connect`          | Attach to a local Chrome with remote debugging enabled  |
+| `--cdp <url\|port>`       | Attach directly to a CDP endpoint                       |
+| `--target-id <id>`        | Select a specific CDP target                            |
+| `--json`                  | Emit machine-readable JSON (available on most commands) |
 
 ## Open web skills catalog
 
@@ -291,11 +299,11 @@ default so `browse` only reads `process.env`. Set `BROWSE_LOAD_DOTENV=0` (or `fa
 opt out of `.env` auto-loading now, ahead of that change, or `BROWSE_LOAD_DOTENV=1` to keep
 auto-loading with no warning.
 
-| Variable | Description |
-|----------|-------------|
-| `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands |
-| `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
-| `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
+| Variable              | Description                                                                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands                                                                    |
+| `BROWSE_SESSION`      | Default session name (alternative to `-s, --session`)                                                                                        |
+| `BROWSE_LOAD_DOTENV`  | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
 ## Links
 

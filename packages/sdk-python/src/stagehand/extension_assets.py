@@ -35,3 +35,12 @@ def build_extension_archive() -> bytes:
                 info.compress_type = zipfile.ZIP_DEFLATED
                 output.writestr(info, path.read_bytes())
     return archive.getvalue()
+
+
+def get_extension_archive() -> bytes:
+    """Return the ZIP archive of the extension bundled with this SDK.
+
+    Save or upload the bytes directly, or extract them to a directory for
+    Chrome's Load unpacked option. No browser session is required.
+    """
+    return build_extension_archive()

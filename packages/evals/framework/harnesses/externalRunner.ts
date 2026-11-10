@@ -22,6 +22,31 @@ export function metricValue(value: unknown): MetricValue {
 /** How an external harness asks the agent to report its result. */
 export type EvalResultContract = "marker" | "structured_output";
 
+/**
+ * Set to `structured_output` to give every harness the JSON answer format, so
+ * harnesses that otherwise answer in one `EVAL_RESULT:` line are scored on the
+ * same deliverable as the rest. Unset keeps each harness's own format.
+ */
+export const RESULT_CONTRACT_ENV = "EVAL_RESULT_CONTRACT";
+
+/** The answer format a harness runs with: its own default unless the eval asks for JSON everywhere. */
+export function readResultContract(
+  harnessDefault: EvalResultContract,
+  env: NodeJS.ProcessEnv = process.env,
+): EvalResultContract {
+  const value = env[RESULT_CONTRACT_ENV]?.trim();
+  if (!value) return harnessDefault;
+  if (value === "structured_output") return value;
+  throw new Error(`${RESULT_CONTRACT_ENV} must be unset or "structured_output" (got "${value}").`);
+}
+
+/** Names the answer a harness's own instructions ask for, so they agree with the task prompt. */
+export function requestedResult(resultContract: EvalResultContract): string {
+  return resultContract === "marker"
+    ? "the requested EVAL_RESULT line"
+    : "the requested JSON report";
+}
+
 /** Shared output schema used by harnesses that enforce structured output. */
 export const EVAL_RESULT_SCHEMA = {
   type: "object",
@@ -263,6 +288,7 @@ export async function runExternalHarnessTask<TRaw>({
     ...configuration,
     evalPolicyVersion: 1,
     systemPromptMode,
+    ...(resultContract === "structured_output" && { resultContract }),
     ...(stepBudget !== undefined && { stepBudget }),
     ...(stepBudgetUnit && { stepBudgetUnit }),
   };
