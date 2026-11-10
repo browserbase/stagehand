@@ -272,6 +272,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
     [entrypoint, "daemon", "--session", session, "--target", JSON.stringify(target)],
     {
       detached: true,
+      windowsHide: true,
       env: process.env,
       stdio: "ignore",
     },
