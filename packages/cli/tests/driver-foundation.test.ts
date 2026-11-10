@@ -678,6 +678,156 @@ describe("driver foundation", () => {
     }
   });
 
+  itPosix("waits for a young daemon to finish starting up", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-young-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "young-daemon";
+    const pidPath = getPidPath(session);
+    const socketPath = getSocketPath(session);
+    const sockets = new Set<net.Socket>();
+    let serverStarted = false;
+
+    const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+        };
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
+    });
+
+    try {
+      await writeFile(pidPath, String(process.pid));
+
+      setTimeout(async () => {
+        await new Promise<void>((resolve, reject) => {
+          server.once("error", reject);
+          server.listen(socketPath, () => {
+            serverStarted = true;
+            resolve();
+          });
+        });
+      }, 200);
+
+      await expect(
+        ensureDriverDaemon({
+          session,
+          target: { headless: true, kind: "managed-local" },
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      if (serverStarted) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    }
+  });
+
+  itPosix("reports unrecoverable when kill fails on stuck daemon", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-unkillable-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "unkillable-daemon";
+    const pidPath = getPidPath(session);
+
+    vi.resetModules();
+    vi.doMock("../src/lib/driver/daemon/process.js", () => ({
+      isProcessAlive: () => true,
+      isDaemonProcess: () => true,
+      killProcess: () => false,
+    }));
+
+    try {
+      const { ensureDriverDaemon: mockedEnsure } =
+        await import("../src/lib/driver/daemon/client.js");
+
+      await writeFile(pidPath, "99999");
+      const pidStats = await stat(pidPath);
+      const oldTime = pidStats.mtimeMs - 60_000;
+      await fs.utimes(pidPath, new Date(oldTime), new Date(oldTime));
+
+      await expect(
+        mockedEnsure({
+          session,
+          target: { headless: true, kind: "managed-local" },
+        }),
+      ).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_unresponsive" },
+      });
+    } finally {
+      vi.doUnmock("../src/lib/driver/daemon/process.js");
+      vi.resetModules();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
+  itPosix("reports unrecoverable when process survives kill", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-survive-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "survive-kill";
+    const pidPath = getPidPath(session);
+
+    vi.resetModules();
+    vi.doMock("../src/lib/driver/daemon/process.js", () => ({
+      isProcessAlive: () => true,
+      isDaemonProcess: () => true,
+      killProcess: () => true,
+    }));
+
+    try {
+      const { ensureDriverDaemon: mockedEnsure } =
+        await import("../src/lib/driver/daemon/client.js");
+
+      await writeFile(pidPath, "99999");
+      const pidStats = await stat(pidPath);
+      const oldTime = pidStats.mtimeMs - 60_000;
+      await fs.utimes(pidPath, new Date(oldTime), new Date(oldTime));
+
+      await expect(
+        mockedEnsure({
+          session,
+          target: { headless: true, kind: "managed-local" },
+        }),
+      ).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_unresponsive" },
+      });
+    } finally {
+      vi.doUnmock("../src/lib/driver/daemon/process.js");
+      vi.resetModules();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
   it("checks target compatibility after waiting for the daemon lock", async () => {
     const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
     cleanupPaths.push(daemonDir);

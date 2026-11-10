@@ -15,7 +15,7 @@ import {
   PRIVATE_FILE_MODE,
 } from "./paths.js";
 import { collectForwardedEnv } from "./forwarded-env.js";
-import { isProcessAlive } from "./process.js";
+import { isDaemonProcess, isProcessAlive, killProcess } from "./process.js";
 import { ResponseSchema, type DriverRequest } from "./protocol.js";
 
 interface EnsureDaemonOptions {
@@ -34,6 +34,11 @@ const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
 // transport must cover that work before the page navigation timeout begins.
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+
+const DAEMON_STARTUP_GRACE_MS = 30_000;
+const DAEMON_STARTUP_WAIT_MS = 30_000;
+
+type RecoveryResult = "recovered" | "became_ready" | "unrecoverable";
 
 export async function ensureDriverDaemon({ session, target }: EnsureDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
@@ -56,17 +61,90 @@ export async function ensureDriverDaemon({ session, target }: EnsureDaemonOption
       assertCompatibleTarget(session, afterLock, target);
       return;
     }
-    if (await isDaemonPidAlive(session)) {
-      fail(
-        `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
-        1,
-        { resultCode: "daemon_unresponsive" },
-      );
+
+    const daemonInfo = await getDaemonPidInfo(session);
+    if (daemonInfo) {
+      const result = await recoverUnresponsiveDaemon(session, daemonInfo.pid, daemonInfo.ageMs);
+      if (result === "became_ready") {
+        const status = await tryDriverStatus(session);
+        if (status) {
+          assertCompatibleTarget(session, status, target);
+          return;
+        }
+      } else if (result === "unrecoverable") {
+        fail(
+          `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+          1,
+          { resultCode: "daemon_unresponsive" },
+        );
+      }
     }
+
     spawnDaemon(session, target);
-    await waitForSocketReady(getSocketPath(session), 30_000);
+    await waitForSocketReady(getSocketPath(session), DAEMON_STARTUP_WAIT_MS);
   } finally {
     await releaseLock(session);
+  }
+}
+
+interface DaemonPidInfo {
+  pid: number;
+  ageMs: number;
+}
+
+async function getDaemonPidInfo(session: string): Promise<DaemonPidInfo | null> {
+  await ensureRuntimeDir();
+  const pidPath = getPidPath(session);
+  try {
+    const [contents, stats] = await Promise.all([fs.readFile(pidPath, "utf8"), fs.stat(pidPath)]);
+    const pid = Number(contents.trim());
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    if (!isProcessAlive(pid)) return null;
+    const ageMs = Date.now() - stats.mtimeMs;
+    return { pid, ageMs };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function recoverUnresponsiveDaemon(
+  session: string,
+  pid: number,
+  ageMs: number,
+): Promise<RecoveryResult> {
+  if (!isDaemonProcess(pid)) {
+    await cleanupDaemonFiles(session, { includeLock: false });
+    return "recovered";
+  }
+
+  if (ageMs < DAEMON_STARTUP_GRACE_MS) {
+    const remainingMs = DAEMON_STARTUP_GRACE_MS - ageMs;
+    const socketPath = getSocketPath(session);
+    try {
+      await waitForSocketReady(socketPath, remainingMs);
+      return "became_ready";
+    } catch {
+      // Socket still not ready after waiting; fall through to force-kill
+    }
+  }
+
+  if (!killProcess(pid)) {
+    return "unrecoverable";
+  }
+  await waitForProcessExit(pid, 5_000);
+  if (isProcessAlive(pid)) {
+    return "unrecoverable";
+  }
+  await cleanupDaemonFiles(session, { includeLock: false });
+  return "recovered";
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!isProcessAlive(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
