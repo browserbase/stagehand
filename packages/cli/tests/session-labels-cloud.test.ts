@@ -98,7 +98,7 @@ describe("session label cloud commands", () => {
     expect(server.requests).toHaveLength(0);
   });
 
-  it("reads assigned labels and prints the complete session response", async () => {
+  it("requests assigned labels by default and prints the complete session response", async () => {
     const session = {
       id: "session-1",
       status: "COMPLETED",
@@ -108,7 +108,7 @@ describe("session label cloud commands", () => {
       jsonResponse(response, 200, session),
     );
     const result = await runCli(
-      ["cloud", "sessions", "get", "session-1", "--include-labels", "--base-url", server.baseUrl],
+      ["cloud", "sessions", "get", "session-1", "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode, result.stderr).toBe(0);
@@ -122,45 +122,28 @@ describe("session label cloud commands", () => {
     });
   });
 
-  it("distinguishes an empty label set from unavailable label reads", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, { id: "session-1", labels: [] }),
-    );
-    const result = await runCli(
-      ["cloud", "sessions", "get", "session-1", "--include-labels", "--base-url", server.baseUrl],
-      { env },
-    );
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ id: "session-1", labels: [] });
-  });
+  it.each([{ id: "session-1", labels: [] }, { id: "session-1" }])(
+    "preserves the successful API response %j",
+    async (session) => {
+      server = await startFakeBrowserbaseServer((_request, response) =>
+        jsonResponse(response, 200, session),
+      );
+      const result = await runCli(
+        ["cloud", "sessions", "get", "session-1", "--base-url", server.baseUrl],
+        { env },
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual(session);
+      expect(server.requests).toHaveLength(1);
+      expect(server.requests[0]?.path).toBe("/v1/sessions/session-1?includeLabels=true");
+    },
+  );
 
-  it("reports unavailable requested labels instead of inventing an empty array", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, { id: "session-1" }),
-    );
-    const result = await runCli(
-      ["cloud", "sessions", "get", "session-1", "--include-labels", "--base-url", server.baseUrl],
-      { env },
-    );
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain(
-      "Session labels are unavailable for this project or API endpoint",
-    );
-    expect(result.stdout.trim()).toBe("");
-    expect(server.requests).toHaveLength(1);
-  });
-
-  it("preserves plain session get without requesting labels", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, { id: "session-1" }),
-    );
-    const result = await runCli(
-      ["cloud", "sessions", "get", "session-1", "--base-url", server.baseUrl],
-      { env },
-    );
+  it("does not advertise a separate label-read flag", async () => {
+    const result = await runCli(["cloud", "sessions", "get", "--help"], { env });
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ id: "session-1" });
-    expect(server.requests[0]?.path).toBe("/v1/sessions/session-1");
+    expect(result.stdout).toContain("including labels when available");
+    expect(result.stdout).not.toContain("--include-labels");
   });
 
   it("replaces labels without changing lifecycle status and accepts the ID after a label flag", async () => {
@@ -225,8 +208,7 @@ describe("session label cloud commands", () => {
       jsonResponse(response, 200, { labels: [] }),
     );
     const action = command === "get" ? ["get"] : ["labels", command];
-    const flags =
-      command === "get" ? ["--include-labels"] : command === "set" ? ["--label", "Checkout"] : [];
+    const flags = command === "set" ? ["--label", "Checkout"] : [];
     const result = await runCli(
       [
         "cloud",
@@ -248,7 +230,8 @@ describe("session label cloud commands", () => {
   });
 
   it.each([
-    [["get", "session-1", "--include-labels"], 403, "Forbidden"],
+    [["get", "session-1"], 403, "Forbidden"],
+    [["get", "session-1"], 404, "Session not found"],
     [["labels", "set", "session-1", "--label", "Checkout"], 404, "Session not found"],
     [["labels", "clear", "session-1"], 429, "Rate limit reached"],
     [["labels", "set", "session-1", "--label", "Checkout"], 422, "Label allowance reached"],

@@ -201,12 +201,12 @@ For projects with session labels available, request labels when creating a remot
 ```bash
 browse open https://example.com --remote --label "Checkout" --label "Smoke test"
 browse cloud sessions create --label "Checkout" --label "Smoke test"
-browse cloud sessions get <session-id> --include-labels
+browse cloud sessions get <session-id>
 browse cloud sessions labels set <session-id> --label "Checkout"
 browse cloud sessions labels clear <session-id>
 ```
 
-Repeat `--label` for multiple names; quote names containing spaces. On cloud creation, label flags replace any `labels` array supplied through `--body` or `--stdin`. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `get --include-labels` to check them; unavailable labels produce an explicit error rather than an empty assignment.
+Repeat `--label` for multiple names; quote names containing spaces. On cloud creation, label flags replace any `labels` array supplied through `--body` or `--stdin`. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `sessions get` to check them; it requests labels automatically. If labels are unavailable, the session response omits `labels`; an empty `labels` array confirms the session is untagged.
 
 `labels set` replaces the entire assignment, so include every label you want to keep. `labels clear` removes all assigned labels. These commands do not end the browser session. The `update` command remains a session-lifecycle operation.
 

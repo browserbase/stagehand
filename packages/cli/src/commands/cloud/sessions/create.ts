@@ -125,7 +125,7 @@ async function applyCliAttribution(body: Record<string, unknown>): Promise<void>
 
 export default class SessionsCreate extends BrowseCommand {
   static override description =
-    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API. Labels are assigned asynchronously on a best-effort basis; use sessions get --include-labels to confirm them.";
+    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API. Labels are assigned asynchronously on a best-effort basis; use sessions get to confirm them.";
 
   static override examples = [
     "browse cloud sessions create --proxies --verified",
