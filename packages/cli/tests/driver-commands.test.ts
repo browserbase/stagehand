@@ -32,6 +32,8 @@ describe("driver commands", () => {
         "snapshot",
         "tab.switch",
         "network.on",
+        "clipboard.read",
+        "clipboard.write",
         "upload",
         "viewport",
       ]),
