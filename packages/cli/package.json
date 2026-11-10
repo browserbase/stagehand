@@ -106,6 +106,9 @@
       "cloud:sessions:downloads": {
         "description": "Download Browserbase session artifacts."
       },
+      "cloud:sessions:labels": {
+        "description": "Replace or clear labels assigned to a browser session."
+      },
       "cloud:sessions:uploads": {
         "description": "Upload files to Browserbase sessions."
       },

@@ -12,6 +12,7 @@ import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
 import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
+import { labelFlagOptions, normalizeSessionLabels } from "../../../lib/session-labels.js";
 
 const REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"] as const;
 
@@ -30,6 +31,7 @@ interface SessionCreateFlagInputs {
   "log-session"?: boolean;
   viewport?: string;
   "extension-id"?: string;
+  label?: string[];
 }
 
 function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, unknown> {
@@ -41,6 +43,7 @@ function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, 
   if (flags["keep-alive"]) body.keepAlive = true;
   if (flags.timeout !== undefined) body.timeout = flags.timeout;
   if (flags["extension-id"]) body.extensionId = flags["extension-id"];
+  if (flags.label !== undefined) body.labels = normalizeSessionLabels(flags.label);
 
   if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
@@ -122,11 +125,12 @@ async function applyCliAttribution(body: Record<string, unknown>): Promise<void>
 
 export default class SessionsCreate extends BrowseCommand {
   static override description =
-    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API.";
+    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API. Labels are assigned asynchronously on a best-effort basis; use sessions get --include-labels to confirm them.";
 
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
+    'browse cloud sessions create --label "Store A" --label Checkout',
     "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
@@ -134,6 +138,11 @@ export default class SessionsCreate extends BrowseCommand {
 
   static override flags = {
     ...apiCommonFlags,
+    label: Flags.string({
+      ...labelFlagOptions,
+      description:
+        "Session label name. Repeat --label for multiple names. Replaces labels from --body/--stdin; assignment is asynchronous and best effort.",
+    }),
     body: Flags.string({
       description: "Optional JSON request body.",
       helpValue: "<body>",

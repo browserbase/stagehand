@@ -247,6 +247,20 @@ browse cloud search "browser automation research" --provider parallel --mode adv
 browse cloud search "browserbase docs" --provider exa
 ```
 
+For projects with session labels available:
+
+```bash
+browse open https://example.com --remote --label "Checkout"
+browse cloud sessions create --label "Checkout" --label "Smoke test"
+browse cloud sessions get <session-id> --include-labels
+browse cloud sessions labels set <session-id> --label "Checkout"
+browse cloud sessions labels clear <session-id>
+```
+
+Repeat `--label` for multiple names. Creation-time assignment is asynchronous and best effort; verify with `get --include-labels` before claiming the labels are assigned. Missing label availability is an error, not an empty label set. On cloud creation, label flags override a `labels` array in `--body` or `--stdin`.
+
+`set` replaces all assigned labels; include the labels that should remain. `clear` removes all assignments without ending the session. Do not use `sessions update` for labels: that command releases sessions. Labels on `open` apply only to new remote sessions; changing them on an existing named session requires an explicit label update. Local browsers and CDP attachments do not accept labels. The public session-list command has no label filter; `--q` queries user metadata instead.
+
 For remote sessions with context persistence:
 
 ```bash

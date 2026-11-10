@@ -54,6 +54,7 @@ describe("driver commands", () => {
   it("treats headed and headless as explicit local target choices", () => {
     expect(hasExplicitDriverTarget({})).toBe(false);
     expect(hasExplicitDriverTarget({ local: true })).toBe(true);
+    expect(hasExplicitDriverTarget({ label: ["Checkout"] })).toBe(true);
     expect(hasExplicitDriverTarget({ headed: true })).toBe(true);
     expect(hasExplicitDriverTarget({ headless: true })).toBe(true);
     expect(hasExplicitDriverTarget({ cdp: "9222" })).toBe(true);
@@ -95,6 +96,36 @@ describe("driver commands", () => {
       await expect(resolveTargetForCommand("reuse-local", { remote: true })).resolves.toEqual({
         kind: "remote",
       });
+    } finally {
+      vi.doUnmock("../src/lib/driver/daemon/client.js");
+      vi.resetModules();
+    }
+  });
+
+  it("reuses remote creation labels when omitted but resolves explicit label requests", async () => {
+    vi.resetModules();
+    const target = { kind: "remote", labels: ["Checkout"], proxies: true };
+    vi.doMock("../src/lib/driver/daemon/client.js", () => ({
+      getDriverStatus: vi.fn().mockResolvedValue({ target }),
+    }));
+    try {
+      const { resolveTargetForCommand } = await import("../src/lib/driver/command-cli.js");
+      await expect(resolveTargetForCommand("reuse-remote", {})).resolves.toEqual(target);
+      await expect(resolveTargetForCommand("reuse-remote", { remote: true })).resolves.toEqual(
+        target,
+      );
+      await expect(
+        resolveTargetForCommand("reuse-remote", {
+          remote: true,
+          proxies: true,
+          label: ["Smoke test"],
+        }),
+      ).resolves.toEqual({ kind: "remote", proxies: true, labels: ["Smoke test"] });
+      await expect(
+        resolveTargetForCommand("reuse-remote", {
+          label: ["Checkout"],
+        }),
+      ).rejects.toThrow("--label requires --remote");
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();

@@ -194,6 +194,26 @@ These apply across driver commands:
 | `--target-id <id>`        | Select a specific CDP target                            |
 | `--json`                  | Emit machine-readable JSON (available on most commands) |
 
+### Session labels
+
+For projects with session labels available, request labels when creating a remote browser or cloud session:
+
+```bash
+browse open https://example.com --remote --label "Checkout" --label "Smoke test"
+browse cloud sessions create --label "Checkout" --label "Smoke test"
+browse cloud sessions get <session-id> --include-labels
+browse cloud sessions labels set <session-id> --label "Checkout"
+browse cloud sessions labels clear <session-id>
+```
+
+Repeat `--label` for multiple names; quote names containing spaces. On cloud creation, label flags replace any `labels` array supplied through `--body` or `--stdin`. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `get --include-labels` to check them; unavailable labels produce an explicit error rather than an empty assignment.
+
+`labels set` replaces the entire assignment, so include every label you want to keep. `labels clear` removes all assigned labels. These commands do not end the browser session. The `update` command remains a session-lifecycle operation.
+
+With `open`, labels apply when a remote session starts. Reusing a named session without `--label` preserves its creation settings; passing a different label set requires an explicit label update or a new named session. Labels are unavailable for local browsers and CDP attachments.
+
+Session listing does not support filtering by label yet. Its `--q` flag queries user metadata, which is separate from labels.
+
 ## Open web skills catalog
 
 Use [browse.sh](https://browse.sh), the largest open-source catalog of skills to reliably perform any task on the internet. Find a specialized skill to navigate `apartments.com`, for example, and drastically reduce your agent's time and token costs.

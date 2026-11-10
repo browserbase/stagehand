@@ -3,6 +3,7 @@ import { browserbase } from "@browserbasehq/stagehand";
 import { StatusCodes } from "http-status-codes";
 
 import { getCliVersion, resolveInstallId, toMetadataValue } from "../identity.js";
+import { normalizeSessionLabels } from "../session-labels.js";
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
 import type { DriverModeFlags } from "./mode.js";
@@ -32,6 +33,7 @@ export function resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionT
     kind: "remote",
     ...(flags.verified ? { verified: true } : {}),
     ...(flags.proxies ? { proxies: true } : {}),
+    ...(flags.label !== undefined ? { labels: normalizeSessionLabels(flags.label) } : {}),
   };
 }
 
@@ -83,6 +85,7 @@ export async function remoteStagehandOptions(
       userMetadata,
       ...(target?.proxies ? { proxies: true } : {}),
       ...(target?.verified ? { browserSettings: { verified: true } } : {}),
+      ...(target?.labels !== undefined ? { labels: target.labels } : {}),
     },
   };
 }
