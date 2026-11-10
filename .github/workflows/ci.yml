@@ -49,9 +49,6 @@ jobs:
           filters: |
             browse:
               - 'packages/cli/**'
-              - 'packages/sdk-ts/**'
-              - 'packages/extension/**'
-              - 'packages/protocol/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -350,10 +347,6 @@ jobs:
           # Include the root manifest so artifact paths stay relative to the repository.
           path: |
             package.json
-            packages/protocol/stagehand.v4.json
-            packages/extension/dist/**
-            packages/extension/artifacts/**
-            packages/sdk-ts/dist/**
             packages/cli/dist/**
             packages/cli/oclif.manifest.json
           if-no-files-found: error
@@ -396,8 +389,8 @@ jobs:
         env:
           SHELL: pwsh
 
-  browse-repo-local-smoke:
-    name: Browse repo-local-smoke (${{ matrix.platform }})
+  browse-chrome-smoke:
+    name: Browse Chrome smoke (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     needs: [determine-changes, browse-build]
@@ -427,42 +420,8 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm --filter browse test:smoke
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-
-  browse-installed-dep-smoke:
-    name: Browse installed-dep-smoke (${{ matrix.platform }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    needs: [determine-changes, browse-build]
-    if: needs.determine-changes.outputs.browse == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: Linux
-          - os: windows-2025
-            platform: Windows
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: ./.github/actions/setup-node-pnpm
-        with:
-          use-prebuilt-artifacts: "false"
-          restore-turbo-cache: "false"
-
-      - name: Download Browse build
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: browse-build-${{ runner.os }}
-          path: .
-
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
-      - run: pnpm --filter browse test:smoke:package
+      - name: Test packed Browse with Chrome
+        run: pnpm --filter browse test:smoke:package
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 

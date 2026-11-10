@@ -25,7 +25,7 @@ try {
     join(directory, "package.json"),
     JSON.stringify({ name: "browse-installed-smoke", private: true }),
   );
-  // Like the release smoke, resolve the SDK from npm, not a workspace link.
+  // Install the packed artifact with registry dependencies outside the repository.
   run("npm", [
     "install",
     "--registry=https://registry.npmjs.org",
