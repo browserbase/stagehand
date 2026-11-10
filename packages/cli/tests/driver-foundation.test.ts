@@ -712,7 +712,17 @@ describe("driver foundation", () => {
       });
     });
 
+    vi.resetModules();
+    vi.doMock("../src/lib/driver/daemon/process.js", () => ({
+      isProcessAlive: () => true,
+      isDaemonProcess: () => true,
+      killProcess: () => true,
+    }));
+
     try {
+      const { ensureDriverDaemon: mockedEnsure } =
+        await import("../src/lib/driver/daemon/client.js");
+
       await writeFile(pidPath, String(process.pid));
 
       setTimeout(async () => {
@@ -726,12 +736,14 @@ describe("driver foundation", () => {
       }, 200);
 
       await expect(
-        ensureDriverDaemon({
+        mockedEnsure({
           session,
           target: { headless: true, kind: "managed-local" },
         }),
       ).resolves.toBeUndefined();
     } finally {
+      vi.doUnmock("../src/lib/driver/daemon/process.js");
+      vi.resetModules();
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
       for (const socket of sockets) {
         socket.destroy();

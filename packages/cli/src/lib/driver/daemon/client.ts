@@ -71,6 +71,14 @@ export async function ensureDriverDaemon({ session, target }: EnsureDaemonOption
           assertCompatibleTarget(session, status, target);
           return;
         }
+        const killResult = await killAndCleanup(session, daemonInfo.pid);
+        if (!killResult) {
+          fail(
+            `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+            1,
+            { resultCode: "daemon_unresponsive" },
+          );
+        }
       } else if (result === "unrecoverable") {
         fail(
           `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
@@ -113,7 +121,7 @@ async function recoverUnresponsiveDaemon(
   pid: number,
   ageMs: number,
 ): Promise<RecoveryResult> {
-  if (!isDaemonProcess(pid)) {
+  if (!isDaemonProcess(pid, session)) {
     await cleanupDaemonFiles(session, { includeLock: false });
     return "recovered";
   }
@@ -129,15 +137,20 @@ async function recoverUnresponsiveDaemon(
     }
   }
 
+  const killed = await killAndCleanup(session, pid);
+  return killed ? "recovered" : "unrecoverable";
+}
+
+async function killAndCleanup(session: string, pid: number): Promise<boolean> {
   if (!killProcess(pid)) {
-    return "unrecoverable";
+    return false;
   }
   await waitForProcessExit(pid, 5_000);
   if (isProcessAlive(pid)) {
-    return "unrecoverable";
+    return false;
   }
   await cleanupDaemonFiles(session, { includeLock: false });
-  return "recovered";
+  return true;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {

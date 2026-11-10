@@ -10,14 +10,14 @@ export function isProcessAlive(pid: number): boolean {
   }
 }
 
-export function isDaemonProcess(pid: number): boolean {
+export function isDaemonProcess(pid: number, session: string): boolean {
   if (!isProcessAlive(pid)) return false;
   try {
     const cmdline = getProcessCommandLine(pid);
     if (cmdline === null) {
       return true;
     }
-    return cmdline.includes("daemon") && cmdline.includes("--session");
+    return cmdline.includes("daemon") && cmdline.includes(`--session`) && cmdline.includes(session);
   } catch {
     return true;
   }
