@@ -145,8 +145,7 @@ function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
  * stable result code. Browserbase SDK errors carry an HTTP `status`.
  */
 export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
-  const status = (error as { status?: unknown } | null | undefined)?.status;
-  const httpStatus = typeof status === "number" ? status : undefined;
+  const httpStatus = httpStatusOf(error);
   if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
@@ -171,6 +170,21 @@ export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassifi
     message:
       "Failed to start a remote (Browserbase) session. Run browse doctor to diagnose remote connectivity.",
   };
+}
+
+/**
+ * HTTP status of the error or of a cause beneath it. Stagehand's Browserbase
+ * factory wraps the SDK's `AuthenticationError` in a plain `Error` ("Failed to
+ * upload the Stagehand extension..."), so the 401 only shows up on `cause`.
+ */
+function httpStatusOf(error: unknown): number | undefined {
+  let current = error;
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    const { status, cause } = current as { status?: unknown; cause?: unknown };
+    if (typeof status === "number") return status;
+    current = cause;
+  }
+  return undefined;
 }
 
 function remoteDriverError(error: unknown): DriverError {

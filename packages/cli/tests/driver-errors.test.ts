@@ -27,6 +27,17 @@ describe("classifyRemoteInitError", () => {
     expect(classified.message).toContain("browse doctor");
   });
 
+  it("finds the HTTP status on the cause when the SDK wraps the rejection", () => {
+    const error = new Error(
+      "Failed to upload the Stagehand extension to Browserbase after 1 attempt(s).",
+      { cause: Object.assign(new Error("401 Unauthorized"), { status: 401 }) },
+    );
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_auth_401");
+    expect(classified.httpStatus).toBe(401);
+    expect(classified.message).toContain("BROWSERBASE_API_KEY");
+  });
+
   it("hides provider details for other failures", () => {
     const classified = classifyRemoteInitError(new Error("sensitive provider detail"));
     expect(classified.code).toBe("remote_session_create_failed");
