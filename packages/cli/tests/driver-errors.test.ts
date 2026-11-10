@@ -125,6 +125,7 @@ describe("driverInitHints", () => {
     const { driverInitHints } = await import("../src/lib/driver/remote.js");
     const hints = driverInitHints();
     expect(hints.chromeNotFound).toContain("BROWSERBASE_API_KEY");
+    expect(hints.remoteAuthFailure).toContain("BROWSERBASE_API_KEY");
     expect(hints.repeatedInitFailure).toContain("BROWSERBASE_API_KEY");
   });
 
@@ -132,6 +133,7 @@ describe("driverInitHints", () => {
     const { driverInitHints } = await import("../src/lib/driver/remote.disabled.js");
     const hints = driverInitHints();
     expect(hints.chromeNotFound).not.toContain("BROWSERBASE_API_KEY");
+    expect(hints.remoteAuthFailure).not.toContain("BROWSERBASE_API_KEY");
     expect(hints.repeatedInitFailure).not.toContain("BROWSERBASE_API_KEY");
     expect(hints.chromeNotFound).toContain("--cdp");
   });

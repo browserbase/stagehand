@@ -35,6 +35,8 @@ export interface RemoteInitErrorClassification {
 export interface DriverInitHints {
   /** Actionable message when no local Chrome can be found. */
   chromeNotFound: string;
+  /** Doctor fix when the last remote start was rejected as unauthorized (401/403). */
+  remoteAuthFailure: string;
   /** Suffix appended after repeated consecutive init failures. */
   repeatedInitFailure: string;
 }
