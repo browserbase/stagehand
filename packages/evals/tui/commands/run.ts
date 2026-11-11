@@ -611,6 +611,9 @@ export async function runCommand(
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+          // The harness's tool default applies to bench rows only, so a mixed
+          // run's core rows keep core.tool.
+          benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
           coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
           providerConcurrency: options.providerConcurrency,
           verbose: options.verbose,
@@ -783,6 +786,7 @@ async function buildDryRunMatrix(
         categoryFilter,
         datasetFilter: options.datasetFilter,
         coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+        benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
         coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
       });
 
@@ -799,6 +803,7 @@ async function buildDryRunMatrix(
               {
                 ...options,
                 coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+                benchToolSurface: options.benchToolSurface as ToolSurface | undefined,
                 coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
               },
               testcase.input.params,
