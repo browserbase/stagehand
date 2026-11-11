@@ -491,6 +491,61 @@ export const LocatorSelectorSchema = z
   ])
   .meta({ id: "LocatorSelector" });
 
+/**
+ * A single engine query, with no legacy prefix or frame-hop interpretation.
+ * Chain normalization belongs at the SDK boundary.
+ */
+export const LocatorQuerySelectorSchema = z
+  .discriminatedUnion("type", [
+    CssLocatorSelectorSchema,
+    XPathLocatorSelectorSchema,
+    TextLocatorSelectorSchema,
+  ])
+  .meta({ id: "LocatorQuerySelector" });
+
+/**
+ * Search the current scope. After another query, search its matched elements'
+ * descendants (or their content documents when those elements are iframes).
+ * Apply nth to this step's ordered, deduplicated results before continuing.
+ */
+export const LocatorQueryStepSchema = z
+  .strictObject({
+    type: z.literal("query"),
+    selector: LocatorQuerySelectorSchema,
+    nth: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "LocatorQueryStep" });
+
+/**
+ * Require the preceding matches to be frame elements, enter their documents,
+ * then run this query. Unlike a query step, this never falls back to ordinary
+ * element scoping. This preserves the meaning of legacy frame hops.
+ */
+export const LocatorFrameStepSchema = z
+  .strictObject({
+    type: z.literal("frame"),
+    selector: LocatorQuerySelectorSchema,
+    nth: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "LocatorFrameStep" });
+
+export const LocatorStepSchema = z
+  .discriminatedUnion("type", [LocatorQueryStepSchema, LocatorFrameStepSchema])
+  .meta({ id: "LocatorStep" });
+
+/**
+ * An ordered query plan starting in the page document. Frame entry requires
+ * element matches from a preceding query; the resolver checks that context.
+ *
+ * Defined separately during migration; RPC parameters continue using Locator
+ * until the extension can execute chains.
+ */
+export const LocatorChainSchema = z
+  .strictObject({
+    steps: z.array(LocatorStepSchema).min(1),
+  })
+  .meta({ id: "LocatorChain" });
+
 export const LocatorSchema = z
   .strictObject({
     selector: LocatorSelectorSchema,
