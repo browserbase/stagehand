@@ -6,6 +6,7 @@ from typing import Literal, NotRequired, TypedDict
 import httpx
 
 from ._generated.input_types import (
+    LocatorSelector,
     ModelConfig,
     TelemetryConfig,
 )
@@ -16,6 +17,8 @@ from ._generated.models import (
     LLMStructuredGenerateResult,
     StagehandLog,
 )
+
+LocatorInput = str | LocatorSelector
 
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
 LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
