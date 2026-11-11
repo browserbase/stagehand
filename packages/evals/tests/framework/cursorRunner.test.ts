@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import type { CursorSdkAgentFactory } from "@browserbasehq/stagehand-integrations-cursor-sdk";
+import type { CursorSdkAgentFactory } from "@browserbasehq/stagehand-integrations-cursor";
 import { buildCursorPrompt } from "../../framework/cursorRunner.js";
 import { runCursorAgent, parseCursorResult } from "../../framework/cursorRunner.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";

@@ -4,7 +4,7 @@ import {
   CURSOR_SDK_VERSION,
   runCursorSdkAgentSession,
   type CursorSdkAgentFactory,
-} from "@browserbasehq/stagehand-integrations-cursor-sdk";
+} from "@browserbasehq/stagehand-integrations-cursor";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedCursorToolAdapter } from "./cursorToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
