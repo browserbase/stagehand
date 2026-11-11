@@ -112,3 +112,10 @@ the raw CLI. Tool logging is diagnostic, not an eval scoring input.
 for this example. Evals expose the same option as `EVAL_CODEX_DIAGNOSTICS_DIR`.
 Artifacts may contain model/page content despite best-effort credential redaction.
 Diagnostic write failures do not mask the original SDK failure.
+
+## Evals harness adapter
+
+The same package is the `codex` evaluation harness adapter. Its library entry (`src/index.ts`:
+`session.ts`, `isolation.ts`, `diagnostics.ts`, built to `dist/` by `tsdown`) is what
+`packages/evals` imports for `--harness codex`; the example imports it through the package's own
+name.

@@ -10,6 +10,7 @@ import {
   type HarnessLogger,
   isRecord,
   isTokenCount,
+  positiveInteger,
   safeJson,
   sanitizeErrorMessage,
   toFiniteNumber,
@@ -146,13 +147,19 @@ export function normalizeMastraModel(model: string): string {
 }
 
 /**
- * Route first-party models through their native @ai-sdk provider (using the 1p
- * API keys in the environment) instead of Mastra's default Vercel AI Gateway.
- * A bare `provider/model` string handed to `createAgent` resolves via the
- * gateway, which added a failure surface (unparseable error responses ->
- * sdk_error) and costs more than the native APIs we already hold keys for.
- * Open models with no native provider (zai/glm, meta/muse, alibaba/qwen, ...)
- * keep the gateway string. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
+ * Pick the model handed to Mastra's `Agent`. OpenAI, Google, Anthropic and xAI ids
+ * get a native @ai-sdk provider instance built from that provider's API key in `env`
+ * (Mastra 1.57 accepts AI SDK v5-v7 model specs). Every other id, and any of those
+ * when its key is unset, stays a `provider/model` string for Mastra's model router:
+ * `mastra/...` and `netlify/...` go to those gateways, everything else resolves through
+ * the bundled models.dev registry and calls the provider directly with its API-key env
+ * var (`vercel/...` is models.dev's Vercel AI Gateway provider, AI_GATEWAY_API_KEY).
+ * Native providers skip the router's extra auth/error layer, which surfaced unparseable
+ * provider error responses as sdk_error.
+ *
+ * MASTRA_FORCE_GATEWAY=1 turns native providers off, so every id goes to the model
+ * router as described above (provider-direct unless the id names a gateway). The name
+ * predates that behavior and is kept for existing eval configurations.
  */
 export function resolveMastraModel(
   model: string,
@@ -160,7 +167,7 @@ export function resolveMastraModel(
 ): string | NativeMastraModel {
   const normalized = normalizeMastraModel(model);
   if ((env.MASTRA_FORCE_GATEWAY ?? "").trim() === "1") return normalized;
-  // An explicit gateway route is part of the caller's model selection.
+  // An explicit gateway prefix is part of the caller's model selection; leave it to the router.
   if (/^(?:vercel|gateway)\//.test(normalized)) return normalized;
   const bare = normalized;
   const slash = bare.indexOf("/");
@@ -183,15 +190,15 @@ export function resolveMastraModel(
     case "xai": {
       // xAI's API is OpenAI-compatible but stricter — the full @ai-sdk/openai
       // request tripped a 422. Use the openai-compatible provider, which emits a
-      // minimal request (no OpenAI-only params xAI rejects). Same @ai-sdk/provider
-      // spec as mastra's openai@4, so it drops in without a version bump.
+      // minimal request (no OpenAI-only params xAI rejects). It shares
+      // @ai-sdk/openai's @ai-sdk/provider version, so it drops in the same way.
       const apiKey = env.XAI_API_KEY;
       return apiKey
         ? createOpenAICompatible({ name: "xai", baseURL: "https://api.x.ai/v1", apiKey })(id)
         : normalized;
     }
     default:
-      return normalized; // open models -> Vercel AI Gateway
+      return normalized; // Mastra model router (models.dev, provider-direct)
   }
 }
 
@@ -525,10 +532,6 @@ export function stringifyError(value: unknown): string {
   if (typeof value === "string") return value;
   if (isRecord(value) && typeof value.message === "string") return value.message;
   return safeJson(value) ?? String(value);
-}
-
-function positiveInteger(value: unknown, fallback: number): number {
-  return positiveIntegerOrUndefined(value) ?? fallback;
 }
 
 function positiveIntegerOrUndefined(value: unknown): number | undefined {
