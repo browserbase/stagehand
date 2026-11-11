@@ -1,4 +1,4 @@
-import type { LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
+import type { LocatorDescriptor } from "@browserbasehq/stagehand-protocol/types";
 import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
@@ -1713,7 +1713,7 @@ export class Page {
    * - Supports deep XPath that includes iframe steps (e.g., '/html/body/iframe[2]//div').
    * Returns a Locator scoped to the appropriate frame.
    */
-  deepLocator(selector: string | LocatorSelector) {
+  deepLocator(selector: string | LocatorDescriptor["selector"]) {
     return deepLocatorFromPage(this, this.mainFrameWrapper, selector);
   }
 

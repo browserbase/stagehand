@@ -1,10 +1,15 @@
+import { ChainTargetLocator, resolveLocatorChain } from "./locatorChain.js";
 import { Locator } from "./locator.js";
 import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
-import type { LocatorSelector, MouseButton } from "@browserbasehq/stagehand-protocol/types";
+import type {
+  LocatorDescriptor,
+  LocatorSelector,
+  MouseButton,
+} from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
 type Axis = "child" | "desc";
@@ -121,13 +126,19 @@ export class DeepLocatorDelegate {
   constructor(
     readonly page: Page,
     readonly root: Frame,
-    readonly selector: string | LocatorSelector,
+    readonly selector: string | LocatorDescriptor["selector"],
     // -1 preserves every match for operations such as screenshot masking while
     // ordinary single-element operations still resolve their first match.
     readonly nthIndex: number = -1,
   ) {}
 
   async real(progress?: Progress): Promise<Locator> {
+    if (typeof this.selector !== "string" && "steps" in this.selector) {
+      const targets = await this.chainTargets(progress);
+      const first = targets[0];
+      if (!first) throw new Error("Could not find an element for the locator chain");
+      return first;
+    }
     const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
@@ -137,7 +148,32 @@ export class DeepLocatorDelegate {
     return (await this.real(progress)).click(options, progress);
   }
   async count(progress?: Progress) {
+    if (typeof this.selector !== "string" && "steps" in this.selector) {
+      return (await this.chainTargets(progress)).length;
+    }
     return (await this.real(progress)).count(progress);
+  }
+
+  async allForMask(progress: Progress): Promise<Locator[]> {
+    if (typeof this.selector !== "string" && "steps" in this.selector) {
+      return this.chainTargets(progress);
+    }
+    return [await this.real(progress)];
+  }
+
+  private async chainTargets(progress?: Progress): Promise<Locator[]> {
+    if (typeof this.selector === "string" || !("steps" in this.selector)) {
+      throw new Error("Expected a locator chain");
+    }
+    const targets = await resolveLocatorChain(
+      this.page,
+      this.root,
+      this.selector,
+      this.nthIndex < 0 ? undefined : this.nthIndex,
+      progress,
+    );
+    const selector = this.selector.steps.at(-1)!.selector;
+    return targets.map((target) => new ChainTargetLocator(target, selector));
   }
   async hover(progress?: Progress) {
     return (await this.real(progress)).hover(progress);
@@ -222,7 +258,7 @@ export class DeepLocatorDelegate {
 export function deepLocatorFromPage(
   page: Page,
   root: Frame,
-  selector: string | LocatorSelector,
+  selector: string | LocatorDescriptor["selector"],
 ): DeepLocatorDelegate {
   return new DeepLocatorDelegate(page, root, selector);
 }

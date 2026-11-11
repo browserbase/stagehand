@@ -57,27 +57,31 @@ export async function a11yForFrame(
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
     const locator = opts.focusLocator;
-    if (!locator) return nodes;
-    const selector = locator.selector;
-    const sel = selector.type === "legacy" ? selector.value.trim() : selector.value;
-    if (!sel) return nodes;
+    if (!locator && opts.focusBackendNodeId === undefined) return nodes;
     let objectId: string | null = null;
     try {
-      const looksLikeXPath =
-        selector.type === "xpath" ||
-        (selector.type === "legacy" && (/^xpath=/i.test(sel) || sel.startsWith("/")));
-      const nth = locator.nth ?? 0;
-      objectId =
-        selector.type === "text"
-          ? await resolveObjectIdForText(session, sel, frameId, nth, progress)
-          : looksLikeXPath
-            ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
-            : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
-      if (!objectId) return nodes;
-      const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
-      );
-      const be = desc.node?.backendNodeId;
+      let be = opts.focusBackendNodeId;
+      if (be === undefined) {
+        if (!locator || "steps" in locator.selector) return nodes;
+        const selector = locator.selector;
+        const sel = selector.type === "legacy" ? selector.value.trim() : selector.value;
+        if (!sel) return nodes;
+        const looksLikeXPath =
+          selector.type === "xpath" ||
+          (selector.type === "legacy" && (/^xpath=/i.test(sel) || sel.startsWith("/")));
+        const nth = locator.nth ?? 0;
+        objectId =
+          selector.type === "text"
+            ? await resolveObjectIdForText(session, sel, frameId, nth, progress)
+            : looksLikeXPath
+              ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
+              : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
+        if (!objectId) return nodes;
+        const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
+          session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+        );
+        be = desc.node?.backendNodeId;
+      }
       if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
       if (!target) return nodes;

@@ -110,6 +110,7 @@ export type A11yNode = {
 };
 
 export type A11yOptions = {
+  focusBackendNodeId?: number;
   focusLocator?: Locator;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;

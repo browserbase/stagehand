@@ -7,14 +7,22 @@ const parseTargetIndex = (value: unknown): number => {
   return Math.floor(num);
 };
 
-const collectCssMatches = (selector: string, limit: number): Element[] => {
+const collectCssMatches = (
+  selector: string,
+  limit: number,
+  scope: Document | Element = document,
+): Element[] => {
   if (!selector) return [];
   const seenRoots = new WeakSet<Node>();
   const seenElements = new Set<Element>();
   const results: Element[] = [];
-  const queue: Array<Document | ShadowRoot> = [document];
+  const queue: Array<Document | Element | ShadowRoot> = [scope];
+  if (scope instanceof Element) {
+    const shadow = getOpenOrClosedShadowRoot(scope);
+    if (shadow) queue.push(shadow);
+  }
 
-  const visit = (root: Document | ShadowRoot): void => {
+  const visit = (root: Document | Element | ShadowRoot): void => {
     if (!root || seenRoots.has(root) || results.length >= limit) return;
     seenRoots.add(root);
 
@@ -31,8 +39,7 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
     }
 
     try {
-      const ownerDocument =
-        root instanceof Document ? root : (root.host?.ownerDocument ?? document);
+      const ownerDocument = root instanceof Document ? root : (root.ownerDocument ?? document);
       const walker = ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -53,16 +60,24 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
   return results;
 };
 
-export function resolveCssSelector(selectorRaw: string, targetIndexRaw?: number): Element | null {
+export function resolveCssSelector(
+  selectorRaw: string,
+  targetIndexRaw?: number,
+  scope: Document | Element = document,
+): Element | null {
   const selector = String(selectorRaw ?? "").trim();
   if (!selector) return null;
 
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  const matches = collectCssMatches(selector, targetIndex + 1);
+  const matches = collectCssMatches(selector, targetIndex + 1, scope);
   return matches[targetIndex] ?? null;
 }
 
-export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number): Element | null {
+export function resolveTextSelector(
+  rawNeedle: string,
+  targetIndexRaw?: number,
+  scope: Document | Element = document,
+): Element | null {
   const needle = String(rawNeedle ?? "");
   if (!needle) return null;
   const needleLc = needle.toLowerCase();
@@ -134,13 +149,14 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
     }
   };
 
-  enqueue(document);
+  enqueue(scope);
+  if (scope instanceof Element) enqueue(getOpenOrClosedShadowRoot(scope));
 
   while (queue.length) {
     const root = queue.shift();
     if (!root) continue;
 
-    if (root instanceof Element && matches(root)) {
+    if (root instanceof Element && root !== scope && matches(root)) {
       matchesList.push({
         element: root,
         tag: root.tagName ?? "",
@@ -196,7 +212,11 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
   return target?.element ?? null;
 }
 
-export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): Element | null {
+export function resolveXPathMainWorld(
+  rawXp: string,
+  targetIndexRaw?: number,
+  scope: Document | Element = document,
+): Element | null {
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  return resolveXPathAtIndex(rawXp, targetIndex, { pierceShadow: true });
+  return resolveXPathAtIndex(rawXp, targetIndex, { pierceShadow: true, scope });
 }

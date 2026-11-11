@@ -1221,11 +1221,33 @@ class XPathLocatorSelector(TypedDict):
     value: str
 
 
+LocatorQuerySelector: TypeAlias = CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector
+
+
+class LocatorFrameStep(TypedDict):
+    type: Literal["frame"]
+    selector: LocatorQuerySelector
+    nth: NotRequired[int]
+
+
+class LocatorQueryStep(TypedDict):
+    type: Literal["query"]
+    selector: LocatorQuerySelector
+    nth: NotRequired[int]
+
+
 LocatorSelector: TypeAlias = CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | LegacyLocatorSelector
 
 
+LocatorStep: TypeAlias = LocatorQueryStep | LocatorFrameStep
+
+
+class LocatorChain(TypedDict):
+    steps: list[LocatorStep]
+
+
 class Locator(TypedDict):
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
 
 
@@ -1249,20 +1271,20 @@ class ExtractOptions(TypedDict):
 
 class LocatorClickParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorClickOptions]
 
 
 class LocatorDescriptor(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
 
 
 class LocatorFillParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
     value: str
@@ -1270,21 +1292,21 @@ class LocatorFillParams(TypedDict):
 
 class LocatorHighlightParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorHighlightOptions]
 
 
 class LocatorParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
 
 
 class LocatorScrollToParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
     percent: float | str
@@ -1292,7 +1314,7 @@ class LocatorScrollToParams(TypedDict):
 
 class LocatorSelectOptionParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
     values: str | list[str]
@@ -1300,14 +1322,14 @@ class LocatorSelectOptionParams(TypedDict):
 
 class LocatorSendClickEventParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorSendClickEventOptions]
 
 
 class LocatorSetInputFilesParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
     files: list[InputFilePayload]
@@ -1315,7 +1337,7 @@ class LocatorSetInputFilesParams(TypedDict):
 
 class LocatorTypeParams(TypedDict):
     page_id: str
-    selector: LocatorSelector
+    selector: LocatorSelector | LocatorChain
     nth: NotRequired[int]
     options: NotRequired[LocatorTypeOptions]
     text: str

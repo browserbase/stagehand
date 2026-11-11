@@ -69,7 +69,9 @@ class Locator:
 
     @property
     def selector(self) -> str:
-        return self._descriptor.selector.root.value
+        selector = self._descriptor.selector
+        assert isinstance(selector, LocatorSelector)
+        return selector.root.value
 
     @property
     def nth_index(self) -> int | None:

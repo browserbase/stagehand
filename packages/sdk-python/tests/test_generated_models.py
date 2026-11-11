@@ -263,3 +263,23 @@ def test_init_browserbase_metadata_dependency(options: dict[str, object], valid:
     else:
         with pytest.raises(ValidationError):
             models.StagehandInitParams.model_validate(params)
+
+
+def test_locator_chain_wire_models_preserve_steps_and_indices() -> None:
+    selector = {
+        "steps": [
+            {"type": "query", "selector": {"type": "css", "value": "iframe"}, "nth": 1},
+            {"type": "frame", "selector": {"type": "css", "value": ".card"}, "nth": 2},
+            {"type": "query", "selector": {"type": "text", "value": "Pay"}},
+        ]
+    }
+    descriptor = {"page_id": "page-1", "selector": selector}
+    assert (
+        models.LocatorParams.model_validate(descriptor).model_dump(exclude_unset=True) == descriptor
+    )
+    options = {"locator": {"selector": selector}, "ignore_locators": [{"selector": selector}]}
+    assert models.ObserveOptions.model_validate(options).model_dump(exclude_unset=True) == options
+    masks = {"mask": [descriptor]}
+    assert (
+        models.PageScreenshotOptions.model_validate(masks).model_dump(exclude_unset=True) == masks
+    )

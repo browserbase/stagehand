@@ -471,7 +471,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   deepLocator(
     input: Parameters<UnderstudyRuntimePage["deepLocator"]>[0],
   ): UnderstudyRuntimeLocator {
-    const selector = input.value;
+    const selector = "steps" in input ? JSON.stringify(input) : input.value;
     const locator =
       this.locatorsBySelector.get(selector) ?? new FakeUnderstudyRuntimeLocator(selector);
     this.locatorRefs.push(locator);

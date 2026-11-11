@@ -1619,7 +1619,14 @@
       "type": "object",
       "properties": {
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -1704,6 +1711,81 @@
         }
       },
       "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "LocatorChain": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocatorStep"
+          }
+        }
+      },
+      "required": ["steps"],
+      "additionalProperties": false
+    },
+    "LocatorStep": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocatorQueryStep"
+        },
+        {
+          "$ref": "#/$defs/LocatorFrameStep"
+        }
+      ]
+    },
+    "LocatorQueryStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "query"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["type", "selector"],
+      "additionalProperties": false
+    },
+    "LocatorQuerySelector": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CssLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/XPathLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/TextLocatorSelector"
+        }
+      ]
+    },
+    "LocatorFrameStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "frame"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["type", "selector"],
       "additionalProperties": false
     },
     "ActResult": {
@@ -3974,7 +4056,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4608,7 +4697,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4659,7 +4755,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4705,7 +4808,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4760,7 +4870,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4808,7 +4925,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4881,7 +5005,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4936,7 +5067,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -4986,7 +5124,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
@@ -5026,7 +5171,14 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocatorSelector"
+            },
+            {
+              "$ref": "#/$defs/LocatorChain"
+            }
+          ]
         },
         "nth": {
           "type": "integer",
