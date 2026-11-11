@@ -7,7 +7,8 @@ import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
 import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
-import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
+import { deepLocatorFromPage } from "./deepLocator.js";
+import { resolveLocatorTarget } from "./selectorTarget.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -1709,11 +1710,9 @@ export class Page {
 
   /**
    * Deep locator that supports cross-iframe traversal.
-   * - Recognizes '>>' hop notation to enter iframe contexts.
-   * - Supports deep XPath that includes iframe steps (e.g., '/html/body/iframe[2]//div').
    * Returns a Locator scoped to the appropriate frame.
    */
-  deepLocator(selector: string | LocatorDescriptor["selector"]) {
+  deepLocator(selector: LocatorDescriptor["selector"]) {
     return deepLocatorFromPage(this, this.mainFrameWrapper, selector);
   }
 

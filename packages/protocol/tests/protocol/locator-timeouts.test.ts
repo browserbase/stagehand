@@ -4,8 +4,11 @@ import { LocatorDescriptorSchema } from "../../schemas.js";
 
 const descriptor = {
   pageId: "page-1",
-  selector: { type: "legacy" as const, value: "button" },
-  nth: 0,
+  selector: {
+    steps: [
+      { type: "query" as const, selector: { type: "css" as const, value: "button" }, nth: 0 },
+    ],
+  },
 };
 const requiredFields: Record<string, Record<string, unknown>> = {
   "locator.fill": { value: "hello" },

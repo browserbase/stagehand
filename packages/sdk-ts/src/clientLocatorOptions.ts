@@ -9,11 +9,7 @@ export function serializeClientLocator(locator: Locator, pageId: string, method:
   if (locator.descriptor.pageId !== pageId) {
     throw new TypeError(`${method}(): locator must belong to the target page`);
   }
-  const { selector, nth } = locator.descriptor;
-  return {
-    selector,
-    ...(nth === undefined ? {} : { nth }),
-  };
+  return { selector: locator.descriptor.selector };
 }
 
 export function serializeClientLocatorOptions<Options extends ClientLocatorOptions>(

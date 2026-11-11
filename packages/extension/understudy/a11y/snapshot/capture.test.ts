@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FrameContext, FrameDomMaps, SessionDomIndex } from "../../../types/private/index.js";
 import type { StagehandLogger } from "../../../logger.js";
 import { Page } from "../../page.js";
-import { Progress } from "../../progress.js";
-import { executionContexts } from "../../executionContextRegistry.js";
+import { Progress, runLocatorStep } from "../../progress.js";
 import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { a11yForFrame } from "./a11yTree.js";
 import {
@@ -14,8 +13,8 @@ import {
   tryScopedSnapshot,
 } from "./capture.js";
 import { domMapsForSession } from "./domTree.js";
-import * as focusSelectors from "./focusSelectors.js";
-import { resolveCssFocusFrameAndTail } from "./focusSelectors.js";
+import { resolveLocatorChain } from "../../locatorChain.js";
+import type { Frame } from "../../frame.js";
 import { ownerSession, parentSession } from "./sessions.js";
 
 vi.mock("./a11yTree.js", async (importOriginal) => ({
@@ -26,10 +25,7 @@ vi.mock("./domTree.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./domTree.js")>()),
   domMapsForSession: vi.fn(),
 }));
-vi.mock("./focusSelectors.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./focusSelectors.js")>()),
-  resolveCssFocusFrameAndTail: vi.fn(),
-}));
+vi.mock("../../locatorChain.js", () => ({ resolveLocatorChain: vi.fn() }));
 vi.mock("./sessions.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./sessions.js")>()),
   ownerSession: vi.fn(),
@@ -122,31 +118,20 @@ describe("snapshot frame document slicing", () => {
     },
   );
 
-  it("does not resolve an ignored child document to the parent document", async () => {
-    const session = { id: "root-session", send: vi.fn().mockResolvedValue({ backendNodeId: 4 }) };
-    vi.mocked(ownerSession).mockReturnValue(session as never);
-    const focus = vi
-      .spyOn(focusSelectors, "resolveFocusFrameAndTail")
-      .mockResolvedValue({ targetFrameId: "child", tailXPath: "/" } as never);
-    const context: FrameContext = {
-      rootId: "root",
-      frames: ["root", "child"],
-      parentByFrame: new Map([
-        ["root", null],
-        ["child", "root"],
-      ]),
-    };
-    try {
-      const ignored = await resolveIgnoredNodes(
-        {} as Page,
-        [{ selector: { type: "legacy" as const, value: "xpath=/iframe/" } }],
-        context,
-        new Map([[session.id, documentIndex()]]),
-      );
-      expect(ignored.size).toBe(0);
-    } finally {
-      focus.mockRestore();
-    }
+  it("skips an unresolved exclusion without excluding its parent", async () => {
+    vi.mocked(resolveLocatorChain).mockRejectedValue(new Error("Child unavailable"));
+    const page = { mainFrame: () => ({ frameId: "root" }) } as Page;
+    const ignored = await resolveIgnoredNodes(page, [
+      {
+        selector: {
+          steps: [
+            { type: "query", selector: { type: "css", value: "iframe" }, nth: 0 },
+            { type: "frame", selector: { type: "css", value: "body" } },
+          ],
+        },
+      },
+    ]);
+    expect(ignored.size).toBe(0);
   });
 
   it("does not give an unresolved excluded child the parent's whole interval", async () => {
@@ -277,7 +262,6 @@ describe("snapshot Unicode repair", () => {
   });
 
   it.each([
-    { type: "legacy" as const, value: "#target" },
     { type: "css" as const, value: '[data-label="a >> b"]' },
     { type: "xpath" as const, value: ".//article" },
     { type: "text" as const, value: "text=Pay >> now" },
@@ -285,11 +269,9 @@ describe("snapshot Unicode repair", () => {
     "preserves $type scope and repairs malformed Unicode in a scoped snapshot",
     async (selector) => {
       const malformedOutline = `[0-1] heading: Scoped ${String.fromCharCode(0xd83c)}`;
-      vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
-        targetFrameId: "root",
-        tailSelector: "#target",
-        absPrefix: "",
-      });
+      const frame = { frameId: "root" } as Frame;
+      const page = { mainFrame: () => frame } as Page;
+      vi.mocked(resolveLocatorChain).mockResolvedValue([{ frame, backendNodeId: 20 }]);
       vi.mocked(ownerSession).mockReturnValue({ id: "root" } as never);
       vi.mocked(domMapsForSession).mockResolvedValue(emptyMaps());
       vi.mocked(a11yForFrame).mockResolvedValue({
@@ -299,8 +281,8 @@ describe("snapshot Unicode repair", () => {
       });
 
       const snapshot = await tryScopedSnapshot(
-        {} as Page,
-        { focusLocator: { selector, nth: 2 } },
+        page,
+        { focusLocator: { selector: { steps: [{ type: "query", selector, nth: 2 }] } } },
         {
           rootId: "root",
           frames: ["root"],
@@ -326,60 +308,33 @@ describe("snapshot Unicode repair", () => {
         expect.anything(),
         "root",
         expect.objectContaining({
-          focusLocator: { selector, nth: 2 },
+          focusBackendNodeId: 20,
         }),
         undefined,
       );
     },
   );
 
-  it.each([
-    { selector: { type: "legacy" as const, value: ".card" }, kind: "css" },
-    { selector: { type: "css" as const, value: ".card" }, kind: "css" },
-    { selector: { type: "xpath" as const, value: ".//article" }, kind: "xpath" },
-    { selector: { type: "text" as const, value: "text=Pay >> now" }, kind: "text" },
-  ])("resolves only the indexed $selector.type ignored match", async ({ selector, kind }) => {
-    const session = {
-      id: "root-session",
-      send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
-        if (method === "DOM.describeNode" && params?.objectId === "object-second") {
-          return { node: { backendNodeId: 20 } };
-        }
-        if (method === "Runtime.releaseObject") return {};
-        throw new Error(`Unexpected method: ${method}`);
-      }),
+  it("groups all exclusion matches by their owning frame", async () => {
+    const root = { frameId: "root" } as Frame;
+    const child = { frameId: "child" } as Frame;
+    vi.mocked(resolveLocatorChain).mockResolvedValue([
+      { frame: root, backendNodeId: 20 },
+      { frame: child, backendNodeId: 30 },
+      { frame: child, backendNodeId: 30 },
+    ]);
+    const page = { mainFrame: () => root } as Page;
+    const selector = {
+      steps: [{ type: "query" as const, selector: { type: "css" as const, value: ".card" } }],
     };
-    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
-      targetFrameId: "root",
-      tailSelector: ".card",
-      absPrefix: "",
-    });
-    vi.mocked(ownerSession).mockReturnValue(session as never);
-    const resolveAtIndex = vi
-      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
-      .mockResolvedValue({ objectId: "object-second", nodeId: null });
-    const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll");
-
-    try {
-      const ignoredNodes = await resolveIgnoredNodes(
-        { logger: {} } as Page,
-        [{ selector, nth: 1 }],
-        {
-          rootId: "root",
-          frames: ["root"],
-          parentByFrame: new Map([["root", null]]),
-        },
-        new Map(),
-      );
-
-      expect(resolveAtIndex).toHaveBeenCalledWith({ kind, value: selector.value }, 1, undefined);
-      expect(resolveAll).not.toHaveBeenCalled();
-      expect(ignoredNodes.get("root")).toEqual(new Set([20]));
-      expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
-    } finally {
-      resolveAtIndex.mockRestore();
-      resolveAll.mockRestore();
-    }
+    const ignored = await resolveIgnoredNodes(page, [{ selector }]);
+    expect(ignored).toEqual(
+      new Map([
+        ["root", new Set([20])],
+        ["child", new Set([30])],
+      ]),
+    );
+    expect(resolveLocatorChain).toHaveBeenCalledWith(page, root, selector, undefined);
   });
 });
 
@@ -399,14 +354,11 @@ describe("snapshot progress ownership", () => {
     vi.mocked(ownerSession).mockReturnValue(session as never);
     vi.mocked(parentSession).mockReturnValue(session as never);
     vi.mocked(a11yForFrame).mockResolvedValue({ outline: "root", urlMap: {}, scopeApplied: false });
-    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
-      targetFrameId: "root",
-      tailSelector: ".card",
-      absPrefix: "",
-    });
+    vi.mocked(resolveLocatorChain).mockResolvedValue([]);
     page = Object.assign(Object.create(Page.prototype) as Page, {
       logger: { warn },
       mainFrameId: () => "root",
+      mainFrame: () => ({ frameId: "root", session }),
       listAllFrameIds: () => ["root", "child"],
       asProtocolFrameTree: () => ({
         frame: { id: "root" },
@@ -493,13 +445,21 @@ describe("snapshot progress ownership", () => {
   });
 
   it("does not turn focus expiry into a full-page fallback", async () => {
-    vi.mocked(resolveCssFocusFrameAndTail).mockImplementationOnce(async () => {
+    vi.mocked(resolveLocatorChain).mockImplementationOnce(async () => {
       vi.spyOn(performance, "now").mockReturnValue(20);
       throw new Error("focus unavailable");
     });
     await expect(
       page.captureSnapshot(
-        { focusLocator: { selector: { type: "legacy" as const, value: ".card" } } },
+        {
+          focusLocator: {
+            selector: {
+              steps: [
+                { type: "query" as const, selector: { type: "css" as const, value: ".card" } },
+              ],
+            },
+          },
+        },
         progress,
       ),
     ).rejects.toThrow(/extract timed out/);
@@ -512,23 +472,67 @@ describe("snapshot progress ownership", () => {
       {
         name: "css scope",
         options: {
-          focusLocator: { selector: { type: "legacy" as const, value: "iframe >> .card" } },
+          focusLocator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "iframe" },
+                  nth: 0,
+                },
+                { type: "frame" as const, selector: { type: "css" as const, value: ".card" } },
+              ],
+            },
+          },
         },
       },
       {
         name: "xpath scope",
         options: {
-          focusLocator: { selector: { type: "legacy" as const, value: "xpath=/iframe/div" } },
+          focusLocator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "xpath" as const, value: "/iframe" },
+                  nth: 0,
+                },
+                { type: "frame" as const, selector: { type: "xpath" as const, value: "/div" } },
+              ],
+            },
+          },
         },
       },
       {
         name: "ignore",
-        options: { ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" } }] },
+        options: {
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  { type: "query" as const, selector: { type: "css" as const, value: ".card" } },
+                ],
+              },
+            },
+          ],
+        },
       },
       {
         name: "indexed ignore",
         options: {
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" }, nth: 0 }],
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".card" },
+                    nth: 0,
+                  },
+                ],
+              },
+            },
+          ],
         },
       },
     ].flatMap((test) => [0, 10].map((timeout) => ({ ...test, timeout }))),
@@ -537,13 +541,14 @@ describe("snapshot progress ownership", () => {
     async ({ options, timeout }) => {
       progress.dispose();
       progress = new Progress("extract", timeout);
-      const actual = await vi.importActual<typeof focusSelectors>("./focusSelectors.js");
-      vi.mocked(resolveCssFocusFrameAndTail).mockImplementation(actual.resolveCssFocusFrameAndTail);
-      Object.assign(page, { getSessionForFrame: () => session });
-      executionContexts.register(session as never, "root", 1);
-      send.mockImplementation(async (method) =>
-        method === "Runtime.evaluate" ? { result: { value: "https:" } } : { root },
-      );
+      vi.mocked(resolveLocatorChain).mockImplementation(async (_page, _root, _chain, progress) => {
+        await runLocatorStep(
+          progress,
+          "querying scope",
+          () => new Promise((resolve) => setTimeout(resolve, 25)),
+        );
+        throw new Error("Locator unavailable");
+      });
 
       const result = page.captureSnapshot({ ...options, includeIframes: false }, progress);
       const checked = timeout
@@ -551,7 +556,6 @@ describe("snapshot progress ownership", () => {
         : expect(result).resolves.toMatchObject({ combinedTree: "root" });
       await vi.advanceTimersByTimeAsync(1100);
       await checked;
-      expect(send).toHaveBeenCalledWith("Runtime.enable");
       if (timeout) {
         await expect(result).rejects.toBe(progress.signal.reason);
         expect(a11yForFrame).not.toHaveBeenCalled();
@@ -564,6 +568,9 @@ describe("snapshot progress ownership", () => {
   );
 
   it("releases ignored-node references without continuing after expiry", async () => {
+    const actual =
+      await vi.importActual<typeof import("../../locatorChain.js")>("../../locatorChain.js");
+    vi.mocked(resolveLocatorChain).mockImplementation(actual.resolveLocatorChain);
     vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
       { nodeId: null, objectId: "first" },
       { nodeId: null, objectId: "second" },
@@ -577,7 +584,17 @@ describe("snapshot progress ownership", () => {
     });
     await expect(
       page.captureSnapshot(
-        { ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" } }] },
+        {
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  { type: "query" as const, selector: { type: "css" as const, value: ".card" } },
+                ],
+              },
+            },
+          ],
+        },
         progress,
       ),
     ).rejects.toThrow(/extract timed out/);

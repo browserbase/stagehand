@@ -247,10 +247,36 @@ describe("act service", () => {
         pageId: "page-1",
         instruction: "Click submit",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "main" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
           ignoreLocators: [
-            { selector: { type: "legacy" as const, value: "nav" } },
-            { selector: { type: "legacy" as const, value: ".cookie-banner" }, nth: 0 },
+            {
+              selector: {
+                steps: [
+                  { type: "query" as const, selector: { type: "css" as const, value: "nav" } },
+                ],
+              },
+            },
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".cookie-banner" },
+                    nth: 0,
+                  },
+                ],
+              },
+            },
           ],
         },
       },
@@ -262,10 +288,30 @@ describe("act service", () => {
 
     expect(captureSnapshot).toHaveBeenCalledWith(
       {
-        focusLocator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
+        focusLocator: {
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "main" }, nth: 1 },
+            ],
+          },
+        },
         ignoreLocators: [
-          { selector: { type: "legacy" as const, value: "nav" } },
-          { selector: { type: "legacy" as const, value: ".cookie-banner" }, nth: 0 },
+          {
+            selector: {
+              steps: [{ type: "query" as const, selector: { type: "css" as const, value: "nav" } }],
+            },
+          },
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: ".cookie-banner" },
+                  nth: 0,
+                },
+              ],
+            },
+          },
         ],
       },
       expect.any(Progress),
@@ -276,8 +322,20 @@ describe("act service", () => {
     const frame = {};
     const captureSnapshot = vi.fn(async (options) => {
       expect(options).toStrictEqual({
-        focusLocator: { selector: { type: "legacy" as const, value: "main" } },
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: ".promo" } }],
+        focusLocator: {
+          selector: {
+            steps: [{ type: "query" as const, selector: { type: "css" as const, value: "main" } }],
+          },
+        },
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                { type: "query" as const, selector: { type: "css" as const, value: ".promo" } },
+              ],
+            },
+          },
+        ],
       });
       return {
         combinedTree: "[0-12] button: Checkout",
@@ -300,8 +358,22 @@ describe("act service", () => {
         pageId: "page-1",
         instruction: "Click checkout",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" } },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".promo" } }],
+          locator: {
+            selector: {
+              steps: [
+                { type: "query" as const, selector: { type: "css" as const, value: "main" } },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  { type: "query" as const, selector: { type: "css" as const, value: ".promo" } },
+                ],
+              },
+            },
+          ],
         },
       },
       page,
@@ -664,8 +736,30 @@ describe("act service", () => {
         instruction: "Click checkout",
         options: {
           cache: true,
-          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".promo" }, nth: 0 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "main" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".promo" },
+                    nth: 0,
+                  },
+                ],
+              },
+            },
+          ],
         },
       },
       page,
@@ -682,8 +776,26 @@ describe("act service", () => {
     expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
     expect(captureSnapshot).toHaveBeenCalledWith(
       {
-        focusLocator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: ".promo" }, nth: 0 }],
+        focusLocator: {
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "main" }, nth: 1 },
+            ],
+          },
+        },
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: ".promo" },
+                  nth: 0,
+                },
+              ],
+            },
+          },
+        ],
       },
       expect.any(Progress),
     );

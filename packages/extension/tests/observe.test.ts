@@ -130,8 +130,30 @@ describe("observe service", () => {
         pageId: "page-1",
         instruction: "Find form and drag controls",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "xpath=//main" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "xpath" as const, value: "//main" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: "nav" },
+                    nth: 2,
+                  },
+                ],
+              },
+            },
+          ],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -149,8 +171,30 @@ describe("observe service", () => {
 
     expect(captureSnapshot).toHaveBeenCalledWith(
       {
-        focusLocator: { selector: { type: "legacy" as const, value: "xpath=//main" }, nth: 1 },
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+        focusLocator: {
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "xpath" as const, value: "//main" },
+                nth: 1,
+              },
+            ],
+          },
+        },
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 2,
+                },
+              ],
+            },
+          },
+        ],
       },
       expect.any(Progress),
     );
@@ -270,8 +314,30 @@ describe("observe service", () => {
         instruction: "Find the submit button",
         options: {
           cache: true,
-          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "main" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: "nav" },
+                    nth: 2,
+                  },
+                ],
+              },
+            },
+          ],
         },
       },
       page,
@@ -291,8 +357,26 @@ describe("observe service", () => {
     expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
     expect(page.captureSnapshot).toHaveBeenCalledWith(
       {
-        focusLocator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+        focusLocator: {
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "main" }, nth: 1 },
+            ],
+          },
+        },
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 2,
+                },
+              ],
+            },
+          },
+        ],
       },
       expect.any(Progress),
     );

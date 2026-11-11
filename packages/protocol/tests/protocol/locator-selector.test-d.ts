@@ -1,8 +1,7 @@
 import { expectTypeOf } from "vitest";
 import type {
   CssLocatorSelector,
-  LegacyLocatorSelector,
-  LocatorSelector,
+  LocatorQuerySelector,
   TextLocatorSelector,
   XPathLocatorSelector,
 } from "../../types.js";
@@ -13,15 +12,16 @@ expectTypeOf<TextLocatorSelector>().toEqualTypeOf<{
   type: "text";
   value: string;
 }>();
-expectTypeOf<LegacyLocatorSelector>().toEqualTypeOf<{ type: "legacy"; value: string }>();
-expectTypeOf<LocatorSelector>().toEqualTypeOf<
-  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | LegacyLocatorSelector
+expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
+  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector
 >();
-expectTypeOf<Extract<LocatorSelector, { type: "text" }>>().toEqualTypeOf<TextLocatorSelector>();
+expectTypeOf<
+  Extract<LocatorQuerySelector, { type: "text" }>
+>().toEqualTypeOf<TextLocatorSelector>();
 
 // @ts-expect-error Selectors require a known discriminator.
-({ type: "role", value: "button" }) satisfies LocatorSelector;
+({ type: "role", value: "button" }) satisfies LocatorQuerySelector;
 // @ts-expect-error Selector values must be strings.
-({ type: "text", value: 123 }) satisfies LocatorSelector;
+({ type: "text", value: 123 }) satisfies LocatorQuerySelector;
 // @ts-expect-error The protocol selector type does not accept bare strings.
-"button" satisfies LocatorSelector;
+"button" satisfies LocatorQuerySelector;

@@ -3,13 +3,9 @@ import {
   withLocatorIndex,
   type LocatorInput,
 } from "./locatorSelector.js";
-import {
-  LocatorChainSchema,
-  LocatorDescriptorSchema,
-} from "@browserbasehq/stagehand-protocol/schemas";
+import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
-  LocatorChain,
   LocatorClickParams,
   LocatorCentroidResult,
   LocatorDescriptor,
@@ -31,21 +27,13 @@ export type LocatorSendClickEventOptions = NonNullable<LocatorSendClickEventPara
 export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
 
 export class Locator {
-  readonly descriptor: LocatorDescriptor & { selector: LocatorChain };
+  readonly descriptor: LocatorDescriptor;
 
   constructor(
     readonly rpcClient: StagehandCommandClient,
     descriptor: LocatorDescriptor,
   ) {
-    const parsed = LocatorDescriptorSchema.parse(descriptor);
-    const chain =
-      "steps" in parsed.selector
-        ? LocatorChainSchema.parse(parsed.selector)
-        : normalizeLocatorSelector(parsed.selector);
-    this.descriptor = {
-      pageId: parsed.pageId,
-      selector: parsed.nth === undefined ? chain : withLocatorIndex(chain, parsed.nth),
-    };
+    this.descriptor = LocatorDescriptorSchema.parse(descriptor);
   }
 
   locator(selector: LocatorInput): Locator {

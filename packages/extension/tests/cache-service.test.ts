@@ -213,8 +213,30 @@ describe("cache service", () => {
         pageId: "page-1",
         instruction: "Click the answer",
         options: {
-          locator: { selector: { type: "legacy" as const, value: ".card" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".ad" }, nth: 2 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: ".card" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".ad" },
+                    nth: 2,
+                  },
+                ],
+              },
+            },
+          ],
         },
       }),
     ).toStrictEqual({
@@ -230,8 +252,30 @@ describe("cache service", () => {
         pageId: "page-1",
         instruction: "Find the answer",
         options: {
-          locator: { selector: { type: "legacy" as const, value: ".card" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".ad" }, nth: 2 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: ".card" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".ad" },
+                    nth: 2,
+                  },
+                ],
+              },
+            },
+          ],
         },
       }),
     ).toStrictEqual({
@@ -248,8 +292,30 @@ describe("cache service", () => {
         instruction: "Extract the answer",
         schema: { type: "object" },
         options: {
-          locator: { selector: { type: "legacy" as const, value: ".card" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".ad" }, nth: 2 }],
+          locator: {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: ".card" },
+                  nth: 1,
+                },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: ".ad" },
+                    nth: 2,
+                  },
+                ],
+              },
+            },
+          ],
           screenshot: false,
         },
       }),
@@ -271,7 +337,17 @@ describe("cache service", () => {
     const result = await cacheService.withCache({
       ...baseArgs(),
       bypass: cacheService.shouldBypassCacheForLocatorScope({
-        locator: { selector: { type: "legacy" as const, value: ".card" }, nth: 2 },
+        locator: {
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: ".card" },
+                nth: 2,
+              },
+            ],
+          },
+        },
       }),
       context: cacheContext(get, set),
       onHit: (value): TestResult => ({

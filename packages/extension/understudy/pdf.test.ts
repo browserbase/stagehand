@@ -58,11 +58,16 @@ describe("Page.pdf", () => {
     vi.useFakeTimers();
     const progress = new Progress("extract", 105);
     const locator = new Locator(page.mainFrame(), ".mask");
-    const mask = page.deepLocator("iframe >> .mask");
-    vi.spyOn(mask, "real").mockImplementation(async (received) => {
+    const mask = page.deepLocator({
+      steps: [
+        { type: "query", selector: { type: "css", value: "iframe" } },
+        { type: "frame", selector: { type: "css", value: ".mask" } },
+      ],
+    });
+    vi.spyOn(mask, "allForMask").mockImplementation(async (received) => {
       expect(received).toBe(progress);
       await progress.delay(10);
-      return locator;
+      return [locator];
     });
     const resolve = vi
       .spyOn(locator.selectorResolver, "resolveAll")

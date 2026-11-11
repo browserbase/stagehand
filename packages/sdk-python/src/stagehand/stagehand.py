@@ -83,8 +83,6 @@ def _serialize_locator(locator: Locator, page_id: str, method: str) -> ProtocolL
     selector = cast(
         LocatorChainInput, locator.descriptor.selector.model_dump(mode="json", exclude_unset=True)
     )
-    if locator.descriptor.nth is not None:
-        return ProtocolLocator(selector=selector, nth=locator.descriptor.nth)
     return ProtocolLocator(selector=selector)
 
 

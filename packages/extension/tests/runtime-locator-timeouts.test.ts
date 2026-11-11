@@ -53,7 +53,16 @@ describe("runtime locator deadlines", () => {
         ) => Promise<unknown>;
         const pending = invoke.call(runtime, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "iframe >> button" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "iframe" },
+                nth: 0,
+              },
+              { type: "frame" as const, selector: { type: "css" as const, value: "button" } },
+            ],
+          },
           ...fields[key],
           ...(options ? { options } : {}),
         });

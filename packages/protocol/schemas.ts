@@ -472,26 +472,6 @@ export const TextLocatorSelectorSchema = z
   .meta({ id: "TextLocatorSelector" });
 
 /**
- * Preserve existing string interpretation, including iframe hops and deep XPath.
- * This is an explicit selector variant, not an unstructured string on the wire.
- */
-export const LegacyLocatorSelectorSchema = z
-  .strictObject({
-    type: z.literal("legacy"),
-    value: z.string().min(1),
-  })
-  .meta({ id: "LegacyLocatorSelector" });
-
-export const LocatorSelectorSchema = z
-  .discriminatedUnion("type", [
-    CssLocatorSelectorSchema,
-    XPathLocatorSelectorSchema,
-    TextLocatorSelectorSchema,
-    LegacyLocatorSelectorSchema,
-  ])
-  .meta({ id: "LocatorSelector" });
-
-/**
  * A single engine query, with no legacy prefix or frame-hop interpretation.
  * Chain normalization belongs at the SDK boundary.
  */
@@ -545,8 +525,7 @@ export const LocatorChainSchema = z
 
 export const LocatorSchema = z
   .strictObject({
-    selector: z.union([LocatorSelectorSchema, LocatorChainSchema]),
-    nth: z.number().int().nonnegative().optional(),
+    selector: LocatorChainSchema,
   })
   .meta({ id: "Locator" });
 

@@ -6,7 +6,7 @@ from typing import Literal, NotRequired, TypedDict
 import httpx
 
 from ._generated.input_types import (
-    LocatorSelector,
+    LocatorQuerySelector,
     ModelConfig,
     TelemetryConfig,
 )
@@ -18,6 +18,13 @@ from ._generated.models import (
     StagehandLog,
 )
 
+
+class LegacyLocatorSelector(TypedDict):
+    type: Literal["legacy"]
+    value: str
+
+
+LocatorSelector = LocatorQuerySelector | LegacyLocatorSelector
 LocatorInput = str | LocatorSelector
 
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams

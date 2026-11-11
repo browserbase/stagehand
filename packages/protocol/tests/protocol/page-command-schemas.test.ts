@@ -281,7 +281,20 @@ describe("page command schemas", () => {
           type: "jpeg",
           quality: 80,
           clip: { x: 0, y: 0, width: 640, height: 480 },
-          mask: [{ pageId, selector: { type: "legacy" as const, value: "[data-secret]" }, nth: 0 }],
+          mask: [
+            {
+              pageId,
+              selector: {
+                steps: [
+                  {
+                    type: "query" as const,
+                    selector: { type: "css" as const, value: "[data-secret]" },
+                    nth: 0,
+                  },
+                ],
+              },
+            },
+          ],
         },
       }),
     ).toStrictEqual({
@@ -290,7 +303,20 @@ describe("page command schemas", () => {
         type: "jpeg",
         quality: 80,
         clip: { x: 0, y: 0, width: 640, height: 480 },
-        mask: [{ pageId, selector: { type: "legacy" as const, value: "[data-secret]" }, nth: 0 }],
+        mask: [
+          {
+            pageId,
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "[data-secret]" },
+                  nth: 0,
+                },
+              ],
+            },
+          },
+        ],
       },
     });
     expect(PageScreenshotResultSchema.parse({ data: "iVBORw==" })).toStrictEqual({

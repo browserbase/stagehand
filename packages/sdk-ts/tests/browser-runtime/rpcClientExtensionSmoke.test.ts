@@ -152,13 +152,27 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#blank-page-button" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#blank-page-button" },
+              },
+            ],
+          },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#blank-page-button" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#blank-page-button" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("Clicked");
     } finally {
@@ -187,7 +201,10 @@ describe("Stagehand service worker RPC client smoke", () => {
         { type: "text", value: 'text="Pay" >> now' },
       ] as const) {
         await expect(
-          client.send(StagehandMethods.locatorTextContent, { pageId: page.pageId, selector }),
+          client.send(StagehandMethods.locatorTextContent, {
+            pageId: page.pageId,
+            selector: { steps: [{ type: "query", selector }] },
+          }),
         ).resolves.toBe('text="Pay" >> now');
       }
     } finally {
@@ -445,7 +462,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#locator-message" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#locator-message" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -466,13 +490,21 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-button" },
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "#data-button" } },
+            ],
+          },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-button" },
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "#data-button" } },
+            ],
+          },
         }),
       ).resolves.toBe("Clicked");
 
@@ -488,7 +520,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-shadow-text" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#data-shadow-text" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("Open shadow");
       await expect(
@@ -514,7 +553,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#locator-message" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#locator-message" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -588,21 +634,39 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("locator text");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-input" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-input" } },
+          ],
+        },
         value: "user@example.com",
       }),
     ).resolves.toStrictEqual({
@@ -612,7 +676,14 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorClick, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-button" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-button" },
+            },
+          ],
+        },
       }),
     ).resolves.toStrictEqual({
       clicked: true,
@@ -621,70 +692,134 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-output" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-output" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("clicked:user@example.com");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-date" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-date" } },
+          ],
+        },
         value: "2026-07-21",
       }),
     ).resolves.toStrictEqual({ filled: true });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorInputValue, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-date" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-date" } },
+          ],
+        },
       }),
     ).resolves.toBe("2026-07-21");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#closed-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#closed-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe(true);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "xpath=//div[@id='closed-host']//p[1]" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "xpath" as const, value: "//div[@id='closed-host']//p[1]" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed root text");
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#shadow-frame >> #frame-closed-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#shadow-frame" },
+              nth: 0,
+            },
+            {
+              type: "frame" as const,
+              selector: { type: "css" as const, value: "#frame-closed-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed root iframe text");
 
     await activeRpcClient.send(StagehandMethods.locatorFill, {
       pageId: page.pageId,
-      selector: { type: "legacy" as const, value: "#closed-input" },
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "#closed-input" } },
+        ],
+      },
       value: "inside closed root",
     });
     await activeRpcClient.send(StagehandMethods.locatorClick, {
       pageId: page.pageId,
-      selector: { type: "legacy" as const, value: "#closed-button" },
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "#closed-button" } },
+        ],
+      },
     });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#closed-output" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#closed-output" } },
+          ],
+        },
       }),
     ).resolves.toBe("clicked:inside closed root");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorCount, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: ".mixed-shadow" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: ".mixed-shadow" } },
+          ],
+        },
       }),
     ).resolves.toBe(3);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: ".mixed-shadow" },
-        nth: 1,
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: ".mixed-shadow" },
+              nth: 1,
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed");
 

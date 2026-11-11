@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LocatorSelectorSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import cases from "../../../tests/fixtures/locator-normalization.json" with { type: "json" };
-import { normalizeLocatorSelector } from "../src/locatorSelector.js";
+import { LocatorSelectorSchema, normalizeLocatorSelector } from "../src/locatorSelector.js";
 
 describe("SDK locator normalization", () => {
   it.each(cases)("normalizes $input into engine and frame steps", ({ input, chain }) => {

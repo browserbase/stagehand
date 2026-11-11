@@ -232,7 +232,9 @@ async def test_send_omits_unset_nested_file_metadata() -> None:
             "locator.set_input_files",
             models.LocatorSetInputFilesParams(
                 page_id="page-1",
-                selector={"type": "legacy", "value": "#upload"},
+                selector={
+                    "steps": [{"type": "query", "selector": {"type": "css", "value": "#upload"}}]
+                },
                 files=normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
             ),
             models.LocatorSetInputFilesResult,
@@ -242,7 +244,7 @@ async def test_send_omits_unset_nested_file_metadata() -> None:
 
     assert request["params"] == {
         "page_id": "page-1",
-        "selector": {"type": "legacy", "value": "#upload"},
+        "selector": {"steps": [{"type": "query", "selector": {"type": "css", "value": "#upload"}}]},
         "files": [{"name": "hello.txt", "data": "aGVsbG8="}],
     }
     await transport.incoming.put({
@@ -309,7 +311,10 @@ async def test_send_revalidates_mutated_params_and_strictly_validates_results() 
             client.send(
                 "locator.count",
                 models.LocatorDescriptor(
-                    page_id="page-1", selector={"type": "legacy", "value": "button"}
+                    page_id="page-1",
+                    selector={
+                        "steps": [{"type": "query", "selector": {"type": "css", "value": "button"}}]
+                    },
                 ),
                 models.LocatorCountResult,
             )
@@ -884,7 +889,7 @@ def test_locator_response_deadlines(
 ) -> None:
     params = models.LocatorParams.model_validate({
         "page_id": "page-1",
-        "selector": {"type": "legacy", "value": "button"},
+        "selector": {"steps": [{"type": "query", "selector": {"type": "css", "value": "button"}}]},
         **({"options": options} if options is not None else {}),
     })
     assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
@@ -903,7 +908,7 @@ async def test_locator_response_wait_uses_default_override_and_zero(
     client = RPCClient(transport)
     params = models.LocatorParams.model_validate({
         "page_id": "page-1",
-        "selector": {"type": "legacy", "value": "button"},
+        "selector": {"steps": [{"type": "query", "selector": {"type": "css", "value": "button"}}]},
         **({"options": {"timeout": timeout}} if timeout is not None else {}),
     })
     call = asyncio.create_task(client.send("locator.count", params, models.LocatorCountResult))
@@ -972,7 +977,7 @@ async def test_canceling_a_locator_task_stops_the_client_wait(timeout: float | N
     client = RPCClient(transport)
     params = models.LocatorParams.model_validate({
         "page_id": "page-1",
-        "selector": {"type": "legacy", "value": "button"},
+        "selector": {"steps": [{"type": "query", "selector": {"type": "css", "value": "button"}}]},
         **({"options": {"timeout": timeout}} if timeout is not None else {}),
     })
     call = asyncio.create_task(client.send("locator.count", params, models.LocatorCountResult))
@@ -997,7 +1002,12 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
     call = asyncio.create_task(
         client.send(
             "locator.count",
-            models.LocatorParams(page_id="page-1", selector={"type": "legacy", "value": "button"}),
+            models.LocatorParams(
+                page_id="page-1",
+                selector={
+                    "steps": [{"type": "query", "selector": {"type": "css", "value": "button"}}]
+                },
+            ),
             models.LocatorCountResult,
         )
     )

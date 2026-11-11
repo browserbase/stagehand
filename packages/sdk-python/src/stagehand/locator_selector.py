@@ -1,9 +1,32 @@
 """Normalize SDK locator inputs into engine queries and explicit frame hops."""
 
 import re
+from typing import Annotated, Literal
 
-from ._generated.models import LocatorChain, LocatorSelector
+from pydantic import ConfigDict, Field, RootModel
+
+from ._generated.models import (
+    CssLocatorSelector,
+    LocatorChain,
+    TextLocatorSelector,
+    XPathLocatorSelector,
+)
+from ._validation import WireModel
 from .client_types import LocatorInput
+
+
+class LegacyLocatorSelector(WireModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["legacy"]
+    value: Annotated[str, Field(min_length=1)]
+
+
+class LocatorSelector(
+    RootModel[
+        CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | LegacyLocatorSelector
+    ]
+):
+    pass
 
 
 def normalize_locator_selector(value: LocatorInput) -> LocatorChain:

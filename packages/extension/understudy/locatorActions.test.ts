@@ -71,7 +71,12 @@ function createLocator(selector = "button") {
 function runPublicAction(locator: Locator, action: "highlight" | "upload") {
   const runtime = createStagehandRuntime();
   vi.spyOn(runtime, "resolveLocator").mockReturnValue(locator);
-  const descriptor = { pageId: "page-1", selector: { type: "legacy" as const, value: "button" } };
+  const descriptor = {
+    pageId: "page-1",
+    selector: {
+      steps: [{ type: "query" as const, selector: { type: "css" as const, value: "button" } }],
+    },
+  };
   return action === "highlight"
     ? runtime.locatorHighlight({ ...descriptor, options: { durationMs: 0, timeout: 100 } })
     : runtime.locatorSetInputFiles({
@@ -110,10 +115,11 @@ afterEach(() => vi.restoreAllMocks());
 describe.each(["direct", "deep", "frame"] as const)("%s locator progress forwarding", (kind) => {
   const supported = actions.filter(
     ([method]) =>
-      kind !== "frame" ||
-      !["sendClickEvent", "centroid", "backendNodeId", "highlight", "setInputFiles"].includes(
-        method,
-      ),
+      !(kind === "deep" && method === "count") &&
+      (kind !== "frame" ||
+        !["sendClickEvent", "centroid", "backendNodeId", "highlight", "setInputFiles"].includes(
+          method,
+        )),
   );
 
   it.each(supported)("passes the caller's progress through %s", async (method, args) => {
@@ -122,7 +128,9 @@ describe.each(["direct", "deep", "frame"] as const)("%s locator progress forward
       kind === "direct"
         ? undefined
         : kind === "deep"
-          ? new DeepLocatorDelegate({} as Page, frame, "button")
+          ? new DeepLocatorDelegate({} as Page, frame, {
+              steps: [{ type: "query", selector: { type: "css", value: "button" } }],
+            })
           : frameLocatorFromFrame({} as Page, frame, "iframe").locator("button");
     const real = delegate ? vi.spyOn(delegate, "real").mockResolvedValue(locator) : undefined;
     const target: Partial<Pick<Locator, Action>> = delegate ?? locator;
@@ -273,7 +281,9 @@ describe("locator action deadlines", () => {
 
   it("uses only the remaining budget after deep resolution", async () => {
     const { locator, frame, send } = createLocator();
-    const delegate = new DeepLocatorDelegate({} as Page, frame, "button");
+    const delegate = new DeepLocatorDelegate({} as Page, frame, {
+      steps: [{ type: "query", selector: { type: "css", value: "button" } }],
+    });
     vi.spyOn(delegate, "real").mockImplementation(async (progress) => {
       await progress!.delay(60);
       return locator;

@@ -37,7 +37,7 @@ describe("chain handle ownership", () => {
       { objectId: "card-1", nodeId: null },
       { objectId: "card-2", nodeId: null },
     ]);
-    await expect(resolveLocatorChain({} as Page, frame, chain, undefined)).resolves.toEqual([
+    await expect(resolveLocatorChain({} as Page, frame, chain)).resolves.toEqual([
       { frame, backendNodeId: 3 },
     ]);
     expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
@@ -65,9 +65,7 @@ describe("chain handle ownership", () => {
     ]);
     // Both handles describe the same element; deduplication happens before nth.
     const plan: LocatorChain = { steps: [{ ...chain.steps[0]!, nth: 0 }, chain.steps[1]!] };
-    await expect(resolveLocatorChain({} as Page, frame, plan, undefined)).rejects.toThrow(
-      "Invalid selector",
-    );
+    await expect(resolveLocatorChain({} as Page, frame, plan)).rejects.toThrow("Invalid selector");
     for (const objectId of ["card-1", "card-2", "error-object"]) {
       expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId });
     }
@@ -91,9 +89,9 @@ describe("chain handle ownership", () => {
     const progress = new Progress("chain", 20);
     const plan: LocatorChain = { steps: [{ ...chain.steps[0]!, nth: 0 }, chain.steps[1]!] };
     try {
-      await expect(
-        resolveLocatorChain({} as Page, frame, plan, undefined, progress),
-      ).rejects.toThrow(/timed out/);
+      await expect(resolveLocatorChain({} as Page, frame, plan, progress)).rejects.toThrow(
+        /timed out/,
+      );
       expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "card-2" });
       complete({ result: { objectId: "late-button" } });
       await vi.waitFor(() =>

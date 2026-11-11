@@ -18,7 +18,7 @@ export {
   type LocatorSendClickEventOptions,
   type LocatorTypeOptions,
 } from "./locator.js";
-export type { LocatorInput } from "./locatorSelector.js";
+export type { LocatorInput, LegacyLocatorSelector, LocatorSelector } from "./locatorSelector.js";
 export type { FileInput, FilePayload } from "./fileUpload.js";
 export {
   CDPSubscription,
@@ -94,8 +94,6 @@ export type {
   CssLocatorSelector,
   XPathLocatorSelector,
   TextLocatorSelector,
-  LegacyLocatorSelector,
-  LocatorSelector,
   ModelConfig,
   ModelName,
   MouseButton,

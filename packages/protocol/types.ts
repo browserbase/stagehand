@@ -89,8 +89,6 @@ import type {
   CssLocatorSelectorSchema,
   XPathLocatorSelectorSchema,
   TextLocatorSelectorSchema,
-  LegacyLocatorSelectorSchema,
-  LocatorSelectorSchema,
   LocatorQuerySelectorSchema,
   LocatorQueryStepSchema,
   LocatorFrameStepSchema,
@@ -275,8 +273,6 @@ export type Locator = z.infer<typeof LocatorSchema>;
 export type CssLocatorSelector = z.infer<typeof CssLocatorSelectorSchema>;
 export type XPathLocatorSelector = z.infer<typeof XPathLocatorSelectorSchema>;
 export type TextLocatorSelector = z.infer<typeof TextLocatorSelectorSchema>;
-export type LegacyLocatorSelector = z.infer<typeof LegacyLocatorSelectorSchema>;
-export type LocatorSelector = z.infer<typeof LocatorSelectorSchema>;
 export type LocatorQuerySelector = z.infer<typeof LocatorQuerySelectorSchema>;
 export type LocatorQueryStep = z.infer<typeof LocatorQueryStepSchema>;
 export type LocatorFrameStep = z.infer<typeof LocatorFrameStepSchema>;

@@ -366,10 +366,22 @@ describe("extract service", () => {
       name: "focus locator",
       options: {
         cache: true,
-        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
+        locator: {
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "main" }, nth: 1 },
+            ],
+          },
+        },
       },
       expectedSnapshotOptions: {
-        focusLocator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
+        focusLocator: {
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "main" }, nth: 1 },
+            ],
+          },
+        },
         ignoreLocators: undefined,
       },
     },
@@ -377,11 +389,35 @@ describe("extract service", () => {
       name: "ignore locator",
       options: {
         cache: true,
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 2,
+                },
+              ],
+            },
+          },
+        ],
       },
       expectedSnapshotOptions: {
         focusLocator: undefined,
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 2,
+                },
+              ],
+            },
+          },
+        ],
       },
     },
   ])(

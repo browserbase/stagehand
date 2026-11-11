@@ -3,175 +3,37 @@ import { Locator } from "./locator.js";
 import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
-import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
-import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
-import type {
-  LocatorDescriptor,
-  LocatorSelector,
-  MouseButton,
-} from "@browserbasehq/stagehand-protocol/types";
+import type { LocatorDescriptor, MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
-type Axis = "child" | "desc";
-type Step = { axis: Axis; raw: string; name: string };
-
-export type ResolvedLocatorTarget = {
-  frame: Frame;
-  selector: string;
-};
-
-/** Parse XPath into steps preserving '/' vs '//' and the raw token (with [n]) */
-function parseXPath(path: string): Step[] {
-  const s = path.trim();
-  let i = 0;
-  const steps: Step[] = [];
-  while (i < s.length) {
-    let axis: Axis = "child";
-    if (s.startsWith("//", i)) {
-      axis = "desc";
-      i += 2;
-    } else if (s[i] === "/") {
-      axis = "child";
-      i += 1;
-    }
-
-    const start = i;
-    while (i < s.length && s[i] !== "/") i++;
-    const raw = s.slice(start, i).trim();
-    if (!raw) continue;
-
-    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
-    steps.push({ axis, raw, name });
-  }
-  return steps;
-}
-
-function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
-  let out = "";
-  for (const st of steps) {
-    out += st.axis === "desc" ? "//" : "/";
-    out += st.raw; // keep predicates intact
-  }
-  return out || "/";
-}
-
-/** Build a Locator scoped to the correct frame for a deep XPath crossing iframes. */
-export async function deepLocatorThroughIframes(
-  page: Page,
-  root: Frame,
-  xpathOrSelector: string,
-  progress?: Progress,
-): Promise<Locator> {
-  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector, progress);
-  return new Locator(target.frame, target.selector);
-}
-
-/**
- * Unified resolver that supports '>>' hop notation, deep XPath across iframes,
- * and plain single-frame selectors. Keeps hop logic in one shared place.
- */
-export async function resolveLocatorTarget(
-  page: Page,
-  root: Frame,
-  selectorRaw: string,
-  progress?: Progress,
-): Promise<ResolvedLocatorTarget> {
-  progress?.throwIfStopped();
-  const sel = selectorRaw.trim();
-  const parts = sel
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (parts.length > 1) {
-    // Build a FrameLocator chain for all but the last segment
-    let fl = frameLocatorFromFrame(page, root, parts[0]!);
-    for (let i = 1; i < parts.length - 1; i++) {
-      fl = fl.frameLocator(parts[i]!);
-    }
-    const targetFrame = await fl.resolveFrame(progress);
-    return { frame: targetFrame, selector: parts[parts.length - 1]! };
-  }
-
-  // No hops — delegate to XPath-aware deep resolver when needed
-  const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
-  if (isXPath) {
-    return resolveDeepXPathTarget(page, root, sel, progress);
-  }
-  return { frame: root, selector: sel };
-}
-
-export async function resolveLocatorWithHops(
-  page: Page,
-  root: Frame,
-  selectorRaw: string | LocatorSelector,
-  progress?: Progress,
-): Promise<Locator> {
-  if (typeof selectorRaw !== "string") {
-    if (selectorRaw.type !== "legacy") return new Locator(root, selectorRaw);
-    selectorRaw = selectorRaw.value;
-  }
-  const target = await resolveLocatorTarget(page, root, selectorRaw, progress);
-  return new Locator(target.frame, target.selector);
-}
-
-/**
- * DeepLocatorDelegate: a lightweight wrapper that looks like a Locator and
- * resolves to the correct frame/element on each call using hop/deep-XPath logic.
- *
- * Returned by `page.deepLocator()` for ergonomic, await-free chaining:
- *   page.deepLocator('iframe#ifrA >> #btn').click()
- */
+/** Lazily resolve a structured locator chain for each operation. */
 export class DeepLocatorDelegate {
   constructor(
     readonly page: Page,
     readonly root: Frame,
-    readonly selector: string | LocatorDescriptor["selector"],
-    // -1 preserves every match for operations such as screenshot masking while
-    // ordinary single-element operations still resolve their first match.
-    readonly nthIndex: number = -1,
+    readonly selector: LocatorDescriptor["selector"],
   ) {}
 
   async real(progress?: Progress): Promise<Locator> {
-    if (typeof this.selector !== "string" && "steps" in this.selector) {
-      const targets = await this.chainTargets(progress);
-      const first = targets[0];
-      if (!first) throw new Error("Could not find an element for the locator chain");
-      return first;
-    }
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
-    return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
+    const [first] = await this.chainTargets(progress);
+    if (!first) throw new Error("Could not find an element for the locator chain");
+    return first;
   }
 
-  // Locator API delegates
   async click(options?: { button?: MouseButton; clickCount?: number }, progress?: Progress) {
     return (await this.real(progress)).click(options, progress);
   }
+
   async count(progress?: Progress) {
-    if (typeof this.selector !== "string" && "steps" in this.selector) {
-      return (await this.chainTargets(progress)).length;
-    }
-    return (await this.real(progress)).count(progress);
+    return (await this.chainTargets(progress)).length;
   }
 
   async allForMask(progress: Progress): Promise<Locator[]> {
-    if (typeof this.selector !== "string" && "steps" in this.selector) {
-      return this.chainTargets(progress);
-    }
-    return [await this.real(progress)];
+    return this.chainTargets(progress);
   }
 
   private async chainTargets(progress?: Progress): Promise<Locator[]> {
-    if (typeof this.selector === "string" || !("steps" in this.selector)) {
-      throw new Error("Expected a locator chain");
-    }
-    const targets = await resolveLocatorChain(
-      this.page,
-      this.root,
-      this.selector,
-      this.nthIndex < 0 ? undefined : this.nthIndex,
-      progress,
-    );
+    const targets = await resolveLocatorChain(this.page, this.root, this.selector, progress);
     const selector = this.selector.steps.at(-1)!.selector;
     return targets.map((target) => new ChainTargetLocator(target, selector));
   }
@@ -238,76 +100,13 @@ export class DeepLocatorDelegate {
   async setInputFiles(files: SetInputFilesArgument, progress?: Progress) {
     return (await this.real(progress)).setInputFiles(files, progress);
   }
-  first() {
-    return this.nth(0);
-  }
-  nth(index: number): DeepLocatorDelegate {
-    const value = Number(index);
-    if (!Number.isFinite(value) || value < 0) {
-      throw new RangeError("deepLocator().nth() expects a non-negative index");
-    }
-
-    const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) return this;
-
-    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
-  }
 }
 
 /** Factory to create a deep locator delegate from a Page + root frame. */
 export function deepLocatorFromPage(
   page: Page,
   root: Frame,
-  selector: string | LocatorDescriptor["selector"],
+  selector: LocatorDescriptor["selector"],
 ): DeepLocatorDelegate {
   return new DeepLocatorDelegate(page, root, selector);
-}
-
-/**
- * Plan deep-XPath frame hops without resolving frames.
- * An iframe/frame step becomes a hop only when further selector steps follow it,
- * so a trailing iframe remains a parent-frame element target.
- */
-export function planDeepXPathTarget(xpathOrSelector: string): {
-  frameHopSelectors: string[];
-  finalSelector: string;
-} {
-  let path = xpathOrSelector.trim();
-  if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
-  if (!path.startsWith("/")) path = "/" + path;
-
-  const steps = parseXPath(path);
-  const frameHopSelectors: string[] = [];
-  let buf: Step[] = [];
-
-  for (let i = 0; i < steps.length; i++) {
-    const st = steps[i]!;
-    buf.push(st);
-    const hasStepsAfter = i < steps.length - 1;
-    if (IFRAME_STEP_RE.test(st.name) && hasStepsAfter) {
-      frameHopSelectors.push("xpath=" + buildXPathFromSteps(buf));
-      buf = [];
-    }
-  }
-
-  return {
-    frameHopSelectors,
-    finalSelector: "xpath=" + buildXPathFromSteps(buf),
-  };
-}
-
-async function resolveDeepXPathTarget(
-  page: Page,
-  root: Frame,
-  xpathOrSelector: string,
-  progress?: Progress,
-): Promise<ResolvedLocatorTarget> {
-  progress?.throwIfStopped();
-  const plan = planDeepXPathTarget(xpathOrSelector);
-  let fl: FrameLocator | undefined;
-  for (const hop of plan.frameHopSelectors) {
-    fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
-  }
-  const targetFrame = fl ? await fl.resolveFrame(progress) : root;
-  return { frame: targetFrame, selector: plan.finalSelector };
 }

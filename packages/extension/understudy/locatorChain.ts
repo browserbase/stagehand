@@ -16,7 +16,6 @@ export async function resolveLocatorChain(
   page: Page,
   root: Frame,
   chain: LocatorChain,
-  nth: number | undefined,
   progress?: Progress,
 ): Promise<ChainTarget[]> {
   const owned: Array<{ frame: Frame; objectId: string }> = [];
@@ -126,7 +125,6 @@ export async function resolveLocatorChain(
       if (step.nth !== undefined) matches = matches[step.nth] ? [matches[step.nth]!] : [];
       if (!matches.length) break;
     }
-    if (nth !== undefined) matches = matches[nth] ? [matches[nth]!] : [];
     return matches.map(({ frame, backendNodeId }) => ({ frame, backendNodeId }));
   } finally {
     const release = () =>

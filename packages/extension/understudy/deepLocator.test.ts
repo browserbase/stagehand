@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
+import { resolveLocatorWithHops } from "./selectorTarget.js";
+import type { LocatorChain } from "@browserbasehq/stagehand-protocol/types";
 import { DeepLocatorDelegate } from "./deepLocator.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { Locator } from "./locator.js";
@@ -9,29 +11,48 @@ import { FrameSelectorResolver } from "./selectorResolver.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
 describe("DeepLocatorDelegate match selection", () => {
-  const createDelegate = () => {
-    const send = vi.fn().mockResolvedValue({});
-    const frame = { session: { send } } as unknown as Frame;
-    return { delegate: new DeepLocatorDelegate({} as Page, frame, ".item"), send };
-  };
+  afterEach(() => vi.restoreAllMocks());
 
-  it("preserves all matches by default and narrows explicit nth() locators", async () => {
-    const { delegate } = createDelegate();
+  function createDelegate(nth?: number) {
+    const send = vi.fn(async (method: string, params: Record<string, unknown>) =>
+      method === "DOM.describeNode"
+        ? { node: { backendNodeId: Number(params.objectId), localName: "button" } }
+        : {},
+    );
+    const frame = { frameId: "root", session: { send } } as unknown as Frame;
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+      { objectId: "1", nodeId: null },
+      { objectId: "2", nodeId: null },
+    ]);
+    const chain: LocatorChain = {
+      steps: [
+        {
+          type: "query",
+          selector: { type: "css", value: ".item" },
+          ...(nth === undefined ? {} : { nth }),
+        },
+      ],
+    };
+    return new DeepLocatorDelegate({} as Page, frame, chain);
+  }
 
-    await expect(delegate.real()).resolves.toMatchObject({ nthIndex: -1 });
-    await expect(delegate.nth(2).real()).resolves.toMatchObject({ nthIndex: 2 });
-    await expect(delegate.first().real()).resolves.toMatchObject({ nthIndex: 0 });
+  it("preserves all matches for count and masks and selects the first for actions", async () => {
+    const delegate = createDelegate();
+    expect(await delegate.count()).toBe(2);
+    const progress = new Progress("mask", 1000);
+    try {
+      expect(await delegate.allForMask(progress)).toHaveLength(2);
+    } finally {
+      progress.dispose();
+    }
+    const locator = await delegate.real();
+    expect(locator).toMatchObject({ backendId: 1 });
   });
 
-  it("uses the first match for a default single-element resolution", async () => {
-    const { delegate } = createDelegate();
-    const locator = await delegate.real();
-    const resolveAtIndex = vi
-      .spyOn(locator.selectorResolver, "resolveAtIndex")
-      .mockResolvedValue({ objectId: "node-1", nodeId: null });
-
-    await expect(locator.resolveNode()).resolves.toEqual({ objectId: "node-1", nodeId: null });
-    expect(resolveAtIndex).toHaveBeenCalledWith(locator.selectorQuery, 0, undefined);
+  it("applies the final step index for all operations", async () => {
+    const delegate = createDelegate(1);
+    expect(await delegate.count()).toBe(1);
+    expect(await delegate.real()).toMatchObject({ backendId: 2 });
   });
 });
 
@@ -88,21 +109,24 @@ describe("locator resolution contexts", () => {
       const lookups = (["resolveCss", "resolveText", "resolveXPath"] as const).map((method) =>
         vi.spyOn(FrameSelectorResolver.prototype, method),
       );
-      const delegate =
-        kind === "frame locator"
-          ? frameLocatorFromFrame(page, root, "#outer")
-              .frameLocator("#inner")
-              .locator("text=target")
-          : new DeepLocatorDelegate(
-              page,
-              root,
-              kind === "hops"
-                ? "#outer >> #inner >> #target"
-                : "xpath=/html/iframe/html/iframe/html/button",
-            );
-
       await runWithProgress({ name: "resolve", timeout: 100 }, async (progress) => {
-        const locator = await delegate.nth(1).real(progress);
+        const locator =
+          kind === "frame locator"
+            ? await frameLocatorFromFrame(page, root, "#outer")
+                .frameLocator("#inner")
+                .locator("text=target")
+                .nth(1)
+                .real(progress)
+            : (
+                await resolveLocatorWithHops(
+                  page,
+                  root,
+                  kind === "hops"
+                    ? "#outer >> #inner >> #target"
+                    : "xpath=/html/iframe/html/iframe/html/button",
+                  progress,
+                )
+              ).nth(1);
         expect(locator.getFrame()).toBe(inner);
         expect(locator.nthIndex).toBe(1);
         await expect(locator.resolveNode(progress)).resolves.toEqual({
@@ -125,9 +149,11 @@ describe("locator resolution contexts", () => {
     const progress = new Progress("resolve", 100);
     await vi.advanceTimersByTimeAsync(100);
 
-    await expect(new DeepLocatorDelegate(page, root, "#target").real(progress)).rejects.toBe(
-      progress.signal.reason,
-    );
+    await expect(
+      new DeepLocatorDelegate(page, root, {
+        steps: [{ type: "query", selector: { type: "css", value: "#target" } }],
+      }).real(progress),
+    ).rejects.toBe(progress.signal.reason);
     await expect(frameLocatorFromFrame(page, root, "#outer").resolveFrame(progress)).rejects.toBe(
       progress.signal.reason,
     );
@@ -146,31 +172,17 @@ describe("structured selector dispatch", () => {
     { type: "css" as const, value: '[data-label="a >> b"]' },
     { type: "xpath" as const, value: './/button[@title="text=Pay"]' },
     { type: "text" as const, value: 'text="Pay" >> now' },
-  ])("resolves explicit $type selectors without legacy interpretation", async (selector) => {
-    const frame = { session: { send: vi.fn() } } as unknown as Frame;
-    const parseLegacy = vi.spyOn(FrameLocator.prototype, "resolveFrame");
-    const delegate = new DeepLocatorDelegate({} as Page, frame, selector).nth(2);
-    const locator = await delegate.real();
-
-    expect(locator.frame).toBe(frame);
-    expect(locator.selectorQuery).toEqual({ kind: selector.type, value: selector.value });
-    expect(locator.nthIndex).toBe(2);
-    expect(parseLegacy).not.toHaveBeenCalled();
-  });
-
-  it("retains iframe hops and prefix parsing for legacy selectors", async () => {
-    const root = { session: { send: vi.fn() } } as unknown as Frame;
-    const child = { session: { send: vi.fn() } } as unknown as Frame;
-    const resolveFrame = vi.spyOn(FrameLocator.prototype, "resolveFrame").mockResolvedValue(child);
-    const delegate = new DeepLocatorDelegate({} as Page, root, {
-      type: "legacy",
-      value: 'iframe#checkout >> text="Pay"',
+  ])("passes $type query values directly to the engine", async (selector) => {
+    const frame = { frameId: "root", session: { send: vi.fn() } } as unknown as Frame;
+    const resolve = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([]);
+    const delegate = new DeepLocatorDelegate({} as Page, frame, {
+      steps: [{ type: "query", selector }],
     });
-
-    const locator = await delegate.real();
-
-    expect(resolveFrame).toHaveBeenCalledOnce();
-    expect(locator.frame).toBe(child);
-    expect(locator.selectorQuery).toEqual({ kind: "text", value: "Pay" });
+    expect(await delegate.count()).toBe(0);
+    expect(resolve).toHaveBeenCalledWith(
+      { kind: selector.type, value: selector.value },
+      {},
+      undefined,
+    );
   });
 });

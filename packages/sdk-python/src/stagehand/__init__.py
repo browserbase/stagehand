@@ -9,8 +9,6 @@ from ._generated.input_types import (
     CookieParam,
     CssLocatorSelector,
     ExternalProxyConfig,
-    LegacyLocatorSelector,
-    LocatorSelector,
     ModelConfig,
     PageDragAndDropRoutePoint,
     PageEventName,
@@ -75,10 +73,12 @@ from .client_models import (
 from .client_types import (
     BrowserbaseClientOptions,
     CacheOptions,
+    LegacyLocatorSelector,
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,
     LocatorInput,
+    LocatorSelector,
     StagehandClientLoggingConfig,
 )
 from .extension_assets import get_extension_archive

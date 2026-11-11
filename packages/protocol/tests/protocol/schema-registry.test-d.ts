@@ -1,4 +1,4 @@
-import type { LocatorChain, LocatorSelector } from "../../types.js";
+import type { LocatorChain } from "../../types.js";
 import { expectTypeOf } from "vitest";
 import type { z } from "zod/v4";
 import {
@@ -105,8 +105,7 @@ expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toE
 expectTypeOf(StagehandMethods.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
 expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEqualTypeOf<{
   pageId: string;
-  selector: LocatorSelector | LocatorChain;
-  nth?: number;
+  selector: LocatorChain;
   values: string | string[];
   options?: { timeout?: number };
 }>();
@@ -116,8 +115,7 @@ expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toE
 expectTypeOf(StagehandMethods.locatorSetInputFiles.name).toEqualTypeOf<"locator.set_input_files">();
 expectTypeOf<z.input<typeof StagehandMethods.locatorSetInputFiles.params>>().toEqualTypeOf<{
   pageId: string;
-  selector: LocatorSelector | LocatorChain;
-  nth?: number;
+  selector: LocatorChain;
   options?: { timeout?: number };
   files: Array<{
     name: string;

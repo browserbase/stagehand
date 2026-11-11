@@ -1,5 +1,5 @@
 // lib/v3/understudy/locator.ts
-import type { LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
+import type { LocatorQuerySelector } from "@browserbasehq/stagehand-protocol/types";
 import { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import {
@@ -57,7 +57,7 @@ export class Locator {
 
   constructor(
     readonly frame: Frame,
-    readonly selector: string | LocatorSelector,
+    readonly selector: string | LocatorQuerySelector,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
   ) {
@@ -70,9 +70,7 @@ export class Locator {
   private get selectorDescription(): string {
     return typeof this.selector === "string"
       ? this.selector
-      : this.selector.type === "legacy"
-        ? this.selector.value
-        : `${this.selector.type}=${this.selector.value}`;
+      : `${this.selector.type}=${this.selector.value}`;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
