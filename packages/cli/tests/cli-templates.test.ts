@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,7 +10,7 @@ import {
   type FakeBrowserbaseServer,
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
-import { itPosix } from "./helpers/platform.js";
+import { prependPath, writeNodeExecutable } from "./helpers/node-executable.js";
 import { buildNextSteps } from "../src/lib/templates/scaffold.js";
 
 interface TemplateFixture {
@@ -270,21 +270,22 @@ describe("templates commands", () => {
     });
   });
 
-  itPosix("clones TypeScript templates with create-browser-app via npx", async () => {
-    const stubDir = await createTempDir("browse-templates-ts-stub-");
+  it("clones TypeScript templates with create-browser-app via npx", async () => {
+    const stubDir = await createTempDir("browse templates ts stub-");
     const logPath = join(stubDir, "commands.log");
-    await writeExecutable(
-      join(stubDir, "npx"),
+    await writeNodeExecutable(
+      stubDir,
+      "npx",
       [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'{"name":"stub-app","packageManager":"pnpm@10.24.0","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
-        "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
+        'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'appendFileSync(process.env.BB_STUB_LOG, "npx " + args.join(" ") + "\\n");',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "package.json"), JSON.stringify({ name: "stub-app", packageManager: "pnpm@10.24.0", scripts: { dev: "tsx index.ts" } }));',
+        'writeFileSync(join(project, ".env.example"), "BROWSERBASE_API_KEY=\\n");',
       ].join("\n"),
     );
 
@@ -295,7 +296,7 @@ describe("templates commands", () => {
         env: {
           BB_STUB_LOG: logPath,
           BROWSERBASE_TEMPLATES_API: baseUrl,
-          PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+          PATH: prependPath(stubDir),
         },
       });
 
@@ -316,22 +317,23 @@ describe("templates commands", () => {
     });
   });
 
-  itPosix("clones Python templates with create-browser-app via uvx", async () => {
-    const stubDir = await createTempDir("browse-templates-py-stub-");
+  it("clones Python templates with create-browser-app via uvx", async () => {
+    const stubDir = await createTempDir("browse templates py stub-");
     const logPath = join(stubDir, "commands.log");
-    await writeExecutable(
-      join(stubDir, "uvx"),
+    await writeNodeExecutable(
+      stubDir,
+      "uvx",
       [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        'printf \'uvx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'print("hello")\\n\' > "$project/main.py"',
-        "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
-        'printf \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\' > "$project/pyproject.toml"',
+        'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'appendFileSync(process.env.BB_STUB_LOG, "uvx " + args.join(" ") + "\\n");',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "main.py"), \'print("hello")\\n\');',
+        'writeFileSync(join(project, ".env.example"), "BROWSERBASE_API_KEY=\\n");',
+        'writeFileSync(join(project, "pyproject.toml"), \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\');',
       ].join("\n"),
     );
 
@@ -344,7 +346,7 @@ describe("templates commands", () => {
           env: {
             BB_STUB_LOG: logPath,
             BROWSERBASE_TEMPLATES_API: baseUrl,
-            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            PATH: prependPath(stubDir),
           },
         },
       );
@@ -361,19 +363,20 @@ describe("templates commands", () => {
     });
   });
 
-  itPosix("prints clone results as JSON", async () => {
-    const stubDir = await createTempDir("browse-templates-json-stub-");
-    await writeExecutable(
-      join(stubDir, "npx"),
+  it("prints clone results as JSON", async () => {
+    const stubDir = await createTempDir("browse templates json stub-");
+    await writeNodeExecutable(
+      stubDir,
+      "npx",
       [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        '[ "$4" = "google-trends-keywords" ] || exit 1',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'{"name":"json-app"}\\n\' > "$project/package.json"',
+        'const { mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'if (args[3] !== "google-trends-keywords") process.exit(1);',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "package.json"), JSON.stringify({ name: "json-app" }));',
       ].join("\n"),
     );
 
@@ -385,7 +388,7 @@ describe("templates commands", () => {
         {
           env: {
             BROWSERBASE_TEMPLATES_API: baseUrl,
-            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            PATH: prependPath(stubDir),
           },
         },
       );
@@ -461,9 +464,4 @@ async function createTempDir(prefix: string): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
   cleanupPaths.push(directory);
   return directory;
-}
-
-async function writeExecutable(pathname: string, contents: string): Promise<void> {
-  await writeFile(pathname, `${contents}\n`);
-  await chmod(pathname, 0o755);
 }
