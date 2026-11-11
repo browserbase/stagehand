@@ -9,6 +9,8 @@ linkWorkspacePackages: false
 catalogMode: prefer
 
 catalog:
+  "@bufbuild/protobuf": 2.15.0
+  "@bufbuild/protoc-gen-es": 2.15.0
   "@google/genai": 1.52.0
   "@manypkg/get-packages": 1.1.3
   "@changesets/apply-release-plan": 7.1.1

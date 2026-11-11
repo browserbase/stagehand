@@ -1,6 +1,10 @@
 import type { LocatorDescriptor } from "@browserbasehq/stagehand-protocol/types";
 import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
+import {
+  captureAnnotatedPageContent,
+  type AnnotatedPageContent,
+} from "./annotatedPageContent/index.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
@@ -2318,6 +2322,14 @@ export class Page {
       throw error;
     }
   }
+
+  /** Capture APC for internal filtering and formatting under one operation budget. */
+  async captureAnnotatedPageContent(parentProgress?: Progress): Promise<AnnotatedPageContent> {
+    return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
+      captureAnnotatedPageContent(this.mainSession, progress),
+    );
+  }
+
   async captureSnapshot(
     options?: SnapshotOptions,
     parentProgress?: Progress,

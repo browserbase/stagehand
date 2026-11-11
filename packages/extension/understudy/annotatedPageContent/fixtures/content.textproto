@@ -1,0 +1,30 @@
+version: ANNOTATED_PAGE_CONTENT_VERSION_1_0
+root_node {
+  children_nodes {
+    content_attributes {
+      attribute_type: CONTENT_ATTRIBUTE_TEXT
+      text_data { text_content: "Hello, 世界" }
+    }
+  }
+  children_nodes {
+    content_attributes {
+      common_ancestor_dom_node_id: 42
+      attribute_type: CONTENT_ATTRIBUTE_FORM_CONTROL
+      form_control_data {
+        form_control_type: FORM_CONTROL_TYPE_INPUT_EMAIL
+        field_name: "email"
+        is_readonly: false
+      }
+      interaction_info {
+        is_disabled: false
+        clickability_reasons: CLICKABILITY_REASON_EDITABLE
+      }
+    }
+  }
+}
+main_frame_data {
+  media_data {
+    duration_milliseconds: 9007199254740993
+    is_playing: false
+  }
+}
