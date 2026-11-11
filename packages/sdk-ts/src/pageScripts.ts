@@ -12,7 +12,7 @@ export function normalizeEvaluationExpression<R, Arg>(
 ): string {
   if (typeof expression === "string") return expression;
 
-  return `(${expression.toString()})(${serializeArgument(arg, caller)})`;
+  return `(${expression.toString()})(${parsedArgument(arg, caller)})`;
 }
 
 export function normalizeFunctionWaitExpression<R, Arg>(
@@ -43,7 +43,7 @@ export async function normalizeInitScriptSource<Arg>(
   caller = "page.addInitScript",
 ): Promise<string> {
   if (typeof script === "function") {
-    return `(${script.toString()})(${serializeArgument(arg, caller)})`;
+    return `(${script.toString()})(${parsedArgument(arg, caller)})`;
   }
 
   if (arg !== undefined) {
