@@ -14,8 +14,7 @@ export const listSecretsFlags = {
     description: "Include secrets created on or after this RFC 3339 timestamp.",
   }),
   "end-at": Flags.string({
-    description:
-      "Include secrets created on or before this RFC 3339 timestamp.",
+    description: "Include secrets created on or before this RFC 3339 timestamp.",
   }),
 };
 
@@ -40,8 +39,7 @@ export const secretInputFlags = {
     exclusive: ["stdin"],
   }),
   stdin: Flags.boolean({
-    description:
-      "Read the exact secret value from stdin, preserving whitespace.",
+    description: "Read the exact secret value from stdin, preserving whitespace.",
     exclusive: ["env"],
   }),
 };

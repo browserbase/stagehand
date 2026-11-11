@@ -352,7 +352,11 @@ async function takeDeterministicAction({
   }
 
   const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-  const resolvedArgs = substituteVariablesInArguments(action.arguments, variables) ?? [];
+  // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
+  const resolvedArgs =
+    method === SupportedUnderstudyAction.DRAG_AND_DROP
+      ? placeholderArgs
+      : (substituteVariablesInArguments(action.arguments, variables) ?? []);
 
   try {
     context.progress.throwIfStopped();

@@ -1,7 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
@@ -275,7 +275,10 @@ export async function prepareCodexToolAdapter(
     cwd = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
-    await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
+    await fsp.writeFile(
+      path.join(cwd, "browser_run.mjs"),
+      buildBridgeClientScript(bridge.port, bridge.token),
+    );
     const env = await createIsolatedCodexEnvironment(cwd);
 
     input.logger.log({

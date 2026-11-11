@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import type { MastraEvent, MastraSdk } from "@browserbasehq/stagehand-integrations-mastra-sdk";
+import type { MastraEvent, MastraSdk } from "@browserbasehq/stagehand-integrations-mastra";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import {
   buildMastraPrompt,

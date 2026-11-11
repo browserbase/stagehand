@@ -5,7 +5,7 @@ import {
   runClaudeAgentSession,
   type ClaudeAgentSdk,
   type ClaudeSdkMessage,
-} from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
+} from "@browserbasehq/stagehand-integrations-claude-code";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
@@ -26,7 +26,7 @@ import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export type { ClaudeAgentSdk };
-export { isClaudeCodeMaxTurnsError } from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
+export { isClaudeCodeMaxTurnsError } from "@browserbasehq/stagehand-integrations-claude-code";
 
 export interface ClaudeCodeRunnerInput {
   plan: ExternalHarnessTaskPlan;
