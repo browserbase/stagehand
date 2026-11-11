@@ -39,10 +39,11 @@ import type {
   WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
-import { DEFAULT_IDLE_WAIT } from "../types/private/network.js";
+import { TimeoutError } from "../errors.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
-import { LifecycleWatcher, mainDocumentIdleFilter } from "./lifecycleWatcher.js";
+import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { waitForMainNetworkIdle } from "./networkIdle.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
@@ -216,6 +217,11 @@ export class Page {
   private readonly webMCPToolsChanged = new Set<() => void>();
   private readonly webMCPToolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
   private disposed = false;
+  private readonly lifetimeController = new AbortController();
+
+  get closedSignal(): AbortSignal {
+    return this.lifetimeController.signal;
+  }
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
   private readonly pageEventDisposers = new Set<() => void>();
 
@@ -1189,6 +1195,7 @@ export class Page {
   /** Release page-scoped listeners, pending work, and network tracking. */
   public dispose(): void {
     this.disposed = true;
+    this.lifetimeController.abort(new Error("Page is disposed"));
     for (const dispose of this.pageEventDisposers) dispose();
     for (const session of this.webMCPToolSessions.keys()) this.stopWebMCPToolTracking(session);
     this.teardownWebMCPInvocations();
@@ -1279,7 +1286,6 @@ export class Page {
     const watcher = new LifecycleWatcher({
       page: this,
       mainSession: this.mainSession,
-      networkManager: this.networkManager,
       waitUntil,
       timeout,
       navigationCommandId,
@@ -1292,7 +1298,6 @@ export class Page {
       );
       this._currentUrl = url;
       if (response?.loaderId) {
-        watcher.setExpectedLoaderId(response.loaderId);
         tracker.setExpectedLoaderId(response.loaderId);
       } else {
         tracker.expectNavigationWithoutKnownLoader();
@@ -1328,7 +1333,6 @@ export class Page {
     const watcher = new LifecycleWatcher({
       page: this,
       mainSession: this.mainSession,
-      networkManager: this.networkManager,
       waitUntil,
       timeout,
       navigationCommandId,
@@ -1372,7 +1376,6 @@ export class Page {
     const watcher = new LifecycleWatcher({
       page: this,
       mainSession: this.mainSession,
-      networkManager: this.networkManager,
       waitUntil,
       timeout,
       navigationCommandId,
@@ -1417,7 +1420,6 @@ export class Page {
     const watcher = new LifecycleWatcher({
       page: this,
       mainSession: this.mainSession,
-      networkManager: this.networkManager,
       waitUntil,
       timeout,
       navigationCommandId,
@@ -1738,27 +1740,15 @@ export class Page {
 
   /**
    * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures. `networkidle` uses the same quiet-window
-   * check as `goto(url, { waitUntil: "networkidle" })`.
+   * Network idle requires load followed by a fresh 500 ms without relevant requests.
    */
   async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
     if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
 
-    const deadline = Date.now() + timeout;
-    await this.waitForMainLoadState("load", timeout);
-    const remaining = Math.max(0, deadline - Date.now());
-    const mainFrameId = this.mainFrameId();
-    await this.networkManager.waitForIdle({
-      // Count requests that were already in flight before the wait started.
-      startTime: 0,
-      timeout: remaining,
-      totalBudgetMs: timeout,
-      idleTimeMs: Math.min(DEFAULT_IDLE_WAIT, remaining),
-      filter: mainDocumentIdleFilter(
-        this.registry.frames.get(mainFrameId)?.lastSeen?.loaderId,
-        mainFrameId,
-      ),
-    }).promise;
+    if (timeout <= 0) throw new TimeoutError("networkidle", timeout);
+    await runWithProgress({ name: "networkidle", timeout }, (progress) =>
+      waitForMainNetworkIdle(this, progress),
+    );
   }
 
   /**
@@ -2705,19 +2695,12 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
-    await this.mainSession
-      .send("Page.setLifecycleEventsEnabled", { enabled: true })
-      .catch(() => {});
-
-    // Fast path: check the *current* main frame's readyState.
-    if (
-      (state === "domcontentloaded" || state === "load") &&
-      (await this.isMainLoadStateReady(state))
-    ) {
-      return;
-    }
-
+  async waitForMainLoadState(
+    state: LoadState,
+    timeout = 15000,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const deadline = performance.now() + timeout;
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
       let done = false;
@@ -2725,34 +2708,44 @@ export class Page {
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInFlight = false;
 
-      const off = () => {
+      const settle = (error?: unknown) => {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        if (pollTimer) clearTimeout(pollTimer);
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+        signal?.removeEventListener("abort", onAbort);
+        if (error !== undefined) reject(error);
+        else resolve();
       };
-      const clearPollTimer = () => {
-        if (pollTimer) {
-          clearTimeout(pollTimer);
-          pollTimer = null;
+      const timeoutError = () =>
+        new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`);
+      const stopped = () => {
+        if (done) return true;
+        if (signal?.aborted) {
+          settle(signal.reason);
+          return true;
         }
+        if (performance.now() >= deadline) {
+          settle(timeoutError());
+          return true;
+        }
+        return false;
       };
-
       const finish = () => {
-        if (done) return;
-        done = true;
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        clearPollTimer();
-        off();
-        resolve();
+        if (!stopped()) settle();
       };
+      const onAbort = () => settle(signal?.reason);
 
       const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
         if (evt.name !== wanted) return;
-        // Compare against the *current* main frame id when the event arrives.
-        if (evt.frameId === this.mainFrameId()) finish();
+        const mainFrameId = this.mainFrameId();
+        if (evt.frameId !== mainFrameId) return;
+        const loaderId = this.registry.frames.get(mainFrameId)?.lastSeen?.loaderId;
+        if (loaderId && evt.loaderId && loaderId !== evt.loaderId) return;
+        finish();
       };
 
       const onDomContent = () => {
@@ -2763,21 +2756,21 @@ export class Page {
         if (state === "load") finish();
       };
 
-      this.mainSession.on("Page.lifecycleEvent", onLifecycle);
-      // Backups for sites that don't emit lifecycle consistently
-      this.mainSession.on("Page.domContentEventFired", onDomContent);
-      this.mainSession.on("Page.loadEventFired", onLoad);
-
       // Fallback polling closes lifecycle-event races in remote environments
       // where readyState has advanced but the corresponding event was missed.
       const pollReadyState = async () => {
-        if (done || pollInFlight) return;
+        if (stopped() || pollInFlight) return;
+        if (state !== "domcontentloaded" && state !== "load") return;
         pollInFlight = true;
+        const frameId = this.mainFrameId();
+        const loaderId = this.registry.frames.get(frameId)?.lastSeen?.loaderId;
         try {
-          if (done) return;
+          const ready = await this.isMainLoadStateReady(state);
+          if (stopped()) return;
           if (
-            (state === "domcontentloaded" || state === "load") &&
-            (await this.isMainLoadStateReady(state))
+            ready &&
+            this.mainFrameId() === frameId &&
+            this.registry.frames.get(frameId)?.lastSeen?.loaderId === loaderId
           ) {
             finish();
             return;
@@ -2785,22 +2778,29 @@ export class Page {
         } finally {
           pollInFlight = false;
         }
-        if (!done) {
-          clearPollTimer();
+        if (!stopped()) {
           pollTimer = setTimeout(() => {
             void pollReadyState();
           }, 100);
         }
       };
-      void pollReadyState();
 
-      timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        clearPollTimer();
-        off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
-      }, timeout);
+      // Observe events and start the deadline before any CDP command can stall.
+      this.mainSession.on("Page.lifecycleEvent", onLifecycle);
+      this.mainSession.on("Page.domContentEventFired", onDomContent);
+      this.mainSession.on("Page.loadEventFired", onLoad);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (stopped()) return;
+      timer = setTimeout(() => settle(timeoutError()), timeout);
+
+      void (async () => {
+        try {
+          await this.mainSession.send("Page.setLifecycleEventsEnabled", { enabled: true });
+        } catch {
+          // Some CDP backends do not support lifecycle events; retain readyState polling.
+        }
+        if (!stopped()) await pollReadyState();
+      })();
     });
   }
 }

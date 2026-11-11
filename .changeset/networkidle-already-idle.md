@@ -4,4 +4,6 @@
 "@browserbasehq/stagehand-python": patch
 ---
 
-Make `waitForLoadState("networkidle")` (`wait_for_load_state` in Python) use the same network-idle check as `goto`, so it resolves on an already-idle page instead of timing out. Network-idle waits now ignore Web Worker scripts and requests from a document that navigated away.
+Fix network-idle waits to include pending requests and resolve on already-idle pages. Navigation and load-state waits now share the same main-document checks, follow replacement documents, require the full 500 ms quiet period, and stop when the timeout expires or the page closes. Worker traffic without a document loader and requests from replaced documents no longer keep the wait pending.
+
+Load-state timeouts now include readiness checks. A zero timeout rejects immediately, including when the page is already loaded.

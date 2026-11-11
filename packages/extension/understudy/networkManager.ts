@@ -136,7 +136,7 @@ export class NetworkManager {
     const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
       if (!evt?.frame) return;
       const { id, loaderId } = evt.frame;
-      // Chrome sends no loadingFinished/loadingFailed for requests of the replaced document.
+      // Retire replaced-document requests even if their completion events never arrive.
       for (const [key, info] of this.requests) {
         if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
         this.requests.delete(key);
@@ -209,6 +209,7 @@ export class NetworkManager {
     const startTime = options.startTime ?? Date.now();
     const idleTimeMs = options.idleTimeMs ?? DEFAULT_IDLE_WAIT;
     const timeout = options.timeout;
+    const deadline = Number.isFinite(timeout) ? performance.now() + Math.max(0, timeout) : Infinity;
     const remainingBudgetMs = Number.isFinite(timeout) ? timeout : undefined;
     const originalBudgetMs = Number.isFinite(options.totalBudgetMs ?? NaN)
       ? (options.totalBudgetMs as number)
@@ -220,22 +221,26 @@ export class NetworkManager {
         return !IGNORED_RESOURCE_TYPES.has(info.resourceType);
       });
 
+    const timeoutError = () =>
+      new TimeoutError("networkidle", originalBudgetMs ?? Date.now() - startTime);
+
     const tracked = new Set<string>();
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
     let resolveFn: (() => void) | null = null;
-    let rejectFn: ((error: Error) => void) | null = null;
+    let rejectFn: ((error: unknown) => void) | null = null;
 
-    const cleanup = (error?: Error) => {
+    const cleanup = (error?: unknown) => {
       if (settled) return;
       settled = true;
       if (idleTimer) clearTimeout(idleTimer);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       removeObserver();
+      options.signal?.removeEventListener("abort", onAbort);
       tracked.clear();
-      if (error) {
+      if (error !== undefined) {
         rejectFn?.(error);
       } else {
         resolveFn?.();
@@ -247,7 +252,7 @@ export class NetworkManager {
       if (tracked.size === 0) {
         if (!idleTimer) {
           idleTimer = setTimeout(() => {
-            cleanup();
+            cleanup(performance.now() >= deadline ? timeoutError() : undefined);
           }, idleTimeMs);
         }
       } else if (idleTimer) {
@@ -280,27 +285,30 @@ export class NetworkManager {
     };
 
     const removeObserver = this.addObserver(observer);
+    const onAbort = () => {
+      if (options.signal?.aborted) cleanup(options.signal.reason);
+    };
 
     const promise = new Promise<void>((resolve, reject) => {
       resolveFn = resolve;
       rejectFn = reject;
     });
 
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
+
     // Requests that started inside the wait window but before this waiter was
     // registered (for example during the load event) are still in flight.
     for (const info of this.requests.values()) {
-      if (info.timestamp < startTime || !filter(info)) continue;
+      if (settled || info.timestamp < startTime || !filter(info)) continue;
       tracked.add(info.requestKey);
     }
 
     // Trigger initial idle check so that we still respect the quiet window
     maybeIdle();
 
-    if (Number.isFinite(timeout)) {
-      timeoutTimer = setTimeout(
-        () => cleanup(new TimeoutError("networkidle", originalBudgetMs ?? Date.now() - startTime)),
-        Math.max(0, timeout),
-      );
+    if (!settled && Number.isFinite(timeout)) {
+      timeoutTimer = setTimeout(() => cleanup(timeoutError()), Math.max(0, timeout));
     }
 
     return {
