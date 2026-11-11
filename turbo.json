@@ -59,7 +59,7 @@
       ],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations-claude-agent-sdk#build": {
+    "@browserbasehq/stagehand-integrations-claude-code#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -142,8 +142,8 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**", "$TURBO_ROOT$/packages/integrations/core/src/**"]
     },
-    "@browserbasehq/stagehand-integrations-claude-agent-sdk#typecheck": {
-      "dependsOn": ["^build"]
+    "@browserbasehq/stagehand-integrations-claude-code#typecheck": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-code#build"]
     },
     "@browserbasehq/stagehand-integrations-codex-sdk#typecheck": {
       "dependsOn": ["^build"]
@@ -176,8 +176,8 @@
         "$TURBO_ROOT$/packages/integrations/core/python/src/stagehand_middleware/facade/_bundle.json"
       ]
     },
-    "@browserbasehq/stagehand-integrations-claude-agent-sdk#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-agent-sdk#build"],
+    "@browserbasehq/stagehand-integrations-claude-code#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-code#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -304,9 +304,6 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
-      "dependsOn": ["^build"]
-    },
-    "@browserbasehq/stagehand-integrations-example-claude-code-facade#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
