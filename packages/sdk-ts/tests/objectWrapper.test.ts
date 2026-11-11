@@ -1868,6 +1868,58 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([]);
   });
 
+  it.each([
+    { type: "css", value: '[data-label="a >> b"]' },
+    { type: "xpath", value: ".//button" },
+    { type: "text", value: 'text="Pay" >> now' },
+    { type: "legacy", value: "iframe >> text=Pay" },
+  ] as const)("preserves $type inputs through locator refinement and actions", async (selector) => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.locatorCount, 2);
+    const page = new Page(client, { pageId: "page-1" });
+    const locator = page.locator(selector);
+    const refined = locator.first().nth(1);
+
+    expect(client.calls).toEqual([]);
+    expect(locator.descriptor).toEqual({ pageId: "page-1", selector });
+    expect(await refined.count()).toBe(2);
+    expect(client.calls).toEqual([
+      requestCall(StagehandMethods.locatorCount, { pageId: "page-1", selector, nth: 1 }),
+    ]);
+  });
+
+  it.each([
+    {},
+    { type: "css" },
+    { type: "css", value: "" },
+    { type: "css", value: 123 },
+    { type: "css", value: "button", text: "Pay" },
+    { type: "unknown", value: "button" },
+  ])("rejects invalid locator inputs before sending requests: %j", (input: unknown) => {
+    const client = new FakeProtocolClient();
+    const page = new Page(client, { pageId: "page-1" });
+    expect(() => {
+      // @ts-expect-error Verify validation of untyped callers at the public boundary.
+      page.locator(input);
+    }).toThrow();
+    expect(client.calls).toEqual([]);
+  });
+
+  it("serializes structured screenshot masks with their discriminator and index", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, { data: "iVBORw0KGgo=" });
+    const page = new Page(client, { pageId: "page-1" });
+    await page.screenshot({ mask: [page.locator({ type: "text", value: "Private" }).first()] });
+    expect(client.calls).toEqual([
+      requestCall(StagehandMethods.pageScreenshot, {
+        pageId: "page-1",
+        options: {
+          mask: [{ pageId: "page-1", selector: { type: "text", value: "Private" }, nth: 0 }],
+        },
+      }),
+    ]);
+  });
+
   it("routes locator.click with the page descriptor", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.locatorClick, { clicked: true });

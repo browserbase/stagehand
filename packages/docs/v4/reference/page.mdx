@@ -889,14 +889,14 @@ await page.close();
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator from a selector string or a typed selector.
 
 ```typescript
-const locator = page.locator("button[type=submit]");
+const locator = page.locator({ type: "css", value: "button[type=submit]" });
 ```
 
-<ParamField path="selector" type="string">
-  The selector to target.
+<ParamField path="selector" type="LocatorInput">
+  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine.
 </ParamField>
 
 <ResponseField name="result" type="Locator">
@@ -1739,14 +1739,14 @@ await page.close()
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator from a selector string or a typed selector.
 
 ```python
-locator = page.locator("button[type=submit]")
+locator = page.locator({"type": "css", "value": "button[type=submit]"})
 ```
 
-<ParamField path="selector" type="str">
-  The selector to target.
+<ParamField path="selector" type="LocatorInput">
+  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine.
 </ParamField>
 
 <ResponseField name="result" type="Locator">

@@ -7,7 +7,10 @@ from ._generated.input_types import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
+    CssLocatorSelector,
     ExternalProxyConfig,
+    LegacyLocatorSelector,
+    LocatorSelector,
     ModelConfig,
     PageDragAndDropRoutePoint,
     PageEventName,
@@ -15,7 +18,9 @@ from ._generated.input_types import (
     PageScreenshotClip,
     RgbaColor,
     TelemetryConfig,
+    TextLocatorSelector,
     Variables,
+    XPathLocatorSelector,
 )
 from ._generated.input_types import (
     DomainPolicy as DomainPolicyInput,
@@ -73,6 +78,7 @@ from .client_types import (
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,
+    LocatorInput,
     StagehandClientLoggingConfig,
 )
 from .extension_assets import get_extension_archive
@@ -138,6 +144,12 @@ __all__ = [
     "LLMUsage",
     "LoadState",
     "Locator",
+    "LocatorInput",
+    "LocatorSelector",
+    "CssLocatorSelector",
+    "XPathLocatorSelector",
+    "TextLocatorSelector",
+    "LegacyLocatorSelector",
     "ModelConfig",
     "MouseButton",
     "NavigationSecurityDetails",

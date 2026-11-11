@@ -36,6 +36,19 @@ describe("client locator option serialization", () => {
     });
   });
 
+  it("preserves structured selectors in scopes and exclusions", () => {
+    const page = testPage("page-1");
+    expect(
+      serializeClientLocatorOptions("extract", "page-1", {
+        locator: page.locator({ type: "css", value: "main" }).nth(2),
+        ignoreLocators: [page.locator({ type: "text", value: "Advertisement" }).first()],
+      }),
+    ).toEqual({
+      locator: { selector: { type: "css", value: "main" }, nth: 2 },
+      ignoreLocators: [{ selector: { type: "text", value: "Advertisement" }, nth: 0 }],
+    });
+  });
+
   it("rejects locators from another page", () => {
     const otherPage = testPage("page-2");
 

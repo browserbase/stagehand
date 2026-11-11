@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, Self
+from typing import Literal, Self, cast
 
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
-    LegacyLocatorSelector,
     LocatorCentroidResult,
     LocatorClickOptions,
     LocatorClickParams,
@@ -40,6 +39,7 @@ from ._generated.models import (
     LocatorTypeResult,
     MouseButton,
 )
+from .client_types import LocatorInput
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
@@ -50,13 +50,15 @@ class Locator:
         rpc_client: RPCClient,
         *,
         page_id: str,
-        selector: str,
+        selector: LocatorInput,
         nth: int | None = None,
     ) -> None:
         self._rpc_client = rpc_client
         self._descriptor = LocatorDescriptor(
             page_id=page_id,
-            selector=LocatorSelector(root=LegacyLocatorSelector(type="legacy", value=selector)),
+            selector=LocatorSelector.model_validate(
+                {"type": "legacy", "value": selector} if isinstance(selector, str) else selector
+            ),
         )
         if nth is not None:
             self._descriptor.nth = nth
@@ -301,6 +303,6 @@ class Locator:
         return type(self)(
             self._rpc_client,
             page_id=self.page_id,
-            selector=self.selector,
+            selector=cast(LocatorInput, self._descriptor.selector.model_dump(mode="json")),
             nth=index,
         )

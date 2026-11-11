@@ -17,6 +17,7 @@ from stagehand import (
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
+    LocatorInput,
     ModelConfig,
     Page,
     Stagehand,
@@ -951,9 +952,14 @@ async def test_callback_llm_handler_preserves_structured_and_image_content(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("structured", [False, True])
 async def test_stagehand_routes_metrics_and_ai_methods(
     monkeypatch: pytest.MonkeyPatch,
+    structured: bool,
 ) -> None:
+    def selector(value: str) -> LocatorInput:
+        return {"type": "css", "value": value} if structured else value
+
     action = Action(selector="a", description="More information")
     act_data = ActResultData(
         success=True,
@@ -988,10 +994,10 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
     model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
-    act_locator = page.locator("main").nth(2)
-    act_ignored_locator = page.locator(".promo")
-    locator = page.locator("main").nth(1)
-    ignored_locator = page.locator("nav")
+    act_locator = page.locator(selector("main")).nth(2)
+    act_ignored_locator = page.locator(selector(".promo"))
+    locator = page.locator(selector("main")).nth(1)
+    ignored_locator = page.locator(selector("nav"))
 
     assert await stagehand.metrics() == metrics
     act_result = await stagehand.act(
@@ -1037,6 +1043,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert act_params.options is not None
     assert act_params.options.locator is not None
     assert act_params.options.locator.selector.root.value == "main"
+    assert act_params.options.locator.selector.root.type == ("css" if structured else "legacy")
     assert act_params.options.locator.nth == 2
     assert act_params.options.ignore_locators is not None
     assert [locator.selector.root.value for locator in act_params.options.ignore_locators] == [
@@ -1052,6 +1059,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
     assert observe_params.options.locator.selector.root.value == "main"
+    assert observe_params.options.locator.selector.root.type == ("css" if structured else "legacy")
     assert observe_params.options.locator.nth == 1
     assert observe_params.options.ignore_locators is not None
     assert [locator.selector.root.value for locator in observe_params.options.ignore_locators] == [
@@ -1066,6 +1074,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
     assert extract_params.options.locator.selector.root.value == "main"
+    assert extract_params.options.locator.selector.root.type == ("css" if structured else "legacy")
     assert extract_params.options.locator.nth == 1
     assert extract_params.options.ignore_locators is not None
     assert [locator.selector.root.value for locator in extract_params.options.ignore_locators] == [

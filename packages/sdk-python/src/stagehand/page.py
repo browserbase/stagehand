@@ -87,6 +87,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from .client_types import LocatorInput
 from .locator import Locator
 from .response import Response
 from .rpc_client import RPCClient
@@ -760,5 +761,5 @@ class Page:
             PageCloseResult,
         )
 
-    def locator(self, selector: str) -> Locator:
+    def locator(self, selector: LocatorInput) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)
