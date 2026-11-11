@@ -86,6 +86,11 @@ import type {
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
+  CssLocatorSelectorSchema,
+  XPathLocatorSelectorSchema,
+  TextLocatorSelectorSchema,
+  LegacyLocatorSelectorSchema,
+  LocatorSelectorSchema,
   LocatorOptionsSchema,
   LocatorParamsSchema,
   LocatorFillParamsSchema,
@@ -262,6 +267,11 @@ export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
 export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
+export type CssLocatorSelector = z.infer<typeof CssLocatorSelectorSchema>;
+export type XPathLocatorSelector = z.infer<typeof XPathLocatorSelectorSchema>;
+export type TextLocatorSelector = z.infer<typeof TextLocatorSelectorSchema>;
+export type LegacyLocatorSelector = z.infer<typeof LegacyLocatorSelectorSchema>;
+export type LocatorSelector = z.infer<typeof LocatorSelectorSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;
 export type StagehandMetrics = z.infer<typeof StagehandMetricsSchema>;
 export type CallbackBatchOptions = z.infer<typeof CallbackBatchOptionsSchema>;
