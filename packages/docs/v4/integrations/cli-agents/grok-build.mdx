@@ -6,7 +6,7 @@ description: "Give Grok Build persistent Stagehand browser tools over MCP/stdio.
 The Grok Build integration connects the Grok CLI to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
-This experimental integration runs from the Stagehand repository. Tested with Grok Build 1.0.52.
+This experimental integration runs from the Stagehand repository. Tested with Grok Build 1.0.77.
 </Note>
 
 ## Prerequisites
@@ -30,7 +30,7 @@ pnpm exec turbo run build \
   </Step>
   <Step title="Install and authenticate Grok Build">
 ```bash
-npm install --global @xai-official/grok
+npm install --global @xai-official/grok@1.0.77
 grok login
 # or: export XAI_API_KEY="your-xai-api-key"
 ```
@@ -58,7 +58,7 @@ BROWSERBASE_API_KEY = "${BROWSERBASE_API_KEY}"
 To use the integration in another project, copy `.grok/config.toml` and `AGENTS.md` into it. Start Grok from the configured project.
   </Step>
   <Step title="Choose the browser">
-The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set in the MCP server env. For local Chrome, replace the entire `[mcp_servers.stagehand.env]` block with:
+The template selects Browserbase and requires `BROWSERBASE_API_KEY`. For local Chrome, replace the entire `[mcp_servers.stagehand.env]` block with:
 
 ```toml
 [mcp_servers.stagehand.env]
@@ -71,7 +71,7 @@ cd packages/integrations/grok-build
 grok
 ```
 
-At the prompt, enter:
+Approve project trust when prompted, then enter:
 
 ```text
 Use the Stagehand browser tools to open https://example.com, take a snapshot,
@@ -107,7 +107,12 @@ Interactive sessions can approve tool calls when prompted. A `-p` run cannot acc
 cd packages/integrations/grok-build
 grok \
   --always-approve \
-  -p "Open https://example.com, snapshot it, and report the heading."
+  --tools search_tool,use_tool \
+  --disallowed-tools Agent \
+  --no-plan \
+  --no-subagents \
+  --disable-web-search \
+  -p "Use stagehand__run to open https://example.com, then stagehand__snapshot to report the heading and snapshot ID."
 ```
 
 <Warning>
