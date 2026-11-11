@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-// Chromium source revision: f3e695b5235eb0de80e092f844ed2fb99228852f
+// Chromium source revision: de0f42384e7b53ba61eefe0ecda7f17f406bde13
 // components/optimization_guide/proto/features/common_quality_data.proto
 // Requires protoc with edition 2023 support. The ES generator is pinned in the workspace catalog.
 // Run: pnpm --filter @browserbasehq/stagehand-extension generate:apc

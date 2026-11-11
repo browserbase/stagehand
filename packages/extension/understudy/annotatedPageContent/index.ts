@@ -30,3 +30,6 @@ export async function captureAnnotatedPageContent(
   progress.throwIfStopped();
   return decoded;
 }
+
+export { formatAnnotatedPageContent } from "./format.js";
+export type { ApcAction } from "./actions.js";
