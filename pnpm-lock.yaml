@@ -313,6 +313,9 @@ catalogs:
     '@types/chrome':
       specifier: ^0.2.2
       version: 0.2.2
+    '@types/cross-spawn':
+      specifier: ^6.0.6
+      version: 6.0.6
     '@types/node':
       specifier: ^24
       version: 24.13.2
@@ -322,6 +325,9 @@ catalogs:
     camelcase-keys:
       specifier: ^10.0.2
       version: 10.0.2
+    cross-spawn:
+      specifier: ^7.0.6
+      version: 7.0.6
     devtools-protocol:
       specifier: ^0.0.1657692
       version: 0.0.1657692
@@ -497,8 +503,8 @@ importers:
         specifier: ^2.14.0
         version: 2.16.0
       '@browserbasehq/stagehand':
-        specifier: workspace:*
-        version: link:../sdk-ts
+        specifier: 4.4.0
+        version: 4.4.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -517,6 +523,9 @@ importers:
       archiver:
         specifier: ^8.0.0
         version: 8.0.0
+      cross-spawn:
+        specifier: 'catalog:'
+        version: 7.0.6
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
@@ -551,6 +560,9 @@ importers:
       '@types/archiver':
         specifier: ^8.0.0
         version: 8.0.0
+      '@types/cross-spawn':
+        specifier: 'catalog:'
+        version: 6.0.6
       '@types/node':
         specifier: ^20.11.30
         version: 20.19.43
@@ -2191,6 +2203,10 @@ packages:
         optional: true
       puppeteer-core:
         optional: true
+
+  '@browserbasehq/stagehand@4.4.0':
+    resolution: {integrity: sha512-Va2HZwdKjmqbCXIMc3wzCcG54hJToscEKoHo+pdRNIKmTqHJDF/ZvqrvMUQbRi8fXtXNncnoo9qhwvlXbsH2SA==}
+    engines: {node: '>=22.18.0'}
 
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
@@ -4223,6 +4239,9 @@ packages:
 
   '@types/cors@2.8.19':
     resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
+
+  '@types/cross-spawn@6.0.6':
+    resolution: {integrity: sha512-fXRhhUkG4H3TQk5dBhQ7m/JDdSNHKwR2BBia62lhwEIq9xGiQKLxd6LymNhn47SjXhsUEPmxi+PKw2OkW4LLjA==}
 
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
@@ -10398,6 +10417,15 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@browserbasehq/stagehand@4.4.0':
+    dependencies:
+      '@browserbasehq/sdk': 2.16.0
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - encoding
+
   '@bufbuild/protobuf@1.10.0': {}
 
   '@canvas/image-data@1.1.0': {}
@@ -12775,6 +12803,10 @@ snapshots:
       '@types/har-format': 1.2.16
 
   '@types/cors@2.8.19':
+    dependencies:
+      '@types/node': 20.19.43
+
+  '@types/cross-spawn@6.0.6':
     dependencies:
       '@types/node': 20.19.43
 

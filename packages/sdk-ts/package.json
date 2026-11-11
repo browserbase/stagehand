@@ -3,9 +3,17 @@
   "version": "4.4.0",
   "description": "Browserbase's SDK for building browser agents",
   "keywords": [
+    "agent",
     "ai",
+    "ai-agent",
     "automation",
     "browser",
+    "browser-agent",
+    "cdp",
+    "chrome",
+    "llm",
+    "mcp",
+    "playwright",
     "testing",
     "web-scraping"
   ],
