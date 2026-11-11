@@ -1,5 +1,6 @@
 import { countXPathMatches } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { collectInnermostTextMatches, textUsedForMatch } from "./textMatches.js";
 
 export interface TextMatchSample {
   tag: string;
@@ -64,145 +65,30 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
   }
 }
 
+const classNameOf = (element: Element): string => {
+  try {
+    const value = (element as HTMLElement).className;
+    return typeof value === "string" ? value : "";
+  } catch {
+    return "";
+  }
+};
+
 export function countTextMatches(rawNeedle: string): TextMatchResult {
   const needle = String(rawNeedle ?? "");
   if (!needle) {
     return { count: 0, sample: [], error: null };
   }
 
-  const needleLc = needle.toLowerCase();
-  const skipTags = new Set([
-    "SCRIPT",
-    "STYLE",
-    "TEMPLATE",
-    "NOSCRIPT",
-    "HEAD",
-    "TITLE",
-    "LINK",
-    "META",
-    "HTML",
-    "BODY",
-  ]);
-
-  const shouldSkip = (node: Element | null | undefined): boolean => {
-    if (!node) return false;
-    const tag = node.tagName?.toUpperCase() ?? "";
-    return skipTags.has(tag);
-  };
-
-  const extractText = (element: Element): string => {
-    try {
-      if (shouldSkip(element)) return "";
-      const inner = (element as HTMLElement).innerText;
-      if (typeof inner === "string" && inner.trim()) return inner.trim();
-    } catch {
-      // ignore
-    }
-    try {
-      const text = element.textContent;
-      if (typeof text === "string") return text.trim();
-    } catch {
-      // ignore
-    }
-    return "";
-  };
-
-  const matches = (element: Element): boolean => {
-    const text = extractText(element);
-    return !!text && text.toLowerCase().includes(needleLc);
-  };
-
-  const seen = new WeakSet<Node>();
-  const queue: Node[] = [];
-
-  const enqueue = (node: Node | null | undefined) => {
-    if (!node || seen.has(node)) return;
-    seen.add(node);
-    queue.push(node);
-  };
-
-  const walkerFor = (root: Node): TreeWalker | null => {
-    try {
-      const doc = root instanceof Document ? root : ((root as Element)?.ownerDocument ?? document);
-      return doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-    } catch {
-      return null;
-    }
-  };
-
-  const matchesList: Array<{
-    element: Element;
-    tag: string;
-    id: string;
-    className: string;
-    text: string;
-  }> = [];
-
-  enqueue(document);
-
-  while (queue.length) {
-    const root = queue.shift();
-    if (!root) continue;
-
-    if (root instanceof Element && matches(root)) {
-      matchesList.push({
-        element: root,
-        tag: root.tagName ?? "",
-        id: root.id ?? "",
-        className: (root as HTMLElement).className ?? "",
-        text: extractText(root),
-      });
-    }
-
-    const walker = walkerFor(root);
-    if (!walker) continue;
-
-    let node: Node | null;
-    while ((node = walker.nextNode())) {
-      if (!(node instanceof Element)) continue;
-
-      if (matches(node)) {
-        matchesList.push({
-          element: node,
-          tag: node.tagName ?? "",
-          id: node.id ?? "",
-          className: (node as HTMLElement).className ?? "",
-          text: extractText(node),
-        });
-      }
-
-      const shadowRoot = getOpenOrClosedShadowRoot(node);
-      if (shadowRoot) enqueue(shadowRoot);
-    }
-  }
-
-  const innermost: typeof matchesList = [];
-  for (const item of matchesList) {
-    const el = item.element;
-    let skip = false;
-    for (const other of matchesList) {
-      if (item === other) continue;
-      try {
-        if (el.contains(other.element)) {
-          skip = true;
-          break;
-        }
-      } catch {
-        // ignore containment errors
-      }
-    }
-    if (!skip) innermost.push(item);
-  }
-
-  const count = innermost.length;
-  const sample = innermost.slice(0, 5).map((item) => ({
-    tag: item.tag,
-    id: item.id,
-    class: item.className,
-    text: item.text,
+  const matches = collectInnermostTextMatches(needle);
+  const sample = matches.slice(0, 5).map((element) => ({
+    tag: element.tagName ?? "",
+    id: element.id ?? "",
+    class: classNameOf(element),
+    text: textUsedForMatch(element),
   }));
 
-  return { count, sample, error: null };
+  return { count: matches.length, sample, error: null };
 }
 
 export function countXPathMatchesMainWorld(rawXp: string): number {
