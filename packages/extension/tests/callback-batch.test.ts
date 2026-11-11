@@ -83,7 +83,10 @@ describe("callback batch runner", () => {
       "locator.click",
       "page.title",
     ]);
-    expect(requests[1]?.params).toEqual({ pageId: "page-1", selector: "button" });
+    expect(requests[1]?.params).toEqual({
+      pageId: "page-1",
+      selector: { type: "legacy" as const, value: "button" },
+    });
     expect(requests.every((request) => request.traceparent === traceparent)).toBe(true);
   });
 
@@ -476,20 +479,26 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "act",
         options: {
-          locator: { selector: "main" },
-          ignoreLocators: [{ selector: "nav" }],
+          locator: { selector: { type: "legacy" as const, value: "main" } },
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
           timeout: 1_000,
         },
       },
       {
         pageId: "page-2",
         instruction: "observe",
-        options: { locator: { selector: "section" }, timeout: 2_000 },
+        options: {
+          locator: { selector: { type: "legacy" as const, value: "section" } },
+          timeout: 2_000,
+        },
       },
       expect.objectContaining({
         pageId: "page-2",
         instruction: "extract",
-        options: { ignoreLocators: [{ selector: ".ad" }], timeout: 3_000 },
+        options: {
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".ad" } }],
+          timeout: 3_000,
+        },
       }),
     ]);
   });
@@ -539,16 +548,16 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "observe",
         options: {
-          locator: { selector: "main", nth: 2 },
-          ignoreLocators: [{ selector: "nav", nth: 1 }],
+          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 2 },
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 1 }],
         },
       },
       expect.objectContaining({
         pageId: "page-2",
         instruction: "extract",
         options: {
-          locator: { selector: "section.content", nth: 3 },
-          ignoreLocators: [{ selector: "aside.ads", nth: 0 }],
+          locator: { selector: { type: "legacy" as const, value: "section.content" }, nth: 3 },
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: "aside.ads" }, nth: 0 }],
         },
       }),
     ]);

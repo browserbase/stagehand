@@ -12,7 +12,7 @@ describe("client locator option serialization", () => {
     const page = testPage("page-1");
 
     expect(serializeClientLocator(page.locator("button").first(), "page-1", "observe")).toEqual({
-      selector: "button",
+      selector: { type: "legacy" as const, value: "button" },
       nth: 0,
     });
   });
@@ -28,7 +28,7 @@ describe("client locator option serialization", () => {
     });
 
     expect(options).toEqual({
-      locator: { selector: "main", nth: 2 },
+      locator: { selector: { type: "legacy" as const, value: "main" }, nth: 2 },
       ignoreLocators: [],
       model: { modelName: "openai/gpt-5.4-mini" },
       timeout: 30_000,

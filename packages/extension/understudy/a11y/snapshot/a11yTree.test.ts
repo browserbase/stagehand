@@ -4,12 +4,17 @@ import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { a11yForFrame } from "./a11yTree.js";
-import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
+import {
+  resolveObjectIdForCss,
+  resolveObjectIdForXPath,
+  resolveObjectIdForText,
+} from "./focusSelectors.js";
 
 vi.mock("./focusSelectors.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./focusSelectors.js")>()),
   resolveObjectIdForCss: vi.fn(),
   resolveObjectIdForXPath: vi.fn(),
+  resolveObjectIdForText: vi.fn(),
 }));
 
 describe("a11yForFrame focused locators", () => {
@@ -41,7 +46,7 @@ describe("a11yForFrame focused locators", () => {
             session,
             "frame",
             {
-              focusLocator: { selector: ".card" },
+              focusLocator: { selector: { type: "legacy" as const, value: ".card" } },
               tagNameMap: {},
               scrollableMap: {},
               encode: String,
@@ -80,7 +85,7 @@ describe("a11yForFrame focused locators", () => {
         session,
         "frame",
         {
-          focusLocator: { selector },
+          focusLocator: { selector: { type: "legacy", value: selector } },
           tagNameMap: {},
           scrollableMap: {},
           encode: String,
@@ -105,13 +110,28 @@ describe("a11yForFrame focused locators", () => {
 
   it.each([
     {
+      name: "explicit CSS",
+      selector: { type: "css" as const, value: '[data-label="a >> b"]' },
+      resolver: resolveObjectIdForCss,
+    },
+    {
+      name: "explicit XPath",
+      selector: { type: "xpath" as const, value: ".//article" },
+      resolver: resolveObjectIdForXPath,
+    },
+    {
+      name: "explicit text",
+      selector: { type: "text" as const, value: 'text="Pay" >> now' },
+      resolver: resolveObjectIdForText,
+    },
+    {
       name: "CSS",
-      selector: ".card",
+      selector: { type: "legacy" as const, value: ".card" },
       resolver: resolveObjectIdForCss,
     },
     {
       name: "XPath",
-      selector: "xpath=//article",
+      selector: { type: "legacy" as const, value: "xpath=//article" },
       resolver: resolveObjectIdForXPath,
     },
   ])(
@@ -133,7 +153,7 @@ describe("a11yForFrame focused locators", () => {
       expect(result.outline).toContain("Second detail");
       expect(result.outline).not.toContain("First match");
       expect(result.outline).not.toContain("First detail");
-      expect(resolver).toHaveBeenCalledWith(session, selector, "root-frame", 1, undefined);
+      expect(resolver).toHaveBeenCalledWith(session, selector.value, "root-frame", 1, undefined);
       expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
         objectId: "object-second",
       });

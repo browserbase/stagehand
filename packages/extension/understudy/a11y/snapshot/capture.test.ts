@@ -139,7 +139,7 @@ describe("snapshot frame document slicing", () => {
     try {
       const ignored = await resolveIgnoredNodes(
         {} as Page,
-        [{ selector: "xpath=/iframe/" }],
+        [{ selector: { type: "legacy" as const, value: "xpath=/iframe/" } }],
         context,
         new Map([[session.id, documentIndex()]]),
       );
@@ -276,56 +276,69 @@ describe("snapshot Unicode repair", () => {
     expect((child!.outline as string & { isWellFormed(): boolean }).isWellFormed()).toBe(true);
   });
 
-  it("repairs malformed Unicode in a successfully scoped snapshot", async () => {
-    const malformedOutline = `[0-1] heading: Scoped ${String.fromCharCode(0xd83c)}`;
-    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
-      targetFrameId: "root",
-      tailSelector: "#target",
-      absPrefix: "",
-    });
-    vi.mocked(ownerSession).mockReturnValue({ id: "root" } as never);
-    vi.mocked(domMapsForSession).mockResolvedValue(emptyMaps());
-    vi.mocked(a11yForFrame).mockResolvedValue({
-      outline: malformedOutline,
-      urlMap: {},
-      scopeApplied: true,
-    });
+  it.each([
+    { type: "legacy" as const, value: "#target" },
+    { type: "css" as const, value: '[data-label="a >> b"]' },
+    { type: "xpath" as const, value: ".//article" },
+    { type: "text" as const, value: "text=Pay >> now" },
+  ])(
+    "preserves $type scope and repairs malformed Unicode in a scoped snapshot",
+    async (selector) => {
+      const malformedOutline = `[0-1] heading: Scoped ${String.fromCharCode(0xd83c)}`;
+      vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
+        targetFrameId: "root",
+        tailSelector: "#target",
+        absPrefix: "",
+      });
+      vi.mocked(ownerSession).mockReturnValue({ id: "root" } as never);
+      vi.mocked(domMapsForSession).mockResolvedValue(emptyMaps());
+      vi.mocked(a11yForFrame).mockResolvedValue({
+        outline: malformedOutline,
+        urlMap: {},
+        scopeApplied: true,
+      });
 
-    const snapshot = await tryScopedSnapshot(
-      {} as Page,
-      { focusLocator: { selector: "#target", nth: 2 } },
-      {
-        rootId: "root",
-        frames: ["root"],
-        parentByFrame: new Map([["root", null]]),
-      },
-      true,
-      new Map(),
-      new Map(),
-      { warn: vi.fn() } as unknown as StagehandLogger,
-    );
+      const snapshot = await tryScopedSnapshot(
+        {} as Page,
+        { focusLocator: { selector, nth: 2 } },
+        {
+          rootId: "root",
+          frames: ["root"],
+          parentByFrame: new Map([["root", null]]),
+        },
+        true,
+        new Map(),
+        new Map(),
+        { warn: vi.fn() } as unknown as StagehandLogger,
+      );
 
-    expect(snapshot).not.toBeNull();
-    expect(snapshot!.combinedTree).toContain("Scoped �");
-    expect((snapshot!.combinedTree as string & { isWellFormed(): boolean }).isWellFormed()).toBe(
-      true,
-    );
-    expect(snapshot!.perFrame).toHaveLength(1);
-    expect(snapshot!.perFrame![0]!.outline).toContain("Scoped �");
-    expect(
-      (snapshot!.perFrame![0]!.outline as string & { isWellFormed(): boolean }).isWellFormed(),
-    ).toBe(true);
-    expect(a11yForFrame).toHaveBeenCalledWith(
-      expect.anything(),
-      "root",
-      expect.objectContaining({
-        focusLocator: { selector: "#target", nth: 2 },
-      }),
-      undefined,
-    );
-  });
+      expect(snapshot).not.toBeNull();
+      expect(snapshot!.combinedTree).toContain("Scoped �");
+      expect((snapshot!.combinedTree as string & { isWellFormed(): boolean }).isWellFormed()).toBe(
+        true,
+      );
+      expect(snapshot!.perFrame).toHaveLength(1);
+      expect(snapshot!.perFrame![0]!.outline).toContain("Scoped �");
+      expect(
+        (snapshot!.perFrame![0]!.outline as string & { isWellFormed(): boolean }).isWellFormed(),
+      ).toBe(true);
+      expect(a11yForFrame).toHaveBeenCalledWith(
+        expect.anything(),
+        "root",
+        expect.objectContaining({
+          focusLocator: { selector, nth: 2 },
+        }),
+        undefined,
+      );
+    },
+  );
 
-  it("resolves only the indexed ignored locator match", async () => {
+  it.each([
+    { selector: { type: "legacy" as const, value: ".card" }, kind: "css" },
+    { selector: { type: "css" as const, value: ".card" }, kind: "css" },
+    { selector: { type: "xpath" as const, value: ".//article" }, kind: "xpath" },
+    { selector: { type: "text" as const, value: "text=Pay >> now" }, kind: "text" },
+  ])("resolves only the indexed $selector.type ignored match", async ({ selector, kind }) => {
     const session = {
       id: "root-session",
       send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
@@ -350,7 +363,7 @@ describe("snapshot Unicode repair", () => {
     try {
       const ignoredNodes = await resolveIgnoredNodes(
         { logger: {} } as Page,
-        [{ selector: ".card", nth: 1 }],
+        [{ selector, nth: 1 }],
         {
           rootId: "root",
           frames: ["root"],
@@ -359,7 +372,7 @@ describe("snapshot Unicode repair", () => {
         new Map(),
       );
 
-      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1, undefined);
+      expect(resolveAtIndex).toHaveBeenCalledWith({ kind, value: selector.value }, 1, undefined);
       expect(resolveAll).not.toHaveBeenCalled();
       expect(ignoredNodes.get("root")).toEqual(new Set([20]));
       expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
@@ -485,7 +498,10 @@ describe("snapshot progress ownership", () => {
       throw new Error("focus unavailable");
     });
     await expect(
-      page.captureSnapshot({ focusLocator: { selector: ".card" } }, progress),
+      page.captureSnapshot(
+        { focusLocator: { selector: { type: "legacy" as const, value: ".card" } } },
+        progress,
+      ),
     ).rejects.toThrow(/extract timed out/);
     expect(warn).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
@@ -493,10 +509,28 @@ describe("snapshot progress ownership", () => {
 
   it.each(
     [
-      { name: "css scope", options: { focusLocator: { selector: "iframe >> .card" } } },
-      { name: "xpath scope", options: { focusLocator: { selector: "xpath=/iframe/div" } } },
-      { name: "ignore", options: { ignoreLocators: [{ selector: ".card" }] } },
-      { name: "indexed ignore", options: { ignoreLocators: [{ selector: ".card", nth: 0 }] } },
+      {
+        name: "css scope",
+        options: {
+          focusLocator: { selector: { type: "legacy" as const, value: "iframe >> .card" } },
+        },
+      },
+      {
+        name: "xpath scope",
+        options: {
+          focusLocator: { selector: { type: "legacy" as const, value: "xpath=/iframe/div" } },
+        },
+      },
+      {
+        name: "ignore",
+        options: { ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" } }] },
+      },
+      {
+        name: "indexed ignore",
+        options: {
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" }, nth: 0 }],
+        },
+      },
     ].flatMap((test) => [0, 10].map((timeout) => ({ ...test, timeout }))),
   )(
     "$name falls back only while the caller is active (timeout: $timeout)",
@@ -542,7 +576,10 @@ describe("snapshot progress ownership", () => {
       return { root };
     });
     await expect(
-      page.captureSnapshot({ ignoreLocators: [{ selector: ".card" }] }, progress),
+      page.captureSnapshot(
+        { ignoreLocators: [{ selector: { type: "legacy" as const, value: ".card" } }] },
+        progress,
+      ),
     ).rejects.toThrow(/extract timed out/);
     await vi.advanceTimersByTimeAsync(0);
     expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([

@@ -468,7 +468,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     this.closed = true;
   }
 
-  deepLocator(selector: string): UnderstudyRuntimeLocator {
+  deepLocator(
+    input: Parameters<UnderstudyRuntimePage["deepLocator"]>[0],
+  ): UnderstudyRuntimeLocator {
+    const selector = input.value;
     const locator =
       this.locatorsBySelector.get(selector) ?? new FakeUnderstudyRuntimeLocator(selector);
     this.locatorRefs.push(locator);
@@ -2108,7 +2111,9 @@ describe("Stagehand worker clients", () => {
           page_id: "page-a",
           options: {
             full_page: true,
-            mask: [{ page_id: "page-a", selector: "[data-secret]" }],
+            mask: [
+              { page_id: "page-a", selector: { type: "legacy" as const, value: "[data-secret]" } },
+            ],
             mask_color: "#000000",
           },
         },
@@ -2349,7 +2354,11 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.pageScreenshot({
         pageId: "page-a",
-        options: { mask: [{ pageId: "page-b", selector: "[data-secret]" }] },
+        options: {
+          mask: [
+            { pageId: "page-b", selector: { type: "legacy" as const, value: "[data-secret]" } },
+          ],
+        },
       }),
     ).rejects.toThrow("mask locators must belong to the target page");
     expect(page.screenshotCalls).toStrictEqual([]);
@@ -2478,7 +2487,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorClick({
         pageId: "page-a",
-        selector: "button.submit",
+        selector: { type: "legacy" as const, value: "button.submit" },
         options: {
           button: "left",
           clickCount: 2,
@@ -2505,7 +2514,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorFill({
         pageId: "page-a",
-        selector: "input[name=email]",
+        selector: { type: "legacy" as const, value: "input[name=email]" },
         value: "user@example.com",
       }),
     ).resolves.toStrictEqual({
@@ -2528,7 +2537,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorIsVisible({
         pageId: "page-a",
-        selector: "section.visible",
+        selector: { type: "legacy" as const, value: "section.visible" },
       }),
     ).resolves.toBe(true);
 
@@ -2547,7 +2556,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorTextContent({
         pageId: "page-a",
-        selector: "p.message",
+        selector: { type: "legacy" as const, value: "p.message" },
       }),
     ).resolves.toBe("hello from locator");
 
@@ -2564,7 +2573,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorCount({
         pageId: "page-a",
-        selector: "li.item",
+        selector: { type: "legacy" as const, value: "li.item" },
         nth: 2,
       }),
     ).resolves.toBe(1);
@@ -2588,7 +2597,7 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
     const descriptor = {
       pageId: "page-a",
-      selector: "input.email",
+      selector: { type: "legacy" as const, value: "input.email" },
     };
 
     await expect(runtime.locatorCount(descriptor)).resolves.toBe(3);
@@ -2608,7 +2617,7 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
     const descriptor = {
       pageId: "page-a",
-      selector: "input.email",
+      selector: { type: "legacy" as const, value: "input.email" },
     };
 
     await expect(runtime.locatorHover(descriptor)).resolves.toStrictEqual({ hovered: true });
@@ -2661,7 +2670,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorClick({
         pageId: "missing-page",
-        selector: "button",
+        selector: { type: "legacy" as const, value: "button" },
       }),
     ).rejects.toThrow('Stagehand page "missing-page" was not found; call context.pages and retry');
   });
@@ -2672,7 +2681,7 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorIsVisible({
         pageId: "page-a",
-        selector: "button",
+        selector: { type: "legacy" as const, value: "button" },
       }),
     ).rejects.toThrow("Stagehand loopback CDP is not configured");
   });
@@ -2688,7 +2697,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.click",
         params: {
           page_id: "page-a",
-          selector: "button.submit",
+          selector: { type: "legacy" as const, value: "button.submit" },
           options: {
             button: "left",
             click_count: 2,
@@ -2724,7 +2733,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.fill",
         params: {
           page_id: "page-a",
-          selector: "input[name=email]",
+          selector: { type: "legacy" as const, value: "input[name=email]" },
           value: "user@example.com",
         },
       }),
@@ -2756,7 +2765,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.is_visible",
         params: {
           page_id: "page-a",
-          selector: "section.visible",
+          selector: { type: "legacy" as const, value: "section.visible" },
         },
       }),
     ).resolves.toStrictEqual({
@@ -2781,7 +2790,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.text_content",
         params: {
           page_id: "page-a",
-          selector: "p.message",
+          selector: { type: "legacy" as const, value: "p.message" },
         },
       }),
     ).resolves.toStrictEqual({
@@ -2807,7 +2816,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.count",
         params: {
           page_id: "page-a",
-          selector: "select.plan",
+          selector: { type: "legacy" as const, value: "select.plan" },
           nth: 0,
         },
       }),
@@ -2824,7 +2833,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.select_option",
         params: {
           page_id: "page-a",
-          selector: "select.plan",
+          selector: { type: "legacy" as const, value: "select.plan" },
           values: "pro",
         },
       }),
@@ -2841,7 +2850,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.set_input_files",
         params: {
           page_id: "page-a",
-          selector: "select.plan",
+          selector: { type: "legacy" as const, value: "select.plan" },
           nth: 1,
           files: [{ name: "hello.txt", data: "aGVsbG8=", mime_type: "text/plain" }],
         },
@@ -2859,7 +2868,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.set_input_files",
         params: {
           page_id: "page-a",
-          selector: "select.plan",
+          selector: { type: "legacy" as const, value: "select.plan" },
           files: [],
         },
       }),
@@ -2894,7 +2903,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.click",
         params: {
           page_id: "missing-page",
-          selector: "button",
+          selector: { type: "legacy" as const, value: "button" },
         },
       }),
     ).resolves.toMatchObject({
@@ -2918,7 +2927,7 @@ describe("Stagehand worker clients", () => {
         method: "locator.is_visible",
         params: {
           page_id: "page-a",
-          selector: "button",
+          selector: { type: "legacy" as const, value: "button" },
         },
       }),
     ).resolves.toMatchObject({

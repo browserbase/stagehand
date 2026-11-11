@@ -1,3 +1,4 @@
+import type { LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
 import type { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
@@ -25,7 +26,11 @@ export class FrameSelectorResolver {
     private readonly readinessOptions: ReadinessOptions = {},
   ) {}
 
-  public static parseSelector(raw: string): SelectorQuery {
+  public static parseSelector(raw: string | LocatorSelector): SelectorQuery {
+    if (typeof raw !== "string") {
+      if (raw.type !== "legacy") return { kind: raw.type, value: raw.value };
+      raw = raw.value;
+    }
     const trimmed = raw.trim();
 
     const isText = /^text=/i.test(trimmed);

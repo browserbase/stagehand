@@ -364,18 +364,24 @@ describe("extract service", () => {
   it.each([
     {
       name: "focus locator",
-      options: { cache: true, locator: { selector: "main", nth: 1 } },
+      options: {
+        cache: true,
+        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
+      },
       expectedSnapshotOptions: {
-        focusLocator: { selector: "main", nth: 1 },
+        focusLocator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
         ignoreLocators: undefined,
       },
     },
     {
       name: "ignore locator",
-      options: { cache: true, ignoreLocators: [{ selector: "nav", nth: 2 }] },
+      options: {
+        cache: true,
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
+      },
       expectedSnapshotOptions: {
         focusLocator: undefined,
-        ignoreLocators: [{ selector: "nav", nth: 2 }],
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 2 }],
       },
     },
   ])(

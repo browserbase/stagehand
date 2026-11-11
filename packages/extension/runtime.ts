@@ -36,6 +36,7 @@ import type {
   LocatorCentroidResult,
   LocatorCountResult,
   LocatorDescriptor,
+  LocatorSelector,
   LocatorParams,
   LocatorFillParams,
   LocatorFillResult,
@@ -194,7 +195,7 @@ export type UnderstudyRuntimePage = {
   title(): Promise<string>;
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
-  deepLocator(selector: string): UnderstudyRuntimeLocator;
+  deepLocator(selector: LocatorSelector): UnderstudyRuntimeLocator;
   subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,

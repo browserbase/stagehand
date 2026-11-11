@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { Locator } from "@browserbasehq/stagehand-protocol/types";
+import type { Locator, LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { Frame } from "../../frame.js";
@@ -185,7 +185,8 @@ export async function tryScopedSnapshot(
   progress?.throwIfStopped();
   const focusLocator = options?.focusLocator;
   if (!focusLocator) return null;
-  const requestedFocus = focusLocator.selector.trim();
+  const selector = focusLocator.selector;
+  const requestedFocus = selector.type === "legacy" ? selector.value.trim() : selector.value;
   if (!requestedFocus) return null;
   const focusNth = focusLocator.nth;
 
@@ -197,11 +198,14 @@ export async function tryScopedSnapshot(
 
   try {
     let targetFrameId: string;
-    let tailSelector: string | undefined;
+    let tailSelector: LocatorSelector | undefined;
     let absPrefix: string | undefined;
 
     const looksLikeXPath = /^xpath=/i.test(requestedFocus) || requestedFocus.startsWith("/");
-    if (looksLikeXPath) {
+    if (selector.type !== "legacy") {
+      targetFrameId = context.rootId;
+      tailSelector = selector;
+    } else if (looksLikeXPath) {
       const focus = normalizeXPath(requestedFocus);
       const hit = await resolveFocusFrameAndTail(
         page,
@@ -211,7 +215,7 @@ export async function tryScopedSnapshot(
         progress,
       );
       targetFrameId = hit.targetFrameId;
-      tailSelector = hit.tailXPath || undefined;
+      tailSelector = hit.tailXPath ? { type: "legacy", value: hit.tailXPath } : undefined;
       absPrefix = hit.absPrefix;
     } else {
       const cssHit = await resolveCssFocusFrameAndTail(
@@ -222,7 +226,9 @@ export async function tryScopedSnapshot(
         progress,
       );
       targetFrameId = cssHit.targetFrameId;
-      tailSelector = cssHit.tailSelector || undefined;
+      tailSelector = cssHit.tailSelector
+        ? { type: "legacy", value: cssHit.tailSelector }
+        : undefined;
       absPrefix = cssHit.absPrefix;
     }
 
@@ -443,8 +449,11 @@ export async function resolveIgnoredNodes(
 
   for (const locator of ignoreLocators ?? []) {
     progress?.throwIfStopped();
-    const selector = locator.selector.trim();
-    if (!selector) continue;
+    const selector =
+      locator.selector.type === "legacy"
+        ? { ...locator.selector, value: locator.selector.value.trim() }
+        : locator.selector;
+    if (!selector.value) continue;
 
     try {
       const resolved = await resolveIgnoredNodesForLocator(
@@ -475,7 +484,16 @@ async function resolveIgnoredNodesForLocator(
   sessionToIndex: Map<string, SessionDomIndex>,
   progress?: Progress,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
-  const selector = locator.selector;
+  if (locator.selector.type !== "legacy") {
+    return resolveIgnoredNodesInFrame(
+      page,
+      context.rootId,
+      FrameSelectorResolver.parseSelector(locator.selector),
+      locator.nth,
+      progress,
+    );
+  }
+  const selector = locator.selector.value;
   const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
 
   if (looksLikeXPath) {

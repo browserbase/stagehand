@@ -43,13 +43,9 @@ describe("structured locator selectors", () => {
     expect(schema.$defs).toHaveProperty("LegacyLocatorSelector");
   });
 
-  it("leaves the current wire locator contract unchanged", () => {
-    expect(LocatorSchema.parse({ selector: "button", nth: 0 })).toEqual({
-      selector: "button",
-      nth: 0,
-    });
-    expect(LocatorSchema.safeParse({ selector: { type: "css", value: "button" } }).success).toBe(
-      false,
-    );
+  it("requires structured selectors in wire locators", () => {
+    const locator = { selector: { type: "css", value: "button" }, nth: 0 };
+    expect(LocatorSchema.parse(locator)).toEqual(locator);
+    expect(LocatorSchema.safeParse({ selector: "button" }).success).toBe(false);
   });
 });

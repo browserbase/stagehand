@@ -576,6 +576,15 @@ class CookieFilter(RootModel[Union[StrictStr, CookieRegex]]):
     root: Union[StrictStr, CookieRegex]
 
 
+class CssLocatorSelector(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["css"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
 class DescribedVariableValue(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1078,6 +1087,15 @@ class LLMUsage(WireModel):
     ] = None
 
 
+class LegacyLocatorSelector(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["legacy"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
 class LoadState(StrEnum):
     load = "load"
     domcontentloaded = "domcontentloaded"
@@ -1089,7 +1107,7 @@ class Locator(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
 
 
@@ -1119,7 +1137,7 @@ class LocatorClickParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorClickOptions] = None
 
@@ -1142,7 +1160,7 @@ class LocatorDescriptor(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
 
 
@@ -1152,7 +1170,7 @@ class LocatorFillParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
     value: StrictStr
@@ -1184,7 +1202,7 @@ class LocatorHighlightParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorHighlightOptions] = None
 
@@ -1240,7 +1258,7 @@ class LocatorParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
 
@@ -1251,7 +1269,7 @@ class LocatorScrollToParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
     percent: Union[StrictFloat, StrictStr]
@@ -1271,7 +1289,7 @@ class LocatorSelectOptionParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
@@ -1300,7 +1318,7 @@ class LocatorSendClickEventParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorSendClickEventOptions] = None
 
@@ -1319,7 +1337,7 @@ class LocatorSetInputFilesParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
     files: list[InputFilePayload]
@@ -1353,7 +1371,7 @@ class LocatorTypeParams(WireModel):
         validate_by_name=True,
     )
     page_id: StrictStr
-    selector: Annotated[StrictStr, Field(min_length=1)]
+    selector: LocatorSelector
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorTypeOptions] = None
     text: StrictStr
@@ -2469,6 +2487,15 @@ class TelemetryTraces(WireModel):
     headers: dict[StrictStr, StrictStr] = {}
 
 
+class TextLocatorSelector(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["text"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
 class Theme(StrEnum):
     light = "light"
     dark = "dark"
@@ -2576,6 +2603,21 @@ class WebMCPToolsOptions(WireModel):
         validate_by_name=True,
     )
     timeout: Annotated[StrictFloat, Field(ge=0.0)] = 1000
+
+
+class XPathLocatorSelector(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["xpath"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
+class LocatorSelector(
+    RootModel[Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector, LegacyLocatorSelector]]
+):
+    root: Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector, LegacyLocatorSelector]
 
 
 FieldSchema0.model_rebuild()

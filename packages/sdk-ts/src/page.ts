@@ -1,3 +1,4 @@
+import { normalizeLocatorSelector } from "./locatorSelector.js";
 import type {
   LoadState,
   PageCDPEvent,
@@ -433,7 +434,7 @@ export class Page {
   locator(selector: string): Locator {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
-      selector,
+      selector: normalizeLocatorSelector(selector),
     });
   }
 }

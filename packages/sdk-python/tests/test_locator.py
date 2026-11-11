@@ -47,14 +47,14 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
     assert method == "locator.click"
     assert params == LocatorClickParams.model_validate({
         "page_id": "page-1",
-        "selector": "select",
+        "selector": {"type": "legacy", "value": "select"},
         "nth": 1,
         "options": {"button": "left", "click_count": 2},
     })
     assert result_model is LocatorClickResult
     assert recording.calls[1] == (
         "locator.count",
-        LocatorParams(page_id="page-1", selector="select", nth=1),
+        LocatorParams(page_id="page-1", selector={"type": "legacy", "value": "select"}, nth=1),
         LocatorCountResult,
     )
 
@@ -73,7 +73,7 @@ async def test_locator_boolean_and_string_getters_return_scalars() -> None:
 
     assert await locator.is_checked() is True
     assert await locator.input_value() == "selected"
-    descriptor = LocatorParams(page_id="page-1", selector="select")
+    descriptor = LocatorParams(page_id="page-1", selector={"type": "legacy", "value": "select"})
     assert recording.calls == [
         ("locator.is_checked", descriptor, LocatorIsCheckedResult),
         ("locator.input_value", descriptor, LocatorInputValueResult),
@@ -120,7 +120,7 @@ async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None
     assert result_model is LocatorSetInputFilesResult
     assert recording.calls[1][1] == LocatorSetInputFilesParams(
         page_id="page-1",
-        selector="#upload",
+        selector={"type": "legacy", "value": "#upload"},
         files=[],
     )
     historical_params = recording.calls[2][1]
@@ -243,7 +243,7 @@ async def test_locator_timeouts_preserve_options_and_omission(
     assert wire_method == f"locator.{method}"
     payload = params.model_dump(by_alias=True, exclude_unset=True)
     assert payload["page_id"] == "page-1"
-    assert payload["selector"] == "button"
+    assert payload["selector"] == {"type": "legacy", "value": "button"}
     assert payload["nth"] == 0
     expected_options = {**options, **({"timeout": timeout} if timeout is not None else {})}
     if expected_options:
@@ -252,7 +252,7 @@ async def test_locator_timeouts_preserve_options_and_omission(
         assert "options" not in payload
     assert locator.descriptor.model_dump(exclude_unset=True) == {
         "page_id": "page-1",
-        "selector": "button",
+        "selector": {"type": "legacy", "value": "button"},
         "nth": 0,
     }
 
@@ -265,3 +265,24 @@ async def test_locator_rejects_invalid_timeout_before_sending(timeout: float) ->
     with pytest.raises(ValueError):
         await locator.count(timeout=timeout)
     assert recording.calls == []
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        " css=button.submit ",
+        "(//button)[2]",
+        "xpath=/html/body/iframe[1]/html/body/button",
+        'iframe#checkout >> text="Pay"',
+        'TEXT=  "Submit"  ',
+    ],
+)
+def test_locator_preserves_legacy_strings_in_structured_descriptors(selector: str) -> None:
+    locator = Locator(cast(RPCClient, RecordingRPCClient()), page_id="page-1", selector=selector)
+    indexed = locator.nth(2)
+    assert indexed.selector == selector
+    assert indexed.descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "page-1",
+        "selector": {"type": "legacy", "value": selector},
+        "nth": 2,
+    }

@@ -1619,8 +1619,7 @@
       "type": "object",
       "properties": {
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -1629,6 +1628,82 @@
         }
       },
       "required": ["selector"],
+      "additionalProperties": false
+    },
+    "LocatorSelector": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CssLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/XPathLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/TextLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/LegacyLocatorSelector"
+        }
+      ]
+    },
+    "CssLocatorSelector": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "css"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "XPathLocatorSelector": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "xpath"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "TextLocatorSelector": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "text"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "LegacyLocatorSelector": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "legacy"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "value"],
       "additionalProperties": false
     },
     "ActResult": {
@@ -3899,8 +3974,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4534,8 +4608,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4586,8 +4659,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4633,8 +4705,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4689,8 +4760,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4738,8 +4808,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4812,8 +4881,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4868,8 +4936,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4919,8 +4986,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",
@@ -4960,8 +5026,7 @@
           "type": "string"
         },
         "selector": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/LocatorSelector"
         },
         "nth": {
           "type": "integer",

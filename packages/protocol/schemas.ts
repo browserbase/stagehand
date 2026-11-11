@@ -493,7 +493,7 @@ export const LocatorSelectorSchema = z
 
 export const LocatorSchema = z
   .strictObject({
-    selector: z.string().min(1),
+    selector: LocatorSelectorSchema,
     nth: z.number().int().nonnegative().optional(),
   })
   .meta({ id: "Locator" });

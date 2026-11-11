@@ -1,4 +1,5 @@
 // lib/v3/understudy/locator.ts
+import type { LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
 import { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import {
@@ -56,7 +57,7 @@ export class Locator {
 
   constructor(
     readonly frame: Frame,
-    readonly selector: string,
+    readonly selector: string | LocatorSelector,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
   ) {
@@ -64,6 +65,14 @@ export class Locator {
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
     const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
     this.nthIndex = normalized < 0 ? -1 : normalized;
+  }
+
+  private get selectorDescription(): string {
+    return typeof this.selector === "string"
+      ? this.selector
+      : this.selector.type === "legacy"
+        ? this.selector.value
+        : `${this.selector.type}=${this.selector.value}`;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -213,7 +222,8 @@ export class Locator {
           objectId,
         }),
       );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
+      if (!box.model)
+        throw new Error(`Element not visible (no box model): ${this.selectorDescription}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
@@ -362,7 +372,8 @@ export class Locator {
           objectId,
         }),
       );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
+      if (!box.model)
+        throw new Error(`Element not visible (no box model): ${this.selectorDescription}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       await runLocatorStep(progress, "dispatching mouse events", () =>
@@ -412,7 +423,8 @@ export class Locator {
           objectId,
         }),
       );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
+      if (!box.model)
+        throw new Error(`Element not visible (no box model): ${this.selectorDescription}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
@@ -572,7 +584,9 @@ export class Locator {
           res.exceptionDetails.exception?.description ??
           res.exceptionDetails.text ??
           "Unknown exception during locator().fill()";
-        throw new Error(`Error Filling Element with selector: ${this.selector} Reason: ${message}`);
+        throw new Error(
+          `Error Filling Element with selector: ${this.selectorDescription} Reason: ${message}`,
+        );
       }
 
       const result = res.result.value as
@@ -938,7 +952,9 @@ export class Locator {
       progress,
     );
     if (!resolved) {
-      throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
+      throw new Error(
+        `Could not find an element for the given xPath(s): ${this.selectorDescription}`,
+      );
     }
 
     return resolved;
@@ -966,14 +982,18 @@ export class Locator {
         progress,
       );
       if (!resolved) {
-        throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
+        throw new Error(
+          `Could not find an element for the given xPath(s): ${this.selectorDescription}`,
+        );
       }
       return [resolved];
     }
 
     const resolved = await this.selectorResolver.resolveAll(this.selectorQuery, {}, progress);
     if (!resolved.length) {
-      throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
+      throw new Error(
+        `Could not find an element for the given xPath(s): ${this.selectorDescription}`,
+      );
     }
     return resolved;
   }
