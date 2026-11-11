@@ -1,17 +1,11 @@
 import { BrowseCommand } from "../../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../../lib/driver/command-cli.js";
 
 export default class TabList extends BrowseCommand {
   static override description =
     "List tabs in the active browser session, including stable targetIds.";
 
-  static override examples = [
-    "browse tab list",
-    "browse tab list --session research",
-  ];
+  static override examples = ["browse tab list", "browse tab list --session research"];
 
   static override flags = {
     ...driverCommandFlags,

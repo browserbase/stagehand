@@ -27,11 +27,11 @@ async function repositoryFixture({
 `,
   );
   await writeFile(
-    path.join(pythonDirectory, "uv.lock"),
+    path.join(repositoryRoot, "uv.lock"),
     `[[package]]
 name = "stagehand"
 version = "${uvLock}"
-source = { editable = "." }
+source = { editable = "packages/sdk-python" }
 `,
   );
   return repositoryRoot;
@@ -54,6 +54,21 @@ describe("syncPythonVersion", () => {
     const repositoryRoot = await repositoryFixture({ uvLock: "4.0.0" });
     await expect(syncPythonVersion({ checkOnly: true, repositoryRoot })).rejects.toThrow(
       "uv.lock is 4.0.0; expected 4.1.0",
+    );
+  });
+
+  it("rejects a registry SDK entry even when its version matches", async () => {
+    const repositoryRoot = await repositoryFixture();
+    const lock = path.join(repositoryRoot, "uv.lock");
+    await writeFile(
+      lock,
+      (await readFile(lock, "utf8")).replace(
+        'editable = "packages/sdk-python"',
+        'registry = "https://pypi.org/simple"',
+      ),
+    );
+    await expect(syncPythonVersion({ checkOnly: true, repositoryRoot })).rejects.toThrow(
+      "uv.lock is missing; expected 4.1.0",
     );
   });
 

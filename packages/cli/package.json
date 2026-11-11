@@ -1,11 +1,34 @@
 {
   "name": "browse",
   "version": "0.11.3",
-  "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
-  "type": "module",
   "private": false,
+  "description": "Browser automation CLI for AI agents: local Chrome, Browserbase cloud, snapshots, and skills.",
+  "keywords": [
+    "agent",
+    "ai",
+    "ai-agent",
+    "browser-agent",
+    "browser-automation",
+    "cdp",
+    "chrome",
+    "claude-code",
+    "cli",
+    "codex",
+    "cursor",
+    "playwright",
+    "skills"
+  ],
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
   "license": "MIT",
   "author": "Browserbase <support@browserbase.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "browse": "bin/run.js"
   },
@@ -17,36 +40,85 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
+    "build:local-only": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.local-only.json && pnpm manifest",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "cli": "pnpm build && node bin/run.js",
+    "oxlint": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli",
+    "oxlint:fix": "pnpm --workspace-root exec oxlint --config oxlint.config.ts packages/cli --fix",
+    "format": "pnpm --workspace-root exec oxfmt --config .oxfmtrc.json --write packages/cli",
+    "format:check": "pnpm --workspace-root exec oxfmt --config .oxfmtrc.json --check packages/cli",
+    "lint": "pnpm format:check && pnpm oxlint && pnpm check",
+    "manifest": "oclif manifest .",
+    "test": "pnpm build && vitest run",
+    "test:cli": "vitest run",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts",
+    "test:smoke:package": "node scripts/smoke-package.mjs",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.14.0",
+    "@browserbasehq/stagehand": "4.4.0",
+    "@hpke/core": "^1.9.0",
+    "@hpke/dhkem-x25519": "^1.8.0",
+    "@inquirer/password": "^4.0.23",
+    "@oclif/core": "^4.11.0",
+    "@vercel/detect-agent": "^1.2.3",
+    "archiver": "^8.0.0",
+    "cross-spawn": "catalog:",
+    "dotenv": "^16.5.0",
+    "fastest-levenshtein": "^1.0.16",
+    "http-status-codes": "^2.3.0",
+    "ignore": "^7.0.5",
+    "node-html-markdown": "^1.3.0",
+    "semver": "^7.7.4",
+    "tsx": "^4.20.6",
+    "ws": "^8.18.3",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@browserbasehq/sdk-functions": "catalog:",
+    "@types/archiver": "^8.0.0",
+    "@types/cross-spawn": "catalog:",
+    "@types/node": "^20.11.30",
+    "@types/semver": "^7.7.1",
+    "@types/ws": "^8.18.1",
+    "oclif": "^4.23.1",
+    "typescript": "^5.8.3",
+    "vitest": "catalog:"
+  },
   "oclif": {
     "bin": "browse",
-    "dirname": "browse",
     "commands": "./dist/commands",
+    "dirname": "browse",
     "helpClass": "./dist/help.js",
     "hooks": {
-      "init": "./dist/hooks/init.js",
-      "prerun": "./dist/hooks/prerun.js",
+      "command_not_found": "./dist/hooks/command-not-found.js",
       "finally": "./dist/hooks/finally.js",
-      "command_not_found": "./dist/hooks/command-not-found.js"
+      "init": "./dist/hooks/init.js",
+      "prerun": "./dist/hooks/prerun.js"
     },
     "topicSeparator": " ",
     "topics": {
       "cloud": {
         "description": "Manage Browserbase cloud resources and APIs."
       },
-      "cloud:secrets": {
-        "description": "Create, list, retrieve, update, and delete project secrets."
-      },
-      "cloud:projects": {
-        "description": "Manage Browserbase projects."
-      },
       "cloud:contexts": {
         "description": "Manage Browserbase contexts."
       },
       "cloud:extensions": {
         "description": "Manage Browserbase Chrome extensions."
+      },
+      "cloud:projects": {
+        "description": "Manage Browserbase projects."
+      },
+      "cloud:secrets": {
+        "description": "Create, list, retrieve, update, and delete project secrets."
       },
       "cloud:sessions": {
         "description": "Manage Browserbase browser sessions."
@@ -57,11 +129,11 @@
       "cloud:sessions:uploads": {
         "description": "Upload files to Browserbase sessions."
       },
-      "functions:secrets": {
-        "description": "List, attach, and detach project secrets for functions."
-      },
       "functions": {
         "description": "Develop, publish, and invoke Browserbase Functions."
+      },
+      "functions:secrets": {
+        "description": "List, attach, and detach project secrets for functions."
       },
       "mouse": {
         "description": "Send raw mouse coordinate input."
@@ -80,66 +152,7 @@
       }
     }
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git",
-    "directory": "packages/cli"
-  },
-  "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
-  },
-  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
   "engines": {
     "node": ">=22.18.0"
-  },
-  "scripts": {
-    "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
-    "build:local-only": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.local-only.json && pnpm manifest",
-    "check": "tsc --noEmit -p tsconfig.json",
-    "cli": "pnpm build && node bin/run.js",
-    "eslint": "eslint .",
-    "eslint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier . --check --cache",
-    "lint": "pnpm format:check && pnpm eslint && pnpm check",
-    "manifest": "oclif manifest .",
-    "test": "pnpm build && vitest run",
-    "test:cli": "vitest run",
-    "prepublishOnly": "pnpm build"
-  },
-  "dependencies": {
-    "@browserbasehq/sdk": "^2.14.0",
-    "@browserbasehq/stagehand": "workspace:*",
-    "@hpke/core": "^1.9.0",
-    "@hpke/dhkem-x25519": "^1.8.0",
-    "@inquirer/password": "^4.0.23",
-    "@oclif/core": "^4.11.0",
-    "@vercel/detect-agent": "^1.2.3",
-    "archiver": "^7.0.1",
-    "deepmerge": "^4.3.1",
-    "dotenv": "^16.5.0",
-    "fastest-levenshtein": "^1.0.16",
-    "http-status-codes": "^2.3.0",
-    "ignore": "^7.0.5",
-    "node-html-markdown": "^1.3.0",
-    "semver": "^7.7.4",
-    "tsx": "^4.20.6",
-    "ws": "^8.18.3",
-    "zod": "^4.2.1"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/archiver": "^6.0.3",
-    "@types/node": "^20.11.30",
-    "@types/semver": "^7.7.1",
-    "@types/ws": "^8.18.1",
-    "eslint": "^10.4.0",
-    "eslint-plugin-security": "^4.0.0",
-    "globals": "^17.6.0",
-    "oclif": "^4.23.1",
-    "prettier": "3.5.3",
-    "typescript": "^5.8.3",
-    "typescript-eslint": "^8.59.3",
-    "vitest": "catalog:"
   }
 }

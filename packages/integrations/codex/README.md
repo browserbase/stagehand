@@ -8,11 +8,12 @@ MCP servers are supplied config.toml-style because codex-sdk has no in-process M
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, build the integrations package first:
+Use Node.js 24 or later. From the repository root, build this package (turbo builds its
+workspace dependencies first):
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-codex
 ```
 
 Export credentials (Browserbase is the default and recommended backend). Codex auth comes from
@@ -26,7 +27,7 @@ export BROWSERBASE_API_KEY=bb_live_...
 ## Run
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+pnpm --filter @browserbasehq/stagehand-integrations-codex start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
 | Variable                | Purpose                                                                                                                                                       |
@@ -82,7 +83,7 @@ STAGEHAND_BROWSER=local \
 STAGEHAND_FACADE_LOG_LEVEL=debug \
 STAGEHAND_FACADE_LOG_FILE=/tmp/stagehand-facade-tools.jsonl \
 STAGEHAND_CODEX_DIAGNOSTICS_DIR=/tmp/stagehand-codex-diagnostics \
-pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start \
+pnpm --filter @browserbasehq/stagehand-integrations-codex start \
   "Go to Paint and draw the NFL logo"
 ```
 
@@ -111,3 +112,10 @@ the raw CLI. Tool logging is diagnostic, not an eval scoring input.
 for this example. Evals expose the same option as `EVAL_CODEX_DIAGNOSTICS_DIR`.
 Artifacts may contain model/page content despite best-effort credential redaction.
 Diagnostic write failures do not mask the original SDK failure.
+
+## Evals harness adapter
+
+The same package is the `codex` evaluation harness adapter. Its library entry (`src/index.ts`:
+`session.ts`, `isolation.ts`, `diagnostics.ts`, built to `dist/` by `tsdown`) is what
+`packages/evals` imports for `--harness codex`; the example imports it through the package's own
+name.

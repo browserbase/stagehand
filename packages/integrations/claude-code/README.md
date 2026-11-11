@@ -6,11 +6,11 @@ programmatically — install, export keys, one line to run.
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, build the integrations package first:
+Use Node.js 24 or later. From the repository root, build this package (turbo builds its workspace dependencies first):
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-claude-code
 ```
 
 Export credentials (Browserbase is the default and recommended backend):
@@ -23,7 +23,7 @@ export BROWSERBASE_API_KEY=bb_live_...
 ## Run
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-claude-code-facade start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+pnpm --filter @browserbasehq/stagehand-integrations-claude-code start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
 | Variable                 | Purpose                                                                                          |
@@ -61,3 +61,9 @@ service worker — browser-side, never on your machine. Browserbase is the recom
 boundary: the privileged execution environment is a disposable cloud browser. The SDK example
 spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist; your
 Anthropic credentials never reach the browser session.
+
+## Evals harness adapter
+
+The same package is the `claude_code` evaluation harness adapter. Its library entry
+(`src/index.ts`: `session.ts`, built to `dist/` by `tsdown`) is what `packages/evals` imports for
+`--harness claude_code`; the example imports it through the package's own name.

@@ -15,7 +15,7 @@ export async function syncPythonVersion({
   const pythonDirectory = path.join(repositoryRoot, "packages/sdk-python");
   const proxyManifestPath = path.join(pythonDirectory, "package.json");
   const pyprojectPath = path.join(pythonDirectory, "pyproject.toml");
-  const uvLockPath = path.join(pythonDirectory, "uv.lock");
+  const uvLockPath = path.join(repositoryRoot, "uv.lock");
 
   const proxyManifest = JSON.parse(await readFile(proxyManifestPath, "utf8")) as {
     version?: unknown;
@@ -35,7 +35,7 @@ export async function syncPythonVersion({
   if (checkOnly) {
     const uvLock = await readFile(uvLockPath, "utf8");
     const uvVersionPattern =
-      /\[\[package\]\]\nname = "stagehand"\nversion = "(?<version>[^"]+)"\nsource = \{ editable = "\." \}/;
+      /\[\[package\]\]\nname = "stagehand"\nversion = "(?<version>[^"]+)"\nsource = \{ editable = "packages\/sdk-python" \}/;
     const uvVersion = uvLock.match(uvVersionPattern)?.groups?.version;
 
     const mismatches = [
