@@ -15,7 +15,7 @@ export default defineConfig({
       "packages/integrations/claude-code/tests/**/*.test.ts",
       "packages/integrations/claude-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/gemini-cua-sdk/tests/**/*.test.ts",
-      "packages/integrations/codex-sdk/tests/**/*.test.ts",
+      "packages/integrations/codex/tests/**/*.test.ts",
       "packages/integrations/mastra-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
       "packages/integrations/eve-sdk/tests/**/*.test.ts",

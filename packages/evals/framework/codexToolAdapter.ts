@@ -1,7 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
