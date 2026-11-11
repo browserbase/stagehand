@@ -180,6 +180,13 @@ export async function buildDoctorReport(
       deps,
     );
     if (modeCheck) checks.push(modeCheck);
+  } else if (status?.initError) {
+    checks.push({
+      details: { error: status.initError },
+      message: `last start failed: ${status.initError.split("\n")[0]}`,
+      name: targetCheckName(status.target),
+      status: "fail",
+    });
   }
 
   const verdict = reportVerdict(checks);
@@ -421,6 +428,12 @@ function nextStep(
     return parts.join(" ");
   }
   return undefined;
+}
+
+function targetCheckName(target: ConnectionTarget): string {
+  if (target.kind === "managed-local") return "browser";
+  if (target.kind === "remote") return "browserbase";
+  return "cdp";
 }
 
 function formatTarget(target: ConnectionTarget): string {

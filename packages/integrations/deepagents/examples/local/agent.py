@@ -3,16 +3,12 @@ from __future__ import annotations
 import asyncio
 
 import dotenv
-from _client import SERVER_NAME, create_stagehand_client
 from deepagents import create_deep_agent
-from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_stagehand import StagehandMiddleware
 from pydantic import BaseModel, ConfigDict, Field
-from stagehand_middleware.facade import facade_instructions
+from stagehand import Stagehand, local_browser
 
 dotenv.load_dotenv()
-
-# The facade contract's agent instructions, matching the MCP server's tools.
-BROWSER_INSTRUCTIONS = facade_instructions()
 
 
 class SportsEvent(BaseModel):
@@ -35,17 +31,20 @@ async def main() -> None:
     instruction = "Go find me a summary of all main sports events today"
     response_format = SportsSummary
 
-    client = create_stagehand_client()
-
-    async with client.session(SERVER_NAME) as session:
-        tools = await load_mcp_tools(session)
+    browser = await local_browser.launch(headless=False)
+    try:
+        stagehand = await Stagehand.create(browser=browser)
+        browser_middleware = StagehandMiddleware(stagehand=stagehand)
         agent = create_deep_agent(
             model=model,
-            tools=tools,
-            system_prompt=BROWSER_INSTRUCTIONS,
+            # Deep Agents inherits explicit tools into its default subagent.
+            tools=browser_middleware.tools,
+            middleware=[browser_middleware],
             response_format=response_format,
         )
         result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
+    finally:
+        await browser.close()
 
     if response_format is not None:
         response = result["structured_response"]

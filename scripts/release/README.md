@@ -16,17 +16,21 @@ and publisher; the wrapper chooses which changesets/packages they see.
 - Re-run the failed Release workflow to retry publication. Each package has one
   publisher, and Changesets skips versions already present in the registry.
 
-Browse still depends on the TypeScript SDK via `workspace:*`. Packing resolves
-that to the workspace SDK's exact version. That SDK version must already exist
-on npm; a dependency change requiring new SDK code must ship the SDK first.
-The CLI publishing path waits up to 15 minutes for that SDK version to appear,
-so it can complete alongside a concurrent SDK publication without depending on
-unrelated SDK checks.
-Before publishing, the CLI job packs and installs Browse outside the workspace
-and checks its entry points against registry dependencies. This does not prove
-that every browser command is compatible with an unreleased SDK change.
+Browse pins an exact published TypeScript SDK version in `packages/cli/package.json`.
+Development, CI, and installed packages all use that version from npm. SDK upgrades
+are explicit Browse dependency changes: publish the SDK first, update the pin and
+lockfile, and run Browse's contract and browser smoke tests before releasing.
+The CLI publishing path checks the declared version on npm and rejects workspace
+links or version ranges for monorepo dependencies. It retains a bounded wait for
+registry propagation, independent of unrelated SDK checks.
+Before publishing, the CLI job also packs and installs Browse outside the workspace
+to check its packaged entry points and dependencies.
 
 ## Coordination details
+
+The versioning wrapper applies only entries belonging to the selected release
+group, including entries with no version bump. This prevents SDK releases from
+silently updating Browse's dependency pin.
 
 Changesets 2.x `publish` does not honor `ignore`. The wrapper temporarily marks
 packages outside the selected group private and restores their exact manifests
@@ -58,7 +62,7 @@ releases instead. Already-published alpha versions are skipped on retries.
 
 The alpha job runs independently of the stable release jobs, uses only the
 Browse publisher, and creates no Git tag. It builds and smoke-tests the tarball
-against the published workspace SDK version, just like stable Browse releases;
+against Browse's pinned published SDK version, just like stable Browse releases;
 it does not depend on an SDK alpha being published for the same commit.
 
 ## First rollout

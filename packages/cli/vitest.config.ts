@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -6,6 +6,7 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     include: ["tests/**/*.test.ts"],
+    exclude: [...configDefaults.exclude, "tests/browser/**"],
     pool: "forks",
     fileParallelism: false,
   },

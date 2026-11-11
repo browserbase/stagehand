@@ -9,8 +9,17 @@
   </ul>
 </div>
 <p align="center">
-  <strong>Stagehand is the SDK for browser agents.</strong><br>
-  <a href="https://docs.stagehand.dev">Read the Docs</a>
+  <strong>Stagehand is the SDK for browser agents</strong><br>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
+<p align="center">
+  <a href="https://docs.stagehand.dev"><strong>Docs</strong></a> ·
+  <a href="https://docs.stagehand.dev/v4/first-steps/quickstart"><strong>Quickstart</strong></a> ·
+  <a href="https://github.com/browserbase/stagehand"><strong>⭐ Star this repo</strong></a>
 </p>
 
 <p align="center">
@@ -26,52 +35,47 @@
       <img alt="Discord Community" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/light_discord.svg" />
     </picture>
   </a>
-</p>
-
-<p align="center">
-	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
   <a href="https://deepwiki.com/browserbase/stagehand">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+    <img alt="Ask DeepWiki" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/deepwiki.svg" width="156" height="32" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://stagehand.dev">
+    <img src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/stagehand-website-banner.png" alt="Stagehand homepage showing browser automation in TypeScript, Python, and Go and a speed comparison with Playwright" width="100%" />
   </a>
 </p>
 
 # Stagehand Python SDK
 
-## What is Stagehand?
+## AI that uses the browser like humans.
 
-Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
+Sign in once, keep the session, and pull structured data out the other side.
 
-## Why Stagehand?
-
-Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and native support for complex DOM structures like out-of-process iframes and closed Shadow DOMs.
-
-Agents use fewer tokens, recover when websites change, and complete tasks more reliably. With a complete browser driver across TypeScript, Python, and Go, Stagehand delivers the flexibility of AI without sacrificing the speed, control, determinism, reliability, and observability required in production.
-
-For the full overview, examples, and contributing guide, see the [main README](https://github.com/browserbase/stagehand/blob/main/README.md).
-
-## Example
-
-The async Python SDK for Stagehand browser automation:
+Replace `app.example.com` with your application's URL and set `OPENAI_API_KEY`, `APP_EMAIL`, and
+`APP_PASSWORD` before running this example.
 
 ```python
 import asyncio
 import os
 
 from pydantic import BaseModel
+from stagehand import Stagehand, local_browser
 
-from stagehand import Stagehand, browserbase, local_browser
+
+class Invoice(BaseModel):
+    number: str
+    amount: float
+    paid: bool
 
 
-class PullRequest(BaseModel):
-    author: str
-    title: str
+class Invoices(BaseModel):
+    invoices: list[Invoice]
 
 
 async def main() -> None:
-    browser = await local_browser.launch(headless=True)
+    # Cookies persist in ./browser-data, so the next run starts already signed in
+    browser = await local_browser.launch(user_data_dir="./browser-data")
     try:
         stagehand = await Stagehand.create(
             browser=browser,
@@ -80,23 +84,24 @@ async def main() -> None:
         )
         try:
             page = (await browser.context.pages())[0]
-            await page.goto("https://github.com/browserbase")
+            await page.goto("https://app.example.com/login")
 
-            # act() executes individual actions
-            await stagehand.act("click on the stagehand repo")
+            # observe() returns real selectors, so credentials never reach the model
+            email = await stagehand.observe("find the email input")
+            password = await stagehand.observe("find the password input")
+            await page.locator(email.data[0].selector).fill(os.environ["APP_EMAIL"])
+            await page.locator(password.data[0].selector).fill(os.environ["APP_PASSWORD"])
 
-            # observe() reports what is actionable on the page
-            observed = await stagehand.observe("find the latest PR")
+            # act() self-heals when the site redesigns its form
+            await stagehand.act("click the sign in button")
+            await stagehand.act("open the billing page")
 
-            # Locators give deterministic, Playwright-style actions
-            await page.locator(observed.data[0].selector).click()
-
-            # extract() returns structured data validated by a pydantic model
+            # extract() returns schema-validated data
             result = await stagehand.extract(
-                "extract the author and title of the PR",
-                PullRequest,
+                "extract every invoice in the table",
+                Invoices,
             )
-            print(result.data.author, result.data.title)
+            print(result.data.invoices)
         finally:
             await stagehand.close()
     finally:
@@ -106,14 +111,51 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-See [`examples`](examples) for action, extraction, observation, and custom LLM usage.
+## Install
 
-For hosted browsers, import `browserbase` from `stagehand` and use
-`browserbase.launch(api_key=...)` or `browserbase.connect(api_key=..., session_id=...)` instead of
-`local_browser`. Calling `close()` on the browser handle releases the Browserbase session. To keep
-a `keep_alive=True` session for later, call `stagehand.close()` without `browser.close()`.
+```bash
+pip install stagehand
+```
 
-The same `browserbase` facade exposes Browserbase Search and Fetch without launching a browser:
+Requires Python 3.11 or later. Local runs need [Chrome](https://www.google.com/chrome/) installed.
+Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
+
+## Why Stagehand
+
+- **Familiar APIs:** The Playwright-style methods you and your agents already know: `goto`, `click`, `locator`, `screenshot`.
+- **Token efficiency:** Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more.
+- **Faster in production:** Stagehand runs as an extension next to the browser, cutting round-trip latency on every action.
+- **Self-healing:** `act`, `observe`, and `extract` refresh how an action happens when the site changes underneath it.
+- **Built for agents:** WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces.
+- **Three languages:** One complete browser driver across TypeScript, Python, and Go.
+
+## Run it on Browserbase
+
+Point the same script at [Browserbase](https://www.browserbase.com). The
+[Model Gateway](https://docs.stagehand.dev/v4/configuration/models#model-gateway) handles model
+routing, and [server-side caching](https://docs.stagehand.dev/v4/best-practices/caching) reuses
+results for repeated actions.
+
+Import `browserbase` from `stagehand`, then use these browser and client setup calls inside the
+async `main()` above, keeping its `try`/`finally` cleanup:
+
+```python
+from stagehand import browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+stagehand = await Stagehand.create(browser=browser, cache=True)
+```
+
+Use `browserbase.connect(api_key=..., session_id=...)` to attach to an existing session.
+`browser.close()` releases the Browserbase session. For a `keep_alive=True` session, use
+`await browser.disconnect()` to close the client and connection while keeping the session for later.
+See [browser configuration](https://docs.stagehand.dev/v4/configuration/browser) for more options.
+
+## Search and fetch without a browser
+
+[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch) grabs the content of a URL as markdown.
+[Search](https://docs.stagehand.dev/v4/add-ons/search) provides fast, token-efficient web search
+results. Both complement browser sessions without launching a browser.
 
 ```python
 import asyncio
@@ -139,6 +181,8 @@ async def search_and_fetch() -> None:
 asyncio.run(search_and_fetch())
 ```
 
+## Python API notes
+
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.
 
@@ -149,6 +193,13 @@ lazily while the Stagehand session remains open.
 When contributing examples or tests, keep browser ownership explicit: launch or connect a
 browser handle, pass it to `Stagehand.create()`, close Stagehand first, and close the browser in
 the outermost `finally` block.
+
+## Docs and resources
+
+- [Python examples](https://github.com/browserbase/stagehand/tree/main/packages/sdk-python/examples): actions, extraction, observation, and custom LLM usage.
+- [Page](https://docs.stagehand.dev/v4/reference/page) and [locator](https://docs.stagehand.dev/v4/reference/locator): Playwright-style browser and element APIs.
+- [Integrations](https://docs.stagehand.dev/v4/integrations/overview): agent frameworks and coding agents.
+- [Main README](https://github.com/browserbase/stagehand/blob/main/README.md): project overview, MCP setup, and community links.
 
 ## Contributing
 

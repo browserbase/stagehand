@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations",
-  "version": "4.0.6",
+  "version": "4.0.7",
   "private": true,
   "description": "Shared integration surfaces for Stagehand V4",
   "bin": {
