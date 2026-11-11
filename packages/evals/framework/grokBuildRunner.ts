@@ -1,8 +1,8 @@
+import { stringifyError } from "@browserbasehq/stagehand-integrations/harness";
 import {
   buildGrokBuildTranscript,
   extractGrokBuildToolCall,
   runGrokBuildSession,
-  stringifyError,
   type GrokBuildProcessRunner,
   type GrokBuildTokenUsage,
 } from "@browserbasehq/stagehand-integrations-grok-build";

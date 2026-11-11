@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
 import {
-  clip,
-  safeJson,
   HarnessAdapterError,
+  clip,
   harnessEventLogLevel,
+  safeJson,
   sanitizeErrorMessage,
+  stringifyError,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 
@@ -464,7 +465,10 @@ export function summarizeGrokBuildEvent(event: GrokBuildEvent): {
     };
   }
   if (type === "end") {
-    return { message: `end: ${readString(event.stopReason) ?? "done"}`, detail: safeJson(event) };
+    return {
+      message: `end: ${sanitizeErrorMessage(readString(event.stopReason) ?? "done")}`,
+      detail: sanitizeOptional(safeJson(event)),
+    };
   }
   return { message: `${type} event`, detail: sanitizeOptional(safeJson(event)) };
 }
@@ -499,13 +503,6 @@ function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function stringifyError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  return safeJson(value) ?? "Unknown error";
 }

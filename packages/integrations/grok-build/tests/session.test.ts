@@ -5,6 +5,7 @@ import {
   extractGrokBuildToolCall,
   readGrokBuildUsage,
   runGrokBuildSession,
+  summarizeGrokBuildEvent,
   type GrokBuildProcessRunner,
 } from "../src/session.js";
 
@@ -15,6 +16,13 @@ const logger = {
 };
 
 describe("Grok Build CLI session", () => {
+  it("redacts credentials in the terminal event summary", () => {
+    const stopReason = "Failed to fetch https://example.test/?token=secret-value";
+    const summary = summarizeGrokBuildEvent({ type: "end", stopReason });
+    expect(summary.message).not.toContain("secret-value");
+    expect(summary.detail).not.toContain("secret-value");
+  });
+
   it("builds a restricted one-shot CLI invocation", async () => {
     const runProcess = vi.fn(scriptedRunner([{ type: "end", stopReason: "end_turn" }]));
     await runGrokBuildSession({

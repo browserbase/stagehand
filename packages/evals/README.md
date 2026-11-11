@@ -117,6 +117,27 @@ See [the harness contract](docs/harness-contract.md) for tool surfaces, prompt p
 budget units, session diagnostics, verification, and usage accounting.
 See [HardBench](datasets/hardbenchmark/README.md) for corpus selection and rubric v1.2.
 
+## Grok Build
+
+The `grok_build` harness runs the Grok CLI with an isolated configuration directory.
+Install the CLI and sign in, or set `XAI_API_KEY`:
+
+```bash
+npm install --global @xai-official/grok
+grok login
+```
+
+```bash
+evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e browserbase
+```
+
+Set `EVAL_GROK_BUILD_PATH` to override the binary, `EVAL_GROK_BUILD_MAX_TURNS` to change the
+50-turn default, or `EVAL_GROK_BUILD_SANDBOX` to pass a Grok sandbox profile.
+
+Unattended evals enable auto-approval by default. Set `EVAL_GROK_BUILD_ALWAYS_APPROVE=false`
+to retain Grok's permission policy. The runner cannot answer interactive approval prompts.
+The effective setting is recorded in `harnessConfiguration.alwaysApprove`.
+
 ## Adding a bench task
 
 ```bash
@@ -148,19 +169,3 @@ Use the [observation task recorder](tasks/README.md) to capture a rendered
 page for a static `extract()` or `observe()` regression. It provides a standalone
 HTML artifact and provenance metadata; dynamic application replay is outside its
 scope.
-
-## Grok Build
-
-The `grok_build` harness uses the native `grok` CLI with an isolated configuration directory
-and the shared browser runtime. Install `@xai-official/grok@1.0.77` and authenticate with `grok login` or export `XAI_API_KEY` first.
-
-```bash
-evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e browserbase
-```
-
-Set `EVAL_GROK_BUILD_PATH` to override the binary, `EVAL_GROK_BUILD_MAX_TURNS` to change the
-50-turn default, or `EVAL_GROK_BUILD_SANDBOX` to pass a Grok sandbox profile.
-
-Unattended evals enable auto-approval by default. Set `EVAL_GROK_BUILD_ALWAYS_APPROVE=false`
-to retain Grok's permission policy. The runner cannot answer interactive approval prompts.
-The effective setting is recorded in `harnessConfiguration.alwaysApprove`.
