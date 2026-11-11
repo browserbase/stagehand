@@ -12,7 +12,7 @@ Use Node.js 24 or newer and pnpm 11.11.0. From the repository root, build the in
 ```bash
 pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
-npm install --global @xai-official/grok@1.0.77
+npm install --global @xai-official/grok
 grok login
 # or: export XAI_API_KEY=...
 ```
@@ -34,8 +34,8 @@ STAGEHAND_BROWSER = "local"
 ## Run
 
 Start `grok` in the configured project and approve project trust so it loads the
-MCP configuration. Ask Grok to use Stagehand to open https://example.com, take a
-snapshot, and report the heading with its snapshot ID.
+MCP configuration. Ask Grok to use `stagehand__run` to open https://example.com, then use
+`stagehand__snapshot` to report the heading and snapshot ID.
 
 For a headless run in the trusted project:
 
