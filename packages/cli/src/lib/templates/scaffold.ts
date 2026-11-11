@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -124,7 +124,7 @@ function templateSupportsLanguage(template: Template, language: TemplateLanguage
 }
 
 function commandExists(command: string, args: string[] = ["--version"]): boolean {
-  const result = spawnSync(command, args, {
+  const result = spawn.sync(command, args, {
     stdio: "ignore",
   });
 
@@ -168,7 +168,7 @@ function getScaffolder(language: TemplateLanguage): ScaffolderCommand {
 }
 
 function runCommand(command: string, args: string[], cwd?: string): CommandResult {
-  const result = spawnSync(command, args, {
+  const result = spawn.sync(command, args, {
     cwd,
     encoding: "utf8",
     stdio: "pipe",
