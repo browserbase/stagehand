@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic_ai import Agent, BinaryContent, FunctionToolResultEvent
-from pydantic_ai.messages import RetryPromptPart, ToolReturnPart
+from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 from run_eval import EvalResult, RunnerConfig, _map_event, aggregate_usage, run
@@ -11,7 +11,7 @@ from run_eval import EvalResult, RunnerConfig, _map_event, aggregate_usage, run
 def test_failed_and_retry_results_are_not_successful() -> None:
     for part in [
         ToolReturnPart("stagehand_run", "failed", tool_call_id="1", outcome="failed"),
-        RetryPromptPart("invalid arguments", tool_name="stagehand_run", tool_call_id="1"),
+        ToolReturnPart("stagehand_run", "invalid arguments", tool_call_id="1", outcome="retried"),
     ]:
         event = _map_event(FunctionToolResultEvent(part), {"stagehand_run": "stagehand"})[0]
         assert event["ok"] is False

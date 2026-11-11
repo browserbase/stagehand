@@ -223,6 +223,7 @@ export class Stagehand {
       attachStagehandBrowserContext(
         this.browserHandle,
         new BrowserContext(rpcClient, () => this.browserHandle.close()),
+        () => this.close(),
       );
     } catch (error) {
       this.removeBrowserbaseTransport?.();

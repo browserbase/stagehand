@@ -1,11 +1,10 @@
+import { stringifyError, toFiniteNumber } from "@browserbasehq/stagehand-integrations/harness";
 import {
   buildPydanticAiTranscript,
   runPydanticAiSession,
-  stringifyError,
-  toFiniteNumber,
   type PydanticAiProcessSpawner,
   type PydanticAiTokenUsage,
-} from "@browserbasehq/stagehand-integrations-pydantic-ai-sdk";
+} from "@browserbasehq/stagehand-integrations-pydantic-ai";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import type { ToolSurface } from "../core/contracts/tool.js";
@@ -24,12 +23,12 @@ import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
-export type { PydanticAiProcessSpawner } from "@browserbasehq/stagehand-integrations-pydantic-ai-sdk";
+export type { PydanticAiProcessSpawner } from "@browserbasehq/stagehand-integrations-pydantic-ai";
 export {
   buildPydanticAiTranscript,
   normalizePydanticAiModel,
   runPydanticAiSession,
-} from "@browserbasehq/stagehand-integrations-pydantic-ai-sdk";
+} from "@browserbasehq/stagehand-integrations-pydantic-ai";
 
 export interface PydanticAiRunnerInput {
   plan: ExternalHarnessTaskPlan;

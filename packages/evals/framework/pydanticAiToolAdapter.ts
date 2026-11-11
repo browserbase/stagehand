@@ -7,7 +7,7 @@ import {
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { PydanticAiMcpServerConfig } from "@browserbasehq/stagehand-integrations-pydantic-ai-sdk";
+import type { PydanticAiMcpServerConfig } from "@browserbasehq/stagehand-integrations-pydantic-ai";
 import type { ProbeEvidence } from "stagehand-v3";
 import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";

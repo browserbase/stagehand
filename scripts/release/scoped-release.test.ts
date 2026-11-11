@@ -40,9 +40,10 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" | "none" = "bot
     }),
   );
   for (const [directory, manifest] of Object.entries({
-    cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "workspace:*" } },
+    cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "4.1.0" } },
     sdk: { name: "sdk", version: "4.1.0" },
     python: { name: "python", version: "4.1.0", private: true },
+    middleware: { name: "stagehand-middleware", version: "0.1.1" },
   })) {
     await mkdir(path.join(root, "packages", directory), { recursive: true });
     await writeFile(
@@ -97,7 +98,12 @@ describe("independent release scopes using the real Changesets engine", () => {
       expect((await manifest(root, "python")).version).toMatch(
         snapshot ? /^4\.1\.1-alpha-/ : /^4\.1\.1$/,
       );
-      expect((await readdir(path.join(root, "packages"))).sort()).toEqual(["cli", "python", "sdk"]);
+      expect((await readdir(path.join(root, "packages"))).sort()).toEqual([
+        "cli",
+        "middleware",
+        "python",
+        "sdk",
+      ]);
       expect(await scopedChangesets(root, "sdk")).toEqual([]);
     },
   );
@@ -177,6 +183,19 @@ describe("independent release scopes using the real Changesets engine", () => {
     expect(await scopedChangesets(root, "sdk")).toHaveLength(1);
   });
 
+  it.each(["workspace:*", "link:../sdk", "^4.0.0"])(
+    "rejects a non-exact Browse SDK dependency before publishing: %s",
+    async (range) => {
+      const root = await fixture("cli");
+      const cli = await manifest(root, "cli");
+      cli.dependencies.sdk = range;
+      await writeFile(path.join(root, "packages/cli/package.json"), JSON.stringify(cli));
+      await expect(assertPublishedCliDependencies(root)).rejects.toThrow(
+        "Browse must pin sdk to an exact published version",
+      );
+    },
+  );
+
   it("waits for an in-flight SDK publication without waiting on unrelated SDK jobs", async () => {
     const root = await fixture("cli");
     let requests = 0;
@@ -230,8 +249,13 @@ describe("independent release scopes using the real Changesets engine", () => {
     }
   });
 
-  it("checks the CLI version before rebuilding and distinguishes missing versions from registry failures", async () => {
+  it("checks the declared SDK version independently of the workspace version and handles registry failures", async () => {
     const root = await fixture();
+    const sdk = await manifest(root, "sdk");
+    await writeFile(
+      path.join(root, "packages/sdk/package.json"),
+      JSON.stringify({ ...sdk, version: "4.2.0" }),
+    );
     let status = 404;
     const requests: string[] = [];
     const server = createServer((request, response) => {
@@ -254,6 +278,7 @@ describe("independent release scopes using the real Changesets engine", () => {
       await expect(isCliVersionPublished(root, registry)).rejects.toThrow("Registry returned 503");
       expect(requests).toContain("/browse/0.9.6");
       expect(requests).toContain("/sdk/4.1.0");
+      expect(requests).not.toContain("/sdk/4.2.0");
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
@@ -277,7 +302,7 @@ describe("independent release scopes using the real Changesets engine", () => {
       expect((await manifest(root, "cli")).version).toBe("0.10.0");
       expect((await manifest(root, "sdk")).version).toBe("4.2.0");
       expect((await manifest(root, "python")).version).toBe("4.1.1");
-      expect((await manifest(root, "cli")).dependencies.sdk).toBe("workspace:*");
+      expect((await manifest(root, "cli")).dependencies.sdk).toBe("4.1.0");
       expect((await versionScope(root, first)).releases).toHaveLength(0);
     });
   }
@@ -287,6 +312,7 @@ describe("independent release scopes using the real Changesets engine", () => {
     await versionScope(root, "sdk", true);
     expect((await manifest(root, "sdk")).version).toMatch(/^4\.2\.0-alpha-[a-f0-9]+$/);
     expect((await manifest(root, "cli")).version).toBe("0.9.6");
+    expect((await manifest(root, "cli")).dependencies.sdk).toBe("4.1.0");
     expect(await scopedChangesets(root, "cli")).toHaveLength(1);
     expect(await scopedChangesets(root, "sdk")).toHaveLength(0);
   });
@@ -310,7 +336,7 @@ describe("independent release scopes using the real Changesets engine", () => {
       it(`exposes only ${scope} to the native publisher and restores manifests after ${fail ? "failure" : "success"}`, async () => {
         const root = await fixture();
         const original = await Promise.all(
-          ["cli", "sdk", "python"].map((name) =>
+          ["cli", "sdk", "python", "middleware"].map((name) =>
             readFile(path.join(root, "packages", name, "package.json"), "utf8"),
           ),
         );
@@ -318,12 +344,14 @@ describe("independent release scopes using the real Changesets engine", () => {
           expect(Boolean((await manifest(root, "cli")).private)).toBe(scope !== "cli");
           expect(Boolean((await manifest(root, "sdk")).private)).toBe(scope !== "sdk");
           expect((await manifest(root, "python")).private).toBe(true);
+          // Published by hand only, never by either scope's native publisher.
+          expect((await manifest(root, "middleware")).private).toBe(true);
           if (fail) throw new Error("publish failed");
         });
         if (fail) await expect(publish).rejects.toThrow("publish failed");
         else await publish;
         const restored = await Promise.all(
-          ["cli", "sdk", "python"].map((name) =>
+          ["cli", "sdk", "python", "middleware"].map((name) =>
             readFile(path.join(root, "packages", name, "package.json"), "utf8"),
           ),
         );

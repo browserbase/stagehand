@@ -9,10 +9,7 @@ export type ConnectionTarget =
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };
 
-export type RemoteConnectionTarget = Extract<
-  ConnectionTarget,
-  { kind: "remote" }
->;
+export type RemoteConnectionTarget = Extract<ConnectionTarget, { kind: "remote" }>;
 
 /**
  * Browserbase session identity for a live remote session. Populated only once a
@@ -33,6 +30,8 @@ export interface PageSummary {
 
 export interface DriverStatus extends BrowserbaseIdentity {
   browserConnected: boolean;
+  /** Why the most recent browser start failed, while that failure is still cached. */
+  initError?: string;
   initialized: boolean;
   mode: ConnectionTarget["kind"];
   pages: PageSummary[];

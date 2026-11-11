@@ -4,7 +4,7 @@ This example registers `stagehand-middleware`'s `run`, `snapshot`, and `screensh
 native Pydantic AI tools. One Python-owned browser stays open for the agent run.
 Instructions and tool schemas come from the middleware.
 Browser calls run sequentially, and screenshots reach the model as image content.
-Tested with Pydantic AI 2.57.0.
+Tested with Pydantic AI 2.67.0.
 
 ## Setup
 
@@ -13,7 +13,7 @@ for local browser mode. In your own Python project, install the dependencies and
 [agent.py](agent.py) into the project:
 
 ```sh
-uv add "pydantic-ai>=2.57,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
+uv add "pydantic-ai>=2.67,<3" "stagehand-middleware>=0.1.2,<0.2" "jsonschema>=4.23,<5"
 ```
 
 To run from this example directory instead:
@@ -54,7 +54,7 @@ and calls the shared middleware directly.
 ## Eval runner
 
 The repository's `--harness pydantic_ai` benchmark uses
-[`runner/run_eval.py`](runner/run_eval.py), launched by the TypeScript session SDK.
+[`runner/run_eval.py`](runner/run_eval.py), launched by the TypeScript session adapter.
 It consumes the eval runtime's MCP mount, including the shared TypeScript facade
 for `stagehand_facade`. It does not launch the native example's Python browser.
 The runtime owns browser cleanup and captures evidence from the same session

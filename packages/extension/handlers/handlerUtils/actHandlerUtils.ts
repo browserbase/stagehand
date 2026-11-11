@@ -490,24 +490,11 @@ export async function waitForDomNetworkQuiet(
     return;
   }
 
+  // BrowserContext owns child-target auto-attachment; settling only observes events.
   await progress.run("enabling network events", () =>
     client.send("Network.enable").catch(() => {}),
   );
   await progress.run("enabling page events", () => client.send("Page.enable").catch(() => {}));
-  // Best-effort; some sessions may not support Target.setAutoAttach here.
-  await progress.run("attaching to frames", () =>
-    client
-      .send("Target.setAutoAttach", {
-        autoAttach: true,
-        waitForDebuggerOnStart: false,
-        flatten: true,
-        filter: [
-          { type: "worker", exclude: true },
-          { type: "shared_worker", exclude: true },
-        ],
-      })
-      .catch(() => {}),
-  );
 
   progress.throwIfStopped();
   await new Promise<void>((resolve) => {

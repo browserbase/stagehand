@@ -22,7 +22,7 @@ from pydantic_ai import (
 )
 from pydantic_ai.exceptions import RunCancelled, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset, StdioTransport
-from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart
+from pydantic_ai.messages import TextPart, ThinkingPart, ToolReturnPart
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.usage import UsageLimits
 
@@ -606,10 +606,7 @@ def _map_event(event: object, tool_servers: Mapping[str, str]) -> list[Event]:
     if isinstance(event, FunctionToolResultEvent):
         content = getattr(event.part, "content", None)
         name = str(getattr(event.part, "tool_name", "") or getattr(event, "tool_name", "") or "")
-        ok = (
-            not isinstance(event.part, RetryPromptPart)
-            and getattr(event.part, "outcome", "success") == "success"
-        )
+        ok = isinstance(event.part, ToolReturnPart) and event.part.outcome == "success"
         return [
             {
                 "type": "tool_result",

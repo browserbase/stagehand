@@ -69,7 +69,9 @@ class _BrowserRuntime:
         self._released = False
         self.tools = StagehandFacadeTools(
             stagehand,
-            artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
+            artifact_root=os.environ.get("STAGEHAND_FACADE_ARTIFACT_ROOT")
+            or os.environ.get("STAGEHAND_ARTIFACT_ROOT")
+            or None,
             # run code calling browser.close() closes and releases the session.
             on_close_requested=self._close_requested,
             quiet_wait=os.environ.get("STAGEHAND_FACADE_QUIET_WAIT", "").lower()

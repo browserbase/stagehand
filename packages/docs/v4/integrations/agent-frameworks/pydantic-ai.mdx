@@ -6,7 +6,7 @@ description: "Give a Pydantic AI agent persistent browser tools with stagehand-m
 The Pydantic AI integration registers native browser tools from `stagehand-middleware`. One browser stays open across `run`, `snapshot`, and `screenshot` calls. The middleware supplies the instructions, tool schemas, and browser behavior. Screenshots return native image content.
 
 <Note>
-The example is tested with Pydantic AI 2.57.0.
+The example is tested with Pydantic AI 2.67.0.
 </Note>
 
 ## Prerequisites
@@ -26,7 +26,7 @@ Create a Python project and install Pydantic AI and the browser middleware:
 mkdir pydantic-browser
 cd pydantic-browser
 uv init --python 3.11
-uv add "pydantic-ai>=2.57,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
+uv add "pydantic-ai>=2.67,<3" "stagehand-middleware>=0.1.2,<0.2" "jsonschema>=4.23,<5"
 ```
   </Step>
   <Step title="Save the example">

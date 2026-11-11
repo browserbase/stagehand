@@ -545,12 +545,12 @@ async function buildHarnessRow(
       );
       break;
     case "eve":
-      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-sdk")
+      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-harness")
         ? { status: "ok", label: "sdk" }
         : {
             status: "fail",
             label: "sdk missing",
-            detail: "@browserbasehq/stagehand-integrations-eve-sdk not resolvable.",
+            detail: "@browserbasehq/stagehand-integrations-eve-harness not resolvable.",
             fix: "pnpm install",
           };
       break;
@@ -569,8 +569,8 @@ async function buildHarnessRow(
         status: "unknown",
         label: "python env",
         detail:
-          "run `uv sync --locked --check` in the runner project to confirm the env is synced.",
-        fix: "uv sync --locked --project packages/integrations/deepagents-sdk/runner",
+          "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
+        fix: "uv sync --all-packages --locked",
       };
       break;
     }
