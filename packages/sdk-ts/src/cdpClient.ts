@@ -1047,12 +1047,14 @@ export async function resolveBrowserWebSocketUrl(
 
   const pollIntervalMs = options.pollIntervalMs ?? 250;
   const delayFn = options.delayFn ?? delay;
-  const baseUrl = cdpUrl.replace(/\/$/, "");
+  const versionUrl = new URL(cdpUrl);
+  versionUrl.pathname = `${versionUrl.pathname.replace(/\/$/, "")}/json/version`;
+  versionUrl.hash = "";
 
   while (true) {
     throwIfAborted(options.signal);
     try {
-      const response = await fetchCDPVersion(`${baseUrl}/json/version`, options);
+      const response = await fetchCDPVersion(versionUrl.href, options);
 
       if (response.ok) {
         const version = (await abortable(response.json(), options.signal)) as {
