@@ -2,11 +2,7 @@ import Browserbase from "@browserbasehq/sdk";
 import { browserbase } from "@browserbasehq/stagehand";
 import { StatusCodes } from "http-status-codes";
 
-import {
-  getCliVersion,
-  resolveInstallId,
-  toMetadataValue,
-} from "../identity.js";
+import { getCliVersion, resolveInstallId, toMetadataValue } from "../identity.js";
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
 import type { DriverModeFlags } from "./mode.js";
@@ -17,11 +13,7 @@ import type {
   RemoteInitErrorClassification,
   RemoteStagehandOptions,
 } from "./remote-types.js";
-import type {
-  BrowserbaseIdentity,
-  ConnectionTarget,
-  RemoteConnectionTarget,
-} from "./types.js";
+import type { BrowserbaseIdentity, ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 type BrowserbaseDebugClient = {
   sessions: {
@@ -35,9 +27,7 @@ type BrowserbaseDebugClient = {
  * local-only artifacts cannot reach Browserbase.
  */
 
-export function resolveExplicitRemoteTarget(
-  flags: DriverModeFlags,
-): ConnectionTarget {
+export function resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionTarget {
   return {
     kind: "remote",
     ...(flags.verified ? { verified: true } : {}),
@@ -101,10 +91,7 @@ export async function launchRemoteBrowser(
   target?: RemoteConnectionTarget,
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteBrowserLaunch> {
-  const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(
-    target,
-    forwardedEnv,
-  );
+  const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(target, forwardedEnv);
   // The V4 factory provisions the packaged Stagehand extension before it
   // creates the Browserbase session and owns both resources on browser.close().
   // A raw sessions.create() + browserbase.connect() skips that provisioning.
@@ -157,9 +144,7 @@ function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
  * Map a failed remote `stagehand.init()` to an actionable message and a
  * stable result code. Browserbase SDK errors carry an HTTP `status`.
  */
-export function classifyRemoteInitError(
-  error: unknown,
-): RemoteInitErrorClassification {
+export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
   const status = (error as { status?: unknown } | null | undefined)?.status;
   const httpStatus = typeof status === "number" ? status : undefined;
   if (httpStatus === StatusCodes.UNAUTHORIZED) {

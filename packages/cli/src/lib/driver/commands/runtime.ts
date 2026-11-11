@@ -27,9 +27,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     const buffer = await page.screenshot({
-      ...(options.animations === undefined
-        ? {}
-        : { animations: options.animations }),
+      ...(options.animations === undefined ? {} : { animations: options.animations }),
       ...(options.caret === undefined ? {} : { caret: options.caret }),
       ...(options.clip === undefined ? {} : { clip: options.clip }),
       ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
@@ -72,8 +70,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
 
     if (type === "load") {
       await page.waitForLoadState(
-        (arg as "domcontentloaded" | "load" | "networkidle" | undefined) ??
-          "load",
+        (arg as "domcontentloaded" | "load" | "networkidle" | undefined) ?? "load",
         timeoutMs,
       );
     } else if (type === "selector") {
@@ -102,9 +99,7 @@ function parseTimeoutMs(value: string | undefined): number {
   if (value === undefined) return 0;
   const timeoutMs = Number(value);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 0) {
-    throw new Error(
-      "wait timeout requires a non-negative integer number of milliseconds.",
-    );
+    throw new Error("wait timeout requires a non-negative integer number of milliseconds.");
   }
 
   return timeoutMs;

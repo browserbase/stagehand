@@ -33,7 +33,8 @@ class RuntimeConfig:
     # quiet, never later than ms (STAGEHAND_FACADE_QUIET_WAIT).
     quiet_wait: bool = False
     # Where screenshots that run code saves with a path are written; None is the
-    # current directory (STAGEHAND_ARTIFACT_ROOT).
+    # facade's default, ./stagehand-artifacts (STAGEHAND_FACADE_ARTIFACT_ROOT, or
+    # the older STAGEHAND_ARTIFACT_ROOT).
     artifact_root: str | None = None
 
     @classmethod
@@ -54,7 +55,9 @@ class RuntimeConfig:
             stagehand_api_url=os.environ.get("STAGEHAND_API_URL") or None,
             browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY") or None,
             quiet_wait=_env_bool("STAGEHAND_FACADE_QUIET_WAIT", False),
-            artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
+            artifact_root=os.environ.get("STAGEHAND_FACADE_ARTIFACT_ROOT")
+            or os.environ.get("STAGEHAND_ARTIFACT_ROOT")
+            or None,
         )
 
 

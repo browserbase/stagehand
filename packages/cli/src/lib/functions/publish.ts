@@ -1,4 +1,4 @@
-import archiver from "archiver";
+import { TarArchive } from "archiver";
 import ignore from "ignore";
 import {
   copyFileSync,
@@ -9,7 +9,7 @@ import {
   rmSync,
 } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -67,9 +67,7 @@ const defaultIgnorePatterns = [
   ".browserbase/",
 ];
 
-export async function publishFunction(
-  options: PublishFunctionOptions,
-): Promise<void> {
+export async function publishFunction(options: PublishFunctionOptions): Promise<void> {
   const entrypoint = await resolveEntrypoint(options.entrypoint);
   const config = resolveFunctionsApiConfig(options);
   const entrypointPath = relative(process.cwd(), entrypoint);
@@ -102,14 +100,10 @@ export async function publishFunction(
       "archive.tar.gz",
     );
 
-    const uploadResponse = await functionsRequest(
-      config,
-      "/v1/functions/builds",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
+    const uploadResponse = await functionsRequest(config, "/v1/functions/builds", {
+      method: "POST",
+      body: formData,
+    });
 
     const uploaded = (await uploadResponse.json()) as BuildUploadResponse;
     if (!uploaded.id) {
@@ -119,11 +113,7 @@ export async function publishFunction(
     }
 
     const build = await pollUntil(
-      () =>
-        functionsGet<BuildStatusResponse>(
-          config,
-          `/v1/functions/builds/${uploaded.id}`,
-        ),
+      () => functionsGet<BuildStatusResponse>(config, `/v1/functions/builds/${uploaded.id}`),
       {
         done: (result) => !["PENDING", "RUNNING"].includes(result.status),
         intervalMs: 2_000,
@@ -148,20 +138,14 @@ async function createArchive(root: string): Promise<{
   archivePath: string;
   entries: string[];
 }> {
-  const archivePath = join(
-    tmpdir(),
-    `browserbase-functions-${randomUUID()}.tar.gz`,
-  );
+  const archivePath = join(tmpdir(), `browserbase-functions-${randomUUID()}.tar.gz`);
   const sourceEntries = await listPublishEntries(root);
-  const { entries, generatedLockfilePath } = ensureArchiveLockfile(
-    root,
-    sourceEntries,
-  );
+  const { entries, generatedLockfilePath } = ensureArchiveLockfile(root, sourceEntries);
 
   try {
     await new Promise<void>((resolvePromise, reject) => {
       const output = createWriteStream(archivePath);
-      const archive = archiver("tar", {
+      const archive = new TarArchive({
         gzip: true,
         gzipOptions: { level: 9 },
       });
@@ -206,10 +190,7 @@ function ensureArchiveLockfile(
   root: string,
   entries: string[],
 ): { entries: string[]; generatedLockfilePath?: string } {
-  if (
-    !entries.includes("package.json") ||
-    entries.includes("package-lock.json")
-  ) {
+  if (!entries.includes("package.json") || entries.includes("package-lock.json")) {
     return { entries };
   }
 
@@ -223,7 +204,7 @@ function ensureArchiveLockfile(
   }
 
   // Omit resolved URLs so the builder installs from its own registry rather than the one on your machine.
-  const result = spawnSync(
+  const result = spawn.sync(
     "npm",
     ["install", "--package-lock-only", "--omit-lockfile-registry-resolved"],
     {
@@ -234,9 +215,7 @@ function ensureArchiveLockfile(
 
   if (result.status !== 0) {
     rmSync(tempDir, { recursive: true, force: true });
-    const npmOutput = result.error
-      ? result.error.message
-      : result.stderr.toString().trim();
+    const npmOutput = result.error ? result.error.message : result.stderr.toString().trim();
     fail(
       `Failed to generate package-lock.json for the Functions build archive.${npmOutput ? `\n${npmOutput}` : ""}`,
     );
