@@ -174,6 +174,20 @@ describe("gateway inference end to end", () => {
   });
 
   it("forwards tools and tool choice in Responses format", async () => {
+    // The AI SDK rejects a reply with no tool call when tool choice is "required".
+    respondWith = () => ({
+      ...completion(""),
+      output: [
+        {
+          type: "function_call",
+          id: "fc_1",
+          call_id: "call_1",
+          name: "get_weather",
+          arguments: JSON.stringify({ city: "Paris" }),
+          status: "completed",
+        },
+      ],
+    });
     await llmService.generate(
       { modelName: "openai/gpt-5" },
       {

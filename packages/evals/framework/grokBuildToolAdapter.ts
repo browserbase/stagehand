@@ -2,7 +2,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { stringify } from "smol-toml";
-import type { GrokBuildToolCallView } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
+import type { GrokBuildToolCallView } from "@browserbasehq/stagehand-integrations-grok-build";
 import type { ProbeEvidence } from "stagehand-v3";
 import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { BrowserSessionInfo } from "./browserSession.js";

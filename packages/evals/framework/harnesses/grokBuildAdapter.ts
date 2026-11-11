@@ -1,4 +1,4 @@
-import { extractGrokBuildToolCall } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
+import { extractGrokBuildToolCall } from "@browserbasehq/stagehand-integrations-grok-build";
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {

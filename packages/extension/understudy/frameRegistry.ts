@@ -80,7 +80,7 @@ export class FrameRegistry {
    * Record that a frame attached. If `parentId` is null and `frameId` differs from the current
    * root, this is a root swap and we rename the root id.
    *
-   * IMPORTANT: The emitter's `sessionId` is the **owner** for the new/attached frame.
+   * The provided `sessionId` is the selected **owner** for the new/attached frame.
    */
   onFrameAttached(frameId: FrameId, parentId: FrameId | null, sessionId: SessionId): void {
     // Root swap (parentId === null for main frames).
@@ -103,7 +103,7 @@ export class FrameRegistry {
       this.frames.get(parentId)!.children.add(frameId);
     }
 
-    // Ownership: the session that emitted frameAttached owns this frame.
+    // Ownership: use the session selected by the event bridge.
     this.setOwnerSessionIdInternal(frameId, sessionId);
   }
 

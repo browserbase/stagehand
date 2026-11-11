@@ -5,7 +5,7 @@ import {
   stringifyError,
   type GrokBuildProcessRunner,
   type GrokBuildTokenUsage,
-} from "@browserbasehq/stagehand-integrations-grok-build-sdk";
+} from "@browserbasehq/stagehand-integrations-grok-build";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import { EvalsError } from "../errors.js";
@@ -25,7 +25,7 @@ import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
-export type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
+export type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build";
 
 export interface GrokBuildRunnerInput {
   plan: ExternalHarnessTaskPlan;

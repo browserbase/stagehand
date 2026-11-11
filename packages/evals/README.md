@@ -152,7 +152,7 @@ scope.
 ## Grok Build
 
 The `grok_build` harness uses the native `grok` CLI with an isolated configuration directory
-and the shared browser runtime. Authenticate with `grok login` or export `XAI_API_KEY` first.
+and the shared browser runtime. Install `@xai-official/grok@1.0.77` and authenticate with `grok login` or export `XAI_API_KEY` first.
 
 ```bash
 evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e browserbase

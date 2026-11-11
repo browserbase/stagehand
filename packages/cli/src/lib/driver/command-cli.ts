@@ -17,15 +17,11 @@ import {
   targetIdFlag,
   verifiedFlag,
 } from "./flags.js";
-import { getDriverStatus } from "./daemon/client.js";
-import {
-  hasChromeArgFlags,
-  resolveConnectionTarget,
-  type DriverModeFlags,
-} from "./mode.js";
+import { assertCompatibleTarget, getDriverStatus } from "./daemon/client.js";
+import { hasChromeArgFlags, resolveConnectionTarget, type DriverModeFlags } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
-import { runDriverCommandWithTarget } from "./runtime.js";
+import { runDriverCommand, type DriverSessionSelection } from "./runtime.js";
 
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
@@ -73,64 +69,66 @@ export async function runDriverCommandFromFlags(
   flags: DriverFlags,
 ): Promise<void> {
   const session = sessionName(flags.session);
-  const target = await resolveTargetForCommand(session, flags);
-  outputJson(
-    await runDriverCommandWithTarget(session, target, command, params),
-  );
+  const selection = await resolveDriverSession(session, flags);
+  outputJson(await runDriverCommand(session, selection, command, params));
 }
 
-export async function resolveTargetForCommand(
+export async function resolveDriverSession(
   session: string,
   flags: DriverFlags,
-) {
+): Promise<DriverSessionSelection> {
   const hasExplicitTarget = hasExplicitDriverTarget(flags);
-  if (!hasExplicitTarget || hasModeOnlyFlag(flags)) {
-    const status = await getDriverStatus(session);
-    if (
-      status?.target &&
-      (!hasExplicitTarget || targetMatchesRequestedMode(status.target, flags))
-    ) {
-      return status.target;
+  const requestedTarget =
+    hasExplicitTarget && !hasModeOnlyFlag(flags) ? await resolveConnectionTarget(flags) : undefined;
+  const status = await getDriverStatus(session);
+  if (status) {
+    if (requestedTarget) {
+      assertCompatibleTarget(session, status, requestedTarget);
+    } else if (hasExplicitTarget && !targetMatchesRequestedMode(status.target, flags)) {
+      assertCompatibleTarget(session, status, await resolveConnectionTarget(flags));
     }
+    // A status reply describes a running session; it must never supply the
+    // launch options for a replacement if that daemon subsequently disappears.
+    return { kind: "existing" };
   }
 
-  return resolveConnectionTarget(flags);
+  return {
+    kind: "create",
+    target: requestedTarget ?? (await resolveConnectionTarget(flags)),
+  };
 }
 
 export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
   return Boolean(
     flags.local ||
-      flags.remote ||
-      flags["auto-connect"] ||
-      flags.cdp ||
-      hasChromeArgFlags(flags) ||
-      flags["target-id"] ||
-      flags.headed ||
-      flags.headless ||
-      flags.verified ||
-      flags.proxies,
+    flags.remote ||
+    flags["auto-connect"] ||
+    flags.cdp ||
+    hasChromeArgFlags(flags) ||
+    flags["target-id"] ||
+    flags.headed ||
+    flags.headless ||
+    flags.verified ||
+    flags.proxies,
   );
 }
 
 function hasModeOnlyFlag(flags: DriverFlags): boolean {
   return Boolean(
     (flags.local || flags.remote) &&
-      !flags["auto-connect"] &&
-      !flags.cdp &&
-      !hasChromeArgFlags(flags) &&
-      !flags["target-id"] &&
-      !flags.headed &&
-      !flags.headless &&
-      !flags.verified &&
-      !flags.proxies &&
-      flags.local !== flags.remote,
+    !flags["auto-connect"] &&
+    !flags.cdp &&
+    !hasChromeArgFlags(flags) &&
+    !flags["target-id"] &&
+    !flags.headed &&
+    !flags.headless &&
+    !flags.verified &&
+    !flags.proxies &&
+    flags.local !== flags.remote,
   );
 }
 
-function targetMatchesRequestedMode(
-  target: ConnectionTarget,
-  flags: DriverFlags,
-): boolean {
+function targetMatchesRequestedMode(target: ConnectionTarget, flags: DriverFlags): boolean {
   if (flags.local) return target.kind === "managed-local";
   if (flags.remote) return target.kind === "remote";
   return false;
@@ -144,9 +142,7 @@ export function parseClip(
     /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/,
   );
   if (!match) {
-    throw new Error(
-      "Invalid clip. Use x,y,width,height, for example 0,0,800,600.",
-    );
+    throw new Error("Invalid clip. Use x,y,width,height, for example 0,0,800,600.");
   }
 
   const [, x, y, width, height] = match;

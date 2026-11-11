@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
+import type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build";
 import { runGrokBuildAgent } from "../../framework/grokBuildRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";

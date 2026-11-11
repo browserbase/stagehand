@@ -3,8 +3,8 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as eveSdk from "@browserbasehq/stagehand-integrations-eve-sdk";
-import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import * as eveHarness from "@browserbasehq/stagehand-integrations-eve-harness";
+import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildEvePrompt,
@@ -141,10 +141,10 @@ describe("Eve runner helpers", () => {
       })["agent/instructions.md"];
       await fsp.mkdir(path.join(appRoot, "agent"));
       await fsp.writeFile(path.join(appRoot, "agent", "instructions.md"), instructions);
-      const realRunEveSession = eveSdk.runEveSession;
+      const realRunEveSession = eveHarness.runEveSession;
       // Only substitute server startup: the real session implementation must
       // still deliver the runner's prompt to the recording client.send call.
-      const sessionSpy = vi.spyOn(eveSdk, "runEveSession").mockImplementationOnce((input) => {
+      const sessionSpy = vi.spyOn(eveHarness, "runEveSession").mockImplementationOnce((input) => {
         expect(input.server).toHaveProperty(
           useExternalServer ? "url" : "appRoot",
           useExternalServer ? "http://external-eve" : appRoot,

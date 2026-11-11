@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import { promises as fs } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -16,7 +17,8 @@ import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
 import { runtimeHandlers } from "../src/lib/driver/commands/runtime.js";
 import { tabHandlers } from "../src/lib/driver/commands/tabs.js";
 import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
-import { hasExplicitDriverTarget } from "../src/lib/driver/command-cli.js";
+import { hasExplicitDriverTarget, resolveDriverSession } from "../src/lib/driver/command-cli.js";
+import { runDriverCommand } from "../src/lib/driver/runtime.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { parseRequest } from "../src/lib/driver/daemon/protocol.js";
 import { runCli } from "./helpers/run-cli.js";
@@ -35,12 +37,7 @@ describe("driver commands", () => {
       ]),
     );
     expect([...DRIVER_COMMAND_NAMES]).not.toEqual(
-      expect.arrayContaining([
-        "click_xy",
-        "tab_switch",
-        "tab_close",
-        "network_enable",
-      ]),
+      expect.arrayContaining(["click_xy", "tab_switch", "tab_close", "network_enable"]),
     );
   });
 
@@ -52,9 +49,7 @@ describe("driver commands", () => {
 
     expect(resolveSelector("@0-1", maps)).toBe("/html/body/button");
     expect(resolveSelector("[0-1]", maps)).toBe("/html/body/button");
-    expect(resolveSelector("button[type=submit]", maps)).toBe(
-      "button[type=submit]",
-    );
+    expect(resolveSelector("button[type=submit]", maps)).toBe("button[type=submit]");
     expect(() => resolveSelector("@9-9", maps)).toThrow('Unknown ref "9-9"');
   });
 
@@ -74,54 +69,107 @@ describe("driver commands", () => {
         "ignore-default-chrome-arg": ["--enable-automation"],
       }),
     ).toBe(true);
-    expect(hasExplicitDriverTarget({ "no-default-chrome-args": true })).toBe(
-      true,
-    );
+    expect(hasExplicitDriverTarget({ "no-default-chrome-args": true })).toBe(true);
   });
 
   it("reuses an existing daemon when a broad mode flag matches", async () => {
     vi.resetModules();
     const getDriverStatus = vi.fn().mockResolvedValue({
+      mode: "managed-local",
       target: { headless: false, kind: "managed-local" },
     });
-    vi.doMock("../src/lib/driver/daemon/client.js", () => ({
+    vi.doMock("../src/lib/driver/daemon/client.js", async () => ({
+      ...(await vi.importActual("../src/lib/driver/daemon/client.js")),
       getDriverStatus,
     }));
 
     try {
-      const { resolveTargetForCommand } = await import(
-        "../src/lib/driver/command-cli.js"
-      );
+      const { resolveDriverSession } = await import("../src/lib/driver/command-cli.js");
 
-      await expect(
-        resolveTargetForCommand("reuse-local", { local: true }),
-      ).resolves.toEqual({
-        headless: false,
-        kind: "managed-local",
+      await expect(resolveDriverSession("reuse-local", { local: true })).resolves.toEqual({
+        kind: "existing",
       });
       await expect(
-        resolveTargetForCommand("reuse-local", { headless: true, local: true }),
-      ).resolves.toEqual({
-        headless: true,
-        kind: "managed-local",
-      });
-      await expect(
-        resolveTargetForCommand("reuse-local", { remote: true }),
-      ).resolves.toEqual({
-        kind: "remote",
-      });
+        resolveDriverSession("reuse-local", { headless: true, local: true }),
+      ).rejects.toThrow('Session "reuse-local" is already running in managed-local mode.');
+      await expect(resolveDriverSession("reuse-local", { remote: true })).rejects.toThrow(
+        'Session "reuse-local" is already running in managed-local mode.',
+      );
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();
     }
   });
 
+  it.each([{}, { local: true }])(
+    "does not launch from a vanished daemon's reported settings with flags %j",
+    async (flags) => {
+      const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-reuse-"));
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = daemonDir;
+      const session = `vanished-${process.pid}`;
+      const sockets = new Set<net.Socket>();
+      const requests: string[] = [];
+      const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+        throw new Error("Unexpected daemon spawn");
+      });
+      const server = net.createServer((socket) => {
+        sockets.add(socket);
+        socket.once("close", () => sockets.delete(socket));
+        let buffer = "";
+        socket.on("data", (chunk) => {
+          buffer += chunk.toString();
+          if (!buffer.includes("\n")) return;
+          const request = JSON.parse(buffer.split("\n")[0]!);
+          requests.push(request.type);
+          // The accepted connection can reply even after the listener closes.
+          server.close();
+          socket.end(
+            `${JSON.stringify({
+              id: request.id,
+              type: "success",
+              data: {
+                session,
+                mode: "managed-local",
+                target: {
+                  kind: "managed-local",
+                  headless: true,
+                  chromeArgs: ["--renderer-cmd-prefix=unknown-program"],
+                },
+              },
+            })}\n`,
+          );
+        });
+      });
+      const closed = new Promise<void>((resolve) => server.once("close", resolve));
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once("error", reject);
+          server.listen(getSocketPath(session), resolve);
+        });
+        const selection = await resolveDriverSession(session, flags);
+        // Make disappearance deterministic on both Unix sockets and Windows pipes.
+        await closed;
+        await expect(
+          runDriverCommand(session, selection, "open", { url: "about:blank" }),
+        ).rejects.toMatchObject({ telemetry: { resultCode: "daemon_not_running" } });
+        expect(requests).toEqual(["status"]);
+        expect(spawn).not.toHaveBeenCalled();
+      } finally {
+        spawn.mockRestore();
+        for (const socket of sockets) socket.destroy();
+        if (server.listening) server.close();
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+        await fs.rm(daemonDir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("routes CDP targets through the daemon so session state persists", async () => {
     vi.resetModules();
     const ensureDriverDaemon = vi.fn().mockResolvedValue(undefined);
-    const openViaDaemon = vi
-      .fn()
-      .mockResolvedValue({ url: "https://example.com" });
+    const openViaDaemon = vi.fn().mockResolvedValue({ url: "https://example.com" });
     const runDriverCommandViaDaemon = vi.fn().mockResolvedValue({ ok: true });
     vi.doMock("../src/lib/driver/daemon/client.js", () => ({
       ensureDriverDaemon,
@@ -130,16 +178,14 @@ describe("driver commands", () => {
     }));
 
     try {
-      const { runDriverCommandWithTarget } = await import(
-        "../src/lib/driver/runtime.js"
-      );
+      const { runDriverCommand } = await import("../src/lib/driver/runtime.js");
       const target = {
         endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
         kind: "cdp" as const,
         targetId: "target-1",
       };
       await expect(
-        runDriverCommandWithTarget("cdp-state", target, "snapshot", {
+        runDriverCommand("cdp-state", { kind: "create", target }, "snapshot", {
           compact: true,
         }),
       ).resolves.toEqual({
@@ -150,13 +196,9 @@ describe("driver commands", () => {
         session: "cdp-state",
         target,
       });
-      expect(runDriverCommandViaDaemon).toHaveBeenCalledWith(
-        "cdp-state",
-        "snapshot",
-        {
-          compact: true,
-        },
-      );
+      expect(runDriverCommandViaDaemon).toHaveBeenCalledWith("cdp-state", "snapshot", {
+        compact: true,
+      });
       expect(openViaDaemon).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
@@ -166,14 +208,10 @@ describe("driver commands", () => {
 
   it("rejects unknown daemon command names at the protocol boundary", () => {
     expect(() =>
-      parseRequest(
-        JSON.stringify({ command: "snapshot", id: "1", type: "command" }),
-      ),
+      parseRequest(JSON.stringify({ command: "snapshot", id: "1", type: "command" })),
     ).not.toThrow();
     expect(() =>
-      parseRequest(
-        JSON.stringify({ command: "not.real", id: "1", type: "command" }),
-      ),
+      parseRequest(JSON.stringify({ command: "not.real", id: "1", type: "command" })),
     ).toThrow();
   });
 
@@ -182,9 +220,7 @@ describe("driver commands", () => {
     const manager = {
       openResult: vi.fn().mockResolvedValue({ url: "https://example.com" }),
       pageForOpen: vi.fn().mockResolvedValue(page),
-    } as unknown as Parameters<
-      NonNullable<(typeof navigationHandlers)["open"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof navigationHandlers)["open"]>>[0];
 
     await expect(
       navigationHandlers.open!(manager, {
@@ -213,13 +249,9 @@ describe("driver commands", () => {
       resolveSelector: vi.fn((selector: string) =>
         selector === "@0-1" ? "/html/body/button" : selector,
       ),
-    } as unknown as Parameters<
-      NonNullable<(typeof elementsHandlers)["click"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["click"]>>[0];
 
-    await expect(
-      elementsHandlers.click!(manager, { selector: "@0-1" }),
-    ).resolves.toEqual({
+    await expect(elementsHandlers.click!(manager, { selector: "@0-1" })).resolves.toEqual({
       clicked: true,
     });
     await expect(
@@ -246,9 +278,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       resolveSelector: vi.fn((selector: string) => selector),
-    } as unknown as Parameters<
-      NonNullable<(typeof elementsHandlers)["select"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["select"]>>[0];
 
     await expect(
       elementsHandlers.select!(manager, {
@@ -276,9 +306,7 @@ describe("driver commands", () => {
         locator: vi.fn(() => ({ setInputFiles })),
       })),
       resolveSelector: vi.fn((selector: string) => selector),
-    } as unknown as Parameters<
-      NonNullable<(typeof elementsHandlers)["upload"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["upload"]>>[0];
 
     await expect(
       elementsHandlers.upload!(manager, {
@@ -293,13 +321,9 @@ describe("driver commands", () => {
     const page = { type: vi.fn() };
     const manager = {
       activePage: vi.fn(async () => page),
-    } as unknown as Parameters<
-      NonNullable<(typeof keyboardHandlers)["type"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof keyboardHandlers)["type"]>>[0];
 
-    await expect(
-      keyboardHandlers.type!(manager, { text: "plain" }),
-    ).resolves.toEqual({
+    await expect(keyboardHandlers.type!(manager, { text: "plain" })).resolves.toEqual({
       typed: true,
     });
     await expect(
@@ -327,9 +351,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => false),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
 
     await expect(
       mouseHandlers["mouse.click"]!(manager, {
@@ -339,9 +361,7 @@ describe("driver commands", () => {
         y: 20,
       }),
     ).resolves.toEqual({ clicked: true });
-    await expect(
-      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
-    ).resolves.toEqual({
+    await expect(mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 })).resolves.toEqual({
       hovered: true,
     });
     await expect(
@@ -387,9 +407,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => false),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
 
     await mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 });
     await mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 });
@@ -423,9 +441,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => true),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.drag"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.drag"]>>[0];
 
     await expect(
       mouseHandlers["mouse.drag"]!(manager, {
@@ -451,16 +467,14 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => true),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
 
-    await expect(
-      mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 }),
-    ).resolves.toEqual({ clicked: true });
-    await expect(
-      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
-    ).resolves.toEqual({ hovered: true });
+    await expect(mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 })).resolves.toEqual({
+      clicked: true,
+    });
+    await expect(mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 })).resolves.toEqual({
+      hovered: true,
+    });
     await expect(
       mouseHandlers["mouse.scroll"]!(manager, {
         deltaX: 5,
@@ -494,13 +508,11 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => true),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
 
-    await expect(
-      mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 }),
-    ).rejects.toBe(actionError);
+    await expect(mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 })).rejects.toBe(
+      actionError,
+    );
   });
 
   it("enables sidecar network capture", async () => {
@@ -512,9 +524,7 @@ describe("driver commands", () => {
       activePage: vi.fn(async () => page),
       network,
       networkWebSocketDebuggerUrl: vi.fn(async () => "ws://sidecar.test"),
-    } as unknown as Parameters<
-      NonNullable<(typeof networkHandlers)["network.on"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof networkHandlers)["network.on"]>>[0];
 
     await expect(networkHandlers["network.on"]!(manager, {})).resolves.toEqual({
       enabled: true,
@@ -532,18 +542,14 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       markCursorOverlayEnabled: vi.fn(),
-    } as unknown as Parameters<
-      NonNullable<(typeof runtimeHandlers)["cursor"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof runtimeHandlers)["cursor"]>>[0];
 
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
       cursor: "enabled",
     });
     expect(page.addInitScript).toHaveBeenCalledOnce();
     expect(page.evaluate).toHaveBeenCalledOnce();
-    expect(page.addInitScript).toHaveBeenCalledWith(
-      page.evaluate.mock.calls[0]?.[0],
-    );
+    expect(page.addInitScript).toHaveBeenCalledWith(page.evaluate.mock.calls[0]?.[0]);
     expect(manager.markCursorOverlayEnabled).toHaveBeenCalledWith(page);
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
@@ -562,13 +568,11 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       isCursorOverlayEnabled: vi.fn(() => true),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.hover"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.hover"]>>[0];
 
-    await expect(
-      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
-    ).resolves.toEqual({ hovered: true });
+    await expect(mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 })).resolves.toEqual({
+      hovered: true,
+    });
 
     expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), {
       x: 30,
@@ -596,9 +600,7 @@ describe("driver commands", () => {
   it("preserves the active tab after closing a non-active tab", async () => {
     const tabs = createFakeTabManager(["tab-1", "tab-2", "tab-3"], 0);
 
-    await expect(
-      tabHandlers["tab.close"]!(tabs.manager, { tab: "tab-2" }),
-    ).resolves.toEqual({
+    await expect(tabHandlers["tab.close"]!(tabs.manager, { tab: "tab-2" })).resolves.toEqual({
       closed: true,
       index: 1,
       selectedTargetId: "tab-1",
@@ -613,21 +615,17 @@ describe("driver commands", () => {
     const page = { waitForTimeout: vi.fn() };
     const manager = {
       activePage: async () => page,
-    } as unknown as Parameters<
-      NonNullable<(typeof runtimeHandlers)["wait"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof runtimeHandlers)["wait"]>>[0];
 
     await expect(
       runtimeHandlers.wait!(manager, { arg: "100abc", type: "timeout" }),
     ).rejects.toThrow("wait timeout requires a non-negative integer");
-    await expect(
-      runtimeHandlers.wait!(manager, { arg: "-1", type: "timeout" }),
-    ).rejects.toThrow("wait timeout requires a non-negative integer");
+    await expect(runtimeHandlers.wait!(manager, { arg: "-1", type: "timeout" })).rejects.toThrow(
+      "wait timeout requires a non-negative integer",
+    );
     expect(page.waitForTimeout).not.toHaveBeenCalled();
 
-    await expect(
-      runtimeHandlers.wait!(manager, { arg: "100", type: "timeout" }),
-    ).resolves.toEqual({
+    await expect(runtimeHandlers.wait!(manager, { arg: "100", type: "timeout" })).resolves.toEqual({
       waited: true,
     });
     expect(page.waitForTimeout).toHaveBeenCalledWith(100);
@@ -639,9 +637,7 @@ describe("driver commands", () => {
     };
     const manager = {
       activePage: async () => page,
-    } as unknown as Parameters<
-      NonNullable<(typeof runtimeHandlers)["screenshot"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof runtimeHandlers)["screenshot"]>>[0];
 
     await expect(runtimeHandlers.screenshot!(manager, {})).resolves.toEqual({
       base64: Buffer.from("image").toString("base64"),
@@ -668,9 +664,7 @@ describe("driver commands", () => {
   });
 
   it("accepts fractional viewport scale values", async () => {
-    const daemonDir = await fs.mkdtemp(
-      join(tmpdir(), "browse-viewport-scale-"),
-    );
+    const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-viewport-scale-"));
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
     process.env.BROWSE_DAEMON_DIR = daemonDir;
     const session = "viewport-scale";
@@ -737,9 +731,7 @@ describe("driver commands", () => {
         },
       );
       expect(result.exitCode).toBe(0);
-      expect(
-        requests.find((request) => request.type === "command"),
-      ).toMatchObject({
+      expect(requests.find((request) => request.type === "command")).toMatchObject({
         command: "viewport",
         params: { height: 768, scale: 1.5, width: 1024 },
       });
@@ -792,9 +784,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: async () => ({ snapshot: async () => snap }),
       setRefMaps,
-    } as unknown as Parameters<
-      NonNullable<(typeof snapshotHandlers)["snapshot"]>
-    >[0];
+    } as unknown as Parameters<NonNullable<(typeof snapshotHandlers)["snapshot"]>>[0];
 
     const lean = await snapshotHandlers.snapshot!(manager, {});
     expect(lean).not.toHaveProperty("xpathMap");
@@ -881,9 +871,7 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
     manager: {
       browserContext: async () => context,
       safeTitle: async (page: FakeTabPage) => page.title(),
-    } as unknown as Parameters<
-      NonNullable<(typeof tabHandlers)["tab.close"]>
-    >[0],
+    } as unknown as Parameters<NonNullable<(typeof tabHandlers)["tab.close"]>>[0],
     pages,
   };
 }

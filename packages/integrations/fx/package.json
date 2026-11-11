@@ -1,0 +1,34 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-fx",
+  "version": "4.0.6",
+  "private": true,
+  "description": "fx CLI integration for Stagehand: configuration templates and skill, plus the fx harness adapter used by evals",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-fx && vitest run --root ../../.. packages/integrations/fx/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/fx/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

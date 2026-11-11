@@ -3,6 +3,17 @@ title: "Cursor"
 description: "Give a local Cursor SDK agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
+<Note>
+**Using Cursor interactively?** Install the `browse` CLI and skill instead of cloning this repository:
+
+```bash
+npm install -g browse
+npx skills add browserbase/stagehand --skill browse
+```
+
+The CLI gives your agent a local browser with no API keys required. The facade integration below is for developers embedding the Cursor SDK programmatically.
+</Note>
+
 The Cursor integration uses the same shared Cursor SDK session library as the eval harness, built on `@cursor/sdk`, and mounts the Stagehand facade as one MCP/stdio server. One Cursor agent and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls, preserving page state and snapshot IDs.
 
 <Note>
@@ -25,7 +36,7 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 pnpm install --frozen-lockfile
 pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations-cursor-sdk
+  --filter @browserbasehq/stagehand-integrations-cursor
 ```
   </Step>
   <Step title="Authenticate Cursor">

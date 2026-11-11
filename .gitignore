@@ -51,6 +51,7 @@ to dos.md
 # Changesets Action reads these after the version command consolidates them.
 /packages/*/CHANGELOG.md
 /packages/integrations/*/CHANGELOG.md
+/packages/integrations/eve/harness/CHANGELOG.md
 
 # Showcase run artifacts (recordings, results) synced to stagehand.dev
 packages/examples/showcase/*/.out/
@@ -59,3 +60,6 @@ packages/examples/showcase/*/.out/
 
 # Cookbook output
 packages/examples/cookbooks/*/*/out/
+
+# Screenshots saved by facade run code (default artifact root)
+stagehand-artifacts/
