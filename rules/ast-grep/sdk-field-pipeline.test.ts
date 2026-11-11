@@ -1,3 +1,4 @@
+import { sdkSourceFiles } from "./sdk-source-files.js";
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import python from "@ast-grep/lang-python";
@@ -287,9 +288,9 @@ function nestedFieldNames(protocol: ProtocolDocument, schema: JsonSchema): strin
   return [...new Set(Object.keys(properties))];
 }
 
-async function sdkSourceFiles(source: URL, language: Language): Promise<string[]> {
+async function sdkLanguageSourceFiles(source: URL, language: Language): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  return (await readdir(source, { recursive: true }))
+  return (await sdkSourceFiles(source))
     .filter(
       (file) =>
         file.endsWith(extension) &&
@@ -308,7 +309,7 @@ async function publicRpcCalls(): Promise<RpcCall[]> {
   ]);
   const calls = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const languageCalls: RpcCall[] = [];
 
       for (const file of files) {
@@ -523,7 +524,7 @@ function assignsResultWhole(call: RpcCall, resultName: string): boolean {
 async function callableBodies(): Promise<Map<Language, Map<string, string>>> {
   const entries = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const bodies = new Map<string, string>();
       for (const file of files) {
         const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
@@ -572,9 +573,20 @@ async function typescriptExportedModules(): Promise<Set<string>> {
     const source = statement
       .findAll({ rule: { kind: "string" } })
       .map(stringLiteral)
-      .find((value) => value.startsWith("./"));
+      .find(
+        (value) =>
+          value.startsWith("./") ||
+          value.startsWith("@browserbasehq/stagehand-shared-object-model/"),
+      );
     if (!source) continue;
-    modules.add(source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"));
+    modules.add(
+      source.startsWith("@browserbasehq/stagehand-shared-object-model/")
+        ? source.replace(
+            "@browserbasehq/stagehand-shared-object-model/",
+            "../../shared-object-model/src/",
+          ) + ".ts"
+        : source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"),
+    );
   }
   return modules;
 }

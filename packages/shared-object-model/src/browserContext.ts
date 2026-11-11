@@ -63,7 +63,12 @@ export class BrowserContext {
   }
 
   async addInitScript<Arg = unknown>(script: InitScriptSource<Arg>, arg?: Arg): Promise<void> {
-    const source = await normalizeInitScriptSource(script, arg, "context.addInitScript");
+    const source = await normalizeInitScriptSource(
+      script,
+      arg,
+      "context.addInitScript",
+      this.rpcClient.platform,
+    );
     await this.rpcClient.send(StagehandMethods.contextAddInitScript, { source });
   }
 

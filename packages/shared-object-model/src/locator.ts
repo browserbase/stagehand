@@ -152,7 +152,7 @@ export class Locator {
   async setInputFiles(files: FileInput, options?: LocatorOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorSetInputFiles, {
       ...this.descriptor,
-      files: await normalizeFileInput(files),
+      files: await normalizeFileInput(files, this.rpcClient.platform),
       ...(options ? { options } : {}),
     });
   }

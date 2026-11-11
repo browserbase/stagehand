@@ -24,6 +24,7 @@ export default defineConfig({
       "packages/integrations/cursor-sdk/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
+      "packages/shared-object-model/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
       "rules/oxlint/**/*.test.ts",

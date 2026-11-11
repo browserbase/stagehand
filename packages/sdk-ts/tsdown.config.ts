@@ -7,6 +7,10 @@ export default defineConfig({
   target: "node22",
   dts: {
     eager: true,
+    // Prepare bundled workspace sources together so declaration generation reuses one TS program.
+    tsconfigRaw: {
+      include: ["src/**/*.ts", "../shared-object-model/src/**/*.ts"],
+    },
     sourcemap: true,
   },
   sourcemap: true,
