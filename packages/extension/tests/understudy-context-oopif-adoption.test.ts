@@ -515,4 +515,204 @@ describe("BrowserContext OOPIF adoption", () => {
     await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
     await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
   });
+
+  it("clears descendant frame ownership and cached Frame wrappers when a parent frame detaches", async () => {
+    const browser = new BrowserWithLoadedOopif({ nested: true, nestedInsideWrapper: true });
+    const { context, page } = await connect(browser);
+
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, WRAPPER_FRAME, EDITOR_SESSION);
+    await expectOwnedBySession(page, NESTED_FRAME, NESTED_SESSION);
+
+    // Populate cached Frame wrappers across the nested subtree before detaching the parent.
+    expect(page.frameForId(EDITOR_FRAME).frameId).toBe(EDITOR_FRAME);
+    expect(page.frameForId(WRAPPER_FRAME).frameId).toBe(WRAPPER_FRAME);
+    expect(page.frameForId(NESTED_FRAME).frameId).toBe(NESTED_FRAME);
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get(WRAPPER_FRAME)).toBe(page);
+    expect(context.frameOwnerPage.get(NESTED_FRAME)).toBe(page);
+
+    browser.emitEvent(
+      "Page.frameDetached",
+      { frameId: EDITOR_FRAME, reason: "remove" },
+      PAGE_SESSION,
+    );
+    await context.conn.messageQueue;
+
+    expect(context.frameOwnerPage.has(EDITOR_FRAME)).toBe(false);
+    expect(context.frameOwnerPage.has(WRAPPER_FRAME)).toBe(false);
+    expect(context.frameOwnerPage.has(NESTED_FRAME)).toBe(false);
+    expect(context.adoptedOopifSessionByFrame.has(EDITOR_FRAME)).toBe(false);
+    expect(context.adoptedOopifSessionByFrame.has(NESTED_FRAME)).toBe(false);
+    expect((page as unknown as { frameCache: Map<string, unknown> }).frameCache.size).toBe(0);
+    expect(context.frameOwnerPage.get(MAIN_FRAME)).toBe(page);
+  });
+
+  it("preserves frame ownership across a process swap when the old OOPIF session detaches", async () => {
+    const browser = new BrowserWithLoadedOopif();
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+
+    browser.emitEvent(
+      "Page.frameDetached",
+      { frameId: EDITOR_FRAME, reason: "swap" },
+      EDITOR_SESSION,
+    );
+    browser.emitEvent(
+      "Target.detachedFromTarget",
+      { sessionId: EDITOR_SESSION, targetId: EDITOR_TARGET.targetId },
+      PAGE_SESSION,
+    );
+    await context.conn.messageQueue;
+
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+    expect(page.registry.frames.has(EDITOR_FRAME)).toBe(true);
+
+    const swappedSession = "editor-session-swapped";
+    const prevRespond = browser.respond.bind(browser);
+    browser.respond = async (req: CdpRequest) => {
+      if (req.method === "Page.getFrameTree" && req.sessionId === swappedSession) {
+        await new Promise((resolve) => setImmediate(resolve));
+        browser.messageHandler(
+          JSON.stringify({
+            id: req.id,
+            sessionId: swappedSession,
+            result: {
+              frameTree: {
+                frame: frame(EDITOR_FRAME, "https://swapped.example.net/", MAIN_FRAME),
+              },
+            },
+          }),
+        );
+        return;
+      }
+      return prevRespond(req);
+    };
+
+    browser.emitEvent(
+      "Target.attachedToTarget",
+      {
+        sessionId: swappedSession,
+        targetInfo: { ...EDITOR_TARGET, targetId: "editor-target-swapped", attached: true },
+        waitingForDebugger: false,
+      },
+      PAGE_SESSION,
+    );
+    await expectOwnedBySession(page, EDITOR_FRAME, swappedSession);
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(page);
+  });
+
+  it("leaves zero stale frameOwnerPage entries after repeatedly opening and closing 100 nested-frame pages", async () => {
+    const browser = new BrowserWithLoadedOopif();
+    const { context, page: openPage } = await connect(browser);
+    await expectOwnedBySession(openPage, EDITOR_FRAME, EDITOR_SESSION);
+
+    for (let i = 0; i < 100; i++) {
+      const targetId = `temp-target-${i}`;
+      const sessionId = `temp-session-${i}`;
+      const mainFrameId = `temp-main-${i}`;
+      const childFrameId = `temp-child-${i}`;
+      const grandChildFrameId = `temp-grandchild-${i}`;
+
+      const prevRespond = browser.respond.bind(browser);
+      browser.respond = async (req: CdpRequest) => {
+        if (req.method === "Page.getFrameTree" && req.sessionId === sessionId) {
+          await new Promise((resolve) => setImmediate(resolve));
+          browser.messageHandler(
+            JSON.stringify({
+              id: req.id,
+              sessionId,
+              result: {
+                frameTree: {
+                  frame: frame(mainFrameId, `https://temp-${i}.example.com/`),
+                  childFrames: [
+                    {
+                      frame: frame(
+                        childFrameId,
+                        `https://temp-${i}.example.com/child`,
+                        mainFrameId,
+                      ),
+                      childFrames: [
+                        {
+                          frame: frame(
+                            grandChildFrameId,
+                            `https://temp-${i}.example.com/grandchild`,
+                            childFrameId,
+                          ),
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            }),
+          );
+          return;
+        }
+        return prevRespond(req);
+      };
+
+      browser.attach(sessionId, {
+        targetId,
+        type: "page",
+        url: `https://temp-${i}.example.com/`,
+      });
+      await vi.waitFor(() => expect(context.pagesByTarget.has(targetId)).toBe(true));
+
+      const tempPage = context.pagesByTarget.get(targetId)!;
+      expect(context.frameOwnerPage.get(mainFrameId)).toBe(tempPage);
+      expect(context.frameOwnerPage.get(childFrameId)).toBe(tempPage);
+      expect(context.frameOwnerPage.get(grandChildFrameId)).toBe(tempPage);
+
+      browser.emitEvent("Target.targetDestroyed", { targetId });
+      await context.conn.messageQueue;
+      browser.respond = prevRespond;
+
+      expect(context.pagesByTarget.has(targetId)).toBe(false);
+      expect(context.frameOwnerPage.has(mainFrameId)).toBe(false);
+      expect(context.frameOwnerPage.has(childFrameId)).toBe(false);
+      expect(context.frameOwnerPage.has(grandChildFrameId)).toBe(false);
+    }
+
+    // Still-open page retains its frame ownership entries and zero closed-page frames remain.
+    expect(context.pages()).toEqual([openPage]);
+    expect(context.frameOwnerPage.get(MAIN_FRAME)).toBe(openPage);
+    expect(context.frameOwnerPage.get(EDITOR_FRAME)).toBe(openPage);
+    expect([...context.frameOwnerPage.values()].every((owner) => owner === openPage)).toBe(true);
+    expect(context.frameOwnerPage.size).toBe(2);
+  });
+
+  it("finishes cleaning context bookkeeping on target close and context.close() even if a page disposer throws", async () => {
+    const browser = new BrowserWithLoadedOopif();
+    const { context, page } = await connect(browser);
+    await expectOwnedBySession(page, EDITOR_FRAME, EDITOR_SESSION);
+
+    browser.attach(OTHER_PAGE_SESSION, OTHER_PAGE_TARGET);
+    await vi.waitFor(() => expect(context.pages()).toHaveLength(2));
+    const otherPage = context.pagesByTarget.get(OTHER_PAGE_TARGET.targetId)!;
+
+    const secondDisposer = vi.fn();
+    const disposers = (otherPage as unknown as { pageEventDisposers: Set<() => void> })
+      .pageEventDisposers;
+    disposers.add(() => {
+      throw new Error("boom during page dispose");
+    });
+    disposers.add(secondDisposer);
+
+    expect(() => context.cleanupByTarget(OTHER_PAGE_TARGET.targetId)).toThrow(
+      "boom during page dispose",
+    );
+    expect(secondDisposer).toHaveBeenCalledTimes(1);
+    expect(context.pagesByTarget.has(OTHER_PAGE_TARGET.targetId)).toBe(false);
+    expect(context.frameOwnerPage.has(OTHER_PAGE_FRAME)).toBe(false);
+    expect(context.mainFrameToTarget.has(OTHER_PAGE_FRAME)).toBe(false);
+    expect(context.sessionOwnerPage.has(OTHER_PAGE_SESSION)).toBe(false);
+
+    // Remaining open page is disposed when context.close() runs.
+    const disposeSpy = vi.spyOn(page, "dispose");
+    await context.close();
+    expect(disposeSpy).toHaveBeenCalledTimes(1);
+    expect(context.frameOwnerPage.size).toBe(0);
+    expect(context.pagesByTarget.size).toBe(0);
+  });
 });
