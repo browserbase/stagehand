@@ -1,0 +1,126 @@
+---
+title: "Choosing your path"
+sidebarTitle: "CLI vs SDK vs MCP"
+description: "Pick the right Stagehand integration: SDK for building agent apps, browse CLI for coding agents, or hosted MCP for zero-install browser tools."
+---
+
+Stagehand is the SDK for building browser agents. The right path depends on whether you are building an agent application, using a coding agent interactively, or adding browser tools to an MCP client.
+
+## Quick comparison
+
+| You want to... | Use | Requirements |
+| --- | --- | --- |
+| Build a browser agent application | TypeScript/Python/Go SDK | Node.js 22.18+ or Python 3.11+, Chrome or Browserbase |
+| Give your coding agent (Claude Code, Cursor, Codex) a browser | `browse` CLI + skill | Node.js 22.18+, Chrome |
+| Add browser tools to an MCP client without installing anything | Hosted Browserbase MCP | Browserbase API key |
+
+## SDK for building agent applications
+
+The TypeScript, Python, and Go SDKs are the primary way to use Stagehand. They provide `act()`, `extract()`, and `observe()` methods that let an LLM interact with pages through natural language.
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+pnpm add @browserbasehq/stagehand 'zod@~4.4.3'
+```
+</Tab>
+<Tab title="Python">
+```bash
+pip install stagehand
+```
+</Tab>
+<Tab title="Go">
+```bash
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
+```
+</Tab>
+</Tabs>
+
+<Card title="SDK Quickstart" icon="rocket" href="/v4/first-steps/quickstart">
+  Build your first Stagehand automation with act, extract, and observe.
+</Card>
+
+### When to use the SDK
+
+- You are building an application that controls a browser programmatically
+- Your agent needs to extract structured data with schema validation
+- You want self-healing selectors that adapt when sites change
+- You are integrating with agent frameworks like Vercel AI SDK, Mastra, or Deep Agents
+
+## Browse CLI for coding agents
+
+The `browse` CLI gives Claude Code, Cursor, Codex, or any terminal agent a local browser. No LLM key or Browserbase account required for local use.
+
+```bash
+npm install -g browse
+browse open https://example.com --local
+browse snapshot
+browse get title
+```
+
+Install the matching skill so your agent knows how to use the CLI:
+
+```bash
+npx skills add browserbase/stagehand --skill browse
+```
+
+The skill teaches your agent the CLI's commands, best practices, and troubleshooting steps. After installing, start a new agent session to pick it up.
+
+<Card title="Browse CLI documentation" icon="terminal" href="https://github.com/browserbase/stagehand/tree/main/packages/cli#readme">
+  Full command reference, browser targets, cloud APIs, and skills catalog.
+</Card>
+
+### When to use the CLI
+
+- You are using Claude Code, Cursor, Codex, or another coding agent interactively
+- You want a local browser without API keys
+- You need to inspect pages, fill forms, click elements, or capture screenshots from the terminal
+- You want access to the [Browse.sh skills catalog](https://browse.sh) for site-specific automation
+
+### When to use `--remote`
+
+Set `BROWSERBASE_API_KEY` and use `--remote` when the task needs:
+
+- Hosted browsers for better reliability and isolation
+- CAPTCHA solving
+- Session persistence across runs
+
+For bot-detection bypass, add `--verified` (requires Scale plan). For residential proxies, add `--proxies residential`.
+
+## Hosted MCP for zero-install browser tools
+
+The hosted Browserbase MCP server puts `navigate`, `act`, `observe`, and `extract` tools in any MCP client. No local install or browser is required. Requires a [Browserbase API key](https://www.browserbase.com/overview).
+
+```bash
+claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
+  --header "Authorization: Bearer $BROWSERBASE_API_KEY"
+```
+
+<Accordion title="Cursor, Codex, and other MCP clients">
+```json
+{
+  "mcpServers": {
+    "browserbase": {
+      "url": "https://mcp.browserbase.com/mcp",
+      "headers": { "Authorization": "Bearer YOUR_BROWSERBASE_API_KEY" }
+    }
+  }
+}
+```
+</Accordion>
+
+### When to use hosted MCP
+
+- You want browser tools without installing anything locally
+- Your MCP client cannot run local processes (cloud environments, sandboxes)
+- You want managed infrastructure with session recordings and debugging
+
+## Summary
+
+| Path | Install | API key needed? | Best for |
+| --- | --- | --- | --- |
+| SDK | `pnpm add @browserbasehq/stagehand` | Optional (for Browserbase) | Building agent applications |
+| `browse` CLI | `npm install -g browse` | No (local) / Yes (remote) | Coding agents, terminal use |
+| Hosted MCP | None | Yes | Zero-install MCP browser tools |
+
+All three paths use the same underlying Stagehand browser automation. Choose based on how you want to integrate.
