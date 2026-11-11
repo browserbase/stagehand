@@ -1,13 +1,39 @@
 import {
   LocatorChainSchema,
-  LocatorSelectorSchema,
+  CssLocatorSelectorSchema,
+  XPathLocatorSelectorSchema,
+  TextLocatorSelectorSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LocatorChain,
   LocatorQuerySelector,
-  LocatorSelector,
   LocatorStep,
 } from "@browserbasehq/stagehand-protocol/types";
+
+import { z } from "zod/v4";
+
+/**
+ * Preserve existing string interpretation, including iframe hops and deep XPath.
+ * SDK-only input: normalized to a chain before crossing the wire.
+ */
+export const LegacyLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("legacy"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "LegacyLocatorSelector" });
+
+export const LocatorSelectorSchema = z
+  .discriminatedUnion("type", [
+    CssLocatorSelectorSchema,
+    XPathLocatorSelectorSchema,
+    TextLocatorSelectorSchema,
+    LegacyLocatorSelectorSchema,
+  ])
+  .meta({ id: "LocatorSelector" });
+
+export type LegacyLocatorSelector = z.infer<typeof LegacyLocatorSelectorSchema>;
+export type LocatorSelector = z.infer<typeof LocatorSelectorSchema>;
 
 export type LocatorInput = string | LocatorSelector;
 

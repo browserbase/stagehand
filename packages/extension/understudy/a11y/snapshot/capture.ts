@@ -1,15 +1,9 @@
 import { resolveLocatorChain } from "../../locatorChain.js";
 import type { Protocol } from "devtools-protocol";
-import type { Locator, LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
+import type { Locator } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
-import { Frame } from "../../frame.js";
 import { type Progress, runLocatorStep } from "../../progress.js";
-import {
-  FrameSelectorResolver,
-  type ResolvedNode,
-  type SelectorQuery,
-} from "../../selectorResolver.js";
 import type { StagehandLogger } from "../../../logger.js";
 import type {
   FrameContext,
@@ -20,15 +14,11 @@ import type {
   SessionDomIndex,
 } from "../../../types/private/index.js";
 import { a11yForFrame } from "./a11yTree.js";
-import {
-  resolveCssFocusFrameAndTail,
-  resolveFocusFrameAndTail,
-  listChildrenOf,
-} from "./focusSelectors.js";
+import { listChildrenOf } from "./focusSelectors.js";
 import { buildSessionDomIndex, domMapsForSession, relativizeXPath } from "./domTree.js";
 import { injectSubtrees } from "./treeFormatUtils.js";
 import { ownerSession, parentSession } from "./sessions.js";
-import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
+import { prefixXPath } from "./xpathUtils.js";
 
 type IgnoredNodeMap = Map<string, Set<number>>;
 type Interval = { start: number; end: number };
@@ -90,13 +80,7 @@ export async function captureHybridSnapshot(
   }
 
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce, progress);
-  const ignoredNodesByFrame = await resolveIgnoredNodes(
-    page,
-    options?.ignoreLocators,
-    context,
-    sessionToIndex,
-    progress,
-  );
+  const ignoredNodesByFrame = await resolveIgnoredNodes(page, options?.ignoreLocators, progress);
   const exclusionIntervalsByFrame = await buildFrameExclusionIntervals(
     page,
     context,
@@ -187,15 +171,6 @@ export async function tryScopedSnapshot(
   const focusLocator = options?.focusLocator;
   if (!focusLocator) return null;
   const selector = focusLocator.selector;
-  const requestedFocus =
-    "steps" in selector
-      ? undefined
-      : selector.type === "legacy"
-        ? selector.value.trim()
-        : selector.value;
-  if (!("steps" in selector) && !requestedFocus) return null;
-  const focusNth = focusLocator.nth;
-
   const logScopeFallback = () => {
     logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
       locator: focusLocator,
@@ -203,56 +178,14 @@ export async function tryScopedSnapshot(
   };
 
   try {
-    let targetFrameId: string;
-    let tailSelector: LocatorSelector | undefined;
-    let absPrefix: string | undefined;
-    let focusBackendNodeId: number | undefined;
-
-    const looksLikeXPath = /^xpath=/i.test(requestedFocus ?? "") || requestedFocus?.startsWith("/");
-    if ("steps" in selector) {
-      const [target] = await resolveLocatorChain(
-        page,
-        page.mainFrame(),
-        selector,
-        focusNth ?? 0,
-        progress,
-      );
-      if (!target) {
-        logScopeFallback();
-        return null;
-      }
-      targetFrameId = target.frame.frameId;
-      focusBackendNodeId = target.backendNodeId;
-      absPrefix = await chainFramePrefix(page, context, targetFrameId, pierce, progress);
-    } else if (selector.type !== "legacy") {
-      targetFrameId = context.rootId;
-      tailSelector = selector;
-    } else if (looksLikeXPath) {
-      const focus = normalizeXPath(requestedFocus!);
-      const hit = await resolveFocusFrameAndTail(
-        page,
-        focus,
-        context.parentByFrame,
-        context.rootId,
-        progress,
-      );
-      targetFrameId = hit.targetFrameId;
-      tailSelector = hit.tailXPath ? { type: "legacy", value: hit.tailXPath } : undefined;
-      absPrefix = hit.absPrefix;
-    } else {
-      const cssHit = await resolveCssFocusFrameAndTail(
-        page,
-        requestedFocus!,
-        context.parentByFrame,
-        context.rootId,
-        progress,
-      );
-      targetFrameId = cssHit.targetFrameId;
-      tailSelector = cssHit.tailSelector
-        ? { type: "legacy", value: cssHit.tailSelector }
-        : undefined;
-      absPrefix = cssHit.absPrefix;
+    const [target] = await resolveLocatorChain(page, page.mainFrame(), selector, progress);
+    if (!target) {
+      logScopeFallback();
+      return null;
     }
+    const targetFrameId = target.frame.frameId;
+    const focusBackendNodeId = target.backendNodeId;
+    const absPrefix = await chainFramePrefix(page, context, targetFrameId, pierce, progress);
 
     const owningSess = ownerSession(page, targetFrameId);
     const parentId = context.parentByFrame.get(targetFrameId);
@@ -272,12 +205,6 @@ export async function tryScopedSnapshot(
       targetFrameId,
       {
         focusBackendNodeId,
-        focusLocator: tailSelector
-          ? {
-              selector: tailSelector,
-              ...(focusNth === undefined ? {} : { nth: focusNth }),
-            }
-          : undefined,
         isIgnoredBackendNode: makeIsIgnoredBackendNode(
           targetFrameId,
           ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
@@ -495,186 +422,23 @@ export async function collectPerFrameMaps(
 export async function resolveIgnoredNodes(
   page: Page,
   ignoreLocators: Locator[] | undefined,
-  context: FrameContext,
-  sessionToIndex: Map<string, SessionDomIndex>,
   progress?: Progress,
 ): Promise<IgnoredNodeMap> {
   const ignoredNodesByFrame: IgnoredNodeMap = new Map();
-
   for (const locator of ignoreLocators ?? []) {
     progress?.throwIfStopped();
-    const selector =
-      !("steps" in locator.selector) && locator.selector.type === "legacy"
-        ? { ...locator.selector, value: locator.selector.value.trim() }
-        : locator.selector;
-    if (!("steps" in selector) && !selector.value) continue;
-
     try {
-      const resolved = await resolveIgnoredNodesForLocator(
-        page,
-        { ...locator, selector },
-        context,
-        sessionToIndex,
-        progress,
-      );
-      for (const match of resolved) {
-        const nodes = ignoredNodesByFrame.get(match.frameId) ?? new Set<number>();
-        nodes.add(match.backendNodeId);
-        ignoredNodesByFrame.set(match.frameId, nodes);
+      const targets = await resolveLocatorChain(page, page.mainFrame(), locator.selector, progress);
+      for (const { frame, backendNodeId } of targets) {
+        const nodes = ignoredNodesByFrame.get(frame.frameId) ?? new Set<number>();
+        nodes.add(backendNodeId);
+        ignoredNodesByFrame.set(frame.frameId, nodes);
       }
     } catch {
       progress?.throwIfStopped();
-      continue;
     }
   }
-
   return ignoredNodesByFrame;
-}
-
-async function resolveIgnoredNodesForLocator(
-  page: Page,
-  locator: Locator,
-  context: FrameContext,
-  sessionToIndex: Map<string, SessionDomIndex>,
-  progress?: Progress,
-): Promise<Array<{ frameId: string; backendNodeId: number }>> {
-  if ("steps" in locator.selector) {
-    const targets = await resolveLocatorChain(
-      page,
-      page.mainFrame(),
-      locator.selector,
-      locator.nth,
-      progress,
-    );
-    return targets.map(({ frame, backendNodeId }) => ({ frameId: frame.frameId, backendNodeId }));
-  }
-  if (locator.selector.type !== "legacy") {
-    return resolveIgnoredNodesInFrame(
-      page,
-      context.rootId,
-      FrameSelectorResolver.parseSelector(locator.selector),
-      locator.nth,
-      progress,
-    );
-  }
-  const selector = locator.selector.value;
-  const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
-
-  if (looksLikeXPath) {
-    const hit = await resolveFocusFrameAndTail(
-      page,
-      normalizeXPath(selector),
-      context.parentByFrame,
-      context.rootId,
-      progress,
-    );
-    const targetFrameId = hit.targetFrameId;
-    const tailXPath = hit.tailXPath || "/";
-    if (tailXPath === "/") {
-      const idx = ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex);
-      if (!idx) return [];
-      const parentId = context.parentByFrame.get(targetFrameId);
-      const sameSessionAsParent =
-        !!parentId && ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-      const backendNodeId = await resolveFrameDocRootBackendId(
-        page,
-        targetFrameId,
-        idx,
-        sameSessionAsParent,
-        progress,
-      );
-      if (backendNodeId === undefined) return [];
-      return [{ frameId: targetFrameId, backendNodeId }];
-    }
-    return resolveIgnoredNodesInFrame(
-      page,
-      targetFrameId,
-      {
-        kind: "xpath",
-        value: tailXPath,
-      },
-      locator.nth,
-      progress,
-    );
-  }
-
-  const hit = await resolveCssFocusFrameAndTail(
-    page,
-    selector,
-    context.parentByFrame,
-    context.rootId,
-    progress,
-  );
-  const targetFrameId = hit.targetFrameId;
-  return resolveIgnoredNodesInFrame(
-    page,
-    targetFrameId,
-    {
-      kind: "css",
-      value: hit.tailSelector || selector,
-    },
-    locator.nth,
-    progress,
-  );
-}
-
-async function resolveIgnoredNodesInFrame(
-  page: Page,
-  frameId: string,
-  query: SelectorQuery,
-  nth: number | undefined,
-  progress?: Progress,
-): Promise<Array<{ frameId: string; backendNodeId: number }>> {
-  const session = ownerSession(page, frameId);
-  const frame = new Frame(session, frameId, "", false, page.logger);
-  // An unavailable ignore locator can be skipped; progress still enforces expiry.
-  const resolver = new FrameSelectorResolver(frame, { readinessRetries: "none" });
-  const resolvedNodes =
-    nth === undefined
-      ? await resolver.resolveAll(query, {}, progress)
-      : [await resolver.resolveAtIndex(query, nth, progress)].filter(
-          (node): node is ResolvedNode => !!node,
-        );
-  if (!resolvedNodes.length) return [];
-
-  const backendNodeIds = await describeResolvedNodes(session, resolvedNodes, progress);
-  return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
-}
-
-async function describeResolvedNodes(
-  session: CDPSessionLike,
-  resolvedNodes: ResolvedNode[],
-  progress?: Progress,
-): Promise<number[]> {
-  const backendNodeIds = new Set<number>();
-
-  try {
-    for (const resolvedNode of resolvedNodes) {
-      const desc = await runLocatorStep(progress, "reading ignored snapshot nodes", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-          objectId: resolvedNode.objectId,
-        }),
-      );
-      const backendNodeId = desc.node.backendNodeId;
-      if (typeof backendNodeId === "number") {
-        backendNodeIds.add(backendNodeId);
-      }
-    }
-  } finally {
-    const release = () =>
-      Promise.all(
-        resolvedNodes.map((resolvedNode) =>
-          session
-            .send("Runtime.releaseObject", { objectId: resolvedNode.objectId })
-            .catch(() => {}),
-        ),
-      );
-    if (progress) await progress.cleanup(release);
-    else await release();
-  }
-
-  progress?.throwIfStopped();
-  return [...backendNodeIds];
 }
 
 export async function buildFrameExclusionIntervals(

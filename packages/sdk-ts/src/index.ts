@@ -18,7 +18,11 @@ export {
   type LocatorSendClickEventOptions,
   type LocatorTypeOptions,
 } from "@browserbasehq/stagehand-browser-api/locator";
-export type { LocatorInput } from "@browserbasehq/stagehand-browser-api/locatorSelector";
+export type {
+  LocatorInput,
+  LegacyLocatorSelector,
+  LocatorSelector,
+} from "@browserbasehq/stagehand-browser-api/locatorSelector";
 export type { FileInput, FilePayload } from "@browserbasehq/stagehand-browser-api/fileUpload";
 export {
   CDPSubscription,
@@ -96,8 +100,6 @@ export type {
   CssLocatorSelector,
   XPathLocatorSelector,
   TextLocatorSelector,
-  LegacyLocatorSelector,
-  LocatorSelector,
   ModelConfig,
   ModelName,
   MouseButton,

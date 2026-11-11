@@ -81,9 +81,7 @@ class Locator:
 
     @property
     def _chain(self) -> LocatorChain:
-        selector = self._descriptor.selector
-        assert isinstance(selector, LocatorChain)
-        return selector
+        return self._descriptor.selector
 
     def _with_chain(self, chain: LocatorChain) -> Self:
         locator = copy(self)
@@ -310,8 +308,6 @@ class Locator:
     def _params(self, timeout: float | None) -> dict[str, object]:
         selector = self._descriptor.selector
         values: dict[str, object] = {"page_id": self.page_id, "selector": selector}
-        if self._descriptor.nth is not None:
-            values["nth"] = self._descriptor.nth
         if timeout is not None:
             values["options"] = {"timeout": timeout}
         return values

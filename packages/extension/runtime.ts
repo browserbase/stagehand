@@ -262,7 +262,6 @@ export type UnderstudyRuntimeLocator = {
   ): Promise<void> | void;
   selectOption(values: LocatorSelectOptionParams["values"], progress?: Progress): Promise<string[]>;
   setInputFiles(files: SetInputFilesArgument, progress?: Progress): Promise<void>;
-  nth(index: number): UnderstudyRuntimeLocator;
 };
 
 export type StagehandBrowserSession = {
@@ -1187,8 +1186,7 @@ export class StagehandRuntime {
   }
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
-    const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
-    return params.nth === undefined ? locator : locator.nth(params.nth);
+    return this.resolvePage(params.pageId).deepLocator(params.selector);
   }
 
   clipboardOptions(pageId?: string): UnderstudyRuntimeClipboardOptions | undefined {

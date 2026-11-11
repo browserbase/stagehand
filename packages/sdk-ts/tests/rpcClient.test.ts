@@ -490,7 +490,9 @@ describe("RPCClient", () => {
     const client = new RPCClient(cdp);
     const pending = client.send(StagehandMethods.locatorCount, {
       pageId: "page-1",
-      selector: { type: "legacy" as const, value: "button" },
+      selector: {
+        steps: [{ type: "query" as const, selector: { type: "css" as const, value: "button" } }],
+      },
     });
     const error = {
       code: JSONRPCErrorCodes.internalError,
@@ -517,7 +519,11 @@ describe("RPCClient", () => {
       try {
         const pending = client.send(StagehandMethods.locatorCount, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "button" },
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "button" } },
+            ],
+          },
           ...(timeout === undefined ? {} : { options: { timeout } }),
         });
         if (timeout === 0) {
