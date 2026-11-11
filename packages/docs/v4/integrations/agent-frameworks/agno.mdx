@@ -6,7 +6,7 @@ description: "Give an Agno agent persistent browser tools with stagehand-middlew
 The Agno integration registers native browser tools from `stagehand-middleware`. One browser stays open across `run`, `snapshot`, and `screenshot` calls. The middleware supplies the instructions, tool schemas, and browser behavior. Screenshots return native image content.
 
 <Note>
-The example is tested with Agno 3.1.5.
+The example is tested with Agno 3.1.12.
 </Note>
 
 ## Prerequisites
@@ -26,7 +26,7 @@ Create a Python project and install Agno and the browser middleware:
 mkdir agno-browser
 cd agno-browser
 uv init --python 3.11
-uv add "agno>=3.1.5,<4" "openai>=2,<3" "stagehand-middleware>=0.1.0,<0.2" "jsonschema>=4.23,<5"
+uv add "agno>=3.1.12,<4" "openai>=2,<3" "stagehand-middleware>=0.1.2,<0.2" "jsonschema>=4.23,<5"
 ```
   </Step>
   <Step title="Save the example">
