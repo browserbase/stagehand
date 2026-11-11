@@ -1,7 +1,7 @@
 import type { Progress } from "../progress.js";
 import type { AnnotatedPageContent } from "./index.js";
 import type { ContentNodeJson, FrameDataJson } from "./common_quality_data_pb.js";
-import { classifyActions, isRedacted, type ApcAction } from "./actions.js";
+import { classifyActions, isDisabled, isRedacted, type ApcAction } from "./actions.js";
 
 export type ApcFrame = {
   /** Capture-local identity, including when Chromium omits the document token. */
@@ -10,13 +10,13 @@ export type ApcFrame = {
 };
 
 export type ApcNode = {
-  /** Stable within this capture across different filters; not a locator selector. */
-  id: string;
   depth: number;
   source: ContentNodeJson;
   frame: ApcFrame;
   actions: ApcAction[];
   target: boolean;
+  /** Intrinsic text or an explicitly associated label, for compact filtered output. */
+  label?: string;
 };
 
 const textBoundaries = new Set([
@@ -29,7 +29,7 @@ const textBoundaries = new Set([
   "CONTENT_ATTRIBUTE_UNORDERED_LIST",
 ]);
 
-/** Preorder outline retaining matches, their labels, and the paths connecting them. */
+/** Preserve capture order and identity; action filters return only matching targets. */
 export function filterAnnotatedPageContent(
   content: AnnotatedPageContent,
   actions: readonly ApcAction[] = [],
@@ -41,6 +41,7 @@ export function filterAnnotatedPageContent(
   const nodes: ApcNode[] = [];
   const parents: Array<number | undefined> = [];
   const hidden: boolean[] = [];
+  const internal: boolean[] = [];
   const labels = new Map<string, number[]>();
   let frameNumber = 1;
   const pending = [
@@ -50,6 +51,7 @@ export function filterAnnotatedPageContent(
       parent: undefined as number | undefined,
       frame: { id: "frame-1", data: content.mainFrameData } as ApcFrame,
       hidden: false,
+      insideControl: false,
     },
   ];
   while (pending.length) {
@@ -59,9 +61,8 @@ export function filterAnnotatedPageContent(
     const attributes = item.source.contentAttributes;
     const suppressed =
       item.hidden || !!attributes?.annotatedRoles?.includes("ANNOTATED_ROLE_CONTENT_HIDDEN");
-    const supported = suppressed ? [] : classifyActions(attributes);
+    const supported = suppressed || item.insideControl ? [] : classifyActions(attributes);
     nodes.push({
-      id: `apc-${index + 1}`,
       depth: item.depth,
       source: item.source,
       frame: item.frame,
@@ -71,6 +72,7 @@ export function filterAnnotatedPageContent(
     });
     parents.push(item.parent);
     hidden.push(suppressed);
+    internal.push(item.insideControl);
     if (!suppressed && attributes?.labelForDomNodeId !== undefined) {
       const key = `${item.frame.id}:${attributes.labelForDomNodeId}`;
       const matches = labels.get(key) ?? [];
@@ -91,55 +93,118 @@ export function filterAnnotatedPageContent(
         parent: index,
         frame,
         hidden: suppressed,
+        insideControl:
+          item.insideControl ||
+          (!!attributes?.formControlData?.formControlType &&
+            attributes.formControlData.formControlType !== "FORM_CONTROL_TYPE_CONTENT_EDITABLE" &&
+            attributes.formControlData.formControlType !== "FORM_CONTROL_TYPE_UNSPECIFIED"),
       });
     }
   }
-  if (!filtered) return nodes;
 
-  const keep = nodes.map((node) => node.target);
-  const labelRoots = new Set<number>();
+  const controls = new Set(
+    nodes
+      .filter((node) => node.source.contentAttributes?.formControlData)
+      .map((node) => node.frame.id + ":" + node.source.contentAttributes?.commonAncestorDomNodeId),
+  );
   for (const node of nodes) {
     progress?.throwIfStopped();
-    const domId = node.source.contentAttributes?.commonAncestorDomNodeId;
-    if (!node.target || domId === undefined) continue;
-    for (const index of labels.get(`${node.frame.id}:${domId}`) ?? []) {
-      labelRoots.add(index);
-      keep[index] = true;
+    const labelFor = node.source.contentAttributes?.labelForDomNodeId;
+    if (labelFor !== undefined && controls.has(node.frame.id + ":" + labelFor)) {
+      // A label activates its associated control; present that control once.
+      node.target = false;
+      node.actions = [];
     }
   }
-  const textContext: boolean[] = [];
+
+  // Fold intrinsic text into its owning target instead of emitting context nodes.
+  // Interactive descendants and structural boundaries own their own text.
+  const descriptions: string[] = [];
+  const childText: string[][] = nodes.map(() => []);
+  for (let index = nodes.length - 1; index >= 0; index--) {
+    progress?.throwIfStopped();
+    const node = nodes[index]!;
+    const attributes = node.source.contentAttributes;
+    if (hidden[index] || isRedacted(attributes)) {
+      descriptions[index] = "";
+      continue;
+    }
+    const ownText =
+      attributes?.label ||
+      attributes?.textData?.textContent ||
+      attributes?.svgRootData?.innerText ||
+      attributes?.imageData?.imageCaption;
+    descriptions[index] = ownText || childText[index]!.reverse().join(" ");
+    const parent = parents[index];
+    if (
+      parent !== undefined &&
+      node.actions.length === 0 &&
+      !textBoundaries.has(attributes?.attributeType ?? "") &&
+      !(attributes && isDisabled(attributes)) &&
+      descriptions[index]
+    ) {
+      childText[parent]!.push(descriptions[index]!);
+    }
+  }
+
+  const matches: ApcNode[] = [];
   for (let index = 0; index < nodes.length; index++) {
     progress?.throwIfStopped();
     const node = nodes[index]!;
     const attributes = node.source.contentAttributes;
-    const parent = parents[index];
-    const inherits =
-      parent !== undefined &&
-      textContext[parent] === true &&
-      node.actions.length === 0 &&
-      !hidden[index] &&
-      !textBoundaries.has(attributes?.attributeType ?? "");
-    // Scroll targets can contain an entire document. Keep their own metadata, not all its text.
-    textContext[index] =
-      labelRoots.has(index) ||
-      (node.target &&
-        node.actions.some((action) => action !== "scroll" && actions.includes(action))) ||
-      inherits;
-    if (
-      inherits &&
-      (attributes?.textData ||
-        attributes?.svgRootData ||
-        attributes?.imageData ||
-        attributes?.label)
-    ) {
-      keep[index] = true;
-    }
+    const domId = attributes?.commonAncestorDomNodeId;
+    const associated = (labels.get(`${node.frame.id}:${domId}`) ?? [])
+      .map((label) => descriptions[label])
+      .filter(Boolean)
+      .join(" ");
+    // A scroll target may contain a whole document; its contents are not its label.
+    const ownsText =
+      node.actions.some(
+        (action) => action !== "scroll" && (!filtered || actions.includes(action)),
+      ) || !!attributes?.formControlData;
+    node.label = isRedacted(attributes)
+      ? attributes?.label
+      : attributes?.label || associated || (ownsText ? descriptions[index] : undefined);
+    node.label = node.label?.replace(/\s+/gu, " ").trim() || undefined;
+    // Like snapshot, omit empty structural targets even when they carry mouse
+    // handlers. A scroll region remains useful without a text label.
+    if (isStructural(node) && !node.label && !node.actions.includes("scroll")) node.target = false;
+    if (node.target) matches.push(node);
   }
-  // A reverse pass retains each needed ancestor once, without keeping its unrelated children.
+  if (filtered) return matches;
+
+  // Snapshot-style pruning: remove empty structural nodes, collapse single-child
+  // wrappers, and fold redundant control text into the control's own line.
+  const keep = nodes.map((_, index) => !internal[index]);
+  const childCounts = nodes.map(() => 0);
   for (let index = nodes.length - 1; index >= 0; index--) {
     progress?.throwIfStopped();
+    const node = nodes[index]!;
+    if (isStructural(node) && !node.target && !node.label && childCounts[index]! <= 1)
+      keep[index] = false;
     const parent = parents[index];
-    if (keep[index] && parent !== undefined) keep[parent] = true;
+    if (parent !== undefined) childCounts[parent]! += keep[index] ? 1 : childCounts[index]!;
   }
-  return nodes.filter((_, index) => keep[index]);
+  const depths: number[] = [];
+  const result: ApcNode[] = [];
+  for (let index = 0; index < nodes.length; index++) {
+    progress?.throwIfStopped();
+    const parent = parents[index];
+    const depth = parent === undefined ? 0 : depths[parent]! + (keep[parent] ? 1 : 0);
+    depths[index] = depth;
+    if (keep[index]) result.push({ ...nodes[index]!, depth });
+  }
+  return result;
+}
+
+function isStructural(node: ApcNode): boolean {
+  const attributes = node.source.contentAttributes;
+  return (
+    (!attributes?.attributeType || attributes.attributeType === "CONTENT_ATTRIBUTE_CONTAINER") &&
+    !attributes?.formControlData &&
+    (!attributes?.ariaRole ||
+      attributes.ariaRole === "AX_ROLE_GENERICCONTAINER" ||
+      attributes.ariaRole === "AX_ROLE_NONE") &&
+    !attributes?.annotatedRoles?.length
+  );
 }

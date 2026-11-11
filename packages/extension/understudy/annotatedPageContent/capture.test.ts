@@ -45,7 +45,7 @@ describe("Page.captureAnnotatedPageContent", () => {
 
   it("formats and filters APC under the page operation", async () => {
     await expect(page.apc({ actions: ["fill"] })).resolves.toBe(
-      'unknown\n  [apc-3] input_email [name="email"]',
+      '[0-42] input_email [name="email"]',
     );
     await expect(page.apc({ actions: ["select"] })).resolves.toBe("");
     const full = await page.apc();

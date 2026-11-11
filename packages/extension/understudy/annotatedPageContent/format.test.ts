@@ -6,19 +6,29 @@ import { formatAnnotatedPageContent } from "./format.js";
 import type { AnnotatedPageContent } from "./index.js";
 
 describe("APC filtering and formatting", () => {
-  it("retains external labels and ancestor context without unrelated branches or target markers", () => {
+  it("folds associated labels into targets without ancestor containers or unrelated text", () => {
     expect(formatAnnotatedPageContent(controls, ["fill"])).toBe(
-      [
-        'root [frame-url="https://shop.test/"; title="Checkout"]',
-        '  form [name="Checkout"]',
-        "    container",
-        '      text: "Email address"',
-        '    [apc-7] input_email [name="email"; value=""; placeholder="you@example.com"; required]',
-      ].join("\n"),
+      'input_email: "Email address" [value=""; placeholder="you@example.com"; required]',
     );
   });
 
-  it("uses OR semantics, deduplicates overlaps, and keeps capture-local IDs stable", () => {
+  it("returns only the button on a page otherwise full of unrelated text", () => {
+    const content: AnnotatedPageContent = {
+      rootNode: {
+        childrenNodes: [
+          text("Random introduction"),
+          {
+            ...control("FORM_CONTROL_TYPE_BUTTON_BUTTON", "continue"),
+            childrenNodes: [text("Continue")],
+          },
+          text("Random footer"),
+        ],
+      },
+    };
+    expect(formatAnnotatedPageContent(content, ["click"])).toBe('button_button: "Continue"');
+  });
+
+  it("uses OR semantics, deduplicates overlaps, and preserves DOM identity", () => {
     const fill = filterAnnotatedPageContent(controls, ["fill"]).filter((node) => node.target);
     const combined = filterAnnotatedPageContent(controls, ["fill", "type", "select", "fill"]);
     expect(
@@ -26,16 +36,17 @@ describe("APC filtering and formatting", () => {
         .filter((node) => node.target)
         .map((node) => node.source.contentAttributes?.formControlData?.fieldName),
     ).toEqual(["email", "plan"]);
-    expect(combined.find((node) => node.source === fill[0]!.source)?.id).toBe(fill[0]!.id);
+    expect(combined.filter((node) => node.source === fill[0]!.source)).toHaveLength(1);
     expect(fill[0]!.frame.data?.documentIdentifier?.serializedToken).toBe("main-document");
     expect(fill[0]!.source.contentAttributes?.commonAncestorDomNodeId).toBe(42);
   });
 
   it("preserves button descendant text, image captions, and checkbox state", () => {
     const output = formatAnnotatedPageContent(controls, ["click"]);
-    expect(output).toContain('text: "Pay \\"now\\""');
-    expect(output).toContain('image [caption="Card"]');
-    expect(output).toContain('input_checkbox [label="Accept terms"; name="terms"; unchecked]');
+    expect(output).toContain('button: "Pay \\"now\\" Card"');
+    expect(output).toContain('input_checkbox: "Accept terms" [unchecked]');
+    expect(output).not.toContain("text:");
+    expect(output).not.toContain("image [");
     expect(output).not.toContain("Unrelated");
     expect(output).not.toContain('name="disabled"');
   });
@@ -44,10 +55,10 @@ describe("APC filtering and formatting", () => {
     const output = formatAnnotatedPageContent(controls, ["select"]);
     expect(output).toContain(
       [
-        '    [apc-10] select_one [name="plan"]',
-        '      option: "Basic" [value="basic"; selected]',
-        '      option: "Pro" [value="pro"; unselected; disabled]',
-        '      option: "Unknown state"',
+        'select_one [name="plan"]',
+        '  option: "Basic" [value="basic"; selected]',
+        '  option: "Pro" [value="pro"; unselected; disabled]',
+        '  option: "Unknown state"',
       ].join("\n"),
     );
     expect(output).not.toContain("Email");
@@ -63,7 +74,7 @@ describe("APC filtering and formatting", () => {
     expect(formatAnnotatedPageContent(controls)).toBe(output);
   });
 
-  it("keeps frame boundaries and resolves labels within their owning document", () => {
+  it("resolves labels within their owning document without emitting frame metadata", () => {
     const content: AnnotatedPageContent = {
       rootNode: {
         childrenNodes: [
@@ -96,7 +107,9 @@ describe("APC filtering and formatting", () => {
       },
     };
     const output = formatAnnotatedPageContent(content, ["fill"]);
-    expect(output).toContain('iframe [frame-url="https://payment.test/"]');
+    expect(output.split("\n")).toHaveLength(1);
+    expect(output).not.toContain("iframe");
+    expect(output).not.toContain("https://payment.test/");
     expect(output).toContain("Cardholder");
     expect(output).not.toContain("Wrong label");
     const target = filterAnnotatedPageContent(content, ["fill"]).find((node) => node.target)!;
@@ -123,7 +136,7 @@ describe("APC filtering and formatting", () => {
       },
     };
     const output = formatAnnotatedPageContent(content, ["fill"]);
-    expect(output).toContain('text: "Name"');
+    expect(output).toContain('input_text: "Name"');
     expect(output).not.toContain('name="help"');
   });
 
@@ -137,7 +150,7 @@ describe("APC filtering and formatting", () => {
         childrenNodes: [text("Unrelated body"), control("FORM_CONTROL_TYPE_INPUT_TEXT", "field")],
       },
     };
-    expect(formatAnnotatedPageContent(content, ["scroll"])).toBe("[apc-1] root");
+    expect(formatAnnotatedPageContent(content, ["scroll"])).toBe("root");
   });
 
   it("keeps redaction visible without exposing or reconstructing redacted contents", () => {
@@ -184,6 +197,95 @@ describe("APC filtering and formatting", () => {
     };
     expect(formatAnnotatedPageContent(content, ["fill", "click"])).toBe("");
     expect(formatAnnotatedPageContent(content)).toContain("Unknown");
+  });
+
+  it("drops control internals and empty wrappers while preserving independent controls", () => {
+    const input = {
+      ...control("FORM_CONTROL_TYPE_INPUT_TEXT", "email", { label: "Email" }),
+      childrenNodes: [
+        {
+          contentAttributes: {
+            attributeType: "CONTENT_ATTRIBUTE_CONTAINER" as const,
+            interactionInfo: { clickabilityReasons: ["CLICKABILITY_REASON_EDITABLE" as const] },
+          },
+          childrenNodes: [text("")],
+        },
+      ],
+    };
+    const content: AnnotatedPageContent = {
+      rootNode: {
+        contentAttributes: { attributeType: "CONTENT_ATTRIBUTE_ROOT" },
+        childrenNodes: [
+          {
+            contentAttributes: { attributeType: "CONTENT_ATTRIBUTE_CONTAINER" },
+            childrenNodes: [
+              input,
+              {
+                contentAttributes: { attributeType: "CONTENT_ATTRIBUTE_CONTAINER" },
+                childrenNodes: [
+                  {
+                    contentAttributes: {
+                      attributeType: "CONTENT_ATTRIBUTE_CONTAINER",
+                      ariaRole: "AX_ROLE_BUTTON",
+                      label: "Custom button",
+                      interactionInfo: {
+                        clickabilityReasons: ["CLICKABILITY_REASON_CLICK_HANDLER"],
+                      },
+                    },
+                  },
+                ],
+              },
+              {
+                contentAttributes: {
+                  attributeType: "CONTENT_ATTRIBUTE_CONTAINER",
+                  interactionInfo: {
+                    clickabilityReasons: [
+                      "CLICKABILITY_REASON_MOUSE_ENTER",
+                      "CLICKABILITY_REASON_CLICK_HANDLER",
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const filtered = formatAnnotatedPageContent(content, ["click", "fill", "hover"]);
+    expect(filtered).toBe('input_text: "Email"\nbutton: "Custom button"');
+    const full = filterAnnotatedPageContent(content);
+    expect(full.filter((node) => node.source === input)).toHaveLength(1);
+    expect(
+      full.filter(
+        (node) => node.source.contentAttributes?.attributeType === "CONTENT_ATTRIBUTE_CONTAINER",
+      ),
+    ).toHaveLength(2); // The branching wrapper and the independent ARIA button.
+    expect(formatAnnotatedPageContent(content)).not.toContain('text: ""');
+  });
+
+  it("omits URL metadata from both full and filtered output", () => {
+    const content: AnnotatedPageContent = {
+      mainFrameData: { url: "https://example.test/?very=long" },
+      rootNode: {
+        contentAttributes: { attributeType: "CONTENT_ATTRIBUTE_ROOT" },
+        childrenNodes: [
+          {
+            contentAttributes: {
+              attributeType: "CONTENT_ATTRIBUTE_ANCHOR",
+              anchorData: { url: "https://example.test/destination?tracking=long" },
+              interactionInfo: {},
+            },
+            childrenNodes: [text("Destination")],
+          },
+        ],
+      },
+    };
+    for (const actions of [[], ["click"]] as const) {
+      const output = formatAnnotatedPageContent(content, actions);
+      expect(output).toContain("Destination");
+      expect(output).not.toContain("https://");
+      expect(output).not.toContain("url=");
+    }
   });
 
   it("honors the same deadline during processing", () => {

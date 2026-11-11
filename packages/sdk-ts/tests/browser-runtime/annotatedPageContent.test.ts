@@ -1,3 +1,8 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { fileURLToPath } from "node:url";
+import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
+import { Stagehand } from "../../src/stagehand.js";
 import { describe, expect, it } from "vitest";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { CDPClient, openCDPWebSocket, resolveBrowserWebSocketUrl } from "../../src/cdpClient.js";
@@ -70,6 +75,11 @@ describe("Chromium annotated page content", () => {
       const email = attributes.find((entry) => entry.formControlData?.fieldName === "email");
       expect(email?.formControlData?.formControlType).toBe("FORM_CONTROL_TYPE_INPUT_EMAIL");
       expect(email?.commonAncestorDomNodeId).toBeGreaterThan(0);
+      const { node: emailNode } = await session.send<{
+        node: { localName: string; attributes: string[] };
+      }>("DOM.describeNode", { backendNodeId: email!.commonAncestorDomNodeId });
+      expect(emailNode.localName).toBe("input");
+      expect(emailNode.attributes).toContain("email");
       expect(
         attributes.some((entry) => (entry.interactionInfo?.clickabilityReasons?.length ?? 0) > 0),
       ).toBe(true);
@@ -90,8 +100,8 @@ describe("Chromium annotated page content", () => {
       expect(classifyActions(labeled("Focus target"))).toEqual([]);
       expect(classifyActions(labeled("Scroll target"))).toEqual(["scroll"]);
       const formatted = formatAnnotatedPageContent(content, ["fill", "select"]);
-      expect(formatted).toContain('name="email"');
-      expect(formatted).toContain("Email");
+      expect(formatted).toContain('input_email: "Email"');
+      expect(formatted).not.toContain("Checkout");
       expect(formatted).toContain('option: "Basic"');
       expect(formatted).not.toContain('name="disabled"');
       expect(formatted).not.toContain('name="readonly"');
@@ -123,3 +133,85 @@ async function waitForDocument(client: CDPClient, sessionId: string) {
     )
     .toBe("complete");
 }
+
+describe("APC actionable IDs through the SDK", () => {
+  it("shares snapshot IDs and resolves actions in the main document and child frames", async () => {
+    const server = createServer((request, response) => {
+      response.setHeader("content-type", "text/html");
+      if (request.url === "/child") {
+        response.end(
+          '<label>Child field<input id="field"></label><button onclick="this.textContent=\'Clicked child\'">Child button</button>',
+        );
+      } else {
+        const address = server.address() as AddressInfo;
+        response.end(
+          '<label>Main field<input id="field"></label><button onclick="this.textContent=\'Clicked main\'">Main button</button>' +
+            '<iframe src="/child"></iframe><iframe src="http://localhost:' +
+            address.port +
+            '/child"></iframe>' +
+            '<div id="shadow"></div><script>document.querySelector("#shadow").attachShadow({mode:"open"}).innerHTML = \'<button onclick="this.textContent=String(123)">Shadow button</button>\';</script>',
+        );
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const signal = AbortSignal.timeout(60_000);
+    const chrome = await launchLocalBrowser({ headless: true }, signal);
+    let stagehand: Stagehand | undefined;
+    try {
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: (options) =>
+          CDPClient.connect({
+            ...options,
+            localExtensionDir: fileURLToPath(new URL("../../../extension/dist", import.meta.url)),
+          }),
+      });
+      const browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
+      stagehand = await Stagehand.create({
+        browser,
+        model: {
+          generate: async () => {
+            throw new Error("APC must not call a model");
+          },
+        },
+      });
+      const page = await browser.context.newPage();
+      await page.goto("http://127.0.0.1:" + (server.address() as AddressInfo).port, {
+        waitUntil: "load",
+      });
+      const output = await page.apc({ actions: ["click", "fill"] });
+      const full = await page.apc();
+      expect(output).not.toContain("apc-");
+      expect(output).not.toContain("container");
+      expect(full).not.toContain("url=");
+      const snapshot = await page.snapshot({ includeIframes: true });
+      const lines = output.split("\n");
+      const fields = lines.filter((line) => line.includes("input_text"));
+      expect(fields).toHaveLength(3);
+      const ids = fields.map((line) => line.match(/^\[(\d+-\d+)\]/)![1]!);
+      expect(new Set(ids.map((id) => id.split("-")[0])).size).toBe(3);
+      for (let index = 0; index < ids.length; index++) {
+        const selector = snapshot.xpathMap[ids[index]!]!;
+        expect(selector).toBeTruthy();
+        const field = page.locator(selector);
+        await field.fill("field-" + index);
+        expect(await field.inputValue()).toBe("field-" + index);
+      }
+      const buttons = lines.filter((line) => line.includes("button"));
+      expect(buttons).toHaveLength(4);
+      for (const line of buttons) {
+        const id = line.match(/^\[(\d+-\d+)\]/)![1]!;
+        const selector = snapshot.xpathMap[id]!;
+        expect(selector).toBeTruthy();
+        const button = page.locator(selector);
+        await button.click();
+        expect(await button.textContent()).toMatch(/Clicked|123/);
+      }
+    } finally {
+      await stagehand?.close();
+      await chrome.close();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  }, 60_000);
+});

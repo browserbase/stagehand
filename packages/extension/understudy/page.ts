@@ -6,6 +6,7 @@ import {
   formatAnnotatedPageContent,
   type AnnotatedPageContent,
 } from "./annotatedPageContent/index.js";
+import { resolveAnnotatedPageContentTargets } from "./annotatedPageContent/targets.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
@@ -2338,7 +2339,8 @@ export class Page {
       parentProgress ?? { name: "apc", timeout: options?.timeout ?? 20_000 },
       async (progress) => {
         const content = await this.captureAnnotatedPageContent(progress);
-        return formatAnnotatedPageContent(content, options?.actions, progress);
+        const targets = await resolveAnnotatedPageContentTargets(this, content, progress);
+        return formatAnnotatedPageContent(content, options?.actions, progress, targets);
       },
     );
   }

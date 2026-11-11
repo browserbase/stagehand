@@ -785,13 +785,18 @@ const pdf = await page.pdf({
 
 ## apc()
 
-Capture Chromium's annotated page content as a hierarchical string without making a model call.
+Capture Chromium's annotated page content as a string without making a model call.
 Multiple actions use OR semantics: a target is included if it supports any requested action.
-Omitted or empty actions return the full tree; no matching targets returns an empty string.
+Omitted or empty actions return the pruned content tree; no matching targets returns an empty string.
 
-Filtered output retains labels, control state, select options, and ancestor context.
-Only matching targets receive `apc-N` display IDs. These IDs belong to this capture and
-cannot be used as locator selectors.
+Filtered output lists only matching targets, with their own text or associated labels, control
+state, and select options. Ancestor containers and unrelated page text are omitted.
+Empty structural nodes and redundant control internals are removed, and single-child
+structural wrappers are collapsed. URL metadata is omitted in both output modes.
+Every retained node with resolvable DOM identity uses the same frame-ordinal/backend-node IDs as
+`snapshot()`, so IDs for the same live nodes can be matched against its
+`xpathMap`. Nodes without resolvable DOM identity have no ID; the IDs themselves
+are not CSS or XPath selectors.
 
 Requires Chromium with annotated page content support. Unsupported commands and capture
 failures propagate as errors. Chromium may omit or redact content, so frame and shadow DOM
@@ -1679,13 +1684,18 @@ Paper dimensions and margins are measured in inches.
 
 ## apc()
 
-Capture Chromium's annotated page content as a hierarchical string without making a model call.
+Capture Chromium's annotated page content as a string without making a model call.
 Multiple actions use OR semantics: a target is included if it supports any requested action.
-Omitted or empty actions return the full tree; no matching targets returns an empty string.
+Omitted or empty actions return the pruned content tree; no matching targets returns an empty string.
 
-Filtered output retains labels, control state, select options, and ancestor context.
-Only matching targets receive `apc-N` display IDs. These IDs belong to this capture and
-cannot be used as locator selectors.
+Filtered output lists only matching targets, with their own text or associated labels, control
+state, and select options. Ancestor containers and unrelated page text are omitted.
+Empty structural nodes and redundant control internals are removed, and single-child
+structural wrappers are collapsed. URL metadata is omitted in both output modes.
+Every retained node with resolvable DOM identity uses the same frame-ordinal/backend-node IDs as
+`snapshot()`, so IDs for the same live nodes can be matched against its
+`xpath_map`. Nodes without resolvable DOM identity have no ID; the IDs themselves
+are not CSS or XPath selectors.
 
 Requires Chromium with annotated page content support. Unsupported commands and capture
 failures propagate as errors. Chromium may omit or redact content, so frame and shadow DOM

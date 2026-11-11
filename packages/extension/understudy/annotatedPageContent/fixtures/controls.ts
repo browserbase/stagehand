@@ -52,6 +52,7 @@ export const controls: AnnotatedPageContent = {
             contentAttributes: {
               attributeType: "CONTENT_ATTRIBUTE_CONTAINER",
               labelForDomNodeId: 42,
+              interactionInfo: { clickabilityReasons: ["CLICKABILITY_REASON_CLICK_HANDLER"] },
             },
             childrenNodes: [text("Email address")],
           },
