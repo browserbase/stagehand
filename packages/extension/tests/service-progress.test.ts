@@ -329,7 +329,9 @@ describe("act downstream work", () => {
         typeof import("../handlers/handlerUtils/actHandlerUtils.js")
       >("../handlers/handlerUtils/actHandlerUtils.js");
       waitForQuiet.mockImplementation(real.waitForDomNetworkQuiet);
-      const session = Object.assign(new EventEmitter(), { send: vi.fn(async () => ({})) });
+      const session = Object.assign(new EventEmitter(), {
+        send: vi.fn(async (_method: string) => ({})),
+      });
       const frame = {
         frameId: "main",
         session,
@@ -347,6 +349,10 @@ describe("act downstream work", () => {
       const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
       await vi.advanceTimersByTimeAsync(0);
       expect(session.eventNames().length).toBeGreaterThan(0);
+      // Settling must not replace the context's auto-attach settings for future iframes.
+      expect(session.send.mock.calls.some(([method]) => method === "Target.setAutoAttach")).toBe(
+        false,
+      );
       await vi.advanceTimersByTimeAsync(20);
       await rejected;
       expect(session.eventNames()).toEqual([]);
