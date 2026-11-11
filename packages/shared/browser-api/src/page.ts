@@ -1,3 +1,4 @@
+import { normalizeLocatorSelector } from "./locatorSelector.js";
 import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import type {
   LoadState,
@@ -462,7 +463,7 @@ export class Page {
   locator(selector: string): Locator {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
-      selector,
+      selector: normalizeLocatorSelector(selector),
     });
   }
 }

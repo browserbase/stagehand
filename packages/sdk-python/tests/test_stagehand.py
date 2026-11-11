@@ -1036,10 +1036,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
     assert act_params.options is not None
     assert act_params.options.locator is not None
-    assert act_params.options.locator.selector == "main"
+    assert act_params.options.locator.selector.root.value == "main"
     assert act_params.options.locator.nth == 2
     assert act_params.options.ignore_locators is not None
-    assert [locator.selector for locator in act_params.options.ignore_locators] == [".promo"]
+    assert [locator.selector.root.value for locator in act_params.options.ignore_locators] == [
+        ".promo"
+    ]
     assert act_params.options.cache is not None
     observe_params = next(
         cast(StagehandObserveParams, params)
@@ -1049,10 +1051,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert observe_params.page_id == "explicit-page"
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
-    assert observe_params.options.locator.selector == "main"
+    assert observe_params.options.locator.selector.root.value == "main"
     assert observe_params.options.locator.nth == 1
     assert observe_params.options.ignore_locators is not None
-    assert [locator.selector for locator in observe_params.options.ignore_locators] == ["nav"]
+    assert [locator.selector.root.value for locator in observe_params.options.ignore_locators] == [
+        "nav"
+    ]
     extract_params = next(
         cast(StagehandExtractParams, params)
         for method, params, _ in recording.calls
@@ -1061,10 +1065,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
-    assert extract_params.options.locator.selector == "main"
+    assert extract_params.options.locator.selector.root.value == "main"
     assert extract_params.options.locator.nth == 1
     assert extract_params.options.ignore_locators is not None
-    assert [locator.selector for locator in extract_params.options.ignore_locators] == ["nav"]
+    assert [locator.selector.root.value for locator in extract_params.options.ignore_locators] == [
+        "nav"
+    ]
 
 
 @pytest.mark.asyncio
@@ -1113,11 +1119,12 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert observe_params.page_id == "active-page"
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
-    assert observe_params.options.locator.selector == "main"
+    assert observe_params.options.locator.selector.root.value == "main"
     assert observe_params.options.locator.nth == 2
     assert observe_params.options.ignore_locators is not None
     assert [
-        (locator.selector, locator.nth) for locator in observe_params.options.ignore_locators
+        (locator.selector.root.value, locator.nth)
+        for locator in observe_params.options.ignore_locators
     ] == [("nav", 1)]
 
     extract_params = next(
@@ -1128,11 +1135,12 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert extract_params.page_id == "active-page"
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
-    assert extract_params.options.locator.selector == "section.content"
+    assert extract_params.options.locator.selector.root.value == "section.content"
     assert extract_params.options.locator.nth == 3
     assert extract_params.options.ignore_locators is not None
     assert [
-        (locator.selector, locator.nth) for locator in extract_params.options.ignore_locators
+        (locator.selector.root.value, locator.nth)
+        for locator in extract_params.options.ignore_locators
     ] == [("aside.ads", 0)]
 
 

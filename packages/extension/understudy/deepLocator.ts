@@ -4,7 +4,7 @@ import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
-import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
+import type { LocatorSelector, MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
 type Axis = "child" | "desc";
@@ -99,9 +99,13 @@ export async function resolveLocatorTarget(
 export async function resolveLocatorWithHops(
   page: Page,
   root: Frame,
-  selectorRaw: string,
+  selectorRaw: string | LocatorSelector,
   progress?: Progress,
 ): Promise<Locator> {
+  if (typeof selectorRaw !== "string") {
+    if (selectorRaw.type !== "legacy") return new Locator(root, selectorRaw);
+    selectorRaw = selectorRaw.value;
+  }
   const target = await resolveLocatorTarget(page, root, selectorRaw, progress);
   return new Locator(target.frame, target.selector);
 }
@@ -117,7 +121,7 @@ export class DeepLocatorDelegate {
   constructor(
     readonly page: Page,
     readonly root: Frame,
-    readonly selector: string,
+    readonly selector: string | LocatorSelector,
     // -1 preserves every match for operations such as screenshot masking while
     // ordinary single-element operations still resolve their first match.
     readonly nthIndex: number = -1,
@@ -218,7 +222,7 @@ export class DeepLocatorDelegate {
 export function deepLocatorFromPage(
   page: Page,
   root: Frame,
-  selector: string,
+  selector: string | LocatorSelector,
 ): DeepLocatorDelegate {
   return new DeepLocatorDelegate(page, root, selector);
 }

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { StagehandMethods } from "../../schema-registry.js";
 import { LocatorDescriptorSchema } from "../../schemas.js";
 
-const descriptor = { pageId: "page-1", selector: "button", nth: 0 };
+const descriptor = {
+  pageId: "page-1",
+  selector: { type: "legacy" as const, value: "button" },
+  nth: 0,
+};
 const requiredFields: Record<string, Record<string, unknown>> = {
   "locator.fill": { value: "hello" },
   "locator.scroll_to": { percent: "bottom" },

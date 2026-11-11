@@ -2667,7 +2667,9 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
-  return new Set([
+  // SDK methods accept Locator instances, so their entire serialized descriptor
+  // (including nested selector fields) is internal to the SDK.
+  return [
     "options.locator.selector",
     "options.locator.nth",
     "options.ignoreLocators.selector",
@@ -2676,7 +2678,7 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
     "locator.nth",
     "ignore_locators.selector",
     "ignore_locators.nth",
-  ]).has(path);
+  ].some((field) => path === field || path.startsWith(`${field}.`));
 }
 
 function publicReferenceFieldType(

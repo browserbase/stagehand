@@ -71,7 +71,7 @@ function createLocator(selector = "button") {
 function runPublicAction(locator: Locator, action: "highlight" | "upload") {
   const runtime = createStagehandRuntime();
   vi.spyOn(runtime, "resolveLocator").mockReturnValue(locator);
-  const descriptor = { pageId: "page-1", selector: "button" };
+  const descriptor = { pageId: "page-1", selector: { type: "legacy" as const, value: "button" } };
   return action === "highlight"
     ? runtime.locatorHighlight({ ...descriptor, options: { durationMs: 0, timeout: 100 } })
     : runtime.locatorSetInputFiles({
