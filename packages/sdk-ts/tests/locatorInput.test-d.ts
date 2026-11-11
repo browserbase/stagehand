@@ -33,3 +33,6 @@ page.locator({ type: "text" });
 page.locator({ type: "text", value: 123 });
 // @ts-expect-error The discriminator must name a supported engine.
 page.locator({ type: "unknown", value: "button" });
+
+expectTypeOf<Parameters<Locator["locator"]>[0]>().toEqualTypeOf<LocatorInput>();
+expectTypeOf(page.locator(css).locator(text).nth(1)).toEqualTypeOf<Locator>();

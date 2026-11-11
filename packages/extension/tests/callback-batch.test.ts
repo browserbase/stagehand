@@ -121,8 +121,9 @@ describe("callback batch runner", () => {
       requests.find((request) => request.method === "locator.set_input_files")?.params,
     ).toEqual({
       pageId: "page-2",
-      selector: { type: "legacy", value: "input" },
-      nth: 1,
+      selector: {
+        steps: [{ type: "query", selector: { type: "css", value: "input" }, nth: 1 }],
+      },
       files: [
         { name: "bytes.bin", data: "AH//" },
         { name: "hello.txt", data: "aGVsbG8=" },
@@ -177,7 +178,7 @@ describe("callback batch runner", () => {
     ]);
     expect(requests[1]?.params).toEqual({
       pageId: "page-1",
-      selector: { type: "legacy" as const, value: "button" },
+      selector: { steps: [{ type: "query", selector: { type: "css", value: "button" } }] },
     });
     expect(requests.every((request) => request.traceparent === traceparent)).toBe(true);
   });
@@ -571,8 +572,12 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "act",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" } },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
+          locator: {
+            selector: { steps: [{ type: "query", selector: { type: "css", value: "main" } }] },
+          },
+          ignoreLocators: [
+            { selector: { steps: [{ type: "query", selector: { type: "css", value: "nav" } }] } },
+          ],
           timeout: 1_000,
         },
       },
@@ -580,7 +585,9 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "observe",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "section" } },
+          locator: {
+            selector: { steps: [{ type: "query", selector: { type: "css", value: "section" } }] },
+          },
           timeout: 2_000,
         },
       },
@@ -588,7 +595,9 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "extract",
         options: {
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: ".ad" } }],
+          ignoreLocators: [
+            { selector: { steps: [{ type: "query", selector: { type: "css", value: ".ad" } }] } },
+          ],
           timeout: 3_000,
         },
       }),
@@ -640,16 +649,38 @@ describe("callback batch runner", () => {
         pageId: "page-2",
         instruction: "observe",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 2 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 1 }],
+          locator: {
+            selector: {
+              steps: [{ type: "query", selector: { type: "css", value: "main" }, nth: 2 }],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [{ type: "query", selector: { type: "css", value: "nav" }, nth: 1 }],
+              },
+            },
+          ],
         },
       },
       expect.objectContaining({
         pageId: "page-2",
         instruction: "extract",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "section.content" }, nth: 3 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "aside.ads" }, nth: 0 }],
+          locator: {
+            selector: {
+              steps: [
+                { type: "query", selector: { type: "css", value: "section.content" }, nth: 3 },
+              ],
+            },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [{ type: "query", selector: { type: "css", value: "aside.ads" }, nth: 0 }],
+              },
+            },
+          ],
         },
       }),
     ]);
