@@ -5,7 +5,7 @@ import {
   loadMastraSdk,
   type MastraSdk,
   type MastraStdioServerDefinition,
-} from "@browserbasehq/stagehand-integrations-mastra-sdk";
+} from "@browserbasehq/stagehand-integrations-mastra";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";

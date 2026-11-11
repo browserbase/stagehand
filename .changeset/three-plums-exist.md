@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-Harden daemon directory checks to reject empty paths, symlinks, non-directories, and, on Unix, foreign-owned directories or unsafe parent locations.
+Validate daemon directory locations before connecting to a session.
