@@ -59,39 +59,7 @@ export class FrameLocator {
       );
       const iframeBackendNodeId = desc.node.backendNodeId;
 
-      // Find direct child frames under the parent by consulting the Page's registry
-      const childIds = await listDirectChildFrameIdsFromRegistry(
-        this.page,
-        parentFrame.frameId,
-        1000,
-        progress,
-      );
-
-      for (const fid of childIds) {
-        let owner: {
-          backendNodeId: Protocol.DOM.BackendNodeId;
-          nodeId?: Protocol.DOM.NodeId;
-        };
-        try {
-          owner = await runLocatorStep(progress, "finding frame owner", () =>
-            parentSession.send<{
-              backendNodeId: Protocol.DOM.BackendNodeId;
-              nodeId?: Protocol.DOM.NodeId;
-            }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
-          );
-        } catch (error) {
-          progress?.throwIfStopped();
-          if (progress && isCdpClosedError(error)) throw error;
-          // ignore and try next
-          continue;
-        }
-        if (owner.backendNodeId === iframeBackendNodeId) {
-          // Readiness failures must propagate after the matching child is identified.
-          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress);
-          return this.page.frameForId(fid);
-        }
-      }
-      throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
+      return await resolveContentFrame(this.page, parentFrame, iframeBackendNodeId, progress);
     } finally {
       const release = () =>
         parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
@@ -105,6 +73,51 @@ export class FrameLocator {
   locator(selector: string): LocatorDelegate {
     return new LocatorDelegate(this, selector);
   }
+}
+
+/** Resolve a concrete iframe owner, including cross-process frame adoption. */
+export async function resolveContentFrame(
+  page: Page,
+  parentFrame: Frame,
+  iframeBackendNodeId: number,
+  progress?: Progress,
+): Promise<Frame> {
+  const parentSession = parentFrame.session;
+  // Find direct child frames under the parent by consulting the Page's registry
+  const childIds = await listDirectChildFrameIdsFromRegistry(
+    page,
+    parentFrame.frameId,
+    1000,
+    progress,
+  );
+
+  for (const fid of childIds) {
+    let owner: {
+      backendNodeId: Protocol.DOM.BackendNodeId;
+      nodeId?: Protocol.DOM.NodeId;
+    };
+    try {
+      owner = await runLocatorStep(progress, "finding frame owner", () =>
+        parentSession.send<{
+          backendNodeId: Protocol.DOM.BackendNodeId;
+          nodeId?: Protocol.DOM.NodeId;
+        }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
+      );
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
+      // ignore and try next
+      continue;
+    }
+    if (owner.backendNodeId === iframeBackendNodeId) {
+      // Readiness failures must propagate after the matching child is identified.
+      await ensureChildFrameReady(page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress);
+      return page.frameForId(fid);
+    }
+  }
+  throw new Error(
+    `Unable to obtain a content frame for iframe backend node: ${iframeBackendNodeId}`,
+  );
 }
 
 /** A small delegating wrapper that resolves the frame lazily per call. */

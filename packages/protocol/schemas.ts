@@ -536,9 +536,6 @@ export const LocatorStepSchema = z
 /**
  * An ordered query plan starting in the page document. Frame entry requires
  * element matches from a preceding query; the resolver checks that context.
- *
- * Defined separately during migration; RPC parameters continue using Locator
- * until the extension can execute chains.
  */
 export const LocatorChainSchema = z
   .strictObject({
@@ -548,7 +545,7 @@ export const LocatorChainSchema = z
 
 export const LocatorSchema = z
   .strictObject({
-    selector: LocatorSelectorSchema,
+    selector: z.union([LocatorSelectorSchema, LocatorChainSchema]),
     nth: z.number().int().nonnegative().optional(),
   })
   .meta({ id: "Locator" });

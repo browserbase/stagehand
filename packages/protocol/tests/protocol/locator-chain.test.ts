@@ -1,9 +1,31 @@
+import { StagehandMethods } from "../../schema-registry.js";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { LocatorChainSchema } from "../../schemas.js";
 import type { LocatorChain } from "../../types.js";
 
 describe("locator chain query plans", () => {
+  it("accepts chains in actions, scopes, exclusions, and screenshot masks", () => {
+    const selector = {
+      steps: [
+        { type: "query", selector: { type: "css", value: ".card" }, nth: 1 },
+        { type: "query", selector: { type: "text", value: "Pay" } },
+      ],
+    };
+    const action = { pageId: "page-1", selector };
+    expect(StagehandMethods.locatorClick.params.parse(action)).toEqual(action);
+    const observe = {
+      pageId: "page-1",
+      options: {
+        locator: { selector },
+        ignoreLocators: [{ selector }],
+      },
+    };
+    expect(StagehandMethods.stagehandObserve.params.parse(observe)).toEqual(observe);
+    const screenshot = { pageId: "page-1", options: { mask: [action] } };
+    expect(StagehandMethods.pageScreenshot.params.parse(screenshot)).toEqual(screenshot);
+  });
+
   it("represents a single selector without changing its value", () => {
     const chain = {
       steps: [{ type: "query", selector: { type: "text", value: 'text="Pay" >> now' } }],

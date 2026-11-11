@@ -6,6 +6,7 @@ type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
+  scope?: Document | Element;
 };
 
 type ShadowContext = {
@@ -31,6 +32,34 @@ export function resolveXPathAtIndex(
   if (!Number.isFinite(index) || index < 0) return null;
   const xp = normalizeXPath(rawXp);
   if (!xp) return null;
+
+  const scope = options?.scope;
+  if (scope instanceof Element) {
+    // XPath must stay inside the selected subtree, including expressions using
+    // absolute paths or ancestor axes.
+    const relative = xp.startsWith("/") ? `.${xp}` : xp;
+    if (options?.pierceShadow !== false && documentHasShadowRoot()) {
+      const composed = resolveXPathComposedMatches(
+        relative.replace(/^\.\//, "/"),
+        getOpenOrClosedShadowRoot,
+        scope,
+      );
+      return composed[Math.floor(index)] ?? null;
+    }
+    const snapshot = scope.ownerDocument.evaluate(
+      relative,
+      scope,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null,
+    );
+    const matches: Element[] = [];
+    for (let i = 0; i < snapshot.snapshotLength; i++) {
+      const node = snapshot.snapshotItem(i);
+      if (node instanceof Element && node !== scope && scope.contains(node)) matches.push(node);
+    }
+    return matches[Math.floor(index)] ?? null;
+  }
 
   const targetIndex = Math.floor(index);
   const pierceShadow = options?.pierceShadow !== false;
@@ -80,6 +109,7 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
 export function resolveXPathComposedMatches(
   rawXp: string,
   getShadowRoot?: ShadowRootGetter | null,
+  scope: TraversalRoot = document,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -89,7 +119,7 @@ export function resolveXPathComposedMatches(
 
   const shadowRootGetter = getShadowRoot ?? null;
 
-  let current: TraversalRoot[] = [document];
+  let current: TraversalRoot[] = [scope];
 
   for (const step of steps) {
     const next: Element[] = [];

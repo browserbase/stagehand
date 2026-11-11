@@ -1,3 +1,4 @@
+import { resolveLocatorChain } from "../../locatorChain.js";
 import type { Protocol } from "devtools-protocol";
 import type { Locator, LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "../../cdp.js";
@@ -186,8 +187,13 @@ export async function tryScopedSnapshot(
   const focusLocator = options?.focusLocator;
   if (!focusLocator) return null;
   const selector = focusLocator.selector;
-  const requestedFocus = selector.type === "legacy" ? selector.value.trim() : selector.value;
-  if (!requestedFocus) return null;
+  const requestedFocus =
+    "steps" in selector
+      ? undefined
+      : selector.type === "legacy"
+        ? selector.value.trim()
+        : selector.value;
+  if (!("steps" in selector) && !requestedFocus) return null;
   const focusNth = focusLocator.nth;
 
   const logScopeFallback = () => {
@@ -200,13 +206,29 @@ export async function tryScopedSnapshot(
     let targetFrameId: string;
     let tailSelector: LocatorSelector | undefined;
     let absPrefix: string | undefined;
+    let focusBackendNodeId: number | undefined;
 
-    const looksLikeXPath = /^xpath=/i.test(requestedFocus) || requestedFocus.startsWith("/");
-    if (selector.type !== "legacy") {
+    const looksLikeXPath = /^xpath=/i.test(requestedFocus ?? "") || requestedFocus?.startsWith("/");
+    if ("steps" in selector) {
+      const [target] = await resolveLocatorChain(
+        page,
+        page.mainFrame(),
+        selector,
+        focusNth ?? 0,
+        progress,
+      );
+      if (!target) {
+        logScopeFallback();
+        return null;
+      }
+      targetFrameId = target.frame.frameId;
+      focusBackendNodeId = target.backendNodeId;
+      absPrefix = await chainFramePrefix(page, context, targetFrameId, pierce, progress);
+    } else if (selector.type !== "legacy") {
       targetFrameId = context.rootId;
       tailSelector = selector;
     } else if (looksLikeXPath) {
-      const focus = normalizeXPath(requestedFocus);
+      const focus = normalizeXPath(requestedFocus!);
       const hit = await resolveFocusFrameAndTail(
         page,
         focus,
@@ -220,7 +242,7 @@ export async function tryScopedSnapshot(
     } else {
       const cssHit = await resolveCssFocusFrameAndTail(
         page,
-        requestedFocus,
+        requestedFocus!,
         context.parentByFrame,
         context.rootId,
         progress,
@@ -249,6 +271,7 @@ export async function tryScopedSnapshot(
       owningSess,
       targetFrameId,
       {
+        focusBackendNodeId,
         focusLocator: tailSelector
           ? {
               selector: tailSelector,
@@ -321,6 +344,37 @@ export async function tryScopedSnapshot(
     logScopeFallback();
   }
   return null;
+}
+
+/** Build absolute selector prefixes for a chain resolved inside nested frames. */
+async function chainFramePrefix(
+  page: Page,
+  context: FrameContext,
+  frameId: string,
+  pierce: boolean,
+  progress?: Progress,
+): Promise<string> {
+  if (frameId === context.rootId) return "";
+  const frameIds: string[] = [];
+  for (let id: string | null | undefined = frameId; id; id = context.parentByFrame.get(id)) {
+    frameIds.unshift(id);
+  }
+  const maps = new Map<string, FrameDomMaps>();
+  for (const id of frameIds.slice(0, -1)) {
+    const session = ownerSession(page, id);
+    const parentId = context.parentByFrame.get(id);
+    const dom = await domMapsForSession(
+      session,
+      id,
+      pierce,
+      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+      !!parentId && ownerSession(page, parentId) === session,
+      progress,
+    );
+    maps.set(id, { ...dom, urlMap: {} });
+  }
+  const { absPrefix } = await computeFramePrefixes(page, context, maps, frameIds, progress);
+  return absPrefix.get(frameId) ?? "";
 }
 
 /**
@@ -450,10 +504,10 @@ export async function resolveIgnoredNodes(
   for (const locator of ignoreLocators ?? []) {
     progress?.throwIfStopped();
     const selector =
-      locator.selector.type === "legacy"
+      !("steps" in locator.selector) && locator.selector.type === "legacy"
         ? { ...locator.selector, value: locator.selector.value.trim() }
         : locator.selector;
-    if (!selector.value) continue;
+    if (!("steps" in selector) && !selector.value) continue;
 
     try {
       const resolved = await resolveIgnoredNodesForLocator(
@@ -484,6 +538,16 @@ async function resolveIgnoredNodesForLocator(
   sessionToIndex: Map<string, SessionDomIndex>,
   progress?: Progress,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  if ("steps" in locator.selector) {
+    const targets = await resolveLocatorChain(
+      page,
+      page.mainFrame(),
+      locator.selector,
+      locator.nth,
+      progress,
+    );
+    return targets.map(({ frame, backendNodeId }) => ({ frameId: frame.frameId, backendNodeId }));
+  }
   if (locator.selector.type !== "legacy") {
     return resolveIgnoredNodesInFrame(
       page,

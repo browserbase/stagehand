@@ -44,6 +44,7 @@ describe("Stagehand service worker RPC client smoke", () => {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         logLevel: "debug",
+        model: { source: "client" },
         browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? chrome.cdpUrl,
       },
       signal,
@@ -191,6 +192,229 @@ describe("Stagehand service worker RPC client smoke", () => {
       await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
   });
+
+  it("resolves scoped chains, intermediate indices, and overlapping roots", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const query = (type: "css" | "xpath" | "text", value: string, nth?: number) => ({
+      type: "query" as const,
+      selector: { type, value },
+      ...(nth === undefined ? {} : { nth }),
+    });
+    try {
+      for (const step of [
+        query("text", "Pay"),
+        query("xpath", ".//button"),
+        query("xpath", "//button"),
+        query("css", "button"),
+      ]) {
+        await expect(
+          client.send(StagehandMethods.locatorTextContent, {
+            pageId: page.pageId,
+            selector: { steps: [query("css", ".card", 1), step] },
+          }),
+        ).resolves.toBe("Pay second");
+      }
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card, .nested"), query("css", "button")] },
+        }),
+      ).resolves.toBe(2);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card", 10), query("css", "button")] },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card"), query("css", "button", 1)] },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", "#chain-shadow"), query("text", "Shadow pay")] },
+        }),
+      ).resolves.toBe("Shadow pay");
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", "#chain-shadow"), query("xpath", ".//button")] },
+        }),
+      ).resolves.toBe("Shadow pay");
+      await client.send(StagehandMethods.locatorSendClickEvent, {
+        pageId: page.pageId,
+        selector: { steps: [query("css", ".card", 1), query("text", "Pay")] },
+      });
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card", 1), query("css", "button")] },
+        }),
+      ).resolves.toBe("Paid second");
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: {
+            steps: [
+              query("css", ".card"),
+              { type: "frame", selector: { type: "css", value: "button" } },
+            ],
+          },
+        }),
+      ).rejects.toThrow(/frame step requires/i);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [{ type: "frame", selector: { type: "css", value: "button" } }] },
+        }),
+      ).rejects.toThrow(/preceding iframe/i);
+    } finally {
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
+
+  it("enters same-origin and cross-origin frames and masks every chain match", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const frames = {
+      type: "query" as const,
+      selector: { type: "css" as const, value: ".chain-frame" },
+    };
+    try {
+      for (const type of ["query", "frame"] as const) {
+        await expect(
+          client.send(StagehandMethods.locatorCount, {
+            pageId: page.pageId,
+            selector: { steps: [frames, { type, selector: { type: "text", value: "Pay frame" } }] },
+          }),
+        ).resolves.toBe(2);
+      }
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: {
+            steps: [
+              { ...frames, nth: 1 },
+              { type: "frame", selector: { type: "css", value: "iframe" } },
+              { type: "frame", selector: { type: "text", value: "Nested pay" } },
+            ],
+          },
+        }),
+      ).resolves.toBe("Nested pay");
+      const screenshot = await client.send(StagehandMethods.pageScreenshot, {
+        pageId: page.pageId,
+        options: {
+          mask: [
+            {
+              pageId: page.pageId,
+              selector: {
+                steps: [
+                  frames,
+                  { type: "query", selector: { type: "css", value: ".mask-target" } },
+                ],
+              },
+            },
+          ],
+          maskColor: "#ff00ff",
+        },
+      });
+      const pixels = await client.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `(async () => {
+          const img = new Image();
+          img.src = "data:image/png;base64," + ${JSON.stringify(screenshot.data)};
+          await img.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0);
+          return [...document.querySelectorAll(".chain-frame")].map(frame => {
+            const rect = frame.getBoundingClientRect();
+            const x = (rect.left + frame.clientLeft + 70) * img.width / innerWidth;
+            const y = (rect.top + frame.clientTop + 40) * img.height / innerHeight;
+            return [...ctx.getImageData(x, y, 1, 1).data];
+          });
+        })()`,
+      });
+      expect(pixels.value).toEqual([
+        [255, 0, 255, 255],
+        [255, 0, 255, 255],
+      ]);
+    } finally {
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
+
+  it("uses chain scopes and exclusions in the snapshot sent to inference", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const prompts: string[] = [];
+    const stop = client.onRequest(StagehandMethods.llmGenerate, async (input) => {
+      prompts.push(JSON.stringify(input.messages));
+      return {
+        role: "assistant" as const,
+        content: { type: "text" as const, text: '{"elements":[]}' },
+        outputFormat: "json_schema" as const,
+        structuredContent: { elements: [] },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      };
+    });
+    const card = {
+      type: "query" as const,
+      selector: { type: "css" as const, value: ".card" },
+      nth: 1,
+    };
+    try {
+      await client.send(StagehandMethods.stagehandObserve, {
+        pageId: page.pageId,
+        instruction: "List available actions",
+        options: {
+          locator: { selector: { steps: [card] } },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [card, { type: "query", selector: { type: "text", value: "Pay second" } }],
+              },
+            },
+          ],
+        },
+      });
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain("Keep second");
+      expect(prompts[0]).not.toContain("Pay second");
+      expect(prompts[0]).not.toContain("Pay first");
+      expect(prompts[0]).not.toContain("Pay outside");
+      prompts.length = 0;
+      await client.send(StagehandMethods.stagehandObserve, {
+        pageId: page.pageId,
+        instruction: "List available actions",
+        options: {
+          locator: {
+            selector: {
+              steps: [
+                { type: "query", selector: { type: "css", value: ".chain-frame" }, nth: 1 },
+                { type: "frame", selector: { type: "css", value: ".mask-target" } },
+              ],
+            },
+          },
+        },
+      });
+      expect(prompts[0]).toContain("Pay frame");
+      expect(prompts[0]).not.toContain("Pay outside");
+    } finally {
+      stop();
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
 
   it("returns a newly created URL page with locators ready", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
@@ -617,6 +841,35 @@ function requireFixtureServer(value: FixtureServer | undefined): FixtureServer {
 
 async function startFixtureServer(): Promise<FixtureServer> {
   const server = createServer((request, response) => {
+    if (request.url === "/chain-leaf") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end("<button>Nested pay</button>");
+      return;
+    }
+    if (request.url === "/chain-frame") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(
+        '<button class="mask-target" style="position:absolute;left:20px;top:20px;width:100px;height:40px">Pay frame</button><iframe src="/chain-leaf" style="position:absolute;top:80px;width:120px;height:40px"></iframe>',
+      );
+      return;
+    }
+    if (request.url === "/chains") {
+      response.writeHead(200, { "content-type": "text/html" });
+      const crossOrigin = `http://localhost:${request.headers.host!.split(":").at(-1)}/chain-frame`;
+      response.end(`<!doctype html><html><body>
+        <button>Pay outside</button>
+        <section class="card" aria-label="First card"><button>Pay first</button></section>
+        <section class="card" aria-label="Second card"><div class="nested">
+          <button onclick="this.textContent='Paid second'">Pay second</button><p>Keep second</p>
+        </div></section>
+        <div id="chain-shadow"></div>
+        <iframe class="chain-frame" src="/chain-frame" style="width:180px;height:150px"></iframe>
+        <iframe class="chain-frame" src="${crossOrigin}" style="width:180px;height:150px"></iframe>
+        <script>document.querySelector("#chain-shadow").attachShadow({mode:"closed"}).innerHTML = "<button>Shadow pay</button>"</script>
+      </body></html>`);
+      return;
+    }
+
     if (request.url === "/frame") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(`<!doctype html>
