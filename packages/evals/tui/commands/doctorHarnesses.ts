@@ -13,7 +13,8 @@
  * verdict; the rest of the matrix is informational (see
  * harnessMatrixReasons).
  *
- * fx, cursor, and Grok Build keep authentication in their CLIs.
+ * fx, cursor, and Grok Build are not probed yet: their auth state lives inside the CLI and
+ * the status subcommands have not been confirmed by the owners.
  */
 
 import fs from "node:fs";
