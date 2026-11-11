@@ -40,7 +40,7 @@ from stagehand._generated.models import (
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     LLMTextContent,
-    LocatorSelector,
+    LocatorChain,
     ObserveResult,
     PageRef,
     StagehandActParams,
@@ -1043,14 +1043,20 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
     assert act_params.options is not None
     assert act_params.options.locator is not None
-    assert LocatorSelector.model_validate(act_params.options.locator.selector).root.value == "main"
-    assert LocatorSelector.model_validate(act_params.options.locator.selector).root.type == (
-        "css" if structured else "legacy"
+    assert (
+        LocatorChain
+        .model_validate(act_params.options.locator.selector)
+        .steps[-1]
+        .root.selector.root.value
+        == "main"
     )
-    assert act_params.options.locator.nth == 2
+    assert LocatorChain.model_validate(act_params.options.locator.selector).steps[
+        -1
+    ].root.selector.root.type == ("css")
+    assert LocatorChain.model_validate(act_params.options.locator.selector).steps[-1].root.nth == 2
     assert act_params.options.ignore_locators is not None
     assert [
-        LocatorSelector.model_validate(locator.selector).root.value
+        LocatorChain.model_validate(locator.selector).steps[-1].root.selector.root.value
         for locator in act_params.options.ignore_locators
     ] == [".promo"]
     assert act_params.options.cache is not None
@@ -1063,15 +1069,21 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
     assert (
-        LocatorSelector.model_validate(observe_params.options.locator.selector).root.value == "main"
+        LocatorChain
+        .model_validate(observe_params.options.locator.selector)
+        .steps[-1]
+        .root.selector.root.value
+        == "main"
     )
-    assert LocatorSelector.model_validate(observe_params.options.locator.selector).root.type == (
-        "css" if structured else "legacy"
+    assert LocatorChain.model_validate(observe_params.options.locator.selector).steps[
+        -1
+    ].root.selector.root.type == ("css")
+    assert (
+        LocatorChain.model_validate(observe_params.options.locator.selector).steps[-1].root.nth == 1
     )
-    assert observe_params.options.locator.nth == 1
     assert observe_params.options.ignore_locators is not None
     assert [
-        LocatorSelector.model_validate(locator.selector).root.value
+        LocatorChain.model_validate(locator.selector).steps[-1].root.selector.root.value
         for locator in observe_params.options.ignore_locators
     ] == ["nav"]
     extract_params = next(
@@ -1083,15 +1095,21 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
     assert (
-        LocatorSelector.model_validate(extract_params.options.locator.selector).root.value == "main"
+        LocatorChain
+        .model_validate(extract_params.options.locator.selector)
+        .steps[-1]
+        .root.selector.root.value
+        == "main"
     )
-    assert LocatorSelector.model_validate(extract_params.options.locator.selector).root.type == (
-        "css" if structured else "legacy"
+    assert LocatorChain.model_validate(extract_params.options.locator.selector).steps[
+        -1
+    ].root.selector.root.type == ("css")
+    assert (
+        LocatorChain.model_validate(extract_params.options.locator.selector).steps[-1].root.nth == 1
     )
-    assert extract_params.options.locator.nth == 1
     assert extract_params.options.ignore_locators is not None
     assert [
-        LocatorSelector.model_validate(locator.selector).root.value
+        LocatorChain.model_validate(locator.selector).steps[-1].root.selector.root.value
         for locator in extract_params.options.ignore_locators
     ] == ["nav"]
 
@@ -1143,12 +1161,21 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
     assert (
-        LocatorSelector.model_validate(observe_params.options.locator.selector).root.value == "main"
+        LocatorChain
+        .model_validate(observe_params.options.locator.selector)
+        .steps[-1]
+        .root.selector.root.value
+        == "main"
     )
-    assert observe_params.options.locator.nth == 2
+    assert (
+        LocatorChain.model_validate(observe_params.options.locator.selector).steps[-1].root.nth == 2
+    )
     assert observe_params.options.ignore_locators is not None
     assert [
-        (LocatorSelector.model_validate(locator.selector).root.value, locator.nth)
+        (
+            LocatorChain.model_validate(locator.selector).steps[-1].root.selector.root.value,
+            LocatorChain.model_validate(locator.selector).steps[-1].root.nth,
+        )
         for locator in observe_params.options.ignore_locators
     ] == [("nav", 1)]
 
@@ -1161,13 +1188,21 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
     assert (
-        LocatorSelector.model_validate(extract_params.options.locator.selector).root.value
+        LocatorChain
+        .model_validate(extract_params.options.locator.selector)
+        .steps[-1]
+        .root.selector.root.value
         == "section.content"
     )
-    assert extract_params.options.locator.nth == 3
+    assert (
+        LocatorChain.model_validate(extract_params.options.locator.selector).steps[-1].root.nth == 3
+    )
     assert extract_params.options.ignore_locators is not None
     assert [
-        (LocatorSelector.model_validate(locator.selector).root.value, locator.nth)
+        (
+            LocatorChain.model_validate(locator.selector).steps[-1].root.selector.root.value,
+            LocatorChain.model_validate(locator.selector).steps[-1].root.nth,
+        )
         for locator in extract_params.options.ignore_locators
     ] == [("aside.ads", 0)]
 

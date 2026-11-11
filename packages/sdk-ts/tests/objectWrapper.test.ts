@@ -1160,7 +1160,12 @@ describe("Stagehand TS object wrapper", () => {
           options: {
             fullPage: true,
             mask: [
-              { pageId: "page-1", selector: { type: "legacy" as const, value: "[data-secret]" } },
+              {
+                pageId: "page-1",
+                selector: {
+                  steps: [{ type: "query", selector: { type: "css", value: "[data-secret]" } }],
+                },
+              },
             ],
           },
         }),
@@ -1520,8 +1525,16 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Click the submit button",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" } },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 1 }],
+          locator: {
+            selector: { steps: [{ type: "query", selector: { type: "css", value: "main" } }] },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [{ type: "query", selector: { type: "css", value: "nav" }, nth: 1 }],
+              },
+            },
+          ],
           timeout: 5_000,
           variables: { accountEmail: "user@example.com" },
         },
@@ -1619,8 +1632,16 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Find the submit button",
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" } },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 1 }],
+          locator: {
+            selector: { steps: [{ type: "query", selector: { type: "css", value: "main" } }] },
+          },
+          ignoreLocators: [
+            {
+              selector: {
+                steps: [{ type: "query", selector: { type: "css", value: "nav" }, nth: 1 }],
+              },
+            },
+          ],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -1688,8 +1709,14 @@ describe("Stagehand TS object wrapper", () => {
         instruction: "Extract the page heading",
         schema: z.json().parse(z.toJSONSchema(schema)),
         options: {
-          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 1 },
-          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
+          locator: {
+            selector: {
+              steps: [{ type: "query", selector: { type: "css", value: "main" }, nth: 1 }],
+            },
+          },
+          ignoreLocators: [
+            { selector: { steps: [{ type: "query", selector: { type: "css", value: "nav" } }] } },
+          ],
         },
       }),
     ]);
@@ -1735,7 +1762,11 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page text",
-        options: { locator: { selector: { type: "legacy" as const, value: "main" } } },
+        options: {
+          locator: {
+            selector: { steps: [{ type: "query", selector: { type: "css", value: "main" } }] },
+          },
+        },
       }),
     ]);
   });
@@ -1849,8 +1880,9 @@ describe("Stagehand TS object wrapper", () => {
       for (const [method, params] of send.mock.calls) {
         expect(method.params.parse(params)).toMatchObject({
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "button" },
-          nth: 2,
+          selector: {
+            steps: [{ type: "query", selector: { type: "css", value: "button" }, nth: 2 }],
+          },
         });
         if (options === undefined) expect(params).not.toHaveProperty("options");
         else expect(params).toHaveProperty("options", options);
@@ -1881,10 +1913,24 @@ describe("Stagehand TS object wrapper", () => {
     const refined = locator.first().nth(1);
 
     expect(client.calls).toEqual([]);
-    expect(locator.descriptor).toEqual({ pageId: "page-1", selector });
+    const steps =
+      selector.type === "legacy"
+        ? [
+            { type: "query", selector: { type: "css", value: "iframe" }, nth: 0 },
+            { type: "frame", selector: { type: "text", value: "Pay" } },
+          ]
+        : [{ type: "query", selector }];
+    expect(locator.descriptor).toEqual({ pageId: "page-1", selector: { steps } });
     expect(await refined.count()).toBe(2);
     expect(client.calls).toEqual([
-      requestCall(StagehandMethods.locatorCount, { pageId: "page-1", selector, nth: 1 }),
+      requestCall(StagehandMethods.locatorCount, {
+        pageId: "page-1",
+        selector: {
+          steps: steps.map((step, index) =>
+            index === steps.length - 1 ? { ...step, nth: 1 } : step,
+          ),
+        },
+      }),
     ]);
   });
 
@@ -1914,10 +1960,55 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.pageScreenshot, {
         pageId: "page-1",
         options: {
-          mask: [{ pageId: "page-1", selector: { type: "text", value: "Private" }, nth: 0 }],
+          mask: [
+            {
+              pageId: "page-1",
+              selector: {
+                steps: [{ type: "query", selector: { type: "text", value: "Private" }, nth: 0 }],
+              },
+            },
+          ],
         },
       }),
     ]);
+  });
+
+  it("keeps indices at their chain positions without mutating parent locators", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.locatorCount, 1);
+    const page = new Page(client, { pageId: "page-1" });
+    const cards = page.locator(".card").nth(1);
+    const payments = cards.locator({ type: "text", value: "Pay" });
+    const second = payments.first().nth(2);
+    expect(cards.descriptor.selector).toEqual({
+      steps: [{ type: "query", selector: { type: "css", value: ".card" }, nth: 1 }],
+    });
+    expect(payments.descriptor.selector.steps[1]).not.toHaveProperty("nth");
+    await second.count();
+    expect(client.calls).toEqual([
+      requestCall(StagehandMethods.locatorCount, {
+        pageId: "page-1",
+        selector: {
+          steps: [
+            { type: "query", selector: { type: "css", value: ".card" }, nth: 1 },
+            { type: "query", selector: { type: "text", value: "Pay" }, nth: 2 },
+          ],
+        },
+      }),
+    ]);
+  });
+
+  it("appends normalized frame hops to an existing scope", () => {
+    const page = new Page(new FakeProtocolClient(), { pageId: "page-1" });
+    expect(
+      page.locator(".panel").locator("iframe >> text=Pay").first().descriptor.selector,
+    ).toEqual({
+      steps: [
+        { type: "query", selector: { type: "css", value: ".panel" } },
+        { type: "query", selector: { type: "css", value: "iframe" }, nth: 0 },
+        { type: "frame", selector: { type: "text", value: "Pay" }, nth: 0 },
+      ],
+    });
   });
 
   it("routes locator.click with the page descriptor", async () => {
@@ -1933,7 +2024,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorClick, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "button" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "button" } }] },
         options: {
           button: "left",
           clickCount: 2,
@@ -1952,7 +2043,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorFill, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#email" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#email" } }] },
         value: "user@example.com",
       }),
     ]);
@@ -1967,7 +2058,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorIsVisible, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#message" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#message" } }] },
       }),
     ]);
   });
@@ -1981,7 +2072,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorTextContent, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#message" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#message" } }] },
       }),
     ]);
   });
@@ -2007,27 +2098,27 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorCount, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorIsChecked, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorInputValue, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorInnerText, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorInnerHtml, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorCentroid, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
     ]);
   });
@@ -2053,32 +2144,32 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorHover, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
       }),
       requestCall(StagehandMethods.locatorScrollTo, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
         percent: 50,
       }),
       requestCall(StagehandMethods.locatorHighlight, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
         options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
       }),
       requestCall(StagehandMethods.locatorSendClickEvent, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
         options: { detail: 2 },
       }),
       requestCall(StagehandMethods.locatorType, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
         text: "hello",
         options: { delay: 1 },
       }),
       requestCall(StagehandMethods.locatorSelectOption, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "#field" },
+        selector: { steps: [{ type: "query", selector: { type: "css", value: "#field" } }] },
         values: ["starter", "pro"],
       }),
     ]);
@@ -2117,14 +2208,14 @@ describe("Stagehand TS object wrapper", () => {
         method: "locator.set_input_files",
         params: {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "#upload" },
+          selector: { steps: [{ type: "query", selector: { type: "css", value: "#upload" } }] },
           files: [{ name: "hello.txt", data: "aGVsbG8=" }],
         },
       });
       expect(client.calls[1]).toStrictEqual(
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "#upload" },
+          selector: { steps: [{ type: "query", selector: { type: "css", value: "#upload" } }] },
           files: [
             {
               name: "bytes.bin",
@@ -2139,14 +2230,14 @@ describe("Stagehand TS object wrapper", () => {
       expect(client.calls[2]).toStrictEqual(
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "#upload" },
+          selector: { steps: [{ type: "query", selector: { type: "css", value: "#upload" } }] },
           files: [],
         }),
       );
       expect(client.calls[3]).toStrictEqual(
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "#upload" },
+          selector: { steps: [{ type: "query", selector: { type: "css", value: "#upload" } }] },
           files: [{ name: "historical.txt", data: "b2xk" }],
         }),
       );
@@ -2213,7 +2304,7 @@ describe("Stagehand TS object wrapper", () => {
       expect(client.calls[0]).toStrictEqual(
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
-          selector: { type: "legacy" as const, value: "#upload" },
+          selector: { steps: [{ type: "query", selector: { type: "css", value: "#upload" } }] },
           files: [{ name: "message.txt", data: "aGVsbG8=" }],
         }),
       );
@@ -2274,8 +2365,9 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.locatorClick, {
         pageId: "page-1",
-        selector: { type: "legacy" as const, value: "button" },
-        nth: 2,
+        selector: {
+          steps: [{ type: "query", selector: { type: "css", value: "button" }, nth: 2 }],
+        },
       }),
     ]);
   });

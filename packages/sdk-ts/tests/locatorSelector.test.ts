@@ -1,53 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { LocatorSelectorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import cases from "../../../tests/fixtures/locator-normalization.json" with { type: "json" };
 import { normalizeLocatorSelector } from "../src/locatorSelector.js";
-import type { LocatorSelector } from "@browserbasehq/stagehand-protocol/types";
 
-describe("normalizeLocatorSelector", () => {
-  it.each([
-    "button.submit",
-    " css=button.submit ",
-    "CSS=button",
-    "//button",
-    "(//button)[2]",
-    "xpath=//button",
-    "XPATH=//button",
-    "xpath=/html/body/iframe[1]/html/body/button",
-    "iframe#outer >> iframe#inner >> text=Submit",
-    'text="Submit"',
-    "text='Submit'",
-    "TEXT=  Submit  ",
-    'text="a >> b"',
-    "text=",
-    "css=",
-    "xpath=",
-    "   ",
-  ])("preserves legacy expression %j exactly", (value) => {
-    expect(normalizeLocatorSelector(value)).toEqual({ type: "legacy", value });
+describe("SDK locator normalization", () => {
+  it.each(cases)("normalizes $input into engine and frame steps", ({ input, chain }) => {
+    const selector = typeof input === "string" ? input : LocatorSelectorSchema.parse(input);
+    expect(normalizeLocatorSelector(selector)).toEqual(chain);
+    if (typeof input === "string") {
+      expect(normalizeLocatorSelector({ type: "legacy", value: input })).toEqual(chain);
+    }
   });
-
-  it.each<LocatorSelector>([
-    { type: "css", value: 'button[data-label="a >> b"]' },
-    { type: "xpath", value: '//button[@title="text=Submit"]' },
-    { type: "text", value: ' "Submit" ' },
-    { type: "text", value: "text=Submit" },
-    { type: "legacy", value: "iframe >> text=Submit" },
-  ])("preserves explicit $type values", (selector) => {
-    const input = Object.freeze({ ...selector });
-    expect(normalizeLocatorSelector(input)).toEqual(selector);
-    expect(input).toEqual(selector);
+  it("copies explicit inputs without changing their values", () => {
+    const selector = Object.freeze({ type: "text" as const, value: 'text="Pay" >> now' });
+    const chain = normalizeLocatorSelector(selector);
+    expect(chain).toEqual({ steps: [{ type: "query", selector }] });
+    expect(chain.steps[0]!.selector).not.toBe(selector);
   });
-
-  it("is idempotent", () => {
-    const selector = normalizeLocatorSelector("iframe >> text=Submit");
-    expect(normalizeLocatorSelector(selector)).toEqual(selector);
-  });
-
-  it("rejects empty legacy strings, as the existing protocol does", () => {
+  it("validates untyped inputs at construction", () => {
     expect(() => normalizeLocatorSelector("")).toThrow();
-  });
-
-  it("validates inputs from untyped callers", () => {
-    // @ts-expect-error Exercise runtime validation for JavaScript callers.
+    // @ts-expect-error Exercise validation for JavaScript callers.
     expect(() => normalizeLocatorSelector({ type: "text", value: 123 })).toThrow();
   });
 });

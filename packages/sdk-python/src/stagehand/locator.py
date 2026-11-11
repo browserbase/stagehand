@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, Self, cast
+from copy import copy
+from typing import Literal, Self
 
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
     LocatorCentroidResult,
+    LocatorChain,
     LocatorClickOptions,
     LocatorClickParams,
     LocatorClickResult,
@@ -27,7 +29,6 @@ from ._generated.models import (
     LocatorScrollToResult,
     LocatorSelectOptionParams,
     LocatorSelectOptionResult,
-    LocatorSelector,
     LocatorSendClickEventOptions,
     LocatorSendClickEventParams,
     LocatorSendClickEventResult,
@@ -41,6 +42,7 @@ from ._generated.models import (
 )
 from .client_types import LocatorInput
 from .file_upload import FileInput, normalize_file_input
+from .locator_selector import normalize_locator_selector, with_locator_index
 from .rpc_client import RPCClient
 
 
@@ -54,14 +56,12 @@ class Locator:
         nth: int | None = None,
     ) -> None:
         self._rpc_client = rpc_client
+        chain = normalize_locator_selector(selector)
+        self._selector = selector if isinstance(selector, str) else selector["value"]
         self._descriptor = LocatorDescriptor(
             page_id=page_id,
-            selector=LocatorSelector.model_validate(
-                {"type": "legacy", "value": selector} if isinstance(selector, str) else selector
-            ),
+            selector=chain if nth is None else with_locator_index(chain, nth),
         )
-        if nth is not None:
-            self._descriptor.nth = nth
 
     @property
     def page_id(self) -> str:
@@ -69,17 +69,35 @@ class Locator:
 
     @property
     def selector(self) -> str:
-        selector = self._descriptor.selector
-        assert isinstance(selector, LocatorSelector)
-        return selector.root.value
+        return self._selector
 
     @property
     def nth_index(self) -> int | None:
-        return self._descriptor.nth
+        return self._chain.steps[-1].root.nth
 
     @property
     def descriptor(self) -> LocatorDescriptor:
         return self._descriptor
+
+    @property
+    def _chain(self) -> LocatorChain:
+        selector = self._descriptor.selector
+        assert isinstance(selector, LocatorChain)
+        return selector
+
+    def _with_chain(self, chain: LocatorChain) -> Self:
+        locator = copy(self)
+        locator._descriptor = LocatorDescriptor(page_id=self.page_id, selector=chain)
+        return locator
+
+    def locator(self, selector: LocatorInput) -> Self:
+        child = normalize_locator_selector(selector)
+        chain = LocatorChain.model_validate({
+            "steps": [*self._chain.steps, *child.steps],
+        }).model_copy(deep=True)
+        locator = self._with_chain(chain)
+        locator._selector = selector if isinstance(selector, str) else selector["value"]
+        return locator
 
     async def click(
         self,
@@ -292,8 +310,8 @@ class Locator:
     def _params(self, timeout: float | None) -> dict[str, object]:
         selector = self._descriptor.selector
         values: dict[str, object] = {"page_id": self.page_id, "selector": selector}
-        if self.nth_index is not None:
-            values["nth"] = self.nth_index
+        if self._descriptor.nth is not None:
+            values["nth"] = self._descriptor.nth
         if timeout is not None:
             values["options"] = {"timeout": timeout}
         return values
@@ -302,9 +320,4 @@ class Locator:
         return self.nth(0)
 
     def nth(self, index: int) -> Self:
-        return type(self)(
-            self._rpc_client,
-            page_id=self.page_id,
-            selector=cast(LocatorInput, self._descriptor.selector.model_dump(mode="json")),
-            nth=index,
-        )
+        return self._with_chain(with_locator_index(self._chain, index))

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import TYPE_CHECKING, assert_type, cast
 
 import pytest
@@ -13,7 +14,7 @@ from stagehand import (
     TextLocatorSelector,
     XPathLocatorSelector,
 )
-from stagehand._generated.models import PageRef
+from stagehand._generated.models import LocatorChain, PageRef
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
@@ -35,17 +36,26 @@ async def test_structured_inputs_survive_refinement_and_actions(selector: Locato
     locator = page.locator(selector)
     refined = locator.first().nth(1)
 
+    steps: list[dict[str, object]] = (
+        [
+            {"type": "query", "selector": {"type": "css", "value": "iframe"}, "nth": 0},
+            {"type": "frame", "selector": {"type": "text", "value": "Pay"}},
+        ]
+        if selector["type"] == "legacy"
+        else [{"type": "query", "selector": selector}]
+    )
     assert recording.calls == []
     assert locator.descriptor.model_dump(exclude_unset=True) == {
         "page_id": "page-1",
-        "selector": selector,
+        "selector": {"steps": steps},
     }
     assert refined.selector == selector["value"]
     assert await refined.count() == 2
+    refined_steps = deepcopy(steps)
+    refined_steps[-1]["nth"] = 1
     assert recording.calls[0][1].model_dump(exclude_unset=True) == {
         "page_id": "page-1",
-        "selector": selector,
-        "nth": 1,
+        "selector": {"steps": refined_steps},
     }
 
 
@@ -75,7 +85,9 @@ def test_locator_copies_structured_inputs() -> None:
     selector["value"] = "Changed"
     refined = locator.nth(2)
     assert refined.selector == "Pay"
-    assert refined.descriptor.selector.model_dump() == {"type": "text", "value": "Pay"}
+    assert refined.descriptor.selector.model_dump(exclude_unset=True) == {
+        "steps": [{"type": "query", "selector": {"type": "text", "value": "Pay"}, "nth": 2}]
+    }
 
 
 @pytest.mark.asyncio
@@ -89,11 +101,59 @@ async def test_structured_screenshot_masks_preserve_discriminator_and_index() ->
             "mask": [
                 {
                     "page_id": "page-1",
-                    "selector": {"type": "text", "value": "Private"},
-                    "nth": 0,
+                    "selector": {
+                        "steps": [
+                            {
+                                "type": "query",
+                                "selector": {"type": "text", "value": "Private"},
+                                "nth": 0,
+                            }
+                        ]
+                    },
                 }
             ],
         },
+    }
+
+
+@pytest.mark.asyncio
+async def test_chaining_preserves_intermediate_indices_and_parent_locators() -> None:
+    recording = RecordingRPCClient({"locator.count": 1})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    cards = page.locator(".card").nth(1)
+    payments = cards.locator({"type": "text", "value": "Pay"})
+    second = payments.first().nth(2)
+    assert cards.descriptor.selector.model_dump(exclude_unset=True) == {
+        "steps": [
+            {"type": "query", "selector": {"type": "css", "value": ".card"}, "nth": 1},
+        ]
+    }
+    assert payments.nth_index is None
+    await second.count()
+    assert recording.calls[0][1].model_dump(exclude_unset=True) == {
+        "page_id": "page-1",
+        "selector": {
+            "steps": [
+                {"type": "query", "selector": {"type": "css", "value": ".card"}, "nth": 1},
+                {"type": "query", "selector": {"type": "text", "value": "Pay"}, "nth": 2},
+            ]
+        },
+    }
+    # Mutating a child descriptor cannot alter a previously constructed parent.
+    assert isinstance(second.descriptor.selector, LocatorChain)
+    second.descriptor.selector.steps[0].root.nth = 4
+    assert cards.nth_index == 1
+
+
+def test_chaining_appends_normalized_legacy_frame_hops() -> None:
+    page = Page(cast(RPCClient, RecordingRPCClient()), PageRef(page_id="page-1"))
+    locator = page.locator(".panel").locator("iframe >> text=Pay").first()
+    assert locator.descriptor.selector.model_dump(exclude_unset=True) == {
+        "steps": [
+            {"type": "query", "selector": {"type": "css", "value": ".panel"}},
+            {"type": "query", "selector": {"type": "css", "value": "iframe"}, "nth": 0},
+            {"type": "frame", "selector": {"type": "text", "value": "Pay"}, "nth": 0},
+        ]
     }
 
 
@@ -105,6 +165,7 @@ if TYPE_CHECKING:
         text: TextLocatorSelector = {"type": "text", "value": "Pay"}
         legacy: LegacyLocatorSelector = {"type": "legacy", "value": "iframe >> text=Pay"}
         assert_type(page.locator(css), Locator)
+        assert_type(page.locator(css).locator(text).first(), Locator)
         page.locator(xpath)
         page.locator(text)
         page.locator(legacy)

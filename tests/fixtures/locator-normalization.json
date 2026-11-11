@@ -1,0 +1,495 @@
+[
+  {
+    "input": "button.submit",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "button.submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": " css=button.submit ",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "button.submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "CSS=button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "//button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "(//button)[2]",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "(//button)[2]"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "xpath=//button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "XPATH=//iframe//button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//iframe//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "xpath=/html/body/iframe[1]/html/body/button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "/html/body/iframe[1]"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "xpath",
+            "value": "/html/body/button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "//iframe[2]//frame[1]//button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//iframe[2]"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "xpath",
+            "value": "//frame[1]"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "xpath",
+            "value": "//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "//iframe[2]",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//iframe[2]"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "//iframe[@id='checkout']//button",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//iframe[@id='checkout']//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "iframe#outer >> iframe#inner >> text=Submit",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "iframe#outer"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "css",
+            "value": "iframe#inner"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "text",
+            "value": "Submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "iframe#checkout >> text=\"Pay\"",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "iframe#checkout"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "text",
+            "value": "Pay"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "text=\"Submit\"",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": "Submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "text='Submit'",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": "Submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "TEXT=  \"Submit\"  ",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": "Submit"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "text=\"a >> b\"",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": "\"a"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "css",
+            "value": "b\""
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "text=",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": ":not(*)"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "text='' ",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": ":not(*)"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "css=",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": ":not(*)"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "xpath=",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "/"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "   ",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": ":not(*)"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": "iframe >> >> text=Pay",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "iframe"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "text",
+            "value": "Pay"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": " >> button >> ",
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "css",
+      "value": "[data-label=\"a >> b\"]"
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "[data-label=\"a >> b\"]"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "text",
+      "value": " \"Submit\" "
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": " \"Submit\" "
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "text",
+      "value": "text=Submit >> now"
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "text",
+            "value": "text=Submit >> now"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "xpath",
+      "value": "//iframe[2]//button"
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "xpath",
+            "value": "//iframe[2]//button"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "legacy",
+      "value": "iframe >> text=Pay"
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "css",
+            "value": "iframe"
+          },
+          "nth": 0
+        },
+        {
+          "type": "frame",
+          "selector": {
+            "type": "text",
+            "value": "Pay"
+          }
+        }
+      ]
+    }
+  }
+]
