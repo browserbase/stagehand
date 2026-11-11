@@ -13,7 +13,7 @@ This experimental integration runs from the Stagehand repository. Tested with Gr
 
 - Node.js 24 or newer
 - pnpm 11.11.0
-- The Grok Build CLI and either `XAI_API_KEY` or an existing `grok login`
+- A Grok login or `XAI_API_KEY`
 - A current Google Chrome installation for local browser mode
 
 ## Quickstart
@@ -30,13 +30,13 @@ pnpm exec turbo run build \
   </Step>
   <Step title="Install and authenticate Grok Build">
 ```bash
-npm install --global @xai-official/grok@1.0.77
+npm install --global @xai-official/grok
 grok login
 # or: export XAI_API_KEY="your-xai-api-key"
 ```
   </Step>
   <Step title="Configure the Stagehand MCP server">
-Edit `packages/integrations/grok-build/.grok/config.toml` and replace the facade path. Export `BROWSERBASE_API_KEY` before starting Grok. Project MCP configuration loads after you trust the project:
+Edit `packages/integrations/grok-build/.grok/config.toml` and replace the placeholder with the absolute path to your checkout. Grok loads project MCP configuration after you trust the project.
 
 ```toml
 [mcp]
@@ -58,7 +58,7 @@ BROWSERBASE_API_KEY = "${BROWSERBASE_API_KEY}"
 To use the integration in another project, copy `.grok/config.toml` and `AGENTS.md` into it. Start Grok from the configured project.
   </Step>
   <Step title="Choose the browser">
-The template selects Browserbase and requires `BROWSERBASE_API_KEY`. For local Chrome, replace the entire `[mcp_servers.stagehand.env]` block with:
+The template selects Browserbase. Export `BROWSERBASE_API_KEY` before starting Grok. For local Chrome, replace the entire `[mcp_servers.stagehand.env]` block with:
 
 ```toml
 [mcp_servers.stagehand.env]
@@ -74,8 +74,8 @@ grok
 Approve project trust when prompted, then enter:
 
 ```text
-Use the Stagehand browser tools to open https://example.com, take a snapshot,
-and report the heading with its snapshot ID.
+Use stagehand__run to open https://example.com, then stagehand__snapshot
+to report the heading and snapshot ID.
 ```
   </Step>
 </Steps>
@@ -93,11 +93,11 @@ and report the heading with its snapshot ID.
 
 Put Stagehand and Browserbase values in `[mcp_servers.stagehand.env]`. Grok expands `${VAR}` references in MCP configuration values, so credentials can stay in your environment.
 
-## Keep the browser session alive
+## Tool discovery
 
-The package mounts one facade MCP server for the Grok session and configures startup and tool timeouts for browser work. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
+Grok prefixes the tool names with the MCP server name: `stagehand__run`, `stagehand__snapshot`, and `stagehand__screenshot`. The first browser call starts the browser. Later calls use the same session.
 
-MCP environment settings override values inherited from the Grok process. The configuration raises the output limit to keep browser screenshots inline.
+The template sets `mcp.max_output_bytes` to 2 MB for inline screenshot results.
 
 ## Headless one-shot runs
 
