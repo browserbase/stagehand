@@ -1,9 +1,8 @@
 # Pydantic AI + Stagehand middleware
 
 This example registers `stagehand-middleware`'s `run`, `snapshot`, and `screenshot` as
-native Pydantic AI tools. One Python-owned browser stays open for the agent run.
-Instructions and tool schemas come from the middleware.
-Browser calls run sequentially, and screenshots reach the model as image content.
+native Pydantic AI tools. Browser calls run sequentially in one session, and screenshots reach
+the model as image content.
 Tested with Pydantic AI 2.67.0.
 
 ## Setup
@@ -23,30 +22,32 @@ cd packages/integrations/pydantic-ai
 uv sync --locked
 ```
 
-| Variable | Purpose |
-| --- | --- |
-| `STAGEHAND_BROWSER` | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
-| `BROWSERBASE_API_KEY` | Required for Browserbase. |
-| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
-| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`. |
-| `PYDANTIC_AI_MODEL` | Agent model; defaults to `openai:gpt-6-sol`. |
-| `OPENAI_API_KEY` | Credential for the default agent model. |
+## Configuration
+
+| Variable                                      | Purpose                                                                                                   |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`                           | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
+| `BROWSERBASE_API_KEY`                         | Required for Browserbase.                                                                                 |
+| `STAGEHAND_HEADLESS`                          | Set to `true` for headless local Chrome. Defaults to `false`.                                             |
+| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`.                               |
+| `PYDANTIC_AI_MODEL`                           | Agent model; defaults to `openai:gpt-6-sol`.                                                              |
+| `OPENAI_API_KEY`                              | Credential for the default agent model.                                                                   |
 
 ## Run
 
-From the directory containing `agent.py`:
+Configure the model and run from the directory containing `agent.py`:
 
 ```sh
-uv run python agent.py "your instruction"
+export OPENAI_API_KEY="your-openai-api-key"
+uv run python agent.py "Open https://example.com and report the page title."
 ```
 
 Pass `--structured` to return a `PageReport` model (`title`, `url`, `notes`) instead of plain text.
 
-## Browser lifecycle
+## Browser session
 
-The example closes the Stagehand session and browser when the agent finishes or fails.
-If attaching Stagehand fails, it closes the launched browser too.
+Keep one `browser_session()` open around the agent run so page state and snapshot
+IDs survive across calls. The example closes the session and browser when the run ends.
 
 `run(code)` executes model-authored JavaScript in the browser extension service worker.
-Use Browserbase for untrusted tasks. The Python process owns the browser connection
-and calls the shared middleware directly.
+Use Browserbase for untrusted tasks.
