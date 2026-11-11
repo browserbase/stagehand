@@ -58,6 +58,36 @@ describe("Page.screenshot options", () => {
     await closeStagehand(stagehand);
   });
 
+  it("uses CSS-pixel dimensions for un-clipped high-DPI screenshots", async () => {
+    const page = await firstPage(stagehand);
+    await page.setViewportSize(400, 300, { deviceScaleFactor: 2 });
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`
+        <style>body{margin:0}div{height:500px}</style>
+        <div style="background:red"></div>
+        <div style="background:lime"></div>
+        <div style="background:blue"></div>
+      `)}`,
+    );
+    await page.evaluate(() => window.scrollTo(0, 600));
+
+    const dimensions = (bytes: Uint8Array): [number, number] => {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      return [view.getUint32(16), view.getUint32(20)];
+    };
+    const viewport = await page.screenshot({ type: "png", scale: "css" });
+    const fullPage = await page.screenshot({ type: "png", scale: "css", fullPage: true });
+
+    expect(dimensions(viewport)).toEqual([400, 300]);
+    expect(dimensions(fullPage)).toEqual([400, 1500]);
+    await expect(
+      inspectScreenshotPixels(page, viewport, [{ x: 200, y: 150 }], [0, 255, 0]),
+    ).resolves.toMatchObject({ pointMatches: [true] });
+
+    const deviceScale = await page.screenshot({ type: "png", scale: "device" });
+    expect(dimensions(deviceScale)).toEqual([800, 600]);
+  });
+
   it("rejects clip combined with fullPage", async () => {
     const page = await firstPage(stagehand);
     await page.goto("data:text/html,<body>test</body>");
