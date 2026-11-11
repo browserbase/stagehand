@@ -3,10 +3,12 @@ import base64
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from agno.run.agent import RunOutput
+from agno.run.base import RunStatus
 from agno.tools.function import ToolResult
 from stagehand_middleware.facade import StagehandFacadeTools, facade_instructions, facade_tools
 
-from agent import browser_session, browser_tools, build_agent
+from agent import browser_session, browser_tools, build_agent, run_agent
 
 
 def test_tools_use_shared_contract() -> None:
@@ -81,3 +83,20 @@ def test_session_closes_on_attach_failure(monkeypatch: pytest.MonkeyPatch) -> No
         browser.close.assert_awaited_once()
 
     asyncio.run(check())
+
+
+def test_agent_error_fails_the_example(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STAGEHAND_BROWSER", "local")
+    browser = AsyncMock()
+    stagehand = AsyncMock(browser=browser)
+    agent = AsyncMock()
+    agent.arun.return_value = RunOutput(status=RunStatus.error)
+    with (
+        patch("agent.local_browser.launch", AsyncMock(return_value=browser)),
+        patch("agent.Stagehand.create", AsyncMock(return_value=stagehand)),
+        patch("agent.build_agent", return_value=agent),
+        pytest.raises(RuntimeError, match="Agno agent did not finish"),
+    ):
+        asyncio.run(run_agent("Report the page title."))
+    stagehand.close.assert_awaited_once()
+    browser.close.assert_awaited_once()

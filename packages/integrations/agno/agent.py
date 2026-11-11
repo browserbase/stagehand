@@ -11,6 +11,7 @@ from typing import Any, Literal
 from agno.agent import Agent
 from agno.media import Image
 from agno.models.openai import OpenAIChat
+from agno.run.base import RunStatus
 from agno.tools.function import Function, ToolResult
 from jsonschema import ValidationError, validate
 from stagehand import Stagehand, browserbase, local_browser
@@ -108,7 +109,10 @@ def build_agent(facade: StagehandFacadeTools) -> Agent:
 
 async def run_agent(instruction: str) -> None:
     async with browser_session() as facade:
-        await build_agent(facade).aprint_response(instruction, stream=True)
+        result = await build_agent(facade).arun(instruction, stream=False)
+    if result.status != RunStatus.completed:
+        raise RuntimeError(f"Agno agent did not finish ({result.status.value}).")
+    print(result.content)
 
 
 def main() -> None:

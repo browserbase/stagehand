@@ -31,21 +31,21 @@ uv run python agent.py "Open https://example.com and report the page title."
 
 ## Configuration
 
-| Variable | Purpose |
-| --- | --- |
-| `AGNO_MODEL` | OpenAI model ID; defaults to `gpt-6-luna`. Use a vision-capable model for screenshots. |
-| `OPENAI_API_KEY` | Agent model credential. |
-| `OPENAI_BASE_URL` | Optional OpenAI-compatible gateway endpoint. |
-| `STAGEHAND_BROWSER` | `local` or `browserbase`. Defaults to Browserbase when its API key is set, otherwise local Chrome. |
-| `BROWSERBASE_API_KEY` | Required for Browserbase. |
-| `STAGEHAND_HEADLESS` | Set to `true` for headless local Chrome. Defaults to `false`. |
-| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`. |
+| Variable                                      | Purpose                                                                                            |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `AGNO_MODEL`                                  | OpenAI model ID; defaults to `gpt-6-luna`. Use a vision-capable model for screenshots.             |
+| `OPENAI_API_KEY`                              | Agent model credential.                                                                            |
+| `OPENAI_BASE_URL`                             | Optional OpenAI-compatible gateway endpoint.                                                       |
+| `STAGEHAND_BROWSER`                           | `local` or `browserbase`. Defaults to Browserbase when its API key is set, otherwise local Chrome. |
+| `BROWSERBASE_API_KEY`                         | Required for Browserbase.                                                                          |
+| `STAGEHAND_HEADLESS`                          | Set to `true` for headless local Chrome. Defaults to `false`.                                      |
+| `STAGEHAND_MODEL` / `STAGEHAND_MODEL_API_KEY` | Optional model and credential for Stagehand AI methods called inside `run`.                        |
 
-## Browser lifecycle
+## Browser session
 
 Keep one `browser_session()` open around the complete agent run so page state and
-snapshot IDs survive across calls. The example closes the Stagehand session and
-browser when the agent finishes or fails.
+snapshot IDs survive across calls. The example closes the session and browser
+when the run ends.
 
 `run(code)` executes model-authored JavaScript inside the browser extension's
 service worker. Use Browserbase to isolate untrusted tasks.
@@ -53,6 +53,6 @@ service worker. Use Browserbase to isolate untrusted tasks.
 ## Verify
 
 ```sh
-uv run pytest
-uv run ruff check .
+uv run --locked pytest
+uv run --locked ruff check .
 ```

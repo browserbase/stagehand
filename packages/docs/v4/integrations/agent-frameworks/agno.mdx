@@ -3,7 +3,7 @@ title: "Agno"
 description: "Give an Agno agent persistent browser tools with stagehand-middleware."
 ---
 
-The Agno integration registers native browser tools from `stagehand-middleware`. One browser stays open across `run`, `snapshot`, and `screenshot` calls. The middleware supplies the instructions, tool schemas, and browser behavior. Screenshots return native image content.
+The Agno integration registers Stagehand's `run`, `snapshot`, and `screenshot` as native tools using `stagehand-middleware`. Screenshots reach the model as an Agno `Image` in the tool result.
 
 <Note>
 The example is tested with Agno 3.1.12.
@@ -68,11 +68,9 @@ uv run python agent.py \
 | `STAGEHAND_MODEL` | Optional model for Stagehand AI methods called inside `run`. |
 | `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL`. |
 
-## Screenshots and session lifetime
+## Browser session
 
-The screenshot tool returns an Agno `ToolResult` containing an `Image` for the model to inspect.
-
-The example creates one Stagehand session and middleware instance around the complete agent run. Keep that lifetime when adapting it so snapshot IDs and page state survive across calls. Browser tools execute sequentially. The session and browser close when the run finishes or fails.
+The example runs browser tools sequentially in one session. Page state and snapshot IDs persist across calls. The example closes the session and browser when the run ends.
 
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agent-frameworks/overview#security-boundary).
