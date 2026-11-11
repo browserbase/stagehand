@@ -10,9 +10,17 @@ import pytest
 from pydantic import BaseModel, RootModel, ValidationError
 from typing_extensions import override
 
-from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import (
+    ApcAction,
+    PagePDFMargin,
+    Response,
+    WebMCPInvocation,
+    WebMCPTool,
+    WebMCPToolResponse,
+)
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
+    PageApcResult,
     PageCDPEventNotification,
     PageClickParams,
     PageDragAndDropParams,
@@ -996,3 +1004,25 @@ async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -
     with pytest.raises(ValidationError):
         await page.snapshot(timeout=timeout)
     assert not recording.calls
+
+
+@pytest.mark.parametrize(("actions", "timeout"), [(None, None), ([], 0), (["fill", "select"], 500)])
+@pytest.mark.parametrize("tree", ["root", ""])
+async def test_apc_forwards_options_and_unwraps_string(
+    actions: list[ApcAction] | None, timeout: float | None, tree: str
+) -> None:
+    recording = RecordingRPCClient({"page.apc": PageApcResult(root=tree)})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    assert await page.apc(actions=actions, timeout=timeout) == tree
+    method, params, result_model = recording.calls[0]
+    expected: dict[str, object] = {"page_id": "page-1"}
+    options: dict[str, object] = {}
+    if actions is not None:
+        options["actions"] = actions
+    if timeout is not None:
+        options["timeout"] = timeout
+    if options:
+        expected["options"] = options
+    assert method == "page.apc"
+    assert params.model_dump(mode="json", exclude_unset=True) == expected
+    assert result_model is PageApcResult

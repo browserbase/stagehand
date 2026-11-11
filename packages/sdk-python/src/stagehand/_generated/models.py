@@ -149,6 +149,16 @@ class AnthropicModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^anthropic\\/\\S+$")]
 
 
+class ApcAction(StrEnum):
+    click = "click"
+    fill = "fill"
+    type = "type"
+    select = "select"
+    hover = "hover"
+    scroll = "scroll"
+    upload = "upload"
+
+
 class Browser(StrEnum):
     chrome = "chrome"
     edge = "edge"
@@ -1577,6 +1587,31 @@ class PageAddInitScriptParams(WireModel):
     )
     page_id: StrictStr
     source: StrictStr
+
+
+class PageApcOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    actions: Optional[list[ApcAction]] = None
+    """Include targets supporting any requested action. Omitted or empty returns the full tree."""
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for capture and processing. Defaults to 20000. Zero disables the timeout."""
+
+
+class PageApcParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PageApcOptions] = None
+
+
+class PageApcResult(RootModel[StrictStr]):
+    root: StrictStr
+    """Formatted hierarchical APC tree. Returns an empty string when no targets match."""
 
 
 class PageCDPEvent(WireModel):

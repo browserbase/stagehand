@@ -1242,6 +1242,33 @@ export const SnapshotResultSchema = z
   })
   .meta({ id: "SnapshotResult" });
 
+export const ApcActionSchema = z
+  .enum(["click", "fill", "type", "select", "hover", "scroll", "upload"])
+  .meta({ id: "ApcAction" });
+
+export const PageApcOptionsSchema = z
+  .strictObject({
+    actions: z
+      .array(ApcActionSchema)
+      .optional()
+      .describe(
+        "Include targets supporting any requested action. Omitted or empty returns the full tree.",
+      ),
+    timeout: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Milliseconds for capture and processing. Defaults to 20000. Zero disables the timeout.",
+      ),
+  })
+  .meta({ id: "PageApcOptions" });
+
+export const PageApcResultSchema = z
+  .string()
+  .describe("Formatted hierarchical APC tree. Returns an empty string when no targets match.")
+  .meta({ id: "PageApcResult" });
+
 export const PageSnapshotOptionsSchema = z
   .strictObject({
     timeout: z
@@ -1937,6 +1964,10 @@ export const PagePDFOptionsSchema = z
 export const PagePDFParamsSchema = PageIdParamsSchema.extend({
   options: PagePDFOptionsSchema.optional(),
 }).meta({ id: "PagePDFParams" });
+
+export const PageApcParamsSchema = PageIdParamsSchema.extend({
+  options: PageApcOptionsSchema.optional(),
+}).meta({ id: "PageApcParams" });
 
 export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
   options: PageSnapshotOptionsSchema.optional(),

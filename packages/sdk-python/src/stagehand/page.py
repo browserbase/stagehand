@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter
 
 from ._generated.input_types import (
+    ApcAction,
     PageDragAndDropRoutePoint,
     PageEventName,
     PagePDFMargin,
@@ -25,6 +26,9 @@ from ._generated.models import (
     LoadState,
     MouseButton,
     PageAddInitScriptParams,
+    PageApcOptions,
+    PageApcParams,
+    PageApcResult,
     PageCDPEvent,
     PageCDPEventNotification,
     PageClickOptions,
@@ -710,6 +714,20 @@ class Page:
         if path is not None:
             Path(path).write_bytes(data)
         return data
+
+    async def apc(
+        self, *, actions: list[ApcAction] | None = None, timeout: float | None = None
+    ) -> str:
+        """Return an APC tree, optionally filtered to targets for any requested action."""
+        params = PageApcParams(page_id=self.page_id)
+        options = PageApcOptions.model_validate({
+            key: value
+            for key, value in {"actions": actions, "timeout": timeout}.items()
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        return await self._rpc_client.send("page.apc", params, PageApcResult)
 
     async def snapshot(
         self, *, include_iframes: bool | None = None, timeout: float | None = None

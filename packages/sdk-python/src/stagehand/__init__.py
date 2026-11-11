@@ -4,6 +4,7 @@ from ._generated.input_types import (
     Action as ActionInput,
 )
 from ._generated.input_types import (
+    ApcAction,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
@@ -107,6 +108,7 @@ __all__ = [
     "Action",
     "ActionInput",
     "Animations",
+    "ApcAction",
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",

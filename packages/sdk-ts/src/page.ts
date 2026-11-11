@@ -16,6 +16,7 @@ import type {
   PageScreenshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
+  PageApcOptions,
   PageSnapshotOptions,
   SnapshotResult,
   PageTypeParams,
@@ -393,6 +394,14 @@ export class Page {
       options: pdfOptions,
     });
     return await decodeCaptureResult(result.data, "pdf", path);
+  }
+
+  /** Return an APC tree, optionally filtered to targets for any requested action. */
+  async apc(options?: PageApcOptions): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.pageApc, {
+      pageId: this.pageId,
+      ...(options ? { options } : {}),
+    });
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {

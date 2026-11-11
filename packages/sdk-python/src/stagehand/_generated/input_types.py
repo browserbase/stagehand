@@ -21,6 +21,9 @@ class ActResultData(TypedDict):
 AnthropicModelName: TypeAlias = str
 
 
+ApcAction: TypeAlias = Literal["click", "fill", "type", "select", "hover", "scroll", "upload"]
+
+
 class BrowserbaseContext(TypedDict):
     id: str
     persist: NotRequired[bool]
@@ -643,6 +646,19 @@ class ModelConfig(TypedDict):
 class PageAddInitScriptParams(TypedDict):
     page_id: str
     source: str
+
+
+class PageApcOptions(TypedDict):
+    actions: NotRequired[list[ApcAction]]
+    timeout: NotRequired[float]
+
+
+class PageApcParams(TypedDict):
+    page_id: str
+    options: NotRequired[PageApcOptions]
+
+
+PageApcResult: TypeAlias = str
 
 
 PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]

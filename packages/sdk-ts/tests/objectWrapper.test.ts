@@ -1330,6 +1330,24 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
+  it.each<Parameters<Page["apc"]>[0]>([
+    undefined,
+    { actions: [], timeout: 0 },
+    { actions: ["fill", "select"], timeout: 500 },
+  ])("forwards APC options and returns a string", async (options) => {
+    const client = new FakeProtocolClient();
+    const tree = 'root\n  [apc-2] input_text [name="firstName"]';
+    client.queueResponse(StagehandMethods.pageApc, tree);
+    client.queueResponse(StagehandMethods.pageApc, "");
+    const page = new Page(client, { pageId: "page-1" });
+    await expect(page.apc(options)).resolves.toBe(tree);
+    await expect(page.apc()).resolves.toBe("");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageApc, { pageId: "page-1", ...(options ? { options } : {}) }),
+      requestCall(StagehandMethods.pageApc, { pageId: "page-1" }),
+    ]);
+  });
+
   it("wraps callable WebMCP tools and invocations with their owned identity", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageWebMCPTools, {

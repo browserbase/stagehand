@@ -283,3 +283,18 @@ def test_locator_chain_wire_models_preserve_steps_and_indices() -> None:
     assert (
         models.PageScreenshotOptions.model_validate(masks).model_dump(exclude_unset=True) == masks
     )
+
+
+@pytest.mark.parametrize("tree", ['root\n  [apc-2] input_text [name="firstName"]', ""])
+def test_apc_models_preserve_options_and_return_a_bare_string(tree: str) -> None:
+    wire = {
+        "page_id": "page-1",
+        "options": {"actions": ["fill", "select"], "timeout": 0},
+    }
+    params = models.PageApcParams.model_validate(wire)
+    assert params.model_dump(mode="json", exclude_unset=True) == wire
+
+    result = models.PageApcResult.model_validate(tree)
+    assert result.root == tree
+    assert result.model_dump(mode="json") == tree
+    assert json.loads(result.model_dump_json()) == tree

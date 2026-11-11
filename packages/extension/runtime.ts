@@ -89,6 +89,9 @@ import type {
   PageScreenshotResult,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
+  PageApcParams,
+  PageApcOptions,
+  PageApcResult,
   PageSnapshotParams,
   PageSnapshotOptions,
   PageTitleResult,
@@ -179,6 +182,7 @@ export type UnderstudyRuntimePage = {
   ): Promise<unknown>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   pdf(options?: PagePDFOptions): Promise<PagePDFResult>;
+  apc(options?: PageApcOptions): Promise<PageApcResult>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
   listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
   invokeWebMCPTool(
@@ -816,6 +820,10 @@ export class StagehandRuntime {
 
   async pagePDF(params: PagePDFParams): Promise<PagePDFResult> {
     return await this.resolvePage(params.pageId).pdf(params.options);
+  }
+
+  async pageApc(params: PageApcParams): Promise<PageApcResult> {
+    return await this.resolvePage(params.pageId).apc(params.options);
   }
 
   async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {

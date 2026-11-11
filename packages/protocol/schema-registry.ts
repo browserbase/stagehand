@@ -90,6 +90,8 @@ import {
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
   PageSetViewportSizeParamsSchema,
+  PageApcParamsSchema,
+  PageApcResultSchema,
   PageSnapshotParamsSchema,
   PageTitleResultSchema,
   PageTypeParamsSchema,
@@ -368,6 +370,11 @@ export const StagehandMethods = {
     params: PageSnapshotParamsSchema,
     result: SnapshotResultSchema,
     resultWire: { opaqueKeys: ["xpathMap", "urlMap"] },
+  },
+  pageApc: {
+    name: "page.apc",
+    params: PageApcParamsSchema,
+    result: PageApcResultSchema,
   },
   pageSetViewportSize: {
     name: "page.set_viewport_size",

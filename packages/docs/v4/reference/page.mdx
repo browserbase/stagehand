@@ -783,6 +783,42 @@ const pdf = await page.pdf({
   The PDF bytes.
 </ResponseField>
 
+## apc()
+
+Capture Chromium's annotated page content as a hierarchical string without making a model call.
+Multiple actions use OR semantics: a target is included if it supports any requested action.
+Omitted or empty actions return the full tree; no matching targets returns an empty string.
+
+Filtered output retains labels, control state, select options, and ancestor context.
+Only matching targets receive `apc-N` display IDs. These IDs belong to this capture and
+cannot be used as locator selectors.
+
+Requires Chromium with annotated page content support. Unsupported commands and capture
+failures propagate as errors. Chromium may omit or redact content, so frame and shadow DOM
+coverage can differ from `snapshot()`. APC returns a string rather than snapshot lookup maps.
+
+```typescript
+const tree = await page.apc({ actions: ["click", "fill"], timeout: 10_000 });
+```
+
+<ParamField path="options" type="PageApcOptions" optional>
+  <ParamField path="options.actions" type="ApcAction[]" optional>
+    Target categories: `"click"`, `"fill"`, `"type"`, `"select"`, `"hover"`,
+    `"scroll"`, and `"upload"`. Select targets are native selects; upload targets are
+    file inputs. Hover uses hover-related signals, and scroll uses user-scrollable containers.
+    Disabled controls are excluded; readonly controls are excluded from fill and type.
+    These are candidates, not a guarantee that an action will succeed.
+  </ParamField>
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum time in milliseconds for capture and processing. Defaults to 20,000 ms.
+    Use `0` for no timeout. Request delivery is outside this budget.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<string>">
+  The formatted tree, or an empty string if no targets match.
+</ResponseField>
+
 ## snapshot()
 
 Capture the page's accessibility-oriented DOM snapshot.
@@ -1639,6 +1675,41 @@ Paper dimensions and margins are measured in inches.
 
 <ResponseField name="result" type="bytes">
   The PDF bytes.
+</ResponseField>
+
+## apc()
+
+Capture Chromium's annotated page content as a hierarchical string without making a model call.
+Multiple actions use OR semantics: a target is included if it supports any requested action.
+Omitted or empty actions return the full tree; no matching targets returns an empty string.
+
+Filtered output retains labels, control state, select options, and ancestor context.
+Only matching targets receive `apc-N` display IDs. These IDs belong to this capture and
+cannot be used as locator selectors.
+
+Requires Chromium with annotated page content support. Unsupported commands and capture
+failures propagate as errors. Chromium may omit or redact content, so frame and shadow DOM
+coverage can differ from `snapshot()`. APC returns a string rather than snapshot lookup maps.
+
+```python
+tree = await page.apc(actions=["click", "fill"], timeout=10_000)
+```
+
+<ParamField path="actions" type="list[ApcAction] | None" optional>
+  Target categories: `"click"`, `"fill"`, `"type"`, `"select"`, `"hover"`,
+  `"scroll"`, and `"upload"`. Select targets are native selects; upload targets are
+  file inputs. Hover uses hover-related signals, and scroll uses user-scrollable containers.
+  Disabled controls are excluded; readonly controls are excluded from fill and type.
+  These are candidates, not a guarantee that an action will succeed.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum time in milliseconds for capture and processing. Defaults to 20,000 ms.
+  Use `0` for no timeout. Request delivery is outside this budget.
+</ParamField>
+
+<ResponseField name="result" type="str">
+  The formatted tree, or an empty string if no targets match.
 </ResponseField>
 
 ## snapshot()

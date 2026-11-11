@@ -617,6 +617,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.apc": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageApcParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageApcResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.set_viewport_size": {
           "type": "object",
           "properties": {
@@ -1082,6 +1095,7 @@
         "page.screenshot",
         "page.pdf",
         "page.snapshot",
+        "page.apc",
         "page.set_viewport_size",
         "page.wait_for_load_state",
         "page.wait_for_timeout",
@@ -4189,6 +4203,45 @@
       "required": ["formatted_tree", "xpath_map", "url_map"],
       "additionalProperties": false
     },
+    "PageApcParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PageApcOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PageApcOptions": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "description": "Include targets supporting any requested action. Omitted or empty returns the full tree.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ApcAction"
+          }
+        },
+        "timeout": {
+          "description": "Milliseconds for capture and processing. Defaults to 20000. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ApcAction": {
+      "type": "string",
+      "enum": ["click", "fill", "type", "select", "hover", "scroll", "upload"]
+    },
+    "PageApcResult": {
+      "type": "string",
+      "description": "Formatted hierarchical APC tree. Returns an empty string when no targets match."
+    },
     "PageSetViewportSizeParams": {
       "type": "object",
       "properties": {
@@ -6990,6 +7043,33 @@
             },
             "params": {
               "$ref": "#/$defs/PageSnapshotParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.apc"
+            },
+            "params": {
+              "$ref": "#/$defs/PageApcParams"
             },
             "traceparent": {
               "type": "string"

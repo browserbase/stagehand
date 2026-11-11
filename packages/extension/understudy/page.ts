@@ -3,6 +3,7 @@ import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import {
   captureAnnotatedPageContent,
+  formatAnnotatedPageContent,
   type AnnotatedPageContent,
 } from "./annotatedPageContent/index.js";
 import type { CDPSessionLike } from "./cdp.js";
@@ -33,6 +34,8 @@ import type {
   PageToolsAddedNotification,
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
+  PageApcOptions,
+  PageApcResult,
   PageSnapshotOptions,
   PagePDFOptions,
   PagePDFResult,
@@ -2327,6 +2330,16 @@ export class Page {
   async captureAnnotatedPageContent(parentProgress?: Progress): Promise<AnnotatedPageContent> {
     return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
       captureAnnotatedPageContent(this.mainSession, progress),
+    );
+  }
+
+  async apc(options?: PageApcOptions, parentProgress?: Progress): Promise<PageApcResult> {
+    return runWithProgress(
+      parentProgress ?? { name: "apc", timeout: options?.timeout ?? 20_000 },
+      async (progress) => {
+        const content = await this.captureAnnotatedPageContent(progress);
+        return formatAnnotatedPageContent(content, options?.actions, progress);
+      },
     );
   }
 

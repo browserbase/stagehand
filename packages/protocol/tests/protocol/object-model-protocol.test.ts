@@ -477,6 +477,7 @@ describe("Stagehand object-model protocol", () => {
       "page.screenshot",
       "page.pdf",
       "page.snapshot",
+      "page.apc",
       "page.set_viewport_size",
       "page.wait_for_load_state",
       "page.wait_for_timeout",

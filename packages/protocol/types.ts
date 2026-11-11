@@ -199,6 +199,10 @@ import type {
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
   PageSetViewportSizeParamsSchema,
+  ApcActionSchema,
+  PageApcOptionsSchema,
+  PageApcParamsSchema,
+  PageApcResultSchema,
   PageSnapshotParamsSchema,
   PageSnapshotOptionsSchema,
   PageTitleResultSchema,
@@ -364,6 +368,10 @@ export type ResponseServerAddrResult = z.infer<typeof ResponseServerAddrResultSc
 export type ResponseFinishedResult = z.infer<typeof ResponseFinishedResultSchema>;
 export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
+export type ApcAction = z.infer<typeof ApcActionSchema>;
+export type PageApcOptions = z.infer<typeof PageApcOptionsSchema>;
+export type PageApcParams = z.infer<typeof PageApcParamsSchema>;
+export type PageApcResult = z.infer<typeof PageApcResultSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type WebMCPAnnotation = z.infer<typeof WebMCPAnnotationSchema>;

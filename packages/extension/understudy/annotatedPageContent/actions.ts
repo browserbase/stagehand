@@ -4,8 +4,8 @@ import type {
   FormControlTypeJson,
 } from "./common_quality_data_pb.js";
 
-// Internal vocabulary; the protocol will own the public action type when APC is exposed.
-export type ApcAction = "click" | "fill" | "type" | "select" | "hover" | "scroll" | "upload";
+import type { ApcAction } from "@browserbasehq/stagehand-protocol/types";
+export type { ApcAction } from "@browserbasehq/stagehand-protocol/types";
 
 const textControls = new Set<FormControlTypeJson>([
   "FORM_CONTROL_TYPE_INPUT_EMAIL",

@@ -17,6 +17,7 @@ import type {
   PageScreenshotParams,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
+  PageApcParams,
   PageSnapshotParams,
   PageTypeParams,
   PageWaitForLoadStateParams,
@@ -135,6 +136,11 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pagePDF(params);
   }
 
+  async function apc(params: PageApcParams, { logger }: HandlerContext) {
+    logger.debug("page.apc", {});
+    return runtime.pageApc(params);
+  }
+
   async function snapshot(params: PageSnapshotParams, { logger }: HandlerContext) {
     logger.debug("page.snapshot", {});
     return runtime.pageSnapshot(params);
@@ -213,6 +219,7 @@ export function createPageController(runtime: StagehandRuntime) {
     screenshot,
     pdf,
     snapshot,
+    apc,
     webMCPTools,
     webMCPInvokeTool,
     webMCPInvocationResult,

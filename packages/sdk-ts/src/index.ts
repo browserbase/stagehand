@@ -105,6 +105,8 @@ export type {
   PagePDFMargin,
   PagePDFOptions,
   PageScreenshotClip,
+  ApcAction,
+  PageApcOptions,
   PageSnapshotOptions,
   RgbaColor,
   SnapshotResult,

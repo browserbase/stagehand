@@ -53,6 +53,7 @@ import type {
   PagePDFOptions,
   PagePDFResult,
   PageReloadParams,
+  PageApcOptions,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
@@ -241,6 +242,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
   readonly pdfCalls: Array<PagePDFOptions | undefined> = [];
+  readonly apcCalls: Array<PageApcOptions | undefined> = [];
+  apcResult = 'root\n  [apc-2] input_text [name="firstName"]';
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -398,6 +401,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
     this.pdfCalls.push(options);
     return { data: "JVBERi0xLjc=" };
+  }
+
+  async apc(options?: PageApcOptions): Promise<string> {
+    this.apcCalls.push(options);
+    return this.apcResult;
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -2093,6 +2101,65 @@ describe("Stagehand worker clients", () => {
         options: { state: "visible", timeout: 1_000, pierceShadow: false },
       },
     ]);
+  });
+
+  it("routes APC options to the owning page and returns only the formatted string", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+    const optionsList: Array<PageApcOptions | undefined> = [
+      undefined,
+      {},
+      { actions: [], timeout: 0 },
+      { actions: ["fill", "select"], timeout: 125.5 },
+    ];
+    for (const options of optionsList) {
+      await expect(
+        handle({
+          jsonrpc: "2.0",
+          id: 34,
+          method: "page.apc",
+          params: { page_id: "page-a", ...(options === undefined ? {} : { options }) },
+        }),
+      ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 34, result: page.apcResult });
+    }
+    expect(page.apcCalls).toStrictEqual(optionsList);
+    page.apcResult = "";
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 35,
+        method: "page.apc",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 35, result: "" });
+  });
+
+  it("validates APC params before dispatch and preserves capture errors over RPC", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+    const response = await handle({
+      jsonrpc: "2.0",
+      id: 36,
+      method: "page.apc",
+      params: { page_id: "page-a", options: { timeout: -1 } },
+    });
+    expect(response).toMatchObject({ id: 36, error: { code: -32602 } });
+    expect(page.apcCalls).toEqual([]);
+
+    const error = new Error("Page.getAnnotatedPageContent wasn't found");
+    vi.spyOn(page, "apc").mockRejectedValue(error);
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 37,
+        method: "page.apc",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 37,
+      error: { code: -32603, message: error.message, data: { name: "Error" } },
+    });
   });
 
   it("routes page screenshots and snapshots", async () => {

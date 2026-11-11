@@ -43,6 +43,67 @@ describe("Page.captureAnnotatedPageContent", () => {
     vi.restoreAllMocks();
   });
 
+  it("formats and filters APC under the page operation", async () => {
+    await expect(page.apc({ actions: ["fill"] })).resolves.toBe(
+      'unknown\n  [apc-3] input_email [name="email"]',
+    );
+    await expect(page.apc({ actions: ["select"] })).resolves.toBe("");
+    const full = await page.apc();
+    expect(full).toContain('text: "Hello, 世界"');
+    await expect(page.apc({ actions: [] })).resolves.toBe(full);
+  });
+
+  it.each([undefined, 25])("honors the APC capture timeout %s", async (timeout) => {
+    vi.useFakeTimers();
+    send.mockImplementationOnce(() => new Promise(() => {}));
+    const failed = expect(page.apc({ timeout })).rejects.toThrow(
+      `apc timed out after ${timeout ?? 20_000}ms`,
+    );
+    await vi.advanceTimersByTimeAsync(timeout ?? 20_000);
+    await failed;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("allows unlimited capture when the APC timeout is zero", async () => {
+    vi.useFakeTimers();
+    send.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25_000));
+      return { content };
+    });
+    const pending = page.apc({ timeout: 0, actions: ["fill"] });
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(await pending).toContain("input_email");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("shares the remaining deadline between capture and tree processing", async () => {
+    vi.useFakeTimers();
+    const progress = new Progress("apc", 100);
+    const captured = {
+      get rootNode() {
+        vi.advanceTimersByTime(31);
+        return { contentAttributes: { attributeType: "CONTENT_ATTRIBUTE_ROOT" as const } };
+      },
+    };
+    const capture = vi
+      .spyOn(page, "captureAnnotatedPageContent")
+      .mockImplementation(async (parent) => {
+        expect(parent).toBe(progress);
+        await parent!.delay(70);
+        return captured;
+      });
+    try {
+      const failed = expect(page.apc({ timeout: 5_000 }, progress)).rejects.toThrow(
+        "apc timed out after 100ms",
+      );
+      await vi.advanceTimersByTimeAsync(70);
+      await failed;
+      expect(capture).toHaveBeenCalledTimes(1);
+    } finally {
+      progress.dispose();
+    }
+  });
+
   it("requests actionable information and returns the decoded capture", async () => {
     const result = await page.captureAnnotatedPageContent();
     expect(result.rootNode?.childrenNodes).toHaveLength(2);
