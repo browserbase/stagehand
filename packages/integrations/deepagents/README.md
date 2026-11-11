@@ -1,22 +1,17 @@
 # Stagehand Deep Agents integration
 
-This local integration exposes one stateful Stagehand browser to LangChain Deep Agents through a
-stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screenshot`.
+The local examples use [`langchain-stagehand`](https://github.com/langchain-ai/langchain-browserbase)
+to expose Stagehand's `run`, `snapshot`, and `screenshot` tools to Deep Agents.
+See LangChain's [browser-use guide](https://docs.langchain.com/oss/python/deepagents/browser-use)
+for browser choices and session scope.
 
 ## Run locally
 
-From the repository root, run `just install` and `pnpm --filter ./packages/extension build` first.
-
-Set a model-provider key and select the Deep Agents model:
+Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), Chrome, and a model-provider key.
+From the repository root, run `just install` and `pnpm --filter ./packages/extension build` first:
 
 ```bash
 export OPENAI_API_KEY=...
-export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
-```
-
-The MCP server launches a visible local Chrome browser by default. Then run:
-
-```bash
 cd packages/integrations/deepagents
 uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
 ```
@@ -33,22 +28,17 @@ returns a typed Pydantic summary without submitting the form:
 uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agents2.py
 ```
 
-To use Browserbase instead:
+Both examples launch visible local Chrome. Set `headless=True` in `local_browser.launch` for
+headless mode. For Browserbase, add `import os` and `from stagehand import browserbase`, set
+`BROWSERBASE_API_KEY`, and replace the launch line with:
 
-```bash
-export STAGEHAND_BROWSER=browserbase
-export BROWSERBASE_API_KEY=...
-uv run --project ../../.. --package stagehand-deepagents-local-example --locked python examples/local/agent.py
+```python
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 ```
 
-Browserbase sessions use a 1280 × 720 viewport by default.
-
-The server and client communicate over stdio and share the root uv workspace environment.
-Nested examples select the root with `--project` and their workspace member with `--package`.
-
-The example deliberately creates a persistent MCP `ClientSession`. Do not replace it with
-`MultiServerMCPClient.get_tools()`: the default stateless tools create a new stdio process for each
-call and therefore lose the browser and snapshot IDs.
+The examples pass `tools=browser_middleware.tools` so Deep Agents' default subagent also has
+browser access. Configure the client through `Stagehand.create(...)`; see the
+[Stagehand package page](https://pypi.org/project/langchain-stagehand/) for usage.
 
 ## Checks
 
@@ -64,7 +54,13 @@ Formatting and lint checks cover the adapter's `src/` and `tests/` directories a
 The checks also import the examples without loading `.env` files. The tests cover the adapter and
 eval runner. These recipes are included in the root `just fmt`, `just check`, and `just test` commands.
 
-## Server configuration
+## MCP server configuration
+
+The standalone MCP server uses the `STAGEHAND_*` settings below. To run it from the repository root:
+
+```bash
+uv run --package stagehand-deepagents --locked stagehand-deepagents-mcp
+```
 
 | Variable                      | Default | Meaning                                                                                                                                                                                                |
 | ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -84,7 +80,10 @@ the same facade contract the TypeScript facade uses.
 
 ## Managed Deep Agents
 
-The managed example lives in `examples/managed`. Its authored LangChain tools wrap
+For platform-managed sessions, use LangChain's [built-in browser support](https://docs.langchain.com/langsmith/python/managed-deep-agents-browser-use#browser-tools)
+with `define_browser` and `browser_*` tools, including human handoff.
+
+Our custom example in `examples/managed` owns its Browserbase sessions. Its LangChain tools wrap
 `stagehand-middleware`'s facade tools over the Python Stagehand SDK and expose the same `run`,
 `snapshot`, and `screenshot` contract; `instructions.md` is the contract's agent instructions. The managed
 thread ID is injected by `ToolRuntime` and scopes an in-process Browserbase runtime; it is not
@@ -124,5 +123,4 @@ Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
 worker — browser-side, never in the host process. Browserbase is the recommended isolation
 boundary: the privileged execution environment is a disposable cloud browser with no access to the
-host machine. Only `STAGEHAND_*` and `BROWSERBASE_*` environment variables are forwarded to the
-browser session; host secrets such as the deep-agent model key never reach it.
+host machine.

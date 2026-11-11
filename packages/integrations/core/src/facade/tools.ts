@@ -149,8 +149,6 @@ function isImage(bytes: Buffer): boolean {
   );
 }
 
-/** The checks that need no filesystem access: confinement, type, signature and name length. */
-
 /** Rejects what already exists on an artifact's destination; missing entries are fine. */
 async function checkDestination(root: string, components: string[]): Promise<void> {
   let entry = root;
@@ -175,6 +173,19 @@ async function checkDestination(root: string, components: string[]): Promise<voi
     }
   }
 }
+
+/** Whether every directory on the chain is still the one recorded when it was checked. */
+async function chainUnchanged(
+  chain: { directory: string; dev: number; ino: number }[],
+): Promise<boolean> {
+  for (const { directory, dev, ino } of chain) {
+    const stats = await fsp.lstat(directory).catch(() => undefined);
+    if (!stats || stats.dev !== dev || stats.ino !== ino) return false;
+  }
+  return true;
+}
+
+/** The checks that need no filesystem access: confinement, type, signature and name length. */
 function checkArtifact(
   root: string,
   artifact: ScreenshotArtifact,
@@ -481,11 +492,13 @@ export class StagehandFacadeTools {
     for (const { components } of checked) await checkDestination(configuredRoot, components);
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
+    const rootStats = await fsp.lstat(root);
     for (const { components, bytes } of checked) {
       // Reject symlinks before creating nested directories. An existing file is
       // replaced by renaming a new file over it, never written through, so
       // other links to it keep their contents.
       let directory = root;
+      const chain = [{ directory, dev: rootStats.dev, ino: rootStats.ino }];
       for (const component of components.slice(0, -1)) {
         directory = path.join(directory, component);
         await fsp.mkdir(directory).catch((error: NodeJS.ErrnoException) => {
@@ -498,6 +511,7 @@ export class StagehandFacadeTools {
         if (!stats.isDirectory()) {
           throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
         }
+        chain.push({ directory, dev: stats.dev, ino: stats.ino });
       }
       const target = path.join(directory, components.at(-1)!);
       const existing = await fsp.lstat(target).catch((error: NodeJS.ErrnoException) => {
@@ -522,6 +536,12 @@ export class StagehandFacadeTools {
           // filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
           if (existing) await file.chmod(existing.mode & 0o777).catch(() => undefined);
           await file.writeFile(bytes);
+          // Node has no directory-relative opens, so the directory chain is
+          // re-verified, and the new file confirmed on its device, before the rename.
+          const { dev } = await file.stat();
+          if (dev !== chain.at(-1)!.dev || !(await chainUnchanged(chain))) {
+            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
+          }
         } finally {
           await file.close();
         }
