@@ -27,6 +27,7 @@
             "group": "First steps",
             "pages": [
               "v4/first-steps/introduction",
+              "v4/first-steps/choosing-your-path",
               "v4/first-steps/quickstart",
               "v4/first-steps/installation",
               "v4/first-steps/ai-rules"

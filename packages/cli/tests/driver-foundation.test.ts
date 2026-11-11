@@ -1224,6 +1224,38 @@ describe("driver foundation", () => {
     }
   });
 
+  it("reports a cached launch failure through status without relaunching", async () => {
+    const launch = vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED 127.0.0.1:9222"));
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create: vi.fn() },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
+      const manager = new MockedDriverSessionManager("launch-failure", {
+        headless: true,
+        kind: "managed-local",
+      });
+
+      expect((await manager.status()).initError).toBeUndefined();
+      await expect(manager.open("https://example.com")).rejects.toThrow("ECONNREFUSED");
+
+      await expect(manager.status()).resolves.toMatchObject({
+        browserConnected: false,
+        initError: "connect ECONNREFUSED 127.0.0.1:9222",
+        initialized: false,
+      });
+      expect(launch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
   it("closes a connected browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { close: closeBrowser, context: {}, origin: "connected" };
