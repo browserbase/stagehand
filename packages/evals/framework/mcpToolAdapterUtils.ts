@@ -1,3 +1,4 @@
+import { isRecord } from "@browserbasehq/stagehand-integrations/harness";
 import type { ProbeEvidence } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 
@@ -14,26 +15,29 @@ export function normalizeStdioMcpServers(
 ): Record<string, StdioMcpServerConfig> {
   const normalized: Record<string, StdioMcpServerConfig> = {};
   for (const [name, raw] of Object.entries(mcpServers)) {
-    if (!isRecord(raw)) throw invalidServer(label, name, "must be an object");
-    if (typeof raw.command !== "string" || !raw.command) {
+    if (!isRecord(raw) || Array.isArray(raw)) {
+      throw invalidServer(label, name, "must be an object");
+    }
+    const { command, env, cwd } = raw;
+    if (typeof command !== "string" || !command.trim()) {
       throw invalidServer(label, name, "command must be a non-empty string");
     }
     const args = raw.args ?? [];
     if (!Array.isArray(args) || !args.every((arg) => typeof arg === "string")) {
       throw invalidServer(label, name, "args must be an array of strings");
     }
-    if (raw.env !== undefined && !isStringMap(raw.env)) {
+    const normalizedEnv = isStringMap(env) ? { ...env } : undefined;
+    if (env !== undefined && normalizedEnv === undefined) {
       throw invalidServer(label, name, "env must be a string map");
     }
-    if (raw.cwd !== undefined && typeof raw.cwd !== "string") {
+    if (cwd !== undefined && typeof cwd !== "string") {
       throw invalidServer(label, name, "cwd must be a string");
     }
-    const env = isStringMap(raw.env) ? raw.env : undefined;
     normalized[name] = {
-      command: raw.command,
+      command,
       args: [...args],
-      ...(env && { env: { ...env } }),
-      ...(typeof raw.cwd === "string" && { cwd: raw.cwd }),
+      ...(normalizedEnv && { env: normalizedEnv }),
+      ...(typeof cwd === "string" && { cwd }),
     };
   }
   return normalized;
@@ -82,10 +86,10 @@ function invalidServer(label: string, name: string, message: string): EvalsError
   return new EvalsError(`Invalid ${label} MCP server "${name}": ${message}.`);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isStringMap(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
+  return (
+    isRecord(value) &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === "string")
+  );
 }

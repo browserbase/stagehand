@@ -4,14 +4,14 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import {
   clip,
+  harnessEventLogLevel,
   isRecord,
   isTokenCount,
   positiveInteger,
   safeJson,
+  sanitizeErrorMessage,
   stringifyError,
   toFiniteNumber,
-  harnessEventLogLevel,
-  sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 

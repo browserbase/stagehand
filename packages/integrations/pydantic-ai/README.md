@@ -1,9 +1,8 @@
 # Pydantic AI + Stagehand middleware
 
 This example registers `stagehand-middleware`'s `run`, `snapshot`, and `screenshot` as
-native Pydantic AI tools. One Python-owned browser stays open for the agent run.
-Instructions and tool schemas come from the middleware.
-Browser calls run sequentially, and screenshots reach the model as image content.
+native Pydantic AI tools. Browser calls run sequentially in one session, and screenshots reach
+the model as image content.
 Tested with Pydantic AI 2.67.0.
 
 ## Setup
@@ -23,6 +22,8 @@ cd packages/integrations/pydantic-ai
 uv sync --locked
 ```
 
+## Configuration
+
 | Variable                                      | Purpose                                                                                                   |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `STAGEHAND_BROWSER`                           | `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
@@ -34,35 +35,34 @@ uv sync --locked
 
 ## Run
 
-From the directory containing `agent.py`:
+Configure the model and run from the directory containing `agent.py`:
 
 ```sh
-uv run python agent.py "your instruction"
+export OPENAI_API_KEY="your-openai-api-key"
+uv run python agent.py "Open https://example.com and report the page title."
 ```
 
 Pass `--structured` to return a `PageReport` model (`title`, `url`, `notes`) instead of plain text.
 
-## Browser lifecycle
+## Browser session
 
-The example closes the Stagehand session and browser when the agent finishes or fails.
-If attaching Stagehand fails, it closes the launched browser too.
+Keep one `browser_session()` open around the agent run so page state and snapshot
+IDs survive across calls. The example closes the session and browser when the run ends.
 
 `run(code)` executes model-authored JavaScript in the browser extension service worker.
-Use Browserbase for untrusted tasks. The Python process owns the browser connection
-and calls the shared middleware directly.
+Use Browserbase for untrusted tasks.
 
 ## Eval runner
 
-The repository's `--harness pydantic_ai` benchmark uses
-[`runner/run_eval.py`](runner/run_eval.py), launched by the TypeScript session adapter.
-It consumes the eval runtime's MCP mount, including the shared TypeScript facade
-for `stagehand_facade`. It does not launch the native example's Python browser.
-The runtime owns browser cleanup and captures evidence from the same session
-used by the agent.
+The `pydantic_ai` harness starts [`runner/run_eval.py`](runner/run_eval.py) through
+the TypeScript session adapter in `src/`. The eval runtime supplies the MCP tools,
+owns the browser session, and captures evidence from that session.
 
-The standalone example above uses `stagehand-middleware` directly. Installing its
-Python dependencies is sufficient for that example. Running repository benchmarks
-also requires the [eval workspace setup](../../evals/README.md#quickstart).
+Complete the [eval workspace setup](../../evals/README.md#quickstart), then run:
+
+```sh
+evals run b:webvoyager --harness pydantic_ai --tool stagehand_facade -l 1 -t 1 -e browserbase
+```
 
 Run the example and runner tests from this directory:
 

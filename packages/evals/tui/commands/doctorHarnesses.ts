@@ -554,23 +554,29 @@ async function buildHarnessRow(
             fix: "pnpm install",
           };
       break;
-    case "deepagents": {
-      const uv = env.STAGEHAND_DEEPAGENTS_UV?.trim() || "uv";
+    case "deepagents":
+    case "pydantic_ai": {
+      const uvEnv =
+        harness === "deepagents" ? "STAGEHAND_DEEPAGENTS_UV" : "STAGEHAND_PYDANTIC_AI_UV";
+      const uv = env[uvEnv]?.trim() || "uv";
       const found = path.isAbsolute(uv) ? (isExecutable(uv) ? uv : undefined) : which(uv);
       binary = found
         ? { status: "ok", label: "uv" }
         : {
             status: "fail",
             label: "uv missing",
-            detail: "uv is not on PATH (or STAGEHAND_DEEPAGENTS_UV points nowhere).",
+            detail: `uv is not on PATH (or ${uvEnv} points nowhere).`,
             fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
           };
+      const sync =
+        harness === "deepagents"
+          ? "uv sync --all-packages --locked"
+          : "uv sync --project packages/integrations/pydantic-ai --locked";
       extra = {
         status: "unknown",
         label: "python env",
-        detail:
-          "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
-        fix: "uv sync --all-packages --locked",
+        detail: `run \`${sync} --check\` from the repository root to confirm the env is synced.`,
+        fix: sync,
       };
       break;
     }

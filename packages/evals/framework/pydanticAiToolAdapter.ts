@@ -1,9 +1,3 @@
-import {
-  boundedCaptureEvidence,
-  normalizeStdioMcpServers,
-  readCapturePositiveIntEnv,
-  withCaptureTimeout,
-} from "./mcpToolAdapterUtils.js";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +10,12 @@ import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
+import {
+  boundedCaptureEvidence,
+  normalizeStdioMcpServers,
+  readCapturePositiveIntEnv,
+  withCaptureTimeout,
+} from "./mcpToolAdapterUtils.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export interface PydanticAiToolAdapterInput {
