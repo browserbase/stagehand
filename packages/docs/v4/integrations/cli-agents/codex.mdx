@@ -3,6 +3,17 @@ title: "Codex"
 description: "Give a Codex agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
+<Note>
+**Using Codex interactively?** Install the `browse` CLI and skill instead of cloning this repository:
+
+```bash
+npm install -g browse
+npx skills add browserbase/stagehand --skill browse
+```
+
+The CLI gives your agent a local browser with no API keys required. The facade integration below is for developers embedding the Codex SDK programmatically.
+</Note>
+
 The Codex integration gives a Codex agent a persistent Stagehand browser it can drive with `run`, `snapshot`, and `screenshot`. A Codex SDK thread connects to the Stagehand facade MCP server over MCP/stdio, and one server process owns the browser, so page state survives across tool calls.
 
 <Note>

@@ -3,6 +3,9 @@ packages:
   - packages/integrations/*
   - packages/examples/cookbooks/*/typescript
 
+# Only explicit workspace: dependencies should resolve to local packages.
+linkWorkspacePackages: false
+
 catalogMode: prefer
 
 catalog:
@@ -67,6 +70,8 @@ catalog:
   "@playwright/mcp": ^0.0.82
   ffmpeg-static: ^5.3.0
   "@browserbasehq/sdk-functions": 1.0.2
+  cross-spawn: ^7.0.6
+  "@types/cross-spawn": ^6.0.6
 catalogs:
   eve:
     ai: ^7.0.105
