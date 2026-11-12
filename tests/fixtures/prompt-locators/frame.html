@@ -1,0 +1,26 @@
+<!doctype html>
+<title>Frame controls</title>
+<label>Frame field<input id="field" /></label>
+<label>Frame upload<input id="upload" type="file" /></label>
+<script>
+  const name = new URLSearchParams(location.search).get("name");
+  document.querySelector("#field").parentElement.firstChild.textContent = `${name}-field`;
+  document.querySelector("#upload").parentElement.firstChild.textContent = `${name}-upload`;
+  document.querySelector("#field").name = `${name}-field`;
+  document.querySelector("#upload").name = `${name}-upload`;
+  document
+    .querySelector("#field")
+    .addEventListener("input", (event) =>
+      parent.postMessage({ name, value: event.target.value }, "*"),
+    );
+  document.querySelector("#upload").addEventListener("change", async (event) => {
+    const files = await Promise.all(
+      [...event.target.files].map(async (file) => ({
+        name: file.name,
+        bytes: [...new Uint8Array(await file.arrayBuffer())],
+      })),
+    );
+    parent.postMessage({ name, files }, "*");
+  });
+  parent.postMessage({ ready: name }, "*");
+</script>

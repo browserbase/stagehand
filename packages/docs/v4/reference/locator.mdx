@@ -28,6 +28,29 @@ const locator = page.locator("button[type=submit]");
 await locator.click();
 ```
 
+### Prompt locators
+
+Configure a [client decision callback](/v4/configuration/models#decision-callbacks), then use an element description as the final selector:
+
+```typescript
+await page
+  .locator({ type: "prompt", value: "the resume file input" })
+  .setInputFiles("resume.pdf");
+
+await page
+  .locator({ type: "css", value: "#application" })
+  .locator({ type: "prompt", value: "the submit button" })
+  .click({ timeout: 5000 });
+```
+
+Prompt selectors support `click`, `fill`, `type`, `selectOption`, `setInputFiles`, `hover`, `scrollTo`, and `sendClickEvent`. CSS, XPath, text, and legacy selectors can precede the prompt to scope the search, including into an iframe. You can use `first()` or `nth()` on those preceding selectors.
+
+Each operation captures APC candidates filtered for its action and scope, then asks your callback to select one ID. The callback runs in your client and receives the description, action, and candidate evidence. File paths, file contents, and action arguments are not included in that decision request. Stagehand applies the original action to the selected node, including nodes in cross-origin iframes and open or closed shadow roots. Upload candidates include visible, enabled file inputs.
+
+An empty candidate set fails without calling the callback. A single candidate still requires a decision. No match, refusal, and an ID outside the supplied candidates fail the operation. A detached selected node fails without selecting its replacement. Capture, selection, and execution share the operation timeout; Stagehand cancels a pending callback when that timeout expires and ignores late results. It does not automatically retry inference.
+
+Prompt selectors must be the final query in a chain. Reads such as `textContent()` and `count()`, `first()` or `nth()` on a prompt result, screenshot masks, snapshot scopes and exclusions, and `act`/`observe`/`extract` scopes and exclusions do not support prompt selectors.
+
 Each locator call has a 20-second timeout covering frame readiness, element lookup, & the action itself. Typing delays & highlight duration count toward the same budget. File reading in the SDK & request delivery happen before that budget starts. A timeout stops further steps; it cannot undo browser commands already sent.
 
 ```typescript
@@ -555,6 +578,28 @@ const third = locator.nth(2);
 locator = page.locator("button[type=submit]")
 await locator.click()
 ```
+
+### Prompt locators
+
+Configure a [client decision callback](/v4/configuration/models#decision-callbacks), then use an element description as the final selector:
+
+```python
+await page.locator(
+    {"type": "prompt", "value": "the resume file input"}
+).set_input_files("resume.pdf")
+
+await page.locator({"type": "css", "value": "#application"}).locator(
+    {"type": "prompt", "value": "the submit button"}
+).click(timeout=5000)
+```
+
+Prompt selectors support `click`, `fill`, `type`, `select_option`, `set_input_files`, `hover`, `scroll_to`, and `send_click_event`. CSS, XPath, text, and legacy selectors can precede the prompt to scope the search, including into an iframe. You can use `first()` or `nth()` on those preceding selectors.
+
+Each operation captures APC candidates filtered for its action and scope, then asks your callback to select one ID. The callback runs in your client and receives the description, action, and candidate evidence. File paths, file contents, and action arguments are not included in that decision request. Stagehand applies the original action to the selected node, including nodes in cross-origin iframes and open or closed shadow roots. Upload candidates include visible, enabled file inputs.
+
+An empty candidate set fails without calling the callback. A single candidate still requires a decision. No match, refusal, and an ID outside the supplied candidates fail the operation. A detached selected node fails without selecting its replacement. Capture, selection, and execution share the operation timeout; Stagehand cancels a pending callback task when that timeout expires and ignores late results. It does not automatically retry inference.
+
+Prompt selectors must be the final query in a chain. Reads such as `text_content()` and `count()`, `first()` or `nth()` on a prompt result, screenshot masks, snapshot scopes and exclusions, and `act`/`observe`/`extract` scopes and exclusions do not support prompt selectors.
 
 Timeouts cover frame readiness, element lookup, & the action, including typing delays & highlight duration. File reading in the SDK & request delivery happen before the execution budget starts. Canceling the Python task stops the client waiting; it does not cancel work already sent to the browser.
 

@@ -1,0 +1,77 @@
+<!doctype html>
+<title>Prompt locator actions</title>
+<style>
+  body {
+    font: 14px sans-serif;
+    margin: 8px;
+  }
+  section {
+    display: inline-block;
+    vertical-align: top;
+    padding: 6px;
+    border: 1px solid #aaa;
+  }
+  label {
+    display: block;
+    margin: 3px;
+  }
+  iframe {
+    display: block;
+    width: 420px;
+    height: 110px;
+  }
+  #frames {
+    display: flex;
+  }
+  #scroll-zone {
+    overflow: auto;
+    height: 50px;
+    width: 160px;
+  }
+</style>
+<section id="application">
+  <label>Resume PDF<input id="resume" name="resume" type="file" accept=".pdf" multiple /></label>
+  <label>Applicant<input id="applicant" name="applicant" /></label>
+  <label
+    >Plan<select name="plan">
+      <option value="basic">Basic</option>
+      <option value="pro">Pro</option>
+    </select></label
+  >
+  <label
+    >Addons<select name="addons" multiple>
+      <option value="a">Alpha</option>
+      <option value="b">Beta</option>
+    </select></label
+  >
+  <button name="submit" onclick="window.state.clicks++">Submit</button>
+  <button name="event-button" onclick="window.state.eventClicks++">Event button</button>
+  <button name="hover-control" onmouseover="window.state.hovered = true">Hover control</button>
+  <div id="scroll-zone" role="region" aria-label="scroll-zone">
+    <div style="height: 300px">Scroll content</div>
+  </div>
+</section>
+<section id="outside">
+  <label>Portrait<input name="portrait" type="file" accept="image/*" /></label>
+  <label>Disabled<input name="disabled-upload" type="file" disabled /></label>
+  <div id="open-host"></div>
+  <div id="closed-host"></div>
+</section>
+<div id="empty">Nothing actionable here</div>
+<div id="frames">
+  <iframe id="same" src="/frame.html?name=same"></iframe><iframe id="cross"></iframe>
+</div>
+<script>
+  window.state = { clicks: 0, eventClicks: 0, hovered: false, frames: {}, ready: [] };
+  window.shadowRoots = {};
+  for (const mode of ["open", "closed"]) {
+    const root = document.querySelector(`#${mode}-host`).attachShadow({ mode });
+    root.innerHTML = `<label>${mode} field<input name="${mode}-field"></label><label>${mode} upload<input name="${mode}-upload" type="file"></label>`;
+    window.shadowRoots[mode] = root;
+  }
+  addEventListener("message", ({ data }) => {
+    if (data.ready) window.state.ready.push(data.ready);
+    if (data.name) window.state.frames[data.name] = data;
+  });
+  document.querySelector("#cross").src = `http://localhost:${location.port}/frame.html?name=cross`;
+</script>
