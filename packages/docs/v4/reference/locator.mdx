@@ -1067,7 +1067,7 @@ if err := locator.Fill(ctx, "Browserbase"); err != nil {
 
 ## Count()
 
-Count the elements matched by this locator.
+Count the elements matched by this locator. A locator narrowed by `First()` or `Nth()` counts 1 when that index exists and 0 when it does not.
 
 ```go
 count, err := locator.Count(ctx)
