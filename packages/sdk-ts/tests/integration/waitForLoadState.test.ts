@@ -63,4 +63,20 @@ describe("Page.waitForLoadState", () => {
 
     await expect(page.waitForLoadState("networkidle", 5_000)).resolves.toBeUndefined();
   });
+
+  it.each(["goto", "reload"] as const)(
+    "waits for the new document's requests after %s replaces the document",
+    async (method) => {
+      const page = await firstPage(stagehand);
+      await page.goto(`${fixture.url}busy`, { waitUntil: "load" });
+      const idle = expect(page.waitForLoadState("networkidle", 5_000)).resolves.toBeUndefined();
+      await page.waitForTimeout(300);
+      await (method === "goto"
+        ? page.goto(`${fixture.url}busy?next`, { waitUntil: "load" })
+        : page.reload({ waitUntil: "load" }));
+
+      await idle;
+      await expect(page.evaluate("window.slowDone")).resolves.toBe(true);
+    },
+  );
 });
