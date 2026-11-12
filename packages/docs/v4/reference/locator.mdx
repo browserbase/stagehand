@@ -106,7 +106,7 @@ await locator.fill("Browserbase");
 
 ## count()
 
-Count the elements matched by this locator.
+Count the elements matched by this locator. A locator narrowed by `first()` or `nth()` counts 1 when that index exists and 0 when it does not.
 
 ```typescript
 const count = await locator.count();
@@ -599,7 +599,7 @@ await locator.fill("Browserbase")
 
 ## count()
 
-Count the elements matched by this locator.
+Count the elements matched by this locator. A locator narrowed by `first()` or `nth()` counts 1 when that index exists and 0 when it does not.
 
 ```python
 count = await locator.count()

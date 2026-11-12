@@ -167,17 +167,19 @@ describe("counting progress forwarding", () => {
         expect(evaluate).toHaveBeenCalledExactlyOnceWith(expect.any(String), 1, progress);
     });
   });
+});
 
+describe("count narrowing by nth()", () => {
   it.each([
-    [5, undefined, 5],
-    [0, undefined, 0],
-    [5, 0, 1],
-    [5, 3, 1],
-    [5, 4, 1],
-    [5, 5, 0],
-    [5, 10, 0],
-    [0, 0, 0],
-  ] as const)("counts %i matches narrowed by nth(%s) as %i", async (total, index, expected) => {
+    ["no nth()", 5, 5, undefined],
+    ["no nth()", 0, 0, undefined],
+    ["nth(0)", 5, 1, 0],
+    ["nth(3)", 5, 1, 3],
+    ["nth(4)", 5, 1, 4],
+    ["nth(5)", 5, 0, 5],
+    ["nth(10)", 5, 0, 10],
+    ["nth(0)", 0, 0, 0],
+  ] as const)("%s: counts %i matches as %i", async (_label, total, expected, index) => {
     const { locator } = createLocator();
     const target = index === undefined ? locator : locator.nth(index);
     vi.spyOn(target.selectorResolver, "count").mockResolvedValue(total);
