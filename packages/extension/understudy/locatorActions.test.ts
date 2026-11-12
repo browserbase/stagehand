@@ -169,6 +169,71 @@ describe("counting progress forwarding", () => {
   });
 });
 
+// A link that wraps onto a second, shorter line: its box model spans both line
+// fragments, and the centre of that box lies beside the second line, where a
+// hit test finds the parent instead of the link.
+describe("locator pointer target", () => {
+  const firstLine = [20, 414, 276, 414, 276, 432, 20, 432];
+  const secondLine = [20, 432, 120, 432, 120, 450, 20, 450];
+  const wrappedBox = [4, 414, 276, 414, 276, 450, 4, 450];
+
+  function createWrappedLocator(contentQuads: () => Promise<unknown>) {
+    const fixture = createLocator("a");
+    const respond = fixture.send.getMockImplementation()!;
+    fixture.send.mockImplementation((method, params) => {
+      if (method === "DOM.getContentQuads") return contentQuads();
+      if (method === "DOM.getBoxModel") return Promise.resolve({ model: { content: wrappedBox } });
+      return respond(method, params);
+    });
+    return fixture;
+  }
+
+  const pointerEvents = (send: ReturnType<typeof createLocator>["send"]) =>
+    send.mock.calls
+      .filter(([method]) => method === "Input.dispatchMouseEvent")
+      .map(([, params]) => {
+        const { x, y } = params as { x: number; y: number };
+        return { x, y };
+      });
+
+  it.each(["click", "hover"] as const)(
+    "%s targets the first line of a wrapped link",
+    async (method) => {
+      const { locator, send } = createWrappedLocator(async () => ({
+        quads: [firstLine, secondLine],
+      }));
+      await locator[method]();
+      const events = pointerEvents(send);
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.every(({ x, y }) => x === 148 && y === 423)).toBe(true);
+      expect(send.mock.calls.some(([name]) => name === "DOM.getBoxModel")).toBe(false);
+    },
+  );
+
+  it("reports the centroid of the first line of a wrapped link", async () => {
+    const { locator } = createWrappedLocator(async () => ({ quads: [firstLine, secondLine] }));
+    await expect(locator.centroid()).resolves.toEqual({ x: 148, y: 423 });
+  });
+
+  it("skips line fragments without area", async () => {
+    const empty = [20, 414, 20, 414, 20, 432, 20, 432];
+    const { locator } = createWrappedLocator(async () => ({ quads: [empty, secondLine] }));
+    await expect(locator.centroid()).resolves.toEqual({ x: 70, y: 441 });
+  });
+
+  it.each([
+    ["no quads", async () => ({ quads: [] })],
+    ["only empty quads", async () => ({ quads: [[0, 0, 0, 0, 0, 0, 0, 0]] })],
+    [
+      "a failed quad read",
+      async () => Promise.reject(new Error("Could not compute content quads")),
+    ],
+  ])("falls back to the box model with %s", async (_, contentQuads) => {
+    const { locator } = createWrappedLocator(contentQuads);
+    await expect(locator.centroid()).resolves.toEqual({ x: 140, y: 432 });
+  });
+});
+
 function deferred() {
   let resolve!: (value: unknown) => void;
   const promise = new Promise<unknown>((done) => {
@@ -202,9 +267,14 @@ describe("locator action deadlines", () => {
       "Overlay.highlightNode",
     ],
     type: ["Runtime.callFunctionOn", "Input.insertText"],
-    click: ["DOM.scrollIntoViewIfNeeded", "DOM.getBoxModel", "Input.dispatchMouseEvent"],
-    hover: ["DOM.getBoxModel", "Input.dispatchMouseEvent"],
-    centroid: ["DOM.getBoxModel"],
+    click: [
+      "DOM.scrollIntoViewIfNeeded",
+      "DOM.getContentQuads",
+      "DOM.getBoxModel",
+      "Input.dispatchMouseEvent",
+    ],
+    hover: ["DOM.getContentQuads", "DOM.getBoxModel", "Input.dispatchMouseEvent"],
+    centroid: ["DOM.getContentQuads", "DOM.getBoxModel"],
     backendNodeId: ["DOM.enable", "DOM.describeNode"],
     count: ["Runtime.enable", "DOM.enable", "Runtime.evaluate"],
   };
