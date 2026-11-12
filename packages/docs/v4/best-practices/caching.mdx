@@ -3,13 +3,17 @@ title: Caching actions
 description: Cache actions automatically to reduce costs and improve performance
 ---
 
-Stagehand caches `act()`, `observe()`, and `extract()` results server-side to reduce LLM costs and speed up your automations. Browserbase manages the cache, so there is nothing to install, no cache files to manage, and no state to keep in sync across machines.
+Stagehand can cache `act()`, `observe()`, and `extract()` results server-side to reduce LLM costs and speed up your automations. Browserbase manages the cache, so there is nothing to install, no cache files to manage, and no state to keep in sync across machines.
+
+<Info>
+To use server-side caching, [request caching for your Browserbase project](#enable-caching-for-your-project).
+</Info>
 
 ---
 
 ## Browserbase cache
 
-Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. It is on by default: Browserbase caches eligible `act()`, `observe()`, and `extract()` calls on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Set `cache: false` to turn it off. Some calls are not eligible, see [limitations](#limitations).
+Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. When caching is enabled for your Browserbase project, Browserbase caches eligible `act()`, `observe()`, and `extract()` calls on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Some calls are not eligible, see [limitations](#limitations).
 
 Browserbase builds the cache key from the instruction, page content, and the options you pass. It deliberately leaves out model configuration, so switching models does not invalidate your cache. On a cache hit, the server returns the response directly with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
@@ -17,9 +21,20 @@ Browserbase builds the cache key from the instruction, page content, and the opt
 Caching requires a Browserbase browser and the Browserbase API key you passed to `browserbase.launch()`. With a local browser there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
 </Note>
 
-### Default behavior
+### Enable caching for your project
 
-Stagehand enables caching by default, so a Browserbase browser caches every eligible call with no extra configuration. Pass `cache` on `Stagehand.create()` to change that for the instance: `false` opts out, and an object tunes the threshold.
+Browserbase enables server-side caching per project. We recommend caching for workflows that meet all of these criteria:
+
+- **Repeated steps:** the workflow runs the same instructions on the same pages many times.
+- **Same content for every run:** the pages show the same content to each run. They are not personalized to a signed-in user and do not show account or personal data.
+- **No sensitive values in calls:** instructions, variables, and extracted results do not contain credentials or personal data.
+- **Stable URLs:** the page URLs do not change between runs. See [limitations](#limitations).
+
+If your workflow meets these criteria, email [support@browserbase.com](mailto:support@browserbase.com) with your Browserbase project ID to request caching for your project.
+
+### Instance setting
+
+After caching is enabled for your project, a Browserbase browser caches every eligible call with no extra configuration. Pass `cache` on `Stagehand.create()` to change that for the instance: `false` opts out, and an object tunes the threshold.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -28,7 +43,7 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
 
-// Caching is on by default, so no cache option is needed here
+// No cache option is needed here
 const stagehand = await Stagehand.create({
   browser,
 });
@@ -50,7 +65,7 @@ from stagehand import Stagehand, browserbase
 
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-# Caching is on by default, so no cache option is needed here
+# No cache option is needed here
 stagehand = await Stagehand.create(
     browser=browser,
 )
@@ -75,7 +90,7 @@ if err != nil {
 	return err
 }
 
-// Caching is on by default, so no cache option is needed here
+// No cache option is needed here
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
 })

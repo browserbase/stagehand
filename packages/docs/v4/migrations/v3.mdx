@@ -515,7 +515,7 @@ v3's server-side cache option, `serverCache`, is now `cache`, and the local `ena
 + await stagehand.act("...", { cache: false });
 ```
 
-Caching stays on by default, and each call can opt out. Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
+Each call can opt out with `cache: false`. Server-side caching must also be [enabled for your Browserbase project](/v4/best-practices/caching#enable-caching-for-your-project). Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
 
 ### Logging
 
@@ -597,7 +597,7 @@ Metrics became a method:
 | Agent structured output | `extract()` with a schema |
 | Agent streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
 | `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
-| `serverCache` | `cache` (still on by default) |
+| `serverCache` | `cache` |
 | `enableCaching`, `cacheDir` | No equivalent; caching is server-side |
 | `verbose`, `logger` | `logging: { level, format, onLog }` |
 | `await stagehand.metrics` | `await stagehand.metrics()` |
