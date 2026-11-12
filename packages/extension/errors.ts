@@ -9,6 +9,29 @@ export class DecisionModelNotConfiguredError extends Error {
   }
 }
 
+export class PromptLocatorRefusedError extends Error {
+  constructor() {
+    super("The decision callback refused to select an element for the prompt locator");
+    this.name = "PromptLocatorRefusedError";
+  }
+}
+
+export class InvalidPromptLocatorSelectionError extends Error {
+  constructor() {
+    super(
+      "The decision callback must select an ID with an exact target in this request's candidates",
+    );
+    this.name = "InvalidPromptLocatorSelectionError";
+  }
+}
+
+export class UnsupportedPromptLocatorError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedPromptLocatorError";
+  }
+}
+
 export class TimeoutError extends Error {
   constructor(operation: string, timeout: number) {
     super(`${operation} timed out after ${timeout}ms`);

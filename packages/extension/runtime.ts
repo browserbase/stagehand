@@ -143,6 +143,9 @@ import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
 import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
+import { resolvePromptLocator } from "./understudy/promptLocator.js";
+import type { ApcLocatorOperation } from "./understudy/annotatedPageContent/candidates.js";
+import type { ChainTarget } from "./understudy/locatorChain.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -1262,6 +1265,36 @@ export class StagehandRuntime {
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
     return this.resolvePage(params.pageId).deepLocator(params.selector);
+  }
+
+  async resolvePromptLocatorTarget(
+    params: LocatorDescriptor,
+    operation: ApcLocatorOperation,
+    progress: Progress,
+  ): Promise<ChainTarget | null> {
+    const state = this.state.getState();
+    if (state.status !== "initialized" || !state.initParams.decisionModel) {
+      throw new DecisionModelNotConfiguredError();
+    }
+    const assertActive = () => {
+      progress.throwIfStopped();
+      if (this.stagehandInstanceClosing || this.state.getState() !== state) {
+        throw new Error("Stagehand decision request is no longer active");
+      }
+    };
+    assertActive();
+    const target = await resolvePromptLocator(
+      this.resolveUnderstudyPage(params.pageId),
+      params.selector,
+      operation,
+      (request, parentProgress) => {
+        assertActive();
+        return this.chooseDecision(request, parentProgress);
+      },
+      progress,
+    );
+    assertActive();
+    return target;
   }
 
   clipboardOptions(pageId?: string): UnderstudyRuntimeClipboardOptions | undefined {
