@@ -145,7 +145,9 @@ import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
 import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
 import { resolvePromptLocator } from "./understudy/promptLocator.js";
 import type { ApcLocatorOperation } from "./understudy/annotatedPageContent/candidates.js";
-import type { ChainTarget } from "./understudy/locatorChain.js";
+import { ChainTargetLocator, type ChainTarget } from "./understudy/locatorChain.js";
+import { hasPromptSelector, assertDeterministicLocator } from "./understudy/locatorGuards.js";
+import { PromptLocatorNoMatchError, UnsupportedPromptLocatorError } from "./errors.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -378,6 +380,7 @@ export class StagehandRuntime {
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
   private readonly decisionControllers = new Set<AbortController>();
+  private readonly promptOperations = new Set<Progress>();
   private activeStagehandInstanceRequests = 0;
   private stagehandInstanceRequestsDrained?: {
     promise: Promise<void>;
@@ -878,6 +881,7 @@ export class StagehandRuntime {
     if (params.options) {
       const { mask, ...screenshotOptions } = params.options;
       const resolvedMask = mask?.map((descriptor) => {
+        assertDeterministicLocator(descriptor.selector, "screenshot masks");
         if (descriptor.pageId !== params.pageId) {
           throw new TypeError("page.screenshot: mask locators must belong to the target page");
         }
@@ -1014,20 +1018,31 @@ export class StagehandRuntime {
   }
 
   async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
-    await this.runLocator("locator.click", params, (locator, progress) =>
-      locator.click(params.options, progress),
+    await this.runLocator(
+      "locator.click",
+      params,
+      (locator, progress) => locator.click(params.options, progress),
+      "click",
     );
     return { clicked: true };
   }
 
   async locatorHover(params: LocatorParams): Promise<LocatorHoverResult> {
-    await this.runLocator("locator.hover", params, (locator, progress) => locator.hover(progress));
+    await this.runLocator(
+      "locator.hover",
+      params,
+      (locator, progress) => locator.hover(progress),
+      "hover",
+    );
     return { hovered: true };
   }
 
   async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
-    await this.runLocator("locator.fill", params, (locator, progress) =>
-      locator.fill(params.value, progress),
+    await this.runLocator(
+      "locator.fill",
+      params,
+      (locator, progress) => locator.fill(params.value, progress),
+      "fill",
     );
     return { filled: true };
   }
@@ -1075,8 +1090,11 @@ export class StagehandRuntime {
   }
 
   async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
-    await this.runLocator("locator.scroll_to", params, (locator, progress) =>
-      locator.scrollTo(params.percent, progress),
+    await this.runLocator(
+      "locator.scroll_to",
+      params,
+      (locator, progress) => locator.scrollTo(params.percent, progress),
+      "scrollTo",
     );
     return { scrolled: true };
   }
@@ -1097,46 +1115,59 @@ export class StagehandRuntime {
   async locatorSendClickEvent(
     params: LocatorSendClickEventParams,
   ): Promise<LocatorSendClickEventResult> {
-    await this.runLocator("locator.send_click_event", params, (locator, progress) =>
-      locator.sendClickEvent(params.options, progress),
+    await this.runLocator(
+      "locator.send_click_event",
+      params,
+      (locator, progress) => locator.sendClickEvent(params.options, progress),
+      "sendClickEvent",
     );
     return { clicked: true };
   }
 
   async locatorType(params: LocatorTypeParams): Promise<LocatorTypeResult> {
-    await this.runLocator("locator.type", params, (locator, progress) =>
-      locator.type(params.text, params.options, progress),
+    await this.runLocator(
+      "locator.type",
+      params,
+      (locator, progress) => locator.type(params.text, params.options, progress),
+      "type",
     );
     return { typed: true };
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
-    return await this.runLocator("locator.select_option", params, (locator, progress) =>
-      locator.selectOption(params.values, progress),
+    return await this.runLocator(
+      "locator.select_option",
+      params,
+      (locator, progress) => locator.selectOption(params.values, progress),
+      "selectOption",
     );
   }
 
   async locatorSetInputFiles(
     params: LocatorSetInputFilesParams,
   ): Promise<LocatorSetInputFilesResult> {
-    await this.runLocator("locator.set_input_files", params, (locator, progress) =>
-      locator.setInputFiles(
-        params.files.map((file) => {
-          progress.throwIfStopped();
-          const binary = globalThis.atob(file.data);
-          const buffer = new Uint8Array(binary.length);
-          for (let index = 0; index < binary.length; index += 1) {
-            buffer[index] = binary.charCodeAt(index);
-          }
-          return {
-            name: file.name,
-            mimeType: file.mimeType,
-            buffer,
-            lastModified: file.lastModified,
-          };
-        }),
-        progress,
-      ),
+    await this.runLocator(
+      "locator.set_input_files",
+      params,
+      (locator, progress) =>
+        locator.setInputFiles(
+          params.files.map((file) => {
+            progress.throwIfStopped();
+            const binary = globalThis.atob(file.data);
+            const buffer = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index += 1) {
+              buffer[index] = binary.charCodeAt(index);
+            }
+            return {
+              name: file.name,
+              mimeType: file.mimeType,
+              buffer,
+              lastModified: file.lastModified,
+            };
+          }),
+          progress,
+        ),
+      "setInputFiles",
     );
     return { set: true };
   }
@@ -1145,10 +1176,26 @@ export class StagehandRuntime {
     name: string,
     params: LocatorParams,
     action: (locator: UnderstudyRuntimeLocator, progress: Progress) => Promise<T> | T,
+    operation?: ApcLocatorOperation,
   ): Promise<T> {
     return runWithProgress(
       { name, timeout: params.options?.timeout ?? DEFAULT_LOCATOR_TIMEOUT_MS },
-      async (progress) => action(this.resolveLocator(params), progress),
+      async (progress) => {
+        if (!hasPromptSelector(params.selector))
+          return action(this.resolveLocator(params), progress);
+        if (!operation)
+          throw new UnsupportedPromptLocatorError(`Prompt selectors do not support ${name}`);
+        this.promptOperations.add(progress);
+        try {
+          const target = await this.resolvePromptLocatorTarget(params, operation, progress);
+          progress.throwIfStopped();
+          if (!target) throw new PromptLocatorNoMatchError();
+          const locator = new ChainTargetLocator(target, params.selector.steps.at(-1)!.selector);
+          return await action(locator, progress);
+        } finally {
+          this.promptOperations.delete(progress);
+        }
+      },
     );
   }
 
@@ -1204,6 +1251,10 @@ export class StagehandRuntime {
   }
 
   private cancelDecisions(): void {
+    for (const progress of this.promptOperations) {
+      progress.abort(new Error("Stagehand prompt locator operation is no longer active"));
+    }
+    this.promptOperations.clear();
     for (const controller of this.decisionControllers) {
       controller.abort(new Error("Stagehand decision request is no longer active"));
     }
@@ -1264,6 +1315,7 @@ export class StagehandRuntime {
   }
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+    assertDeterministicLocator(params.selector, "this locator operation");
     return this.resolvePage(params.pageId).deepLocator(params.selector);
   }
 

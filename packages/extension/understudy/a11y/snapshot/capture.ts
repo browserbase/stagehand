@@ -1,3 +1,4 @@
+import { assertDeterministicLocator } from "../../locatorGuards.js";
 import { resolveLocatorChain } from "../../locatorChain.js";
 import type { Protocol } from "devtools-protocol";
 import type { Locator } from "@browserbasehq/stagehand-protocol/types";
@@ -55,6 +56,11 @@ export async function captureHybridSnapshot(
   logger: StagehandLogger = page.logger,
 ): Promise<HybridSnapshot> {
   progress.throwIfStopped();
+  if (options?.focusLocator)
+    assertDeterministicLocator(options.focusLocator.selector, "snapshot scopes");
+  for (const locator of options?.ignoreLocators ?? []) {
+    assertDeterministicLocator(locator.selector, "snapshot exclusions");
+  }
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
   const hasIgnoreLocators = (options?.ignoreLocators?.length ?? 0) > 0;

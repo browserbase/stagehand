@@ -1,3 +1,4 @@
+import { assertDeterministicLocatorOptions } from "../understudy/locatorGuards.js";
 import { z } from "zod/v4";
 import type {
   ClientModelReference,
@@ -51,6 +52,7 @@ type ExtractServiceOptions = {
 };
 
 export async function extract(options: ExtractServiceOptions): Promise<ExtractResult> {
+  assertDeterministicLocatorOptions(options.params.options);
   return runWithProgress(
     options.progress ?? { name: "extract()", timeout: options.params.options?.timeout ?? 0 },
     (progress) => extractWithProgress(options, progress),

@@ -31,6 +31,12 @@ export class Progress {
     return this.controller.signal;
   }
 
+  /** Stop downstream work when the owning instance is disposed. */
+  abort(reason: Error): void {
+    this.dispose();
+    this.controller.abort(reason);
+  }
+
   remainingMs(): number {
     return this.deadline === null ? Infinity : Math.max(0, this.deadline - performance.now());
   }

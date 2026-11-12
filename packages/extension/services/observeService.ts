@@ -1,3 +1,4 @@
+import { assertDeterministicLocatorOptions } from "../understudy/locatorGuards.js";
 import type {
   Action,
   ClientModelReference,
@@ -34,6 +35,7 @@ type ObserveServiceOptions = {
 };
 
 export async function observe(options: ObserveServiceOptions): Promise<ObserveResult> {
+  assertDeterministicLocatorOptions(options.params.options);
   return runWithProgress(
     options.progress ?? { name: "observe()", timeout: options.params.options?.timeout ?? 0 },
     (progress) => observeWithProgress(options, progress),

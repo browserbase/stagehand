@@ -50,7 +50,12 @@ const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Play
 export class Locator {
   readonly selectorResolver: FrameSelectorResolver;
 
-  readonly selectorQuery: SelectorQuery;
+  private parsedSelectorQuery?: SelectorQuery;
+
+  // Exact-target locators resolve by node identity and never parse their description.
+  get selectorQuery(): SelectorQuery {
+    return (this.parsedSelectorQuery ??= FrameSelectorResolver.parseSelector(this.selector));
+  }
 
   // -1 means "no explicit nth()"; default locator resolves to first match for actions.
   readonly nthIndex: number;
@@ -62,7 +67,6 @@ export class Locator {
     nthIndex: number = -1,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
-    this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
     const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
     this.nthIndex = normalized < 0 ? -1 : normalized;
   }

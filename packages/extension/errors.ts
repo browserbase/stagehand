@@ -16,6 +16,13 @@ export class PromptLocatorRefusedError extends Error {
   }
 }
 
+export class PromptLocatorNoMatchError extends Error {
+  constructor() {
+    super("Could not find an element matching the prompt locator");
+    this.name = "PromptLocatorNoMatchError";
+  }
+}
+
 export class InvalidPromptLocatorSelectionError extends Error {
   constructor() {
     super(

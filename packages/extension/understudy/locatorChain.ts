@@ -165,6 +165,32 @@ export class ChainTargetLocator extends Locator {
           : undefined,
     );
     if (!object.objectId) throw new Error("Locator chain target is no longer attached");
+    if (typeof this.selector !== "string" && this.selector.type === "prompt") {
+      try {
+        const attached = await runLocatorStep(progress, "checking prompt target attachment", () =>
+          this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
+            "Runtime.callFunctionOn",
+            {
+              objectId: object.objectId,
+              functionDeclaration:
+                "function() { return this.isConnected && this.nodeType === Node.ELEMENT_NODE; }",
+              returnByValue: true,
+            },
+          ),
+        );
+        if (attached.exceptionDetails || attached.result.value !== true) {
+          throw new Error("Prompt locator target is no longer attached");
+        }
+      } catch (error) {
+        const release = () =>
+          this.frame.session
+            .send("Runtime.releaseObject", { objectId: object.objectId })
+            .catch(() => {});
+        if (progress) await progress.cleanup(release);
+        else await release();
+        throw error;
+      }
+    }
     return { objectId: object.objectId, nodeId: null };
   }
 

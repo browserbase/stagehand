@@ -1,3 +1,4 @@
+import { assertDeterministicLocatorOptions } from "../understudy/locatorGuards.js";
 import type {
   ActResult,
   ActResultData,
@@ -60,6 +61,7 @@ type ActServiceOptions = {
 };
 
 export async function act(options: ActServiceOptions): Promise<ActResult> {
+  assertDeterministicLocatorOptions(options.params.options);
   return runWithProgress(
     options.progress ?? { name: "act()", timeout: options.params.options?.timeout ?? 0 },
     (progress) => actWithProgress(options, progress),
