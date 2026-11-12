@@ -13,6 +13,25 @@ export function formatAnnotatedPageContent(query: ApcQueryResult, progress?: Pro
   return lines.join("\n");
 }
 
+/** A standalone choice description; the caller carries its ID separately. */
+export function formatAnnotatedPageContentCandidate(
+  node: ApcQueryNode,
+  progress?: Progress,
+): string {
+  const attributes = node.source.contentAttributes;
+  const label =
+    node.label ??
+    (isRedacted(attributes)
+      ? undefined
+      : (attributes?.textData?.textContent ??
+        attributes?.svgRootData?.innerText ??
+        attributes?.imageData?.imageCaption ??
+        attributes?.tableData?.tableName));
+  const lines: string[] = [];
+  appendNode(lines, { ...node, label }, true, undefined, progress);
+  return lines.join("\n");
+}
+
 function appendNode(
   lines: string[],
   node: ApcQueryNode,

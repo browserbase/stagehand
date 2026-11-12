@@ -5,6 +5,9 @@ import {
   captureAnnotatedPageContent,
   formatAnnotatedPageContent,
   queryAnnotatedPageContent,
+  queryAnnotatedPageContentCandidates,
+  type ApcCandidateOptions,
+  type ApcCandidateResult,
   type ApcQueryOptions,
   type ApcQueryResult,
   type AnnotatedPageContent,
@@ -2343,6 +2346,16 @@ export class Page {
   ): Promise<ApcQueryResult> {
     return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
       queryAnnotatedPageContent(this, options, progress),
+    );
+  }
+
+  /** Prepare operation-specific choices without making a model request. */
+  async queryAnnotatedPageContentCandidates(
+    options: ApcCandidateOptions = {},
+    parentProgress?: Progress,
+  ): Promise<ApcCandidateResult> {
+    return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
+      queryAnnotatedPageContentCandidates(this, options, progress),
     );
   }
 

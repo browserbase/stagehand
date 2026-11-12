@@ -42,6 +42,18 @@ describe("APC locator scopes in Chromium", () => {
         <iframe id="cross" src="http://localhost:${port}/child"></iframe>
       </div>
       <div id="closed"></div>
+      <section id="native">
+        <label for="resume">Resume PDF</label>
+        <input id="resume" name="resume" type="file" accept=".pdf,application/pdf" multiple>
+        <label>Portrait<input name="portrait" type="file" accept="image/*"></label>
+        <div id="hidden-uploads">
+        <label for="hidden-upload">Hidden attachments</label>
+        <input id="hidden-upload" name="hidden-upload" type="file" hidden multiple>
+        <input name="display-none-upload" type="file" style="display:none">
+        </div>
+        <label>Plan<select name="plan"><option value="basic" selected>Basic</option><option value="pro">Pro</option><option disabled value="closed">Closed</option></select></label>
+        <label>Add-ons<select name="addons" multiple><option value="a">Alpha</option><option value="b">Beta</option></select></label>
+      </section>
       <script>
         document.querySelector("#shadow").attachShadow({mode:"open"}).innerHTML =
           '<div id="inner"><input name="shadow"></div>';
@@ -217,5 +229,128 @@ describe("APC locator scopes in Chromium", () => {
         frames.map((frame) => frame.frameId),
       );
     });
+  });
+
+  it("prepares upload choices with labels and constraints, then uses normal file assignment", async () => {
+    const capture = vi.spyOn(page, "captureAnnotatedPageContent");
+    try {
+      const result = await page.queryAnnotatedPageContentCandidates({ operation: "setInputFiles" });
+      expect(capture).toHaveBeenCalledTimes(1);
+      expect(result.candidates).toHaveLength(2);
+      expect(result.limitations).toContain("hidden-file-inputs");
+      const resume = result.candidates.find((candidate) =>
+        candidate.description.includes("Resume PDF"),
+      )!;
+      const portrait = result.candidates.find((candidate) =>
+        candidate.description.includes("Portrait"),
+      )!;
+      expect(resume.description).toContain('accept=".pdf,application/pdf"');
+      expect(resume.description).toContain("multiple");
+      expect(portrait.description).toContain('accept="image/*"');
+      expect(portrait.description).not.toContain("multiple");
+      expect(result.unresolvedCount).toBe(0);
+      const locator = new ChainTargetLocator(result.targetsById.get(resume.id)!, {
+        type: "css",
+        value: "#resume",
+      });
+      await locator.setInputFiles([
+        { name: "one.pdf", mimeType: "application/pdf", buffer: new TextEncoder().encode("one") },
+        { name: "two.pdf", mimeType: "application/pdf", buffer: new TextEncoder().encode("two") },
+      ]);
+      expect(
+        await page.evaluate(() =>
+          Array.from(
+            document.querySelector<HTMLInputElement>("#resume")!.files!,
+            (file) => file.name,
+          ),
+        ),
+      ).toEqual(["one.pdf", "two.pdf"]);
+      expect(capture).toHaveBeenCalledTimes(1);
+      await locator.setInputFiles([]);
+      expect(
+        await page.evaluate(
+          () => document.querySelector<HTMLInputElement>("#resume")!.files!.length,
+        ),
+      ).toBe(0);
+    } finally {
+      capture.mockRestore();
+    }
+  });
+
+  it("reports incomplete hidden-upload discovery instead of treating it as a definitive no match", async () => {
+    await runWithProgress({ name: "hidden upload", timeout: 10_000 }, async (progress) => {
+      const [root] = await resolveLocatorChain(
+        page,
+        page.mainFrame(),
+        {
+          steps: [{ type: "query", selector: { type: "css", value: "#hidden-uploads" } }],
+        },
+        progress,
+      );
+      const result = await page.queryAnnotatedPageContentCandidates(
+        {
+          operation: "setInputFiles",
+          scopes: [{ type: "element", target: root! }],
+        },
+        progress,
+      );
+      expect(result.candidates).toEqual([]);
+      expect(result.unresolvedCount).toBe(0);
+      expect(result.limitations).toContain("hidden-file-inputs");
+      // Both omitted controls are nevertheless usable by the ordinary upload action.
+      for (const name of ["hidden-upload", "display-none-upload"]) {
+        const selector = { type: "css" as const, value: 'input[name="' + name + '"]' };
+        const [target] = await resolveLocatorChain(
+          page,
+          page.mainFrame(),
+          {
+            steps: [{ type: "query", selector }],
+          },
+          progress,
+        );
+        await new ChainTargetLocator(target!, selector).setInputFiles(
+          {
+            name: "hidden.txt",
+            mimeType: "text/plain",
+            buffer: new TextEncoder().encode("hidden"),
+          },
+          progress,
+        );
+      }
+      expect(
+        await page.evaluate(() =>
+          Array.from(
+            document.querySelectorAll<HTMLInputElement>("#hidden-uploads input"),
+            (input) => input.files![0]?.name,
+          ),
+        ),
+      ).toEqual(["hidden.txt", "hidden.txt"]);
+    });
+  });
+
+  it("prepares native single and multiple select choices with option values and selected state", async () => {
+    const result = await page.queryAnnotatedPageContentCandidates({ operation: "selectOption" });
+    expect(result.candidates).toHaveLength(2);
+    const single = result.candidates.find((candidate) =>
+      candidate.description.startsWith("select_one"),
+    )!;
+    const multiple = result.candidates.find((candidate) =>
+      candidate.description.startsWith("select_multiple"),
+    )!;
+    expect(single.description).toContain('option: "Basic" [value="basic"; selected]');
+    expect(single.description).toContain('option: "Pro" [value="pro"; unselected]');
+    expect(multiple.description).toContain('option: "Alpha" [value="a"; unselected]');
+    expect(result.limitations).toContain("select-option-disabled-state");
+    expect(single.description).not.toContain("disabled");
+    const select = new ChainTargetLocator(result.targetsById.get(single.id)!, {
+      type: "css",
+      value: "select",
+    });
+    expect(await select.selectOption("pro")).toEqual(["pro"]);
+    const multiSelect = new ChainTargetLocator(result.targetsById.get(multiple.id)!, {
+      type: "css",
+      value: "select",
+    });
+    expect(await multiSelect.selectOption(["a", "b"])).toEqual(["a", "b"]);
   });
 });

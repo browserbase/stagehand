@@ -21,6 +21,8 @@ export type ApcQueryResult = {
   /** Resolved identities for retained nodes; eligibility is recorded on each node. */
   targetsById: ReadonlyMap<string, ApcTarget>;
   filtered: boolean;
+  /** Potential matches lacking identity before scope membership can be established. */
+  unresolvedCount: number;
 };
 
 /** Capture once so the filtered content and executable identities describe the same nodes. */
@@ -53,5 +55,10 @@ export function prepareAnnotatedPageContentQuery(
     if (target) targetsById.set(target.id, target);
   }
   progress?.throwIfStopped();
-  return { nodes, targetsById, filtered: actions.length > 0 };
+  return {
+    nodes,
+    targetsById,
+    filtered: actions.length > 0,
+    unresolvedCount: nodes.filter((node) => node.id === undefined).length,
+  };
 }

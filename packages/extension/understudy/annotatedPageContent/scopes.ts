@@ -74,7 +74,12 @@ export async function scopeAnnotatedPageContent(
     targetsById.set(target.id, target);
     return true;
   });
-  return { ...query, nodes, targetsById };
+  return {
+    ...query,
+    nodes,
+    targetsById,
+    unresolvedCount: scopes.length === 0 ? 0 : query.unresolvedCount,
+  };
 }
 
 /** Check actual DOM ancestry, crossing shadow roots but never frame documents. */

@@ -35,3 +35,9 @@ export { queryAnnotatedPageContent, type ApcQueryOptions, type ApcQueryResult } 
 export { formatAnnotatedPageContent } from "./format.js";
 export type { ApcAction } from "./actions.js";
 export type { ApcScope } from "./scopes.js";
+
+export {
+  queryAnnotatedPageContentCandidates,
+  type ApcCandidateOptions,
+  type ApcCandidateResult,
+} from "./candidates.js";

@@ -53,6 +53,8 @@ describe("APC scopes", () => {
         progress,
       );
       expect(result.nodes.map((node) => node.id)).toEqual(["0-42", "1-42"]);
+      expect(result.unresolvedCount).toBe(1);
+      expect((await scopeAnnotatedPageContent(page, query, [], progress)).unresolvedCount).toBe(0);
       expect([...result.targetsById.keys()]).toEqual(["0-42", "1-42"]);
       expect((await scopeAnnotatedPageContent(page, query, [], progress)).nodes).toEqual([]);
       expect(
