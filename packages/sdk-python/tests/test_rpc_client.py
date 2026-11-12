@@ -17,6 +17,7 @@ from typing_extensions import override
 
 from stagehand import rpc_client
 from stagehand._generated import models
+from stagehand.decision_context import DecisionContext
 from stagehand.decision_rpc import register_decision_handler
 from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
@@ -83,7 +84,7 @@ async def test_decision_handler_roundtrips_outcomes_and_can_be_removed(wire_resu
     client = RPCClient(transport)
 
     async def choose(
-        params: models.DecisionChooseParams, context: rpc_client.RPCRequestContext
+        params: models.DecisionChooseParams, context: DecisionContext
     ) -> models.DecisionChooseResult:
         assert (
             params.model_dump(mode="json", exclude_unset=True) == DECISION_WIRE_FIXTURES["params"]
@@ -122,7 +123,7 @@ async def test_decision_handler_rejects_a_selection_outside_the_original_candida
     client = RPCClient(transport)
 
     def choose(
-        params: models.DecisionChooseParams, context: rpc_client.RPCRequestContext
+        params: models.DecisionChooseParams, context: DecisionContext
     ) -> models.DecisionChooseResult:
         params.candidates.append(models.DecisionCandidate(id="injected", description="New node"))
         return models.DecisionChooseResult(
@@ -1161,3 +1162,156 @@ async def test_close_suppresses_late_handler_result_or_error(fail: bool) -> None
     finally:
         await client.close()
     assert not transport.sent
+
+
+async def test_decision_cancellation_isolates_requests_and_rejects_late_selection() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+    release_first = asyncio.Event()
+    release_second = asyncio.Event()
+    finished_first = asyncio.Event()
+    contexts: dict[int, DecisionContext] = {}
+
+    async def choose(
+        params: models.DecisionChooseParams, context: DecisionContext
+    ) -> models.DecisionChooseResult:
+        contexts[context.request_id] = context
+        if len(contexts) == 2:
+            started.set()
+        if context.request_id == 1:
+            try:
+                await release_first.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                # Simulate a provider that finishes despite cancellation.
+                try:
+                    await release_first.wait()
+                except asyncio.CancelledError:
+                    pass
+            finally:
+                finished_first.set()
+        else:
+            await release_second.wait()
+        return models.DecisionChooseResult(
+            root=models.DecisionSelectedResult(status="selected", id="0-1")
+        )
+
+    register_decision_handler(client, choose)
+    try:
+        for request_id in (1, 2):
+            await transport.incoming.put({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "decision.choose",
+                "params": {"prompt": "Save", "candidates": [{"id": "0-1", "description": "Save"}]},
+            })
+        await asyncio.wait_for(started.wait(), 1)
+        assert contexts[1].remaining_ms() == float("inf")
+        for request_id in (999, 1):
+            await transport.incoming.put({
+                "jsonrpc": "2.0",
+                "method": "decision.cancel",
+                "params": {"request_id": request_id, "reason": "cancelled"},
+            })
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert response["id"] == 1
+        assert "error" in response
+        await asyncio.wait_for(cancelled.wait(), 1)
+        assert transport.outgoing.empty()
+        release_first.set()
+        release_second.set()
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert response == {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {"status": "selected", "id": "0-1"},
+        }
+        await asyncio.wait_for(finished_first.wait(), 1)
+        assert transport.outgoing.empty()
+    finally:
+        release_first.set()
+        release_second.set()
+        await client.close()
+
+
+@pytest.mark.parametrize("stop", ["timeout", "remove", "disconnect"])
+async def test_decision_callback_stops_on_timeout_removal_or_disconnect(stop: str) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def choose(
+        params: models.DecisionChooseParams, context: DecisionContext
+    ) -> models.DecisionChooseResult:
+        assert (
+            0 < context.remaining_ms() <= 50
+            if stop == "timeout"
+            else context.remaining_ms() == float("inf")
+        )
+        started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            cancelled.set()
+        raise AssertionError("Cancellation must prevent completion")
+
+    remove = register_decision_handler(client, choose)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "decision.choose",
+            "params": {
+                "prompt": "Save",
+                "candidates": [{"id": "0-1", "description": "Save"}],
+                **({"timeout_ms": 50} if stop == "timeout" else {}),
+            },
+        })
+        await asyncio.wait_for(started.wait(), 1)
+        if stop == "remove":
+            remove()
+        elif stop == "disconnect":
+            await client.close(RuntimeError("Disconnected"))
+        if stop != "disconnect":
+            response = await asyncio.wait_for(transport.outgoing.get(), 1)
+            assert response["id"] == 1
+            assert "error" in response
+        await asyncio.wait_for(cancelled.wait(), 1)
+        if stop == "disconnect":
+            assert transport.outgoing.empty()
+    finally:
+        await client.close()
+
+
+async def test_decision_with_exhausted_budget_does_not_invoke_callback() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    called = False
+
+    async def choose(
+        params: models.DecisionChooseParams, context: DecisionContext
+    ) -> models.DecisionChooseResult:
+        nonlocal called
+        called = True
+        return models.DecisionChooseResult(root=models.DecisionNoMatchResult(status="no_match"))
+
+    register_decision_handler(client, choose)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "decision.choose",
+            "params": {
+                "prompt": "Save",
+                "candidates": [{"id": "0-1", "description": "Save"}],
+                "timeout_ms": 0,
+            },
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), 1)
+        assert "error" in response
+        assert not called
+    finally:
+        await client.close()

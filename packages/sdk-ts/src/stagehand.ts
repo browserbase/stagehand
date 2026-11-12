@@ -218,8 +218,8 @@ export class Stagehand {
       }
       const decisionModel = createConfig.decisionModel;
       if (decisionModel) {
-        this.removeDecisionHandler = registerDecisionHandler(rpcClient, (params) =>
-          decisionModel.choose(params),
+        this.removeDecisionHandler = registerDecisionHandler(rpcClient, (params, context) =>
+          decisionModel.choose(params, context),
         );
       }
 

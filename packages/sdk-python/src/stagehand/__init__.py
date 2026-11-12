@@ -93,6 +93,7 @@ from .client_types import (
     LocatorSelector,
     StagehandClientLoggingConfig,
 )
+from .decision_context import DecisionContext
 from .extension_assets import get_extension_archive
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
@@ -114,6 +115,7 @@ from .webmcp import (
 )
 
 __all__ = [
+    "DecisionContext",
     "ClientDecisionModel",
     "DecisionCandidate",
     "DecisionChooseParams",

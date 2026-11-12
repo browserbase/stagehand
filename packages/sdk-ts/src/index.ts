@@ -163,3 +163,4 @@ export {
 } from "./clientSchemas.js";
 
 export { getExtensionArchive } from "./extensionAssets.js";
+export type { DecisionContext } from "./decisionRpc.js";

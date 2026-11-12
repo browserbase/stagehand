@@ -303,7 +303,10 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
-  clientDecisionChoose?: (params: DecisionChooseParams) => Promise<DecisionChooseResult>;
+  clientDecisionChoose?: (
+    params: DecisionChooseParams,
+    signal: AbortSignal,
+  ) => Promise<DecisionChooseResult>;
   clientBrowserbaseRequest?: ClientBrowserbaseRequest;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
   emitPageEvent?: (notification: PageEventNotification) => void;
@@ -371,6 +374,7 @@ export class StagehandRuntime {
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
+  private readonly decisionControllers = new Set<AbortController>();
   private activeStagehandInstanceRequests = 0;
   private stagehandInstanceRequestsDrained?: {
     promise: Promise<void>;
@@ -558,13 +562,46 @@ export class StagehandRuntime {
     return runWithProgress(
       parentProgress ?? { name: "decision", timeout: DEFAULT_LOCATOR_TIMEOUT_MS },
       async (progress) => {
-        const result = await progress.run("choosing a locator candidate", () =>
-          this.adapters.clientDecisionChoose(params),
-        );
         if (this.stagehandInstanceClosing || this.state.getState() !== state) {
           throw new Error("Stagehand decision request is no longer active");
         }
-        return resultSchema.parse(result);
+        const controller = new AbortController();
+        this.decisionControllers.add(controller);
+        const signal = AbortSignal.any([progress.signal, controller.signal]);
+        let onAbort: (() => void) | undefined;
+        try {
+          const result = await progress.run("choosing a locator candidate", () => {
+            signal.throwIfAborted();
+            const stopped = new Promise<never>((_, reject) => {
+              onAbort = () => reject(signal.reason);
+              signal.addEventListener("abort", onAbort, { once: true });
+            });
+            const remaining = progress.remainingMs();
+            // Always use the owning operation's clock, not a fresh callback timeout.
+            const { timeoutMs: _timeoutMs, ...input } = params;
+            return Promise.race([
+              Promise.resolve().then(() => {
+                signal.throwIfAborted();
+                return this.adapters.clientDecisionChoose(
+                  {
+                    ...input,
+                    ...(Number.isFinite(remaining) ? { timeoutMs: remaining } : {}),
+                  },
+                  signal,
+                );
+              }),
+              stopped,
+            ]);
+          });
+          signal.throwIfAborted();
+          if (this.stagehandInstanceClosing || this.state.getState() !== state) {
+            throw new Error("Stagehand decision request is no longer active");
+          }
+          return resultSchema.parse(result);
+        } finally {
+          if (onAbort) signal.removeEventListener("abort", onAbort);
+          this.decisionControllers.delete(controller);
+        }
       },
     );
   }
@@ -1113,6 +1150,7 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
+    this.cancelDecisions();
     await this.enqueueLifecycle(async () => {
       this.clearStagehandInstance();
       await this.disconnectBrowser();
@@ -1125,6 +1163,7 @@ export class StagehandRuntime {
     if (this.stagehandInstanceDisposal) return await this.stagehandInstanceDisposal;
 
     this.stagehandInstanceClosing = true;
+    this.cancelDecisions();
     const disposal = this.enqueueLifecycle(async () => {
       // Pending registrations must release their request leases before disposal can drain them.
       this.disposeAllPageEventSubscriptions();
@@ -1161,7 +1200,15 @@ export class StagehandRuntime {
     };
   }
 
+  private cancelDecisions(): void {
+    for (const controller of this.decisionControllers) {
+      controller.abort(new Error("Stagehand decision request is no longer active"));
+    }
+    this.decisionControllers.clear();
+  }
+
   private clearStagehandInstance(): void {
+    this.cancelDecisions();
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();

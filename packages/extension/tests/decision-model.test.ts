@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { requestDecision } from "../clients/decisionClient.js";
+import { Progress } from "../understudy/progress.js";
 import {
   StagehandInitParamsSchema,
   STAGEHAND_PROTOCOL_VERSION,
@@ -20,48 +21,60 @@ const initParams = StagehandInitParamsSchema.parse({
   decisionModel: { source: "client" },
 });
 
+function createDecisionHarness(choose: Parameters<typeof registerDecisionHandler>[1]) {
+  const sdkTransport: CDPTransport = {
+    serviceWorker: {
+      targetId: "test",
+      url: "chrome-extension://test",
+      title: "test",
+      extensionId: "test",
+    },
+    send: async (message) => transport.receive(JSON.stringify(message)),
+    close: () => {},
+  };
+  const client = new RPCClient(sdkTransport);
+  const transport = new ChromeRuntimeClient(
+    {
+      send: (raw: string) => {
+        void sdkTransport.onmessage?.(JSON.parse(raw));
+      },
+    },
+    "send",
+  );
+  const runtime = createStagehandRuntime({
+    clientDecisionChoose: (input, signal) => requestDecision(rpc, input, signal),
+  });
+  const rpc = new workerRpc.RPCClient(transport, new RPCRouter(runtime));
+  runtime.state.setState({ status: "initialized", initParams }, true);
+  const remove = registerDecisionHandler(client, choose);
+  return {
+    runtime,
+    rpc,
+    client,
+    close: () => {
+      remove();
+      client.close();
+      rpc.close();
+    },
+  };
+}
+
 describe("client decision worker adapter", () => {
   it.each<DecisionChooseResult>([
     { status: "selected", id: "0-1", usage: { inputTokens: 4 }, diagnostics: { keep_this: true } },
     { status: "no_match" },
     { status: "refused" },
   ])("returns $status through the worker and SDK RPC clients", async (result) => {
-    const sdkTransport: CDPTransport = {
-      serviceWorker: {
-        targetId: "test",
-        url: "chrome-extension://test",
-        title: "test",
-        extensionId: "test",
-      },
-      send: async (message) => transport.receive(JSON.stringify(message)),
-      close: () => {},
-    };
-    const client = new RPCClient(sdkTransport);
-    const transport = new ChromeRuntimeClient(
-      {
-        send: (raw: string) => {
-          void sdkTransport.onmessage?.(JSON.parse(raw));
-        },
-      },
-      "send",
-    );
-    const runtime = createStagehandRuntime({
-      clientDecisionChoose: (input) => rpc.send(StagehandMethods.decisionChoose, input),
-    });
-    const rpc = new workerRpc.RPCClient(transport, new RPCRouter(runtime));
-    runtime.state.setState({ status: "initialized", initParams }, true);
     const choose = vi.fn(async () => result);
-    const remove = registerDecisionHandler(client, choose);
+    const { runtime, close } = createDecisionHarness(choose);
     try {
       await expect(runtime.chooseDecision(params)).resolves.toEqual(result);
       expect(choose).toHaveBeenCalledExactlyOnceWith(
-        params,
+        expect.objectContaining(params),
         expect.objectContaining({ requestId: 1 }),
       );
     } finally {
-      remove();
-      client.close();
-      rpc.close();
+      close();
     }
   });
 
@@ -115,4 +128,97 @@ describe("client decision worker adapter", () => {
     complete({ status: "selected", id: "0-1" });
     await expect(pending).rejects.toThrow("no longer active");
   });
+});
+
+describe("decision operation lifecycle", () => {
+  it("does not dispatch a decision after disposal starts", async () => {
+    const choose = vi.fn(async (): Promise<DecisionChooseResult> => ({ status: "no_match" }));
+    const h = createDecisionHarness(choose);
+    try {
+      const pending = h.runtime.chooseDecision(params);
+      const rejected = expect(pending).rejects.toThrow("no longer active");
+      await h.runtime.disposeStagehandInstance();
+      await rejected;
+      expect(choose).not.toHaveBeenCalled();
+      expect(h.rpc.pending.size).toBe(0);
+    } finally {
+      h.close();
+    }
+  });
+
+  it("passes the remaining operation budget and cancels only the expired request", async () => {
+    vi.useFakeTimers();
+    const firstProgress = new Progress("first", 100);
+    const secondProgress = new Progress("second", 0);
+    const started = Promise.withResolvers<void>();
+    const completions = [
+      Promise.withResolvers<DecisionChooseResult>(),
+      Promise.withResolvers<DecisionChooseResult>(),
+    ];
+    const signals: AbortSignal[] = [];
+    const budgets: (number | undefined)[] = [];
+    const h = createDecisionHarness(async (input, context) => {
+      const index = signals.length;
+      signals.push(context.signal);
+      budgets.push(input.timeoutMs);
+      if (signals.length === 2) started.resolve();
+      return completions[index]!.promise;
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(40);
+      const first = h.runtime.chooseDecision(params, firstProgress);
+      const rejected = expect(first).rejects.toThrow("timed out");
+      const second = h.runtime.chooseDecision(params, secondProgress);
+      await started.promise;
+      expect(budgets[0]).toBeGreaterThan(0);
+      expect(budgets[0]).toBeLessThanOrEqual(60);
+      expect(budgets[1]).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(61);
+      await rejected;
+      expect(signals[0]!.aborted).toBe(true);
+      expect(signals[1]!.aborted).toBe(false);
+      expect(h.rpc.pending.size).toBe(1);
+      completions[0]!.resolve({ status: "selected", id: "0-1" });
+      completions[1]!.resolve({ status: "no_match" });
+      await expect(second).resolves.toEqual({ status: "no_match" });
+      expect(h.rpc.pending.size).toBe(0);
+    } finally {
+      h.close();
+      firstProgress.dispose();
+      secondProgress.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["dispose", "disconnect"] as const)(
+    "releases pending requests on %s",
+    async (operation) => {
+      const started = Promise.withResolvers<AbortSignal>();
+      const completion = Promise.withResolvers<DecisionChooseResult>();
+      const h = createDecisionHarness(async (_, context) => {
+        started.resolve(context.signal);
+        return completion.promise;
+      });
+      const progress = new Progress("decision", 0);
+      const release = h.runtime.acquireStagehandInstanceRequest();
+      try {
+        const pending = h.runtime.chooseDecision(params, progress).finally(release);
+        const rejected = expect(pending).rejects.toThrow();
+        const signal = await started.promise;
+        if (operation === "dispose") await h.runtime.disposeStagehandInstance();
+        else {
+          h.client.close();
+          h.rpc.releaseClient();
+        }
+        await rejected;
+        expect(signal.aborted).toBe(true);
+        expect(h.rpc.pending.size).toBe(0);
+        completion.resolve({ status: "selected", id: "0-1" });
+      } finally {
+        h.close();
+        progress.dispose();
+        release();
+      }
+    },
+  );
 });

@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod/v4";
+import type { DecisionContext } from "./decisionRpc.js";
 import type Browserbase from "@browserbasehq/sdk";
 import type { ClientOptions } from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
@@ -293,7 +294,7 @@ export const ClientLLMSchema = z
 export const ClientDecisionModelSchema = z
   .strictObject({
     choose: z.function({
-      input: [DecisionChooseParamsSchema],
+      input: [DecisionChooseParamsSchema, z.custom<DecisionContext>()],
       output: z.promise(DecisionChooseResultSchema),
     }),
   })

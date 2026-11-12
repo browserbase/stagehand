@@ -1262,6 +1262,9 @@ export const DecisionChooseParamsSchema = z
   .strictObject({
     prompt: z.string().min(1),
     action: ApcActionSchema.optional(),
+    timeoutMs: z.number().nonnegative().optional().meta({
+      description: "Remaining operation budget in milliseconds; omitted when unlimited",
+    }),
     candidates: z.array(DecisionCandidateSchema).min(1).meta({
       description:
         "Candidates in capture order, with unique IDs; provider limits belong in the callback",
@@ -1281,6 +1284,16 @@ export const DecisionChooseParamsSchema = z
     }
   })
   .meta({ id: "DecisionChooseParams" });
+
+export const DecisionCancelParamsSchema = z
+  .strictObject({
+    requestId: JSONRPCRequestIdSchema,
+    reason: z.enum(["cancelled", "timeout"]),
+  })
+  .meta({
+    id: "DecisionCancelParams",
+    description: "Cancel decision.choose on the same connection; ignore completed or unknown IDs",
+  });
 
 /** Providers may report only the usage fields they actually measure. */
 export const DecisionUsageSchema = z

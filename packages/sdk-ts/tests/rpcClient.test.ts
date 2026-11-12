@@ -99,6 +99,7 @@ describe("client decision registration", () => {
         expect(choose).toHaveBeenCalledExactlyOnceWith(decisionFixture.params, {
           requestId: 42,
           signal: expect.any(AbortSignal),
+          remainingMs: expect.any(Function),
         });
         expect(cdp.sent[0]).toEqual({ jsonrpc: "2.0", id: 42, result: wireResult });
         remove();

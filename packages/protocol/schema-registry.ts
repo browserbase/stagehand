@@ -35,6 +35,7 @@ import {
   ContextVoidResultSchema,
   EmptyParamsSchema,
   DecisionChooseParamsSchema,
+  DecisionCancelParamsSchema,
   DecisionChooseResultSchema,
   ExtractResultSchema,
   LocatorClickParamsSchema,
@@ -573,6 +574,11 @@ export const StagehandRpcRequestSchema = z
   .meta({ id: "StagehandRpcRuntimeRequest" });
 
 export const StagehandNotifications = {
+  decisionCancel: {
+    name: "decision.cancel",
+    params: DecisionCancelParamsSchema,
+    paramsWire: undefined,
+  },
   browserbaseCancel: {
     name: "browserbase.cancel",
     params: BrowserbaseCancelParamsSchema,

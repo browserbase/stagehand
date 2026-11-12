@@ -71,10 +71,11 @@ from .client_types import (
     LLMGenerateCallback,
     StagehandClientLoggingConfig,
 )
+from .decision_context import DecisionContext
 from .decision_rpc import register_decision_handler
 from .locator import Locator
 from .page import Page
-from .rpc_client import RPCClient, RPCError, RPCRequestContext
+from .rpc_client import RPCClient, RPCError
 from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
@@ -302,9 +303,9 @@ class Stagehand:
         if decision_model is not None:
 
             async def choose(
-                params: DecisionChooseParams, _context: RPCRequestContext
+                params: DecisionChooseParams, context: DecisionContext
             ) -> DecisionChooseResult:
-                return DecisionChooseResult(root=await decision_model.choose(params))
+                return DecisionChooseResult(root=await decision_model.choose(params, context))
 
             self._remove_decision_handler = register_decision_handler(rpc_client, choose)
 

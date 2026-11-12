@@ -10,6 +10,7 @@ import type {
   ClientDecisionModelReferenceSchema,
   DecisionCandidateSchema,
   DecisionChooseParamsSchema,
+  DecisionCancelParamsSchema,
   DecisionChooseResultSchema,
   DecisionSelectedResultSchema,
   DecisionNoMatchResultSchema,
@@ -343,6 +344,7 @@ export type Action = z.infer<typeof ActionSchema>;
 export type ClientDecisionModelReference = z.infer<typeof ClientDecisionModelReferenceSchema>;
 export type DecisionCandidate = z.infer<typeof DecisionCandidateSchema>;
 export type DecisionChooseParams = z.infer<typeof DecisionChooseParamsSchema>;
+export type DecisionCancelParams = z.infer<typeof DecisionCancelParamsSchema>;
 export type DecisionChooseResult = z.infer<typeof DecisionChooseResultSchema>;
 export type DecisionSelectedResult = z.infer<typeof DecisionSelectedResultSchema>;
 export type DecisionNoMatchResult = z.infer<typeof DecisionNoMatchResultSchema>;

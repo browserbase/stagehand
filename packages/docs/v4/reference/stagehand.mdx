@@ -54,7 +54,7 @@ const stagehand = await Stagehand.create({ browser });
 </ParamField>
 
 <ParamField path="decisionModel" type="ClientDecisionModel" optional>
-  Client-side selection callback configured as `{ choose: async (request) => result }`. Independent of `model`; provider clients and credentials stay in the SDK process.
+  Client-side selection callback configured as `{ choose: async (request, context) => result }`. The context exposes `signal` for cancellation and `remainingMs()` for the remaining operation budget. Independent of `model`; provider clients and credentials stay in the SDK process.
 </ParamField>
 
 <ParamField path="telemetry" type="StagehandCreateOptions['telemetry']" optional>
@@ -907,7 +907,7 @@ stagehand = await Stagehand.create(browser=browser)
 </ParamField>
 
 <ParamField path="decision_model" type="ClientDecisionModel" optional>
-  Client-side selection callback configured as `{"choose": choose}` with an async function. Independent of `model`; provider clients and credentials stay in the SDK process.
+  Client-side selection callback configured as `{"choose": choose}` with an async `choose(request, context)` function. The context exposes `remaining_ms()` for the remaining operation budget; cancellation raises `asyncio.CancelledError` in the callback task. Independent of `model`; provider clients and credentials stay in the SDK process.
 </ParamField>
 
 <ParamField path="model_api_key" type="str" optional>

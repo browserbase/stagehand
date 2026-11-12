@@ -1148,6 +1148,16 @@
     "notifications": {
       "type": "object",
       "properties": {
+        "decision.cancel": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/DecisionCancelParams"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
+        },
         "browserbase.cancel": {
           "type": "object",
           "properties": {
@@ -1189,7 +1199,13 @@
           "additionalProperties": false
         }
       },
-      "required": ["browserbase.cancel", "stagehand.log", "page.cdp_event", "page.event"],
+      "required": [
+        "decision.cancel",
+        "browserbase.cancel",
+        "stagehand.log",
+        "page.cdp_event",
+        "page.event"
+      ],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -3159,6 +3175,11 @@
         },
         "action": {
           "$ref": "#/$defs/ApcAction"
+        },
+        "timeout_ms": {
+          "description": "Remaining operation budget in milliseconds; omitted when unlimited",
+          "type": "number",
+          "minimum": 0
         },
         "candidates": {
           "minItems": 1,
@@ -5505,6 +5526,26 @@
       "required": ["message"],
       "additionalProperties": false
     },
+    "DecisionCancelParams": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/JSONRPCRequestId"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["cancelled", "timeout"]
+        }
+      },
+      "required": ["request_id", "reason"],
+      "additionalProperties": false,
+      "description": "Cancel decision.choose on the same connection; ignore completed or unknown IDs"
+    },
+    "JSONRPCRequestId": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
     "BrowserbaseCancelParams": {
       "type": "object",
       "properties": {
@@ -5519,11 +5560,6 @@
       "required": ["request_id", "reason"],
       "additionalProperties": false,
       "description": "Cancel a browserbase.request by its JSON-RPC ID on the same connection; ignore completed or unknown IDs"
-    },
-    "JSONRPCRequestId": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 9007199254740991
     },
     "StagehandLog": {
       "type": "object",
@@ -8190,6 +8226,24 @@
     },
     "StagehandRpcNotification": {
       "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "decision.cancel"
+            },
+            "params": {
+              "$ref": "#/$defs/DecisionCancelParams"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
         {
           "type": "object",
           "properties": {

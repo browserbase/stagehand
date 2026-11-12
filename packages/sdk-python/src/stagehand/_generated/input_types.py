@@ -252,6 +252,7 @@ class DecisionCandidate(TypedDict):
 class DecisionChooseParams(TypedDict):
     prompt: str
     action: NotRequired[ApcAction]
+    timeout_ms: NotRequired[float]
     candidates: list[DecisionCandidate]
 
 
@@ -398,6 +399,11 @@ JSONRPCRequestId: TypeAlias = int
 
 
 class BrowserbaseCancelParams(TypedDict):
+    request_id: JSONRPCRequestId
+    reason: Literal["cancelled", "timeout"]
+
+
+class DecisionCancelParams(TypedDict):
     request_id: JSONRPCRequestId
     reason: Literal["cancelled", "timeout"]
 

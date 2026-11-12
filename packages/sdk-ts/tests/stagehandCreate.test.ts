@@ -503,7 +503,13 @@ describe("Stagehand.create", () => {
     });
     const decision = { prompt: "Save", candidates: [{ id: "0-1", description: "Save button" }] };
     await cdp.emit({ jsonrpc: "2.0", id: 98, method: "decision.choose", params: decision });
-    expect(choose).toHaveBeenCalledExactlyOnceWith(decision);
+    expect(choose).toHaveBeenCalledExactlyOnceWith(
+      decision,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        remainingMs: expect.any(Function),
+      }),
+    );
     expect(cdp.requests).toContainEqual({
       jsonrpc: "2.0",
       id: 98,

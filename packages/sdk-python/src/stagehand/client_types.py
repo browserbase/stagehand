@@ -21,6 +21,7 @@ from ._generated.models import (
     LLMStructuredGenerateResult,
     StagehandLog,
 )
+from .decision_context import DecisionContext
 
 
 class LegacyLocatorSelector(TypedDict):
@@ -36,7 +37,9 @@ LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
 LLMGenerateCallback = Callable[[LLMGenerateInput], Awaitable[LLMGenerateOutput]]
 DecisionChooseInput = DecisionChooseParams
 DecisionChooseOutput = DecisionSelectedResult | DecisionNoMatchResult | DecisionRefusedResult
-DecisionChooseCallback = Callable[[DecisionChooseInput], Awaitable[DecisionChooseOutput]]
+DecisionChooseCallback = Callable[
+    [DecisionChooseInput, DecisionContext], Awaitable[DecisionChooseOutput]
+]
 StagehandOnLog = Callable[[StagehandLog], None | Awaitable[None]]
 
 

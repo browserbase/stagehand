@@ -604,6 +604,17 @@ class CssLocatorSelector(WireModel):
     value: Annotated[StrictStr, Field(min_length=1)]
 
 
+class DecisionCancelParams(WireModel):
+    """Cancel decision.choose on the same connection; ignore completed or unknown IDs"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: JSONRPCRequestId
+    reason: Reason1
+
+
 class DecisionCandidate(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -621,6 +632,8 @@ class DecisionChooseParams(DecisionChooseParamsValidation):
     )
     prompt: Annotated[StrictStr, Field(min_length=1)]
     action: Optional[ApcAction] = None
+    timeout_ms: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Remaining operation budget in milliseconds; omitted when unlimited"""
     candidates: Annotated[list[DecisionCandidate], Field(min_length=1)]
     """Candidates in capture order, with unique IDs; provider limits belong in the callback"""
 

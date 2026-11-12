@@ -15,6 +15,7 @@ from stagehand import (
     DecisionChooseInput,
     DecisionChooseOutput,
     DecisionChooseResult,
+    DecisionContext,
     DecisionSelectedResult,
     DefaultExtract,
     ExtractResult,
@@ -345,7 +346,10 @@ async def test_create_builds_client_browserbase_wire_params(
 
     seen: list[DecisionChooseInput] = []
 
-    async def choose(request: DecisionChooseInput) -> DecisionChooseOutput:
+    async def choose(
+        request: DecisionChooseInput, context: DecisionContext
+    ) -> DecisionChooseOutput:
+        assert context.remaining_ms() == float("inf")
         seen.append(request)
         return DecisionSelectedResult(status="selected", id=request.candidates[0].id)
 
@@ -575,7 +579,7 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
     _install_rpc_client(monkeypatch, failed)
     browser, transport = _browser_handle()
 
-    async def choose(_: DecisionChooseInput) -> DecisionChooseOutput:
+    async def choose(_: DecisionChooseInput, context: DecisionContext) -> DecisionChooseOutput:
         raise AssertionError("No decision is expected during init")
 
     with pytest.raises(RuntimeError, match="init failed"):

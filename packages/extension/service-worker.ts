@@ -1,3 +1,4 @@
+import { requestDecision } from "./clients/decisionClient.js";
 import { requestBrowserbase } from "./clients/browserbaseClient.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -106,9 +107,9 @@ export function startStagehandServiceWorker(
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);
       },
-      clientDecisionChoose: async (params) => {
+      clientDecisionChoose: async (params, signal) => {
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
-        return await rpcClient.send(StagehandMethods.decisionChoose, params);
+        return await requestDecision(rpcClient, params, signal);
       },
     });
 
