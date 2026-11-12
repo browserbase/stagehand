@@ -3,6 +3,7 @@ import type {
   CssLocatorSelector,
   XPathLocatorSelector,
   TextLocatorSelector,
+  PromptLocatorSelector,
   LegacyLocatorSelector,
   LocatorSelector,
   LocatorInput,
@@ -11,7 +12,11 @@ import type {
 } from "../src/index.js";
 
 expectTypeOf<LocatorSelector>().toEqualTypeOf<
-  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | LegacyLocatorSelector
+  | CssLocatorSelector
+  | XPathLocatorSelector
+  | TextLocatorSelector
+  | PromptLocatorSelector
+  | LegacyLocatorSelector
 >();
 expectTypeOf<LocatorInput>().toEqualTypeOf<string | LocatorSelector>();
 expectTypeOf<Parameters<Page["locator"]>[0]>().toEqualTypeOf<LocatorInput>();
@@ -24,6 +29,9 @@ const legacy: LegacyLocatorSelector = { type: "legacy", value: "iframe >> text=P
 expectTypeOf(page.locator(css)).toEqualTypeOf<Locator>();
 page.locator(xpath);
 page.locator(text);
+const prompt: PromptLocatorSelector = { type: "prompt", value: "the resume file input" };
+expectTypeOf(page.locator(prompt)).toEqualTypeOf<Locator>();
+expectTypeOf(page.locator(css).locator(prompt)).toEqualTypeOf<Locator>();
 page.locator(legacy);
 page.locator("button");
 

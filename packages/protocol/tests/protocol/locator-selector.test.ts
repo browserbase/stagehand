@@ -8,6 +8,7 @@ describe("structured locator selectors", () => {
     { type: "css", value: "button.submit" },
     { type: "xpath", value: "//button[@type='submit']" },
     { type: "text", value: "Submit" },
+    { type: "prompt", value: "the resume file input" },
   ])("accepts $type selectors", (selector) => {
     expect(LocatorQuerySelectorSchema.parse(selector)).toEqual(selector);
   });
@@ -39,6 +40,7 @@ describe("structured locator selectors", () => {
     expect(schema.$defs).toHaveProperty("CssLocatorSelector");
     expect(schema.$defs).toHaveProperty("XPathLocatorSelector");
     expect(schema.$defs).toHaveProperty("TextLocatorSelector");
+    expect(schema.$defs).toHaveProperty("PromptLocatorSelector");
     expect(schema.$defs).not.toHaveProperty("LegacyLocatorSelector");
   });
 

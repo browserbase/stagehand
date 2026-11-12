@@ -1008,6 +1008,11 @@ class PageWebMCPCancelInvocationParams(TypedDict):
     invocation_id: str
 
 
+class PromptLocatorSelector(TypedDict):
+    type: Literal["prompt"]
+    value: str
+
+
 ProxyConfig: TypeAlias = BrowserbaseProxyConfig | ExternalProxyConfig
 
 
@@ -1287,7 +1292,7 @@ class XPathLocatorSelector(TypedDict):
     value: str
 
 
-LocatorQuerySelector: TypeAlias = CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector
+LocatorQuerySelector: TypeAlias = CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | PromptLocatorSelector
 
 
 class LocatorFrameStep(TypedDict):

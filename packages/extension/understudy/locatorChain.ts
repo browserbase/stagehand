@@ -38,22 +38,19 @@ export async function resolveLocatorChain(
     selector: LocatorQuerySelector,
     scope?: ChainNode,
   ): Promise<ChainNode[]> => {
+    const parsed = FrameSelectorResolver.parseSelector(selector);
     if (!scope) {
       const resolver = new FrameSelectorResolver(frame);
-      const nodes = await resolver.resolveAll(
-        { kind: selector.type, value: selector.value },
-        {},
-        progress,
-      );
+      const nodes = await resolver.resolveAll(parsed, {}, progress);
       nodes.forEach((node) => track(frame, node));
       const result: ChainNode[] = [];
       for (const node of nodes) result.push(await describe(frame, node.objectId));
       return result;
     }
     const helper =
-      selector.type === "css"
+      parsed.kind === "css"
         ? "resolveCssSelector"
-        : selector.type === "text"
+        : parsed.kind === "text"
           ? "resolveTextSelector"
           : "resolveXPathMainWorld";
     const result: ChainNode[] = [];

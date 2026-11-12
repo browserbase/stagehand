@@ -16,6 +16,34 @@ const chain: LocatorChain = {
 };
 
 describe("chain handle ownership", () => {
+  it("keeps prompt descriptions out of deterministic DOM queries", async () => {
+    const selector = { type: "prompt" as const, value: "the resume file input" };
+    expect(() => FrameSelectorResolver.parseSelector(selector)).toThrow(
+      "Prompt selectors require decision-based resolution",
+    );
+    const send = vi.fn(async (method: string) => {
+      if (method === "DOM.describeNode")
+        return { node: { backendNodeId: 1, localName: "section" } };
+      return {};
+    });
+    const frame = { frameId: "root", session: { send } } as unknown as Frame;
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+      { objectId: "scope", nodeId: null },
+    ]);
+    await expect(
+      resolveLocatorChain({} as Page, frame, {
+        steps: [
+          { type: "query", selector: { type: "css", value: "#application" } },
+          { type: "query", selector },
+        ],
+      }),
+    ).rejects.toThrow("Prompt selectors require decision-based resolution");
+    expect(send.mock.calls.map(([method]) => method)).toEqual([
+      "DOM.describeNode",
+      "Runtime.releaseObject",
+    ]);
+  });
+
   it("releases intermediate and terminal handles after selection", async () => {
     const send = vi.fn(async (method: string, params: Record<string, unknown>) => {
       if (method === "DOM.describeNode")

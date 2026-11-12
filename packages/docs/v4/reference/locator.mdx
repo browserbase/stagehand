@@ -8,7 +8,7 @@ Create a `Locator` from a page selector, then reuse it for element interactions 
 
 Selectors pierce shadow DOM, including closed roots.
 
-In TypeScript and Python, `page.locator()` accepts either an existing selector string or a typed selector object. Use `{ type: "css", value: "button.submit" }`, `{ type: "xpath", value: "//button" }`, or `{ type: "text", value: "Submit" }` in TypeScript, with quoted dictionary keys in Python. Text selectors use case-insensitive substring matching. Typed values are passed to their selected engine without legacy prefix or iframe-hop parsing.
+In TypeScript and Python, `page.locator()` accepts either an existing selector string or a typed selector object. Use `{ type: "css", value: "button.submit" }`, `{ type: "xpath", value: "//button" }`, or `{ type: "text", value: "Submit" }` in TypeScript, with quoted dictionary keys in Python. Use `{ type: "prompt", value: "the resume file input" }` for an element description passed to your [decision callback](/v4/configuration/models#decision-callbacks). Text selectors use case-insensitive substring matching. Typed values are passed to their selected engine without legacy prefix or iframe-hop parsing.
 
 In TypeScript and Python, call `locator.locator(...)` to search within the preceding matches. If a preceding match is an iframe, the next query searches its document. Locators are evaluated when an operation runs.
 
@@ -510,7 +510,7 @@ await pay.click();
 This searches for “Pay” inside the second card. Calling `pay.nth(0)` selects the first payment match within that card.
 
 <ParamField path="selector" type="LocatorInput">
-  A selector string or a typed CSS, XPath, text, or legacy selector.
+  A selector string or a typed CSS, XPath, text, prompt, or legacy selector.
 </ParamField>
 
 <ResponseField name="result" type="Locator">
@@ -969,7 +969,7 @@ await pay.click()
 This searches for “Pay” inside the second card. Calling `pay.nth(0)` selects the first payment match within that card.
 
 <ParamField path="selector" type="LocatorInput">
-  A selector string or a typed CSS, XPath, text, or legacy selector.
+  A selector string or a typed CSS, XPath, text, prompt, or legacy selector.
 </ParamField>
 
 <ResponseField name="result" type="Self">

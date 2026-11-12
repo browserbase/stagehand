@@ -101,6 +101,7 @@ export type {
   CssLocatorSelector,
   XPathLocatorSelector,
   TextLocatorSelector,
+  PromptLocatorSelector,
   ModelConfig,
   ModelName,
   MouseButton,

@@ -28,6 +28,9 @@ export class FrameSelectorResolver {
 
   public static parseSelector(raw: string | LocatorQuerySelector): SelectorQuery {
     if (typeof raw !== "string") {
+      if (raw.type === "prompt") {
+        throw new Error("Prompt selectors require decision-based resolution");
+      }
       return { kind: raw.type, value: raw.value };
     }
     const trimmed = raw.trim();

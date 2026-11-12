@@ -471,6 +471,13 @@ export const TextLocatorSelectorSchema = z
   })
   .meta({ id: "TextLocatorSelector" });
 
+export const PromptLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("prompt"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "PromptLocatorSelector" });
+
 /**
  * A single engine query, with no legacy prefix or frame-hop interpretation.
  * Chain normalization belongs at the SDK boundary.
@@ -480,6 +487,7 @@ export const LocatorQuerySelectorSchema = z
     CssLocatorSelectorSchema,
     XPathLocatorSelectorSchema,
     TextLocatorSelectorSchema,
+    PromptLocatorSelectorSchema,
   ])
   .meta({ id: "LocatorQuerySelector" });
 

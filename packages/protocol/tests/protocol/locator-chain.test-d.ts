@@ -7,11 +7,12 @@ import type {
   LocatorQueryStep,
   LocatorStep,
   TextLocatorSelector,
+  PromptLocatorSelector,
   XPathLocatorSelector,
 } from "../../types.js";
 
 expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
-  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector
+  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | PromptLocatorSelector
 >();
 expectTypeOf<LocatorStep>().toEqualTypeOf<LocatorQueryStep | LocatorFrameStep>();
 expectTypeOf<LocatorChain["steps"]>().toEqualTypeOf<LocatorStep[]>();

@@ -1736,6 +1736,9 @@
         },
         {
           "$ref": "#/$defs/TextLocatorSelector"
+        },
+        {
+          "$ref": "#/$defs/PromptLocatorSelector"
         }
       ]
     },
@@ -1775,6 +1778,21 @@
         "type": {
           "type": "string",
           "const": "text"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "PromptLocatorSelector": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "prompt"
         },
         "value": {
           "type": "string",

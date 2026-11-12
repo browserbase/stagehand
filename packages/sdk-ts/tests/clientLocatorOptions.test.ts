@@ -8,6 +8,27 @@ import type { StagehandCommandClient } from "../src/commandClient.js";
 import { Page } from "../src/page.js";
 
 describe("client locator option serialization", () => {
+  it("constructs prompt locators lazily and preserves deterministic prefixes", () => {
+    const page = testPage("page-1");
+    const scope = page.locator({ type: "css", value: "#application" }).nth(1);
+    const prompt = { type: "prompt" as const, value: '  the input labeled "Resume >> CV"  ' };
+    const locator = scope.locator(prompt);
+    prompt.value = "Changed";
+    expect(locator.descriptor).toEqual({
+      pageId: "page-1",
+      selector: {
+        steps: [
+          { type: "query", selector: { type: "css", value: "#application" }, nth: 1 },
+          {
+            type: "query",
+            selector: { type: "prompt", value: '  the input labeled "Resume >> CV"  ' },
+          },
+        ],
+      },
+    });
+    expect(scope.descriptor.selector.steps).toHaveLength(1);
+  });
+
   it("preserves nth: 0 from first() locators", () => {
     const page = testPage("page-1");
 

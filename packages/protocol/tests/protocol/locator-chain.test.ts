@@ -5,6 +5,20 @@ import { LocatorChainSchema } from "../../schemas.js";
 import type { LocatorChain } from "../../types.js";
 
 describe("locator chain query plans", () => {
+  it("preserves prompt queries after deterministic scope steps", () => {
+    const params = {
+      pageId: "page-1",
+      selector: {
+        steps: [
+          { type: "query", selector: { type: "css", value: "#application" }, nth: 1 },
+          { type: "query", selector: { type: "prompt", value: "the resume file input" } },
+        ],
+      },
+      files: [],
+    };
+    expect(StagehandMethods.locatorSetInputFiles.params.parse(params)).toEqual(params);
+  });
+
   it("accepts chains in actions, scopes, exclusions, and screenshot masks", () => {
     const selector = {
       steps: [

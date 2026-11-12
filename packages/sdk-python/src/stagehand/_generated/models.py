@@ -2333,6 +2333,15 @@ class Polling(RootModel[StrictFloat]):
     root: Annotated[StrictFloat, Field(gt=0.0, le=2147483647.0)]
 
 
+class PromptLocatorSelector(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["prompt"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -2771,9 +2780,9 @@ class XPathLocatorSelector(WireModel):
 
 
 class LocatorQuerySelector(
-    RootModel[Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector]]
+    RootModel[Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector, PromptLocatorSelector]]
 ):
-    root: Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector]
+    root: Union[CssLocatorSelector, XPathLocatorSelector, TextLocatorSelector, PromptLocatorSelector]
 
 
 FieldSchema0.model_rebuild()

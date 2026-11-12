@@ -3,6 +3,7 @@ import {
   CssLocatorSelectorSchema,
   XPathLocatorSelectorSchema,
   TextLocatorSelectorSchema,
+  PromptLocatorSelectorSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LocatorChain,
@@ -28,6 +29,7 @@ export const LocatorSelectorSchema = z
     CssLocatorSelectorSchema,
     XPathLocatorSelectorSchema,
     TextLocatorSelectorSchema,
+    PromptLocatorSelectorSchema,
     LegacyLocatorSelectorSchema,
   ])
   .meta({ id: "LocatorSelector" });

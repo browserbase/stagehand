@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field, RootModel
 from ._generated.models import (
     CssLocatorSelector,
     LocatorChain,
+    PromptLocatorSelector,
     TextLocatorSelector,
     XPathLocatorSelector,
 )
@@ -23,7 +24,11 @@ class LegacyLocatorSelector(WireModel):
 
 class LocatorSelector(
     RootModel[
-        CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | LegacyLocatorSelector
+        CssLocatorSelector
+        | XPathLocatorSelector
+        | TextLocatorSelector
+        | PromptLocatorSelector
+        | LegacyLocatorSelector
     ]
 ):
     pass

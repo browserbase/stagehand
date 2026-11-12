@@ -491,5 +491,39 @@
         }
       ]
     }
+  },
+  {
+    "input": {
+      "type": "prompt",
+      "value": "the resume file input"
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "prompt",
+            "value": "the resume file input"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "type": "prompt",
+      "value": "  css=#checkout >> text=\"Pay\"  "
+    },
+    "chain": {
+      "steps": [
+        {
+          "type": "query",
+          "selector": {
+            "type": "prompt",
+            "value": "  css=#checkout >> text=\"Pay\"  "
+          }
+        }
+      ]
+    }
   }
 ]

@@ -11,6 +11,7 @@ from stagehand import (
     LocatorInput,
     LocatorSelector,
     Page,
+    PromptLocatorSelector,
     TextLocatorSelector,
     XPathLocatorSelector,
 )
@@ -145,6 +146,32 @@ async def test_chaining_preserves_intermediate_indices_and_parent_locators() -> 
     assert cards.nth_index == 1
 
 
+def test_prompt_inputs_preserve_scope_and_description_without_requests() -> None:
+    recording = RecordingRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    scope = page.locator({"type": "css", "value": "#application"}).nth(1)
+    prompt: PromptLocatorSelector = {
+        "type": "prompt",
+        "value": '  the input labeled "Resume >> CV"  ',
+    }
+    locator = scope.locator(prompt)
+    prompt["value"] = "Changed"
+    assert locator.descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "page-1",
+        "selector": {
+            "steps": [
+                {"type": "query", "selector": {"type": "css", "value": "#application"}, "nth": 1},
+                {
+                    "type": "query",
+                    "selector": {"type": "prompt", "value": '  the input labeled "Resume >> CV"  '},
+                },
+            ],
+        },
+    }
+    assert len(scope.descriptor.selector.steps) == 1
+    assert recording.calls == []
+
+
 def test_chaining_appends_normalized_legacy_frame_hops() -> None:
     page = Page(cast(RPCClient, RecordingRPCClient()), PageRef(page_id="page-1"))
     locator = page.locator(".panel").locator("iframe >> text=Pay").first()
@@ -163,6 +190,9 @@ if TYPE_CHECKING:
         css: CssLocatorSelector = {"type": "css", "value": "button"}
         xpath: XPathLocatorSelector = {"type": "xpath", "value": "//button"}
         text: TextLocatorSelector = {"type": "text", "value": "Pay"}
+        prompt: PromptLocatorSelector = {"type": "prompt", "value": "the resume file input"}
+        assert_type(page.locator(prompt), Locator)
+        assert_type(page.locator(css).locator(prompt), Locator)
         legacy: LegacyLocatorSelector = {"type": "legacy", "value": "iframe >> text=Pay"}
         assert_type(page.locator(css), Locator)
         assert_type(page.locator(css).locator(text).first(), Locator)

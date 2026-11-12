@@ -2,6 +2,7 @@ import { expectTypeOf } from "vitest";
 import type {
   CssLocatorSelector,
   LocatorQuerySelector,
+  PromptLocatorSelector,
   TextLocatorSelector,
   XPathLocatorSelector,
 } from "../../types.js";
@@ -13,8 +14,11 @@ expectTypeOf<TextLocatorSelector>().toEqualTypeOf<{
   value: string;
 }>();
 expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
-  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector
+  CssLocatorSelector | XPathLocatorSelector | TextLocatorSelector | PromptLocatorSelector
 >();
+expectTypeOf<
+  Extract<LocatorQuerySelector, { type: "prompt" }>
+>().toEqualTypeOf<PromptLocatorSelector>();
 expectTypeOf<
   Extract<LocatorQuerySelector, { type: "text" }>
 >().toEqualTypeOf<TextLocatorSelector>();

@@ -937,7 +937,7 @@ const locator = page.locator({ type: "css", value: "button[type=submit]" });
 ```
 
 <ParamField path="selector" type="LocatorInput">
-  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine.
+  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, `prompt`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine. A `prompt` value is an element description for the [decision callback](/v4/configuration/models#decision-callbacks).
 </ParamField>
 
 <ResponseField name="result" type="Locator">
@@ -1827,7 +1827,7 @@ locator = page.locator({"type": "css", "value": "button[type=submit]"})
 ```
 
 <ParamField path="selector" type="LocatorInput">
-  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine.
+  An existing selector string or an object with a `type` of `css`, `xpath`, `text`, `prompt`, or `legacy`, and a non-empty `value`. String inputs retain their existing interpretation. Explicit CSS, XPath, and text values are interpreted only by the selected engine. A `prompt` value is an element description for the [decision callback](/v4/configuration/models#decision-callbacks).
 </ParamField>
 
 <ResponseField name="result" type="Locator">
