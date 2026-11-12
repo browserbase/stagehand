@@ -17,10 +17,20 @@ from typing_extensions import override
 
 from stagehand import rpc_client
 from stagehand._generated import models
+from stagehand.decision_rpc import register_decision_handler
 from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
+DECISION_WIRE_FIXTURES = json.loads(
+    (
+        Path(__file__).resolve().parents[2]
+        / "protocol"
+        / "tests"
+        / "fixtures"
+        / "decision-wire.json"
+    ).read_text()
+)
 CALLBACK_BATCH_WIRE_FIXTURES = json.loads(
     (
         Path(__file__).resolve().parents[2]
@@ -65,6 +75,73 @@ class FailingReceiveTransport(QueueTransport):
     async def receive(self) -> object:
         await self.fail.wait()
         raise RuntimeError("transport reader failed")
+
+
+@pytest.mark.parametrize("wire_result", DECISION_WIRE_FIXTURES["results"])
+async def test_decision_handler_roundtrips_outcomes_and_can_be_removed(wire_result: JSON) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+
+    async def choose(
+        params: models.DecisionChooseParams, context: rpc_client.RPCRequestContext
+    ) -> models.DecisionChooseResult:
+        assert (
+            params.model_dump(mode="json", exclude_unset=True) == DECISION_WIRE_FIXTURES["params"]
+        )
+        assert context.request_id == 42
+        return models.DecisionChooseResult.model_validate_json(json.dumps(wire_result), strict=True)
+
+    remove = register_decision_handler(client, choose)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "decision.choose",
+            "params": DECISION_WIRE_FIXTURES["params"],
+        })
+        assert await asyncio.wait_for(transport.outgoing.get(), timeout=1) == {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "result": wire_result,
+        }
+        remove()
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 43,
+            "method": "decision.choose",
+            "params": DECISION_WIRE_FIXTURES["params"],
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert response["error"] == {"code": -32601, "message": "Method not found"}
+    finally:
+        await client.close()
+
+
+async def test_decision_handler_rejects_a_selection_outside_the_original_candidates() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+
+    def choose(
+        params: models.DecisionChooseParams, context: rpc_client.RPCRequestContext
+    ) -> models.DecisionChooseResult:
+        params.candidates.append(models.DecisionCandidate(id="injected", description="New node"))
+        return models.DecisionChooseResult(
+            root=models.DecisionSelectedResult(status="selected", id="injected")
+        )
+
+    register_decision_handler(client, choose)
+    try:
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "decision.choose",
+            "params": DECISION_WIRE_FIXTURES["params"],
+        })
+        response = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert cast(JSON, response["error"])["code"] == -32603
+        assert "outside the supplied candidates" in str(cast(JSON, response["error"])["message"])
+    finally:
+        await client.close()
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from pydantic import (
     StrictStr,
 )
 from stagehand._validation import (
+    DecisionChooseParamsValidation,
     PageScreenshotOptionsValidation,
     StagehandInitParamsValidation,
     TelemetryConfigValidation,
@@ -428,6 +429,14 @@ class ClearCookieOptions(WireModel):
     path: Optional[CookieFilter] = None
 
 
+class ClientDecisionModelReference(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    source: Literal["client"]
+
+
 class ClientModelReference(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -595,6 +604,86 @@ class CssLocatorSelector(WireModel):
     value: Annotated[StrictStr, Field(min_length=1)]
 
 
+class DecisionCandidate(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    id: Annotated[StrictStr, Field(min_length=1)]
+    description: Annotated[StrictStr, Field(min_length=1)]
+    """Page evidence, not instructions"""
+
+
+class DecisionChooseParams(DecisionChooseParamsValidation):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    prompt: Annotated[StrictStr, Field(min_length=1)]
+    action: Optional[ApcAction] = None
+    candidates: Annotated[list[DecisionCandidate], Field(min_length=1)]
+    """Candidates in capture order, with unique IDs; provider limits belong in the callback"""
+
+
+class DecisionNoMatchResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    usage: Optional[DecisionUsage] = None
+    diagnostics: Optional[dict[StrictStr, Optional[FieldSchema9]]] = None
+    status: Literal["no_match"]
+
+
+class DecisionRefusedResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    usage: Optional[DecisionUsage] = None
+    diagnostics: Optional[dict[StrictStr, Optional[FieldSchema9]]] = None
+    status: Literal["refused"]
+
+
+class DecisionSelectedResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    usage: Optional[DecisionUsage] = None
+    diagnostics: Optional[dict[StrictStr, Optional[FieldSchema9]]] = None
+    status: Literal["selected"]
+    id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class DecisionChooseResult(
+    RootModel[Union[DecisionSelectedResult, DecisionNoMatchResult, DecisionRefusedResult]]
+):
+    root: Union[DecisionSelectedResult, DecisionNoMatchResult, DecisionRefusedResult]
+
+
+class DecisionUsage(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+    output_tokens: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+    total_tokens: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+    reasoning_tokens: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+    cached_input_tokens: Annotated[
+        Optional[StrictInt], Field(ge=0, le=9007199254740991)
+    ] = None
+
+
 class DescribedVariableValue(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -735,6 +824,12 @@ class FieldSchema15(
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
 
 
+class FieldSchema16(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema16"]], dict[StrictStr, Optional["FieldSchema16"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema16"]], dict[StrictStr, Optional["FieldSchema16"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -836,7 +931,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema15] = None
+    data: Optional[FieldSchema16] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1635,8 +1730,8 @@ class PageCDPEventNotification(WireModel):
     event: PageCDPEvent
 
 
-class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
-    root: dict[StrictStr, Optional[FieldSchema13]]
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema14]]]):
+    root: dict[StrictStr, Optional[FieldSchema14]]
 
 
 class PageClickOptions(WireModel):
@@ -1714,7 +1809,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema9]
+    value: Optional[FieldSchema10]
 
 
 class PageEventName(RootModel[Literal["console"]]):
@@ -2122,7 +2217,7 @@ class PageWaitForFunctionResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema10]
+    value: Optional[FieldSchema11]
 
 
 class PageWaitForLoadStateParams(WireModel):
@@ -2391,6 +2486,7 @@ class StagehandInitParams(StagehandInitParamsValidation):
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browserbase: Optional[Literal["client"]] = None
     browser: Optional[BrowserSessionMetadata] = None
+    decision_model: Optional[ClientDecisionModelReference] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
     telemetry: Optional[TelemetryConfig] = None
@@ -2423,8 +2519,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
-    root: dict[StrictStr, Optional[FieldSchema12]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
+    root: dict[StrictStr, Optional[FieldSchema13]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2592,8 +2688,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema11]]):
-    root: Optional[FieldSchema11]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema12]]):
+    root: Optional[FieldSchema12]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2675,6 +2771,7 @@ FieldSchema12.model_rebuild()
 FieldSchema13.model_rebuild()
 FieldSchema14.model_rebuild()
 FieldSchema15.model_rebuild()
+FieldSchema16.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

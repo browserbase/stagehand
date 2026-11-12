@@ -7,9 +7,25 @@ from pydantic import BaseModel, ValidationError
 from stagehand._generated import models
 
 PROTOCOL_PATH = Path(__file__).parents[2] / "protocol" / "stagehand.v4.json"
+
+
 PROTOCOL = json.loads(PROTOCOL_PATH.read_text())
 METHODS = PROTOCOL["properties"]["methods"]["properties"]
 NOTIFICATIONS = PROTOCOL["properties"]["notifications"]["properties"]
+
+
+def test_decision_candidates_have_unique_ids_without_provider_size_limits() -> None:
+    candidates = [{"id": str(index), "description": "Button"} for index in range(300)]
+    params = models.DecisionChooseParams.model_validate({
+        "prompt": "Save",
+        "candidates": candidates,
+    })
+    assert len(params.candidates) == 300
+    with pytest.raises(ValidationError, match="candidate IDs must be unique"):
+        models.DecisionChooseParams.model_validate({
+            "prompt": "Save",
+            "candidates": [candidates[0], candidates[0]],
+        })
 
 
 @pytest.mark.parametrize(

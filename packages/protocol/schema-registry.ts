@@ -34,6 +34,8 @@ import {
   ContextSetExtraHTTPHeadersParamsSchema,
   ContextVoidResultSchema,
   EmptyParamsSchema,
+  DecisionChooseParamsSchema,
+  DecisionChooseResultSchema,
   ExtractResultSchema,
   LocatorClickParamsSchema,
   LocatorClickResultSchema,
@@ -188,6 +190,12 @@ export const StagehandMethods = {
       opaqueKeys: ["inputSchema", "outputSchema", "input", "structuredContent", "schema"],
     },
     resultWire: { opaqueKeys: ["structuredContent"] },
+  },
+  decisionChoose: {
+    name: "decision.choose",
+    params: DecisionChooseParamsSchema,
+    result: DecisionChooseResultSchema,
+    resultWire: { opaqueKeys: ["diagnostics"] },
   },
   contextPages: {
     name: "context.pages",

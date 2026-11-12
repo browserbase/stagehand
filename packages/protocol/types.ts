@@ -7,6 +7,14 @@ import type {
 } from "./schema-registry.js";
 import type {
   ActionSchema,
+  ClientDecisionModelReferenceSchema,
+  DecisionCandidateSchema,
+  DecisionChooseParamsSchema,
+  DecisionChooseResultSchema,
+  DecisionSelectedResultSchema,
+  DecisionNoMatchResultSchema,
+  DecisionRefusedResultSchema,
+  DecisionUsageSchema,
   BrowserbaseCancelParamsSchema,
   BrowserbaseHttpResponseSchema,
   BrowserbaseRequestParamsSchema,
@@ -332,6 +340,14 @@ export type LLMGenerateParams = z.infer<typeof LLMGenerateParamsSchema>;
 export type LLMGenerateResult = z.infer<typeof LLMGenerateResultSchema>;
 export type ClientModelReference = z.infer<typeof ClientModelReferenceSchema>;
 export type Action = z.infer<typeof ActionSchema>;
+export type ClientDecisionModelReference = z.infer<typeof ClientDecisionModelReferenceSchema>;
+export type DecisionCandidate = z.infer<typeof DecisionCandidateSchema>;
+export type DecisionChooseParams = z.infer<typeof DecisionChooseParamsSchema>;
+export type DecisionChooseResult = z.infer<typeof DecisionChooseResultSchema>;
+export type DecisionSelectedResult = z.infer<typeof DecisionSelectedResultSchema>;
+export type DecisionNoMatchResult = z.infer<typeof DecisionNoMatchResultSchema>;
+export type DecisionRefusedResult = z.infer<typeof DecisionRefusedResultSchema>;
+export type DecisionUsage = z.infer<typeof DecisionUsageSchema>;
 export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;
 export type ActResult = z.infer<typeof ActResultSchema>;

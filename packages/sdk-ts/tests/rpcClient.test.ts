@@ -1,4 +1,7 @@
 import { RPCResponseTimeoutError } from "../src/rpcErrors.js";
+import decisionFixture from "../../protocol/tests/fixtures/decision-wire.json" with { type: "json" };
+import { registerDecisionHandler } from "../src/decisionRpc.js";
+import { wireSchema } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import {
@@ -74,6 +77,70 @@ class ManualCDPTransport implements CDPTransport {
     this.closeCalls += 1;
   }
 }
+
+describe("client decision registration", () => {
+  it.each(decisionFixture.results)(
+    "handles $status through the normal reverse RPC path",
+    async (wireResult) => {
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      const method = StagehandMethods.decisionChoose;
+      const choose = vi.fn(async () =>
+        wireSchema(method.result, method.resultWire).parse(wireResult),
+      );
+      const remove = registerDecisionHandler(client, choose);
+      try {
+        await cdp.receive({
+          jsonrpc: "2.0",
+          id: 42,
+          method: method.name,
+          params: decisionFixture.params,
+        });
+        expect(choose).toHaveBeenCalledExactlyOnceWith(decisionFixture.params, {
+          requestId: 42,
+          signal: expect.any(AbortSignal),
+        });
+        expect(cdp.sent[0]).toEqual({ jsonrpc: "2.0", id: 42, result: wireResult });
+        remove();
+        await cdp.receive({
+          jsonrpc: "2.0",
+          id: 43,
+          method: method.name,
+          params: decisionFixture.params,
+        });
+        expect(cdp.sent[1]).toMatchObject({ id: 43, error: { code: -32601 } });
+      } finally {
+        client.close();
+      }
+    },
+  );
+
+  it("rejects a callback selection outside the original candidates", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    registerDecisionHandler(client, (params) => {
+      params.candidates.push({ id: "injected", description: "Not supplied by the worker" });
+      return { status: "selected", id: "injected" };
+    });
+    try {
+      await cdp.receive({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "decision.choose",
+        params: decisionFixture.params,
+      });
+      expect(cdp.sent[0]).toMatchObject({
+        id: 42,
+        error: {
+          code: -32603,
+          message: expect.stringContaining("outside the supplied candidates"),
+        },
+      });
+    } finally {
+      client.close();
+    }
+  });
+});
 
 describe("RPCClientOptionsSchema", () => {
   it("accepts the preloaded-extension option", () => {

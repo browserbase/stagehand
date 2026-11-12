@@ -1,0 +1,24 @@
+{
+  "params": {
+    "prompt": "the resume file input",
+    "action": "upload",
+    "candidates": [
+      { "id": "0-42", "description": "input_file: Resume [accept=\".pdf\"]" },
+      { "id": "1-17", "description": "input_file: Cover letter" }
+    ]
+  },
+  "results": [
+    {
+      "status": "selected",
+      "id": "0-42",
+      "usage": { "input_tokens": 12 },
+      "diagnostics": {
+        "providerRequestID": "request_1",
+        "choice_scores": { "0-42": 0.9, "1-17": 0.1 },
+        "nestedData": { "keep_this_key": true }
+      }
+    },
+    { "status": "no_match" },
+    { "status": "refused", "diagnostics": { "providerReason": "declined" } }
+  ]
+}

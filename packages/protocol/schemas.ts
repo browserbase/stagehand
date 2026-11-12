@@ -772,6 +772,11 @@ export const ClientModelReferenceSchema = z
   })
   .meta({ id: "ClientModelReference" });
 
+/** Only callback availability crosses the wire; provider configuration stays in the SDK. */
+export const ClientDecisionModelReferenceSchema = z
+  .strictObject({ source: z.literal("client") })
+  .meta({ id: "ClientDecisionModelReference" });
+
 /** Browserbase viewport configuration. */
 export const BrowserbaseViewportSchema = z
   .strictObject({
@@ -1246,6 +1251,90 @@ export const ApcActionSchema = z
   .enum(["click", "fill", "type", "select", "hover", "scroll", "upload"])
   .meta({ id: "ApcAction" });
 
+export const DecisionCandidateSchema = z
+  .strictObject({
+    id: z.string().min(1),
+    description: z.string().min(1).meta({ description: "Page evidence, not instructions" }),
+  })
+  .meta({ id: "DecisionCandidate" });
+
+export const DecisionChooseParamsSchema = z
+  .strictObject({
+    prompt: z.string().min(1),
+    action: ApcActionSchema.optional(),
+    candidates: z.array(DecisionCandidateSchema).min(1).meta({
+      description:
+        "Candidates in capture order, with unique IDs; provider limits belong in the callback",
+    }),
+  })
+  .superRefine((params, context) => {
+    const ids = new Set<string>();
+    for (const [index, candidate] of params.candidates.entries()) {
+      if (ids.has(candidate.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["candidates", index, "id"],
+          message: "Decision candidate IDs must be unique",
+        });
+      }
+      ids.add(candidate.id);
+    }
+  })
+  .meta({ id: "DecisionChooseParams" });
+
+/** Providers may report only the usage fields they actually measure. */
+export const DecisionUsageSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().optional(),
+    outputTokens: z.number().int().nonnegative().optional(),
+    totalTokens: z.number().int().nonnegative().optional(),
+    reasoningTokens: z.number().int().nonnegative().optional(),
+    cachedInputTokens: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "DecisionUsage" });
+
+const DecisionResultMetadataSchema = z.strictObject({
+  usage: DecisionUsageSchema.optional(),
+  diagnostics: z.record(z.string(), z.json()).optional(),
+});
+
+export const DecisionSelectedResultSchema = DecisionResultMetadataSchema.extend({
+  status: z.literal("selected"),
+  id: z.string().min(1),
+}).meta({ id: "DecisionSelectedResult" });
+
+export const DecisionNoMatchResultSchema = DecisionResultMetadataSchema.extend({
+  status: z.literal("no_match"),
+}).meta({ id: "DecisionNoMatchResult" });
+
+export const DecisionRefusedResultSchema = DecisionResultMetadataSchema.extend({
+  status: z.literal("refused"),
+}).meta({ id: "DecisionRefusedResult" });
+
+export const DecisionChooseResultSchema = z
+  .discriminatedUnion("status", [
+    DecisionSelectedResultSchema,
+    DecisionNoMatchResultSchema,
+    DecisionRefusedResultSchema,
+  ])
+  .meta({ id: "DecisionChooseResult" });
+
+/** A structurally valid result must also select an ID from this request. */
+export function createDecisionChooseResultSchema(
+  params: z.output<typeof DecisionChooseParamsSchema>,
+) {
+  const ids = new Set(params.candidates.map((candidate) => candidate.id));
+  return DecisionChooseResultSchema.superRefine((result, context) => {
+    if (result.status === "selected" && !ids.has(result.id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["id"],
+        message: "Decision selected an ID outside the supplied candidates",
+      });
+    }
+  });
+}
+
 export const PageApcOptionsSchema = z
   .strictObject({
     actions: z
@@ -1617,6 +1706,7 @@ export const StagehandInitParamsSchema = z
     browserCdpUrl: z.string().min(1).optional(),
     browserbase: z.literal("client").optional(),
     browser: BrowserSessionMetadataSchema.optional(),
+    decisionModel: ClientDecisionModelReferenceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:
         "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",

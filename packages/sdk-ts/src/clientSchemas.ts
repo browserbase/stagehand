@@ -332,6 +332,7 @@ export const StagehandClientCreateConfigSchema = z
   .strictObject(StagehandInitParamsSchema.shape)
   .omit({
     browserbase: true,
+    decisionModel: true,
     protocolVersion: true,
     clientInfo: true,
     browserCdpUrl: true,

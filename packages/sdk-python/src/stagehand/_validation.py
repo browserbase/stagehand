@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from typing import Annotated, cast
+from typing import Annotated, Self, cast
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -137,3 +137,14 @@ class StagehandInitParamsValidation(WireModel):
             if value.get("browserbase") is not None and value.get("browser") is None:
                 raise ValueError("Client Browserbase transport requires browser metadata")
         return value
+
+
+class DecisionChooseParamsValidation(WireModel):
+    """Mirror the request refinement that JSON Schema cannot express."""
+
+    @model_validator(mode="after")
+    def validate_candidate_ids(self) -> Self:
+        ids = [candidate.id for candidate in getattr(self, "candidates")]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Decision candidate IDs must be unique")
+        return self

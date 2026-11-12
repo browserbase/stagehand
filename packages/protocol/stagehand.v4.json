@@ -123,6 +123,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "decision.choose": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/DecisionChooseParams"
+            },
+            "result": {
+              "$ref": "#/$defs/DecisionChooseResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "context.pages": {
           "type": "object",
           "properties": {
@@ -1057,6 +1070,7 @@
         "stagehand.callback_batch",
         "browserbase.request",
         "llm.generate",
+        "decision.choose",
         "context.pages",
         "context.new_page",
         "context.active_page",
@@ -1236,6 +1250,9 @@
         "browser": {
           "$ref": "#/$defs/BrowserSessionMetadata"
         },
+        "decision_model": {
+          "$ref": "#/$defs/ClientDecisionModelReference"
+        },
         "model": {
           "description": "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
           "anyOf": [
@@ -1309,6 +1326,17 @@
     "BrowserbaseRegion": {
       "type": "string",
       "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
+    },
+    "ClientDecisionModelReference": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "const": "client"
+        }
+      },
+      "required": ["source"],
+      "additionalProperties": false
     },
     "ModelConfig": {
       "type": "object",
@@ -3122,6 +3150,196 @@
         }
       ]
     },
+    "DecisionChooseParams": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "$ref": "#/$defs/ApcAction"
+        },
+        "candidates": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DecisionCandidate"
+          },
+          "description": "Candidates in capture order, with unique IDs; provider limits belong in the callback"
+        }
+      },
+      "required": ["prompt", "candidates"],
+      "additionalProperties": false
+    },
+    "ApcAction": {
+      "type": "string",
+      "enum": ["click", "fill", "type", "select", "hover", "scroll", "upload"]
+    },
+    "DecisionCandidate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Page evidence, not instructions"
+        }
+      },
+      "required": ["id", "description"],
+      "additionalProperties": false
+    },
+    "DecisionChooseResult": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DecisionSelectedResult"
+        },
+        {
+          "$ref": "#/$defs/DecisionNoMatchResult"
+        },
+        {
+          "$ref": "#/$defs/DecisionRefusedResult"
+        }
+      ]
+    },
+    "DecisionSelectedResult": {
+      "type": "object",
+      "properties": {
+        "usage": {
+          "$ref": "#/$defs/DecisionUsage"
+        },
+        "diagnostics": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "status": {
+          "type": "string",
+          "const": "selected"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["status", "id"],
+      "additionalProperties": false
+    },
+    "DecisionUsage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "total_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reasoning_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cached_input_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema9": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema9"
+          }
+        }
+      ]
+    },
+    "DecisionNoMatchResult": {
+      "type": "object",
+      "properties": {
+        "usage": {
+          "$ref": "#/$defs/DecisionUsage"
+        },
+        "diagnostics": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "status": {
+          "type": "string",
+          "const": "no_match"
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    "DecisionRefusedResult": {
+      "type": "object",
+      "properties": {
+        "usage": {
+          "$ref": "#/$defs/DecisionUsage"
+        },
+        "diagnostics": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "status": {
+          "type": "string",
+          "const": "refused"
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
     "ContextPagesResult": {
       "type": "array",
       "items": {
@@ -3833,13 +4051,13 @@
       "type": "object",
       "properties": {
         "value": {
-          "$ref": "#/$defs/__schema9"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["value"],
       "additionalProperties": false
     },
-    "__schema9": {
+    "__schema10": {
       "anyOf": [
         {
           "type": "string"
@@ -3856,7 +4074,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         },
         {
@@ -3865,7 +4083,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]
@@ -4234,10 +4452,6 @@
       },
       "additionalProperties": false
     },
-    "ApcAction": {
-      "type": "string",
-      "enum": ["click", "fill", "type", "select", "hover", "scroll", "upload"]
-    },
     "PageApcResult": {
       "type": "string",
       "description": "Formatted hierarchical APC tree. Returns an empty string when no targets match."
@@ -4397,13 +4611,13 @@
       "type": "object",
       "properties": {
         "value": {
-          "$ref": "#/$defs/__schema10"
+          "$ref": "#/$defs/__schema11"
         }
       },
       "required": ["value"],
       "additionalProperties": false
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -4420,7 +4634,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -4429,7 +4643,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]
@@ -4507,9 +4721,9 @@
       "additionalProperties": false
     },
     "WebMCPJsonValue": {
-      "$ref": "#/$defs/__schema11"
+      "$ref": "#/$defs/__schema12"
     },
-    "__schema11": {
+    "__schema12": {
       "anyOf": [
         {
           "type": "string"
@@ -4526,7 +4740,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         },
         {
@@ -4535,7 +4749,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         }
       ]
@@ -5338,10 +5552,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema12"
+        "$ref": "#/$defs/__schema13"
       }
     },
-    "__schema12": {
+    "__schema13": {
       "anyOf": [
         {
           "type": "string"
@@ -5358,7 +5572,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         },
         {
@@ -5367,7 +5581,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         }
       ]
@@ -5418,10 +5632,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema13"
+        "$ref": "#/$defs/__schema14"
       }
     },
-    "__schema13": {
+    "__schema14": {
       "anyOf": [
         {
           "type": "string"
@@ -5438,7 +5652,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         },
         {
@@ -5447,7 +5661,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         }
       ]
@@ -6017,6 +6231,33 @@
             },
             "params": {
               "$ref": "#/$defs/LLMGenerateParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "decision.choose"
+            },
+            "params": {
+              "$ref": "#/$defs/DecisionChooseParams"
             },
             "traceparent": {
               "type": "string"
@@ -8031,7 +8272,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema15"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -8040,7 +8281,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema15": {
       "anyOf": [
         {
           "type": "string"
@@ -8057,7 +8298,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         },
         {
@@ -8066,7 +8307,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         }
       ]
@@ -8100,13 +8341,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema15"
+          "$ref": "#/$defs/__schema16"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema15": {
+    "__schema16": {
       "anyOf": [
         {
           "type": "string"
@@ -8123,7 +8364,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema15"
+            "$ref": "#/$defs/__schema16"
           }
         },
         {
@@ -8132,7 +8373,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema15"
+            "$ref": "#/$defs/__schema16"
           }
         }
       ]

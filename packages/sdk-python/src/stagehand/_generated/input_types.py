@@ -142,6 +142,10 @@ class CallbackBatchOptions(TypedDict):
 CerebrasModelName: TypeAlias = str
 
 
+class ClientDecisionModelReference(TypedDict):
+    source: Literal["client"]
+
+
 class ClientModelReference(TypedDict):
     source: Literal["client"]
 
@@ -240,6 +244,25 @@ class CssLocatorSelector(TypedDict):
     value: str
 
 
+class DecisionCandidate(TypedDict):
+    id: str
+    description: str
+
+
+class DecisionChooseParams(TypedDict):
+    prompt: str
+    action: NotRequired[ApcAction]
+    candidates: list[DecisionCandidate]
+
+
+class DecisionUsage(TypedDict):
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    total_tokens: NotRequired[int]
+    reasoning_tokens: NotRequired[int]
+    cached_input_tokens: NotRequired[int]
+
+
 class DomainPolicy(TypedDict):
     allowed_domains: NotRequired[list[str]]
     blocked_domains: NotRequired[list[str]]
@@ -288,6 +311,9 @@ FieldSchema14: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema14"
 FieldSchema15: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema15"], dict[str, "FieldSchema15"]]]
 
 
+FieldSchema16: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema16"], dict[str, "FieldSchema16"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -322,6 +348,28 @@ FieldSchema8: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema8"],
 FieldSchema9: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema9"], dict[str, "FieldSchema9"]]]
 
 
+class DecisionNoMatchResult(TypedDict):
+    usage: NotRequired[DecisionUsage]
+    diagnostics: NotRequired[dict[str, FieldSchema9]]
+    status: Literal["no_match"]
+
+
+class DecisionRefusedResult(TypedDict):
+    usage: NotRequired[DecisionUsage]
+    diagnostics: NotRequired[dict[str, FieldSchema9]]
+    status: Literal["refused"]
+
+
+class DecisionSelectedResult(TypedDict):
+    usage: NotRequired[DecisionUsage]
+    diagnostics: NotRequired[dict[str, FieldSchema9]]
+    status: Literal["selected"]
+    id: str
+
+
+DecisionChooseResult: TypeAlias = DecisionSelectedResult | DecisionNoMatchResult | DecisionRefusedResult
+
+
 GoogleModelName: TypeAlias = str
 
 
@@ -343,7 +391,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema15]
+    data: NotRequired[FieldSchema16]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -661,7 +709,7 @@ class PageApcParams(TypedDict):
 PageApcResult: TypeAlias = str
 
 
-PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]
+PageCDPEventParams: TypeAlias = dict[str, FieldSchema14]
 
 
 class PageCDPEvent(TypedDict):
@@ -720,7 +768,7 @@ class PageEvaluateParams(TypedDict):
 
 
 class PageEvaluateResult(TypedDict):
-    value: FieldSchema9
+    value: FieldSchema10
 
 
 PageEventName: TypeAlias = Literal["console"]
@@ -919,7 +967,7 @@ class PageWaitForFunctionParams(TypedDict):
 
 
 class PageWaitForFunctionResult(TypedDict):
-    value: FieldSchema10
+    value: FieldSchema11
 
 
 class PageWaitForLoadStateParams(TypedDict):
@@ -1025,7 +1073,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema12]
+StagehandLogData: TypeAlias = dict[str, FieldSchema13]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -1104,6 +1152,7 @@ class StagehandInitParams(TypedDict):
     browser_cdp_url: NotRequired[str]
     browserbase: NotRequired[Literal["client"]]
     browser: NotRequired[BrowserSessionMetadata]
+    decision_model: NotRequired[ClientDecisionModelReference]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]
     log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
@@ -1141,7 +1190,7 @@ class WebMCPAnnotation(TypedDict):
 WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
 
 
-WebMCPJsonValue: TypeAlias = FieldSchema11
+WebMCPJsonValue: TypeAlias = FieldSchema12
 
 
 class PageWebMCPInvokeToolParams(TypedDict):
