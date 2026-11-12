@@ -5,6 +5,8 @@ import { StagehandLogger } from "../../logger.js";
 import { CdpConnection, type CDPSessionLike } from "../cdp.js";
 import { Page } from "../page.js";
 import { Progress } from "../progress.js";
+import { formatAnnotatedPageContent } from "./format.js";
+import { controls } from "./fixtures/controls.js";
 
 const content = readFileSync(new URL("./fixtures/content.base64", import.meta.url), "utf8").trim();
 
@@ -51,6 +53,40 @@ describe("Page.captureAnnotatedPageContent", () => {
     const full = await page.apc();
     expect(full).toContain('text: "Hello, 世界"');
     await expect(page.apc({ actions: [] })).resolves.toBe(full);
+  });
+
+  it("prepares content and executable targets from one capture", async () => {
+    const query = await page.queryAnnotatedPageContent(["fill"]);
+    expect(send).toHaveBeenCalledExactlyOnceWith("Page.getAnnotatedPageContent", {
+      includeActionableInformation: true,
+    });
+    expect(query.nodes).toHaveLength(1);
+    expect(query.nodes[0]?.id).toBe("0-42");
+    expect(query.nodes[0]?.source.contentAttributes?.formControlData?.fieldName).toBe("email");
+    expect(query.targetsById.get("0-42")).toEqual({
+      id: "0-42",
+      frame: page.mainFrame(),
+      backendNodeId: 42,
+    });
+    const output = formatAnnotatedPageContent(query);
+    expect(output).toBe('[0-42] input_email [name="email"]');
+    expect(send).toHaveBeenCalledTimes(1);
+
+    const prepare = vi.spyOn(page, "queryAnnotatedPageContent").mockResolvedValue(query);
+    await expect(page.apc({ actions: ["fill"] })).resolves.toBe(output);
+    expect(prepare).toHaveBeenCalledExactlyOnceWith(["fill"], expect.any(Progress));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves associated labels and leaves unresolved nodes outside the target map", async () => {
+    const capture = vi.spyOn(page, "captureAnnotatedPageContent").mockResolvedValue(controls);
+    const query = await page.queryAnnotatedPageContent(["fill", "select"]);
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(query.nodes.map((node) => node.id)).toEqual(["0-42", undefined]);
+    expect(query.nodes[0]?.label).toBe("Email address");
+    expect([...query.targetsById.keys()]).toEqual(["0-42"]);
+    expect(formatAnnotatedPageContent(query)).toContain('option: "Basic"');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 25])("honors the APC capture timeout %s", async (timeout) => {

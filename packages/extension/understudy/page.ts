@@ -4,9 +4,11 @@ import type { StagehandLogger } from "../logger.js";
 import {
   captureAnnotatedPageContent,
   formatAnnotatedPageContent,
+  queryAnnotatedPageContent,
+  type ApcAction,
+  type ApcQueryResult,
   type AnnotatedPageContent,
 } from "./annotatedPageContent/index.js";
-import { resolveAnnotatedPageContentTargets } from "./annotatedPageContent/targets.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
@@ -2334,13 +2336,22 @@ export class Page {
     );
   }
 
+  /** Prepare filtered content and resolved targets from one APC capture. */
+  async queryAnnotatedPageContent(
+    actions: readonly ApcAction[] = [],
+    parentProgress?: Progress,
+  ): Promise<ApcQueryResult> {
+    return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
+      queryAnnotatedPageContent(this, actions, progress),
+    );
+  }
+
   async apc(options?: PageApcOptions, parentProgress?: Progress): Promise<PageApcResult> {
     return runWithProgress(
       parentProgress ?? { name: "apc", timeout: options?.timeout ?? 20_000 },
       async (progress) => {
-        const content = await this.captureAnnotatedPageContent(progress);
-        const targets = await resolveAnnotatedPageContentTargets(this, content, progress);
-        return formatAnnotatedPageContent(content, options?.actions, progress, targets);
+        const query = await this.queryAnnotatedPageContent(options?.actions, progress);
+        return formatAnnotatedPageContent(query, progress);
       },
     );
   }

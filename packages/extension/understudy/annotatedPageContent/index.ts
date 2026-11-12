@@ -31,5 +31,6 @@ export async function captureAnnotatedPageContent(
   return decoded;
 }
 
+export { queryAnnotatedPageContent, type ApcQueryResult } from "./query.js";
 export { formatAnnotatedPageContent } from "./format.js";
 export type { ApcAction } from "./actions.js";

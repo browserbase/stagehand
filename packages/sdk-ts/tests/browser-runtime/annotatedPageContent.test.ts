@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { CDPClient, openCDPWebSocket, resolveBrowserWebSocketUrl } from "../../src/cdpClient.js";
 import { classifyActions } from "../../../extension/understudy/annotatedPageContent/actions.js";
+import { prepareAnnotatedPageContentQuery } from "../../../extension/understudy/annotatedPageContent/query.js";
 import { formatAnnotatedPageContent } from "../../../extension/understudy/annotatedPageContent/format.js";
 import { captureAnnotatedPageContent } from "../../../extension/understudy/annotatedPageContent/index.js";
 import type { ContentAttributesJson } from "../../../extension/understudy/annotatedPageContent/common_quality_data_pb.js";
@@ -99,7 +100,9 @@ describe("Chromium annotated page content", () => {
       expect(classifyActions(labeled("Hover target"))).toEqual(["hover"]);
       expect(classifyActions(labeled("Focus target"))).toEqual([]);
       expect(classifyActions(labeled("Scroll target"))).toEqual(["scroll"]);
-      const formatted = formatAnnotatedPageContent(content, ["fill", "select"]);
+      const formatted = formatAnnotatedPageContent(
+        prepareAnnotatedPageContentQuery(content, ["fill", "select"]),
+      );
       expect(formatted).toContain('input_email: "Email"');
       expect(formatted).not.toContain("Checkout");
       expect(formatted).toContain('option: "Basic"');

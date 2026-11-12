@@ -3,11 +3,24 @@ import { Progress } from "../progress.js";
 import { controls, control, text } from "./fixtures/controls.js";
 import { filterAnnotatedPageContent } from "./filter.js";
 import { formatAnnotatedPageContent } from "./format.js";
+import { prepareAnnotatedPageContentQuery } from "./query.js";
+import type { ApcAction } from "./actions.js";
 import type { AnnotatedPageContent } from "./index.js";
+
+function formatContent(
+  content: AnnotatedPageContent,
+  actions: readonly ApcAction[] = [],
+  progress?: Progress,
+): string {
+  return formatAnnotatedPageContent(
+    prepareAnnotatedPageContentQuery(content, actions, progress),
+    progress,
+  );
+}
 
 describe("APC filtering and formatting", () => {
   it("folds associated labels into targets without ancestor containers or unrelated text", () => {
-    expect(formatAnnotatedPageContent(controls, ["fill"])).toBe(
+    expect(formatContent(controls, ["fill"])).toBe(
       'input_email: "Email address" [value=""; placeholder="you@example.com"; required]',
     );
   });
@@ -25,7 +38,7 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    expect(formatAnnotatedPageContent(content, ["click"])).toBe('button_button: "Continue"');
+    expect(formatContent(content, ["click"])).toBe('button_button: "Continue"');
   });
 
   it("uses OR semantics, deduplicates overlaps, and preserves DOM identity", () => {
@@ -42,7 +55,7 @@ describe("APC filtering and formatting", () => {
   });
 
   it("preserves button descendant text, image captions, and checkbox state", () => {
-    const output = formatAnnotatedPageContent(controls, ["click"]);
+    const output = formatContent(controls, ["click"]);
     expect(output).toContain('button: "Pay \\"now\\" Card"');
     expect(output).toContain('input_checkbox: "Accept terms" [unchecked]');
     expect(output).not.toContain("text:");
@@ -52,7 +65,7 @@ describe("APC filtering and formatting", () => {
   });
 
   it("renders select options and their explicit states without inventing missing metadata", () => {
-    const output = formatAnnotatedPageContent(controls, ["select"]);
+    const output = formatContent(controls, ["select"]);
     expect(output).toContain(
       [
         'select_one [name="plan"]',
@@ -65,13 +78,13 @@ describe("APC filtering and formatting", () => {
   });
 
   it("returns the full tree for omitted or empty filters and an empty string for no matches", () => {
-    const output = formatAnnotatedPageContent(controls);
-    expect(output).toBe(formatAnnotatedPageContent(controls, []));
+    const output = formatContent(controls);
+    expect(output).toBe(formatContent(controls, []));
     expect(output).toContain("Unrelated sale");
     expect(output).toContain('name="disabled"; disabled');
-    expect(formatAnnotatedPageContent(controls, ["upload"])).toBe("");
-    expect(formatAnnotatedPageContent({})).toBe("");
-    expect(formatAnnotatedPageContent(controls)).toBe(output);
+    expect(formatContent(controls, ["upload"])).toBe("");
+    expect(formatContent({})).toBe("");
+    expect(formatContent(controls)).toBe(output);
   });
 
   it("resolves labels within their owning document without emitting frame metadata", () => {
@@ -106,7 +119,7 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    const output = formatAnnotatedPageContent(content, ["fill"]);
+    const output = formatContent(content, ["fill"]);
     expect(output.split("\n")).toHaveLength(1);
     expect(output).not.toContain("iframe");
     expect(output).not.toContain("https://payment.test/");
@@ -135,7 +148,7 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    const output = formatAnnotatedPageContent(content, ["fill"]);
+    const output = formatContent(content, ["fill"]);
     expect(output).toContain('input_text: "Name"');
     expect(output).not.toContain('name="help"');
   });
@@ -150,7 +163,7 @@ describe("APC filtering and formatting", () => {
         childrenNodes: [text("Unrelated body"), control("FORM_CONTROL_TYPE_INPUT_TEXT", "field")],
       },
     };
-    expect(formatAnnotatedPageContent(content, ["scroll"])).toBe("root");
+    expect(formatContent(content, ["scroll"])).toBe("root");
   });
 
   it("keeps redaction visible without exposing or reconstructing redacted contents", () => {
@@ -172,12 +185,12 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    const output = formatAnnotatedPageContent(content);
+    const output = formatContent(content);
     expect(output).toContain('input_password [name="password"; redacted]');
     expect(output).toContain("iframe [redacted-frame=cross_origin]");
     expect(output).not.toContain("must not appear");
     expect(output).not.toContain("omitted frame content");
-    expect(formatAnnotatedPageContent(content, ["fill"])).not.toContain("iframe");
+    expect(formatContent(content, ["fill"])).not.toContain("iframe");
   });
 
   it("does not guess targets in hidden subtrees or nodes with missing metadata", () => {
@@ -195,8 +208,8 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    expect(formatAnnotatedPageContent(content, ["fill", "click"])).toBe("");
-    expect(formatAnnotatedPageContent(content)).toContain("Unknown");
+    expect(formatContent(content, ["fill", "click"])).toBe("");
+    expect(formatContent(content)).toContain("Unknown");
   });
 
   it("drops control internals and empty wrappers while preserving independent controls", () => {
@@ -251,7 +264,7 @@ describe("APC filtering and formatting", () => {
         ],
       },
     };
-    const filtered = formatAnnotatedPageContent(content, ["click", "fill", "hover"]);
+    const filtered = formatContent(content, ["click", "fill", "hover"]);
     expect(filtered).toBe('input_text: "Email"\nbutton: "Custom button"');
     const full = filterAnnotatedPageContent(content);
     expect(full.filter((node) => node.source === input)).toHaveLength(1);
@@ -260,7 +273,7 @@ describe("APC filtering and formatting", () => {
         (node) => node.source.contentAttributes?.attributeType === "CONTENT_ATTRIBUTE_CONTAINER",
       ),
     ).toHaveLength(2); // The branching wrapper and the independent ARIA button.
-    expect(formatAnnotatedPageContent(content)).not.toContain('text: ""');
+    expect(formatContent(content)).not.toContain('text: ""');
   });
 
   it("omits URL metadata from both full and filtered output", () => {
@@ -281,7 +294,7 @@ describe("APC filtering and formatting", () => {
       },
     };
     for (const actions of [[], ["click"]] as const) {
-      const output = formatAnnotatedPageContent(content, actions);
+      const output = formatContent(content, actions);
       expect(output).toContain("Destination");
       expect(output).not.toContain("https://");
       expect(output).not.toContain("url=");
@@ -293,9 +306,7 @@ describe("APC filtering and formatting", () => {
     const clock = vi.spyOn(performance, "now").mockImplementation(() => now++);
     const progress = new Progress("apc", 10);
     try {
-      expect(() => formatAnnotatedPageContent(controls, ["click"], progress)).toThrow(
-        /apc timed out/,
-      );
+      expect(() => formatContent(controls, ["click"], progress)).toThrow(/apc timed out/);
     } finally {
       progress.dispose();
       clock.mockRestore();

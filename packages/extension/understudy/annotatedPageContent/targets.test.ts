@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { prepareAnnotatedPageContentQuery } from "./query.js";
 import { formatAnnotatedPageContent } from "./format.js";
 import { resolveAnnotatedPageContentTargets } from "./targets.js";
 import type { AnnotatedPageContent } from "./index.js";
@@ -58,7 +59,10 @@ describe("APC target identity", () => {
       const targets = await resolveAnnotatedPageContentTargets(page, content, progress);
       expect(targets.get(mainNode)).toEqual({ id: "0-42", frame: rootFrame, backendNodeId: 42 });
       expect(targets.get(childNode)).toEqual({ id: "1-42", frame: childFrame, backendNodeId: 42 });
-      const output = formatAnnotatedPageContent(content, [], progress, targets);
+      const query = prepareAnnotatedPageContentQuery(content, [], progress, targets);
+      expect(query.targetsById.get("0-42")).toBe(targets.get(mainNode));
+      expect(query.targetsById.get("1-42")).toBe(targets.get(childNode));
+      const output = formatAnnotatedPageContent(query, progress);
       expect(output).toContain("[0-42] anchor [disabled]");
       expect(output).toContain('[1-42] text: "Child text"');
       expect(output).toContain("[0-10] iframe");

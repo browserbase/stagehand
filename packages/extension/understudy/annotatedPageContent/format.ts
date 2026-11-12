@@ -1,22 +1,13 @@
-import type { ContentNodeJson } from "./common_quality_data_pb.js";
-import type { ApcTarget } from "./targets.js";
 import type { Progress } from "../progress.js";
-import type { AnnotatedPageContent } from "./index.js";
-import { isDisabled, isRedacted, type ApcAction } from "./actions.js";
-import { filterAnnotatedPageContent, type ApcNode } from "./filter.js";
+import { isDisabled, isRedacted } from "./actions.js";
+import type { ApcQueryNode, ApcQueryResult } from "./query.js";
 
-/** Format a capture as a deterministic outline. Every retained node with resolved DOM identity receives its ID. */
-export function formatAnnotatedPageContent(
-  content: AnnotatedPageContent,
-  actions: readonly ApcAction[] = [],
-  progress?: Progress,
-  targets?: ReadonlyMap<ContentNodeJson, ApcTarget>,
-): string {
-  const nodes = filterAnnotatedPageContent(content, actions, progress);
+/** Format a prepared query without recapturing, filtering, or resolving nodes. */
+export function formatAnnotatedPageContent(query: ApcQueryResult, progress?: Progress): string {
   const lines: string[] = [];
-  for (const node of nodes) {
+  for (const node of query.nodes) {
     progress?.throwIfStopped();
-    appendNode(lines, node, actions.length > 0, targets?.get(node.source)?.id, progress);
+    appendNode(lines, node, query.filtered, node.id, progress);
   }
   progress?.throwIfStopped();
   return lines.join("\n");
@@ -24,7 +15,7 @@ export function formatAnnotatedPageContent(
 
 function appendNode(
   lines: string[],
-  node: ApcNode,
+  node: ApcQueryNode,
   compact: boolean,
   id?: string,
   progress?: Progress,
