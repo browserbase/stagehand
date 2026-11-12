@@ -5,6 +5,13 @@ import type { ContentNodeJson } from "./common_quality_data_pb.js";
 import type { ApcAction } from "./actions.js";
 import { filterAnnotatedPageContent, type ApcNode } from "./filter.js";
 import { resolveAnnotatedPageContentTargets, type ApcTarget } from "./targets.js";
+import { scopeAnnotatedPageContent, type ApcScope } from "./scopes.js";
+
+export type ApcQueryOptions = {
+  actions?: readonly ApcAction[];
+  /** Omitted means the whole capture; an empty list matches nothing. */
+  scopes?: readonly ApcScope[];
+};
 
 export type ApcQueryNode = ApcNode & { id?: string };
 
@@ -19,12 +26,15 @@ export type ApcQueryResult = {
 /** Capture once so the filtered content and executable identities describe the same nodes. */
 export async function queryAnnotatedPageContent(
   page: Page,
-  actions: readonly ApcAction[],
+  options: ApcQueryOptions,
   progress: Progress,
 ): Promise<ApcQueryResult> {
   const content = await page.captureAnnotatedPageContent(progress);
   const targets = await resolveAnnotatedPageContentTargets(page, content, progress);
-  return prepareAnnotatedPageContentQuery(content, actions, progress, targets);
+  const query = prepareAnnotatedPageContentQuery(content, options.actions, progress, targets);
+  return options.scopes === undefined
+    ? query
+    : scopeAnnotatedPageContent(page, query, options.scopes, progress);
 }
 
 /** Join the filtered tree to identities resolved from this same capture. */

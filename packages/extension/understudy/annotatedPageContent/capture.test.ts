@@ -56,7 +56,7 @@ describe("Page.captureAnnotatedPageContent", () => {
   });
 
   it("prepares content and executable targets from one capture", async () => {
-    const query = await page.queryAnnotatedPageContent(["fill"]);
+    const query = await page.queryAnnotatedPageContent({ actions: ["fill"] });
     expect(send).toHaveBeenCalledExactlyOnceWith("Page.getAnnotatedPageContent", {
       includeActionableInformation: true,
     });
@@ -74,13 +74,13 @@ describe("Page.captureAnnotatedPageContent", () => {
 
     const prepare = vi.spyOn(page, "queryAnnotatedPageContent").mockResolvedValue(query);
     await expect(page.apc({ actions: ["fill"] })).resolves.toBe(output);
-    expect(prepare).toHaveBeenCalledExactlyOnceWith(["fill"], expect.any(Progress));
+    expect(prepare).toHaveBeenCalledExactlyOnceWith({ actions: ["fill"] }, expect.any(Progress));
     expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("preserves associated labels and leaves unresolved nodes outside the target map", async () => {
     const capture = vi.spyOn(page, "captureAnnotatedPageContent").mockResolvedValue(controls);
-    const query = await page.queryAnnotatedPageContent(["fill", "select"]);
+    const query = await page.queryAnnotatedPageContent({ actions: ["fill", "select"] });
     expect(capture).toHaveBeenCalledTimes(1);
     expect(query.nodes.map((node) => node.id)).toEqual(["0-42", undefined]);
     expect(query.nodes[0]?.label).toBe("Email address");

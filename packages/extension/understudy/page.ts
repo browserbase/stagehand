@@ -5,7 +5,7 @@ import {
   captureAnnotatedPageContent,
   formatAnnotatedPageContent,
   queryAnnotatedPageContent,
-  type ApcAction,
+  type ApcQueryOptions,
   type ApcQueryResult,
   type AnnotatedPageContent,
 } from "./annotatedPageContent/index.js";
@@ -2338,11 +2338,11 @@ export class Page {
 
   /** Prepare filtered content and resolved targets from one APC capture. */
   async queryAnnotatedPageContent(
-    actions: readonly ApcAction[] = [],
+    options: ApcQueryOptions = {},
     parentProgress?: Progress,
   ): Promise<ApcQueryResult> {
     return runWithProgress(parentProgress ?? { name: "apc", timeout: 20_000 }, (progress) =>
-      queryAnnotatedPageContent(this, actions, progress),
+      queryAnnotatedPageContent(this, options, progress),
     );
   }
 
@@ -2350,7 +2350,7 @@ export class Page {
     return runWithProgress(
       parentProgress ?? { name: "apc", timeout: options?.timeout ?? 20_000 },
       async (progress) => {
-        const query = await this.queryAnnotatedPageContent(options?.actions, progress);
+        const query = await this.queryAnnotatedPageContent({ actions: options?.actions }, progress);
         return formatAnnotatedPageContent(query, progress);
       },
     );
