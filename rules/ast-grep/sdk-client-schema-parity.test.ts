@@ -26,6 +26,11 @@ const intentionallyUndocumentedBrowserFields = new Set([
 
 const concepts: readonly Concept[] = [
   {
+    name: "ClientDecisionModel",
+    typescript: ClientSchemas.ClientDecisionModelSchema,
+    python: () => pythonClassFields("client_types.py", "ClientDecisionModel"),
+  },
+  {
     name: "LocalBrowserLaunchOptions",
     typescript: ClientSchemas.LocalBrowserLaunchOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserLaunchOptions"),

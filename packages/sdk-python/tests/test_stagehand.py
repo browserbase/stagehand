@@ -12,6 +12,10 @@ from pydantic import BaseModel, RootModel, StrictInt, ValidationError
 from typing_extensions import override
 
 from stagehand import (
+    DecisionChooseInput,
+    DecisionChooseOutput,
+    DecisionChooseResult,
+    DecisionSelectedResult,
     DefaultExtract,
     ExtractResult,
     LLMGenerateInput,
@@ -64,7 +68,7 @@ from stagehand.browser import (
     local_browser,
 )
 from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
-from stagehand.rpc_client import RPCClient, RPCError, _JSONRPCError
+from stagehand.rpc_client import RPCClient, RPCError, RPCRequestContext, _JSONRPCError
 
 from ._support import RecordingRPCClient
 
@@ -339,11 +343,18 @@ async def test_create_builds_client_browserbase_wire_params(
             "structured_content": {},
         })
 
+    seen: list[DecisionChooseInput] = []
+
+    async def choose(request: DecisionChooseInput) -> DecisionChooseOutput:
+        seen.append(request)
+        return DecisionSelectedResult(status="selected", id=request.candidates[0].id)
+
     stagehand = await Stagehand.create(
         browser=browser,
         api_key="caller-key",
         api_url="https://api.stagehand.dev.browserbase.com",
         model=generate,
+        decision_model={"choose": choose},
         logging={"level": "debug"},
     )
 
@@ -360,6 +371,21 @@ async def test_create_builds_client_browserbase_wire_params(
     assert "api_url" not in params.model_fields_set
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
+    assert params.model_dump(mode="json", exclude_unset=True)["decision_model"] == {
+        "source": "client"
+    }
+    handler = cast(
+        Callable[[DecisionChooseInput, RPCRequestContext], Awaitable[DecisionChooseResult]],
+        recording.requests["decision.choose"][2],
+    )
+    request = DecisionChooseInput.model_validate({
+        "prompt": "Save",
+        "candidates": [{"id": "0-1", "description": "Save button"}],
+    })
+    assert (
+        await handler(request, RPCRequestContext(request_id=42))
+    ).root == DecisionSelectedResult(status="selected", id="0-1")
+    assert seen == [request]
     assert "browserbase.request" in recording.requests
     assert "browserbase.cancel" in recording.notifications
     await stagehand.close()
@@ -549,8 +575,11 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
     _install_rpc_client(monkeypatch, failed)
     browser, transport = _browser_handle()
 
+    async def choose(_: DecisionChooseInput) -> DecisionChooseOutput:
+        raise AssertionError("No decision is expected during init")
+
     with pytest.raises(RuntimeError, match="init failed"):
-        await Stagehand.create(browser=browser)
+        await Stagehand.create(browser=browser, decision_model={"choose": choose})
 
     assert failed.closed is True
     assert failed.close_transport_flags == [False]

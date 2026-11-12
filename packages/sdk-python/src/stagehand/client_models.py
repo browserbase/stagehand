@@ -21,6 +21,7 @@ from ._generated.models import (
 from ._validation import WireHeaders, WireModel, WireUrl, WireWebSocketUrl
 from .browserbase_session import DEFAULT_BROWSERBASE_URL
 from .client_types import Cache as CacheInput
+from .client_types import DecisionChooseCallback
 
 ExtractData = TypeVar("ExtractData", bound=BaseModel)
 
@@ -209,6 +210,12 @@ class ClientLLM(WireModel):
     generate: LLMGenerateCallback
 
 
+class ClientDecisionModel(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    choose: DecisionChooseCallback
+
+
 class StagehandClientLoggingConfig(WireModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -223,6 +230,7 @@ class StagehandClientCreateConfig(WireModel):
     api_key: Annotated[str | None, Field(min_length=1)] = None
     api_url: Annotated[WireUrl | None, Field(min_length=1)] = None
     model: ModelConfig | ClientLLM | None = None
+    decision_model: ClientDecisionModel | None = None
     telemetry: TelemetryConfig | None = None
     system_prompt: str | None = None
     self_heal: bool | None = None

@@ -14,6 +14,8 @@ import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
   ExtractOptionsSchema,
+  DecisionChooseParamsSchema,
+  DecisionChooseResultSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   ModelConfigSchema,
@@ -287,6 +289,16 @@ export const ClientLLMSchema = z
   })
   .meta({ id: "ClientLLM" });
 
+/** A provider-independent selection callback that runs only in the SDK process. */
+export const ClientDecisionModelSchema = z
+  .strictObject({
+    choose: z.function({
+      input: [DecisionChooseParamsSchema],
+      output: z.promise(DecisionChooseResultSchema),
+    }),
+  })
+  .meta({ id: "ClientDecisionModel" });
+
 export const StagehandClientLogLevelSchema = z
   .union([StagehandLogLevelSchema, z.literal("off")])
   .meta({ id: "StagehandClientLogLevel" });
@@ -359,6 +371,7 @@ export const StagehandClientCreateConfigSchema = z
           "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
       }),
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+    decisionModel: ClientDecisionModelSchema.optional(),
     logging: StagehandClientLoggingConfigSchema.default({
       level: "info",
       format: "pretty",
@@ -379,6 +392,7 @@ export const StagehandCreateOptionsSchema = StagehandClientCreateConfigSchema.ex
 }).meta({ id: "StagehandCreateOptions" });
 
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
+export type ClientDecisionModel = z.infer<typeof ClientDecisionModelSchema>;
 export type StagehandClientLoggingConfig = z.input<typeof StagehandClientLoggingConfigSchema>;
 export type ResolvedStagehandClientLoggingConfig = z.output<
   typeof StagehandClientLoggingConfigSchema

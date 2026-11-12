@@ -1,5 +1,14 @@
 import type { ProtocolIncompatibilityReason } from "@browserbasehq/stagehand-protocol/protocol-version";
 
+export class DecisionModelNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "A client decision callback must be configured with decisionModel.choose (Python: decision_model['choose'])",
+    );
+    this.name = "DecisionModelNotConfiguredError";
+  }
+}
+
 export class TimeoutError extends Error {
   constructor(operation: string, timeout: number) {
     super(`${operation} timed out after ${timeout}ms`);

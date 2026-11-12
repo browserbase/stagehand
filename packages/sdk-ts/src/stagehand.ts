@@ -24,6 +24,7 @@ import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserbaseConnection } from "./browserbaseConnection.js";
 import { registerBrowserbaseTransport } from "./browserbaseRpc.js";
+import { registerDecisionHandler } from "./decisionRpc.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
 import {
   StagehandClientActOptionsSchema,
@@ -80,6 +81,7 @@ export class Stagehand {
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
+  private removeDecisionHandler: (() => void) | undefined;
   private removeBrowserbaseTransport: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
@@ -214,6 +216,12 @@ export class Stagehand {
           generate(params),
         );
       }
+      const decisionModel = createConfig.decisionModel;
+      if (decisionModel) {
+        this.removeDecisionHandler = registerDecisionHandler(rpcClient, (params) =>
+          decisionModel.choose(params),
+        );
+      }
 
       this.initRequestStarted = true;
       await rpcClient.sendStagehandInit(
@@ -230,6 +238,8 @@ export class Stagehand {
       this.removeBrowserbaseTransport = undefined;
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
+      this.removeDecisionHandler?.();
+      this.removeDecisionHandler = undefined;
       this.removeNotificationListener?.();
       this.removeNotificationListener = undefined;
       rpcClient.close(new Error("Stagehand initialization failed", { cause: error }), {
@@ -338,6 +348,8 @@ export class Stagehand {
         this.removeBrowserbaseTransport = undefined;
         this.removeClientLLMHandler?.();
         this.removeClientLLMHandler = undefined;
+        this.removeDecisionHandler?.();
+        this.removeDecisionHandler = undefined;
         this.removeNotificationListener?.();
         this.removeNotificationListener = undefined;
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
@@ -369,7 +381,14 @@ function stagehandCreateParamsForWorker(
   browser: ClaimedStagehandBrowser,
   hasBrowserbaseConnection: boolean,
 ) {
-  const { logging, model, apiKey: _apiKey, apiUrl: _apiUrl, ...protocolParams } = createConfig;
+  const {
+    logging,
+    model,
+    decisionModel,
+    apiKey: _apiKey,
+    apiUrl: _apiUrl,
+    ...protocolParams
+  } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   return StagehandInitParamsSchema.parse({
@@ -384,6 +403,7 @@ function stagehandCreateParamsForWorker(
       : { browser: browser.workerInitMetadata.browser }),
     ...(hasBrowserbaseConnection ? { browserbase: "client" } : {}),
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
+    ...(decisionModel === undefined ? {} : { decisionModel: { source: "client" } }),
   });
 }
 

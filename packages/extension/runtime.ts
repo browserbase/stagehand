@@ -1,8 +1,14 @@
 import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
-import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
+import {
+  DEFAULT_LOCATOR_TIMEOUT_MS,
+  DecisionChooseParamsSchema,
+  createDecisionChooseResultSchema,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
-import { ShadowRootEvaluationUnavailableError } from "./errors.js";
+import { DecisionModelNotConfiguredError, ShadowRootEvaluationUnavailableError } from "./errors.js";
 import type {
+  DecisionChooseParams,
+  DecisionChooseResult,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -297,6 +303,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+  clientDecisionChoose?: (params: DecisionChooseParams) => Promise<DecisionChooseResult>;
   clientBrowserbaseRequest?: ClientBrowserbaseRequest;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
   emitPageEvent?: (notification: PageEventNotification) => void;
@@ -315,6 +322,9 @@ const unavailableClientBrowserbase = async (): Promise<never> => {
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
+const unavailableClientDecision = async (): Promise<never> => {
+  throw new DecisionModelNotConfiguredError();
+};
 
 export function createStagehandRuntime(
   adapters: StagehandRuntimeAdapters = {},
@@ -325,6 +335,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+      clientDecisionChoose: adapters.clientDecisionChoose ?? unavailableClientDecision,
       clientBrowserbaseRequest: adapters.clientBrowserbaseRequest ?? unavailableClientBrowserbase,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
       emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
@@ -530,6 +541,32 @@ export class StagehandRuntime {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
     return await llmService.generate(model, input, this.adapters.clientLLMGenerate, gateway);
+  }
+
+  /** Selection runs in the SDK; ordinary locator execution consumes the chosen ID later. */
+  async chooseDecision(
+    input: DecisionChooseParams,
+    parentProgress?: Progress,
+  ): Promise<DecisionChooseResult> {
+    const state = this.state.getState();
+    if (state.status !== "initialized" || !state.initParams.decisionModel) {
+      throw new DecisionModelNotConfiguredError();
+    }
+    if (this.stagehandInstanceClosing) throw new Error("Stagehand instance is closing");
+    const params = DecisionChooseParamsSchema.parse(input);
+    const resultSchema = createDecisionChooseResultSchema(params);
+    return runWithProgress(
+      parentProgress ?? { name: "decision", timeout: DEFAULT_LOCATOR_TIMEOUT_MS },
+      async (progress) => {
+        const result = await progress.run("choosing a locator candidate", () =>
+          this.adapters.clientDecisionChoose(params),
+        );
+        if (this.stagehandInstanceClosing || this.state.getState() !== state) {
+          throw new Error("Stagehand decision request is no longer active");
+        }
+        return resultSchema.parse(result);
+      },
+    );
   }
 
   async contextPages(): Promise<ContextPagesResult> {

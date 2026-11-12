@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import type {
+  DecisionChooseParams,
+  DecisionChooseResult,
   LLMGenerateParams,
   LLMGenerateResult,
   StagehandMetrics,
@@ -232,13 +234,31 @@ describe("Stagehand.create", () => {
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
-    await expect(Stagehand.create({ browser })).rejects.toThrow("worker initialization failed");
+    const choose = vi.fn(async (): Promise<DecisionChooseResult> => ({ status: "no_match" }));
+    await expect(Stagehand.create({ browser, decisionModel: { choose } })).rejects.toThrow(
+      "worker initialization failed",
+    );
     expect(browser.closed).toBe(false);
     expect(cdp.close).not.toHaveBeenCalled();
 
     cdp.initError = undefined;
     const stagehand = await Stagehand.create({ browser });
     expect(stagehand.initialized).toBe(true);
+    await cdp.emit({
+      jsonrpc: "2.0",
+      id: 99,
+      method: "decision.choose",
+      params: {
+        prompt: "Save",
+        candidates: [{ id: "0-1", description: "Save button" }],
+      },
+    });
+    expect(choose).not.toHaveBeenCalled();
+    expect(cdp.requests).toContainEqual({
+      jsonrpc: "2.0",
+      id: 99,
+      error: { code: -32601, message: "Method not found" },
+    });
 
     await stagehand.close();
     await browser.close();
@@ -451,7 +471,7 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
-  it("registers a client LLM handler and sends its serializable model reference", async () => {
+  it("registers independent generation and decision callbacks and serializes only their references", async () => {
     const cdp = new FakeCDPClient();
     const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
       role: "assistant",
@@ -463,10 +483,31 @@ describe("Stagehand.create", () => {
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
-    const stagehand = await Stagehand.create({ browser, model: { generate } });
+    const choose = vi.fn(async (params: DecisionChooseParams): Promise<DecisionChooseResult> => ({
+      status: "selected",
+      id: params.candidates[0]!.id,
+    }));
+    const stagehand = await Stagehand.create({
+      browser,
+      model: { generate },
+      decisionModel: { choose },
+    });
 
     expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
-      params: { model: { source: "client" } },
+      params: { model: { source: "client" }, decision_model: { source: "client" } },
+    });
+    const init = cdp.requestsFor("stagehand.init")[0]!;
+    if (!("params" in init)) throw new Error("Missing init params");
+    expect((init.params as { decision_model: unknown }).decision_model).toEqual({
+      source: "client",
+    });
+    const decision = { prompt: "Save", candidates: [{ id: "0-1", description: "Save button" }] };
+    await cdp.emit({ jsonrpc: "2.0", id: 98, method: "decision.choose", params: decision });
+    expect(choose).toHaveBeenCalledExactlyOnceWith(decision);
+    expect(cdp.requests).toContainEqual({
+      jsonrpc: "2.0",
+      id: 98,
+      result: { status: "selected", id: "0-1" },
     });
     await cdp.emit({
       jsonrpc: "2.0",
@@ -490,6 +531,15 @@ describe("Stagehand.create", () => {
     });
 
     await stagehand.close();
+    const next = await Stagehand.create({ browser });
+    await cdp.emit({ jsonrpc: "2.0", id: 100, method: "decision.choose", params: decision });
+    expect(choose).toHaveBeenCalledTimes(1);
+    expect(cdp.requests).toContainEqual({
+      jsonrpc: "2.0",
+      id: 100,
+      error: { code: -32601, message: "Method not found" },
+    });
+    await next.close();
     await browser.close();
   });
 

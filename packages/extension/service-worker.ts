@@ -106,6 +106,10 @@ export function startStagehandServiceWorker(
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);
       },
+      clientDecisionChoose: async (params) => {
+        if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
+        return await rpcClient.send(StagehandMethods.decisionChoose, params);
+      },
     });
 
   const router = new RPCRouter(activeRuntime);

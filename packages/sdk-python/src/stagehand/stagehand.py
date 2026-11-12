@@ -23,7 +23,10 @@ from ._generated.models import (
     CallbackBatchOptions,
     CallbackBatchParams,
     CallbackBatchResult,
+    ClientDecisionModelReference,
     ClientModelReference,
+    DecisionChooseParams,
+    DecisionChooseResult,
     EmptyParams,
     ExtractOptions,
     FieldSchema0,
@@ -62,10 +65,16 @@ from .client_models import (
     _ExtractWireResult,
     _model_config,
 )
-from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
+from .client_types import (
+    Cache,
+    ClientDecisionModel,
+    LLMGenerateCallback,
+    StagehandClientLoggingConfig,
+)
+from .decision_rpc import register_decision_handler
 from .locator import Locator
 from .page import Page
-from .rpc_client import RPCClient, RPCError
+from .rpc_client import RPCClient, RPCError, RPCRequestContext
 from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
@@ -113,6 +122,7 @@ class Stagehand:
         self._rpc_client: RPCClient | None = None
         self._remove_notification_listener: Callable[[], None] | None = None
         self._remove_client_llm_handler: Callable[[], None] | None = None
+        self._remove_decision_handler: Callable[[], None] | None = None
         self._initialized = False
         self._remove_browserbase_transport: Callable[[], Awaitable[None]] | None = None
         self._init_request_started = False
@@ -126,6 +136,7 @@ class Stagehand:
         api_key: str | None = None,
         api_url: str | None = None,
         model: str | LLMGenerateCallback | None = None,
+        decision_model: ClientDecisionModel | None = None,
         model_api_key: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
@@ -170,6 +181,7 @@ class Stagehand:
                 ("dom_settle_timeout_ms", dom_settle_timeout_ms),
                 ("cache", _cache_config(cache) if cache is not None else None),
                 ("logging", logging),
+                ("decision_model", decision_model),
             )
             if value is not None
         }
@@ -285,6 +297,16 @@ class Stagehand:
                 LLMGenerateResult,
                 generate,
             )
+
+        decision_model = self._create_config.decision_model
+        if decision_model is not None:
+
+            async def choose(
+                params: DecisionChooseParams, _context: RPCRequestContext
+            ) -> DecisionChooseResult:
+                return DecisionChooseResult(root=await decision_model.choose(params))
+
+            self._remove_decision_handler = register_decision_handler(rpc_client, choose)
 
         init_params = self._worker_init_params(
             claimed, has_browserbase_connection=connection is not None
@@ -513,13 +535,15 @@ class Stagehand:
         if browser_cdp_url is None:
             raise RuntimeError("The browser CDP WebSocket URL is unavailable")
         values = self._create_config.model_dump(
-            exclude={"logging", "model", "api_key", "api_url"},
+            exclude={"logging", "model", "decision_model", "api_key", "api_url"},
             exclude_unset=True,
         )
         if isinstance(self._create_config.model, _client_models.ClientLLM):
             values["model"] = ClientModelReference(source="client")
         elif self._create_config.model is not None:
             values["model"] = self._create_config.model
+        if self._create_config.decision_model is not None:
+            values["decision_model"] = ClientDecisionModelReference(source="client")
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
         values["client_info"] = STAGEHAND_SDK_CLIENT_INFO
         values["browser_cdp_url"] = browser_cdp_url
@@ -555,6 +579,9 @@ class Stagehand:
         if self._remove_client_llm_handler is not None:
             self._remove_client_llm_handler()
             self._remove_client_llm_handler = None
+        if self._remove_decision_handler is not None:
+            self._remove_decision_handler()
+            self._remove_decision_handler = None
         if self._remove_notification_listener is not None:
             self._remove_notification_listener()
             self._remove_notification_listener = None

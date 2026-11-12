@@ -11,6 +11,10 @@ from ._generated.input_types import (
     TelemetryConfig,
 )
 from ._generated.models import (
+    DecisionChooseParams,
+    DecisionNoMatchResult,
+    DecisionRefusedResult,
+    DecisionSelectedResult,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
@@ -30,6 +34,9 @@ LocatorInput = str | LocatorSelector
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
 LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
 LLMGenerateCallback = Callable[[LLMGenerateInput], Awaitable[LLMGenerateOutput]]
+DecisionChooseInput = DecisionChooseParams
+DecisionChooseOutput = DecisionSelectedResult | DecisionNoMatchResult | DecisionRefusedResult
+DecisionChooseCallback = Callable[[DecisionChooseInput], Awaitable[DecisionChooseOutput]]
 StagehandOnLog = Callable[[StagehandLog], None | Awaitable[None]]
 
 
@@ -107,6 +114,10 @@ class ClientLLM(TypedDict):
     generate: LLMGenerateCallback
 
 
+class ClientDecisionModel(TypedDict):
+    choose: DecisionChooseCallback
+
+
 class StagehandClientLoggingConfig(TypedDict, total=False):
     level: Literal["off", "error", "warn", "info", "debug"]
     format: Literal["pretty", "json"]
@@ -117,6 +128,7 @@ class StagehandClientCreateConfig(TypedDict, total=False):
     api_key: str
     api_url: str
     model: ModelConfig | ClientLLM
+    decision_model: ClientDecisionModel
     telemetry: TelemetryConfig
     system_prompt: str
     self_heal: bool
@@ -131,6 +143,10 @@ __all__ = [
     "Cache",
     "CacheOptions",
     "ClientLLM",
+    "ClientDecisionModel",
+    "DecisionChooseCallback",
+    "DecisionChooseInput",
+    "DecisionChooseOutput",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",

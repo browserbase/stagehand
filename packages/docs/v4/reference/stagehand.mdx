@@ -53,6 +53,10 @@ const stagehand = await Stagehand.create({ browser });
   Default model configuration or client-provided generation callback. Browserbase selects a model automatically for Gateway sessions when omitted.
 </ParamField>
 
+<ParamField path="decisionModel" type="ClientDecisionModel" optional>
+  Client-side selection callback configured as `{ choose: async (request) => result }`. Independent of `model`; provider clients and credentials stay in the SDK process.
+</ParamField>
+
 <ParamField path="telemetry" type="StagehandCreateOptions['telemetry']" optional>
   OpenTelemetry trace export configuration.
 </ParamField>
@@ -900,6 +904,10 @@ stagehand = await Stagehand.create(browser=browser)
 
 <ParamField path="model" type="str | LLMGenerateCallback" optional>
   Default provider-prefixed model name or client-provided generation callback. Browserbase selects a model automatically for Gateway sessions when omitted.
+</ParamField>
+
+<ParamField path="decision_model" type="ClientDecisionModel" optional>
+  Client-side selection callback configured as `{"choose": choose}` with an async function. Independent of `model`; provider clients and credentials stay in the SDK process.
 </ParamField>
 
 <ParamField path="model_api_key" type="str" optional>
