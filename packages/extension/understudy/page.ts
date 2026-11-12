@@ -39,10 +39,9 @@ import type {
   WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
-import { DEFAULT_IDLE_WAIT } from "../types/private/network.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
-import { LifecycleWatcher, mainDocumentIdleFilter } from "./lifecycleWatcher.js";
+import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
@@ -1744,21 +1743,13 @@ export class Page {
   async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
     if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
 
-    const deadline = Date.now() + timeout;
-    await this.waitForMainLoadState("load", timeout);
-    const remaining = Math.max(0, deadline - Date.now());
-    const mainFrameId = this.mainFrameId();
-    await this.networkManager.waitForIdle({
-      // Count requests that were already in flight before the wait started.
-      startTime: 0,
-      timeout: remaining,
-      totalBudgetMs: timeout,
-      idleTimeMs: Math.min(DEFAULT_IDLE_WAIT, remaining),
-      filter: mainDocumentIdleFilter(
-        this.registry.frames.get(mainFrameId)?.lastSeen?.loaderId,
-        mainFrameId,
-      ),
-    }).promise;
+    await new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil: state,
+      timeout,
+    }).wait();
   }
 
   /**
