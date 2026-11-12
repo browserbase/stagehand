@@ -1737,10 +1737,19 @@ export class Page {
 
   /**
    * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures.
+   * Mirrors Playwright's API signatures. `networkidle` uses the same quiet-window
+   * check as `goto(url, { waitUntil: "networkidle" })`.
    */
-  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeout ?? 15000);
+  async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
+    if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
+
+    await new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil: state,
+      timeout,
+    }).wait();
   }
 
   /**

@@ -30,7 +30,7 @@ export class LifecycleWatcher {
   readonly waitUntil: LoadState;
   readonly timeout: number;
   readonly startTime: number;
-  readonly navigationCommandId: number;
+  readonly navigationCommandId: number | undefined;
   currentLoaderId: string | undefined;
   idleStartTime: number;
 
@@ -52,6 +52,7 @@ export class LifecycleWatcher {
 
   /**
    * Create a watcher; callers should subsequently invoke {@link wait}.
+   * Without a `navigationCommandId` it waits on the current document instead of a new navigation.
    */
   constructor(params: {
     page: Page;
@@ -59,7 +60,7 @@ export class LifecycleWatcher {
     networkManager: NetworkManager;
     waitUntil: LoadState;
     timeout: number;
-    navigationCommandId: number;
+    navigationCommandId?: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
@@ -81,6 +82,14 @@ export class LifecycleWatcher {
         resolve(sameDocument);
       };
     });
+
+    if (this.navigationCommandId === undefined) {
+      const mainFrame = this.page.registry.frames.get(this.page.mainFrameId());
+      this.setExpectedLoaderId(mainFrame?.lastSeen?.loaderId);
+      // Count requests the current document already has in flight.
+      this.idleStartTime = 0;
+      this.resolveNavigationStart(false);
+    }
 
     this.installSessionListeners();
   }
@@ -165,7 +174,7 @@ export class LifecycleWatcher {
 
       const loaderId = evt.frame.loaderId;
       if (!loaderId) return;
-      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+      if (this.isSuperseded()) {
         this.triggerAbort(new Error("Navigation was superseded by a new request"));
         return;
       }
@@ -199,7 +208,7 @@ export class LifecycleWatcher {
 
     const onNavigatedWithinDocument = (evt: Protocol.Page.NavigatedWithinDocumentEvent) => {
       if (evt?.frameId !== this.page.mainFrameId()) return;
-      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+      if (this.isSuperseded()) {
         this.triggerAbort(new Error("Navigation was superseded by a new request"));
         return;
       }
@@ -260,6 +269,14 @@ export class LifecycleWatcher {
     }
   }
 
+  /** Only a watcher that belongs to a navigation command can be superseded by a newer one. */
+  isSuperseded(): boolean {
+    return (
+      this.navigationCommandId !== undefined &&
+      !this.page.isCurrentNavigationCommand(this.navigationCommandId)
+    );
+  }
+
   /** Mark the watcher as aborted and reject any pending waiters. */
   triggerAbort(error: Error): void {
     if (this.abortError) return;
@@ -318,7 +335,8 @@ export class LifecycleWatcher {
     return (info: NetworkRequestInfo) => {
       if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
 
-      if (loaderId && info.loaderId) {
+      // Loaderless requests, such as Web Worker scripts, never finish on the page session.
+      if (loaderId) {
         return info.loaderId === loaderId;
       }
 
