@@ -1,9 +1,16 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeCredential, developmentApiOrigin } from "../src/lib/auth/store.js";
+import { fakeKeyring } from "./helpers/keyring.js";
+import { collectForwardedEnv } from "../src/lib/driver/daemon/forwarded-env.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const stagehandMocks = vi.hoisted(() => ({
   launch: vi.fn(),
 }));
 const browserbaseSdkMocks = vi.hoisted(() => ({
+  constructor: vi.fn(),
   debug: vi.fn(),
 }));
 
@@ -12,6 +19,9 @@ vi.mock("@browserbasehq/stagehand", () => ({
 }));
 vi.mock("@browserbasehq/sdk", () => ({
   default: class Browserbase {
+    constructor(options: unknown) {
+      browserbaseSdkMocks.constructor(options);
+    }
     sessions = { debug: browserbaseSdkMocks.debug };
   },
 }));
@@ -32,10 +42,12 @@ describe("remote.ts (Browserbase capability)", () => {
   beforeEach(() => {
     stagehandMocks.launch.mockReset();
     browserbaseSdkMocks.debug.mockReset();
+    browserbaseSdkMocks.constructor.mockReset();
     process.env.BROWSERBASE_API_KEY = "test-key";
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     if (previousApiKey === undefined) {
       delete process.env.BROWSERBASE_API_KEY;
     } else {
@@ -95,6 +107,94 @@ describe("remote.ts (Browserbase capability)", () => {
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(/BROWSERBASE_API_KEY/);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "clears stale daemon environment keys and pins the saved project",
+    async () => {
+      fakeKeyring();
+      const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-remote-auth-")));
+      try {
+        const env = { BROWSERBASE_CONFIG_DIR: directory };
+        writeCredential(
+          {
+            apiKey: "saved-test-key",
+            projectId: "00000000-0000-4000-8000-000000000001",
+            apiOrigin: "https://api.browserbase.com",
+          },
+          env,
+        );
+        process.env.BROWSERBASE_API_KEY = "stale-daemon-key";
+        const forwarded = await collectForwardedEnv(env);
+        const options = await remoteStagehandOptions({ kind: "remote" }, forwarded);
+        expect(options.apiKey).toBe("saved-test-key");
+        expect(options.browser.projectId).toBe("00000000-0000-4000-8000-000000000001");
+        expect(options.baseUrl).toBe("https://api.browserbase.com");
+        expect(options.clientOptions?.fetch).toBeTypeOf("function");
+        writeCredential(
+          {
+            apiKey: "dev-test-key",
+            projectId: "00000000-0000-4000-8000-000000000001",
+            apiOrigin: developmentApiOrigin,
+          },
+          env,
+        );
+        await expect(
+          remoteStagehandOptions({ kind: "remote" }, await collectForwardedEnv(env)),
+        ).rejects.toThrow("cloud API commands only");
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      { BROWSERBASE_CONFIG_DIR: ".browse-config" },
+      { BROWSERBASE_CONFIG_DIR: "", XDG_CONFIG_HOME: ".xdg-config" },
+    ])("uses the caller's saved project when a daemon has a different cwd: %j", async (env) => {
+    const directory = realpathSync(mkdtempSync(join(tmpdir(), "browse-relative-auth-")));
+    const originalCwd = process.cwd();
+    const callerDirectory = join(directory, "caller");
+    const daemonDirectory = join(directory, "daemon");
+    try {
+      for (const [cwd, apiKey] of [
+        [callerDirectory, "caller-key"],
+        [daemonDirectory, "daemon-key"],
+      ] as const) {
+        mkdirSync(cwd);
+        process.chdir(cwd);
+        writeCredential(
+          {
+            apiKey,
+            projectId: "00000000-0000-4000-8000-000000000001",
+            apiOrigin: "https://api.browserbase.com",
+          },
+          env,
+          "file",
+        );
+      }
+      process.chdir(callerDirectory);
+      const forwarded = await collectForwardedEnv(env);
+      process.chdir(daemonDirectory);
+      const options = await remoteStagehandOptions({ kind: "remote" }, forwarded);
+      expect(options.apiKey).toBe("caller-key");
+      expect(forwarded?.BROWSERBASE_CONFIG_DIR).toBe(
+        join(callerDirectory, env.BROWSERBASE_CONFIG_DIR || ".xdg-config/browserbase"),
+      );
+      await remoteBrowserbaseIdentity("saved-session", forwarded);
+      expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "caller-key",
+          baseURL: "https://api.browserbase.com",
+          fetch: expect.any(Function),
+        }),
+      );
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("launches through the V4 Browserbase factory so the extension is provisioned", async () => {
     const browser = { close: vi.fn(), sessionId: "session-test" };
     stagehandMocks.launch.mockResolvedValue(browser);
@@ -112,6 +212,12 @@ describe("remote.ts (Browserbase capability)", () => {
         browserbaseSessionUrl: "https://www.browserbase.com/sessions/session-test",
       },
     });
+    expect(browserbaseSdkMocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "test-key",
+        baseURL: "https://api.browserbase.com",
+      }),
+    );
     expect(stagehandMocks.launch).toHaveBeenCalledWith({
       apiKey: "test-key",
       browserSettings: { verified: true },
