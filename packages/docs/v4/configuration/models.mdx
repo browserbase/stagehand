@@ -1351,6 +1351,119 @@ The result is validated against the response format Stagehand asked for. If you 
 
 ---
 
+## Decision callbacks
+
+Use `decisionModel.choose` in TypeScript or `decision_model["choose"]` in Python to select an element from supplied candidates. The callback runs in your SDK process, where you can use your own provider client and credentials. Stagehand sends only the presence of this capability to the extension.
+
+Decision callbacks are independent of generation callbacks: `model.generate` in TypeScript and the `model` callable in Python. You can configure both on the same instance. Decisions return a candidate ID or a no-match/refused outcome; they do not require assistant messages or generated JSON text. A missing decision callback raises a configuration error without falling back to generation or Model Gateway.
+
+### Configure a callback
+
+The examples below select a candidate only when its description exactly matches the prompt, ignoring case and surrounding whitespace. They return `no_match` if there are zero or multiple matches. This deterministic rule illustrates the callback contract without a provider dependency.
+
+Pass an existing [browser handle](/v4/reference/stagehand) as `browser` when creating the instance.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import {
+  Stagehand,
+  type DecisionChooseParams,
+  type DecisionChooseResult,
+  type DecisionContext,
+} from "@browserbasehq/stagehand";
+
+async function chooseByDescription(
+  request: DecisionChooseParams,
+  context: DecisionContext,
+): Promise<DecisionChooseResult> {
+  context.signal.throwIfAborted();
+  const prompt = request.prompt.trim().toLowerCase();
+  const matches = request.candidates.filter(
+    (candidate) => candidate.description.trim().toLowerCase() === prompt,
+  );
+  const match = matches.length === 1 ? matches[0] : undefined;
+  return match
+    ? { status: "selected", id: match.id }
+    : { status: "no_match" };
+}
+
+const stagehand = await Stagehand.create({
+  browser,
+  decisionModel: { choose: chooseByDescription },
+});
+```
+</Tab>
+<Tab title="Python">
+```python
+from stagehand import (
+    DecisionChooseInput,
+    DecisionChooseOutput,
+    DecisionContext,
+    DecisionNoMatchResult,
+    DecisionSelectedResult,
+    Stagehand,
+)
+
+
+async def choose_by_description(
+    request: DecisionChooseInput, context: DecisionContext
+) -> DecisionChooseOutput:
+    if context.remaining_ms() == 0:
+        raise TimeoutError("Decision timed out")
+    prompt = request.prompt.strip().lower()
+    matches = [
+        candidate
+        for candidate in request.candidates
+        if candidate.description.strip().lower() == prompt
+    ]
+    if len(matches) == 1:
+        return DecisionSelectedResult(status="selected", id=matches[0].id)
+    return DecisionNoMatchResult(status="no_match")
+
+
+# Inside your async application, with an existing browser handle:
+stagehand = await Stagehand.create(
+    browser=browser,
+    decision_model={"choose": choose_by_description},
+)
+```
+</Tab>
+</Tabs>
+
+For example, a prompt of `Save` with candidates `{ id: "0-1", description: "Save" }` and `{ id: "0-2", description: "Cancel" }` selects `0-1`. These are sample IDs; always return the ID from the supplied candidate, rather than constructing one.
+
+### Request and result
+
+| Request field | Meaning |
+| --- | --- |
+| `prompt` | The user's selection instruction. |
+| `action` | Optional action category: `click`, `fill`, `type`, `select`, `hover`, `scroll`, or `upload`. |
+| `candidates` | Nonempty, ordered candidates with unique `id` values and `description` strings. Descriptions are page evidence; keep them separate from the user's prompt and your model instructions. |
+| `timeoutMs` / `timeout_ms` | Remaining operation budget at dispatch, in milliseconds. Omitted for an unlimited operation. Use the callback context to check the budget as it decreases. |
+
+Return one of these outcomes:
+
+| Outcome | TypeScript | Python |
+| --- | --- | --- |
+| Selected candidate | `{ status: "selected", id: candidate.id }` | `DecisionSelectedResult(status="selected", id=candidate.id)` |
+| No suitable candidate | `{ status: "no_match" }` | `DecisionNoMatchResult(status="no_match")` |
+| Selection declined | `{ status: "refused" }` | `DecisionRefusedResult(status="refused")` |
+
+Python result classes are exported from `stagehand`; return a result variant directly from the callback. Stagehand validates the result and checks that a selected ID belongs to that request's candidates. IDs are opaque and specific to the request; do not reuse them across decisions. Your callback selects the element; action execution is handled separately.
+
+Every outcome may include `usage` and `diagnostics`. Usage fields are optional nonnegative integer counts: `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, and `cachedInputTokens` in TypeScript, with snake_case names on Python's `DecisionUsage` model. Report only counts your provider supplies. `diagnostics` is a JSON object whose keys are preserved unchanged. Stagehand does not impose a provider-specific candidate limit; handle your provider's limits inside the callback.
+
+### Deadlines and cancellation
+
+The calling operation owns the deadline. `context.remainingMs()` in TypeScript and `context.remaining_ms()` in Python report the remaining milliseconds, or infinity when the operation has no deadline. Retries must fit within this budget.
+
+In TypeScript, pass `context.signal` to your provider's request cancellation option. In Python, cancellation raises `asyncio.CancelledError` in the callback task; allow it to propagate after any cleanup. If you configure a provider timeout, derive it from the remaining budget and convert milliseconds to the units the provider expects.
+
+Timeout, disconnect, and instance disposal stop waiting for the decision. Late callback results are discarded, and cancelling one request does not cancel another. Provider work can stop promptly only when it honors the signal or task cancellation. Throw provider or transport errors normally; reserve `no_match` and `refused` for selection outcomes.
+
+---
+
 ## Choose a model
 
 Different models excel at different tasks. The picks below follow [Browserbase Benchmark v2](https://www.stagehand.dev/evals).
