@@ -272,6 +272,13 @@ export class NetworkManager {
       rejectFn = reject;
     });
 
+    // Requests that started inside the wait window but before this waiter was
+    // registered (for example during the load event) are still in flight.
+    for (const info of this.requests.values()) {
+      if (info.timestamp < startTime || !filter(info)) continue;
+      tracked.add(info.requestKey);
+    }
+
     // Trigger initial idle check so that we still respect the quiet window
     maybeIdle();
 
