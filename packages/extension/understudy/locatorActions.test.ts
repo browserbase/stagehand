@@ -167,6 +167,23 @@ describe("counting progress forwarding", () => {
         expect(evaluate).toHaveBeenCalledExactlyOnceWith(expect.any(String), 1, progress);
     });
   });
+
+  it.each([
+    [5, undefined, 5],
+    [0, undefined, 0],
+    [5, 0, 1],
+    [5, 3, 1],
+    [5, 4, 1],
+    [5, 5, 0],
+    [5, 10, 0],
+    [0, 0, 0],
+  ] as const)("counts %i matches narrowed by nth(%s) as %i", async (total, index, expected) => {
+    const { locator } = createLocator();
+    const target = index === undefined ? locator : locator.nth(index);
+    vi.spyOn(target.selectorResolver, "count").mockResolvedValue(total);
+
+    await expect(target.count()).resolves.toBe(expected);
+  });
 });
 
 function deferred() {
