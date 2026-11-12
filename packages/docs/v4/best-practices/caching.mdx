@@ -13,7 +13,7 @@ To use server-side caching, [request caching for your Browserbase project](#enab
 
 ## Browserbase cache
 
-Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. When caching is enabled for your Browserbase project, Browserbase caches eligible `act()`, `observe()`, and `extract()` calls on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Some calls are not eligible, see [limitations](#limitations).
+Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. After Browserbase enables caching for your project, it caches eligible `act()`, `observe()`, and `extract()` calls on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Some calls are not eligible, see [limitations](#limitations).
 
 Browserbase builds the cache key from the instruction, page content, and the options you pass. It deliberately leaves out model configuration, so switching models does not invalidate your cache. On a cache hit, the server returns the response directly with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
@@ -23,7 +23,7 @@ Caching requires a Browserbase browser and the Browserbase API key you passed to
 
 ### Enable caching for your project
 
-Browserbase enables server-side caching per project. We recommend caching for workflows that meet all of these criteria:
+Browserbase enables server-side caching per project and recommends it for workflows that meet all of these criteria:
 
 - **Repeated steps:** the workflow runs the same instructions on the same pages many times.
 - **Same content for every run:** the pages show the same content to each run. They are not personalized to a signed-in user and do not show account or personal data.
@@ -34,7 +34,7 @@ If your workflow meets these criteria, email [support@browserbase.com](mailto:su
 
 ### Instance setting
 
-After caching is enabled for your project, a Browserbase browser caches every eligible call with no extra configuration. Pass `cache` on `Stagehand.create()` to change that for the instance: `false` opts out, and an object tunes the threshold.
+After Browserbase enables caching for your project, a Browserbase browser caches every eligible call with no extra configuration. Pass `cache` on `Stagehand.create()` to change that for the instance: `false` opts out, and an object tunes the threshold.
 
 <Tabs>
 <Tab title="TypeScript">

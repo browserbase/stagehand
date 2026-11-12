@@ -230,7 +230,7 @@ interface V3Options {
 <ParamField path="serverCache" type="boolean" optional>
   Enable or disable server-side caching for `act()`, `extract()`, and `observe()` requests. When enabled, repeated calls with the same inputs return instantly without consuming LLM tokens.
 
-  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments. Server-side caching must also be [enabled for your Browserbase project](/v3/best-practices/caching#enable-caching-for-your-project).</Note>
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments. Browserbase must also [enable server-side caching for your project](/v3/best-practices/caching#enable-caching-for-your-project).</Note>
 
   Can be overridden per-call via the `serverCache` option on `act()`, `extract()`, and `observe()`.
 

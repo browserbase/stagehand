@@ -13,7 +13,7 @@ Stagehand supports two caching strategies to reduce LLM costs and speed up your 
 
 ## Browserbase Cache
 
-Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When caching is enabled for your Browserbase project and you run Stagehand with `env: "BROWSERBASE"`, Browserbase caches eligible calls on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When Browserbase enables caching for your project and you run Stagehand with `env: "BROWSERBASE"`, Browserbase caches eligible calls on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
 
   <Info>
   To use Browserbase Cache, [request caching for your project](#enable-caching-for-your-project). Local Cache does not need this step.
@@ -23,7 +23,7 @@ The cache key is generated from the instruction, page content, and options you p
 
 ### Enable caching for your project
 
-We recommend Browserbase Cache for workflows that meet all of these criteria:
+Browserbase recommends this cache for workflows that meet all of these criteria:
 
 - **Repeated steps:** the workflow runs the same instructions on the same pages many times.
 - **Same content for every run:** the pages show the same content to each run. They are not personalized to a signed-in user and do not show account or personal data.
@@ -82,7 +82,7 @@ const actResult = await stagehand.act("click the login button");
 console.log(actResult.cacheStatus); // "HIT" or "MISS"
 ```
 
-If caching is not enabled for your project, `cacheStatus` is `undefined`.
+If Browserbase has not enabled caching for your project, `cacheStatus` is `undefined`.
 
 ### Limitations
 

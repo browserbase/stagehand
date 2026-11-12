@@ -123,7 +123,7 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
 `serverCache` only works when running with `env: "BROWSERBASE"`. It has no effect in local environments.
 </Note>
 
-When caching is [enabled for your Browserbase project](/v3/best-practices/caching#enable-caching-for-your-project), Stagehand caches `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. The cache can be controlled globally on the constructor or overridden per call:
+After Browserbase [enables caching for your project](/v3/best-practices/caching#enable-caching-for-your-project), Stagehand caches `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. You can control the cache globally on the constructor or override it per call:
 
 ```typescript
 // Disable server-side caching for the entire instance
