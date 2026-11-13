@@ -41,6 +41,7 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
+import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
@@ -467,8 +468,12 @@ export class Page {
     childSession: CDPSessionLike,
     childMainFrameId: string,
     onFrameTreeSeeded?: () => void,
+    networkCapture?: SessionNetworkCapture,
   ): void {
-    if (this.disposed) return;
+    if (this.disposed) {
+      networkCapture?.dispose();
+      return;
+    }
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
     if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
@@ -477,7 +482,7 @@ export class Page {
       this.attachCDPEventSubscription(subscription, childSession);
     }
 
-    this.networkManager.trackSession(childSession);
+    this.networkManager.trackSession(childSession, networkCapture);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
 

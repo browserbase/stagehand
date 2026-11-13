@@ -4,6 +4,7 @@ import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
 import type { CDPSessionLike, CdpSession, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
+import { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type {
   Cookie,
@@ -104,6 +105,10 @@ export class BrowserContext {
   mainFrameToTarget = new Map<string, TargetId>();
   sessionOwnerPage = new Map<SessionId, Page>();
   frameOwnerPage = new Map<string, Page>();
+  private readonly pendingNetworkCaptures = new Map<
+    SessionId,
+    { targetId: TargetId; capture: SessionNetworkCapture }
+  >();
   pendingOopifByMainFrame = new Map<string, SessionId>();
   pendingOopifParentByMainFrame = new Map<string, string>();
   adoptedOopifSessionByFrame = new Map<string, SessionId>();
@@ -479,6 +484,8 @@ export class BrowserContext {
   close(): Promise<void> {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
+    for (const { capture } of this.pendingNetworkCaptures.values()) capture.dispose();
+    this.pendingNetworkCaptures.clear();
     const closing = Promise.resolve().then(async () => {
       try {
         await this.conn.close();
@@ -592,7 +599,7 @@ export class BrowserContext {
    * - Resume the target only after listeners are wired.
    */
   async onAttachedToTarget(info: Protocol.Target.TargetInfo, sessionId: SessionId): Promise<void> {
-    if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
+    if ((await this.closePopupIfBlockedByDomainPolicy(info, "attached")) || this.closing) {
       return;
     }
 
@@ -633,6 +640,15 @@ export class BrowserContext {
       await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     };
 
+    // Capture iframe traffic before resume, even when its owning page is not known yet.
+    const networkCapture = isTopLevelPage(info) ? undefined : new SessionNetworkCapture(session);
+    if (networkCapture) {
+      this.pendingNetworkCaptures.set(sessionId, {
+        targetId: info.targetId,
+        capture: networkCapture,
+      });
+    }
+
     // Attach lifecycle (per target session):
     // 1) while paused, enable domains + child auto-attach and register init scripts;
     // 2) resume target execution;
@@ -667,6 +683,7 @@ export class BrowserContext {
     // - register init scripts.
     // Commands are sent in-order on the same session before resume.
     const corePreResumeOps = [
+      ...(networkCapture ? [queuePreResume("Network.enable")] : []),
       queuePreResume("Page.enable"),
       queuePreResume("Runtime.enable"),
       queuePreResume("Target.setAutoAttach", {
@@ -681,7 +698,7 @@ export class BrowserContext {
     }> = [];
     if (this.extraHttpHeaders) {
       const headers = { ...this.extraHttpHeaders };
-      headerPreResumeOps.push(queuePreResume("Network.enable"));
+      if (!networkCapture) headerPreResumeOps.push(queuePreResume("Network.enable"));
       headerPreResumeOps.push(queuePreResume("Network.setExtraHTTPHeaders", { headers }));
     }
     // Send init scripts only after auto-attach has been queued.
@@ -721,6 +738,7 @@ export class BrowserContext {
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
     if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
+      this.disposePendingNetworkCapture(sessionId);
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
       if (isTopLevelPage(info)) {
@@ -809,6 +827,8 @@ export class BrowserContext {
       try {
         const { frameTree } =
           await session.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
+        // Detach/close can finish while the frame-tree query is in flight.
+        if (this.closing || this.conn.getSession(sessionId) !== session) return;
         const childMainId = frameTree.frame.id;
 
         // Remote frames are missing from the parent's frame tree, so fall back to the
@@ -830,6 +850,7 @@ export class BrowserContext {
       } catch {
         // page.getFrameTree failed. Most likely was an ad iframe
         // that opened & closed before we could attach. ignore
+        this.disposePendingNetworkCapture(sessionId);
       }
     } finally {
       await resume();
@@ -858,10 +879,22 @@ export class BrowserContext {
   }
 
   adoptOopif(owner: Page, session: CdpSession, childMainId: string): void {
-    owner.adoptOopifSession(session, childMainId, () => {
-      // Seeding can reveal same-origin parents of OOPIFs that are still pending.
-      this.adoptPendingOopifsByParent();
-    });
+    const pending = this.pendingNetworkCaptures.get(session.id);
+    this.pendingNetworkCaptures.delete(session.id);
+    try {
+      owner.adoptOopifSession(
+        session,
+        childMainId,
+        () => {
+          // Seeding can reveal same-origin parents of OOPIFs that are still pending.
+          this.adoptPendingOopifsByParent();
+        },
+        pending?.capture,
+      );
+    } catch (error) {
+      pending?.capture.dispose();
+      throw error;
+    }
     this.adoptedOopifSessionByFrame.set(childMainId, session.id);
     this.sessionOwnerPage.set(session.id, owner);
     this.frameOwnerPage.set(childMainId, owner);
@@ -869,6 +902,11 @@ export class BrowserContext {
     // Prime the execution-context registry so later lookups succeed even if
     // the frame navigates before we issue a command.
     void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+  }
+
+  private disposePendingNetworkCapture(sessionId: SessionId): void {
+    this.pendingNetworkCaptures.get(sessionId)?.capture.dispose();
+    this.pendingNetworkCaptures.delete(sessionId);
   }
 
   private removePendingOopif(frameId: string): void {
@@ -890,6 +928,7 @@ export class BrowserContext {
         const parentId = this.pendingOopifParentByMainFrame.get(frameId);
         if (!pageFrameIds.has(frameId) && (!parentId || !pageFrameIds.has(parentId))) continue;
         pageFrameIds.add(frameId);
+        this.disposePendingNetworkCapture(this.pendingOopifByMainFrame.get(frameId)!);
         this.removePendingOopif(frameId);
         removed = true;
       }
@@ -911,6 +950,7 @@ export class BrowserContext {
         const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
         const child = childSessionId ? this.conn.getSession(childSessionId) : undefined;
         if (!child) {
+          if (childSessionId) this.disposePendingNetworkCapture(childSessionId);
           this.removePendingOopif(childMainId);
           continue;
         }
@@ -992,6 +1032,7 @@ export class BrowserContext {
    * - Drop any staged child for this session.
    */
   onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
+    this.disposePendingNetworkCapture(sessionId);
     // Remove known pending descendants before detaching prunes the page's frame graph.
     const closingPage = targetId ? this.pagesByTarget.get(targetId) : undefined;
     if (closingPage) this.removePendingOopifsForPage(closingPage);
@@ -1021,6 +1062,9 @@ export class BrowserContext {
    * Cleanup a top-level Page by target id, removing its root and staged children.
    */
   cleanupByTarget(targetId: TargetId): void {
+    for (const [sessionId, pending] of this.pendingNetworkCaptures) {
+      if (pending.targetId === targetId) this.disposePendingNetworkCapture(sessionId);
+    }
     this.recordPageCreationFailure(
       targetId,
       new Error(`Target closed before page registration (${targetId})`),
