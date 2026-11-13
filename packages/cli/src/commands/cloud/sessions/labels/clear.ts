@@ -1,7 +1,11 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../../../base.js";
-import { outputJson, requestBrowserbaseJson } from "../../../../lib/cloud/api.js";
+import {
+  createBrowserbaseClient,
+  outputJson,
+  withBrowserbaseApi,
+} from "../../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../../lib/cloud/flags.js";
 
 export default class SessionLabelsClear extends BrowseCommand {
@@ -14,16 +18,9 @@ export default class SessionLabelsClear extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(SessionLabelsClear);
-    outputJson(
-      await requestBrowserbaseJson(
-        toApiOptions(flags),
-        `/v1/sessions/${encodeURIComponent(args.id)}/labels`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ labels: [] }),
-        },
-      ),
-    );
+    await withBrowserbaseApi("sessions", async () => {
+      const client = createBrowserbaseClient(toApiOptions(flags));
+      outputJson(await client.sessions.setLabels(encodeURIComponent(args.id), { labels: [] }));
+    });
   }
 }

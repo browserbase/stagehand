@@ -22,7 +22,7 @@ export default class SessionsGet extends BrowseCommand {
       const client = createBrowserbaseClient(toApiOptions(flags));
       outputJson(
         await client.sessions.retrieve(encodeURIComponent(args.id), {
-          query: { includeLabels: true },
+          includeLabels: true,
         }),
       );
     });

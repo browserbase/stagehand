@@ -408,10 +408,6 @@ function resolveCommandFromPathname(pathname: string): BrowserbaseApiCommand | u
     return "search";
   }
 
-  if (pathname === "/v1/sessions" || pathname.startsWith("/v1/sessions/")) {
-    return "sessions";
-  }
-
   if (pathname.startsWith("/v1/contexts")) {
     return "contexts";
   }

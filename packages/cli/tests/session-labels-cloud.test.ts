@@ -245,7 +245,7 @@ describe("session label cloud commands", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(message);
     expect(result.stdout.trim()).toBe("");
-    expect(server.requests).toHaveLength(1);
+    expect(server.requests).toHaveLength(status === 429 ? 3 : 1);
   });
 
   it("requires at least one label for set without clearing existing assignments", async () => {

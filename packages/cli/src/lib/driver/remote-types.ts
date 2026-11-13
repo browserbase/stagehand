@@ -7,7 +7,7 @@ import type { BrowserbaseIdentity, ConnectionTarget, RemoteConnectionTarget } fr
 
 export interface RemoteStagehandOptions {
   apiKey: string;
-  browser: Browserbase.SessionCreateParams & { labels?: string[] };
+  browser: Browserbase.SessionCreateParams;
 }
 
 export interface RemoteBrowserLaunch {
