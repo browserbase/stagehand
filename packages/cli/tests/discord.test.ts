@@ -32,10 +32,10 @@ describe("browse discord", () => {
       expect(result.stdout).toContain(DISCORD_INVITE_URL);
     });
 
-    it("prints agent-friendly copy about the invite", async () => {
+    it("prints a community invitation", async () => {
       const result = await runCli(["discord", "--no-open"]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("invite");
+      expect(result.stdout).toContain("contribute to Stagehand and the Browse CLI");
       expect(result.stdout).toContain("share");
     });
   });
