@@ -47,6 +47,7 @@ export { CDPConnectionClosedError } from "./cdpClient.js";
 export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export { elementRef } from "./extractSchema.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {
   ReportedRuntimeDescriptor,
