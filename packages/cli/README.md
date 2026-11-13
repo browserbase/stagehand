@@ -202,7 +202,7 @@ These apply across driver commands:
 
 ### Session labels
 
-For projects with session labels available, request labels when creating a remote browser or cloud session. A session can have multiple labels. `--session` names the local browser handle; each `--label` supplies one Browserbase label.
+For projects with session labels available, request labels when creating a remote browser or cloud session. With `open --label`, pass `--remote` explicitly even when `BROWSERBASE_API_KEY` is set. A session can have multiple labels. `--session` names the local browser handle; each `--label` supplies one Browserbase label.
 
 ```bash
 # Create a session with one label
