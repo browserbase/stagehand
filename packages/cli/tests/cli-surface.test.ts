@@ -89,6 +89,24 @@ describe("CLI surface", () => {
     expect(result.stdout).not.toContain("Start here (for AI agents):");
   });
 
+  it("shows community footer on root help", async () => {
+    const helpResult = await runCli(["--help"]);
+    const bareResult = await runCli([]);
+
+    for (const result of [helpResult, bareResult]) {
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("COMMUNITY");
+      expect(result.stdout).toContain("Discord:");
+      expect(result.stdout).toContain("Report a bug:");
+    }
+  });
+
+  it("does not show community footer on subcommand help", async () => {
+    const result = await runCli(["open", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("COMMUNITY");
+  });
+
   it("prints cloud topic help", async () => {
     const result = await runCli(["cloud", "--help"]);
     expect(result.exitCode).toBe(0);
