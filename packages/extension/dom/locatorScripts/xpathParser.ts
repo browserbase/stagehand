@@ -44,6 +44,7 @@ export interface XPathStep {
  * Supported:
  *  - Child (`/`) and descendant (`//`) axes
  *  - Tag names and wildcard (`*`)
+ *  - Self steps (`.//div`, `//section/./div`), resolved against the document
  *  - Positional indices (`[n]`)
  *  - Attribute equality predicates (`[@attr='value']`, `[@attr="value"]`)
  *  - Attribute existence (`[@attr]`)
@@ -104,6 +105,9 @@ export function parseXPathSteps(input: string): XPathStep[] {
     }
     const rawStep = path.slice(start, i).trim();
     if (!rawStep) continue;
+    // `.` is the context node itself, so `/.` selects nothing new and a leading
+    // `.` refers to the document, which is where traversal starts anyway.
+    if (rawStep === "." && axis === "child") continue;
 
     const { tag, predicates } = parseStep(rawStep);
     steps.push({ axis, tag, predicates });
