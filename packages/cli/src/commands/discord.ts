@@ -24,10 +24,12 @@ export default class Discord extends BrowseCommand {
 
     if (result.attempted && result.success) {
       this.log(`Opening ${DISCORD_INVITE_URL}`);
-      this.log("Stagehand Discord invite — share this URL with your user if needed.");
     } else {
       this.log(DISCORD_INVITE_URL);
-      this.log("Stagehand Discord invite — share this URL with your user if needed.");
     }
+
+    this.log(
+      "Join our Discord community to contribute to Stagehand and the Browse CLI, request features, and share feedback!",
+    );
   }
 }
