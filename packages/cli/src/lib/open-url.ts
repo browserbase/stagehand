@@ -14,7 +14,7 @@ export interface OpenUrlResult {
    */
   attempted: boolean;
   /**
-   * Whether the browser open succeeded (or was not attempted).
+   * Whether the opener process started (or opening was skipped).
    * False only when an open was attempted but the spawn failed.
    */
   success: boolean;
@@ -24,19 +24,24 @@ export interface OpenUrlResult {
  * Opens a URL in the system's default browser.
  *
  * Opens the browser when stdout is a TTY and the CI environment variable is
- * not set. Returns a result indicating whether the open was attempted and
+ * not enabled. Returns a result indicating whether the open was attempted and
  * whether it succeeded. Never throws; failures are reported through the
  * result object so callers can print the URL and exit cleanly.
  */
-export function openUrl(url: string, options: OpenUrlOptions = {}): OpenUrlResult {
+export async function openUrl(url: string, options: OpenUrlOptions = {}): Promise<OpenUrlResult> {
   if (options.noOpen || !shouldOpenBrowser()) {
     return { attempted: false, success: true };
   }
 
   try {
     const child = spawnBrowserOpen(url);
-    child.unref();
-    return { attempted: true, success: true };
+    return await new Promise<OpenUrlResult>((resolve) => {
+      child.once("error", () => resolve({ attempted: true, success: false }));
+      child.once("spawn", () => {
+        child.unref();
+        resolve({ attempted: true, success: true });
+      });
+    });
   } catch {
     return { attempted: true, success: false };
   }
