@@ -334,6 +334,7 @@ Release checks reject the local override.
 
 - [browse.sh](https://browse.sh) — open web skills catalog
 - [Browserbase docs](https://docs.browserbase.com)
+- [Discord](https://discord.gg/stagehand) — join the Stagehand community
 - [GitHub](https://github.com/browserbase/stagehand/tree/main/packages/cli) · [Issues](https://github.com/browserbase/stagehand/issues)
 
 ## License

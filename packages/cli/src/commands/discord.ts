@@ -1,0 +1,33 @@
+import { Flags } from "@oclif/core";
+
+import { BrowseCommand } from "../base.js";
+import { openUrl } from "../lib/open-url.js";
+import { DISCORD_INVITE_URL } from "../lib/support-links.js";
+
+export default class Discord extends BrowseCommand {
+  static override description =
+    "Open the Stagehand Discord in your system browser (not a browse session).";
+
+  static override examples = ["browse discord", "browse discord --no-open"];
+
+  static override flags = {
+    "no-open": Flags.boolean({
+      description: "Print the invite URL without opening a browser.",
+    }),
+  };
+
+  async run(): Promise<void> {
+    const { flags } = await this.parse(Discord);
+    const noOpen = flags["no-open"];
+
+    const result = openUrl(DISCORD_INVITE_URL, { noOpen });
+
+    if (result.attempted && result.success) {
+      this.log(`Opening ${DISCORD_INVITE_URL}`);
+      this.log("Stagehand Discord invite — share this URL with your user if needed.");
+    } else {
+      this.log(DISCORD_INVITE_URL);
+      this.log("Stagehand Discord invite — share this URL with your user if needed.");
+    }
+  }
+}
