@@ -30,6 +30,7 @@ function buildExtensionArtifacts(): Plugin {
   return {
     name: "stagehand-extension-artifacts",
     generateBundle(_options, bundle) {
+      rejectedBundle = false;
       // Minified output no longer carries the placeholder's name, so check the module graph.
       for (const [file, output] of Object.entries(bundle)) {
         if (output.type !== "chunk") continue;
