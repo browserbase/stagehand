@@ -20,7 +20,7 @@ export default class Discord extends BrowseCommand {
     const { flags } = await this.parse(Discord);
     const noOpen = flags["no-open"];
 
-    const result = openUrl(DISCORD_INVITE_URL, { noOpen });
+    const result = await openUrl(DISCORD_INVITE_URL, { noOpen });
 
     if (result.attempted && result.success) {
       this.log(`Opening ${DISCORD_INVITE_URL}`);

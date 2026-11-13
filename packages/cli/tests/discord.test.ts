@@ -42,8 +42,6 @@ describe("browse discord", () => {
 
   describe("non-TTY and CI behavior", () => {
     it("prints URL and exits 0 when not a TTY", async () => {
-      // runCli spawns a child process where stdout is piped (not a TTY),
-      // so the browser should not be opened automatically
       const result = await runCli(["discord"]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(DISCORD_INVITE_URL);
@@ -57,7 +55,7 @@ describe("browse discord", () => {
   });
 
   describe("--no-open flag", () => {
-    it("prints URL without attempting to open browser", async () => {
+    it("prints URL when --no-open is provided", async () => {
       const result = await runCli(["discord", "--no-open"]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(DISCORD_INVITE_URL);
