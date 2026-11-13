@@ -28,6 +28,7 @@ export class NetworkManager {
     string,
     {
       session: CDPSessionLike;
+      capture: SessionNetworkCapture;
       detach: () => void;
     }
   >();
@@ -40,11 +41,21 @@ export class NetworkManager {
 
   /**
    * Begin tracking network traffic for a CDP session (top-level or OOPIF).
-   * Safe to call multiple times; duplicate registrations are ignored.
+   * A supplied capture transfers ownership here; its domains must already be enabled.
+   * Safe to call multiple times with the same session/capture.
    */
-  public trackSession(session: CDPSessionLike): void {
+  public trackSession(session: CDPSessionLike, pendingCapture?: SessionNetworkCapture): void {
+    if (pendingCapture && pendingCapture.session !== session) {
+      throw new Error("Network capture belongs to a different session");
+    }
     const sid = this.sessionKey(session);
-    if (this.sessions.has(sid)) return;
+    const existing = this.sessions.get(sid);
+    if (existing) {
+      if (pendingCapture && existing.capture !== pendingCapture) {
+        throw new Error("Network session already has a different capture");
+      }
+      return;
+    }
 
     const onRequest = (evt: Protocol.Network.RequestWillBeSentEvent, receivedAt: number) => {
       if (!evt || !evt.requestId) return;
@@ -133,23 +144,27 @@ export class NetworkManager {
       this.emitFinish({ ...stored, timestamp: receivedAt });
     };
 
-    const capture = new SessionNetworkCapture(session);
-    capture.attach({
-      "Network.requestWillBeSent": onRequest,
-      "Network.loadingFinished": onFinished,
-      "Network.loadingFailed": onFailed,
-      "Network.requestServedFromCache": onFinished,
-      "Network.responseReceived": onResponse,
-      "Page.frameStoppedLoading": onFrameStopped,
-    });
+    const capture = pendingCapture ?? new SessionNetworkCapture(session);
+    // Register ownership before replay: observers may untrack or dispose during delivery.
+    this.sessions.set(sid, { session, capture, detach: () => capture.dispose() });
+    try {
+      capture.attach({
+        "Network.requestWillBeSent": onRequest,
+        "Network.loadingFinished": onFinished,
+        "Network.loadingFailed": onFailed,
+        "Network.requestServedFromCache": onFinished,
+        "Network.responseReceived": onResponse,
+        "Page.frameStoppedLoading": onFrameStopped,
+      });
+    } catch (error) {
+      this.untrackSession(sid);
+      throw error;
+    }
 
-    void session.send("Network.enable").catch(() => {});
-    void session.send("Page.enable").catch(() => {});
-
-    this.sessions.set(sid, {
-      session,
-      detach: () => capture.dispose(),
-    });
+    if (!pendingCapture) {
+      void session.send("Network.enable").catch(() => {});
+      void session.send("Page.enable").catch(() => {});
+    }
   }
 
   /**

@@ -180,6 +180,48 @@ describe("SessionNetworkCapture", () => {
 });
 
 describe("NetworkManager using session capture", () => {
+  it("adopts a pending capture without re-enabling domains or changing arrival times", () => {
+    vi.useFakeTimers();
+    const session = new Session();
+    const capture = new SessionNetworkCapture(session);
+    vi.setSystemTime(10);
+    session.emit("Network.requestWillBeSent", request());
+    vi.setSystemTime(20);
+    session.emit("Network.loadingFinished", { requestId: "request" });
+    const manager = new NetworkManager();
+    const observed = observer();
+    manager.addObserver(observed);
+    vi.setSystemTime(1000);
+    manager.trackSession(session, capture);
+    manager.trackSession(session, capture);
+    expect(session.calls).toEqual([]);
+    expect(observed.onRequestStarted).toHaveBeenCalledOnce();
+    expect(observed.onRequestStarted.mock.calls[0]![0].timestamp).toBe(10);
+    expect(observed.onRequestFinished).toHaveBeenCalledExactlyOnceWith(
+      observed.onRequestStarted.mock.calls[0]![0],
+    );
+    expect(manager.requests.size).toBe(0);
+    manager.dispose();
+    expect(session.listenerCount()).toBe(0);
+  });
+
+  it("can dispose during replay without leaving a tracked session or delivering later events", () => {
+    const session = new Session();
+    const capture = new SessionNetworkCapture(session);
+    session.emit("Network.requestWillBeSent", request());
+    session.emit("Network.loadingFinished", { requestId: "request" });
+    const manager = new NetworkManager();
+    const observed = observer();
+    observed.onRequestStarted.mockImplementation(() => manager.dispose());
+    manager.addObserver(observed);
+    manager.trackSession(session, capture);
+    expect(observed.onRequestStarted).toHaveBeenCalledOnce();
+    expect(observed.onRequestFinished).not.toHaveBeenCalled();
+    expect(manager.sessions.size).toBe(0);
+    expect(manager.requests.size).toBe(0);
+    expect(session.listenerCount()).toBe(0);
+  });
+
   it.each([
     { name: "completion", event: "Network.loadingFinished", payload: { requestId: "request" } },
     {
