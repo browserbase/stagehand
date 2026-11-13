@@ -17,11 +17,11 @@ import {
   targetIdFlag,
   verifiedFlag,
 } from "./flags.js";
-import { getDriverStatus } from "./daemon/client.js";
+import { assertCompatibleTarget, getDriverStatus } from "./daemon/client.js";
 import { hasChromeArgFlags, resolveConnectionTarget, type DriverModeFlags } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
-import { runDriverCommandWithTarget } from "./runtime.js";
+import { runDriverCommand, type DriverSessionSelection } from "./runtime.js";
 
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
@@ -69,23 +69,33 @@ export async function runDriverCommandFromFlags(
   flags: DriverFlags,
 ): Promise<void> {
   const session = sessionName(flags.session);
-  const target = await resolveTargetForCommand(session, flags);
-  outputJson(await runDriverCommandWithTarget(session, target, command, params));
+  const selection = await resolveDriverSession(session, flags);
+  outputJson(await runDriverCommand(session, selection, command, params));
 }
 
-export async function resolveTargetForCommand(session: string, flags: DriverFlags) {
+export async function resolveDriverSession(
+  session: string,
+  flags: DriverFlags,
+): Promise<DriverSessionSelection> {
   const hasExplicitTarget = hasExplicitDriverTarget(flags);
-  if (!hasExplicitTarget || hasModeOnlyFlag(flags)) {
-    const status = await getDriverStatus(session);
-    if (
-      status?.target &&
-      (!hasExplicitTarget || targetMatchesRequestedMode(status.target, flags))
-    ) {
-      return status.target;
+  const requestedTarget =
+    hasExplicitTarget && !hasModeOnlyFlag(flags) ? await resolveConnectionTarget(flags) : undefined;
+  const status = await getDriverStatus(session);
+  if (status) {
+    if (requestedTarget) {
+      assertCompatibleTarget(session, status, requestedTarget);
+    } else if (hasExplicitTarget && !targetMatchesRequestedMode(status.target, flags)) {
+      assertCompatibleTarget(session, status, await resolveConnectionTarget(flags));
     }
+    // A status reply describes a running session; it must never supply the
+    // launch options for a replacement if that daemon subsequently disappears.
+    return { kind: "existing" };
   }
 
-  return resolveConnectionTarget(flags);
+  return {
+    kind: "create",
+    target: requestedTarget ?? (await resolveConnectionTarget(flags)),
+  };
 }
 
 export function hasExplicitDriverTarget(flags: DriverFlags): boolean {

@@ -56,12 +56,12 @@ function normaliseHeaderName(name: string): string {
   return name.toLowerCase();
 }
 
-/** Split multi-value header strings into discrete values while trimming. */
+/**
+ * Split multi-value header strings into discrete values while trimming. An
+ * empty value is kept: the header was still sent, so it must stay visible.
+ */
 function splitHeaderValues(value: string): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  return value.split(/\r?\n/).map((part) => part.trim());
 }
 
 /**

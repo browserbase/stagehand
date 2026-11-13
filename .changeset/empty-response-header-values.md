@@ -4,4 +4,4 @@
 "@browserbasehq/stagehand-python": patch
 ---
 
-fixed domain policy bypasses involving URLs with credentials, background requests, and speculative page loads
+fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
