@@ -1,0 +1,124 @@
+---
+title: "Grok Build"
+description: "Give Grok Build persistent Stagehand browser tools over MCP/stdio."
+---
+
+The Grok Build integration connects the Grok CLI to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+
+<Note>
+This experimental integration runs from the Stagehand repository. Tested with Grok Build 1.0.77.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.11.0
+- A Grok login or `XAI_API_KEY`
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Install and authenticate Grok Build">
+```bash
+npm install --global @xai-official/grok
+grok login
+# or: export XAI_API_KEY="your-xai-api-key"
+```
+  </Step>
+  <Step title="Configure the Stagehand MCP server">
+Edit `packages/integrations/grok-build/.grok/config.toml` and replace the placeholder with the absolute path to your checkout. Grok loads project MCP configuration after you trust the project.
+
+```toml
+[mcp]
+max_output_bytes = 2000000
+
+[mcp_servers.stagehand]
+command = "node"
+args = [
+  "/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs",
+]
+startup_timeout_sec = 60
+tool_timeout_sec = 300
+
+[mcp_servers.stagehand.env]
+STAGEHAND_BROWSER = "browserbase"
+BROWSERBASE_API_KEY = "${BROWSERBASE_API_KEY}"
+```
+
+To use the integration in another project, copy `.grok/config.toml` and `AGENTS.md` into it. Start Grok from the configured project.
+  </Step>
+  <Step title="Choose the browser">
+The template selects Browserbase. Export `BROWSERBASE_API_KEY` before starting Grok. For local Chrome, replace the entire `[mcp_servers.stagehand.env]` block with:
+
+```toml
+[mcp_servers.stagehand.env]
+STAGEHAND_BROWSER = "local"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+cd packages/integrations/grok-build
+grok
+```
+
+Approve project trust when prompted, then enter:
+
+```text
+Use stagehand__run to open https://example.com, then stagehand__snapshot
+to report the heading and snapshot ID.
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `XAI_API_KEY` | Credential for the Grok CLI. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; configures Stagehand AI methods independently of the Grok model. |
+
+Put Stagehand and Browserbase values in `[mcp_servers.stagehand.env]`. Grok expands `${VAR}` references in MCP configuration values, so credentials can stay in your environment.
+
+## Tool discovery
+
+Grok prefixes the tool names with the MCP server name: `stagehand__run`, `stagehand__snapshot`, and `stagehand__screenshot`. The first browser call starts the browser. Later calls use the same session.
+
+The template sets `mcp.max_output_bytes` to 2 MB for inline screenshot results.
+
+## Headless one-shot runs
+
+Interactive sessions can approve tool calls when prompted. A `-p` run cannot accept approval responses, so tasks that require approval may fail. Pass `--always-approve` only when you want Grok to run tools without asking:
+
+```bash
+cd packages/integrations/grok-build
+grok \
+  --always-approve \
+  --tools search_tool,use_tool \
+  --disallowed-tools Agent \
+  --no-plan \
+  --no-subagents \
+  --disable-web-search \
+  -p "Use stagehand__run to open https://example.com, then stagehand__snapshot to report the heading and snapshot ID."
+```
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/cli-agents/overview#security-boundary).
+</Warning>
+
+<Card title="Grok Build integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/grok-build">
+  Read the CLI configuration, MCP mount, and Stagehand tool guidance.
+</Card>

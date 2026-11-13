@@ -84,7 +84,7 @@ describe("buildHarnessMatrix", () => {
     }
   });
 
-  it("builds one row per executable harness, skipping fx and cursor", async () => {
+  it("builds one row per executable harness with probeable authentication", async () => {
     const matrix = await buildHarnessMatrix(options());
     expect(matrix.harnesses.map((row) => row.harness)).toEqual([
       "stagehand",
@@ -97,7 +97,7 @@ describe("buildHarnessMatrix", () => {
       "claude_cua",
       "gemini_cua",
     ]);
-    expect(matrix.skipped).toEqual(["fx", "cursor"]);
+    expect(matrix.skipped).toEqual(["fx", "cursor", "grok_build"]);
     const cursor = await buildHarnessMatrix(options({ requested: ["cursor", "codex"] }));
     expect(cursor.harnesses.map((row) => row.harness)).toEqual(["codex"]);
     expect(cursor.skipped).toEqual(["cursor"]);
