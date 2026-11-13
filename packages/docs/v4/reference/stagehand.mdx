@@ -70,7 +70,7 @@ const stagehand = await Stagehand.create({ browser });
 </ParamField>
 
 <ParamField path="cache" type="Caching" optional>
-  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
@@ -927,7 +927,7 @@ stagehand = await Stagehand.create(browser=browser)
 </ParamField>
 
 <ParamField path="cache" type="Cache" optional>
-  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
@@ -1744,7 +1744,7 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
 </ParamField>
 
 <ParamField path="options.Cache" type="*Caching" optional>
-  Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`.
+  Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="options.Logging" type="*StagehandClientLoggingConfig" optional>
