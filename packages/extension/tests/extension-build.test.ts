@@ -67,6 +67,9 @@ describe("extension build", () => {
       // Either a named class or a class assigned to a binding of that name (its inferred name).
       expect(serviceWorker).toMatch(new RegExp(`class ${name}\\b|\\b${name}=class\\b`, "u"));
     }
+    for (const name of ["startStagehandServiceWorker", "createStagehandRuntime"]) {
+      expect(serviceWorker).toMatch(new RegExp(`function ${name}\\(`, "u"));
+    }
   });
 
   it("has a loadable MV3 extension artifact", async () => {
