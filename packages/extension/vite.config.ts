@@ -153,9 +153,9 @@ export default defineConfig({
       },
       output: {
         entryFileNames: "[name].js",
-        // This object is the switch: it overrides what `build.minify` derives, so turning
-        // minification off means removing it. Function and class names are kept so stack traces
-        // and logs stay readable.
+        // `build.minify` turns minification on and this object adds keepNames, so stack traces
+        // and logs stay readable. To turn minification off, set `build.minify: false` and remove
+        // this object; either one alone still minifies.
         minify: {
           compress: { keepNames: { function: true, class: true } },
           mangle: { keepNames: { function: true, class: true } },

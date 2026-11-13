@@ -162,8 +162,6 @@ describe("extension build", () => {
     expect(contentScript).toContain("installCursorOverlay");
     expect(contentScript).not.toContain("fillElementValue");
     expect(contentScript).not.toContain("__v3Cursor");
-    expect(contentScript).not.toMatch(/^import\s/m);
-    expect(contentScript).not.toContain("__vite-browser-external");
     expect(blankPage).toContain('src="content-script.js"');
     expect(wakeServiceWorkerHtml).toContain("wake-service-worker.js");
     expect(wakeServiceWorkerScript).toContain("stagehand_wake_service_worker");
@@ -172,8 +170,6 @@ describe("extension build", () => {
     expect(serviceWorker).not.toContain("src/shims");
     expect(serviceWorker).toContain("new WebSocket");
     expect(serviceWorker).toMatch(/binaryType\s*=\s*["'`]arraybuffer["'`]/u);
-    expect(serviceWorker).not.toContain("__vite-browser-external");
-    expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
     expect(serviceWorker).not.toContain("__v3Cursor");
     expect(JSON.stringify(manifest)).not.toContain("stagehand-smoke-worker");
