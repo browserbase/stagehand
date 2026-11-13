@@ -196,17 +196,33 @@ These apply across driver commands:
 
 ### Session labels
 
-For projects with session labels available, request labels when creating a remote browser or cloud session:
+For projects with session labels available, request labels when creating a remote browser or cloud session. A session can have multiple labels. `--session` names the local browser handle; each `--label` supplies one Browserbase label.
 
 ```bash
-browse open https://example.com --remote --label "Checkout" --label "Smoke test"
-browse cloud sessions create --label "Checkout" --label "Smoke test"
+# Create a session with one label
+browse open https://example.com --remote --session checkout-1 --label "Store A"
+browse cloud sessions create --label "Store A"
+
+# Create one session with two labels
+browse cloud sessions create --label "Store A" --label Checkout
+
+# Read, replace, or clear labels on an existing session
 browse cloud sessions get <session-id>
-browse cloud sessions labels set <session-id> --label "Checkout"
+browse cloud sessions labels set <session-id> --label "Store A" --label Checkout
 browse cloud sessions labels clear <session-id>
 ```
 
-Repeat `--label` for multiple names; quote names containing spaces. On cloud creation, label flags replace any `labels` array supplied through `--body` or `--stdin`. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `sessions get` to check them; it requests labels automatically. If labels are unavailable, the session response omits `labels`; an empty `labels` array confirms the session is untagged.
+Use one `--label` per name, following the CLI's repeatable `--domain`, `--file`, and `--chrome-arg` style. Quote names containing spaces; commas stay part of a single name. Each `--label` consumes one value, so a following URL or session ID remains a positional argument.
+
+For generated arrays during cloud session creation, use the existing JSON request body:
+
+```bash
+browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'
+# session.json contains the same request object, including its labels array
+browse cloud sessions create --stdin < session.json
+```
+
+`--body` and `--stdin` accept a request object containing `labels`; `--label` accepts a single literal name. Explicit label flags replace any `labels` array in the request body. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `sessions get` to check them; it requests labels automatically. If labels are unavailable, the session response omits `labels`; an empty `labels` array confirms the session is untagged.
 
 `labels set` replaces the entire assignment, so include every label you want to keep. `labels clear` removes all assigned labels. These commands do not end the browser session. The `update` command remains a session-lifecycle operation.
 

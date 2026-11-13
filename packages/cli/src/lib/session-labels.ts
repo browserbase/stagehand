@@ -3,7 +3,7 @@ import { Flags } from "@oclif/core";
 import { fail } from "./errors.js";
 
 export const labelFlagOptions = {
-  description: "Session label name. Repeat --label to supply multiple names.",
+  description: "One Browserbase label per --label. Repeat the flag for additional labels.",
   helpValue: "<name>",
   multiple: true,
   multipleNonGreedy: true,

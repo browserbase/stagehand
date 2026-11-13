@@ -247,17 +247,28 @@ browse cloud search "browser automation research" --provider parallel --mode adv
 browse cloud search "browserbase docs" --provider exa
 ```
 
-For projects with session labels available:
+For projects with session labels available, `--session` names the local browser handle and each `--label` supplies one Browserbase label:
 
 ```bash
-browse open https://example.com --remote --label "Checkout"
-browse cloud sessions create --label "Checkout" --label "Smoke test"
+# One label
+browse open https://example.com --remote --session checkout-1 --label "Store A"
+browse cloud sessions create --label "Store A"
+# Two labels on one session
+browse cloud sessions create --label "Store A" --label Checkout
 browse cloud sessions get <session-id>
-browse cloud sessions labels set <session-id> --label "Checkout"
+browse cloud sessions labels set <session-id> --label "Store A" --label Checkout
 browse cloud sessions labels clear <session-id>
 ```
 
-Repeat `--label` for multiple names. Creation-time assignment is asynchronous and best effort; verify with `sessions get` before claiming the labels are assigned. Session reads request labels automatically. A missing `labels` field means labels are unavailable; an empty array confirms the session is untagged. On cloud creation, label flags override a `labels` array in `--body` or `--stdin`.
+Repeat `--label` once per name and quote names containing spaces. Commas and JSON-looking strings are literal label names, not lists. For generated arrays during cloud creation, use the existing request-body inputs:
+
+```bash
+browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'
+# session.json contains the request object above, not a bare array
+browse cloud sessions create --stdin < session.json
+```
+
+Prefer `--stdin` with a generated JSON file for large or complex request bodies to avoid shell-quoting mistakes. Creation-time assignment is asynchronous and best effort; verify with `sessions get` before claiming the labels are assigned. Session reads request labels automatically. A missing `labels` field means labels are unavailable; an empty array confirms the session is untagged. On cloud creation, label flags override a `labels` array in `--body` or `--stdin`.
 
 `set` replaces all assigned labels; include the labels that should remain. `clear` removes all assignments without ending the session. Do not use `sessions update` for labels: that command releases sessions. Labels on `open` apply only to new remote sessions; changing them on an existing named session requires an explicit label update. Local browsers and CDP attachments do not accept labels. The public session-list command has no label filter; `--q` queries user metadata instead.
 

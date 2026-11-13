@@ -13,6 +13,7 @@ export default class SessionLabelsSet extends BrowseCommand {
   static override description =
     "Replace all labels on a session. Creates missing label names. Use labels clear to remove all labels.";
   static override examples = [
+    'browse cloud sessions labels set <session-id> --label "Store A"',
     'browse cloud sessions labels set <session-id> --label "Store A" --label Checkout',
   ];
   static override args = {

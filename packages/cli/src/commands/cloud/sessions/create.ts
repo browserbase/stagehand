@@ -130,8 +130,11 @@ export default class SessionsCreate extends BrowseCommand {
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
+    'browse cloud sessions create --label "Store A"',
     'browse cloud sessions create --label "Store A" --label Checkout',
     "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
+    `browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'`,
+    "browse cloud sessions create --stdin < session.json",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
   ];
@@ -141,7 +144,7 @@ export default class SessionsCreate extends BrowseCommand {
     label: Flags.string({
       ...labelFlagOptions,
       description:
-        "Session label name. Repeat --label for multiple names. Replaces labels from --body/--stdin; assignment is asynchronous and best effort.",
+        "One Browserbase label per --label. Repeat for additional labels. Replaces labels from --body/--stdin; assignment is asynchronous and best effort.",
     }),
     body: Flags.string({
       description: "Optional JSON request body.",
