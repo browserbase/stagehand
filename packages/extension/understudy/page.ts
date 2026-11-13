@@ -62,6 +62,7 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
+import { TimeoutError } from "../errors.js";
 
 /**
  * Page
@@ -1285,9 +1286,9 @@ export class Page {
     });
 
     try {
-      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
+      const response = await watcher.awaitNavigationCommand(
         "Page.navigate",
-        { url },
+        this.mainSession.send<Protocol.Page.NavigateResponse>("Page.navigate", { url }),
       );
       this._currentUrl = url;
       if (response?.loaderId) {
@@ -1334,9 +1335,12 @@ export class Page {
     });
 
     try {
-      await this.mainSession.send("Page.reload", {
-        ignoreCache: options?.ignoreCache ?? false,
-      });
+      await watcher.awaitNavigationCommand(
+        "Page.reload",
+        this.mainSession.send("Page.reload", {
+          ignoreCache: options?.ignoreCache ?? false,
+        }),
+      );
 
       await watcher.wait();
       return await tracker.navigationCompleted();
@@ -1350,14 +1354,12 @@ export class Page {
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
   async goBack(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
-    const { entries, currentIndex } =
-      await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
-        "Page.getNavigationHistory",
-      );
+    const timeout = options?.timeout ?? 15000;
+    const startTime = Date.now();
+    const { entries, currentIndex } = await this.navigationHistoryWithin(timeout);
     const prev = entries[currentIndex - 1];
     if (!prev) return null; // nothing to do
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
-    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
 
@@ -1375,12 +1377,16 @@ export class Page {
       waitUntil,
       timeout,
       navigationCommandId,
+      startTime,
     });
 
     try {
-      await this.mainSession.send("Page.navigateToHistoryEntry", {
-        entryId: prev.id,
-      });
+      await watcher.awaitNavigationCommand(
+        "Page.navigateToHistoryEntry",
+        this.mainSession.send("Page.navigateToHistoryEntry", {
+          entryId: prev.id,
+        }),
+      );
       this._currentUrl = prev.url ?? this._currentUrl;
 
       await watcher.wait();
@@ -1395,14 +1401,12 @@ export class Page {
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
   async goForward(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
-    const { entries, currentIndex } =
-      await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
-        "Page.getNavigationHistory",
-      );
+    const timeout = options?.timeout ?? 15000;
+    const startTime = Date.now();
+    const { entries, currentIndex } = await this.navigationHistoryWithin(timeout);
     const next = entries[currentIndex + 1];
     if (!next) return null; // nothing to do
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
-    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
 
@@ -1420,12 +1424,16 @@ export class Page {
       waitUntil,
       timeout,
       navigationCommandId,
+      startTime,
     });
 
     try {
-      await this.mainSession.send("Page.navigateToHistoryEntry", {
-        entryId: next.id,
-      });
+      await watcher.awaitNavigationCommand(
+        "Page.navigateToHistoryEntry",
+        this.mainSession.send("Page.navigateToHistoryEntry", {
+          entryId: next.id,
+        }),
+      );
       this._currentUrl = next.url ?? this._currentUrl;
 
       await watcher.wait();
@@ -1441,6 +1449,28 @@ export class Page {
    */
   url(): string {
     return this._currentUrl;
+  }
+
+  /** Read the main frame's history, bounded by the navigation's `timeout`. */
+  private async navigationHistoryWithin(
+    timeout: number,
+  ): Promise<Protocol.Page.GetNavigationHistoryResponse> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
+          "Page.getNavigationHistory",
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new TimeoutError("Page.getNavigationHistory", timeout)),
+            timeout,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   beginNavigationCommand(): number {
