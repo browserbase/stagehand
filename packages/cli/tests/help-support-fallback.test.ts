@@ -35,6 +35,31 @@ describe("help footer", () => {
 });
 
 describe("error support hint", () => {
+  it("prints both support links to stderr for an unexpected runtime error", async () => {
+    const baseUrl = new URL("../dist/base.js", import.meta.url).href;
+    const result = await runCli(
+      [
+        "--input-type=module",
+        "--eval",
+        `import { handle } from "@oclif/core";
+         import { BrowseCommand } from ${JSON.stringify(baseUrl)};
+         class FailingCommand extends BrowseCommand {
+           async run() {
+             throw new Error("Unexpected test failure");
+           }
+         }
+         await FailingCommand.run([], process.cwd()).catch(handle);`,
+      ],
+      { executable: process.execPath },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Unexpected test failure");
+    expect(result.stderr).toContain(DISCORD_INVITE_URL);
+    expect(result.stderr).toContain(GITHUB_ISSUES_URL);
+  });
+
   it("does not show support hint for usage errors", async () => {
     // Missing required argument - this is a usage error
     const result = await runCli(["cloud", "sessions", "get"]);
