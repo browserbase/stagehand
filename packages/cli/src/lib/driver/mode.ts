@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { fail } from "../errors.js";
+import { normalizeSessionLabels } from "../session-labels.js";
 import { getRemote } from "./remote-binding.js";
 import { resolveWsTarget } from "./resolve-ws.js";
 import type { ConnectionTarget } from "./types.js";
@@ -194,7 +195,7 @@ export function targetsCompatible(left: ConnectionTarget, right: ConnectionTarge
 export function remoteLabelsCompatible(existing?: string[], requested?: string[]): boolean {
   if (requested === undefined) return true;
   const identity = (labels: string[]) =>
-    [...new Set(labels.map((label) => label.trim().toLowerCase()))].sort();
+    [...new Set(normalizeSessionLabels(labels).map((label) => label.toLowerCase()))].sort();
   return isDeepStrictEqual(identity(existing ?? []), identity(requested));
 }
 

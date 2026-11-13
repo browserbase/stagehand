@@ -43,7 +43,7 @@ function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, 
   if (flags["keep-alive"]) body.keepAlive = true;
   if (flags.timeout !== undefined) body.timeout = flags.timeout;
   if (flags["extension-id"]) body.extensionId = flags["extension-id"];
-  if (flags.label !== undefined) body.labels = normalizeSessionLabels(flags.label);
+  if (flags.label !== undefined) body.labels = flags.label;
 
   if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
@@ -215,13 +215,17 @@ export default class SessionsCreate extends BrowseCommand {
       flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }
     await withBrowserbaseApi("sessions", async () => {
-      const client = createBrowserbaseClient(toApiOptions(flags));
       const jsonBody = await resolveBody({
         body: flags.body,
         stdin: flags.stdin,
       });
       const flagBody = buildSessionCreateBody(flags);
       const body = deepMerge(jsonBody, flagBody);
+      if (Object.hasOwn(body, "label")) {
+        fail('Use a "labels" array in --body/--stdin, or one --label flag per name.');
+      }
+      if (Object.hasOwn(body, "labels")) body.labels = normalizeSessionLabels(body.labels);
+      const client = createBrowserbaseClient(toApiOptions(flags));
       await applyCliAttribution(body);
       outputJson(await client.sessions.create(body));
     });

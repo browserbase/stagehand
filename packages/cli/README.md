@@ -230,9 +230,13 @@ browse cloud sessions create --stdin < session.json
 
 `--body` and `--stdin` accept a request object containing `labels`; `--label` accepts a single literal name. Explicit label flags replace any `labels` array in the request body. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `sessions get` to check them; it requests labels automatically. If labels are unavailable, the session response omits `labels`; an empty `labels` array confirms the session is untagged.
 
-`labels set` replaces the entire assignment, so include every label you want to keep. `labels clear` removes all assigned labels. These commands do not end the browser session. The `update` command remains a session-lifecycle operation.
+Label names contain 1–128 Unicode characters after trimming Unicode whitespace. A request accepts up to 1,000 names, including repeated names; this is separate from the project's catalog allowance. Names are matched without case sensitivity within a project. Blank names, NUL characters, invalid JSON label arrays, and oversized inputs fail before creating or modifying a session.
 
-With `open`, labels apply when a remote session starts. Reusing a named session without `--label` preserves its creation settings; passing a different label set requires an explicit label update or a new named session. Labels are unavailable for local browsers and CDP attachments.
+`labels set` replaces the entire assignment, so include every label you want to keep. If it cannot create a missing label because the catalog allowance is exhausted, it fails without changing the existing assignment. Assigning existing labels does not consume additional catalog capacity. `labels clear` removes assignments but keeps the catalog entries, so clearing a session does not free catalog capacity. Neither command ends the browser. `sessions update` releases the session; label fields are rejected there with guidance to use `labels set` or `labels clear`.
+
+When creation-time label assignment fails, including at catalog capacity, session creation can still succeed without labels. For a confirmed assignment before proceeding, create without labels, then call `labels set`. Avoid immediately replacing or clearing labels requested during creation: the asynchronous initial assignment may still finish afterward.
+
+With `open`, labels apply when a remote session starts. Reusing a named session without `--label` preserves its creation settings; passing a different label set requires an explicit label update or a new named session. After using `labels set` or `labels clear`, omit `--label` when reusing the handle; `open --label` compares creation settings and does not read current cloud assignments. Use `cloud sessions get <session-id>` to read those assignments. The cloud commands take the Browserbase session ID from `browse status --session <name>`, not the local handle or a label name. Labels are unavailable for local browsers and CDP attachments.
 
 Session listing does not support filtering by label yet. Its `--q` flag queries user metadata, which is separate from labels.
 

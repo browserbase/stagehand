@@ -11,11 +11,20 @@ export const labelFlagOptions = {
 
 export const labelFlag = Flags.string(labelFlagOptions);
 
-export function normalizeSessionLabels(labels: string[]): string[] {
-  return labels.map((value) => {
-    const label = value.trim();
+export function normalizeSessionLabels(labels: unknown): string[] {
+  if (!Array.isArray(labels) || labels.some((value) => typeof value !== "string")) {
+    fail(
+      "Session labels must be an array of names. Use one --label per name or a labels array in --body/--stdin.",
+    );
+  }
+  if (labels.length > 1000) fail("A session label request accepts at most 1,000 names.");
+  return labels.map((value: string) => {
+    const label = value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
     if (!label) fail("Session label names must not be blank.");
     if (label.includes("\0")) fail("Session label names must not contain NUL characters.");
+    if (Array.from(label).length > 128) {
+      fail("Session label names must contain at most 128 Unicode characters.");
+    }
     return label;
   });
 }

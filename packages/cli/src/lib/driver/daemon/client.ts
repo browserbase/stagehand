@@ -148,7 +148,7 @@ export function assertCompatibleTarget(
   ) {
     const id = status.browserbaseSessionId ?? "<session-id>";
     fail(
-      `Session "${session}" is already running with different creation labels. --label only applies when creating a remote session. Use browse cloud sessions labels set ${id} --label <name> to replace its labels, or start a different --session.`,
+      `Session "${session}" is already running with different creation labels. --label only applies when creating a remote session; omit --label to reuse this session after labels set or clear. Use browse cloud sessions labels set ${id} --label <name> to replace its labels, or browse cloud sessions get ${id} to read current labels. Start a different --session to create a new browser.`,
     );
   }
   fail(
