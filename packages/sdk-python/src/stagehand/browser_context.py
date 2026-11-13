@@ -163,6 +163,21 @@ class BrowserContext:
 def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
     if isinstance(value, str):
         return CookieFilter(root=value)
+    unsupported = sorted(
+        name
+        for enabled, name in (
+            (value.flags & re.VERBOSE, "verbose"),
+            (value.flags & re.ASCII, "ascii"),
+            (value.flags & re.LOCALE, "locale"),
+            (value.flags & re.DEBUG, "debug"),
+        )
+        if enabled
+    )
+    if unsupported:
+        raise ValueError(
+            f"re-pattern flags have no JavaScript equivalent: {', '.join(unsupported)}; "
+            "rewrite the pattern without them or pass a plain string"
+        )
     flags = "".join(
         flag
         for enabled, flag in (
@@ -172,4 +187,9 @@ def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
         )
         if enabled
     )
-    return CookieFilter(root=CookieRegex(source=value.pattern, flags=flags or None))
+    pattern = re.sub(r"\(\?P<(\w+)>", r"(?<\1>", value.pattern)
+    pattern = re.sub(r"\(\?P=(\w+)\)", r"\\k<\1>", pattern)
+    # Omit empty flags entirely: an explicitly-sent null is rejected by the runtime.
+    return CookieFilter(
+        root=CookieRegex(**{"source": pattern, **({"flags": flags} if flags else {})})
+    )

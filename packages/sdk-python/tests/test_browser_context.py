@@ -82,5 +82,43 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
     })
 
 
+@pytest.mark.asyncio
+async def test_browser_context_clears_cookies_for_a_compiled_pattern_without_flags() -> None:
+    # re.compile("x") sets no i/m/s flag: before, `flags` was serialized as an
+    # explicit null, which the runtime's schema rejects, so the call raised and
+    # the cookie stayed.
+    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
+
+    await context.clear_cookies(name=re.compile("session"))
+
+    assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == {
+        "options": {"name": {"source": "session"}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_browser_context_clears_cookies_for_python_named_groups() -> None:
+    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
+
+    await context.clear_cookies(name=re.compile("(?P<kind>session)(?P=kind)", re.IGNORECASE))
+
+    assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == {
+        "options": {"name": {"source": "(?<kind>session)\\k<kind>", "flags": "i"}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_browser_context_refuses_python_flags_without_javascript_equivalents() -> None:
+    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
+
+    with pytest.raises(ValueError, match="no JavaScript equivalent"):  # noqa: PT012
+        await context.clear_cookies(name=re.compile(r" session # comment ", re.I | re.VERBOSE))
+
+    assert recording.calls == []
+
+
 async def _close_browser() -> None:
     return None
