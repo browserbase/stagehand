@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
@@ -52,6 +53,45 @@ describe("extension build", () => {
 
     expect(sourceManifest).not.toHaveProperty("version");
     expect(builtManifest.version).toBe(expectedManifestVersion);
+  });
+
+  it("minifies the service worker and keeps function and class names", async () => {
+    const serviceWorker = await readFile(
+      path.join(stagehandExtensionDistDir, "service-worker.js"),
+      "utf8",
+    );
+
+    // Minified output packs the bundle into a few very long lines.
+    expect(serviceWorker.length / serviceWorker.split("\n").length).toBeGreaterThan(1000);
+    expect(serviceWorker).not.toContain("sourceMappingURL");
+    for (const name of [
+      "StagehandRuntime",
+      "RPCRouter",
+      "CdpConnection",
+      "ExecutionContextRegistry",
+    ]) {
+      // Either a named class or a class assigned to a binding of that name (its inferred name).
+      expect(serviceWorker).toMatch(new RegExp(`class ${name}\\b|\\b${name}=class\\b`, "u"));
+    }
+    for (const name of ["startStagehandServiceWorker", "createStagehandRuntime"]) {
+      expect(serviceWorker).toMatch(new RegExp(`function ${name}\\(`, "u"));
+    }
+  });
+
+  it("builds the content script as a classic script that adds no page globals", async () => {
+    const contentScript = await readFile(
+      path.join(stagehandExtensionDistDir, "content-script.js"),
+      "utf8",
+    );
+
+    // blank.html loads it into the page's own world, next to user init scripts and evaluate code.
+    const page = vm.createContext({});
+    vm.runInContext("let e = 1; const t = 2; var n = 'user';", page);
+    expect(() => vm.runInContext(contentScript, page)).not.toThrow();
+    expect(Object.keys(page)).toEqual(["n"]);
+    expect(vm.runInContext("[e, t, n]", page)).toEqual([1, 2, "user"]);
+    expect(vm.runInContext("typeof __stagehandExtensionWorld", page)).toBe("object");
+    expect(() => vm.runInContext("let i = 0; let r = 1; let a; let o;", page)).not.toThrow();
   });
 
   it("has a loadable MV3 extension artifact", async () => {
@@ -122,8 +162,6 @@ describe("extension build", () => {
     expect(contentScript).toContain("installCursorOverlay");
     expect(contentScript).not.toContain("fillElementValue");
     expect(contentScript).not.toContain("__v3Cursor");
-    expect(contentScript).not.toMatch(/^import\s/m);
-    expect(contentScript).not.toContain("__vite-browser-external");
     expect(blankPage).toContain('src="content-script.js"');
     expect(wakeServiceWorkerHtml).toContain("wake-service-worker.js");
     expect(wakeServiceWorkerScript).toContain("stagehand_wake_service_worker");
@@ -131,9 +169,7 @@ describe("extension build", () => {
     expect(offscreenScript).toContain("StagehandExtensionServiceWorkerHeartbeat");
     expect(serviceWorker).not.toContain("src/shims");
     expect(serviceWorker).toContain("new WebSocket");
-    expect(serviceWorker).toContain('binaryType = "arraybuffer"');
-    expect(serviceWorker).not.toContain("__vite-browser-external");
-    expect(serviceWorker).not.toContain("__vite_browser_external");
+    expect(serviceWorker).toMatch(/binaryType\s*=\s*["'`]arraybuffer["'`]/u);
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
     expect(serviceWorker).not.toContain("__v3Cursor");
     expect(JSON.stringify(manifest)).not.toContain("stagehand-smoke-worker");
