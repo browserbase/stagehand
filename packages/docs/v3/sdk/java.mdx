@@ -608,10 +608,10 @@ The SDK consists of three artifacts:
 
 - `stagehand-java-core`
   - Contains core SDK logic
-  - Does not depend on [OkHttp](https://square.github.io/okhttp)
+  - Does not depend on [OkHttp](https://lysine.dev/okhttp/)
   - Exposes [`StagehandClient`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClient.kt), [`StagehandClientAsync`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClientAsync.kt), [`StagehandClientImpl`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClientImpl.kt), and [`StagehandClientAsyncImpl`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClientAsyncImpl.kt), all of which can work with any HTTP client
 - `stagehand-java-client-okhttp`
-  - Depends on [OkHttp](https://square.github.io/okhttp)
+  - Depends on [OkHttp](https://lysine.dev/okhttp/)
   - Exposes [`StagehandOkHttpClient`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-client-okhttp/src/main/kotlin/com/browserbase/api/client/okhttp/StagehandOkHttpClient.kt) and [`StagehandOkHttpClientAsync`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-client-okhttp/src/main/kotlin/com/browserbase/api/client/okhttp/StagehandOkHttpClientAsync.kt), which provide a way to construct [`StagehandClientImpl`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClientImpl.kt) and [`StagehandClientAsyncImpl`](https://github.com/browserbase/stagehand-java/blob/main/stagehand-java-core/src/main/kotlin/com/browserbase/api/client/StagehandClientAsyncImpl.kt), respectively, using OkHttp
 - `stagehand-java`
   - Depends on and exposes the APIs of both `stagehand-java-core` and `stagehand-java-client-okhttp`
@@ -619,7 +619,7 @@ The SDK consists of three artifacts:
 
 This structure allows replacing the SDK's default HTTP client without pulling in unnecessary dependencies.
 
-#### Customized [`OkHttpClient`](https://square.github.io/okhttp/3.x/okhttp/okhttp3/OkHttpClient.html)
+#### Customized [`OkHttpClient`](https://lysine.dev/okhttp/5.x/okhttp/okhttp3/-ok-http-client/)
 
 > [!TIP]
 > Try the available [network options](#network-options) before replacing the default client.
