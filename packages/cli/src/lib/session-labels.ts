@@ -21,6 +21,11 @@ export function normalizeSessionLabels(labels: unknown): string[] {
   return labels.map((value: string) => {
     const label = value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
     if (!label) fail("Session label names must not be blank.");
+    if (label.startsWith("\uFEFF")) {
+      fail(
+        "Session label names must not start with U+FEFF (BOM); remove it so the name can round-trip correctly.",
+      );
+    }
     if (label.includes("\0")) fail("Session label names must not contain NUL characters.");
     if (Array.from(label).length > 128) {
       fail("Session label names must contain at most 128 Unicode characters.");

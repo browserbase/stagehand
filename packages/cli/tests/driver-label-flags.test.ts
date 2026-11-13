@@ -152,8 +152,8 @@ describe("session handles and cloud labels through the CLI", () => {
     expect(selected.requests.map((request) => request.type)).toEqual(["status", "open"]);
   });
 
-  it("does not confuse a label containing BOM with the same name without it", async () => {
-    const selected = await daemon("worker", { kind: "remote", labels: ["\uFEFFCheckout"] });
+  it("rejects a leading BOM before using the daemon", async () => {
+    const selected = await daemon("worker", { kind: "remote", labels: ["Checkout"] });
     const result = await cli([
       "open",
       "https://example.com",
@@ -161,11 +161,11 @@ describe("session handles and cloud labels through the CLI", () => {
       "worker",
       "--remote",
       "--label",
-      "Checkout",
+      "\uFEFFCheckout",
     ]);
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("different creation labels");
-    expect(selected.requests.map((request) => request.type)).toEqual(["status"]);
+    expect(result.stderr).toContain("must not start with U+FEFF");
+    expect(selected.requests).toEqual([]);
   });
 
   it.each([[], ["--local"], ["--cdp", "9222"], ["--auto-connect"]])(

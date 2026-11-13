@@ -27,6 +27,12 @@ const invalid = [
   { name: "nested array", labels: [["Checkout"]], error: "array of names" },
   { name: "blank", labels: ["  "], error: "must not be blank" },
   { name: "Unicode whitespace", labels: ["\u0085\u2000"], error: "must not be blank" },
+  { name: "leading BOM", labels: ["\uFEFFCheckout\uFEFF"], error: "must not start with U+FEFF" },
+  {
+    name: "BOM after whitespace",
+    labels: [" \uFEFFCheckout"],
+    error: "must not start with U+FEFF",
+  },
   { name: "NUL", labels: ["Check\0out"], error: "NUL" },
   { name: "129 ASCII characters", labels: ["a".repeat(129)], error: "128 Unicode" },
   { name: "129 emoji", labels: ["😀".repeat(129)], error: "128 Unicode" },
@@ -45,7 +51,8 @@ describe("session label input boundaries", () => {
         "😀".repeat(128),
         "e\u0301".repeat(64),
         "\u0085\u2000Checkout\u3000",
-        "\ufeffCheckout\ufeff",
+        "Checkout\ufeff",
+        "Check\ufeffout",
         "Store A,Store B",
         '["Store A","Store B"]',
         "--remote",
@@ -57,7 +64,8 @@ describe("session label input boundaries", () => {
       "😀".repeat(128),
       "e\u0301".repeat(64),
       "Checkout",
-      "\ufeffCheckout\ufeff",
+      "Checkout\ufeff",
+      "Check\ufeffout",
       "Store A,Store B",
       '["Store A","Store B"]',
       "--remote",
@@ -191,6 +199,30 @@ describe("session label input boundaries", () => {
       { env },
     );
     expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
+
+  it("rejects a BOM-wrapped flag before replacing cloud labels", async () => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, { labels: [] }),
+    );
+    const result = await runCli(
+      [
+        "cloud",
+        "sessions",
+        "labels",
+        "set",
+        "session-1",
+        "--label",
+        "\uFEFFCheckout\uFEFF",
+        "--base-url",
+        server.baseUrl,
+      ],
+      { env },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("must not start with U+FEFF");
+    expect(result.stdout).toBe("");
     expect(server.requests).toHaveLength(0);
   });
 
