@@ -13,9 +13,24 @@ Stagehand supports two caching strategies to reduce LLM costs and speed up your 
 
 ## Browserbase Cache
 
-Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When you run Stagehand with `env: "BROWSERBASE"`, every `act()` call is automatically cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens. You don't need to configure anything to start benefiting.
+Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When Browserbase enables caching for your project and you run Stagehand with `env: "BROWSERBASE"`, Browserbase caches eligible calls on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+
+  <Info>
+  To use Browserbase Cache, [request caching for your project](#enable-caching-for-your-project). Local Cache does not need this step.
+  </Info>
 
 The cache key is generated from the instruction, page content, and options you pass. On a cache hit, the response is returned directly from the server with no LLM inference and no token cost. You can inspect cache behavior via the `cacheStatus` field returned by `act()`. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
+
+### Enable caching for your project
+
+Browserbase recommends this cache for workflows that meet all of these criteria:
+
+- **Repeated steps:** the workflow runs the same instructions on the same pages many times.
+- **Same content for every run:** the pages show the same content to each run. They are not personalized to a signed-in user and do not show account or personal data.
+- **No sensitive values in calls:** instructions, variables, and extracted results do not contain credentials or personal data.
+- **Stable URLs:** the page URLs do not change between runs. See [limitations](#limitations).
+
+If your workflow meets these criteria, email [support@browserbase.com](mailto:support@browserbase.com) with your Browserbase project ID to request caching for your project.
 
 ### Disabling on the Constructor
 
@@ -45,7 +60,7 @@ Override the instance setting for a single call by passing `serverCache: false` 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({ env: "BROWSERBASE" }); // caching on by default
+const stagehand = new Stagehand({ env: "BROWSERBASE" }); // serverCache configured to on
 
 await stagehand.init();
 const page = stagehand.context.pages()[0];
@@ -66,6 +81,8 @@ await stagehand.act("submit the form");
 const actResult = await stagehand.act("click the login button");
 console.log(actResult.cacheStatus); // "HIT" or "MISS"
 ```
+
+If Browserbase has not enabled caching for your project, `cacheStatus` is `undefined`.
 
 ### Limitations
 
