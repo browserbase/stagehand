@@ -15,7 +15,10 @@ import { prefixXPath } from "./xpathUtils.js";
 
 /**
  * Parse a cross-frame XPath into discrete steps. Each step tracks whether it
- * represents a descendant hop (“//”) or a single-child hop (“/”).
+ * represents a descendant hop (“//”) or a single-child hop (“/”). A "/" inside
+ * a predicate, a function call or a string literal belongs to the step, so
+ * `//a[@href="/login"]` and `//button[text()="Sign in / Register"]` stay
+ * single steps.
  */
 export function parseXPathToSteps(path: string): Step[] {
   const s = path.trim();
@@ -32,7 +35,23 @@ export function parseXPathToSteps(path: string): Step[] {
     }
 
     const start = i;
-    while (i < s.length && s[i] !== "/") i++;
+    let depth = 0;
+    let quote: string | null = null;
+    while (i < s.length) {
+      const ch = s[i]!;
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === "[" || ch === "(") {
+        depth++;
+      } else if (ch === "]" || ch === ")") {
+        depth = Math.max(0, depth - 1);
+      } else if (ch === "/" && depth === 0) {
+        break;
+      }
+      i++;
+    }
     const raw = s.slice(start, i).trim();
     if (!raw) continue;
     const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
