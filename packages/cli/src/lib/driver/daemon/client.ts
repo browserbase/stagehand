@@ -4,7 +4,7 @@ import net from "node:net";
 
 import { CommandFailure, fail } from "../../errors.js";
 import type { DriverCommandName } from "../commands/types.js";
-import { targetsCompatible } from "../mode.js";
+import { remoteLabelsCompatible, targetsCompatible } from "../mode.js";
 import type { ConnectionTarget, DriverStatus, OpenResult } from "../types.js";
 import {
   cleanupDaemonFiles,
@@ -141,6 +141,16 @@ export function assertCompatibleTarget(
   target: ConnectionTarget,
 ): void {
   if (targetsCompatible(status.target, target)) return;
+  if (
+    status.target.kind === "remote" &&
+    target.kind === "remote" &&
+    !remoteLabelsCompatible(status.target.labels, target.labels)
+  ) {
+    const id = status.browserbaseSessionId ?? "<session-id>";
+    fail(
+      `Session "${session}" is already running with different creation labels. --label only applies when creating a remote session; omit --label to reuse this session after labels set or clear. Use browse cloud sessions labels set ${id} --label <name> to replace its labels, or browse cloud sessions get ${id} to read current labels. Start a different --session to create a new browser.`,
+    );
+  }
   fail(
     `Session "${session}" is already running in ${status.mode} mode. Run browse stop --session ${session} before changing modes.`,
   );

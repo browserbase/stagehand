@@ -62,7 +62,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.14.0",
+    "@browserbasehq/sdk": "^2.27.0",
     "@browserbasehq/stagehand": "4.4.0",
     "@hpke/core": "^1.9.0",
     "@hpke/dhkem-x25519": "^1.8.0",
@@ -125,6 +125,9 @@
       },
       "cloud:sessions:downloads": {
         "description": "Download Browserbase session artifacts."
+      },
+      "cloud:sessions:labels": {
+        "description": "Replace or clear labels assigned to a browser session."
       },
       "cloud:sessions:uploads": {
         "description": "Upload files to Browserbase sessions."

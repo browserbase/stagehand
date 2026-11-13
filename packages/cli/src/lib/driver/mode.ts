@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { fail } from "../errors.js";
+import { normalizeSessionLabels } from "../session-labels.js";
 import { getRemote } from "./remote-binding.js";
 import { resolveWsTarget } from "./resolve-ws.js";
 import type { ConnectionTarget } from "./types.js";
@@ -13,6 +14,7 @@ export interface DriverModeFlags {
   headless?: boolean;
   "ignore-default-chrome-arg"?: string[];
   local?: boolean;
+  label?: string[];
   "no-default-chrome-args"?: boolean;
   proxies?: boolean;
   remote?: boolean;
@@ -51,13 +53,14 @@ export function remoteOnlyFlagsInUse(flags: DriverModeFlags): string[] {
   const names: string[] = [];
   if (flags.verified) names.push("--verified");
   if (flags.proxies) names.push("--proxies");
+  if (flags.label !== undefined) names.push("--label");
   return names;
 }
 
 export async function resolveConnectionTarget(flags: DriverModeFlags): Promise<ConnectionTarget> {
   const chromeArgFlags = chromeArgFlagsInUse(flags);
 
-  // --verified / --proxies configure a Browserbase session at creation time, so
+  // Remote-only flags configure a Browserbase session at creation time, so
   // they only mean something for an explicit --remote session. We deliberately
   // do NOT let them imply --remote: that would silently switch the user to
   // API-key (billed) cloud sessions. Require the mode to be stated explicitly.
@@ -182,10 +185,18 @@ export function targetsCompatible(left: ConnectionTarget, right: ConnectionTarge
     // like headless, forcing an explicit stop-and-reopen.
     return (
       Boolean(left.verified) === Boolean(right.verified) &&
-      Boolean(left.proxies) === Boolean(right.proxies)
+      Boolean(left.proxies) === Boolean(right.proxies) &&
+      remoteLabelsCompatible(left.labels, right.labels)
     );
   }
   return true;
+}
+
+export function remoteLabelsCompatible(existing?: string[], requested?: string[]): boolean {
+  if (requested === undefined) return true;
+  const identity = (labels: string[]) =>
+    [...new Set(normalizeSessionLabels(labels).map((label) => label.toLowerCase()))].sort();
+  return isDeepStrictEqual(identity(existing ?? []), identity(requested));
 }
 
 function chromeArgsEqual(left?: string[], right?: string[]): boolean {

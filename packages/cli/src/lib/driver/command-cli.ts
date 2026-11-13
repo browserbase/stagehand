@@ -109,7 +109,8 @@ export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
     flags.headed ||
     flags.headless ||
     flags.verified ||
-    flags.proxies,
+    flags.proxies ||
+    flags.label !== undefined,
   );
 }
 
@@ -124,6 +125,7 @@ function hasModeOnlyFlag(flags: DriverFlags): boolean {
     !flags.headless &&
     !flags.verified &&
     !flags.proxies &&
+    flags.label === undefined &&
     flags.local !== flags.remote,
   );
 }

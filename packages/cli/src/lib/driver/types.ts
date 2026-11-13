@@ -5,7 +5,7 @@ export type ConnectionTarget =
       kind: "managed-local";
       headless: boolean;
     }
-  | { kind: "remote"; verified?: boolean; proxies?: boolean }
+  | { kind: "remote"; verified?: boolean; proxies?: boolean; labels?: string[] }
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };
 

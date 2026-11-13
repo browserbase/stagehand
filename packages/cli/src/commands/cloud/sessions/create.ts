@@ -12,6 +12,7 @@ import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
 import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
+import { labelFlagOptions, normalizeSessionLabels } from "../../../lib/session-labels.js";
 
 const REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"] as const;
 
@@ -30,6 +31,7 @@ interface SessionCreateFlagInputs {
   "log-session"?: boolean;
   viewport?: string;
   "extension-id"?: string;
+  label?: string[];
 }
 
 function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, unknown> {
@@ -41,6 +43,7 @@ function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, 
   if (flags["keep-alive"]) body.keepAlive = true;
   if (flags.timeout !== undefined) body.timeout = flags.timeout;
   if (flags["extension-id"]) body.extensionId = flags["extension-id"];
+  if (flags.label !== undefined) body.labels = flags.label;
 
   if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
@@ -122,18 +125,27 @@ async function applyCliAttribution(body: Record<string, unknown>): Promise<void>
 
 export default class SessionsCreate extends BrowseCommand {
   static override description =
-    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API.";
+    "Create a new browser session. Use flags for common options, or --body/--stdin for the full API. Labels are assigned asynchronously on a best-effort basis; use sessions get to confirm them.";
 
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
+    'browse cloud sessions create --label "Store A"',
+    'browse cloud sessions create --label "Store A" --label Checkout',
     "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
+    `browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'`,
+    "browse cloud sessions create --stdin < session.json",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
   ];
 
   static override flags = {
     ...apiCommonFlags,
+    label: Flags.string({
+      ...labelFlagOptions,
+      description:
+        "One Browserbase label per --label. Repeat for additional labels. Replaces labels from --body/--stdin; assignment is asynchronous and best effort.",
+    }),
     body: Flags.string({
       description: "Optional JSON request body.",
       helpValue: "<body>",
@@ -203,13 +215,17 @@ export default class SessionsCreate extends BrowseCommand {
       flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }
     await withBrowserbaseApi("sessions", async () => {
-      const client = createBrowserbaseClient(toApiOptions(flags));
       const jsonBody = await resolveBody({
         body: flags.body,
         stdin: flags.stdin,
       });
       const flagBody = buildSessionCreateBody(flags);
       const body = deepMerge(jsonBody, flagBody);
+      if (Object.hasOwn(body, "label")) {
+        fail('Use a "labels" array in --body/--stdin, or one --label flag per name.');
+      }
+      if (Object.hasOwn(body, "labels")) body.labels = normalizeSessionLabels(body.labels);
+      const client = createBrowserbaseClient(toApiOptions(flags));
       await applyCliAttribution(body);
       outputJson(await client.sessions.create(body));
     });

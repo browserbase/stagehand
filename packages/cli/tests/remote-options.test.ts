@@ -64,6 +64,7 @@ describe("remote.ts (Browserbase capability)", () => {
     expect((params.userMetadata as Record<string, string>).browse_cli).toBe("true");
     expect(params).not.toHaveProperty("proxies");
     expect(params).not.toHaveProperty("browserSettings");
+    expect(params).not.toHaveProperty("labels");
   });
 
   it("threads proxies alone without touching browserSettings", async () => {
@@ -90,6 +91,28 @@ describe("remote.ts (Browserbase capability)", () => {
     expect(params?.browserSettings).toEqual({ verified: true });
   });
 
+  it("preserves label display names while normalizing remote creation input", () => {
+    expect(
+      resolveExplicitRemoteTarget({ remote: true, label: [" Checkout ", "Smoke test"] }),
+    ).toEqual({ kind: "remote", labels: ["Checkout", "Smoke test"] });
+    expect(() => resolveExplicitRemoteTarget({ remote: true, label: ["   "] })).toThrow();
+  });
+
+  it("threads labels into remote creation alongside existing settings", async () => {
+    const params = (
+      await remoteStagehandOptions({
+        kind: "remote",
+        labels: ["Checkout", "Smoke test"],
+        proxies: true,
+        verified: true,
+      })
+    ).browser;
+    expect(params.labels).toEqual(["Checkout", "Smoke test"]);
+    expect(params.proxies).toBe(true);
+    expect(params.browserSettings).toEqual({ verified: true });
+    expect(params.userMetadata).toMatchObject({ browse_cli: "true" });
+  });
+
   it("requires an API key", async () => {
     delete process.env.BROWSERBASE_API_KEY;
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(/BROWSERBASE_API_KEY/);
@@ -103,7 +126,7 @@ describe("remote.ts (Browserbase capability)", () => {
     });
 
     await expect(
-      launchRemoteBrowser({ kind: "remote", proxies: true, verified: true }),
+      launchRemoteBrowser({ kind: "remote", labels: ["Checkout"], proxies: true, verified: true }),
     ).resolves.toEqual({
       browser,
       identity: {
@@ -114,6 +137,7 @@ describe("remote.ts (Browserbase capability)", () => {
     });
     expect(stagehandMocks.launch).toHaveBeenCalledWith({
       apiKey: "test-key",
+      labels: ["Checkout"],
       browserSettings: { verified: true },
       proxies: true,
       userMetadata: expect.objectContaining({ browse_cli: "true" }),

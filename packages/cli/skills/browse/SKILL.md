@@ -247,6 +247,35 @@ browse cloud search "browser automation research" --provider parallel --mode adv
 browse cloud search "browserbase docs" --provider exa
 ```
 
+For projects with session labels available, `--session` names the local browser handle and each `--label` supplies one Browserbase label:
+
+```bash
+# One label
+browse open https://example.com --remote --session checkout-1 --label "Store A"
+browse cloud sessions create --label "Store A"
+# Two labels on one session
+browse cloud sessions create --label "Store A" --label Checkout
+browse cloud sessions get <session-id>
+browse cloud sessions labels set <session-id> --label "Store A" --label Checkout
+browse cloud sessions labels clear <session-id>
+```
+
+Repeat `--label` once per name and quote names containing spaces. Commas and JSON-looking strings are literal label names, not lists. For generated arrays during cloud creation, use the existing request-body inputs:
+
+```bash
+browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'
+# session.json contains the request object above, not a bare array
+browse cloud sessions create --stdin < session.json
+```
+
+Prefer `--stdin` with a generated JSON file for large or complex request bodies to avoid shell-quoting mistakes. Creation-time assignment is asynchronous and best effort; verify with `sessions get` before claiming the labels are assigned. The `sessions get` command requests labels automatically; `sessions list` does not. In a get response, a missing `labels` field means labels are unavailable; an empty array confirms the session is untagged. On cloud creation, label flags override a `labels` array in `--body` or `--stdin`.
+
+`set` replaces all assigned labels; include the labels that should remain.
+
+Names must contain 1–128 Unicode characters after whitespace trimming, with no NUL or leading BOM (U+FEFF); each request accepts at most 1,000 names. The project catalog allowance is separate. A rejected replacement preserves the previous assignment. Reusing existing labels needs no additional catalog capacity. `clear` removes all assignments without ending the session or deleting catalog entries, so it does not free catalog capacity. For confirmed assignment before proceeding, create without labels and then call `set`; an asynchronous creation-time assignment can finish after an immediate set/clear. Do not use `sessions update` for labels: that command releases sessions.
+
+`open --label` requires explicit `--remote`, even when `BROWSERBASE_API_KEY` is set. Labels apply only to new remote sessions; changing them on an existing named session requires an explicit label update. After set/clear, omit `--label` when reusing the local handle. Cloud commands take the Browserbase session ID from `browse status --session <name>`, not the local handle or label name. Local browsers and CDP attachments do not accept labels. The public session-list command has no label filter; `--q` queries user metadata instead.
+
 For remote sessions with context persistence:
 
 ```bash

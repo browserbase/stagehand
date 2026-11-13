@@ -200,6 +200,46 @@ These apply across driver commands:
 | `--target-id <id>`        | Select a specific CDP target                            |
 | `--json`                  | Emit machine-readable JSON (available on most commands) |
 
+### Session labels
+
+For projects with session labels available, request labels when creating a remote browser or cloud session. With `open --label`, pass `--remote` explicitly even when `BROWSERBASE_API_KEY` is set. A session can have multiple labels. `--session` names the local browser handle; each `--label` supplies one Browserbase label.
+
+```bash
+# Create a session with one label
+browse open https://example.com --remote --session checkout-1 --label "Store A"
+browse cloud sessions create --label "Store A"
+
+# Create one session with two labels
+browse cloud sessions create --label "Store A" --label Checkout
+
+# Read, replace, or clear labels on an existing session
+browse cloud sessions get <session-id>
+browse cloud sessions labels set <session-id> --label "Store A" --label Checkout
+browse cloud sessions labels clear <session-id>
+```
+
+Use one `--label` per name, following the CLI's repeatable `--domain`, `--file`, and `--chrome-arg` style. Quote names containing spaces; commas stay part of a single name. Each `--label` consumes one value, so a following URL or session ID remains a positional argument.
+
+For generated arrays during cloud session creation, use the existing JSON request body:
+
+```bash
+browse cloud sessions create --body '{"labels":["Store A","Checkout"]}'
+# session.json contains the same request object, including its labels array
+browse cloud sessions create --stdin < session.json
+```
+
+`--body` and `--stdin` accept a request object containing `labels`; `--label` accepts a single literal name. Explicit label flags replace any `labels` array in the request body. Creation-time assignment is asynchronous and best effort: a successful session response does not confirm its labels. Use `sessions get` to check them; it requests labels automatically. If labels are unavailable, the session response omits `labels`; an empty `labels` array confirms the session is untagged.
+
+Label names contain 1–128 Unicode characters after trimming Unicode whitespace. A request accepts up to 1,000 names, including repeated names; this is separate from the project's catalog allowance. Names are matched without case sensitivity within a project. Blank names, NUL characters, leading BOM (U+FEFF) characters, invalid JSON label arrays, and oversized inputs fail before creating or modifying a session.
+
+`labels set` replaces the entire assignment, so include every label you want to keep. If it cannot create a missing label because the catalog allowance is exhausted, it fails without changing the existing assignment. Assigning existing labels does not consume additional catalog capacity. `labels clear` removes assignments but keeps the catalog entries, so clearing a session does not free catalog capacity. Neither command ends the browser. `sessions update` releases the session; label fields are rejected there with guidance to use `labels set` or `labels clear`.
+
+When creation-time label assignment fails, including at catalog capacity, session creation can still succeed without labels. For a confirmed assignment before proceeding, create without labels, then call `labels set`. Avoid immediately replacing or clearing labels requested during creation: the asynchronous initial assignment may still finish afterward.
+
+With `open`, labels apply when a remote session starts. Reusing a named session without `--label` preserves its creation settings; passing a different label set requires an explicit label update or a new named session. After using `labels set` or `labels clear`, omit `--label` when reusing the handle; `open --label` compares creation settings and does not read current cloud assignments. Use `cloud sessions get <session-id>` to read those assignments. The cloud commands take the Browserbase session ID from `browse status --session <name>`, not the local handle or a label name. Labels are unavailable for local browsers and CDP attachments.
+
+Session listing does not support filtering by label yet. Its `--q` flag queries user metadata, which is separate from labels.
+
 ## Open web skills catalog
 
 Use [browse.sh](https://browse.sh), the largest open-source catalog of skills to reliably perform any task on the internet. Find a specialized skill to navigate `apartments.com`, for example, and drastically reduce your agent's time and token costs.

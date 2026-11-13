@@ -7,10 +7,12 @@ import {
   withBrowserbaseApi,
 } from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
+import { fail } from "../../../lib/errors.js";
 import { BrowseCommand } from "../../../base.js";
 
 export default class SessionsUpdate extends BrowseCommand {
-  static override description = "Update a Browserbase session.";
+  static override description =
+    "Request release of a Browserbase session. To change labels, use sessions labels set or clear.";
   static override examples = [
     "browse cloud sessions update <session-id> --status REQUEST_RELEASE",
     `browse cloud sessions update <session-id> --body '{"status":"REQUEST_RELEASE"}'`,
@@ -40,9 +42,15 @@ export default class SessionsUpdate extends BrowseCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(SessionsUpdate);
     await withBrowserbaseApi("sessions", async () => {
+      const requestBody = await resolveBody({ body: flags.body, stdin: flags.stdin });
+      if (Object.hasOwn(requestBody, "label") || Object.hasOwn(requestBody, "labels")) {
+        fail(
+          "Session updates release the browser and cannot change labels. Use 'browse cloud sessions labels set <session-id> --label <name>' or 'browse cloud sessions labels clear <session-id>'.",
+        );
+      }
       const client = createBrowserbaseClient(toApiOptions(flags));
       const body = {
-        ...(await resolveBody({ body: flags.body, stdin: flags.stdin })),
+        ...requestBody,
         status: (flags.status ?? "REQUEST_RELEASE") as "REQUEST_RELEASE",
       };
       outputJson(await client.sessions.update(args.id, body));
