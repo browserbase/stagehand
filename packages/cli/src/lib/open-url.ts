@@ -1,4 +1,4 @@
-import spawn from "cross-spawn";
+import open from "open";
 
 export interface OpenUrlOptions {
   /**
@@ -29,59 +29,14 @@ export interface OpenUrlResult {
  * result object so callers can print the URL and exit cleanly.
  */
 export async function openUrl(url: string, options: OpenUrlOptions = {}): Promise<OpenUrlResult> {
-  if (options.noOpen || !shouldOpenBrowser()) {
+  if (options.noOpen || !process.stdout.isTTY || (process.env.CI && process.env.CI !== "false")) {
     return { attempted: false, success: true };
   }
 
   try {
-    const child = spawnBrowserOpen(url);
-    return await new Promise<OpenUrlResult>((resolve) => {
-      child.once("error", () => resolve({ attempted: true, success: false }));
-      child.once("spawn", () => {
-        child.unref();
-        resolve({ attempted: true, success: true });
-      });
-    });
+    await open(url);
+    return { attempted: true, success: true };
   } catch {
     return { attempted: true, success: false };
   }
-}
-
-function shouldOpenBrowser(): boolean {
-  if (!process.stdout.isTTY) {
-    return false;
-  }
-
-  const ci = process.env.CI;
-  if (ci && !isExplicitFalse(ci)) {
-    return false;
-  }
-
-  return true;
-}
-
-function isExplicitFalse(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return (
-    normalized === "" ||
-    normalized === "0" ||
-    normalized === "false" ||
-    normalized === "no" ||
-    normalized === "off"
-  );
-}
-
-function spawnBrowserOpen(url: string): ReturnType<typeof spawn> {
-  const platform = process.platform;
-
-  if (platform === "darwin") {
-    return spawn("open", [url], { stdio: "ignore", detached: true });
-  }
-
-  if (platform === "win32") {
-    return spawn("cmd", ["/c", "start", "", url], { stdio: "ignore", detached: true });
-  }
-
-  // Linux and other Unix-like systems
-  return spawn("xdg-open", [url], { stdio: "ignore", detached: true });
 }
