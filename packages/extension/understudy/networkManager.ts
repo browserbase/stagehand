@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
@@ -45,7 +46,7 @@ export class NetworkManager {
     const sid = this.sessionKey(session);
     if (this.sessions.has(sid)) return;
 
-    const onRequest = (evt: Protocol.Network.RequestWillBeSentEvent) => {
+    const onRequest = (evt: Protocol.Network.RequestWillBeSentEvent, receivedAt: number) => {
       if (!evt || !evt.requestId) return;
 
       const info: NetworkRequestInfo = {
@@ -55,7 +56,7 @@ export class NetworkManager {
         frameId: evt.frameId ?? undefined,
         loaderId: evt.loaderId ?? undefined,
         url: evt.request?.url,
-        timestamp: Date.now(),
+        timestamp: receivedAt,
         resourceType: evt.type,
         documentRequest: evt.type === "Document",
       };
@@ -68,7 +69,7 @@ export class NetworkManager {
       this.emitStart(info);
     };
 
-    const finish = (reqId: string) => {
+    const finish = (reqId: string, receivedAt: number) => {
       const key = this.requestKey(sid, reqId);
       const stored = this.requests.get(key);
       if (stored?.frameId) {
@@ -78,14 +79,14 @@ export class NetworkManager {
         sessionId: sid,
         requestId: reqId,
         requestKey: key,
-        timestamp: Date.now(),
+        timestamp: receivedAt,
         documentRequest: false,
       };
       this.requests.delete(key);
       this.emitFinish(info);
     };
 
-    const fail = (reqId: string) => {
+    const fail = (reqId: string, receivedAt: number) => {
       const key = this.requestKey(sid, reqId);
       const stored = this.requests.get(key);
       if (stored?.frameId) {
@@ -95,30 +96,30 @@ export class NetworkManager {
         sessionId: sid,
         requestId: reqId,
         requestKey: key,
-        timestamp: Date.now(),
+        timestamp: receivedAt,
         documentRequest: false,
       };
       this.requests.delete(key);
       this.emitFailure(info);
     };
 
-    const onFinished = (evt: { requestId: string }) => {
+    const onFinished = (evt: { requestId: string }, receivedAt: number) => {
       if (!evt?.requestId) return;
-      finish(evt.requestId);
+      finish(evt.requestId, receivedAt);
     };
 
-    const onFailed = (evt: Protocol.Network.LoadingFailedEvent) => {
+    const onFailed = (evt: Protocol.Network.LoadingFailedEvent, receivedAt: number) => {
       if (!evt?.requestId) return;
-      fail(evt.requestId);
+      fail(evt.requestId, receivedAt);
     };
 
-    const onResponse = (evt: Protocol.Network.ResponseReceivedEvent) => {
+    const onResponse = (evt: Protocol.Network.ResponseReceivedEvent, receivedAt: number) => {
       if (!evt?.requestId) return;
       const url = evt.response?.url ?? "";
-      if (url.startsWith("data:")) finish(evt.requestId);
+      if (url.startsWith("data:")) finish(evt.requestId, receivedAt);
     };
 
-    const onFrameStopped = (evt: Protocol.Page.FrameStoppedLoadingEvent) => {
+    const onFrameStopped = (evt: Protocol.Page.FrameStoppedLoadingEvent, receivedAt: number) => {
       if (!evt?.frameId) return;
       const key = this.documentRequestsByFrame.get(evt.frameId);
       if (!key) return;
@@ -129,29 +130,25 @@ export class NetworkManager {
       }
       this.requests.delete(key);
       this.documentRequestsByFrame.delete(evt.frameId);
-      this.emitFinish({ ...stored, timestamp: Date.now() });
+      this.emitFinish({ ...stored, timestamp: receivedAt });
     };
 
-    session.on("Network.requestWillBeSent", onRequest);
-    session.on("Network.loadingFinished", onFinished);
-    session.on("Network.loadingFailed", onFailed);
-    session.on("Network.requestServedFromCache", onFinished);
-    session.on("Network.responseReceived", onResponse);
-    session.on("Page.frameStoppedLoading", onFrameStopped);
+    const capture = new SessionNetworkCapture(session);
+    capture.attach({
+      "Network.requestWillBeSent": onRequest,
+      "Network.loadingFinished": onFinished,
+      "Network.loadingFailed": onFailed,
+      "Network.requestServedFromCache": onFinished,
+      "Network.responseReceived": onResponse,
+      "Page.frameStoppedLoading": onFrameStopped,
+    });
 
     void session.send("Network.enable").catch(() => {});
     void session.send("Page.enable").catch(() => {});
 
     this.sessions.set(sid, {
       session,
-      detach: () => {
-        session.off("Network.requestWillBeSent", onRequest);
-        session.off("Network.loadingFinished", onFinished);
-        session.off("Network.loadingFailed", onFailed);
-        session.off("Network.requestServedFromCache", onFinished);
-        session.off("Network.responseReceived", onResponse);
-        session.off("Page.frameStoppedLoading", onFrameStopped);
-      },
+      detach: () => capture.dispose(),
     });
   }
 
