@@ -54,6 +54,21 @@ describe("extension build", () => {
     expect(builtManifest.version).toBe(expectedManifestVersion);
   });
 
+  it("minifies the service worker and keeps function and class names", async () => {
+    const serviceWorker = await readFile(
+      path.join(stagehandExtensionDistDir, "service-worker.js"),
+      "utf8",
+    );
+
+    // Minified output packs the bundle into a few very long lines.
+    expect(serviceWorker.length / serviceWorker.split("\n").length).toBeGreaterThan(1000);
+    expect(serviceWorker).not.toContain("sourceMappingURL");
+    for (const name of ["StagehandRuntime", "RPCRouter", "CdpConnection"]) {
+      // Either a named class or a class assigned to a binding of that name (its inferred name).
+      expect(serviceWorker).toMatch(new RegExp(`class ${name}\\b|\\b${name}=class\\b`, "u"));
+    }
+  });
+
   it("has a loadable MV3 extension artifact", async () => {
     const manifest = ManifestSchema.parse(
       JSON.parse(await readFile(path.join(stagehandExtensionDistDir, "manifest.json"), "utf8")),
@@ -131,7 +146,7 @@ describe("extension build", () => {
     expect(offscreenScript).toContain("StagehandExtensionServiceWorkerHeartbeat");
     expect(serviceWorker).not.toContain("src/shims");
     expect(serviceWorker).toContain("new WebSocket");
-    expect(serviceWorker).toContain('binaryType = "arraybuffer"');
+    expect(serviceWorker).toMatch(/binaryType\s*=\s*["'`]arraybuffer["'`]/u);
     expect(serviceWorker).not.toContain("__vite-browser-external");
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");

@@ -109,7 +109,7 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
 export default defineConfig({
   build: {
     emptyOutDir: true,
-    minify: false,
+    minify: "oxc",
     modulePreload: false,
     outDir,
     target: "es2022",
@@ -125,6 +125,11 @@ export default defineConfig({
       },
       output: {
         entryFileNames: "[name].js",
+        // Keep function and class names so stack traces, error names and logs stay readable.
+        minify: {
+          compress: { keepNames: { function: true, class: true } },
+          mangle: { keepNames: { function: true, class: true } },
+        },
       },
     },
   },
