@@ -218,20 +218,26 @@ describe("driver session selection", () => {
     target = compatible ? headed : remote;
     const lockPath = getLockPath(session);
     let waitingForLock: Promise<void> | undefined;
+    let resumeLockAcquisition: (() => void) | undefined;
     if (waitsForLock) {
       await fs.writeFile(lockPath, String(process.pid));
       const open = fs.open.bind(fs);
+      let sawOccupiedLock = false;
+      const fixtureReady = new Promise<void>((resolve) => {
+        resumeLockAcquisition = resolve;
+      });
       waitingForLock = new Promise<void>((resolve) => {
         vi.spyOn(fs, "open").mockImplementation(async (...args) => {
+          const isLockAttempt = args[0] === lockPath && args[1] === "wx";
+          if (isLockAttempt && sawOccupiedLock) {
+            resolve();
+            await fixtureReady;
+          }
           try {
             return await open(...args);
           } catch (error) {
-            if (
-              args[0] === lockPath &&
-              args[1] === "wx" &&
-              (error as NodeJS.ErrnoException).code === "EEXIST"
-            ) {
-              resolve();
+            if (isLockAttempt && (error as NodeJS.ErrnoException).code === "EEXIST") {
+              sawOccupiedLock = true;
             }
             throw error;
           }
@@ -246,11 +252,15 @@ describe("driver session selection", () => {
       (error: unknown) => ({ error }),
     );
     if (waitingForLock) {
-      // Publish the other caller's daemon only after this caller actually hits
-      // the occupied lock, so the test exercises the post-lock status check.
+      // Pause the retry after the occupied lock is inspected so fixture removal
+      // cannot overlap its read or the next exclusive open on Windows.
       await waitingForLock;
-      await listen();
-      await fs.rm(lockPath);
+      try {
+        await listen();
+        await fs.rm(lockPath);
+      } finally {
+        resumeLockAcquisition?.();
+      }
     }
     if (compatible) {
       expect(await result).toEqual({ value: { handledBy: session } });
