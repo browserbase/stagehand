@@ -38,6 +38,9 @@ type FrameInfo = {
    * Useful for building absolute XPath prefixes or DOM scoping in the parent session.
    */
   ownerBackendNodeId?: number;
+
+  /** True when the frame emitted a process-swap detach and awaits replacement session ownership */
+  swapping?: boolean;
 };
 
 /** Minimal “shell” CDP frame used when we haven’t yet seen a real Frame from events. */
@@ -141,12 +144,19 @@ export class FrameRegistry {
    * Record that a frame detached. If `reason !== "swap"`, remove the subtree from the graph,
    * and clean the inverse maps. For “swap” we keep the node to preserve continuity.
    */
-  onFrameDetached(frameId: FrameId, reason: string = "remove"): void {
-    if (reason === "swap") return;
+  onFrameDetached(frameId: FrameId, reason: string = "remove"): FrameId[] {
+    if (reason === "swap") {
+      const info = this.frames.get(frameId);
+      if (info) info.swapping = true;
+      return [];
+    }
 
     // Collect subtree starting from frameId.
     const toRemove: FrameId[] = [];
+    const visited = new Set<FrameId>();
     const collect = (fid: FrameId) => {
+      if (visited.has(fid)) return;
+      visited.add(fid);
       toRemove.push(fid);
       const kids = this.frames.get(fid)?.children ?? new Set<FrameId>();
       for (const k of kids) collect(k);
@@ -180,6 +190,32 @@ export class FrameRegistry {
       const iter = this.frames.keys().next();
       if (!iter.done) this.rootFrameId = iter.value;
     }
+
+    return toRemove;
+  }
+
+  /**
+   * Detach a CDP session and prune its owned frame subtrees, preserving frames that are
+   * mid-swap so a replacement session can take ownership without losing topology.
+   */
+  detachSession(sessionId: SessionId): FrameId[] {
+    const removed = new Set<FrameId>();
+    for (const fid of this.framesForSession(sessionId)) {
+      const info = this.frames.get(fid);
+      if (!info) continue;
+      if (info.swapping && info.ownerSessionId === sessionId) {
+        const bag = this.framesBySession.get(sessionId);
+        bag?.delete(fid);
+        if (bag && bag.size === 0) this.framesBySession.delete(sessionId);
+        info.ownerSessionId = undefined;
+        continue;
+      }
+      for (const detachedId of this.onFrameDetached(fid, "remove")) {
+        removed.add(detachedId);
+      }
+    }
+    this.framesBySession.delete(sessionId);
+    return [...removed];
   }
 
   /**
@@ -202,6 +238,7 @@ export class FrameRegistry {
     const walk = (tree: Protocol.Page.FrameTree, parent: FrameId | null) => {
       this.ensureNode(tree.frame.id);
       const info = this.frames.get(tree.frame.id)!;
+      info.swapping = false;
       const previousParent = info.parentId;
       const nextParent = parent ?? tree.frame.parentId ?? previousParent ?? null;
 
@@ -363,6 +400,7 @@ export class FrameRegistry {
   setOwnerSessionIdInternal(frameId: FrameId, sessionId: SessionId): void {
     this.ensureNode(frameId);
     const info = this.frames.get(frameId)!;
+    info.swapping = false;
 
     // If the owner is unchanged, do nothing
     if (info.ownerSessionId === sessionId) return;
