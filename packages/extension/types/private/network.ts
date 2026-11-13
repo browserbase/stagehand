@@ -27,6 +27,7 @@ export type WaitForIdleOptions = {
   idleTimeMs?: number;
   filter?: (info: NetworkRequestInfo) => boolean;
   totalBudgetMs?: number;
+  signal?: AbortSignal;
 };
 
 export const DEFAULT_IDLE_WAIT = 500;

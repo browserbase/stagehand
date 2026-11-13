@@ -502,6 +502,16 @@ await page.setViewportSize(1440, 900);
 
 Wait until the page reaches a load state.
 
+For `"networkidle"`, wait for the current main document to load, then for a fresh
+500 ms with no tracked requests for that document. Requests already in progress
+count toward this wait. Child-frame requests, worker traffic without a document
+loader, WebSockets, and `EventSource` connections do not keep the main document busy.
+
+If a new document replaces the page while waiting, the load and quiet checks
+restart for that document within the original timeout. A timeout shorter than the
+required quiet period rejects. Network idle does not guarantee that application
+content is ready; wait for a specific element or application signal when needed.
+
 ```typescript
 await page.waitForLoadState("networkidle", 10_000);
 ```
@@ -511,7 +521,8 @@ await page.waitForLoadState("networkidle", 10_000);
 </ParamField>
 
 <ParamField path="timeout" type="number" optional>
-  Maximum wait time in milliseconds.
+  Maximum wait time in milliseconds, including checking the current load state.
+  A value of `0` rejects immediately.
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
@@ -1374,6 +1385,16 @@ await page.set_viewport_size(1440, 900)
 
 Wait until the page reaches a load state.
 
+For `"networkidle"`, wait for the current main document to load, then for a fresh
+500 ms with no tracked requests for that document. Requests already in progress
+count toward this wait. Child-frame requests, worker traffic without a document
+loader, WebSockets, and `EventSource` connections do not keep the main document busy.
+
+If a new document replaces the page while waiting, the load and quiet checks
+restart for that document within the original timeout. A timeout shorter than the
+required quiet period rejects. Network idle does not guarantee that application
+content is ready; wait for a specific element or application signal when needed.
+
 ```python
 await page.wait_for_load_state("networkidle", timeout=10_000)
 ```
@@ -1383,7 +1404,8 @@ await page.wait_for_load_state("networkidle", timeout=10_000)
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
-  Maximum wait time in milliseconds.
+  Maximum wait time in milliseconds, including checking the current load state.
+  A value of `0` rejects immediately.
 </ParamField>
 
 <ResponseField name="result" type="None">
@@ -2307,6 +2329,16 @@ if err := page.SetViewportSize(ctx, 1440, 900, nil); err != nil {
 
 Wait until the page reaches a load state.
 
+For `"networkidle"`, wait for the current main document to load, then for a fresh
+500 ms with no tracked requests for that document. Requests already in progress
+count toward this wait. Child-frame requests, worker traffic without a document
+loader, WebSockets, and `EventSource` connections do not keep the main document busy.
+
+If a new document replaces the page while waiting, the load and quiet checks
+restart for that document within the original timeout. A timeout shorter than the
+required quiet period rejects. Network idle does not guarantee that application
+content is ready; wait for a specific element or application signal when needed.
+
 ```go
 timeout := 10_000
 if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); err != nil {
@@ -2319,7 +2351,8 @@ if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); 
 </ParamField>
 
 <ParamField path="timeoutMs" type="*int" optional>
-  Maximum wait time in milliseconds. Pass `nil` for the default.
+  Maximum wait time in milliseconds, including checking the current load state.
+  A value of `0` rejects immediately. Pass `nil` for the default.
 </ParamField>
 
 <ResponseField name="result" type="error">

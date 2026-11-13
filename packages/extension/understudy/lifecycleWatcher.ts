@@ -1,50 +1,31 @@
 import type { Protocol } from "devtools-protocol";
 import type { LoadState } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "./cdp.js";
-import type { NetworkManager } from "./networkManager.js";
 import type { Page } from "./page.js";
 import { TimeoutError } from "../errors.js";
-import {
-  DEFAULT_IDLE_WAIT,
-  IGNORED_RESOURCE_TYPES,
-  type NetworkRequestInfo,
-  WaitForIdleHandle,
-} from "../types/private/network.js";
+import { waitForMainNetworkIdle } from "./networkIdle.js";
+import { runWithProgress } from "./progress.js";
 
 /**
- * Coordinates page lifecycle waits (load/domcontentloaded/networkidle) while
- * following main-frame swaps and navigation aborts. Each navigation spawns a
- * one-off watcher that listens for relevant CDP events and resolves or rejects
- * depending on the requested `waitUntil` state.
- */
-
-/**
- * Small utility that mirrors Playwright's lifecycle watcher semantics. Bridges
- * main-frame lifecycle events with the NetworkManager's idle signal so callers
- * can await `load`, `domcontentloaded`, or `networkidle` with a single promise.
+ * Wait for navigation to begin, then await its requested load state.
+ * Network-idle tracking is shared with Page.waitForLoadState; this watcher owns
+ * navigation-specific events and cancellation when another command supersedes it.
  */
 export class LifecycleWatcher {
   readonly page: Page;
   readonly mainSession: CDPSessionLike;
-  readonly networkManager: NetworkManager;
   readonly waitUntil: LoadState;
   readonly timeout: number;
-  readonly startTime: number;
   readonly navigationCommandId: number;
-  currentLoaderId: string | undefined;
-  idleStartTime: number;
 
   cleanupCallbacks: Array<() => void> = [];
-  idleHandle: WaitForIdleHandle | null = null;
 
   abortReject: ((error: Error) => void) | null = null;
   abortPromise: Promise<never>;
   abortError: Error | null = null;
+  readonly abortController = new AbortController();
   disposed = false;
 
-  expectedLoaderId: string | undefined;
-  initialLoaderId: string | undefined;
-  pendingFollowupNavigation = false;
   navigationStarted = false;
   sameDocumentNavigation = false;
   resolveNavigationStart!: (sameDocument: boolean) => void;
@@ -56,23 +37,20 @@ export class LifecycleWatcher {
   constructor(params: {
     page: Page;
     mainSession: CDPSessionLike;
-    networkManager: NetworkManager;
     waitUntil: LoadState;
     timeout: number;
     navigationCommandId: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
-    this.networkManager = params.networkManager;
     this.waitUntil = params.waitUntil;
     this.timeout = params.timeout;
-    this.startTime = Date.now();
     this.navigationCommandId = params.navigationCommandId;
-    this.idleStartTime = this.startTime;
 
     this.abortPromise = new Promise<never>((_, reject) => {
       this.abortReject = reject;
     });
+    void this.abortPromise.catch(() => {});
     this.navigationStartPromise = new Promise<boolean>((resolve) => {
       this.resolveNavigationStart = (sameDocument) => {
         if (this.navigationStarted) return;
@@ -85,46 +63,29 @@ export class LifecycleWatcher {
     this.installSessionListeners();
   }
 
-  /** Hint the watcher with the loader id returned by Page.navigate. */
-  public setExpectedLoaderId(loaderId: string | undefined): void {
-    if (!loaderId) return;
-    this.expectedLoaderId = loaderId;
-    this.initialLoaderId = loaderId;
-    this.currentLoaderId = loaderId;
-    this.idleStartTime = Date.now();
-  }
-
   /** Wait for the requested lifecycle state or throw on timeout/abort. */
   public async wait(): Promise<void> {
     const deadline = Date.now() + this.timeout;
 
     try {
       const sameDocument = await this.awaitNavigationStart(deadline);
-      if (sameDocument) return;
+      if (sameDocument && this.waitUntil !== "networkidle") return;
 
-      if (this.waitUntil === "domcontentloaded") {
+      if (this.waitUntil === "networkidle") {
         await this.awaitWithAbort(
-          this.page.waitForMainLoadState("domcontentloaded", this.timeRemaining(deadline)),
+          runWithProgress(
+            { name: "networkidle", timeout: this.timeRemaining(deadline) },
+            (progress) => waitForMainNetworkIdle(this.page, progress, this.abortController.signal),
+          ),
         );
-        return;
-      }
-
-      while (true) {
+      } else {
         await this.awaitWithAbort(
-          this.page.waitForMainLoadState("load", this.timeRemaining(deadline)),
+          this.page.waitForMainLoadState(
+            this.waitUntil,
+            this.timeRemaining(deadline),
+            this.abortController.signal,
+          ),
         );
-
-        if (this.waitUntil !== "networkidle") break;
-
-        try {
-          await this.awaitWithAbort(this.waitForNetworkIdle(deadline));
-          break;
-        } catch (error) {
-          if (this.shouldRestartAfterFollowup(error)) {
-            continue;
-          }
-          throw error;
-        }
       }
     } finally {
       this.dispose();
@@ -138,11 +99,7 @@ export class LifecycleWatcher {
     if (this.disposed) return;
     this.disposed = true;
 
-    if (this.idleHandle) {
-      void this.idleHandle.promise.catch(() => {});
-      this.idleHandle.dispose();
-      this.idleHandle = null;
-    }
+    this.abortController.abort(new Error("Lifecycle wait disposed"));
 
     for (const fn of this.cleanupCallbacks) {
       try {
@@ -170,23 +127,6 @@ export class LifecycleWatcher {
         return;
       }
       this.resolveNavigationStart(false);
-
-      if (!this.initialLoaderId) {
-        this.initialLoaderId = loaderId;
-        this.currentLoaderId = loaderId;
-        this.idleStartTime = Date.now();
-      }
-
-      if (!this.expectedLoaderId) {
-        this.expectedLoaderId = loaderId;
-        this.currentLoaderId = loaderId;
-        this.idleStartTime = Date.now();
-        return;
-      }
-
-      if (loaderId !== this.expectedLoaderId) {
-        this.adoptNewMainLoader(loaderId);
-      }
     };
 
     const onFrameDetached = (evt: Protocol.Page.FrameDetachedEvent) => {
@@ -264,69 +204,10 @@ export class LifecycleWatcher {
   triggerAbort(error: Error): void {
     if (this.abortError) return;
     this.abortError = error;
+    this.abortController.abort(error);
     if (this.abortReject) {
       this.abortReject(error);
       this.abortReject = null;
     }
-  }
-  waitForNetworkIdle(deadline: number): Promise<void> {
-    this.pendingFollowupNavigation = false;
-    const remaining = this.timeRemaining(deadline);
-    const idleWindow = Math.min(DEFAULT_IDLE_WAIT, remaining);
-    this.idleHandle = this.networkManager.waitForIdle({
-      startTime: this.idleStartTime,
-      timeout: remaining,
-      totalBudgetMs: this.timeout,
-      idleTimeMs: idleWindow,
-      filter: this.buildIdleFilter(),
-    });
-
-    return this.idleHandle.promise.catch((error) => {
-      if (this.abortError) throw this.abortError;
-      throw error;
-    });
-  }
-
-  shouldRestartAfterFollowup(error: unknown): boolean {
-    if (!this.pendingFollowupNavigation) return false;
-    if (!(error instanceof Error)) return false;
-    if (error.message !== "waitForIdle disposed") return false;
-    this.pendingFollowupNavigation = false;
-    return true;
-  }
-
-  adoptNewMainLoader(loaderId: string): void {
-    this.expectedLoaderId = loaderId;
-    this.currentLoaderId = loaderId;
-    this.idleStartTime = Date.now();
-    if (this.waitUntil !== "networkidle") return;
-
-    this.pendingFollowupNavigation = true;
-
-    if (this.idleHandle) {
-      const handle = this.idleHandle;
-      this.idleHandle = null;
-      void handle.promise.catch(() => {});
-      handle.dispose();
-    }
-  }
-
-  buildIdleFilter(): (info: NetworkRequestInfo) => boolean {
-    const loaderId = this.currentLoaderId;
-    const mainFrameId = this.page.mainFrameId();
-
-    return (info: NetworkRequestInfo) => {
-      if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
-
-      if (loaderId && info.loaderId) {
-        return info.loaderId === loaderId;
-      }
-
-      if (!info.loaderId && info.frameId) {
-        return info.frameId === mainFrameId;
-      }
-
-      return true;
-    };
   }
 }
