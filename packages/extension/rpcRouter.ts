@@ -408,6 +408,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageTitle, request.params),
           context,
         );
+      case "page.content":
+        return this.pageController.content(
+          parseParams(StagehandMethods.pageContent, request.params),
+          context,
+        );
       case "page.close":
         return this.pageController.close(
           parseParams(StagehandMethods.pageClose, request.params),

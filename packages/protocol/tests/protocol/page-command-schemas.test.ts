@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { StagehandMethods } from "../../schema-registry.js";
 import {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
@@ -30,6 +31,17 @@ import {
 const pageId = "page-1";
 
 describe("page command schemas", () => {
+  it("requires a page ID and a string result for content", () => {
+    const { params, result } = StagehandMethods.pageContent;
+    expect(params.parse({ pageId })).toStrictEqual({ pageId });
+    expect(() => params.parse({})).toThrow();
+    expect(() => params.parse({ pageId, options: {} })).toThrow();
+    expect(result.parse("<!DOCTYPE html><html></html>")).toBe("<!DOCTYPE html><html></html>");
+    expect(result.parse("")).toBe("");
+    expect(() => result.parse({ html: "" })).toThrow();
+    expect(() => result.parse(null)).toThrow();
+  });
+
   it("validates function wait polling and deadlines without changing returned JSON", () => {
     for (const polling of [undefined, "raf", 0.5, 100, 2_147_483_647]) {
       expect(

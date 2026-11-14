@@ -375,6 +375,7 @@ describe("Stagehand object-model protocol", () => {
       "page.goto",
       "page.url",
       "page.title",
+      "page.content",
       "page.close",
       "page.reload",
       "page.go_back",

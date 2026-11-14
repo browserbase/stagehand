@@ -1602,6 +1602,10 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
+class PageContentResult(RootModel[StrictStr]):
+    root: StrictStr
+
+
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",

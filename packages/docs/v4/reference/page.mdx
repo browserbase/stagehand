@@ -863,6 +863,18 @@ const url = await page.url();
   The operation result.
 </ResponseField>
 
+## content()
+
+Return the main document's current HTML, including its doctype when present. This reflects live DOM changes, not the original response body. It does not include iframe documents or shadow roots.
+
+```typescript
+const html = await page.content();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The serialized main document HTML.
+</ResponseField>
+
 ## title()
 
 Return the page's current document title.
@@ -1711,6 +1723,18 @@ url = await page.url()
 
 <ResponseField name="result" type="str">
   The operation result.
+</ResponseField>
+
+## content()
+
+Return the main document's current HTML, including its doctype when present. This reflects live DOM changes, not the original response body. It does not include iframe documents or shadow roots.
+
+```python
+html = await page.content()
+```
+
+<ResponseField name="result" type="str">
+  The serialized main document HTML.
 </ResponseField>
 
 ## title()
