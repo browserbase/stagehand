@@ -158,10 +158,28 @@ export class Locator {
   }
 
   first(): Locator {
+    // A narrowed locator matches one element, and `first()` of a one-element set is that
+    // element. Re-narrowing would address `nth(0)` of the full match list instead, which is a
+    // different element than the one the caller already picked.
+    if (this.descriptor.nth !== undefined) {
+      return this;
+    }
     return this.nth(0);
   }
 
   nth(index: number): Locator {
+    // `nth` addresses the elements this locator already matches, so a second narrowing composes
+    // rather than replaces. A locator narrowed to one element matches only `nth(0)`; the wire
+    // descriptor carries a single index and cannot say "matches nothing", so an index past it is
+    // refused instead of silently acting on another element.
+    if (this.descriptor.nth !== undefined) {
+      if (index === 0) {
+        return this;
+      }
+      throw new RangeError(
+        `nth(${index}) on a locator already narrowed to one element (nth(${this.descriptor.nth})) matches nothing; build the locator from the page to pick another element`,
+      );
+    }
     const parsedDescriptor = LocatorDescriptorSchema.safeParse({
       ...this.descriptor,
       nth: index,
