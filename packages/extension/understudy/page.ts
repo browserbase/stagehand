@@ -482,7 +482,7 @@ export class Page {
       this.attachCDPEventSubscription(subscription, childSession);
     }
 
-    this.networkManager.trackSession(childSession, networkCapture);
+    this.networkManager.trackSession(childSession, networkCapture, childMainFrameId);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
 
