@@ -35,7 +35,7 @@ export function parseXPathToSteps(path: string): Step[] {
     while (i < s.length && s[i] !== "/") i++;
     const raw = s.slice(start, i).trim();
     if (!raw) continue;
-    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
+    const name = raw.replace(/\[[^\]]*\]/g, "").toLowerCase();
     steps.push({ axis, raw, name });
   }
   return steps;
@@ -51,7 +51,9 @@ export function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
   return out || "/";
 }
 
-export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
+// Step names are compared with all bracketed predicates stripped (see
+// parseXPath / parseXPathToSteps), so a bare name is enough to detect hops.
+export const IFRAME_STEP_RE = /^i?frame$/i;
 
 /**
  * Given a cross-frame XPath, walk iframe steps to resolve:
