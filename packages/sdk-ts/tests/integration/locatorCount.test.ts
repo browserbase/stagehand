@@ -96,4 +96,24 @@ describe("Locator count() method tests", () => {
 
     expect(count).toBe(2);
   });
+
+  it("count() respects nth() and first() narrowing", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html,<ul><li>item 1</li><li>item 2</li><li>item 3</li><li>item 4</li><li>item 5</li></ul>",
+    );
+
+    const items = page.locator("li");
+    await expect(items.count()).resolves.toBe(5);
+    await expect(items.first().count()).resolves.toBe(1);
+    await expect(items.nth(3).count()).resolves.toBe(1);
+    await expect(items.nth(4).count()).resolves.toBe(1);
+    await expect(items.nth(5).count()).resolves.toBe(0);
+    await expect(items.nth(10).count()).resolves.toBe(0);
+    await expect(page.locator("//li").nth(2).count()).resolves.toBe(1);
+    await expect(page.locator("text=item").nth(4).count()).resolves.toBe(1);
+    await expect(page.locator("text=item").nth(5).count()).resolves.toBe(0);
+    await expect(page.locator(".missing").first().count()).resolves.toBe(0);
+  });
 });
