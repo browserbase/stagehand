@@ -214,6 +214,73 @@ export function prepareElementForTyping(this: Element): boolean {
   }
 }
 
+/**
+ * Index of this element among the document's inputs when it looks like one box of a
+ * per-character code form, or -1. Matches `maxlength="1"`, `size="1"`, or a run of at least
+ * three adjacent text-like inputs of the same type. A match only means focus is worth watching:
+ * the caller still checks that focus actually advances.
+ */
+export function codeInputIndex(this: Element): number {
+  try {
+    const element = this as HTMLElement;
+    const doc = element.ownerDocument;
+    const win = doc.defaultView || window;
+    if (!(element instanceof win.HTMLInputElement)) return -1;
+
+    const type = element.type.toLowerCase();
+    if (!["number", "password", "tel", "text"].includes(type)) return -1;
+
+    const root = element.getRootNode();
+    const scope = root instanceof win.ShadowRoot ? root : doc;
+    const index = Array.prototype.indexOf.call(scope.querySelectorAll("input"), element);
+    if (element.maxLength === 1 || element.getAttribute("size") === "1") return index;
+
+    const sameType = (node: Element) =>
+      node instanceof win.HTMLInputElement && node.type.toLowerCase() === type;
+    let run = 1;
+    let node = element.previousElementSibling;
+    while (node && sameType(node)) {
+      run++;
+      node = node.previousElementSibling;
+    }
+    node = element.nextElementSibling;
+    while (node && sameType(node)) {
+      run++;
+      node = node.nextElementSibling;
+    }
+    return run >= 3 ? index : -1;
+  } catch {
+    return -1;
+  }
+}
+
+/**
+ * Wait for the page to react to an input event, then return the index of the focused input
+ * among the document's inputs, or -1. Waits two animation frames so focus moves scheduled with
+ * requestAnimationFrame are seen, with a timer fallback for pages that throttle animation frames.
+ */
+export function focusedInputIndexAfterInput(this: Element): Promise<number> {
+  const doc = this.ownerDocument;
+  const win = doc.defaultView || window;
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      const root = this.getRootNode();
+      const scope = root instanceof win.ShadowRoot ? root : doc;
+      const active = scope.activeElement;
+      resolve(
+        active instanceof win.HTMLInputElement
+          ? Array.prototype.indexOf.call(scope.querySelectorAll("input"), active)
+          : -1,
+      );
+    };
+    win.setTimeout(finish, 100);
+    win.requestAnimationFrame(() => win.requestAnimationFrame(finish));
+  });
+}
+
 export function fillElementValue(this: Element, rawValue: string): FillElementResult {
   const inputTypesToSetValue = new Set([
     "color",
