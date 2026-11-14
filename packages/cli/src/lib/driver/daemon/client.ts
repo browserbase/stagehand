@@ -30,6 +30,9 @@ interface OpenViaDaemonOptions {
 
 const DEFAULT_DAEMON_REQUEST_TIMEOUT_MS = 35_000;
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
+// Headroom over a command's own page timeout for the round trip plus the
+// action's own teardown, so the transport never pre-empts the page action.
+const COMMAND_TRANSPORT_SLACK_MS = 5_000;
 // Stagehand gives browser/extension initialization 60 seconds. The daemon
 // transport must cover that work before the page navigation timeout begins.
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
@@ -252,11 +255,40 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
 }
 
 export function daemonRequestTimeoutMs(request: DriverRequest): number {
-  if (request.type !== "open") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
+  if (request.type === "open") {
+    return Math.min(
+      OPEN_INITIALIZATION_ALLOWANCE_MS + (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
+      MAX_NODE_TIMER_DELAY_MS,
+    );
+  }
+  if (request.type !== "command") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
+  const requested = requestedPageTimeoutMs(request.command, request.params);
+  if (requested === undefined) return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
   return Math.min(
-    OPEN_INITIALIZATION_ALLOWANCE_MS + (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
+    Math.max(DEFAULT_DAEMON_REQUEST_TIMEOUT_MS, requested + COMMAND_TRANSPORT_SLACK_MS),
     MAX_NODE_TIMER_DELAY_MS,
   );
+}
+
+/**
+ * A command that waits on the page must outlive the wait, or the transport
+ * gives up first and the caller sees "Timed out waiting for driver daemon
+ * session" while the page action is still running. `open` already pays for
+ * its own navigation; every other command carries its deadline in `params`
+ * (`timeoutMs`, plus `arg` for `wait timeout <ms>`), so read it from there.
+ */
+function requestedPageTimeoutMs(command: DriverCommandName, params: unknown): number | undefined {
+  if (params === null || typeof params !== "object") return undefined;
+  const record = params as Record<string, unknown>;
+  const declared = record.timeoutMs;
+  if (typeof declared === "number" && Number.isFinite(declared) && declared > 0) {
+    return declared;
+  }
+  if (command !== "wait" || record.type !== "timeout") return undefined;
+  if (typeof record.arg !== "string") return undefined;
+  const parsed = Number(record.arg);
+  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+  return parsed;
 }
 
 function spawnDaemon(session: string, target: ConnectionTarget): void {
