@@ -49,7 +49,7 @@ const page = await browser.context.newPage("https://example.com");
 Return the page that is currently active.
 
 ```typescript
-const [page] = await browser.context.pages();
+const page = await browser.context.activePage();
 ```
 
 <ResponseField name="result" type="Promise<Page | undefined>">
@@ -339,7 +339,7 @@ page = await browser.context.new_page("https://example.com")
 Return the page that is currently active.
 
 ```python
-page = (await browser.context.pages())[0]
+page = await browser.context.active_page()
 ```
 
 <ResponseField name="result" type="Page | None">
