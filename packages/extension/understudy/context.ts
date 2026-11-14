@@ -308,6 +308,9 @@ export class BrowserContext {
   public async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
     const nextHeaders = { ...headers };
     this.extraHttpHeaders = nextHeaders;
+    for (const page of this.pagesByTarget.values()) {
+      page.contextExtraHTTPHeaders = nextHeaders;
+    }
 
     const sessions: CDPSessionLike[] = [];
     for (const sessionId of this._sessionInit) {
@@ -319,9 +322,11 @@ export class BrowserContext {
 
     const results = await Promise.allSettled(
       sessions.map(async (session) => {
+        // Keep each page's own headers on top of the context's.
+        const owner = session.id ? this.sessionOwnerPage.get(session.id) : undefined;
         await session.send("Network.enable");
         await session.send("Network.setExtraHTTPHeaders", {
-          headers: nextHeaders,
+          headers: owner ? owner.mergedExtraHTTPHeaders() : nextHeaders,
         });
       }),
     );
@@ -801,6 +806,7 @@ export class BrowserContext {
           });
           return;
         }
+        page.contextExtraHTTPHeaders = this.extraHttpHeaders ?? {};
         this.wireSessionToOwnerPage(sessionId, page);
         this.pagesByTarget.set(info.targetId, page);
         this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
