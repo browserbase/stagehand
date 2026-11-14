@@ -456,7 +456,7 @@ await page.addInitScript(() => {
 
 ## setExtraHTTPHeaders()
 
-Set additional HTTP headers for this page.
+Set additional HTTP headers for this page. These are sent along with the context's headers, and this page's value wins when both set the same header.
 
 ```typescript
 await page.setExtraHTTPHeaders({ "x-test": "true" });
@@ -1332,7 +1332,7 @@ await page.add_init_script("window.localStorage.clear()")
 
 ## set_extra_http_headers()
 
-Set additional HTTP headers for this page.
+Set additional HTTP headers for this page. These are sent along with the context's headers, and this page's value wins when both set the same header.
 
 ```python
 await page.set_extra_http_headers({"x-test": "true"})
@@ -2256,7 +2256,7 @@ if err := page.AddInitScript(ctx, "window.localStorage.clear()"); err != nil {
 
 ## SetExtraHTTPHeaders()
 
-Set additional HTTP headers for this page.
+Set additional HTTP headers for this page. These are sent along with the context's headers, and this page's value wins when both set the same header.
 
 ```go
 headers := stagehand.PageSetExtraHTTPHeadersParamsHeaders{"x-test": "true"}
