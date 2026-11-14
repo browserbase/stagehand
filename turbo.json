@@ -100,6 +100,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-pydantic-ai#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -227,6 +232,10 @@
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor#build"],
       "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
     },
+    "@browserbasehq/stagehand-integrations-pydantic-ai#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pydantic-ai#build"],
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts"]
+    },
     "@browserbasehq/eve#typecheck": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -286,6 +295,9 @@
     },
     "@browserbasehq/stagehand-integrations-cursor#typecheck": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor#build"]
+    },
+    "@browserbasehq/stagehand-integrations-pydantic-ai#typecheck": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pydantic-ai#build"]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {

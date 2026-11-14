@@ -36,6 +36,7 @@
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-pydantic-ai": "workspace:*",
     "@clack/prompts": "^1.3.0",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
