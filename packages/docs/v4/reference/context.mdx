@@ -108,7 +108,7 @@ await browser.context.addInitScript(() => {
 
 ## setExtraHTTPHeaders()
 
-Set additional HTTP headers for every page in the context.
+Set additional HTTP headers for every page in the context. Headers set on a page are sent along with these, and the page's value wins when both set the same header.
 
 ```typescript
 await browser.context.setExtraHTTPHeaders({ "x-test": "true" });
@@ -392,7 +392,7 @@ await browser.context.add_init_script("window.localStorage.clear()")
 
 ## set_extra_http_headers()
 
-Set additional HTTP headers for every page in the context.
+Set additional HTTP headers for every page in the context. Headers set on a page are sent along with these, and the page's value wins when both set the same header.
 
 ```python
 await browser.context.set_extra_http_headers({"x-test": "true"})
@@ -721,7 +721,7 @@ if err := browserContext.AddInitScript(ctx, "window.localStorage.clear()"); err 
 
 ## SetExtraHTTPHeaders()
 
-Set additional HTTP headers for every page in the context.
+Set additional HTTP headers for every page in the context. Headers set on a page are sent along with these, and the page's value wins when both set the same header.
 
 ```go
 func (c *BrowserContext) SetExtraHTTPHeaders(ctx context.Context, headers ContextSetExtraHTTPHeadersParamsHeaders) error
