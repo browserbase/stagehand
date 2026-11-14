@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   claimStagehandBrowser,
@@ -98,7 +99,7 @@ describe("Stagehand browser factories", () => {
     expect(connectCdp).toHaveBeenCalledWith(
       expect.objectContaining({
         cdpUrl: "http://127.0.0.1:9222",
-        extensionDir: expect.stringContaining("dist/extension") as string,
+        extensionDir: expect.stringContaining(path.join("dist", "extension")) as string,
         signal: expect.any(AbortSignal),
       }),
     );
@@ -122,7 +123,7 @@ describe("Stagehand browser factories", () => {
 
       expect(connectCdp).toHaveBeenCalledWith(
         expect.objectContaining({
-          localExtensionDir: expect.stringContaining("dist/extension"),
+          localExtensionDir: expect.stringContaining(path.join("dist", "extension")),
         }),
       );
       expect(connectCdp.mock.calls[0]?.[0]).not.toHaveProperty("extensionId");
