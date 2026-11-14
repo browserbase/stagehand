@@ -15,7 +15,7 @@ import {
   PRIVATE_FILE_MODE,
 } from "./paths.js";
 import { collectForwardedEnv } from "./forwarded-env.js";
-import { isProcessAlive } from "./process.js";
+import { isDaemonProcess, isProcessAlive, killProcess } from "./process.js";
 import { ResponseSchema, type DriverRequest } from "./protocol.js";
 
 interface EnsureDaemonOptions {
@@ -34,6 +34,11 @@ const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
 // transport must cover that work before the page navigation timeout begins.
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+
+const DAEMON_STARTUP_GRACE_MS = 30_000;
+const DAEMON_STARTUP_WAIT_MS = 30_000;
+
+type RecoveryResult = "recovered" | "unrecoverable" | { status: DriverStatus };
 
 export async function ensureDriverDaemon({ session, target }: EnsureDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
@@ -56,17 +61,96 @@ export async function ensureDriverDaemon({ session, target }: EnsureDaemonOption
       assertCompatibleTarget(session, afterLock, target);
       return;
     }
-    if (await isDaemonPidAlive(session)) {
-      fail(
-        `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
-        1,
-        { resultCode: "daemon_unresponsive" },
-      );
+
+    const daemonInfo = await getDaemonPidInfo(session);
+    if (daemonInfo) {
+      const result = await recoverUnresponsiveDaemon(session, daemonInfo.pid, daemonInfo.ageMs);
+      if (typeof result === "object") {
+        assertCompatibleTarget(session, result.status, target);
+        return;
+      } else if (result === "unrecoverable") {
+        fail(
+          `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+          1,
+          { resultCode: "daemon_unresponsive" },
+        );
+      }
     }
+
     spawnDaemon(session, target);
-    await waitForSocketReady(getSocketPath(session), 30_000);
+    await waitForSocketReady(getSocketPath(session), DAEMON_STARTUP_WAIT_MS);
   } finally {
     await releaseLock(session);
+  }
+}
+
+interface DaemonPidInfo {
+  pid: number;
+  ageMs: number;
+}
+
+async function getDaemonPidInfo(session: string): Promise<DaemonPidInfo | null> {
+  await ensureRuntimeDir();
+  const pidPath = getPidPath(session);
+  try {
+    const [contents, stats] = await Promise.all([fs.readFile(pidPath, "utf8"), fs.stat(pidPath)]);
+    const pid = Number(contents.trim());
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    if (!isProcessAlive(pid)) return null;
+    const ageMs = Date.now() - stats.mtimeMs;
+    return { pid, ageMs };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function recoverUnresponsiveDaemon(
+  session: string,
+  pid: number,
+  ageMs: number,
+): Promise<RecoveryResult> {
+  const identity = isDaemonProcess(pid, session);
+  if (identity === null) return "unrecoverable";
+
+  if (identity && ageMs < DAEMON_STARTUP_GRACE_MS) {
+    const deadline = Date.now() + DAEMON_STARTUP_GRACE_MS - ageMs;
+    while (Date.now() < deadline && isProcessAlive(pid)) {
+      const status = await tryDriverStatus(session, Math.min(1_000, deadline - Date.now()));
+      if (status) return { status };
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  const killed = await killAndCleanup(session, pid);
+  return killed ? "recovered" : "unrecoverable";
+}
+
+async function killAndCleanup(session: string, pid: number): Promise<boolean> {
+  const currentDaemon = await getDaemonPidInfo(session);
+  if (currentDaemon && currentDaemon.pid !== pid) return false;
+
+  // The daemon may have exited, or its PID may have been reused during the
+  // startup grace period. Only signal a process whose identity still matches.
+  const identity = isDaemonProcess(pid, session);
+  if (identity === null) return false;
+  if (identity) {
+    if (!killProcess(pid) && isProcessAlive(pid)) return false;
+    await waitForProcessExit(pid, 5_000);
+    if (isProcessAlive(pid)) return false;
+  }
+
+  const replacement = await getDaemonPidInfo(session);
+  if (replacement && replacement.pid !== pid) return false;
+  await cleanupDaemonFiles(session, { includeLock: false });
+  return true;
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!isProcessAlive(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
@@ -146,17 +230,22 @@ export function assertCompatibleTarget(
   );
 }
 
-async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
-  if (!(await isSocketConnectable(getSocketPath(session), 500))) {
+async function tryDriverStatus(
+  session: string,
+  timeoutMs = DEFAULT_DAEMON_REQUEST_TIMEOUT_MS,
+): Promise<DriverStatus | null> {
+  const deadline = Date.now() + timeoutMs;
+  if (!(await isSocketConnectable(getSocketPath(session), Math.min(500, timeoutMs)))) {
     await cleanupStaleDaemonFiles(session);
     return null;
   }
 
   try {
-    return await sendDriverRequest<DriverStatus>(session, {
-      id: requestId(),
-      type: "status",
-    });
+    return await sendDriverRequest<DriverStatus>(
+      session,
+      { id: requestId(), type: "status" },
+      Math.max(1, deadline - Date.now()),
+    );
   } catch (error) {
     if (isRuntimeDirFailure(error)) throw error;
     await cleanupStaleDaemonFiles(session);
@@ -173,7 +262,11 @@ function isRuntimeDirFailure(error: unknown): boolean {
   );
 }
 
-async function sendDriverRequest<T>(session: string, request: DriverRequest): Promise<T> {
+async function sendDriverRequest<T>(
+  session: string,
+  request: DriverRequest,
+  timeoutMs = daemonRequestTimeoutMs(request),
+): Promise<T> {
   // Validate here too: command requests can carry credentials and may be sent
   // directly, without a preceding status probe.
   await ensureRuntimeDir();
@@ -210,7 +303,7 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
           resultCode: "daemon_socket_timeout",
         }),
       );
-    }, daemonRequestTimeoutMs(request));
+    }, timeoutMs);
 
     socket.on("connect", () => {
       socket.write(`${JSON.stringify(request)}\n`);
