@@ -729,6 +729,8 @@ console.log(product.data, product.metadata.cache.status);
 <ParamField path="schema" type="Schema" optional>
   The schema used to validate extracted data. Defaults to an object with a string `extraction` field
   when omitted; when selecting a custom schema generic, provide the matching runtime schema.
+  Use `z.url()` fields to extract link URLs, and `elementRef()` fields to get an `xpath=` selector for
+  the element a value came from. See [element references](/v4/basics/extract#element-references).
 </ParamField>
 
 <ParamField path="options" type="StagehandClientExtractOptions" optional>

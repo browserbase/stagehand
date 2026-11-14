@@ -48,6 +48,7 @@ export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
   includeScreenshot: boolean = false,
+  includesElementFields: boolean = false,
 ): TextPrompt {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -75,7 +76,11 @@ ONLY print the content using the print_extracted_data tool provided.
 
   const additionalInstructions =
     "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
-    "Do not attempt to extract links directly from the text unless absolutely necessary. ";
+    "Do not attempt to extract links directly from the text unless absolutely necessary. " +
+    (includesElementFields
+      ? "\nWhen a field asks for an element-ID, respond with the ID of the page element that the " +
+        "field refers to, taken exactly from the DOM element list. "
+      : "");
 
   const userInstructions = buildUserInstructionsString(userProvidedInstructions);
 

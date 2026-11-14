@@ -14,16 +14,25 @@ import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { injectUrls, transformSchema } from "../utils.js";
+import {
+  assertNoUnresolvedElementFields,
+  injectUrls,
+  transformSchema,
+  trimTrailingTextNode,
+} from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-/** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
+/**
+ * Replaces URL and element fields with DOM element IDs until extraction has resolved them through
+ * the page's URL and XPath maps.
+ */
 export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
   schema: Schema,
 ): [z.ZodType, ZodPathSegments[]] {
   const [finalSchema, urlPaths] = transformSchema(schema, []);
+  assertNoUnresolvedElementFields(finalSchema);
   return [finalSchema, urlPaths];
 }
 
@@ -96,7 +105,7 @@ async function extractWithProgress(
 
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
     progress.throwIfStopped();
-    const { combinedTree, combinedUrlMap } = await page.captureSnapshot(
+    const { combinedTree, combinedUrlMap, combinedXpathMap } = await page.captureSnapshot(
       {
         focusLocator: options?.locator,
         ignoreLocators: options?.ignoreLocators,
@@ -128,7 +137,7 @@ async function extractWithProgress(
       : z.object({
           [wrapKey]: schema,
         });
-    const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
+    const [transformedSchema, idFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
 
     const screenshotContent: LLMImageContent | undefined = screenshot
       ? {
@@ -150,6 +159,7 @@ async function extractWithProgress(
           ),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
+        includesElementFields: idFieldPaths.some(({ kind }) => kind === "element"),
       });
     progress.throwIfStopped();
 
@@ -165,7 +175,18 @@ async function extractWithProgress(
     let output = rest as z.infer<z.ZodObject>;
 
     const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<EncodedId, string>;
-    for (const { segments } of urlFieldPaths) {
+    let idToSelector: Record<string, string> | undefined;
+    for (const { segments, kind } of idFieldPaths) {
+      if (kind === "element") {
+        idToSelector ??= buildElementSelectorMap(combinedXpathMap);
+        injectUrls(output as Record<string, unknown>, segments, idToSelector, (elementId) =>
+          logger.warn("Extracted element could not be resolved to an XPath", {
+            category: "extraction",
+            elementId,
+          }),
+        );
+        continue;
+      }
       injectUrls(
         output as Record<string, unknown>,
         segments,
@@ -210,4 +231,16 @@ async function extractWithProgress(
       },
     };
   }
+}
+
+/** Maps each snapshot element ID to an `xpath=` selector in the same format observe() returns. */
+function buildElementSelectorMap(
+  xpathMap: Record<string, string> | undefined,
+): Record<string, string> {
+  const selectors: Record<string, string> = {};
+  for (const [id, xpath] of Object.entries(xpathMap ?? {})) {
+    const elementXpath = trimTrailingTextNode(xpath);
+    if (elementXpath) selectors[id] = `xpath=${elementXpath}`;
+  }
+  return selectors;
 }
