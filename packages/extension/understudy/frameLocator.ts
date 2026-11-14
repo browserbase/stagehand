@@ -124,7 +124,11 @@ class LocatorDelegate {
 
   // Locator API delegates
   async click(
-    options?: { button?: "left" | "right" | "middle"; clickCount?: number },
+    options?: {
+      button?: "left" | "right" | "middle";
+      clickCount?: number;
+      position?: { x: number; y: number };
+    },
     progress?: Progress,
   ) {
     return (await this.real(progress)).click(options, progress);

@@ -34,7 +34,10 @@ describe.each(locatorMethods)("$name timeout options", ({ name, params }) => {
 
 describe("locator timeout compatibility", () => {
   it.each([
-    { method: StagehandMethods.locatorClick, options: { button: "right", clickCount: 2 } },
+    {
+      method: StagehandMethods.locatorClick,
+      options: { button: "right", clickCount: 2, position: { x: 12, y: 8 } },
+    },
     { method: StagehandMethods.locatorType, options: { delay: 25 } },
     {
       method: StagehandMethods.locatorHighlight,
@@ -63,5 +66,31 @@ describe("locator timeout compatibility", () => {
       LocatorDescriptorSchema.safeParse({ ...descriptor, options: { timeout: 0 } }).success,
     ).toBe(false);
     expect(LocatorDescriptorSchema.safeParse({ ...descriptor, timeout: 0 }).success).toBe(false);
+  });
+});
+
+describe("locator click position", () => {
+  it.each([
+    { x: 0, y: 0 },
+    { x: 12.5, y: -2 },
+  ])("accepts finite CSS coordinates %j", (position) => {
+    const request = { ...descriptor, options: { position } };
+    expect(StagehandMethods.locatorClick.params.parse(request)).toStrictEqual(request);
+  });
+
+  it.each([
+    null,
+    {},
+    { x: 1 },
+    { x: "1", y: 2 },
+    { x: NaN, y: 2 },
+    { x: Infinity, y: 2 },
+    { x: 1, y: -Infinity },
+    { x: 1, y: 2, z: 3 },
+  ])("rejects malformed position %j", (position) => {
+    expect(
+      StagehandMethods.locatorClick.params.safeParse({ ...descriptor, options: { position } })
+        .success,
+    ).toBe(false);
   });
 });

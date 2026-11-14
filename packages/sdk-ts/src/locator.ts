@@ -17,6 +17,7 @@ import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 export type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
 
 export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
+export type LocatorClickPosition = NonNullable<LocatorClickOptions["position"]>;
 export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
 export type LocatorSendClickEventOptions = NonNullable<LocatorSendClickEventParams["options"]>;
 export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;

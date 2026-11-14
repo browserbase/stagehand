@@ -12,6 +12,7 @@ import {
   prepareElementForTyping,
   readElementInnerHTML,
   readElementInnerText,
+  readElementPaddingSize,
   readElementInputValue,
   readElementTextContent,
   scrollElementToPercent,
@@ -26,6 +27,12 @@ import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+
+type ClickOptions = {
+  button?: MouseButton;
+  clickCount?: number;
+  position?: { x: number; y: number };
+};
 
 /**
  * Locator
@@ -383,17 +390,14 @@ export class Locator {
   }
 
   /**
-   * Click the element at its visual center.
+   * Click the element at its visual center, or at an element-relative point.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
    *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
    *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
-  async click(
-    options?: { button?: MouseButton; clickCount?: number },
-    progress?: Progress,
-  ): Promise<void> {
+  async click(options?: ClickOptions, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
 
@@ -413,7 +417,22 @@ export class Locator {
         }),
       );
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      let point = this.centerFromBoxContent(box.model.content);
+      if (options?.position) {
+        // The CDP quad includes transforms; offsets are measured in untransformed CSS pixels.
+        const size = await runLocatorStep(progress, "reading padding box dimensions", () =>
+          session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: readElementPaddingSize.toString(),
+            returnByValue: true,
+          }),
+        );
+        if (size.exceptionDetails || !size.result.value) {
+          throw new Error(`Unable to read element padding box: ${this.selector}`);
+        }
+        point = this.pointFromBoxQuad(box.model.padding, options.position, size.result.value);
+      }
+      const { cx, cy } = point;
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -989,5 +1008,33 @@ export class Locator {
     const cx = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
     const cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
     return { cx, cy };
+  }
+
+  private pointFromBoxQuad(
+    quad: number[],
+    position: { x: number; y: number },
+    size: { width: number; height: number },
+  ): { cx: number; cy: number } {
+    if (!quad || quad.length < 8) {
+      throw new Error("Invalid box model padding quad");
+    }
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      throw new Error("locator().click() position must contain finite x and y values");
+    }
+
+    const [x1, y1, x2, y2, , , x4, y4] = quad;
+    const topX = x2 - x1;
+    const topY = y2 - y1;
+    const leftX = x4 - x1;
+    const leftY = y4 - y1;
+    const { width, height } = size;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error(`Element not visible (empty box model): ${this.selector}`);
+    }
+
+    return {
+      cx: x1 + (topX / width) * position.x + (leftX / height) * position.y,
+      cy: y1 + (topY / width) * position.x + (leftY / height) * position.y,
+    };
   }
 }
