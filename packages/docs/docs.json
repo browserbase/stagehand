@@ -58,6 +58,7 @@
                 "group": "Agent Frameworks",
                 "pages": [
                   "v4/integrations/agent-frameworks/overview",
+                  "v4/integrations/agent-frameworks/agno",
                   "v4/integrations/agent-frameworks/claude-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/openai-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/eve",
