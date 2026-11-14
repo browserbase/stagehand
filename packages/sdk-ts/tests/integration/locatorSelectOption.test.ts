@@ -126,6 +126,46 @@ describe("Locator.selectOption() method", () => {
     expect(value).toBe("l");
   });
 
+  it("selectOption() rejects and keeps the selection when no option matches", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          `<!doctype html><html><body>
+            <select id="size">
+              <option value="s">Small</option>
+              <option value="m" selected>Medium</option>
+            </select>
+            <select id="colors" multiple>
+              <option value="red" selected>Red</option>
+              <option value="blue">Blue</option>
+            </select>
+            <script>
+              window.changes = 0;
+              document.addEventListener("change", () => window.changes++);
+            </script>
+          </body></html>`,
+        ),
+    );
+
+    await expect(page.locator("#size").selectOption("Extra Large")).rejects.toThrow(
+      /no option matches/,
+    );
+    await expect(page.locator("#colors").selectOption(["green"])).rejects.toThrow(
+      /no option matches/,
+    );
+
+    const state = await page.evaluate(() => ({
+      size: (document.getElementById("size") as HTMLSelectElement).value,
+      colors: Array.from(
+        (document.getElementById("colors") as HTMLSelectElement).selectedOptions,
+      ).map((option) => option.value),
+      changes: (window as unknown as { changes: number }).changes,
+    }));
+    expect(state).toEqual({ size: "m", colors: ["red"], changes: 0 });
+  });
+
   it("selectOption() triggers change event", async () => {
     const page = await firstPage(stagehand);
 
