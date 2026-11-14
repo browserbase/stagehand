@@ -121,11 +121,12 @@ export class DeepLocatorDelegate {
     // -1 preserves every match for operations such as screenshot masking while
     // ordinary single-element operations still resolve their first match.
     readonly nthIndex: number = -1,
+    readonly hasExplicitNth: boolean = false,
   ) {}
 
   async real(progress?: Progress): Promise<Locator> {
     const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
-    return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
+    return this.hasExplicitNth ? base.nth(this.nthIndex) : base;
   }
 
   // Locator API delegates
@@ -203,14 +204,14 @@ export class DeepLocatorDelegate {
   }
   nth(index: number): DeepLocatorDelegate {
     const value = Number(index);
-    if (!Number.isFinite(value) || value < 0) {
-      throw new RangeError("deepLocator().nth() expects a non-negative index");
+    if (!Number.isFinite(value)) {
+      throw new RangeError("deepLocator().nth() expects a finite index");
     }
 
     const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) return this;
+    if (this.hasExplicitNth && nextIndex === this.nthIndex) return this;
 
-    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
+    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex, true);
   }
 }
 
