@@ -283,11 +283,11 @@ describe("Browserbase client HTTP behavior", () => {
     });
 
     it("omits the automatic model through both service and runtime entry points", async () => {
-      await generate({ modelName: "groq/openai/future-model" });
+      await generate({ modelName: "openai/vendor/future-model" });
       await generate();
       await expect(runtime.generateLlm(input)).resolves.toEqual(fixtures.gateway.result);
       const { model, ...rest } = JSON.parse(requests[0]!.body) as Record<string, unknown>;
-      expect(model).toBe("groq/openai/future-model");
+      expect(model).toBe("openai/vendor/future-model");
       expect(JSON.parse(requests[1]!.body)).toEqual(rest);
       expect(JSON.parse(requests[2]!.body)).toEqual(rest);
       expect(boundFetch).not.toHaveBeenCalled();
