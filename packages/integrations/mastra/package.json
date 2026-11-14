@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-mastra",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "private": true,
   "description": "Mastra example and harness adapter for Stagehand integrations",
   "files": [
