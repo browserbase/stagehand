@@ -39,7 +39,7 @@ catalog:
   vite: 8.1.6
   vitest: 4.1.12
   zod: 4.6.6
-  devtools-protocol: ^0.0.1657692
+  devtools-protocol: ^0.0.1721602
   ai: ^7.0.155
   "@openai/codex-sdk": 0.153.4
   "@anthropic-ai/claude-agent-sdk": 0.3.224
@@ -117,6 +117,7 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
   - eve@0.71.2
+  - devtools-protocol@0.0.1721602
   - "@oxfmt/binding-android-arm-eabi@0.76.0"
   - "@oxfmt/binding-android-arm64@0.76.0"
   - "@oxfmt/binding-darwin-arm64@0.76.0"

@@ -4388,6 +4388,12 @@
         "untrusted_content": {
           "type": "boolean"
         },
+        "consequential": {
+          "type": "boolean"
+        },
+        "debugging": {
+          "type": "boolean"
+        },
         "autosubmit": {
           "type": "boolean"
         }
