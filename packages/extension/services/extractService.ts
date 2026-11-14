@@ -14,7 +14,7 @@ import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { injectUrls, transformSchema } from "../utils.js";
+import { injectUrls, resolveUrlIds, transformSchema } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
@@ -172,6 +172,10 @@ async function extractWithProgress(
         idToUrl as unknown as Record<string, string>,
       );
     }
+    // The extract prompt asks the model to return link element IDs even for
+    // plain string fields, but only `z.string().url()` paths are resolved above.
+    // Resolve any remaining IDs that are real link elements in the URL map.
+    resolveUrlIds(output, idToUrl as unknown as Record<string, string>);
     if (!isObjectSchema && output && typeof output === "object") {
       output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
     }
