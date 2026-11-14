@@ -7,6 +7,7 @@ import type { NetworkRequestInfo } from "../../../extension/types/private/networ
 import { browserWebSocketFactory } from "../../../extension/understudy/browserWebSocketTransport.js";
 import type { CdpWebSocketFactory } from "../../../extension/understudy/cdp.js";
 import { BrowserContext } from "../../../extension/understudy/context.js";
+import type { Response } from "../../../extension/understudy/response.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { startFixtureServer, type FixtureServer } from "./_support.js";
 
@@ -72,9 +73,13 @@ describe("iframe network capture in Chrome", () => {
     }
   });
 
-  it.each([false, true])(
-    "tracks immediate and later fetches exactly once (cross-process: %s)",
-    async (crossProcess) => {
+  it.each([
+    { name: "same-process", crossProcess: false, nested: false },
+    { name: "cross-process", crossProcess: true, nested: false },
+    { name: "nested cross-process", crossProcess: true, nested: true },
+  ])(
+    "tracks document bodies and immediate/later fetches exactly once ($name)",
+    async ({ crossProcess, nested }) => {
       const served: string[] = [];
       fixture = await startFixtureServer({
         "/": `<!doctype html><body><script>
@@ -94,6 +99,17 @@ describe("iframe network capture in Chrome", () => {
           if (event.source === parent && event.data === 'later') fetchAndReport('later');
         });
       </script>`,
+        "/outer": () => {
+          const url = new URL("/child", fixture!.url);
+          url.hostname = "grandchild.test";
+          return `<!doctype html><iframe src="${url.href}"></iframe><script>
+            addEventListener('message', event => {
+              const child = document.querySelector('iframe').contentWindow;
+              if (event.source === parent) child.postMessage(event.data, '*');
+              else if (event.source === child) parent.postMessage(event.data, '*');
+            });
+          </script>`;
+        },
         "/api/immediate": () => {
           served.push("immediate");
           return "ok";
@@ -106,7 +122,7 @@ describe("iframe network capture in Chrome", () => {
       browser = await launchLocalBrowser({
         headless: true,
         args: [
-          "--host-resolver-rules=MAP child.test 127.0.0.1",
+          "--host-resolver-rules=MAP child.test 127.0.0.1,MAP grandchild.test 127.0.0.1",
           "--site-per-process",
           "--no-proxy-server",
         ],
@@ -146,8 +162,14 @@ describe("iframe network capture in Chrome", () => {
         onRequestFinished: (info) => record("finish", info),
         onRequestFailed: (info) => record("fail", info),
       });
-      const childUrl = new URL("/child", fixture.url);
+      const documentResponses: Response[] = [];
+      await page.subscribeResponse((response) => {
+        if (new URL(response.url()).pathname === "/child") documentResponses.push(response);
+      });
+      const childUrl = new URL(nested ? "/outer" : "/child", fixture.url);
       if (crossProcess) childUrl.hostname = "child.test";
+      const resourceUrl = new URL("/child", childUrl);
+      if (nested) resourceUrl.hostname = "grandchild.test";
       await page.evaluate((url) => {
         const iframe = document.createElement("iframe");
         iframe.src = url;
@@ -158,7 +180,7 @@ describe("iframe network capture in Chrome", () => {
         .toBe("done");
       expect(served).toEqual(["immediate"]);
       if (crossProcess) {
-        await expect.poll(() => gate.pendingCount, { timeout: 10_000 }).toBe(1);
+        await expect.poll(() => gate.pendingCount, { timeout: 10_000 }).toBe(nested ? 2 : 1);
         // The fetch finished in Chrome while the page still has no child session.
         expect(events).toEqual([]);
         expect(page.networkManager.sessions.size).toBe(1);
@@ -169,8 +191,15 @@ describe("iframe network capture in Chrome", () => {
         .toEqual(["start", "finish"]);
       const immediate = events[0]!.info;
       expect(events[1]!.info.requestKey).toBe(immediate.requestKey);
-      expect(immediate.url).toBe(new URL("/api/immediate", childUrl).href);
+      expect(immediate.url).toBe(new URL("/api/immediate", resourceUrl).href);
       expect(immediate.sessionId === page.mainSession.id).toBe(!crossProcess);
+
+      await expect.poll(() => documentResponses.length, { timeout: 10_000 }).toBe(1);
+      const documentResponse = documentResponses[0]!;
+      await expect.poll(() => documentResponse.finishedSettled, { timeout: 10_000 }).toBe(true);
+      await expect(documentResponse.finished()).resolves.toBeNull();
+      await expect(documentResponse.text()).resolves.toContain("fetchAndReport('immediate')");
+      expect(documentResponse.session.id).toBe(immediate.sessionId);
 
       // Trigger the second request only after adoption, covering the same capture's live path.
       await page.evaluate(() =>
@@ -183,7 +212,7 @@ describe("iframe network capture in Chrome", () => {
         .poll(() => events.map((event) => event.kind), { timeout: 10_000 })
         .toEqual(["start", "finish", "start", "finish"]);
       expect(served).toEqual(["immediate", "later"]);
-      expect(events[2]!.info.url).toBe(new URL("/api/later", childUrl).href);
+      expect(events[2]!.info.url).toBe(new URL("/api/later", resourceUrl).href);
       expect(events[2]!.info.sessionId).toBe(immediate.sessionId);
       expect(events[3]!.info.requestKey).toBe(events[2]!.info.requestKey);
       expect(page.networkManager.requests.has(immediate.requestKey)).toBe(false);

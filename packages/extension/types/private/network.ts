@@ -1,4 +1,6 @@
-import { Protocol } from "devtools-protocol";
+import type { Protocol } from "devtools-protocol";
+import type { CDPSessionLike } from "../../understudy/cdp.js";
+import type { SessionNetworkCapture } from "../../understudy/sessionNetworkCapture.js";
 import type { Response } from "../../understudy/response.js";
 
 /** Metadata tracked for each network request currently in-flight. */
@@ -12,6 +14,29 @@ export type NetworkRequestInfo = {
   timestamp: number;
   resourceType?: Protocol.Network.ResourceType;
   documentRequest: boolean;
+};
+
+export type TrackedSession = {
+  session: CDPSessionLike;
+  capture: SessionNetworkCapture;
+  childMainFrameId?: string;
+  // Unlike idle bookkeeping, these survive cache/frame-stop notifications
+  // until Chrome reports loadingFinished or loadingFailed.
+  unfinishedRequests: Map<string, NetworkRequestInfo>;
+  detach: () => void;
+};
+
+export type PendingDocumentCompletion = {
+  session: CDPSessionLike;
+  frameId: string;
+  requestId: string;
+  error: Error | null;
+};
+
+export type DocumentIdentity = {
+  requestId: string;
+  loaderId?: string;
+  frameId?: string;
 };
 
 /** Callback hooks consumers can implement to observe network transitions. */
