@@ -13,6 +13,7 @@ import {
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
 import type { WebMCPToolsEvent } from "../understudy/page.js";
+import type { Response } from "../understudy/response.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -473,6 +474,15 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
       this.locatorsBySelector.get(selector) ?? new FakeUnderstudyRuntimeLocator(selector);
     this.locatorRefs.push(locator);
     return locator;
+  }
+
+  readonly responseListeners = new Set<(response: Response) => void>();
+
+  async subscribeResponse(listener: (response: Response) => void): Promise<() => void> {
+    this.responseListeners.add(listener);
+    return () => {
+      this.responseListeners.delete(listener);
+    };
   }
 
   readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();

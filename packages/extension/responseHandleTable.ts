@@ -25,6 +25,7 @@ export class ResponseHandleNotFoundError extends Error {
  * server-side Response object.
  */
 export class ResponseHandleTable {
+  private readonly handlesByResponse = new WeakMap<Response, string>();
   private readonly entries = new Map<string, ResponseHandleEntry>();
   private readonly maxHandles: number;
   private readonly createHandle: () => string;
@@ -43,6 +44,8 @@ export class ResponseHandleTable {
   }
 
   register(pageId: string, response: Response): string {
+    const existing = this.handlesByResponse.get(response);
+    if (existing && this.entries.get(existing)?.pageId === pageId) return existing;
     const responseId = this.nextHandle();
     while (this.entries.size >= this.maxHandles) {
       const oldestResponseId = this.entries.keys().next().value as string | undefined;
@@ -50,6 +53,7 @@ export class ResponseHandleTable {
       this.delete(oldestResponseId);
     }
     this.entries.set(responseId, { pageId, response });
+    this.handlesByResponse.set(response, responseId);
     return responseId;
   }
 
@@ -73,6 +77,7 @@ export class ResponseHandleTable {
     const entry = this.entries.get(responseId);
     if (!entry) return;
     this.entries.delete(responseId);
+    this.handlesByResponse.delete(entry.response);
     entry.response.dispose(new ResponseHandleNotFoundError(responseId));
   }
 
