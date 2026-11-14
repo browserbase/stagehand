@@ -538,6 +538,45 @@ OpenAI models are called through the Responses API.
 [View all supported OpenAI models →](https://platform.openai.com/docs/models)
 </Tab>
 
+<Tab title="xAI">
+
+<CodeGroup>
+```typescript TypeScript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model: {
+    modelName: "xai/grok-4.7",
+    apiKey: process.env.XAI_API_KEY,
+  },
+});
+```
+
+```python Python
+import os
+
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="xai/grok-4.7",
+    model_api_key=os.environ["XAI_API_KEY"],
+)
+```
+
+
+</CodeGroup>
+
+<Note>
+xAI models use the Responses API and require an explicit xAI API key. Browserbase Model Gateway does not support xAI. Stop sequences are not supported.
+</Note>
+
+[View xAI models →](https://docs.x.ai/docs/models)
+</Tab>
+
 <Tab title="Groq">
 
 <Tabs>
@@ -1746,6 +1785,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 | OpenAI     | `OPENAI_API_KEY`               |
 | Groq       | `GROQ_API_KEY`                 |
 | Cerebras   | `CEREBRAS_API_KEY`             |
+| xAI        | `XAI_API_KEY`                 |
 | Bring your own LLM | None; your callback owns its credentials |
 
 </Accordion>
@@ -1756,7 +1796,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 **Solutions:**
 
 - Use the `provider/model` format: `openai/gpt-5.6-sol`. The prefix is required; bare model names are rejected
-- Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- Use one of the six supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`, `xai`
 - Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
 - Upgrade the SDK if the model shipped after your installed version
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)

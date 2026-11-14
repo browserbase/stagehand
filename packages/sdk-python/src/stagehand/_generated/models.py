@@ -1511,13 +1511,6 @@ class OpenAIModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^openai\\/\\S+$")]
 
 
-class ModelName(
-    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
-):
-    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
-    """A model name with a supported provider prefix"""
-
-
 class OperatingSystem(StrEnum):
     android = "android"
     ios = "ios"
@@ -2576,6 +2569,17 @@ class WebMCPToolsOptions(WireModel):
         validate_by_name=True,
     )
     timeout: Annotated[StrictFloat, Field(ge=0.0)] = 1000
+
+
+class XaiModelName(RootModel[StrictStr]):
+    root: Annotated[StrictStr, Field(pattern="^xai\\/\\S+$")]
+
+
+class ModelName(
+    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName, XaiModelName]]
+):
+    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName, XaiModelName]
+    """A model name with a supported provider prefix"""
 
 
 FieldSchema0.model_rebuild()
