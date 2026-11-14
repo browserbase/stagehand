@@ -55,6 +55,20 @@ export function createBrowserbaseExtensionClient(
  */
 const UPLOAD_ATTEMPTS = 4;
 const UPLOAD_BACKOFF_MS = [500, 1500, 4000];
+/** Browserbase limits uploads per one-minute window, so this always covers one reset. */
+const UPLOAD_MAX_TOTAL_WAIT_MS = 65_000;
+
+/** The wait a 429 asks for, in milliseconds. Browserbase sends whole seconds. */
+function retryAfterMs(error: object): number | undefined {
+  if (!("headers" in error) || !error.headers || typeof error.headers !== "object") {
+    return undefined;
+  }
+  const headers = error.headers as Record<string, unknown>;
+  const raw = headers["retry-after"];
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+}
 
 export type ProvisionBrowserbaseExtensionOptions = {
   attempts?: number;
@@ -75,6 +89,7 @@ export async function provisionBrowserbaseExtension(
   let uploaded: { id: string } | undefined;
   let lastError: unknown;
   let attemptsMade = 0;
+  let waitedMs = 0;
 
   for (let attempt = 0; attempt < attempts && uploaded === undefined; attempt += 1) {
     attemptsMade += 1;
@@ -86,9 +101,12 @@ export async function provisionBrowserbaseExtension(
       // may follow a successful create whose ID we never received.
       if (!error || typeof error !== "object" || !("status" in error) || error.status !== 429)
         break;
-      if (attempt + 1 < attempts) {
-        await sleep(UPLOAD_BACKOFF_MS[Math.min(attempt, UPLOAD_BACKOFF_MS.length - 1)]!);
-      }
+      if (attempt + 1 >= attempts) break;
+      const delayMs =
+        retryAfterMs(error) ?? UPLOAD_BACKOFF_MS[Math.min(attempt, UPLOAD_BACKOFF_MS.length - 1)]!;
+      if (waitedMs + delayMs > UPLOAD_MAX_TOTAL_WAIT_MS) break;
+      waitedMs += delayMs;
+      await sleep(delayMs);
     }
   }
   if (uploaded === undefined) {
@@ -111,5 +129,64 @@ export async function provisionBrowserbaseExtension(
       await client.deleteExtension(extensionId);
       cleaned = true;
     },
+  };
+}
+
+export type ProvisionExtension = (
+  client: BrowserbaseExtensionClient,
+) => Promise<ProvisionedBrowserbaseExtension>;
+
+type SharedExtension = {
+  provisioned: Promise<ProvisionedBrowserbaseExtension>;
+  holders: number;
+};
+
+const sharedExtensions = new Map<string, SharedExtension>();
+
+/**
+ * Launches with the same `key` share one upload instead of each uploading the
+ * same archive, which would hit the per-project upload rate limit. The upload
+ * is deleted when the last session that holds it cleans up.
+ */
+export function shareBrowserbaseExtension(
+  key: string,
+  provision: ProvisionExtension = provisionBrowserbaseExtension,
+): ProvisionExtension {
+  return async (client) => {
+    let shared = sharedExtensions.get(key);
+    if (shared === undefined) {
+      shared = { provisioned: provision(client), holders: 0 };
+      sharedExtensions.set(key, shared);
+    }
+    const entry = shared;
+    const forget = () => {
+      if (sharedExtensions.get(key) === entry) sharedExtensions.delete(key);
+    };
+    entry.holders += 1;
+
+    let provisioned: ProvisionedBrowserbaseExtension;
+    try {
+      provisioned = await entry.provisioned;
+    } catch (error) {
+      entry.holders -= 1;
+      // A failed upload is not cached, so the next launch uploads again.
+      forget();
+      throw error;
+    }
+
+    let released = false;
+    return {
+      extensionId: provisioned.extensionId,
+      async cleanup() {
+        if (!released) {
+          released = true;
+          entry.holders -= 1;
+        }
+        if (entry.holders > 0) return;
+        forget();
+        // Safe to call again after a failed delete: the inner cleanup is idempotent.
+        await provisioned.cleanup();
+      },
+    };
   };
 }
