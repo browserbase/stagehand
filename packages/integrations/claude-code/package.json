@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-claude-code",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "private": true,
   "description": "Claude Code (Claude Agent SDK) example and harness adapter for Stagehand integrations",
   "files": [

@@ -3,6 +3,37 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.4.1
+
+### Patch Changes
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3437](https://github.com/browserbase/stagehand/pull/3437) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@github-actions](https://github.com/apps/github-actions)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+## Python SDK 4.4.1
+
+### Patch Changes
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3437](https://github.com/browserbase/stagehand/pull/3437) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@github-actions](https://github.com/apps/github-actions)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+## Extension Runtime 1.3.1
+
+### Patch Changes
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3437](https://github.com/browserbase/stagehand/pull/3437) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@github-actions](https://github.com/apps/github-actions)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+## Eve Extension 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9), [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0)]:
+  - @browserbasehq/stagehand@4.4.1
+
 ## TypeScript SDK 4.4.0
 
 ### Minor Changes
