@@ -90,30 +90,29 @@ const CDPHeadersSchema = z.preprocess(
   }),
 );
 
+/**
+ * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
+ * Defaults to the client's URL. Set this when the client connects through
+ * a gateway the extension cannot or should not use.
+ */
+const ExtensionCdpUrlSchema = z.url({ protocol: /^wss?$/, hostname: /.+/ }).refine(
+  (value) => {
+    try {
+      return new URL(value).port !== "0";
+    } catch {
+      return false;
+    }
+  },
+  { message: "Port must be between 1 and 65535" },
+);
+
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
     /** Headers for client-side CDP discovery and WebSocket connections. */
     headers: CDPHeadersSchema.optional(),
     extensionId: z.string().optional(),
-    /**
-     * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
-     * Defaults to the client's URL. Set this when the client connects through
-     * a gateway the extension cannot or should not use.
-     */
-    extensionCdpUrl: z
-      .url({ protocol: /^wss?$/, hostname: /.+/ })
-      .refine(
-        (value) => {
-          try {
-            return new URL(value).port !== "0";
-          } catch {
-            return false;
-          }
-        },
-        { message: "Port must be between 1 and 65535" },
-      )
-      .optional(),
+    extensionCdpUrl: ExtensionCdpUrlSchema.optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
@@ -148,12 +147,14 @@ type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
   clientOptions?: BrowserbaseClientOptions;
+  extensionCdpUrl?: string;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl: string;
   clientOptions?: BrowserbaseClientOptions;
+  extensionCdpUrl?: string;
 };
 
 /**
@@ -165,6 +166,8 @@ export const BrowserbaseLaunchOptionsSchema = z
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     clientOptions: BrowserbaseClientOptionsSchema.optional(),
+    // Client-side only: consumed by the Stagehand worker, never sent to session creation.
+    extensionCdpUrl: ExtensionCdpUrlSchema.optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })

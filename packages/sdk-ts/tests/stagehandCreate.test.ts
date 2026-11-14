@@ -100,6 +100,37 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it.each([undefined, "ws://127.0.0.1:9222/devtools/browser/abc"])(
+    "uses the Browserbase launch extension CDP URL %s or falls back to the client's URL",
+    async (extensionCdpUrl) => {
+      const cdp = new FakeCDPClient();
+      const connectCdp = vi.fn(async () => cdp as unknown as CDPClient);
+      const createSession = vi.fn(async () => ({
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+        sessionId: "session_123",
+        close: vi.fn(),
+      }));
+      const { browserbase } = createBrowserFactoriesForTest({
+        connectCdp,
+        createBrowserbaseSessionClient: vi.fn(() => ({ createSession })),
+      });
+      const browser = await browserbase.launch({
+        apiKey: "bb_key",
+        projectId: "project_123",
+        ...(extensionCdpUrl === undefined ? {} : { extensionCdpUrl }),
+      });
+      const stagehand = await Stagehand.create({ browser });
+
+      expect(createSession).toHaveBeenCalledWith({ projectId: "project_123" });
+      expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+        params: { browser_cdp_url: extensionCdpUrl ?? cdp.webSocketDebuggerUrl },
+      });
+
+      await stagehand.close();
+      await browser.close();
+    },
+  );
+
   it("forwards an unknown model ID during initialization", async () => {
     const cdp = new FakeCDPClient();
     const { localBrowser } = createBrowserFactoriesForTest({

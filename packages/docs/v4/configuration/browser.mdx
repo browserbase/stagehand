@@ -703,6 +703,19 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
+`browserbase.launch` accepts the same option (TypeScript only for now). It stays client-side and is not sent to session creation:
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  projectId: process.env.BROWSERBASE_PROJECT_ID!,
+  extensionCdpUrl: "ws://127.0.0.1:9222/devtools/browser/BROWSER_ID",
+});
+const stagehand = await Stagehand.create({ browser });
+```
+
 The override must use `ws://` or `wss://`, include a host, and use a port between 1 and 65535 if specified. Both endpoints must reach the same browser. When the option is omitted (`None` in Python or an empty string in Go), the extension uses the client's resolved CDP WebSocket URL.
 
 In this example, `127.0.0.1` refers to the browser's environment. The extension can use any host reachable from inside Chrome. Using a separate endpoint keeps the gateway URL and its credentials out of the extension and avoids routing the extension's CDP commands through the gateway.
