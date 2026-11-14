@@ -235,6 +235,46 @@ describe("driver commands", () => {
     });
   });
 
+  it("fails open when the navigation ends on Chrome's error page", async () => {
+    const page = {
+      evaluate: vi.fn().mockResolvedValue("ERR_CONNECTION_REFUSED"),
+      goto: vi.fn().mockResolvedValue(null),
+    };
+    const manager = {
+      openResult: vi.fn().mockResolvedValue({ url: "chrome-error://chromewebdata/" }),
+      pageForOpen: vi.fn().mockResolvedValue(page),
+    } as unknown as Parameters<NonNullable<(typeof navigationHandlers)["open"]>>[0];
+
+    await expect(
+      navigationHandlers.open!(manager, { url: "http://127.0.0.1:1/" }),
+    ).rejects.toMatchObject({
+      code: "navigation_failed",
+      message:
+        "Navigation to http://127.0.0.1:1/ failed (ERR_CONNECTION_REFUSED); the browser is showing its error page.",
+      name: "DriverError",
+    });
+  });
+
+  it("fails reload, back, and forward when they end on Chrome's error page", async () => {
+    const page = {
+      evaluate: vi.fn().mockRejectedValue(new Error("Execution context was destroyed")),
+      goBack: vi.fn().mockResolvedValue(null),
+      goForward: vi.fn().mockResolvedValue(null),
+      reload: vi.fn().mockResolvedValue(null),
+    };
+    const manager = {
+      activePage: vi.fn().mockResolvedValue(page),
+      openResult: vi.fn().mockResolvedValue({ url: "chrome-error://chromewebdata/" }),
+    } as unknown as Parameters<NonNullable<(typeof navigationHandlers)["reload"]>>[0];
+
+    for (const command of ["reload", "back", "forward"] as const) {
+      await expect(navigationHandlers[command]!(manager, {})).rejects.toMatchObject({
+        code: "navigation_failed",
+        message: "Navigation failed; the browser is showing its error page.",
+      });
+    }
+  });
+
   it("routes selector click and fill through V4 locators", async () => {
     const locator = {
       click: vi.fn(),

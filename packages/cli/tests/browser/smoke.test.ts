@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DriverStatus, OpenResult } from "../../src/lib/driver/types.js";
-import { runCli } from "../helpers/run-cli.js";
+import { type CliResult, runCli } from "../helpers/run-cli.js";
 
 // Build first: pnpm exec turbo run build --filter=browse
 // Then: pnpm --filter browse test:smoke (uses CHROME_PATH or local Chrome discovery).
@@ -125,12 +125,34 @@ describe(`${suiteName} with real Chrome`, () => {
     await waitForShutdown();
   });
 
+  it("exits non-zero when open ends on Chrome's error page", async () => {
+    const unreachable = await closedPortUrl();
+    const result = await runBrowse(["open", unreachable, "--local", "--headless"], 100_000);
+    expect(result.exitCode, `stdout: ${result.stdout}\nstderr: ${result.stderr}`).not.toBe(0);
+    expect(result.stderr).toContain(`Navigation to ${unreachable} failed (ERR_CONNECTION_REFUSED)`);
+
+    const failed = await cli<DriverStatus>(["status"]);
+    daemonPid = failed.pid;
+    expect(failed).toMatchObject({ browserConnected: true, initialized: true });
+    expect(await cli(["stop"])).toMatchObject({ stopped: true, session });
+    await waitForShutdown();
+  });
+
   function open(): Promise<OpenResult> {
     return cli(["open", url, "--local", "--headless"], 100_000);
   }
 
   async function cli<T = unknown>(args: string[], timeoutMs = 40_000): Promise<T> {
-    const result = await runCli([...args, "--session", session], {
+    const result = await runBrowse(args, timeoutMs);
+    expect(
+      result.exitCode,
+      `browse ${args.join(" ")}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+    ).toBe(0);
+    return JSON.parse(result.stdout) as T;
+  }
+
+  function runBrowse(args: string[], timeoutMs = 40_000): Promise<CliResult> {
+    return runCli([...args, "--session", session], {
       cwd: directory,
       executable: process.env.BROWSE_SMOKE_BIN,
       timeoutMs,
@@ -143,11 +165,6 @@ describe(`${suiteName} with real Chrome`, () => {
         DO_NOT_TRACK: "1",
       },
     });
-    expect(
-      result.exitCode,
-      `browse ${args.join(" ")}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
-    ).toBe(0);
-    return JSON.parse(result.stdout) as T;
   }
 
   async function waitForShutdown(): Promise<void> {
@@ -160,6 +177,21 @@ describe(`${suiteName} with real Chrome`, () => {
     );
   }
 });
+
+/** Returns a loopback URL whose port was just released, so connections to it are refused. */
+async function closedPortUrl(): Promise<string> {
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", resolve);
+  });
+  const address = probe.address();
+  if (!address || typeof address === "string") throw new Error("Probe server has no port");
+  await new Promise<void>((resolve, reject) => {
+    probe.close((error) => (error ? reject(error) : resolve()));
+  });
+  return `http://127.0.0.1:${address.port}/`;
+}
 
 function isProcessAlive(pid: number): boolean {
   try {
