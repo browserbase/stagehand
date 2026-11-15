@@ -259,6 +259,15 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(schema).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("encodes chained locator indexes as a snake_case wire field", () => {
+    const schema = StagehandMethods.locatorSendClickEvent.params;
+    const apiValue = { pageId: "page_1", selector: "button", nthPath: [2, 0] };
+    const wireValue = { page_id: "page_1", selector: "button", nth_path: [2, 0] };
+
+    expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
+    expect(wireSchema(schema).parse(wireValue)).toStrictEqual(apiValue);
+  });
+
   it("encodes page parity params with snake_case wire fields", () => {
     const definition = StagehandMethods.pageDragAndDrop;
     const apiValue = {

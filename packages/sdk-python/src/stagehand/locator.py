@@ -37,6 +37,7 @@ from ._generated.models import (
     LocatorTypeParams,
     LocatorTypeResult,
     MouseButton,
+    NthPathItem,
 )
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
@@ -50,10 +51,13 @@ class Locator:
         page_id: str,
         selector: str,
         nth: int | None = None,
+        nth_path: Sequence[int] | None = None,
     ) -> None:
         self._rpc_client = rpc_client
         self._descriptor = LocatorDescriptor(page_id=page_id, selector=selector)
-        if nth is not None:
+        if nth_path is not None:
+            self._descriptor.nth_path = [NthPathItem(root=index) for index in nth_path]
+        elif nth is not None:
             self._descriptor.nth = nth
 
     @property
@@ -66,7 +70,14 @@ class Locator:
 
     @property
     def nth_index(self) -> int | None:
-        return self._descriptor.nth
+        path = self.nth_path
+        return path[-1] if path else self._descriptor.nth
+
+    @property
+    def nth_path(self) -> list[int]:
+        if self._descriptor.nth_path is not None:
+            return [index.root for index in self._descriptor.nth_path]
+        return [] if self._descriptor.nth is None else [self._descriptor.nth]
 
     @property
     def descriptor(self) -> LocatorDescriptor:
@@ -282,8 +293,11 @@ class Locator:
 
     def _params(self, timeout: float | None) -> dict[str, object]:
         values: dict[str, object] = {"page_id": self.page_id, "selector": self.selector}
-        if self.nth_index is not None:
-            values["nth"] = self.nth_index
+        if self.nth_path:
+            if len(self.nth_path) == 1:
+                values["nth"] = self.nth_path[0]
+            else:
+                values["nth_path"] = self.nth_path
         if timeout is not None:
             values["options"] = {"timeout": timeout}
         return values
@@ -292,9 +306,19 @@ class Locator:
         return self.nth(0)
 
     def nth(self, index: int) -> Self:
+        if index < 0:
+            raise ValueError("nth() expects a non-negative index")
+        nth_path = [*self.nth_path, index]
+        if len(nth_path) == 1:
+            return type(self)(
+                self._rpc_client,
+                page_id=self.page_id,
+                selector=self.selector,
+                nth=nth_path[0],
+            )
         return type(self)(
             self._rpc_client,
             page_id=self.page_id,
             selector=self.selector,
-            nth=index,
+            nth_path=nth_path,
         )

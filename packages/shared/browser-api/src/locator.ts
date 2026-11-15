@@ -162,9 +162,14 @@ export class Locator {
   }
 
   nth(index: number): Locator {
+    const currentPath =
+      this.descriptor.nthPath ?? (this.descriptor.nth === undefined ? [] : [this.descriptor.nth]);
+    const nthPath = [...currentPath, index];
+    const descriptor = { ...this.descriptor };
+    delete descriptor.nth;
     const parsedDescriptor = LocatorDescriptorSchema.safeParse({
-      ...this.descriptor,
-      nth: index,
+      ...descriptor,
+      ...(nthPath.length === 1 ? { nth: nthPath[0] } : { nthPath }),
     });
 
     if (!parsedDescriptor.success) {

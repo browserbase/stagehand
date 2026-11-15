@@ -53,17 +53,24 @@ export class Locator {
 
   // -1 means "no explicit nth()"; default locator resolves to first match for actions.
   readonly nthIndex: number;
+  readonly nthPath: readonly number[];
 
   constructor(
     readonly frame: Frame,
     readonly selector: string,
     readonly options?: { deep?: boolean; depth?: number },
-    nthIndex: number = -1,
+    nthIndex: number | readonly number[] = -1,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
-    const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
-    this.nthIndex = normalized < 0 ? -1 : normalized;
+    const path =
+      typeof nthIndex === "number"
+        ? Number.isFinite(nthIndex) && nthIndex >= 0
+          ? [Math.floor(nthIndex)]
+          : []
+        : [...nthIndex];
+    this.nthPath = path;
+    this.nthIndex = path.at(-1) ?? -1;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -908,11 +915,7 @@ export class Locator {
     }
 
     const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) {
-      return this;
-    }
-
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(this.frame, this.selector, this.options, [...this.nthPath, nextIndex]);
   }
 
   // ---------- helpers ----------
@@ -931,10 +934,9 @@ export class Locator {
     await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
     await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
 
-    const index = this.nthIndex < 0 ? 0 : this.nthIndex;
-    const resolved = await this.selectorResolver.resolveAtIndex(
+    const resolved = await this.selectorResolver.resolveAtIndexPath(
       this.selectorQuery,
-      index,
+      this.nthPath,
       progress,
     );
     if (!resolved) {
@@ -959,10 +961,10 @@ export class Locator {
     await progress.run("enabling runtime", () => session.send("Runtime.enable"));
     await progress.run("enabling DOM", () => session.send("DOM.enable"));
 
-    if (this.nthIndex >= 0) {
-      const resolved = await this.selectorResolver.resolveAtIndex(
+    if (this.nthPath.length > 0) {
+      const resolved = await this.selectorResolver.resolveAtIndexPath(
         this.selectorQuery,
-        this.nthIndex,
+        this.nthPath,
         progress,
       );
       if (!resolved) {

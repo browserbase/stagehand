@@ -106,6 +106,7 @@ expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEq
   pageId: string;
   selector: string;
   nth?: number;
+  nthPath?: number[];
   values: string | string[];
   options?: { timeout?: number };
 }>();
@@ -117,6 +118,7 @@ expectTypeOf<z.input<typeof StagehandMethods.locatorSetInputFiles.params>>().toE
   pageId: string;
   selector: string;
   nth?: number;
+  nthPath?: number[];
   options?: { timeout?: number };
   files: Array<{
     name: string;

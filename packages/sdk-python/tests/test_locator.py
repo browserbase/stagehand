@@ -86,9 +86,26 @@ def test_locator_first_and_nth_validate_the_generated_descriptor() -> None:
 
     assert locator.first().nth_index == 0
     assert locator.nth(3).nth_index == 3
+    assert locator.nth(3).first().nth(0).nth_path == [3, 0, 0]
 
     with pytest.raises(ValueError):
         locator.nth(-1)
+
+
+@pytest.mark.asyncio
+async def test_chained_nth_is_preserved_in_rpc_params() -> None:
+    recording = RecordingRPCClient({"locator.click": LocatorClickResult(clicked=True)})
+    locator = (
+        Locator(cast(RPCClient, recording), page_id="page-1", selector="button").nth(2).first()
+    )
+
+    await locator.click()
+
+    assert recording.calls[0][1] == LocatorClickParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        "nth_path": [2, 0],
+    })
 
 
 @pytest.mark.asyncio

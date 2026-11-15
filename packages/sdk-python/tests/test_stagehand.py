@@ -988,7 +988,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
     model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
-    act_locator = page.locator("main").nth(2)
+    act_locator = page.locator("main").nth(2).first()
     act_ignored_locator = page.locator(".promo")
     locator = page.locator("main").nth(1)
     ignored_locator = page.locator("nav")
@@ -1037,7 +1037,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert act_params.options is not None
     assert act_params.options.locator is not None
     assert act_params.options.locator.selector == "main"
-    assert act_params.options.locator.nth == 2
+    assert act_params.options.locator.nth_path == [2, 0]
     assert act_params.options.ignore_locators is not None
     assert [locator.selector for locator in act_params.options.ignore_locators] == [".promo"]
     assert act_params.options.cache is not None

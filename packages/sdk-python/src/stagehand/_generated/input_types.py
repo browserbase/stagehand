@@ -505,11 +505,6 @@ LLMGenerateResult: TypeAlias = LLMMessageGenerateResult | LLMStructuredGenerateR
 LoadState: TypeAlias = Literal["load", "domcontentloaded", "networkidle"]
 
 
-class Locator(TypedDict):
-    selector: str
-    nth: NotRequired[int]
-
-
 class LocatorCentroidResult(TypedDict):
     x: float
     y: float
@@ -520,12 +515,6 @@ class LocatorClickResult(TypedDict):
 
 
 LocatorCountResult: TypeAlias = int
-
-
-class LocatorDescriptor(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
 
 
 class LocatorFillResult(TypedDict):
@@ -559,39 +548,8 @@ class LocatorOptions(TypedDict):
     timeout: NotRequired[float]
 
 
-class LocatorFillParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorOptions]
-    value: str
-
-
-class LocatorParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorOptions]
-
-
-class LocatorScrollToParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorOptions]
-    percent: float | str
-
-
 class LocatorScrollToResult(TypedDict):
     scrolled: Literal[True]
-
-
-class LocatorSelectOptionParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorOptions]
-    values: str | list[str]
 
 
 LocatorSelectOptionResult: TypeAlias = list[str]
@@ -605,23 +563,8 @@ class LocatorSendClickEventOptions(TypedDict):
     detail: NotRequired[float]
 
 
-class LocatorSendClickEventParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorSendClickEventOptions]
-
-
 class LocatorSendClickEventResult(TypedDict):
     clicked: Literal[True]
-
-
-class LocatorSetInputFilesParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorOptions]
-    files: list[InputFilePayload]
 
 
 class LocatorSetInputFilesResult(TypedDict):
@@ -636,14 +579,6 @@ class LocatorTypeOptions(TypedDict):
     delay: NotRequired[float]
 
 
-class LocatorTypeParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorTypeOptions]
-    text: str
-
-
 class LocatorTypeResult(TypedDict):
     typed: Literal[True]
 
@@ -655,13 +590,6 @@ class LocatorClickOptions(TypedDict):
     timeout: NotRequired[float]
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
-
-
-class LocatorClickParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    options: NotRequired[LocatorClickOptions]
 
 
 class NavigationFinishedError(TypedDict):
@@ -693,6 +621,91 @@ class NavigationSecurityDetails(TypedDict):
 class NavigationServerAddr(TypedDict):
     ip_address: str
     port: int
+
+
+NthPathItem: TypeAlias = int
+
+
+class Locator(TypedDict):
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+
+
+class LocatorClickParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorClickOptions]
+
+
+class LocatorDescriptor(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+
+
+class LocatorFillParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorOptions]
+    value: str
+
+
+class LocatorParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorOptions]
+
+
+class LocatorScrollToParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorOptions]
+    percent: float | str
+
+
+class LocatorSelectOptionParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorOptions]
+    values: str | list[str]
+
+
+class LocatorSendClickEventParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorSendClickEventOptions]
+
+
+class LocatorSetInputFilesParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorOptions]
+    files: list[InputFilePayload]
+
+
+class LocatorTypeParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
+    options: NotRequired[LocatorTypeOptions]
+    text: str
 
 
 OpenAIModelName: TypeAlias = str
@@ -1103,6 +1116,7 @@ class LocatorHighlightParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    nth_path: NotRequired[list[NthPathItem]]
     options: NotRequired[LocatorHighlightOptions]
 
 
