@@ -103,19 +103,6 @@ export async function buildDoctorReport(
     checks.push(await daemonCheck(options.session, status, paths, deps));
   }
 
-  if (status?.initError) {
-    checks.push({
-      details: {
-        error: status.initError,
-        ...(status.initErrorCode === undefined ? {} : { code: status.initErrorCode }),
-      },
-      fix: await startFailureFix(status, options.session),
-      message: `last start failed: ${status.initError.split("\n")[0]}`,
-      name: "browser",
-      status: "fail",
-    });
-  }
-
   if (status?.browserbaseSessionId) {
     const { browserbaseSessionId, browserbaseSessionUrl, browserbaseDebugUrl } = status;
 
@@ -195,6 +182,17 @@ export async function buildDoctorReport(
       deps,
     );
     if (modeCheck) checks.push(modeCheck);
+  } else if (status?.initError) {
+    checks.push({
+      details: {
+        error: status.initError,
+        ...(status.initErrorCode === undefined ? {} : { code: status.initErrorCode }),
+      },
+      fix: await startFailureFix(status, options.session),
+      message: `last start failed: ${status.initError.split("\n")[0]}`,
+      name: targetCheckName(status.target),
+      status: "fail",
+    });
   }
 
   const verdict = reportVerdict(checks);
@@ -474,6 +472,12 @@ function nextStep(
     return parts.join(" ");
   }
   return undefined;
+}
+
+function targetCheckName(target: ConnectionTarget): string {
+  if (target.kind === "managed-local") return "browser";
+  if (target.kind === "remote") return "browserbase";
+  return "cdp";
 }
 
 function formatTarget(target: ConnectionTarget): string {
