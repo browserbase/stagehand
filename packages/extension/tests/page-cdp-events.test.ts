@@ -117,4 +117,109 @@ describe("Page CDP event subscriptions", () => {
       }),
     );
   });
+
+  describe("pageerror", () => {
+    const exceptionParams = (description: string) => ({
+      timestamp: 1700000000000,
+      exceptionDetails: {
+        exceptionId: 1,
+        text: "Uncaught",
+        lineNumber: 0,
+        columnNumber: 7,
+        url: "http://127.0.0.1/app.js",
+        exception: { type: "object", subtype: "error", className: "Error", description },
+      },
+    });
+
+    it("forwards Runtime.exceptionThrown from the main session and adopted OOPIFs", async () => {
+      const main = new FakeCDPSession("main");
+      const child = new FakeCDPSession("child");
+      const page = createPage(main);
+      const events: PageCDPEvent[] = [];
+
+      const unsubscribe = await page.subscribeCDPEvent("pageerror", (event) => {
+        events.push(event);
+      });
+      expect(main.listenerCount("Runtime.exceptionThrown")).toBe(1);
+      expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+
+      main.emit("Runtime.exceptionThrown", exceptionParams("Error: main boom"));
+      page.adoptOopifSession(child, "frame-child");
+      expect(child.listenerCount("Runtime.exceptionThrown")).toBe(1);
+      child.emit("Runtime.exceptionThrown", exceptionParams("Error: child boom"));
+
+      expect(events).toStrictEqual([
+        {
+          pageId: "target-main",
+          method: "Runtime.exceptionThrown",
+          params: exceptionParams("Error: main boom"),
+          sessionId: "main",
+          targetId: "target-main",
+        },
+        {
+          pageId: "target-main",
+          method: "Runtime.exceptionThrown",
+          params: exceptionParams("Error: child boom"),
+          sessionId: "child",
+          targetId: "target-child",
+        },
+      ]);
+
+      page.detachOopifSession("child");
+      expect(child.listenerCount("Runtime.exceptionThrown")).toBe(0);
+      child.emit("Runtime.exceptionThrown", exceptionParams("Error: after detach"));
+      expect(events).toHaveLength(2);
+
+      unsubscribe();
+      expect(main.listenerCount("Runtime.exceptionThrown")).toBe(0);
+      main.emit("Runtime.exceptionThrown", exceptionParams("Error: after unsubscribe"));
+      expect(events).toHaveLength(2);
+    });
+
+    it("keeps console and pageerror subscriptions independent", async () => {
+      const main = new FakeCDPSession("main");
+      const page = createPage(main);
+      const consoleEvents: PageCDPEvent[] = [];
+      const errorEvents: PageCDPEvent[] = [];
+
+      const stopConsole = await page.subscribeCDPEvent("console", (event) =>
+        consoleEvents.push(event),
+      );
+      const stopErrors = await page.subscribeCDPEvent("pageerror", (event) =>
+        errorEvents.push(event),
+      );
+      main.emit("Runtime.consoleAPICalled", { type: "error", args: [] });
+      main.emit("Runtime.exceptionThrown", exceptionParams("Error: boom"));
+
+      expect(consoleEvents.map((event) => event.method)).toStrictEqual([
+        "Runtime.consoleAPICalled",
+      ]);
+      expect(errorEvents.map((event) => event.method)).toStrictEqual(["Runtime.exceptionThrown"]);
+
+      stopErrors();
+      expect(main.listenerCount("Runtime.exceptionThrown")).toBe(0);
+      expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(1);
+      stopConsole();
+    });
+
+    it("drops pageerror listeners on every session when the page is disposed", async () => {
+      const main = new FakeCDPSession("main");
+      const child = new FakeCDPSession("child");
+      const page = createPage(main);
+      const listener = vi.fn();
+
+      page.adoptOopifSession(child, "frame-child");
+      await page.subscribeCDPEvent("pageerror", listener);
+      page.dispose();
+      main.emit("Runtime.exceptionThrown", exceptionParams("Error: late"));
+      child.emit("Runtime.exceptionThrown", exceptionParams("Error: late"));
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(main.listenerCount("Runtime.exceptionThrown")).toBe(0);
+      expect(child.listenerCount("Runtime.exceptionThrown")).toBe(0);
+      await expect(page.subscribeCDPEvent("pageerror", listener)).rejects.toThrow(
+        "Page is disposed",
+      );
+    });
+  });
 });

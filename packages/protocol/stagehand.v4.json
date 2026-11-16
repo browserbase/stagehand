@@ -3774,7 +3774,7 @@
     },
     "PageSubscriptionEventName": {
       "type": "string",
-      "enum": ["console", "toolsadded", "toolsremoved"]
+      "enum": ["console", "pageerror", "toolsadded", "toolsremoved"]
     },
     "PageOffParams": {
       "type": "object",
@@ -5287,8 +5287,7 @@
           "minLength": 1
         },
         "method": {
-          "type": "string",
-          "enum": ["Runtime.consoleAPICalled"]
+          "$ref": "#/$defs/PageCDPEventMethod"
         },
         "params": {
           "$ref": "#/$defs/PageCDPEventParams"
@@ -5304,6 +5303,10 @@
       },
       "required": ["page_id", "method", "params", "session_id", "target_id"],
       "additionalProperties": false
+    },
+    "PageCDPEventMethod": {
+      "type": "string",
+      "enum": ["Runtime.consoleAPICalled", "Runtime.exceptionThrown"]
     },
     "PageCDPEventParams": {
       "type": "object",
@@ -5674,7 +5677,7 @@
     },
     "PageEventName": {
       "type": "string",
-      "enum": ["console"]
+      "enum": ["console", "pageerror"]
     },
     "StagehandRpcRequest": {
       "anyOf": [

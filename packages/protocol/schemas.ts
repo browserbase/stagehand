@@ -1282,20 +1282,24 @@ export const ResponseFinishedResultSchema = z
   })
   .meta({ id: "ResponseFinishedResult" });
 
-export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
+export const PageEventNameSchema = z.enum(["console", "pageerror"]).meta({ id: "PageEventName" });
 
 export const PageSubscriptionEventNameSchema = z
-  .enum(["console", "toolsadded", "toolsremoved"])
+  .enum(["console", "pageerror", "toolsadded", "toolsremoved"])
   .meta({ id: "PageSubscriptionEventName" });
 
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
   .meta({ id: "PageCDPEventParams" });
 
+export const PageCDPEventMethodSchema = z
+  .enum(["Runtime.consoleAPICalled", "Runtime.exceptionThrown"])
+  .meta({ id: "PageCDPEventMethod" });
+
 export const PageCDPEventSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    method: z.enum(["Runtime.consoleAPICalled"]),
+    method: PageCDPEventMethodSchema,
     params: PageCDPEventParamsSchema,
     sessionId: z.string().min(1),
     targetId: z.string().min(1),

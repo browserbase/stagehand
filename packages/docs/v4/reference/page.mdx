@@ -336,8 +336,10 @@ const title = await page.evaluate(() => document.title);
 
 ## on()
 
-Subscribe to console messages from this page and its page-owned sessions. Stagehand
-delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+Subscribe to console messages or uncaught JavaScript exceptions from this page and its
+page-owned sessions, including out-of-process iframes. Stagehand delivers each event using the
+underlying CDP event envelope: `"console"` delivers `"Runtime.consoleAPICalled"`, and
+`"pageerror"` delivers `"Runtime.exceptionThrown"`.
 
 ```typescript
 const subscription = await page.on("console", (event) => {
@@ -346,10 +348,18 @@ const subscription = await page.on("console", (event) => {
 
 await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
+
+const errors = await page.on("pageerror", (event) => {
+  const details = event.params.exceptionDetails as { exception?: { description?: string } };
+  console.log(details.exception?.description);
+});
 ```
 
 <ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
+  The event name: `"console"` or `"pageerror"`. A `"pageerror"` listener receives uncaught
+  exceptions and unhandled promise rejections thrown after it subscribes; `params` holds the CDP
+  `timestamp` and `exceptionDetails`. Exceptions that an out-of-process iframe throws before
+  Stagehand adopts its session are not delivered.
 </ParamField>
 
 <ParamField path="listener" type="PageEventListener">
@@ -1217,8 +1227,10 @@ title = await page.evaluate("document.title", result_type=str)
 
 ## on()
 
-Subscribe to console messages from this page and its page-owned sessions. Stagehand
-delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+Subscribe to console messages or uncaught JavaScript exceptions from this page and its
+page-owned sessions, including out-of-process iframes. Stagehand delivers each event using the
+underlying CDP event envelope: `"console"` delivers `"Runtime.consoleAPICalled"`, and
+`"pageerror"` delivers `"Runtime.exceptionThrown"`.
 
 ```python
 async def handle_console(event: PageCDPEvent) -> None:
@@ -1227,10 +1239,18 @@ async def handle_console(event: PageCDPEvent) -> None:
 subscription = await page.on("console", handle_console)
 await page.evaluate('console.log("ready")')
 await subscription.unsubscribe()
+
+def handle_page_error(event: PageCDPEvent) -> None:
+    print(event.params["exceptionDetails"])
+
+errors = await page.on("pageerror", handle_page_error)
 ```
 
 <ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
+  The event name: `"console"` or `"pageerror"`. A `"pageerror"` listener receives uncaught
+  exceptions and unhandled promise rejections thrown after it subscribes; `params` holds the CDP
+  `timestamp` and `exceptionDetails`. Exceptions that an out-of-process iframe throws before
+  Stagehand adopts its session are not delivered.
 </ParamField>
 
 <ParamField path="listener" type="PageEventListener">

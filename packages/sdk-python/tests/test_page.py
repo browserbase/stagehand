@@ -251,7 +251,7 @@ async def test_page_pdf_preserves_omitted_and_empty_options(
 async def test_page_on_rejects_unsupported_events_before_subscribing(event: str) -> None:
     recording = RecordingRPCClient({})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    with pytest.raises(ValueError, match='page.on only supports "console" events'):
+    with pytest.raises(ValueError, match='page.on only supports "console" and "pageerror" events'):
         await page.on(cast(PageEventName, event), lambda _: None)
     assert recording.calls == []
     assert recording.notifications == {}
@@ -290,6 +290,69 @@ async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> N
             "params": {"type": "log", "executionContextId": 1},
             "session_id": "session-1",
             "target_id": "target-1",
+        }
+    ]
+
+    await subscription.unsubscribe()
+    assert recording.calls[1] == (
+        "page.off",
+        PageOffParams(subscription_id=on_params.subscription_id),
+        PageVoidResult,
+    )
+    assert "page.cdp_event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_page_on_pageerror_delivers_exception_events_and_unsubscribes() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    events = []
+
+    subscription = await page.on("pageerror", events.append)
+    _, on_params, _ = recording.calls[0]
+    assert isinstance(on_params, PageOnParams)
+    assert on_params.model_dump(mode="json") == {
+        "page_id": "page-1",
+        "subscription_id": on_params.subscription_id,
+        "event": "pageerror",
+    }
+    _, raw_listener = recording.notifications["page.cdp_event"]
+    listener = cast(Callable[[PageCDPEventNotification], object], raw_listener)
+    exception_params = {
+        "timestamp": 1,
+        "exceptionDetails": {
+            "exceptionId": 1,
+            "text": "Uncaught",
+            "lineNumber": 0,
+            "columnNumber": 7,
+            "exception": {"type": "object", "subtype": "error", "description": "Error: boom"},
+        },
+    }
+
+    def notification(subscription_id: str) -> PageCDPEventNotification:
+        return PageCDPEventNotification.model_validate({
+            "subscription_id": subscription_id,
+            "event": {
+                "page_id": "page-1",
+                "method": "Runtime.exceptionThrown",
+                "params": exception_params,
+                "session_id": "child-session",
+                "target_id": "child-target",
+            },
+        })
+
+    for subscription_id in (on_params.subscription_id, "someone-else"):
+        result = listener(notification(subscription_id))
+        if inspect.isawaitable(result):
+            await result
+
+    assert [event.model_dump(mode="json") for event in events] == [
+        {
+            "page_id": "page-1",
+            "method": "Runtime.exceptionThrown",
+            "params": exception_params,
+            "session_id": "child-session",
+            "target_id": "child-target",
         }
     ]
 

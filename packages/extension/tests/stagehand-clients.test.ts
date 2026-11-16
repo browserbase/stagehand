@@ -12,7 +12,7 @@ import {
   StagehandSendToHostBindingSchema,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
-import type { WebMCPToolsEvent } from "../understudy/page.js";
+import { PAGE_TO_CDP_EVENTS, type WebMCPToolsEvent } from "../understudy/page.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -491,7 +491,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     listener: (event: PageCDPEvent) => void,
     _signal?: AbortSignal,
   ): Promise<() => void> {
-    const method = "Runtime.consoleAPICalled";
+    const method = PAGE_TO_CDP_EVENTS[pageEventName];
     const listeners = this.cdpEventListeners.get(method) ?? new Set();
     listeners.add(listener);
     this.cdpEventListeners.set(method, listeners);
@@ -802,6 +802,68 @@ describe("Stagehand worker clients", () => {
     });
     expect(notifications).toHaveLength(1);
     expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(false);
+  });
+
+  it("routes pageerror subscriptions to Runtime.exceptionThrown and tears them down", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const notifications: PageCDPEventNotification[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => new FakeBrowserSession([page]),
+      emitPageCDPEvent: (notification) => notifications.push(notification),
+    });
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    });
+    await runtime.contextPages();
+
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "errors", event: "pageerror" });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "logs", event: "console" });
+    const exception = {
+      timestamp: 1,
+      exceptionDetails: {
+        exceptionId: 1,
+        text: "Uncaught",
+        lineNumber: 0,
+        columnNumber: 7,
+        exception: { type: "object", subtype: "error", description: "Error: boom" },
+      },
+    };
+    page.emitCDPEvent({
+      pageId: "page-a",
+      method: "Runtime.exceptionThrown",
+      params: exception,
+      sessionId: "session-1",
+      targetId: "target-1",
+    });
+
+    expect(notifications).toStrictEqual([
+      {
+        subscriptionId: "errors",
+        event: {
+          pageId: "page-a",
+          method: "Runtime.exceptionThrown",
+          params: exception,
+          sessionId: "session-1",
+          targetId: "target-1",
+        },
+      },
+    ]);
+
+    runtime.pageOff({ subscriptionId: "errors" });
+    expect(page.cdpEventListeners.has("Runtime.exceptionThrown")).toBe(false);
+    expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(true);
+
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "errors-2", event: "pageerror" });
+    await runtime.pageClose({ pageId: "page-a" });
+    page.emitCDPEvent({
+      pageId: "page-a",
+      method: "Runtime.exceptionThrown",
+      params: exception,
+      sessionId: "session-1",
+      targetId: "target-1",
+    });
+    expect(notifications).toHaveLength(1);
+    expect(page.cdpEventListeners.size).toBe(0);
   });
 
   it("rejects duplicate page event subscriptions without reflecting their identifier", async () => {
