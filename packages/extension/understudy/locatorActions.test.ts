@@ -169,6 +169,35 @@ describe("counting progress forwarding", () => {
   });
 });
 
+describe("counting chained locator paths", () => {
+  it.each([
+    { path: [2, 0], selected: { objectId: "node", nodeId: 1 }, expected: 1 },
+    { path: [2, 1], selected: null, expected: 0 },
+    { path: [99, 0], selected: null, expected: 0 },
+  ])("counts the full index path $path", async ({ path, selected, expected }) => {
+    const { locator, send } = createLocator();
+    const chained = locator.nth(path[0]).nth(path[1]);
+    const resolveAtIndexPath = vi
+      .spyOn(chained.selectorResolver, "resolveAtIndexPath")
+      .mockResolvedValue(selected);
+
+    await expect(chained.count()).resolves.toBe(expected);
+    expect(resolveAtIndexPath).toHaveBeenCalledExactlyOnceWith(
+      chained.selectorQuery,
+      path,
+      undefined,
+    );
+    if (selected) {
+      expect(send).toHaveBeenCalledWith(
+        "Runtime.releaseObject",
+        expect.objectContaining({ objectId: "node" }),
+      );
+    } else {
+      expect(send).not.toHaveBeenCalledWith("Runtime.releaseObject", expect.anything());
+    }
+  });
+});
+
 function deferred() {
   let resolve!: (value: unknown) => void;
   const promise = new Promise<unknown>((done) => {

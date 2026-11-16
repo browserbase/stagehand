@@ -198,6 +198,23 @@ export class Locator {
     const session = this.frame.session;
     await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
     await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+
+    if (this.nthPath.length > 0) {
+      const selected = await this.selectorResolver.resolveAtIndexPath(
+        this.selectorQuery,
+        this.nthPath,
+        progress,
+      );
+      if (!selected) return 0;
+
+      const release = () =>
+        session.send("Runtime.releaseObject", { objectId: selected.objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
+      return 1;
+    }
+
     return this.selectorResolver.count(this.selectorQuery, progress);
   }
 
