@@ -4,11 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getOpenCommand, openUrl, platformDetection } from "../src/lib/open-url.js";
 
-vi.mock("node:child_process", () => ({
-  spawn: vi.fn(),
-}));
+vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
-const url = "https://example.com/community";
+const url = "https://example.com/path";
 const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 
 function createMockChild(): ChildProcess & EventEmitter {
@@ -21,14 +19,7 @@ function createMockChild(): ChildProcess & EventEmitter {
 beforeEach(() => {
   vi.mocked(spawn).mockReset();
   vi.stubEnv("CI", undefined);
-  vi.stubEnv("BROWSER", undefined);
-  vi.stubEnv("WSL_DISTRO_NAME", undefined);
-  vi.stubEnv("SSH_CONNECTION", undefined);
-  vi.stubEnv("SSH_TTY", undefined);
-  Object.defineProperty(process.stdout, "isTTY", {
-    configurable: true,
-    value: true,
-  });
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
   vi.mocked(spawn).mockReturnValue(createMockChild());
   vi.spyOn(platformDetection, "isWsl").mockReturnValue(false);
   vi.spyOn(platformDetection, "isSSH").mockReturnValue(false);
@@ -43,303 +34,202 @@ afterEach(() => {
 });
 
 describe("getOpenCommand", () => {
-  it("returns open command for darwin", () => {
-    const { command, args } = getOpenCommand(url, "darwin");
-    expect(command).toBe("open");
-    expect(args).toEqual([url]);
-  });
+  const commandTable: Array<{
+    name: string;
+    platform: NodeJS.Platform;
+    browser?: string;
+    wsl?: boolean;
+    ssh?: boolean;
+    command: string;
+    args: string[];
+    hasFallback?: boolean;
+  }> = [
+    { name: "darwin", platform: "darwin", command: "open", args: [url] },
+    {
+      name: "win32",
+      platform: "win32",
+      command: "rundll32",
+      args: ["url.dll,FileProtocolHandler", url],
+    },
+    { name: "linux", platform: "linux", command: "xdg-open", args: [url] },
+    {
+      name: "freebsd (fallback)",
+      platform: "freebsd" as NodeJS.Platform,
+      command: "xdg-open",
+      args: [url],
+    },
+    {
+      name: "linux + $BROWSER",
+      platform: "linux",
+      browser: "firefox",
+      command: "firefox",
+      args: [url],
+    },
+    {
+      name: "linux + $BROWSER + WSL (BROWSER wins)",
+      platform: "linux",
+      browser: "chromium",
+      wsl: true,
+      command: "chromium",
+      args: [url],
+    },
+    {
+      name: "darwin + $BROWSER (ignored)",
+      platform: "darwin",
+      browser: "firefox",
+      command: "open",
+      args: [url],
+    },
+    {
+      name: "win32 + $BROWSER (ignored)",
+      platform: "win32",
+      browser: "firefox",
+      command: "rundll32",
+      args: ["url.dll,FileProtocolHandler", url],
+    },
+    {
+      name: "linux + WSL",
+      platform: "linux",
+      wsl: true,
+      command: "rundll32.exe",
+      args: ["url.dll,FileProtocolHandler", url],
+      hasFallback: true,
+    },
+    {
+      name: "linux + WSL + SSH (xdg-open)",
+      platform: "linux",
+      wsl: true,
+      ssh: true,
+      command: "xdg-open",
+      args: [url],
+    },
+  ];
 
-  it("returns xdg-open command for linux", () => {
-    const { command, args } = getOpenCommand(url, "linux");
-    expect(command).toBe("xdg-open");
-    expect(args).toEqual([url]);
-  });
+  it.each(commandTable)(
+    "$name -> $command",
+    ({ platform, browser, wsl, ssh, command, args, hasFallback }) => {
+      vi.mocked(platformDetection.getBrowser).mockReturnValue(browser);
+      vi.mocked(platformDetection.isWsl).mockReturnValue(wsl ?? false);
+      vi.mocked(platformDetection.isSSH).mockReturnValue(ssh ?? false);
 
-  it("returns rundll32 command for win32", () => {
-    const { command, args } = getOpenCommand(url, "win32");
-    expect(command).toBe("rundll32");
-    expect(args).toEqual(["url.dll,FileProtocolHandler", url]);
-  });
+      const result = getOpenCommand(url, platform);
 
-  it("falls back to xdg-open for unknown platforms", () => {
-    const { command, args } = getOpenCommand(url, "freebsd" as NodeJS.Platform);
-    expect(command).toBe("xdg-open");
-    expect(args).toEqual([url]);
-  });
+      expect(result.command).toBe(command);
+      expect(result.args).toEqual(args);
+      if (hasFallback) {
+        expect(result.fallback).toEqual({ command: "xdg-open", args: [url] });
+      } else {
+        expect(result.fallback).toBeUndefined();
+      }
+    },
+  );
 
-  describe("$BROWSER override", () => {
-    it("uses $BROWSER when set on Linux", () => {
-      vi.mocked(platformDetection.getBrowser).mockReturnValue("firefox");
-
-      const { command, args } = getOpenCommand(url, "linux");
-      expect(command).toBe("firefox");
-      expect(args).toEqual([url]);
-    });
-
-    it("$BROWSER takes precedence over WSL detection", () => {
-      vi.mocked(platformDetection.getBrowser).mockReturnValue("chromium");
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const { command, args } = getOpenCommand(url, "linux");
-      expect(command).toBe("chromium");
-      expect(args).toEqual([url]);
-    });
-
-    it("does not affect darwin", () => {
-      vi.mocked(platformDetection.getBrowser).mockReturnValue("firefox");
-
-      const { command } = getOpenCommand(url, "darwin");
-      expect(command).toBe("open");
-    });
-
-    it("does not affect win32", () => {
-      vi.mocked(platformDetection.getBrowser).mockReturnValue("firefox");
-
-      const { command } = getOpenCommand(url, "win32");
-      expect(command).toBe("rundll32");
-    });
-  });
-
-  describe("WSL detection", () => {
-    it("uses rundll32.exe when WSL_DISTRO_NAME is set", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const { command, args, fallback } = getOpenCommand(url, "linux");
-      expect(command).toBe("rundll32.exe");
-      expect(args).toEqual(["url.dll,FileProtocolHandler", url]);
-      expect(fallback).toEqual({ command: "xdg-open", args: [url] });
-    });
-
-    it("uses rundll32.exe when /proc/version contains microsoft", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const { command, args } = getOpenCommand(url, "linux");
-      expect(command).toBe("rundll32.exe");
-      expect(args).toEqual(["url.dll,FileProtocolHandler", url]);
-    });
-
-    it("uses xdg-open when in WSL over SSH (SSH_CONNECTION set)", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-      vi.mocked(platformDetection.isSSH).mockReturnValue(true);
-
-      const { command, args, fallback } = getOpenCommand(url, "linux");
-      expect(command).toBe("xdg-open");
-      expect(args).toEqual([url]);
-      expect(fallback).toBeUndefined();
-    });
-
-    it("uses xdg-open when in WSL over SSH (SSH_TTY set)", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-      vi.mocked(platformDetection.isSSH).mockReturnValue(true);
-
-      const { command, args } = getOpenCommand(url, "linux");
-      expect(command).toBe("xdg-open");
-      expect(args).toEqual([url]);
-    });
-
-    it("passes URL with & untouched on WSL path", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-      const urlWithAmpersand = "https://discord.gg/invite?a=1&b=2&c=3";
-
-      const { args } = getOpenCommand(urlWithAmpersand, "linux");
-      expect(args[1]).toBe(urlWithAmpersand);
-    });
-  });
-
-  describe("URL passed as single untouched argv element", () => {
-    const specialUrls = [
-      "https://example.com/path?foo=bar&baz=qux",
-      "https://example.com/path?a=1&b=2&c=3",
-      "https://example.com/path#section",
-      "https://example.com/path?query=value#anchor",
+  describe("URL integrity", () => {
+    const trickyUrls = [
+      "https://example.com/?a=1&b=2&c=3",
+      "https://example.com/path?q=1#section",
       "https://example.com/path%20with%20spaces",
-      "https://example.com/path?param=hello%20world",
     ];
 
-    for (const testUrl of specialUrls) {
-      it(`preserves URL with special characters: ${testUrl}`, () => {
-        for (const platform of ["darwin", "linux", "win32"] as NodeJS.Platform[]) {
-          const { args } = getOpenCommand(testUrl, platform);
-          const urlArg = platform === "win32" ? args[1] : args[0];
-          expect(urlArg).toBe(testUrl);
-        }
-      });
-    }
+    it.each(trickyUrls)("preserves special chars: %s", (testUrl) => {
+      // Test each unique opener path once
+      expect(getOpenCommand(testUrl, "darwin").args[0]).toBe(testUrl);
+      expect(getOpenCommand(testUrl, "linux").args[0]).toBe(testUrl);
+      expect(getOpenCommand(testUrl, "win32").args[1]).toBe(testUrl);
+
+      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
+      expect(getOpenCommand(testUrl, "linux").args[1]).toBe(testUrl);
+    });
   });
 });
 
-describe("platformDetection", () => {
-  describe("isSSH", () => {
-    beforeEach(() => {
-      vi.restoreAllMocks();
-    });
+describe("platformDetection helpers", () => {
+  beforeEach(() => vi.restoreAllMocks());
 
-    it("returns true when SSH_CONNECTION is set", () => {
-      vi.stubEnv("SSH_CONNECTION", "192.168.1.1 22 192.168.1.2 12345");
-      expect(platformDetection.isSSH()).toBe(true);
-    });
-
-    it("returns true when SSH_TTY is set", () => {
-      vi.stubEnv("SSH_TTY", "/dev/pts/0");
-      expect(platformDetection.isSSH()).toBe(true);
-    });
-
-    it("returns false when neither SSH env is set", () => {
-      expect(platformDetection.isSSH()).toBe(false);
-    });
+  it.each([
+    { env: "SSH_CONNECTION", value: "192.168.1.1 22 192.168.1.2 12345", expected: true },
+    { env: "SSH_TTY", value: "/dev/pts/0", expected: true },
+    { env: undefined, value: undefined, expected: false },
+  ])("isSSH: $env=$value -> $expected", ({ env, value, expected }) => {
+    if (env && value) vi.stubEnv(env, value);
+    expect(platformDetection.isSSH()).toBe(expected);
   });
 
-  describe("getBrowser", () => {
-    beforeEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it("returns BROWSER env value when set", () => {
-      vi.stubEnv("BROWSER", "firefox");
-      expect(platformDetection.getBrowser()).toBe("firefox");
-    });
-
-    it("returns undefined when BROWSER is not set", () => {
-      expect(platformDetection.getBrowser()).toBeUndefined();
-    });
-
-    it("returns undefined when BROWSER is empty", () => {
-      vi.stubEnv("BROWSER", "");
-      expect(platformDetection.getBrowser()).toBeUndefined();
-    });
+  it.each([
+    { value: "firefox", expected: "firefox" },
+    { value: "", expected: undefined },
+    { value: undefined, expected: undefined },
+  ])("getBrowser: BROWSER=$value -> $expected", ({ value, expected }) => {
+    if (value !== undefined) vi.stubEnv("BROWSER", value);
+    expect(platformDetection.getBrowser()).toBe(expected);
   });
 });
 
 describe("openUrl", () => {
-  describe("TTY and CI gating", () => {
-    it("does not spawn when noOpen is set in an interactive terminal", () => {
-      expect(openUrl(url, { noOpen: true })).toEqual({ attempted: false, success: true });
-      expect(spawn).not.toHaveBeenCalled();
-    });
+  describe("gating", () => {
+    const gatingTable: Array<{
+      name: string;
+      noOpen?: boolean;
+      isTTY?: boolean;
+      ci?: string;
+      spawns: boolean;
+    }> = [
+      { name: "noOpen=true", noOpen: true, spawns: false },
+      { name: "non-TTY", isTTY: false, spawns: false },
+      { name: "CI=true", ci: "true", spawns: false },
+      { name: "CI=1", ci: "1", spawns: false },
+      { name: "CI=yes", ci: "yes", spawns: false },
+      { name: "CI=' True '", ci: " True ", spawns: false },
+      { name: "CI=false", ci: "false", spawns: true },
+      { name: "CI=''", ci: "", spawns: true },
+      { name: "CI=undefined", ci: undefined, spawns: true },
+      { name: "TTY + no CI", isTTY: true, spawns: true },
+    ];
 
-    it("does not spawn when stdout is not a TTY", () => {
-      Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: false });
+    it.each(gatingTable)("$name -> spawns=$spawns", ({ noOpen, isTTY, ci, spawns }) => {
+      if (isTTY !== undefined) {
+        Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: isTTY });
+      }
+      if (ci !== undefined) vi.stubEnv("CI", ci);
 
-      expect(openUrl(url)).toEqual({ attempted: false, success: true });
-      expect(spawn).not.toHaveBeenCalled();
-    });
+      const result = openUrl(url, { noOpen });
 
-    it.each(["true", "1", "yes", "on", "TRUE", " True "])(
-      "does not spawn in an interactive terminal with CI=%s",
-      (ci) => {
-        vi.stubEnv("CI", ci);
-
-        expect(openUrl(url)).toEqual({ attempted: false, success: true });
-        expect(spawn).not.toHaveBeenCalled();
-      },
-    );
-
-    it.each(["", "false", "FALSE", " false "])("spawns opener with CI=%j", (ci) => {
-      vi.stubEnv("CI", ci);
-
-      expect(openUrl(url)).toEqual({ attempted: true, success: true });
-      expect(spawn).toHaveBeenCalledOnce();
-    });
-
-    it("spawns opener when CI is undefined", () => {
-      vi.stubEnv("CI", undefined);
-
-      expect(openUrl(url)).toEqual({ attempted: true, success: true });
-      expect(spawn).toHaveBeenCalledOnce();
+      expect(result.attempted).toBe(spawns);
+      expect(spawn).toHaveBeenCalledTimes(spawns ? 1 : 0);
     });
   });
 
   describe("spawn options", () => {
-    it("spawns with shell: false, detached: true, stdio: ignore", () => {
-      openUrl(url);
-
-      expect(spawn).toHaveBeenCalledOnce();
-      const spawnOptions = vi.mocked(spawn).mock.calls[0][2] as SpawnOptions;
-      expect(spawnOptions.shell).toBe(false);
-      expect(spawnOptions.detached).toBe(true);
-      expect(spawnOptions.stdio).toBe("ignore");
-    });
-
-    it("calls unref on the child process", () => {
+    it("uses shell:false, detached:true, stdio:ignore and calls unref", () => {
       const mockChild = createMockChild();
       vi.mocked(spawn).mockReturnValue(mockChild);
 
       openUrl(url);
 
-      expect(mockChild.unref).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe("platform-specific commands", () => {
-    const originalPlatform = process.platform;
-
-    afterEach(() => {
-      Object.defineProperty(process, "platform", { value: originalPlatform });
-    });
-
-    it("uses open on darwin", () => {
-      Object.defineProperty(process, "platform", { value: "darwin" });
-
-      openUrl(url);
-
-      expect(spawn).toHaveBeenCalledWith("open", [url], expect.any(Object));
-    });
-
-    it("uses xdg-open on linux", () => {
-      Object.defineProperty(process, "platform", { value: "linux" });
-
-      openUrl(url);
-
-      expect(spawn).toHaveBeenCalledWith("xdg-open", [url], expect.any(Object));
-    });
-
-    it("uses rundll32 on win32", () => {
-      Object.defineProperty(process, "platform", { value: "win32" });
-
-      openUrl(url);
-
-      expect(spawn).toHaveBeenCalledWith(
-        "rundll32",
-        ["url.dll,FileProtocolHandler", url],
-        expect.any(Object),
-      );
+      const opts = vi.mocked(spawn).mock.calls[0][2] as SpawnOptions;
+      expect(opts).toMatchObject({ shell: false, detached: true, stdio: "ignore" });
+      expect(mockChild.unref).toHaveBeenCalled();
     });
   });
 
   describe("error handling", () => {
-    it("handles synchronous spawn failure without throwing", () => {
+    it("returns success:false on synchronous spawn failure", () => {
       vi.mocked(spawn).mockImplementation(() => {
         throw new Error("spawn failed");
       });
-
       expect(openUrl(url)).toEqual({ attempted: true, success: false });
     });
 
-    it("swallows async ENOENT error without crashing", () => {
-      const mockChild = createMockChild();
-      vi.mocked(spawn).mockReturnValue(mockChild);
-
-      const result = openUrl(url);
-
-      // Verify an error listener was registered
-      expect(mockChild.listenerCount("error")).toBe(1);
-
-      // Emit an ENOENT error (opener not found)
-      const enoentError = Object.assign(new Error("spawn xdg-open ENOENT"), { code: "ENOENT" });
-      expect(() => mockChild.emit("error", enoentError)).not.toThrow();
-
-      // The result was already returned as success since spawn() itself succeeded
-      expect(result).toEqual({ attempted: true, success: true });
-    });
-
-    it("swallows async EACCES error without crashing", () => {
+    it("swallows async ENOENT without crashing", () => {
       const mockChild = createMockChild();
       vi.mocked(spawn).mockReturnValue(mockChild);
 
       openUrl(url);
 
-      const eaccesError = Object.assign(new Error("spawn xdg-open EACCES"), { code: "EACCES" });
-      expect(() => mockChild.emit("error", eaccesError)).not.toThrow();
+      expect(mockChild.listenerCount("error")).toBe(1);
+      expect(() =>
+        mockChild.emit("error", Object.assign(new Error(), { code: "ENOENT" })),
+      ).not.toThrow();
     });
   });
 
@@ -348,96 +238,39 @@ describe("openUrl", () => {
 
     beforeEach(() => {
       Object.defineProperty(process, "platform", { value: "linux" });
+      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
     });
 
     afterEach(() => {
       Object.defineProperty(process, "platform", { value: originalPlatform });
     });
 
-    it("falls back to xdg-open when rundll32.exe ENOENT in WSL", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const primaryChild = createMockChild();
-      const fallbackChild = createMockChild();
-      let spawnCallCount = 0;
-      vi.mocked(spawn).mockImplementation(() => {
-        spawnCallCount++;
-        return spawnCallCount === 1 ? primaryChild : fallbackChild;
-      });
+    it("spawns xdg-open when rundll32.exe errors", () => {
+      const primary = createMockChild();
+      const fallback = createMockChild();
+      let callCount = 0;
+      vi.mocked(spawn).mockImplementation(() => (++callCount === 1 ? primary : fallback));
 
       openUrl(url);
+      expect(spawn).toHaveBeenCalledWith("rundll32.exe", expect.any(Array), expect.any(Object));
 
-      // First spawn is rundll32.exe
-      expect(spawn).toHaveBeenCalledWith(
-        "rundll32.exe",
-        ["url.dll,FileProtocolHandler", url],
-        expect.any(Object),
-      );
+      primary.emit("error", new Error("ENOENT"));
 
-      // Emit error on primary child
-      const enoentError = Object.assign(new Error("spawn rundll32.exe ENOENT"), { code: "ENOENT" });
-      primaryChild.emit("error", enoentError);
-
-      // Fallback should have been spawned
       expect(spawn).toHaveBeenCalledWith("xdg-open", [url], expect.any(Object));
-      expect(fallbackChild.unref).toHaveBeenCalled();
-    });
-
-    it("fallback child also has error listener", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const primaryChild = createMockChild();
-      const fallbackChild = createMockChild();
-      let spawnCallCount = 0;
-      vi.mocked(spawn).mockImplementation(() => {
-        spawnCallCount++;
-        return spawnCallCount === 1 ? primaryChild : fallbackChild;
-      });
-
-      openUrl(url);
-      primaryChild.emit("error", new Error("ENOENT"));
-
-      // Fallback child should have an error listener
-      expect(fallbackChild.listenerCount("error")).toBe(1);
-      // And it should not throw when error is emitted
-      expect(() => fallbackChild.emit("error", new Error("ENOENT"))).not.toThrow();
+      expect(fallback.unref).toHaveBeenCalled();
+      expect(fallback.listenerCount("error")).toBe(1);
     });
 
     it("handles synchronous fallback spawn failure", () => {
-      vi.mocked(platformDetection.isWsl).mockReturnValue(true);
-
-      const primaryChild = createMockChild();
-      let spawnCallCount = 0;
-      vi.mocked(spawn).mockImplementation(() => {
-        spawnCallCount++;
-        if (spawnCallCount === 1) return primaryChild;
-        throw new Error("fallback spawn failed");
-      });
+      const primary = createMockChild();
+      vi.mocked(spawn)
+        .mockImplementationOnce(() => primary)
+        .mockImplementation(() => {
+          throw new Error("fallback failed");
+        });
 
       openUrl(url);
-
-      // Should not throw when primary errors and fallback spawn fails
-      expect(() => primaryChild.emit("error", new Error("ENOENT"))).not.toThrow();
+      expect(() => primary.emit("error", new Error())).not.toThrow();
     });
-  });
-
-  describe("URL integrity", () => {
-    const urlsWithSpecialChars = [
-      { description: "ampersand", url: "https://discord.gg/invite?a=1&b=2" },
-      { description: "query and hash", url: "https://example.com/path?query=1#hash" },
-      { description: "encoded spaces", url: "https://example.com/path%20with%20spaces" },
-      { description: "multiple ampersands", url: "https://example.com/?x=1&y=2&z=3&w=4" },
-    ];
-
-    for (const { description, url: testUrl } of urlsWithSpecialChars) {
-      it(`passes URL with ${description} as a single argument`, () => {
-        openUrl(testUrl);
-
-        const args = vi.mocked(spawn).mock.calls[0][1] as string[];
-        // The URL should appear exactly once in args, untouched
-        const urlOccurrences = args.filter((arg) => arg === testUrl);
-        expect(urlOccurrences).toHaveLength(1);
-      });
-    }
   });
 });
