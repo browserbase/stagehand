@@ -2,4 +2,4 @@
 "@browserbasehq/eve": minor
 ---
 
-Rebuild the Browserbase extension for Eve 1.0; Eve 1.x is now required.
+Add support for Eve 1.x and drop support for Eve 0.71.x.
