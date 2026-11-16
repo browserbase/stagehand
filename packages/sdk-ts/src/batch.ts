@@ -1,11 +1,11 @@
-import type { Page } from "@browserbasehq/stagehand-shared-object-model/page";
+import type { Page } from "@browserbasehq/stagehand-browser-api/page";
 
 export type {
   ExperimentalBatchBrowserContext,
   ExperimentalBatchExtractOptions,
   ExperimentalBatchContext,
   ExperimentalBatchCallback,
-} from "@browserbasehq/stagehand-shared-object-model/batch";
+} from "@browserbasehq/stagehand-browser-api/batch";
 
 export type ExperimentalBatchOptions = {
   /** Page exposed as `batch.page`. AI operations still default to the active page. */

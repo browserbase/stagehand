@@ -4,12 +4,12 @@ export {
   type Cookie,
   type CookieParam,
   type DomainPolicy,
-} from "@browserbasehq/stagehand-shared-object-model/browserContext";
+} from "@browserbasehq/stagehand-browser-api/browserContext";
 export {
   BrowserClipboard,
   type ClipboardOptions,
   type ClipboardPasteOptions,
-} from "@browserbasehq/stagehand-shared-object-model/browserClipboard";
+} from "@browserbasehq/stagehand-browser-api/browserClipboard";
 export {
   Locator,
   type LocatorOptions,
@@ -17,11 +17,8 @@ export {
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
   type LocatorTypeOptions,
-} from "@browserbasehq/stagehand-shared-object-model/locator";
-export type {
-  FileInput,
-  FilePayload,
-} from "@browserbasehq/stagehand-shared-object-model/fileUpload";
+} from "@browserbasehq/stagehand-browser-api/locator";
+export type { FileInput, FilePayload } from "@browserbasehq/stagehand-browser-api/fileUpload";
 export {
   CDPSubscription,
   Page,
@@ -39,17 +36,17 @@ export {
   type PageWaitForSelectorOptions,
   type PageWaitForFunctionOptions,
   type ScreenshotOptions,
-} from "@browserbasehq/stagehand-shared-object-model/page";
+} from "@browserbasehq/stagehand-browser-api/page";
 export {
   Response,
   type ResponseHeader,
   type ResponseSecurityDetails,
   type ResponseServerAddr,
-} from "@browserbasehq/stagehand-shared-object-model/response";
-export { WebMCPInvocation, WebMCPTool } from "@browserbasehq/stagehand-shared-object-model/webmcp";
+} from "@browserbasehq/stagehand-browser-api/response";
+export { WebMCPInvocation, WebMCPTool } from "@browserbasehq/stagehand-browser-api/webmcp";
 export { CDPConnectionClosedError } from "./cdpClient.js";
 export { RPCResponseTimeoutError } from "./rpcErrors.js";
-export type { InitScriptSource } from "@browserbasehq/stagehand-shared-object-model/pageScripts";
+export type { InitScriptSource } from "@browserbasehq/stagehand-browser-api/pageScripts";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {

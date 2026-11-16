@@ -11,10 +11,10 @@ registerDynamicLanguage({ python });
 
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py"],
-  ["BrowserContext", "../../shared-object-model/src/browserContext.ts", "browser_context.py"],
-  ["BrowserClipboard", "../../shared-object-model/src/browserClipboard.ts", "browser_clipboard.py"],
-  ["Page", "../../shared-object-model/src/page.ts", "page.py"],
-  ["Locator", "../../shared-object-model/src/locator.ts", "locator.py"],
+  ["BrowserContext", "../../shared/browser-api/src/browserContext.ts", "browser_context.py"],
+  ["BrowserClipboard", "../../shared/browser-api/src/browserClipboard.ts", "browser_clipboard.py"],
+  ["Page", "../../shared/browser-api/src/page.ts", "page.py"],
+  ["Locator", "../../shared/browser-api/src/locator.ts", "locator.py"],
 ] as const;
 
 const typescriptSource = new URL("../../packages/sdk-ts/src/", import.meta.url);

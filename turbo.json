@@ -3,6 +3,7 @@
   "globalDependencies": [
     "package.json",
     "packages/*/package.json",
+    "packages/shared/*/package.json",
     "tsconfig.json",
     "pnpm-workspace.yaml",
     "turbo.json",
@@ -306,10 +307,10 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**",
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
       ]
@@ -322,10 +323,10 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/node_modules/**"
       ]
     },
     "//#test:unit": {
@@ -337,10 +338,10 @@
         "**/*.test.ts",
         "vitest.config.ts",
         "$TURBO_ROOT$/packages/extension/**",
-        "$TURBO_ROOT$/packages/shared-object-model/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "$TURBO_ROOT$/packages/shared/browser-api/**",
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**"
       ]
     },
@@ -394,9 +395,9 @@
         "json-rpc/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/node_modules/**"
       ]
     },
     "@browserbasehq/stagehand-docs#test:unit": {
@@ -409,11 +410,11 @@
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**",
-        "$TURBO_ROOT$/packages/shared-object-model/src/**"
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
+        "$TURBO_ROOT$/packages/shared/browser-api/src/**"
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#build": {
@@ -455,11 +456,11 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-shared-object-model#build": {
+    "@browserbasehq/stagehand-browser-api#build": {
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "@browserbasehq/stagehand-shared-object-model#typecheck": {
+    "@browserbasehq/stagehand-browser-api#typecheck": {
       "dependsOn": ["^typecheck"]
     }
   }

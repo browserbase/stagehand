@@ -575,16 +575,13 @@ async function typescriptExportedModules(): Promise<Set<string>> {
       .map(stringLiteral)
       .find(
         (value) =>
-          value.startsWith("./") ||
-          value.startsWith("@browserbasehq/stagehand-shared-object-model/"),
+          value.startsWith("./") || value.startsWith("@browserbasehq/stagehand-browser-api/"),
       );
     if (!source) continue;
     modules.add(
-      source.startsWith("@browserbasehq/stagehand-shared-object-model/")
-        ? source.replace(
-            "@browserbasehq/stagehand-shared-object-model/",
-            "../../shared-object-model/src/",
-          ) + ".ts"
+      source.startsWith("@browserbasehq/stagehand-browser-api/")
+        ? source.replace("@browserbasehq/stagehand-browser-api/", "../../shared/browser-api/src/") +
+            ".ts"
         : source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"),
     );
   }

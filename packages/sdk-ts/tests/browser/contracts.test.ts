@@ -19,7 +19,7 @@ import type {
   StagehandBrowserOrigin,
   StagehandBrowserProvider,
 } from "../../src/browser/index.js";
-import type { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
+import type { BrowserContext } from "@browserbasehq/stagehand-browser-api/browserContext";
 
 describe("browser API contracts", () => {
   it("defines nominal, provider-independent browser handles", () => {

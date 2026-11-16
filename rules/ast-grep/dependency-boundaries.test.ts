@@ -8,7 +8,7 @@ import {
 } from "./dependency-boundaries.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const shared = "packages/shared-object-model/src/page.ts";
+const shared = "packages/shared/browser-api/src/page.ts";
 const extension = "packages/extension/callbackBatch.ts";
 const skippedDirectories = new Set(["node_modules", "dist", "artifacts", ".turbo"]);
 
@@ -26,7 +26,7 @@ async function sourceFiles(directory: string): Promise<string[]> {
 }
 
 describe("object model dependency boundaries", () => {
-  it.each(["extension", "shared-object-model"])(
+  it.each(["extension", "shared/browser-api"])(
     "enforces source boundaries for %s",
     async (directory) => {
       const files = await sourceFiles(`packages/${directory}`);
@@ -42,7 +42,7 @@ describe("object model dependency boundaries", () => {
     },
   );
 
-  it.each(["extension", "shared-object-model"])(
+  it.each(["extension", "shared/browser-api"])(
     "enforces package dependencies for %s",
     async (directory) => {
       const manifest = JSON.parse(
@@ -63,10 +63,10 @@ describe("object model dependency boundaries", () => {
     [extension, 'import "./tests/helpers/browserbaseBridge.js";'],
     [extension, 'import "./vite.config.js";'],
     [extension, 'import { readFile } from "node:fs/promises";'],
-    [shared, 'import type { RPCClient } from "../../sdk-ts/src/rpcClient.js";'],
+    [shared, 'import type { RPCClient } from "../../../sdk-ts/src/rpcClient.js";'],
     [shared, 'import "@browserbasehq/stagehand-extension";'],
-    [shared, 'import "../../extension/runtime.js";'],
-    [shared, 'import "../../extension/tests/helpers/browserbaseBridge.js";'],
+    [shared, 'import "../../../extension/runtime.js";'],
+    [shared, 'import "../../../extension/tests/helpers/browserbaseBridge.js";'],
     [shared, 'import "../tests/example.js";'],
     [shared, 'import "@browserbasehq/sdk";'],
     [shared, 'import { readFile } from "node:fs/promises";'],
@@ -78,7 +78,7 @@ describe("object model dependency boundaries", () => {
   });
 
   it.each([
-    [extension, 'import { Page } from "@browserbasehq/stagehand-shared-object-model/page";'],
+    [extension, 'import { Page } from "@browserbasehq/stagehand-browser-api/page";'],
     [
       extension,
       'import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";',
@@ -98,7 +98,7 @@ describe("object model dependency boundaries", () => {
       'import "../../sdk-ts/tests/helpers/httpServer.js";',
     ],
     [
-      "packages/shared-object-model/tests/example.test.ts",
+      "packages/shared/browser-api/tests/example.test.ts",
       'import { readFile } from "node:fs/promises";',
     ],
     [
@@ -106,7 +106,7 @@ describe("object model dependency boundaries", () => {
       'import "../../../sdk-ts/src/browserbaseTransport.js";',
     ],
     ["packages/extension/callbackBatch.test.ts", 'import "@browserbasehq/stagehand";'],
-    ["packages/shared-object-model/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
+    ["packages/shared/browser-api/tests/example.test.ts", 'import "@browserbasehq/stagehand";'],
   ])("allows supported dependency in %s: %s", (file, source) => {
     expect(dependencyBoundaryViolations(file, source)).toEqual([]);
   });
@@ -118,7 +118,7 @@ describe("object model dependency boundaries", () => {
       }),
     ).toHaveLength(1);
     expect(
-      manifestBoundaryViolations("@browserbasehq/stagehand-shared-object-model", {
+      manifestBoundaryViolations("@browserbasehq/stagehand-browser-api", {
         devDependencies: { "@browserbasehq/stagehand-extension": "workspace:*" },
         dependencies: { "@browserbasehq/sdk": "catalog:" },
       }),

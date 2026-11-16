@@ -9,7 +9,7 @@ export default defineConfig({
     eager: true,
     // Prepare bundled workspace sources together so declaration generation reuses one TS program.
     tsconfigRaw: {
-      include: ["src/**/*.ts", "../shared-object-model/src/**/*.ts"],
+      include: ["src/**/*.ts", "../shared/browser-api/src/**/*.ts"],
     },
     sourcemap: true,
   },

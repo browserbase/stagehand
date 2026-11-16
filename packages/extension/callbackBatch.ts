@@ -12,8 +12,8 @@ import type {
   StagehandRpcNotification,
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
-import type { ExperimentalBatchBrowserContext } from "@browserbasehq/stagehand-shared-object-model/batch";
-import { BrowserContext } from "@browserbasehq/stagehand-shared-object-model/browserContext";
+import type { ExperimentalBatchBrowserContext } from "@browserbasehq/stagehand-browser-api/batch";
+import { BrowserContext } from "@browserbasehq/stagehand-browser-api/browserContext";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -21,11 +21,11 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "@browserbasehq/stagehand-shared-object-model/objectModelSchemas";
-import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-shared-object-model/clientLocatorOptions";
-import type { StagehandCommandClient } from "@browserbasehq/stagehand-shared-object-model/commandClient";
-import { Page } from "@browserbasehq/stagehand-shared-object-model/page";
-import { browserObjectModelPlatform } from "@browserbasehq/stagehand-shared-object-model/objectModelPlatform";
+} from "@browserbasehq/stagehand-browser-api/objectModelSchemas";
+import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-browser-api/clientLocatorOptions";
+import type { StagehandCommandClient } from "@browserbasehq/stagehand-browser-api/commandClient";
+import { Page } from "@browserbasehq/stagehand-browser-api/page";
+import { browserObjectModelPlatform } from "@browserbasehq/stagehand-browser-api/objectModelPlatform";
 import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
 
 export type CallbackBatchFunction = (batch: CallbackStagehand, input: unknown) => unknown;

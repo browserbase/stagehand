@@ -4,7 +4,7 @@ import ts from "typescript";
 
 const extensionRoot = "packages/extension";
 const sdkRoot = "packages/sdk-ts";
-const sharedRoot = "packages/shared-object-model";
+const sharedRoot = "packages/shared/browser-api";
 const sdkPackage = "@browserbasehq/stagehand";
 const extensionPackage = "@browserbasehq/stagehand-extension";
 const sharedRuntimeDependencies = ["@browserbasehq/stagehand-protocol", "zod"];
@@ -109,7 +109,7 @@ export function manifestBoundaryViolations(
   name: string,
   manifest: Record<string, unknown>,
 ): string[] {
-  const shared = name === "@browserbasehq/stagehand-shared-object-model";
+  const shared = name === "@browserbasehq/stagehand-browser-api";
   const violations: string[] = [];
   for (const field of [
     "dependencies",

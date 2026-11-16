@@ -81,9 +81,9 @@ it("rejects Node globals in extension production code while allowing local names
       "packages/extension/instrumentedDecoratorBuild.ts",
       "packages/extension/tests/helpers/example.ts",
       "packages/extension/example.test.ts",
-      "packages/shared-object-model/src/example.ts",
-      "packages/shared-object-model/tests/example.ts",
-      "packages/shared-object-model/src/example.spec.ts",
+      "packages/shared/browser-api/src/example.ts",
+      "packages/shared/browser-api/tests/example.ts",
+      "packages/shared/browser-api/src/example.spec.ts",
     ])
       fixtures[file] = 'Buffer.from("allowed"); process.pid;';
     for (const [file, source] of Object.entries(fixtures)) {

@@ -1,5 +1,5 @@
 {
-  "name": "@browserbasehq/stagehand-shared-object-model",
+  "name": "@browserbasehq/stagehand-browser-api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -21,8 +21,8 @@
   },
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --root ../.. packages/shared-object-model/tests",
-    "test:unit": "vitest run --root ../.. packages/shared-object-model/tests",
+    "test": "vitest run --root ../../.. packages/shared/browser-api/tests",
+    "test:unit": "vitest run --root ../../.. packages/shared/browser-api/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {

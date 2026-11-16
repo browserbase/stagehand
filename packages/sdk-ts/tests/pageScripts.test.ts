@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { normalizeInitScriptSource } from "@browserbasehq/stagehand-shared-object-model/pageScripts";
+import { normalizeInitScriptSource } from "@browserbasehq/stagehand-browser-api/pageScripts";
 import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
 
 describe("Node init script loading", () => {
