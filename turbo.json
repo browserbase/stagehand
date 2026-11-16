@@ -22,9 +22,10 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "!dist/**",
-        "!artifacts/stagehand-extension.zip"
+        "!artifacts/stagehand-extension.zip",
+        "!artifacts/extension-build.json"
       ],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "outputs": ["dist/**", "artifacts/stagehand-extension.zip", "artifacts/extension-build.json"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-extension#build"],

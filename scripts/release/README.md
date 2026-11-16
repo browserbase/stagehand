@@ -92,3 +92,12 @@ Both installs use locked dependencies. Alpha preparation still deliberately upda
 the shared lockfile after changing versions; filtered installation does not isolate
 workspace-wide dependency resolution. Existing wheel and source-distribution smoke
 checks and publication steps are unchanged.
+
+## Extension build
+
+Each release flavour builds the extension once: `build-extension` for stable releases and
+`build-extension-alpha`, after the same snapshot versioning, for alphas. The TypeScript and Python
+publish jobs download that workflow artifact into `packages/extension/` instead of rebuilding it.
+Before publishing, `check-extension-build.ts` compares every packaged copy with the fingerprint in
+`extension-build.json` and confirms the extension was built for the current protocol and
+extension versions.

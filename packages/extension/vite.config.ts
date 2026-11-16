@@ -4,6 +4,13 @@ import { zipSync, type Zippable } from "fflate";
 import { defineConfig } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
+import protocolPackageJson from "../protocol/package.json" with { type: "json" };
+import {
+  EXTENSION_BUILD_INFO_FILE,
+  fingerprintFiles,
+  readDirectoryFiles,
+  type ExtensionBuildInfo,
+} from "./buildFingerprint.ts";
 
 const root = import.meta.dirname;
 const outDir = path.join(root, "dist");
@@ -44,6 +51,16 @@ function buildExtensionArtifacts() {
       } finally {
         await rm(temporaryArchivePath, { force: true });
       }
+
+      const buildInfo: ExtensionBuildInfo = {
+        extensionVersion: packageJson.version,
+        protocolVersion: protocolPackageJson.version,
+        fingerprint: fingerprintFiles(await readDirectoryFiles(outDir)),
+      };
+      await writeFile(
+        path.join(artifactsDir, EXTENSION_BUILD_INFO_FILE),
+        `${JSON.stringify(buildInfo, null, 2)}\n`,
+      );
     },
   };
 }

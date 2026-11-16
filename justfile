@@ -114,6 +114,7 @@ _install-python-release:
 
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist
     pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
@@ -123,6 +124,7 @@ _publish-typescript:
 _publish-typescript-alpha:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
     pnpm --filter ./packages/sdk-ts build
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk --alpha
 
 # Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)

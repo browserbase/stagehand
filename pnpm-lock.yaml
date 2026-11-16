@@ -463,6 +463,9 @@ importers:
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2
+      fflate:
+        specifier: 'catalog:'
+        version: 0.8.3
       node:
         specifier: runtime:^24.22.1
         version: runtime:24.22.1
