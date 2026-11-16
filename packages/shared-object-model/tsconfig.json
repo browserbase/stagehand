@@ -3,7 +3,9 @@
   "compilerOptions": {
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [],
+    "noImplicitAny": true,
+    "lib": ["ESNext", "DOM"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

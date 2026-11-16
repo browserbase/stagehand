@@ -8,7 +8,7 @@ import config from "../../oxlint.config.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
-it("rejects Node globals in browser production code while allowing local names and tooling", async () => {
+it("rejects Node globals in extension production code while allowing local names and tooling", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "stagehand-browser-lint-"));
   try {
     await writeFile(
@@ -71,18 +71,17 @@ it("rejects Node globals in browser production code while allowing local names a
       }
     `;
     const fixtures: Record<string, string> = {};
-    for (const base of ["packages/extension", "packages/shared-object-model/src"]) {
-      rejected.forEach(([source], index) => {
-        fixtures[`${base}/rejected-${index}.ts`] = source;
-      });
-      fixtures[`${base}/allowed.ts`] = allowed;
-    }
+    rejected.forEach(([source], index) => {
+      fixtures[`packages/extension/rejected-${index}.ts`] = source;
+    });
+    fixtures["packages/extension/allowed.ts"] = allowed;
     for (const file of [
       "packages/sdk-ts/src/example.ts",
       "packages/extension/vite.config.ts",
       "packages/extension/instrumentedDecoratorBuild.ts",
       "packages/extension/tests/helpers/example.ts",
       "packages/extension/example.test.ts",
+      "packages/shared-object-model/src/example.ts",
       "packages/shared-object-model/tests/example.ts",
       "packages/shared-object-model/src/example.spec.ts",
     ])
@@ -109,13 +108,11 @@ it("rejects Node globals in browser production code while allowing local names a
         message: string;
       }>
     ).filter((entry) => entry.code === "stagehand(no-node-globals)");
-    const expected = ["packages/extension", "packages/shared-object-model/src"].flatMap((base) =>
-      rejected.flatMap(([, ...names], index) =>
-        names.map((name) => ({
-          filename: `${base}/rejected-${index}.ts`,
-          message: `Browser production code must not use Node global ${name}.`,
-        })),
-      ),
+    const expected = rejected.flatMap(([, ...names], index) =>
+      names.map((name) => ({
+        filename: `packages/extension/rejected-${index}.ts`,
+        message: `Browser production code must not use Node global ${name}.`,
+      })),
     );
     expect(diagnostics.map(({ filename, message }) => ({ filename, message }))).toEqual(
       expect.arrayContaining(expected),

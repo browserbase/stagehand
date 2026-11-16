@@ -23,7 +23,7 @@
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. packages/shared-object-model/tests",
     "test:unit": "vitest run --root ../.. packages/shared-object-model/tests",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "zod": "catalog:"
