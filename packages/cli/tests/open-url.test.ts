@@ -2,7 +2,12 @@ import { type ChildProcess, type SpawnOptions, spawn } from "node:child_process"
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getOpenCommand, openUrl, platformDetection } from "../src/lib/open-url.js";
+import {
+  getOpenCommand,
+  openUrl,
+  parseBrowserEnv,
+  platformDetection,
+} from "../src/lib/open-url.js";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
@@ -18,7 +23,12 @@ function createMockChild(): ChildProcess & EventEmitter {
 
 beforeEach(() => {
   vi.mocked(spawn).mockReset();
+  // Explicitly clear all env vars that affect behavior so tests don't depend on runner env
   vi.stubEnv("CI", undefined);
+  vi.stubEnv("BROWSER", undefined);
+  vi.stubEnv("WSL_DISTRO_NAME", undefined);
+  vi.stubEnv("SSH_CONNECTION", undefined);
+  vi.stubEnv("SSH_TTY", undefined);
   Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
   vi.mocked(spawn).mockReturnValue(createMockChild());
   vi.spyOn(platformDetection, "isWsl").mockReturnValue(false);
@@ -62,6 +72,27 @@ describe("getOpenCommand", () => {
       name: "linux + $BROWSER",
       platform: "linux",
       browser: "firefox",
+      command: "firefox",
+      args: [url],
+    },
+    {
+      name: "linux + $BROWSER with options",
+      platform: "linux",
+      browser: "firefox --new-window",
+      command: "firefox",
+      args: ["--new-window", url],
+    },
+    {
+      name: "linux + $BROWSER with %s placeholder",
+      platform: "linux",
+      browser: "firefox --new-window %s --profile",
+      command: "firefox",
+      args: ["--new-window", url, "--profile"],
+    },
+    {
+      name: "linux + $BROWSER colon-list (first entry)",
+      platform: "linux",
+      browser: "firefox:chromium:xdg-open",
       command: "firefox",
       args: [url],
     },
@@ -149,9 +180,12 @@ describe("platformDetection helpers", () => {
   it.each([
     { env: "SSH_CONNECTION", value: "192.168.1.1 22 192.168.1.2 12345", expected: true },
     { env: "SSH_TTY", value: "/dev/pts/0", expected: true },
-    { env: undefined, value: undefined, expected: false },
+    { env: "none", value: undefined, expected: false },
   ])("isSSH: $env=$value -> $expected", ({ env, value, expected }) => {
-    if (env && value) vi.stubEnv(env, value);
+    // Explicitly clear both SSH env vars for each test
+    vi.stubEnv("SSH_CONNECTION", undefined);
+    vi.stubEnv("SSH_TTY", undefined);
+    if (env !== "none" && value) vi.stubEnv(env, value);
     expect(platformDetection.isSSH()).toBe(expected);
   });
 
@@ -160,8 +194,29 @@ describe("platformDetection helpers", () => {
     { value: "", expected: undefined },
     { value: undefined, expected: undefined },
   ])("getBrowser: BROWSER=$value -> $expected", ({ value, expected }) => {
-    if (value !== undefined) vi.stubEnv("BROWSER", value);
+    // Explicitly set BROWSER for every case
+    vi.stubEnv("BROWSER", value);
     expect(platformDetection.getBrowser()).toBe(expected);
+  });
+});
+
+describe("parseBrowserEnv", () => {
+  it.each([
+    { browser: "firefox", url, command: "firefox", args: [url] },
+    { browser: "firefox --new-window", url, command: "firefox", args: ["--new-window", url] },
+    { browser: "firefox --new-window %s", url, command: "firefox", args: ["--new-window", url] },
+    {
+      browser: "firefox %s --profile test",
+      url,
+      command: "firefox",
+      args: [url, "--profile", "test"],
+    },
+    { browser: "firefox:chromium", url, command: "firefox", args: [url] },
+    { browser: "firefox --private:chromium", url, command: "firefox", args: ["--private", url] },
+  ])("$browser -> $command $args", ({ browser, url: testUrl, command, args }) => {
+    const result = parseBrowserEnv(browser, testUrl);
+    expect(result.command).toBe(command);
+    expect(result.args).toEqual(args);
   });
 });
 

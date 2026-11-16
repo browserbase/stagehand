@@ -42,6 +42,28 @@ export const platformDetection = {
   },
 };
 
+/**
+ * Parses a $BROWSER value into command and args.
+ * Handles: colon-separated list (uses first), whitespace-separated args,
+ * and %s placeholder (replaced with URL, or URL appended if absent).
+ */
+export function parseBrowserEnv(browser: string, url: string): { command: string; args: string[] } {
+  // Take first entry from colon-separated list (e.g., "firefox:chromium")
+  const entry = browser.split(":")[0] ?? browser;
+  // Split on whitespace into command + args
+  const parts = entry.trim().split(/\s+/).filter(Boolean);
+  const command = parts[0] ?? entry;
+  const templateArgs = parts.slice(1);
+
+  // Replace %s with URL, or append URL if no placeholder
+  const hasPlaceholder = templateArgs.some((arg) => arg.includes("%s"));
+  const args = hasPlaceholder
+    ? templateArgs.map((arg) => arg.replace(/%s/g, url))
+    : [...templateArgs, url];
+
+  return { command, args };
+}
+
 export interface OpenCommand {
   command: string;
   args: string[];
@@ -67,7 +89,7 @@ export function getOpenCommand(
   // Linux and other Unix-like systems
   const browser = platformDetection.getBrowser();
   if (browser) {
-    return { command: browser, args: [url] };
+    return parseBrowserEnv(browser, url);
   }
 
   // WSL: use Windows opener via interop (unless over SSH)
