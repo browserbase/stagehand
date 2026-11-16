@@ -239,7 +239,7 @@ export async function tryScopedSnapshot(
       progress,
     );
 
-    const { outline, urlMap, scopeApplied } = await a11yForFrame(
+    const { outline, urlMap, scopeApplied, editableIds } = await a11yForFrame(
       owningSess,
       targetFrameId,
       {
@@ -295,12 +295,14 @@ export async function tryScopedSnapshot(
       combinedTree: wellFormedOutline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
+      combinedEditableIds: editableIds ?? [],
       perFrame: [
         {
           frameId: targetFrameId,
           outline: wellFormedOutline,
           xpathMap,
           urlMap,
+          editableIds: editableIds ?? [],
         },
       ],
     };
@@ -413,7 +415,7 @@ export async function collectPerFrameMaps(
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
     }
 
-    const { outline, urlMap } = await a11yForFrame(
+    const { outline, urlMap, editableIds } = await a11yForFrame(
       sess,
       frameId,
       {
@@ -426,7 +428,7 @@ export async function collectPerFrameMaps(
     );
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap, editableIds });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -921,6 +923,7 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
+    combinedEditableIds: [...perFrameMaps.values()].flatMap((maps) => maps.editableIds ?? []),
     perFrame: perFrameOutlines.map(({ frameId, outline }) => {
       const maps = perFrameMaps.get(frameId);
       return {
@@ -928,6 +931,7 @@ export function mergeFramesIntoSnapshot(
         outline: toWellFormed(outline),
         xpathMap: maps?.xpathMap ?? {},
         urlMap: maps?.urlMap ?? {},
+        editableIds: maps?.editableIds ?? [],
       };
     }),
   };

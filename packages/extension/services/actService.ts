@@ -13,7 +13,6 @@ import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
-import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
@@ -26,6 +25,12 @@ import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
+import { runDecisionsAct } from "./decisions/act.js";
+import type { DecisionsConfig } from "./decisions/config.js";
+import { withDecisionUsage } from "./decisions/usage.js";
+import { guardActionTarget } from "./decisions/actionGuard.js";
+import { readFacts } from "./decisions/actionFacts.js";
+import { substituteVariables } from "./decisions/args.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
@@ -42,6 +47,8 @@ type ActContext = {
   domSettleTimeoutMs?: number;
   progress: Progress;
   gateway?: GatewayContext;
+  decisions?: DecisionsConfig;
+  snapshotOptions: Parameters<Page["captureSnapshot"]>[0];
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
@@ -56,6 +63,7 @@ type ActServiceOptions = {
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  decisions?: DecisionsConfig;
   progress?: Progress;
 };
 
@@ -78,11 +86,18 @@ async function actWithProgress(
     domSettleTimeoutMs,
     cache,
     gateway,
+    decisions,
   }: ActServiceOptions,
   progress: Progress,
 ): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
+  const decisionUsage = zeroStagehandResultUsage();
+  decisions = withDecisionUsage(decisions, progress.signal, logger, decisionUsage);
   const variables = options?.variables;
+  const snapshotOptions = {
+    focusLocator: options?.locator,
+    ignoreLocators: options?.ignoreLocators,
+  };
   let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
     operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
@@ -97,6 +112,8 @@ async function actWithProgress(
     domSettleTimeoutMs,
     progress,
     gateway,
+    decisions,
+    snapshotOptions,
     recordUsage,
   };
 
@@ -113,10 +130,6 @@ async function actWithProgress(
   }
 
   const instruction = actInstruction;
-  const snapshotOptions = {
-    focusLocator: options?.locator,
-    ignoreLocators: options?.ignoreLocators,
-  };
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   progress.throwIfStopped();
 
@@ -132,10 +145,12 @@ async function actWithProgress(
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
+      const llmUsage = { ...result.metadata.usage };
+      result.metadata.usage = aggregateUsage(result.metadata.usage, decisionUsage);
       // Act can run several inferences (planning, self-heal), so report the
       // aggregate — without it the server has no basis to compute the token
       // savings a future hit avoided.
-      const { usage } = result.metadata;
+      const usage = llmUsage;
       return {
         result,
         cacheValue:
@@ -150,6 +165,34 @@ async function actWithProgress(
   });
 
   async function runActPipeline(): Promise<ActResult> {
+    if (decisions) {
+      const started = performance.now();
+      const outcome = await runDecisionsAct(decisions, {
+        page,
+        logger,
+        instruction,
+        variables,
+        snapshotOptions,
+        progress,
+        takeAction: (action, expectedElementId) =>
+          takeDeterministicAction({
+            action,
+            variables,
+            expectedElementId,
+            context: { ...context, selfHeal: false },
+          }),
+      });
+      decisionUsage.inferenceTimeMs += Math.round(performance.now() - started);
+      if (outcome.kind === "done") return actResult(outcome.result, operationUsage);
+      logger.info("Decisions act fell back to the LLM pipeline", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+      if (!model && !gateway)
+        throw new Error(
+          "Decisions act needs a configured LLM model or Browserbase gateway for fallback",
+        );
+    }
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
       snapshotOptions,
       progress,
@@ -189,9 +232,11 @@ async function actWithProgress(
       action: firstInference.action,
       variables,
       context,
+      expectedElementId: firstInference.expectedElementId,
+      expectedDestinationElementId: firstInference.expectedDestinationElementId,
     });
 
-    if (!firstInference.response.twoStep) {
+    if (!firstInference.response.twoStep || (decisions && !firstResult.success)) {
       return actResult(firstResult, operationUsage);
     }
 
@@ -232,6 +277,8 @@ async function actWithProgress(
       action: secondInference.action,
       variables,
       context,
+      expectedElementId: secondInference.expectedElementId,
+      expectedDestinationElementId: secondInference.expectedDestinationElementId,
     });
 
     return actResult(
@@ -270,7 +317,13 @@ async function replayCachedActions(
       context: { ...context, selfHeal: false },
     });
     if (!result.success) {
-      throw new Error(result.message);
+      // Only a pre-input rejection on the first action is safe to re-infer.
+      if (!context.decisions || (!results.length && !result.actions.length))
+        throw new Error(result.message);
+      return actResult({
+        ...result,
+        actions: [...results.flatMap((entry) => entry.actions), ...result.actions],
+      });
     }
     results.push(result);
   }
@@ -293,7 +346,17 @@ async function getActionFromLLM({
   domElements: string;
   xpathMap: Record<string, string>;
   context: ActContext;
-}): Promise<{ action?: Action; response: ActInferenceResponse }> {
+}): Promise<{
+  action?: Action;
+  expectedElementId?: string;
+  expectedDestinationElementId?: string;
+  response: ActInferenceResponse;
+}> {
+  const facts = context.decisions
+    ? await context.progress.run("reading fallback action evidence", () =>
+        context.page.evaluate(readFacts, xpathMap),
+      )
+    : undefined;
   const response = await context.progress.run("waiting for act inference", () =>
     inference.act({
       instruction,
@@ -324,17 +387,53 @@ async function getActionFromLLM({
   const action = response.element
     ? normalizeActInferenceElement(response.element, xpathMap, context.logger)
     : undefined;
-  return action ? { action, response } : { response };
+  if (!action || !response.element) return { response };
+  // Text-node inference executes on its parent element. Compare the parent's
+  // snapshot identity, not the backend ID of the text node it contains.
+  const expectedId = (id: string, selector: string): string => {
+    const targetPath = selector.slice("xpath=".length);
+    return xpathMap[id] === targetPath
+      ? id
+      : (Object.entries(xpathMap).find(([, path]) => path === targetPath)?.[0] ?? id);
+  };
+  const expectedElementId = expectedId(response.element.elementId, action.selector);
+  const expectedDestinationElementId =
+    action.method === SupportedUnderstudyAction.DRAG_AND_DROP &&
+    response.element.arguments[0] &&
+    action.arguments?.[0]
+      ? expectedId(response.element.arguments[0], action.arguments[0])
+      : undefined;
+  if (facts) {
+    const paths = Object.fromEntries(
+      [expectedElementId, expectedDestinationElementId]
+        .filter((id): id is string => !!id && !!facts[id])
+        .map((id) => [id, xpathMap[id]!]),
+    );
+    if (Object.keys(paths).length) {
+      const current = await context.progress.run("revalidating fallback action evidence", () =>
+        context.page.evaluate(readFacts, paths),
+      );
+      if (
+        Object.keys(paths).some((id) => JSON.stringify(current[id]) !== JSON.stringify(facts[id]))
+      )
+        return { response };
+    }
+  }
+  return { action, expectedElementId, expectedDestinationElementId, response };
 }
 
 async function takeDeterministicAction({
   action,
   variables,
   context,
+  expectedElementId,
+  expectedDestinationElementId,
 }: {
   action: Action;
   variables?: Variables;
   context: ActContext;
+  expectedElementId?: string;
+  expectedDestinationElementId?: string;
 }): Promise<ActResultData> {
   context.progress.throwIfStopped();
   const method = action.method?.trim();
@@ -358,6 +457,30 @@ async function takeDeterministicAction({
       ? placeholderArgs
       : (substituteVariablesInArguments(action.arguments, variables) ?? []);
 
+  if (context.decisions) {
+    const rejection = await guardActionTarget(
+      context.page,
+      action,
+      context.progress,
+      expectedElementId,
+      expectedDestinationElementId,
+    );
+    if (
+      rejection &&
+      context.selfHeal &&
+      (rejection === "target_unresolved" || rejection === "target_replaced")
+    ) {
+      return selfHealAction({ action, method, resolvedArgs, placeholderArgs, context });
+    }
+    if (rejection)
+      return {
+        success: false,
+        message: `Failed to perform act: ${rejection}`,
+        actionDescription: action.description,
+        actions: [],
+      };
+  }
+
   try {
     context.progress.throwIfStopped();
     await performUnderstudyMethod(
@@ -376,12 +499,12 @@ async function takeDeterministicAction({
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
 
-    if (!context.selfHeal) {
+    if (!context.selfHeal || context.decisions) {
       return {
         success: false,
         message: `Failed to perform act: ${message}`,
         actionDescription: action.description || `action (${method})`,
-        actions: [],
+        actions: context.decisions ? [action] : [],
       };
     }
 
@@ -419,10 +542,11 @@ async function selfHealAction({
       : `${method} ${action.description}`
     : method;
 
+  let attempted: Action | undefined;
   try {
     context.progress.throwIfStopped();
     const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot(
-      {},
+      context.decisions ? context.snapshotOptions : {},
       context.progress,
     );
     const inferenceResult = await getActionFromLLM({
@@ -432,7 +556,7 @@ async function selfHealAction({
       context,
     });
 
-    if (!inferenceResult.response.element) {
+    if (!inferenceResult.response.element || (context.decisions && !inferenceResult.action)) {
       return {
         success: false,
         message: "Failed to self-heal act: No observe results found for action",
@@ -442,7 +566,38 @@ async function selfHealAction({
     }
 
     const selector = inferenceResult.action?.selector ?? action.selector;
+    // A healed drag needs both fresh selectors. Text arguments retain the caller's original values.
+    if (context.decisions && method === SupportedUnderstudyAction.DRAG_AND_DROP) {
+      if (inferenceResult.action?.method !== method)
+        return {
+          success: false,
+          message: "Failed to self-heal act: No drag target found",
+          actionDescription: actionInstruction,
+          actions: [],
+        };
+      resolvedArgs = inferenceResult.action.arguments ?? [];
+      placeholderArgs = [...resolvedArgs];
+    }
     context.progress.throwIfStopped();
+    if (context.decisions) {
+      const rejection = await guardActionTarget(
+        context.page,
+        { ...action, method, selector, arguments: placeholderArgs },
+        context.progress,
+        inferenceResult.expectedElementId,
+        method === SupportedUnderstudyAction.DRAG_AND_DROP
+          ? inferenceResult.expectedDestinationElementId
+          : undefined,
+      );
+      if (rejection)
+        return {
+          success: false,
+          message: `Failed to self-heal act: ${rejection}`,
+          actionDescription: action.description,
+          actions: [],
+        };
+    }
+    attempted = { ...action, method, selector, arguments: placeholderArgs };
     await performUnderstudyMethod(
       context.page,
       context.page.mainFrame(),
@@ -462,7 +617,7 @@ async function selfHealAction({
       success: false,
       message: `Failed to perform act after self-heal: ${message}`,
       actionDescription: action.description || `action (${method})`,
-      actions: [],
+      actions: context.decisions && attempted ? [attempted] : [],
     };
   }
 }
@@ -513,13 +668,7 @@ function substituteVariablesInArguments(
 ): string[] | undefined {
   if (!variables || !Array.isArray(args)) return args;
 
-  return args.map((arg) => {
-    let output = arg;
-    for (const [key, value] of Object.entries(variables)) {
-      output = output.split(`%${key}%`).join(resolveVariableValue(value));
-    }
-    return output;
-  });
+  return args.map((arg) => substituteVariables(arg, variables));
 }
 
 function successfulActionResult(

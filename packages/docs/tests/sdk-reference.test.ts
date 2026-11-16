@@ -144,6 +144,13 @@ const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
+// Objects that expose act/observe/extract: Stagehand, and the experimentalDecisions namespace,
+// whose methods take the same inputs and return the same results.
+const AI_METHOD_CLASS_SLUGS = new Set(["stagehand", "experimental-decisions"]);
+const EXTRACT_OPERATIONS = new Set([
+  "stagehand.extract",
+  "stagehand.experimental_decisions_extract",
+]);
 
 // Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
 // schema. Keep these exceptions explicit so the reference is checked against the public API.
@@ -167,6 +174,12 @@ const SDK_OBJECTS = [
     classSlug: "stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
+  },
+  {
+    className: "ExperimentalDecisions",
+    classSlug: "experimental-decisions",
+    typescriptFile: "experimentalDecisions.ts",
+    pythonFile: "experimental_decisions.py",
   },
   {
     className: "BrowserContext",
@@ -1029,7 +1042,7 @@ ${titles
         // extract's implementation accepts either a schema or options so it can support both
         // public overloads; the documented return type reflects the schema-bearing overload.
         const returnType =
-          language === "TypeScript" && method.operationName === "stagehand.extract"
+          language === "TypeScript" && EXTRACT_OPERATIONS.has(method.operationName ?? "")
             ? "Promise<ExtractResult<Schema>>"
             : method.returnType;
         const expected = publicTypeCandidates(
@@ -1116,7 +1129,7 @@ ${titles
           if (!actual) continue;
           const expectedType =
             publicReferenceFieldType(method, language, field.key) ??
-            (method.operationName === "stagehand.extract" && field.key === "result.data"
+            (EXTRACT_OPERATIONS.has(method.operationName ?? "") && field.key === "result.data"
               ? language === "TypeScript"
                 ? "z.output<Schema>"
                 : "ResultModel"
@@ -2664,7 +2677,7 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   ) {
     return true;
   }
-  if (method.classSlug !== "stagehand") return false;
+  if (!AI_METHOD_CLASS_SLUGS.has(method.classSlug)) return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return new Set([
     "options.locator.selector",

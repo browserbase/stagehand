@@ -29,7 +29,7 @@ function modelResult(params: LLMGenerateParams): LLMGenerateResult {
     .find((line) => line.includes("Submit outside scope") && /\[\d+-\d+\]/.test(line));
   const elementId = target?.match(/\[(\d+-\d+)\]/)?.[1];
   const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
-  if (name !== "Metadata") expect(elementId).toMatch(/^\d+-\d+$/);
+  expect(elementId).toMatch(/^\d+-\d+$/);
   const action = {
     elementId: elementId!,
     description: "Submit outside scope",
@@ -45,9 +45,7 @@ function modelResult(params: LLMGenerateParams): LLMGenerateResult {
         ? { action, twoStep: false }
         : name === "Observation"
           ? { elements: [action] }
-          : name === "Extraction"
-            ? { label: "Submit outside scope" }
-            : { completed: true, progress: "Read label" },
+          : { label: "Submit outside scope" },
   };
 }
 

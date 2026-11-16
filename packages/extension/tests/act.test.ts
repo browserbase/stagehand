@@ -10,6 +10,8 @@ import {
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
+import { guardActionTarget } from "../services/decisions/actionGuard.js";
+import * as decisionsPipeline from "../services/decisions/act.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
 
@@ -17,6 +19,7 @@ vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   performUnderstudyMethod: vi.fn(),
   waitForDomNetworkQuiet: vi.fn(),
 }));
+vi.mock("../services/decisions/actionGuard.js", () => ({ guardActionTarget: vi.fn() }));
 
 const performAction = vi.mocked(performUnderstudyMethod);
 const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
@@ -572,11 +575,10 @@ describe("act service", () => {
       getAccessibilityTree: vi.fn(async () => []),
     };
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
-    const page = {
-      ...actPage(frame, captureSnapshot),
+    const page = Object.assign(actPage(frame, captureSnapshot), {
       url: () => "https://example.com",
       frames: () => [frame],
-    } as unknown as Page;
+    });
     const get = vi.fn().mockResolvedValueOnce({ hit: false, cacheKey: "key" });
     const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
     const cache = {
@@ -636,11 +638,10 @@ describe("act service", () => {
       getAccessibilityTree: vi.fn(async () => []),
     };
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/main/button"));
-    const page = {
-      ...actPage(frame, captureSnapshot),
+    const page = Object.assign(actPage(frame, captureSnapshot), {
       url: () => "https://example.com",
       frames: () => [frame],
-    } as unknown as Page;
+    });
     const get = vi.fn();
     const set = vi.fn();
     const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> =>
@@ -719,9 +720,358 @@ function actPage(frame: object, captureSnapshot: ReturnType<typeof vi.fn>): Page
   return {
     mainFrame: () => frame,
     captureSnapshot,
+    evaluate: vi.fn(async () => ({})),
   } as unknown as Page;
 }
 
 function testLogger(): StagehandLogger {
   return new StagehandLogger({ tracer: trace.getTracer("act-service-test") }, () => {});
 }
+
+describe("plan-policy LLM handoff", () => {
+  it("blocks an ineligible Luna fallback before execution or self-heal", async () => {
+    performAction.mockReset();
+    waitForQuiet.mockResolvedValue();
+    const decision = vi
+      .spyOn(decisionsPipeline, "runDecisionsAct")
+      .mockResolvedValueOnce({ kind: "fallback", reason: "action_plan_abstained" });
+    vi.mocked(guardActionTarget).mockResolvedValueOnce("target_disabled");
+    const page = actPage(
+      {},
+      vi.fn(async () => snapshot("0-12", "/html/body/input")),
+    );
+    const result = await actService.act({
+      params: { pageId: "page-1", instruction: "Fill Disabled input", options: { cache: false } },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate: vi.fn(async () =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Disabled input",
+          method: "fill",
+          arguments: ["blocked"],
+        }),
+      ),
+      logger: testLogger(),
+      decisions: { apiKey: "test" },
+      selfHeal: true,
+    });
+    expect(result.data).toMatchObject({
+      success: false,
+      actions: [],
+      message: expect.stringContaining("target_disabled"),
+    });
+    expect(performAction).not.toHaveBeenCalled();
+    expect(guardActionTarget).toHaveBeenCalledWith(
+      page,
+      expect.objectContaining({ method: "fill" }),
+      expect.anything(),
+      "0-12",
+      undefined,
+    );
+    decision.mockRestore();
+  });
+});
+
+describe("experimental action side effects and replay", () => {
+  beforeEach(() => {
+    performAction.mockReset().mockResolvedValue();
+    waitForQuiet.mockReset().mockResolvedValue();
+    vi.mocked(guardActionTarget).mockReset().mockResolvedValue(undefined);
+  });
+
+  it("keeps locator scope and exclusions when healing an unresolved target", async () => {
+    vi.mocked(guardActionTarget).mockResolvedValueOnce("target_unresolved");
+    const captureSnapshot = vi.fn(async () => snapshot("0-20", "/html/body/main/button"));
+    const result = await actService.act({
+      params: {
+        pageId: "page",
+        instruction: { selector: "#stale", method: "click", description: "Submit", arguments: [] },
+        options: { locator: { selector: "main" }, ignoreLocators: [{ selector: ".promo" }] },
+      },
+      page: actPage({}, captureSnapshot),
+      logger: testLogger(),
+      model: { source: "client" },
+      decisions: { apiKey: "test" },
+      selfHeal: true,
+      clientLLMGenerate: vi.fn(async () =>
+        actGeneration({
+          elementId: "0-20",
+          method: "click",
+          description: "Submit",
+          arguments: [],
+        }),
+      ),
+    });
+    expect(result.data.success).toBe(true);
+    expect(captureSnapshot).toHaveBeenCalledExactlyOnceWith(
+      {
+        focusLocator: { selector: "main" },
+        ignoreLocators: [{ selector: ".promo" }],
+      },
+      expect.any(Progress),
+    );
+  });
+
+  it("does not retry a stale selector when self-heal returns an unmapped target", async () => {
+    vi.mocked(guardActionTarget).mockResolvedValueOnce("target_unresolved");
+    const result = await actService.act({
+      params: {
+        pageId: "page",
+        instruction: {
+          selector: "#stale",
+          method: "click",
+          description: "Submit",
+          arguments: [],
+        },
+      },
+      page: actPage(
+        {},
+        vi.fn(async () => snapshot("0-20", "/html/body/button")),
+      ),
+      logger: testLogger(),
+      model: { source: "client" },
+      decisions: { apiKey: "test" },
+      selfHeal: true,
+      clientLLMGenerate: vi.fn(async () =>
+        actGeneration({
+          elementId: "0-99",
+          method: "click",
+          description: "Submit",
+          arguments: [],
+        }),
+      ),
+    });
+    expect(result.data).toMatchObject({ success: false, actions: [] });
+    expect(performAction).not.toHaveBeenCalled();
+  });
+
+  it("rejects repurposed fallback targets before input", async () => {
+    const resolver = vi
+      .spyOn(decisionsPipeline, "runDecisionsAct")
+      .mockResolvedValue({ kind: "fallback", reason: "unsupported" });
+    const page = actPage(
+      {},
+      vi.fn(async () => snapshot("0-12", "/html/body/button")),
+    );
+    vi.spyOn(page, "evaluate")
+      .mockResolvedValueOnce({ "0-12": { text: "Submit" } })
+      .mockResolvedValueOnce({ "0-12": { text: "Delete" } });
+    try {
+      const result = await actService.act({
+        params: { pageId: "page", instruction: "Submit", options: { cache: false } },
+        page,
+        logger: testLogger(),
+        model: { source: "client" },
+        decisions: { apiKey: "test" },
+        clientLLMGenerate: vi.fn(async () =>
+          actGeneration({
+            elementId: "0-12",
+            method: "click",
+            description: "Submit",
+            arguments: [],
+          }),
+        ),
+      });
+      expect(result.data).toMatchObject({ success: false, actions: [] });
+      expect(performAction).not.toHaveBeenCalled();
+    } finally {
+      resolver.mockRestore();
+    }
+  });
+
+  it("carries both drag identities through fallback before executing", async () => {
+    const resolver = vi
+      .spyOn(decisionsPipeline, "runDecisionsAct")
+      .mockResolvedValue({ kind: "fallback", reason: "unsupported" });
+    vi.mocked(guardActionTarget).mockResolvedValueOnce("drag_destination_target_replaced");
+    const page = actPage(
+      {},
+      vi.fn(async () => ({
+        combinedTree: "[0-12] button: Card\n[0-13] button: Drop zone",
+        combinedXpathMap: { "0-12": "/html/body/button[1]", "0-13": "/html/body/button[2]" },
+        combinedUrlMap: {},
+      })),
+    );
+    try {
+      const result = await actService.act({
+        params: {
+          pageId: "page",
+          instruction: "Drag card to drop zone",
+          options: { cache: false },
+        },
+        page,
+        logger: testLogger(),
+        model: { source: "client" },
+        decisions: { apiKey: "test" },
+        clientLLMGenerate: vi.fn(async () =>
+          actGeneration({
+            elementId: "0-12",
+            method: "dragAndDrop",
+            description: "Drag",
+            arguments: ["0-13"],
+          }),
+        ),
+      });
+      expect(result.data).toMatchObject({ success: false, actions: [] });
+      expect(guardActionTarget).toHaveBeenCalledExactlyOnceWith(
+        page,
+        expect.objectContaining({ arguments: ["xpath=/html/body/button[2]"] }),
+        expect.any(Progress),
+        "0-12",
+        "0-13",
+      );
+      expect(performAction).not.toHaveBeenCalled();
+    } finally {
+      resolver.mockRestore();
+    }
+  });
+
+  it("heals an unresolved explicit target before input and validates the new identity", async () => {
+    vi.mocked(guardActionTarget).mockResolvedValueOnce("target_unresolved");
+    const generate = vi.fn(async () =>
+      actGeneration({ elementId: "0-20", method: "click", arguments: [], description: "Submit" }),
+    );
+    const page = actPage(
+      {},
+      vi.fn(async () => snapshot("0-20", "/html/body/button")),
+    );
+    const result = await actService.act({
+      params: {
+        pageId: "page",
+        instruction: { selector: "#stale", method: "click", description: "Submit", arguments: [] },
+      },
+      page,
+      logger: testLogger(),
+      model: { source: "client" },
+      clientLLMGenerate: generate,
+      decisions: { apiKey: "test" },
+      selfHeal: true,
+    });
+    expect(result.data.success).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(performAction).toHaveBeenCalledTimes(1);
+    expect(guardActionTarget).toHaveBeenLastCalledWith(
+      page,
+      expect.objectContaining({ selector: "xpath=/html/body/button" }),
+      expect.any(Progress),
+      "0-20",
+      undefined,
+    );
+  });
+
+  it("checks the parent identity when LLM inference selects a text node", async () => {
+    const resolver = vi
+      .spyOn(decisionsPipeline, "runDecisionsAct")
+      .mockResolvedValue({ kind: "fallback", reason: "unsupported" });
+    const generate = vi.fn(async () =>
+      actGeneration({ elementId: "0-16", method: "click", arguments: [], description: "Expand" }),
+    );
+    const page = actPage(
+      {},
+      vi.fn(async () => ({
+        combinedTree: "[0-16] StaticText: Expand",
+        combinedUrlMap: {},
+        combinedXpathMap: { "0-14": "/html/body/div", "0-16": "/html/body/div/text()[1]" },
+      })),
+    );
+    try {
+      const result = await actService.act({
+        params: { pageId: "page", instruction: "Expand", options: { cache: false } },
+        page,
+        logger: testLogger(),
+        model: { source: "client" },
+        clientLLMGenerate: generate,
+        decisions: { apiKey: "test" },
+      });
+      expect(result.data.success).toBe(true);
+      expect(guardActionTarget).toHaveBeenCalledWith(
+        page,
+        expect.objectContaining({ selector: "xpath=/html/body/div" }),
+        expect.any(Progress),
+        "0-14",
+        undefined,
+      );
+    } finally {
+      resolver.mockRestore();
+    }
+  });
+
+  it("does not self-heal or run a second step after possible input", async () => {
+    const resolver = vi
+      .spyOn(decisionsPipeline, "runDecisionsAct")
+      .mockResolvedValue({ kind: "fallback", reason: "unsupported" });
+    performAction.mockRejectedValueOnce(new Error("Connection lost after input"));
+    const generate = vi.fn(async () =>
+      actGeneration(
+        { elementId: "0-12", method: "click", arguments: [], description: "Submit" },
+        true,
+      ),
+    );
+    try {
+      const result = await actService.act({
+        params: { pageId: "page", instruction: "Submit the form", options: { cache: false } },
+        page: actPage(
+          {},
+          vi.fn(async () => snapshot("0-12", "/html/body/button")),
+        ),
+        logger: testLogger(),
+        model: { source: "client" },
+        clientLLMGenerate: generate,
+        decisions: { apiKey: "test" },
+        selfHeal: true,
+      });
+      expect(result.data).toMatchObject({
+        success: false,
+        actions: [expect.objectContaining({ method: "click" })],
+      });
+      expect(generate).toHaveBeenCalledTimes(1);
+      expect(performAction).toHaveBeenCalledTimes(1);
+    } finally {
+      resolver.mockRestore();
+    }
+  });
+
+  it.each(["target_disabled", "execution_error"])(
+    "does not replay the instruction after a partial cached sequence: %s",
+    async (failure) => {
+      const first = { selector: "#first", method: "click", arguments: [], description: "First" };
+      const second = { selector: "#second", method: "click", arguments: [], description: "Second" };
+      const frame = { frameId: "frame", getAccessibilityTree: vi.fn(async () => []) };
+      const page = Object.assign(actPage(frame, vi.fn()), {
+        frames: () => [frame],
+        url: () => "https://example.org",
+      });
+      const generate = vi.fn();
+      if (failure === "target_disabled")
+        vi.mocked(guardActionTarget)
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce("target_disabled");
+      else
+        performAction.mockResolvedValueOnce().mockRejectedValueOnce(new Error("Lost after click"));
+      const result = await actService.act({
+        params: { pageId: "page", instruction: "Complete both steps" },
+        page,
+        logger: testLogger(),
+        model: { source: "client" },
+        clientLLMGenerate: generate,
+        decisions: { apiKey: "test" },
+        selfHeal: true,
+        cache: {
+          sessionId: "session",
+          defaultCaching: true,
+          client: {
+            get: vi.fn(async () => ({ hit: true, value: [first, second], cacheKey: "key" })),
+            set: vi.fn(),
+          } as unknown as CacheClient,
+        },
+      });
+      expect(result.data.success).toBe(false);
+      expect(result.data.actions).toEqual(
+        failure === "target_disabled" ? [first] : [first, second],
+      );
+      expect(performAction).toHaveBeenCalledTimes(failure === "target_disabled" ? 1 : 2);
+      expect(generate).not.toHaveBeenCalled();
+    },
+  );
+});

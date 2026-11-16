@@ -38,6 +38,7 @@ import type {
   CacheStatusSchema,
   CacheTokenSavingsSchema,
   CachingSchema,
+  ExperimentalDecisionsConfigSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
   ClientOptionsBaseSchema,
@@ -483,6 +484,7 @@ export type BrowserSessionMetadata = z.infer<typeof BrowserSessionMetadataSchema
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 export type Caching = z.infer<typeof CachingSchema>;
+export type ExperimentalDecisionsConfig = z.infer<typeof ExperimentalDecisionsConfigSchema>;
 export type ClearCookieOptions = z.infer<typeof ClearCookieOptionsSchema>;
 export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
 export type ClientOptionsBase = z.infer<typeof ClientOptionsBaseSchema>;

@@ -1,3 +1,6 @@
+import { runDecisionsExtract } from "./decisions/extract.js";
+import type { DecisionsConfig } from "./decisions/config.js";
+import { withDecisionUsage } from "./decisions/usage.js";
 import { z } from "zod/v4";
 import type {
   ClientModelReference,
@@ -27,17 +30,6 @@ export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
   return [finalSchema, urlPaths];
 }
 
-interface ExtractionResponseBase {
-  metadata: { completed: boolean };
-  prompt_tokens: number;
-  completion_tokens: number;
-  reasoning_tokens: number;
-  cached_input_tokens: number;
-  inference_time_ms: number;
-}
-
-type ExtractionResponse<Schema extends z.ZodObject> = ExtractionResponseBase & z.infer<Schema>;
-
 type ExtractServiceOptions = {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -47,6 +39,7 @@ type ExtractServiceOptions = {
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  decisions?: DecisionsConfig;
   progress?: Progress;
 };
 
@@ -67,10 +60,12 @@ async function extractWithProgress(
     systemPrompt = "",
     cache,
     gateway,
+    decisions,
   }: ExtractServiceOptions,
   progress: Progress,
 ): Promise<ExtractResult> {
   const { instruction, options } = params;
+  decisions = withDecisionUsage(decisions, progress.signal, logger);
 
   // Cache keys contain DOM state, not screenshot pixels. Do not serve a
   // visual extraction from a cache entry that cannot represent its image.
@@ -96,7 +91,7 @@ async function extractWithProgress(
 
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
     progress.throwIfStopped();
-    const { combinedTree, combinedUrlMap } = await page.captureSnapshot(
+    const snapshot = await page.captureSnapshot(
       {
         focusLocator: options?.locator,
         ignoreLocators: options?.ignoreLocators,
@@ -105,22 +100,43 @@ async function extractWithProgress(
     );
     progress.throwIfStopped();
 
+    const { combinedTree, combinedUrlMap } = snapshot;
+    let decisionUsage = zeroStagehandResultUsage();
     const screenshot = options?.screenshot
       ? await page.screenshot({ fullPage: false, type: "png" }, progress)
       : undefined;
     progress.throwIfStopped();
 
-    logger.info(
-      screenshot
-        ? "Starting extraction using an accessibility snapshot and viewport screenshot"
-        : "Starting extraction using an accessibility snapshot",
-      {
-        category: "extraction",
-        instruction,
-      },
-    );
+    logger.info("Starting extraction", {
+      category: "extraction",
+      instruction,
+    });
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
+    // Custom policy can require transformations the evidence mapper cannot represent.
+    if (decisions && instruction && !screenshot && !systemPrompt) {
+      const outcome = await runDecisionsExtract(decisions, {
+        instruction,
+        schema: params.schema,
+        snapshot,
+        progress,
+        logger,
+      });
+      decisionUsage = outcome.usage;
+      if (outcome.kind === "done")
+        return {
+          result: {
+            data: outcome.data,
+            metadata: { usage: decisionUsage, cache: disabledCacheMetadata() },
+          },
+          cacheValue: outcome.data,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+    }
+    if (decisions && !model && !gateway)
+      throw new Error(
+        "Decisions extract needs a configured LLM model or Browserbase gateway for fallback",
+      );
     const isObjectSchema = schema instanceof z.ZodObject;
     const wrapKey = "value" as const;
     const objectSchema: z.ZodObject = isObjectSchema
@@ -129,7 +145,6 @@ async function extractWithProgress(
           [wrapKey]: schema,
         });
     const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
-
     const screenshotContent: LLMImageContent | undefined = screenshot
       ? {
           type: "image",
@@ -139,30 +154,34 @@ async function extractWithProgress(
       : undefined;
 
     progress.throwIfStopped();
-    const extractionResponse: ExtractionResponse<z.ZodObject> =
-      await inference.extract<z.ZodObject>({
-        instruction,
-        domElements: combinedTree,
-        schema: transformedSchema as z.ZodObject,
-        generate: (input) =>
-          progress.run("waiting for extract inference", () =>
-            llmService.generate(model, input, clientLLMGenerate, gateway),
-          ),
-        userProvidedInstructions: systemPrompt,
-        screenshot: screenshotContent,
-      });
+    const { data, usage, durationMs } = await inference.extract({
+      instruction,
+      domElements: combinedTree,
+      schema: transformedSchema as z.ZodObject,
+      generate: (input) =>
+        progress.run("waiting for extract inference", () =>
+          llmService.generate(model, input, clientLLMGenerate, gateway),
+        ),
+      userProvidedInstructions:
+        decisions !== undefined
+          ? [
+              systemPrompt,
+              "For optional fields, omit the field when the supplied page does not contain the requested fact. Absence is not zero. Return zero only when the page explicitly reports zero for that fact. Do not infer values from outside knowledge.",
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : systemPrompt,
+      screenshot: screenshotContent,
+    });
     progress.throwIfStopped();
 
     const {
-      metadata: { completed },
-      prompt_tokens,
-      completion_tokens,
-      reasoning_tokens,
-      cached_input_tokens,
-      inference_time_ms,
-      ...rest
-    } = extractionResponse;
-    let output = rest as z.infer<z.ZodObject>;
+      inputTokens = 0,
+      outputTokens = 0,
+      reasoningTokens = 0,
+      cachedInputTokens = 0,
+    } = usage ?? {};
+    let output: unknown = data;
 
     const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<EncodedId, string>;
     for (const { segments } of urlFieldPaths) {
@@ -176,37 +195,32 @@ async function extractWithProgress(
       output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
     }
 
-    logger.info(
-      completed
-        ? "Extraction completed successfully"
-        : "Extraction incomplete after processing all data",
-      {
-        category: "extraction",
-        promptTokens: prompt_tokens,
-        completionTokens: completion_tokens,
-        inferenceTimeMs: inference_time_ms,
-      },
-    );
+    logger.info("Extraction result returned", {
+      category: "extraction",
+      promptTokens: inputTokens,
+      completionTokens: outputTokens,
+      inferenceTimeMs: durationMs,
+    });
 
     return {
       result: {
         data: z.json().parse(output),
         metadata: {
           usage: {
-            inputTokens: prompt_tokens,
-            outputTokens: completion_tokens,
-            reasoningTokens: reasoning_tokens,
-            cachedInputTokens: cached_input_tokens,
-            inferenceTimeMs: inference_time_ms,
+            inputTokens: inputTokens + decisionUsage.inputTokens,
+            outputTokens: outputTokens + decisionUsage.outputTokens,
+            reasoningTokens,
+            cachedInputTokens,
+            inferenceTimeMs: durationMs + decisionUsage.inferenceTimeMs,
           },
           cache: disabledCacheMetadata(),
         },
       },
       cacheValue: output,
       llmUsage: {
-        inputTokens: prompt_tokens,
-        outputTokens: completion_tokens,
-        llmDurationMs: inference_time_ms,
+        inputTokens,
+        outputTokens,
+        llmDurationMs: durationMs,
       },
     };
   }

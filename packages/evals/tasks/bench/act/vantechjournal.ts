@@ -9,6 +9,9 @@ export default defineBenchTask(
       await stagehand.act("click on page 'recommendations'");
 
       const expectedUrl = "https://vantechjournal.com/recommendations";
+      await page.waitForFunction((url: string) => location.href === url, expectedUrl, {
+        timeout: 10000,
+      });
       const currentUrl = await page.url();
 
       return {

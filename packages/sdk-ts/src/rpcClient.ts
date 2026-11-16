@@ -88,6 +88,9 @@ const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
   StagehandMethods.stagehandAct.name,
   StagehandMethods.stagehandExtract.name,
   StagehandMethods.stagehandObserve.name,
+  StagehandMethods.stagehandExperimentalDecisionsAct.name,
+  StagehandMethods.stagehandExperimentalDecisionsExtract.name,
+  StagehandMethods.stagehandExperimentalDecisionsObserve.name,
   StagehandMethods.contextNewPage.name,
   StagehandMethods.contextAddInitScript.name,
   StagehandMethods.contextSetExtraHTTPHeaders.name,
@@ -550,6 +553,9 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.stagehandAct.name:
     case StagehandMethods.stagehandExtract.name:
     case StagehandMethods.stagehandObserve.name:
+    case StagehandMethods.stagehandExperimentalDecisionsAct.name:
+    case StagehandMethods.stagehandExperimentalDecisionsExtract.name:
+    case StagehandMethods.stagehandExperimentalDecisionsObserve.name:
     case StagehandMethods.stagehandCallbackBatch.name:
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:

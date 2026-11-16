@@ -17,13 +17,16 @@ import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
+import { runDecisionsObserve } from "./decisions/observe.js";
+import type { DecisionsConfig } from "./decisions/config.js";
+import { withDecisionUsage } from "./decisions/usage.js";
 
 const DEFAULT_OBSERVE_INSTRUCTION =
   "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
 type ObserveServiceOptions = {
   params: StagehandObserveParams;
-  page: Pick<Page, "captureSnapshot">;
+  page: Pick<Page, "captureSnapshot"> & Partial<Pick<Page, "evaluate" | "url" | "frameForId">>;
   model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
@@ -31,6 +34,7 @@ type ObserveServiceOptions = {
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
   progress?: Progress;
+  decisions?: DecisionsConfig;
 };
 
 export async function observe(options: ObserveServiceOptions): Promise<ObserveResult> {
@@ -50,11 +54,14 @@ async function observeWithProgress(
     systemPrompt = "",
     cache,
     gateway,
+    decisions,
   }: ObserveServiceOptions,
   progress: Progress,
 ): Promise<ObserveResult> {
   const { instruction, options } = params;
   const effectiveInstruction = instruction ?? DEFAULT_OBSERVE_INSTRUCTION;
+  const decisionUsage = zeroStagehandResultUsage();
+  decisions = withDecisionUsage(decisions, progress.signal, logger, decisionUsage);
   logger.info("Starting observation", {
     category: "observation",
     instruction: effectiveInstruction,
@@ -83,6 +90,34 @@ async function observeWithProgress(
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
+    if (decisions && page.evaluate && page.url) {
+      const outcome = await runDecisionsObserve(decisions, {
+        page: page as Pick<Page, "captureSnapshot" | "evaluate" | "url">,
+        logger,
+        instruction,
+        variables: options?.variables,
+        systemPrompt,
+        snapshotOptions: {
+          focusLocator: options?.locator,
+          ignoreLocators: options?.ignoreLocators,
+        },
+        progress,
+      });
+      decisionUsage.inferenceTimeMs += outcome.inferenceTimeMs;
+      if (outcome.kind === "done")
+        return {
+          result: {
+            data: outcome.actions,
+            metadata: { usage: decisionUsage, cache: disabledCacheMetadata() },
+          },
+          cacheValue: outcome.actions.length ? outcome.actions : undefined,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      logger.info("Decisions observe fell back to the LLM", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+    }
     progress.throwIfStopped();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
       {
@@ -171,11 +206,11 @@ async function observeWithProgress(
         data: actions,
         metadata: {
           usage: {
-            inputTokens: observation.prompt_tokens,
-            outputTokens: observation.completion_tokens,
+            inputTokens: observation.prompt_tokens + decisionUsage.inputTokens,
+            outputTokens: observation.completion_tokens + decisionUsage.outputTokens,
             reasoningTokens: observation.reasoning_tokens,
             cachedInputTokens: observation.cached_input_tokens,
-            inferenceTimeMs: observation.inference_time_ms,
+            inferenceTimeMs: observation.inference_time_ms + decisionUsage.inferenceTimeMs,
           },
           cache: disabledCacheMetadata(),
         },

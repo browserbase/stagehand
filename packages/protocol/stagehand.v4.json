@@ -71,6 +71,45 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "stagehand.experimental_decisions_act": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandActParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ActResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "stagehand.experimental_decisions_observe": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandObserveParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ObserveResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "stagehand.experimental_decisions_extract": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandExtractParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ExtractResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "stagehand.metrics": {
           "type": "object",
           "properties": {
@@ -1040,6 +1079,9 @@
         "stagehand.act",
         "stagehand.observe",
         "stagehand.extract",
+        "stagehand.experimental_decisions_act",
+        "stagehand.experimental_decisions_observe",
+        "stagehand.experimental_decisions_extract",
         "stagehand.metrics",
         "stagehand.callback_batch",
         "browserbase.request",
@@ -1255,6 +1297,9 @@
         "cache": {
           "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
+        },
+        "experimental_decisions": {
+          "$ref": "#/$defs/ExperimentalDecisionsConfig"
         }
       },
       "required": ["protocol_version", "client_info"],
@@ -1422,6 +1467,55 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ExperimentalDecisionsConfig": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "Decision-model provider: Perplexity Decider (default), TypeSafe Jev, or Cloudflare Clef",
+          "type": "string",
+          "enum": ["typesafe", "cloudflare", "perplexity"]
+        },
+        "api_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "api_url": {
+          "type": "string",
+          "pattern": "^https:\\/\\/[^/\\\\\\s?#]+(?:\\/[^\\\\\\s?#]*)?$",
+          "format": "uri"
+        },
+        "account_id": {
+          "description": "Cloudflare account ID; required unless apiUrl supplies the account-scoped base URL",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "required": ["api_key"],
+      "additionalProperties": false,
+      "description": "Experimental decision models for act(), observe() and extract(), with automatic LLM fallback. Defaults to Perplexity Decider v1.3.",
+      "if": {
+        "properties": {
+          "provider": {
+            "const": "cloudflare"
+          }
+        },
+        "required": ["provider"]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": ["account_id"]
+          },
+          {
+            "required": ["api_url"]
+          }
+        ]
+      }
     },
     "StagehandInitResult": {
       "type": "object",
@@ -5799,6 +5893,87 @@
             "method": {
               "type": "string",
               "const": "stagehand.extract"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandExtractParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_act"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandActParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_observe"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandObserveParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_extract"
             },
             "params": {
               "$ref": "#/$defs/StagehandExtractParams"

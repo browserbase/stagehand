@@ -248,6 +248,14 @@ class EmptyParams(TypedDict):
     pass
 
 
+class ExperimentalDecisionsConfig(TypedDict):
+    provider: NotRequired[Literal["typesafe", "cloudflare", "perplexity"]]
+    api_key: str
+    model: NotRequired[str]
+    api_url: NotRequired[str]
+    account_id: NotRequired[str]
+
+
 class ExternalProxyConfig(TypedDict):
     type: Literal["external"]
     server: str
@@ -1205,6 +1213,7 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
+    experimental_decisions: NotRequired[ExperimentalDecisionsConfig]
 
 
 VariablePrimitive: TypeAlias = str | float | bool
