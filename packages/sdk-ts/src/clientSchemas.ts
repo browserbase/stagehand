@@ -1,6 +1,6 @@
 /**
  * TypeScript SDK configuration schemas for browser connections, initialization, logging, and
- * local LLM callbacks. Object-model operation schemas are re-exported for compatibility.
+ * local LLM callbacks. Browser API operation schemas are re-exported for compatibility.
  */
 
 import { z } from "zod/v4";
@@ -30,7 +30,7 @@ export {
   type WebMCPToolsOptions,
   type WebMCPInvokeOptions,
   type WebMCPResultOptions,
-} from "@browserbasehq/stagehand-browser-api/objectModelSchemas";
+} from "@browserbasehq/stagehand-browser-api/schemas";
 
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({

@@ -38,7 +38,7 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "@browserbasehq/stagehand-browser-api/objectModelSchemas";
+} from "@browserbasehq/stagehand-browser-api/schemas";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {

@@ -9,7 +9,7 @@ import type {
   StagehandClientActOptions,
   StagehandClientExtractOptions,
   StagehandClientObserveOptions,
-} from "./objectModelSchemas.js";
+} from "./schemas.js";
 import type { Page } from "./page.js";
 
 export type ExperimentalBatchBrowserContext = Omit<

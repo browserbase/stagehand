@@ -1,4 +1,4 @@
-import { browserObjectModelPlatform, type ObjectModelPlatform } from "./objectModelPlatform.js";
+import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import type {
   LoadState,
   PageCDPEvent,
@@ -38,7 +38,7 @@ import {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
-import type { WebMCPToolsOptions } from "./objectModelSchemas.js";
+import type { WebMCPToolsOptions } from "./schemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
@@ -283,7 +283,7 @@ export class Page {
     event: PageSubscriptionEventName,
     deliver: (notification: StagehandRpcNotification) => unknown,
   ): Promise<CDPSubscription> {
-    const platform = this.rpcClient.platform ?? browserObjectModelPlatform;
+    const platform = this.rpcClient.platform ?? browserPlatform;
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
@@ -464,7 +464,7 @@ async function decodeCaptureResult(
   data: string,
   method: "screenshot" | "pdf",
   path: string | undefined,
-  platform: ObjectModelPlatform = browserObjectModelPlatform,
+  platform: BrowserApiPlatform = browserPlatform,
 ): Promise<Uint8Array> {
   const bytes = decodeBase64(data, `page.${method}`);
   if (path !== undefined) {
@@ -473,7 +473,7 @@ async function decodeCaptureResult(
   return bytes;
 }
 
-function reportPageEventListenerError(error: unknown, platform: ObjectModelPlatform): void {
+function reportPageEventListenerError(error: unknown, platform: BrowserApiPlatform): void {
   platform.emitWarning(
     error instanceof Error ? error.message : String(error),
     "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",

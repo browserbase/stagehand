@@ -25,7 +25,7 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return files.flat().sort();
 }
 
-describe("object model dependency boundaries", () => {
+describe("browser API dependency boundaries", () => {
   it.each(["extension", "shared/browser-api"])(
     "enforces source boundaries for %s",
     async (directory) => {

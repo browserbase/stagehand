@@ -23,10 +23,10 @@ import {
   type ToolsRemovedListener,
 } from "../src/index.js";
 import {
-  browserObjectModelPlatform,
-  type ObjectModelPlatform,
-} from "@browserbasehq/stagehand-browser-api/objectModelPlatform";
-import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
+  browserPlatform,
+  type BrowserApiPlatform,
+} from "@browserbasehq/stagehand-browser-api/platform";
+import { nodeBrowserApiPlatform } from "../src/nodeBrowserApiPlatform.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {
   attachStagehandBrowserContext,
@@ -51,7 +51,7 @@ class FakeProtocolClient extends RPCClient {
   responses = new Map<string, unknown[]>();
   readonly listeners = new Set<(notification: StagehandRpcNotification) => void>();
 
-  constructor(readonly platform: ObjectModelPlatform = nodeObjectModelPlatform) {
+  constructor(readonly platform: BrowserApiPlatform = nodeBrowserApiPlatform) {
     super({
       webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
       serviceWorker: {
@@ -917,7 +917,7 @@ describe("Stagehand TS object wrapper", () => {
   it.each([false, true])(
     "reports browser listener failures (async: %s) through console warnings",
     async (asyncListener) => {
-      const client = new FakeProtocolClient(browserObjectModelPlatform);
+      const client = new FakeProtocolClient(browserPlatform);
       client.queueResponse(StagehandMethods.pageOn, { ok: true });
       client.queueResponse(StagehandMethods.pageOff, { ok: true });
       const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -1328,7 +1328,7 @@ describe("Stagehand TS object wrapper", () => {
   it.each(["screenshot", "pdf"] as const)(
     "reports when %s paths are unavailable outside Node.js",
     async (method) => {
-      const client = new FakeProtocolClient(browserObjectModelPlatform);
+      const client = new FakeProtocolClient(browserPlatform);
       client.queueResponse(
         method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
         {
@@ -2221,7 +2221,7 @@ describe("Stagehand TS object wrapper", () => {
   });
 
   it("reports when file paths are unavailable outside Node.js", async () => {
-    const client = new FakeProtocolClient(browserObjectModelPlatform);
+    const client = new FakeProtocolClient(browserPlatform);
     const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
 
     await expect(locator.setInputFiles("example.txt")).rejects.toThrow(
@@ -2269,7 +2269,7 @@ describe("Stagehand TS object wrapper", () => {
   });
 
   it("rejects oversized string file payloads before encoding in a worker", async () => {
-    const client = new FakeProtocolClient(browserObjectModelPlatform);
+    const client = new FakeProtocolClient(browserPlatform);
     const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
     const encode = vi.spyOn(TextEncoder.prototype, "encode");
     vi.stubGlobal("Buffer", undefined);

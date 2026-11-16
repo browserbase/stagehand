@@ -1,5 +1,5 @@
 /**
- * Operation schemas shared by the SDK object model and extension callback batches. They extend
+ * Browser API operation schemas shared by the TS SDK and extension callback batches. They extend
  * wire schemas with local Page and Locator instances and client-facing option defaults.
  */
 

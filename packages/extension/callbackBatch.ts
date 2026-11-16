@@ -21,11 +21,11 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "@browserbasehq/stagehand-browser-api/objectModelSchemas";
+} from "@browserbasehq/stagehand-browser-api/schemas";
 import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-browser-api/clientLocatorOptions";
 import type { StagehandCommandClient } from "@browserbasehq/stagehand-browser-api/commandClient";
 import { Page } from "@browserbasehq/stagehand-browser-api/page";
-import { browserObjectModelPlatform } from "@browserbasehq/stagehand-browser-api/objectModelPlatform";
+import { browserPlatform } from "@browserbasehq/stagehand-browser-api/platform";
 import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
 
 export type CallbackBatchFunction = (batch: CallbackStagehand, input: unknown) => unknown;
@@ -35,7 +35,7 @@ export type CallbackBatchRuntimeAttachments = {
 };
 
 class InProcessCommandClient implements StagehandCommandClient {
-  readonly platform = browserObjectModelPlatform;
+  readonly platform = browserPlatform;
 
   #nextRequestId = 1;
 

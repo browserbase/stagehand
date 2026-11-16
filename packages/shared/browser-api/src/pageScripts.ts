@@ -1,4 +1,4 @@
-import { browserObjectModelPlatform, type ObjectModelPlatform } from "./objectModelPlatform.js";
+import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import { z } from "zod/v4";
 
 export type InitScriptSource<Arg> =
@@ -42,7 +42,7 @@ export async function normalizeInitScriptSource<Arg>(
   script: InitScriptSource<Arg>,
   arg?: Arg,
   caller = "page.addInitScript",
-  platform: ObjectModelPlatform = browserObjectModelPlatform,
+  platform: BrowserApiPlatform = browserPlatform,
 ): Promise<string> {
   if (typeof script === "function") {
     return `(${script.toString()})(${serializeArgument(arg, caller)})`;

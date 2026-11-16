@@ -2,10 +2,10 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Buffer } from "node:buffer";
 import { MAX_INPUT_FILE_BYTES } from "@browserbasehq/stagehand-browser-api/fileUpload";
-import type { ObjectModelPlatform } from "@browserbasehq/stagehand-browser-api/objectModelPlatform";
+import type { BrowserApiPlatform } from "@browserbasehq/stagehand-browser-api/platform";
 
-/** Node capabilities supplied by the SDK; never imported by the shared object model. */
-export const nodeObjectModelPlatform: ObjectModelPlatform = {
+/** Node host capabilities supplied through RPCClient; kept outside the shared browser API. */
+export const nodeBrowserApiPlatform: BrowserApiPlatform = {
   readInputFile,
   readTextFile: (path) => fs.readFile(path, "utf8"),
   writeCaptureFile: (path, bytes) => fs.writeFile(path, bytes),

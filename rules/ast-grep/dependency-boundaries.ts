@@ -54,14 +54,14 @@ export function dependencyBoundaryViolations(file: string, source: string): stri
       ? posix.normalize(posix.join(posix.dirname(file), specifier))
       : specifier;
     if (packageImport(specifier, sdkPackage) || inside(target, sdkRoot)) {
-      report(node, "The extension and shared object model must not import the TS SDK.");
+      report(node, "The extension and shared browser API must not import the TS SDK.");
       return;
     }
     if (
       sharedProduction &&
       (packageImport(specifier, extensionPackage) || inside(target, extensionRoot))
     ) {
-      report(node, "The shared object model must not import the extension.");
+      report(node, "The shared browser API must not import the extension.");
       return;
     }
     if (specifier.startsWith("node:") || isBuiltin(specifier)) {
@@ -72,7 +72,7 @@ export function dependencyBoundaryViolations(file: string, source: string): stri
       const allowed = specifier.startsWith(".")
         ? inside(target, `${sharedRoot}/src`) && !testFile(target)
         : sharedRuntimeDependencies.some((name) => packageImport(specifier, name));
-      if (!allowed) report(node, `Shared object model dependency is not allowed: ${specifier}`);
+      if (!allowed) report(node, `Browser API dependency is not allowed: ${specifier}`);
     }
     if (extensionProduction && specifier.startsWith(".") && !extensionProductionFile(target)) {
       report(

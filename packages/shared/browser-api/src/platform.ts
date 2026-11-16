@@ -1,7 +1,7 @@
 import type { InputFilePayload } from "@browserbasehq/stagehand-protocol/types";
 
-/** Host capabilities used by the object model, supplied by its command client. */
-export interface ObjectModelPlatform {
+/** Host capabilities for the browser API: filesystem access, byte encoding, and warnings. */
+export interface BrowserApiPlatform {
   readInputFile(path: string): Promise<InputFilePayload>;
   readTextFile(path: string, caller: string): Promise<string>;
   writeCaptureFile(path: string, bytes: Uint8Array, method: "screenshot" | "pdf"): Promise<void>;
@@ -10,8 +10,8 @@ export interface ObjectModelPlatform {
   utf8ByteLengthExceeds(value: string, limit: number): boolean;
 }
 
-/** Portable default for command clients without host filesystem access. */
-export const browserObjectModelPlatform: ObjectModelPlatform = {
+/** Browser implementation and default for command clients without filesystem access. */
+export const browserPlatform: BrowserApiPlatform = {
   async readInputFile() {
     throw new TypeError(
       "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
@@ -28,7 +28,7 @@ export const browserObjectModelPlatform: ObjectModelPlatform = {
     );
   },
   emitWarning(message, code) {
-    // oxlint-disable-next-line no-console -- Browser hosts report object-model warnings through the console.
+    // oxlint-disable-next-line no-console -- Browser hosts report browser API warnings through the console.
     console.warn(`[${code}] ${message}`);
   },
   encodeBase64,

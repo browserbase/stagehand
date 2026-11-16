@@ -1,4 +1,4 @@
-import { browserObjectModelPlatform, type ObjectModelPlatform } from "./objectModelPlatform.js";
+import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import type { InputFilePayload } from "@browserbasehq/stagehand-protocol/types";
 
 export const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
@@ -14,7 +14,7 @@ export type FileInput = string | string[] | FilePayload | FilePayload[];
 
 export async function normalizeFileInput(
   files: FileInput,
-  platform: ObjectModelPlatform = browserObjectModelPlatform,
+  platform: BrowserApiPlatform = browserPlatform,
 ): Promise<InputFilePayload[]> {
   const entries = Array.isArray(files) ? files : [files];
   const payloads: InputFilePayload[] = [];
@@ -24,7 +24,7 @@ export async function normalizeFileInput(
 
 async function normalizeFile(
   file: string | FilePayload,
-  platform: ObjectModelPlatform,
+  platform: BrowserApiPlatform,
 ): Promise<InputFilePayload> {
   if (typeof file === "string") {
     return platform.readInputFile(file);

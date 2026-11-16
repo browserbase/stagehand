@@ -2936,7 +2936,7 @@ async function readTypescriptPublicFieldNames(): Promise<Set<string>> {
   const sourceFiles = [
     PROTOCOL_SCHEMA_SOURCE,
     resolve(TYPESCRIPT_ROOT, "clientSchemas.ts"),
-    resolve(BROWSER_API_ROOT, "objectModelSchemas.ts"),
+    resolve(BROWSER_API_ROOT, "schemas.ts"),
     ...SDK_OBJECTS.map(({ typescriptFile }) => resolve(TYPESCRIPT_ROOT, typescriptFile)),
   ];
   const names = new Set<string>();

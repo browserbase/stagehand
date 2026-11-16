@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeInitScriptSource } from "@browserbasehq/stagehand-browser-api/pageScripts";
-import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
+import { nodeBrowserApiPlatform } from "../src/nodeBrowserApiPlatform.js";
 
 describe("Node init script loading", () => {
   it("reads init script paths and appends a source URL", async () => {
@@ -17,7 +17,7 @@ describe("Node init script loading", () => {
           { path: filePath },
           undefined,
           "page.addInitScript",
-          nodeObjectModelPlatform,
+          nodeBrowserApiPlatform,
         ),
       ).resolves.toBe(`globalThis.fromPath = true\n//# sourceURL=${filePath}`);
     } finally {
