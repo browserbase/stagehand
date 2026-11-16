@@ -220,6 +220,7 @@ jobs:
       # still compares freshly generated output with the committed schema.
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      - run: pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist
       - run: pnpm check
       - run: pnpm test:unit
       - run: uv lock --check

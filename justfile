@@ -88,6 +88,7 @@ test-deepagents:
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --wheel {{python_dir}}/dist/*.whl
 
 changeset:
     pnpm exec changeset
@@ -106,8 +107,8 @@ _version:
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
-# Python distributions need release tooling and the extension's build dependencies.
-# SDK TS is included because callbackBatch.ts currently imports its source directly.
+# Python distributions need release tooling. The extension and SDK TS filters date from
+# when this job built the extension, which it now downloads.
 _install-python-release:
     pnpm --filter stagehand-workspace --filter '@browserbasehq/stagehand-extension...' --filter '@browserbasehq/stagehand...' install --frozen-lockfile
     uv sync --package stagehand --locked

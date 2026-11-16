@@ -25,27 +25,30 @@ async function writeTree(root: string, files: Map<string, Uint8Array>): Promise<
   }
 }
 
-function zipFiles(files: Map<string, Uint8Array>, prefix = ""): Uint8Array {
-  return zipSync(
-    Object.fromEntries([...files].map(([name, contents]) => [`${prefix}${name}`, contents])),
-  );
+function zipFiles(files: Map<string, Uint8Array>): Uint8Array {
+  return zipSync(Object.fromEntries(files));
 }
 
 async function releaseFixture(
-  options: { protocolVersion?: string; wheelFiles?: Map<string, Uint8Array> } = {},
+  options: {
+    extensionVersion?: string;
+    protocolVersion?: string;
+    typescriptFiles?: Map<string, Uint8Array>;
+    wheelFiles?: Map<string, Uint8Array>;
+  } = {},
 ) {
   const root = await mkdtemp(path.join(os.tmpdir(), "stagehand-extension-build-"));
   await writeTree(
     root,
     new Map([
-      ["packages/extension/package.json", encoder.encode('{"version":"1.3.0"}')],
-      ["packages/protocol/package.json", encoder.encode('{"version":"3.1.1"}')],
+      ["packages/extension/package.json", encoder.encode('{"version":"9.8.7"}')],
+      ["packages/protocol/package.json", encoder.encode('{"version":"6.5.4"}')],
       [
         "packages/extension/artifacts/extension-build.json",
         encoder.encode(
           JSON.stringify({
-            extensionVersion: "1.3.0",
-            protocolVersion: options.protocolVersion ?? "3.1.1",
+            extensionVersion: options.extensionVersion ?? "9.8.7",
+            protocolVersion: options.protocolVersion ?? "6.5.4",
             fingerprint: fingerprintFiles(extensionFiles),
           }),
         ),
@@ -53,16 +56,20 @@ async function releaseFixture(
     ]),
   );
   const typescriptDist = path.join(root, "packages/sdk-ts/dist");
-  await writeTree(path.join(typescriptDist, "extension"), extensionFiles);
+  const typescriptFiles = options.typescriptFiles ?? extensionFiles;
+  await writeTree(path.join(typescriptDist, "extension"), typescriptFiles);
   await writeTree(
     typescriptDist,
-    new Map([["assets/stagehand-extension.zip", zipFiles(extensionFiles)]]),
+    new Map([["assets/stagehand-extension.zip", zipFiles(typescriptFiles)]]),
   );
   const wheel = path.join(root, "stagehand-4.4.0-py3-none-any.whl");
   await writeFile(
     wheel,
     zipSync({
       "stagehand/__init__.py": encoder.encode(""),
+      // uv writes directory entries into wheels.
+      "stagehand/_extension/": new Uint8Array(),
+      "stagehand/_extension/offscreen/": new Uint8Array(),
       ...Object.fromEntries(
         [...(options.wheelFiles ?? extensionFiles)].map(([name, contents]) => [
           `stagehand/_extension/${name}`,
@@ -91,7 +98,8 @@ describe("fingerprintFiles", () => {
 describe("checkExtensionBuild", () => {
   it("accepts TypeScript and Python packages that carry the release build", async () => {
     const { root, typescriptDist, wheel } = await releaseFixture();
-    await expect(checkExtensionBuild(root, { typescriptDist, wheel })).resolves.toHaveLength(3);
+    const { checked } = await checkExtensionBuild(root, { typescriptDist, wheel });
+    expect(checked).toHaveLength(3);
   });
 
   it("rejects a packaged copy that differs from the release build", async () => {
@@ -101,6 +109,15 @@ describe("checkExtensionBuild", () => {
     await expect(checkExtensionBuild(root, { wheel })).rejects.toThrow(
       "stagehand/_extension/ has fingerprint",
     );
+  });
+
+  it("rejects a TypeScript package whose zip and folder differ from the release build", async () => {
+    const typescriptFiles = new Map(extensionFiles);
+    typescriptFiles.set("Zeta.js", encoder.encode("tampered\n"));
+    const { root, typescriptDist } = await releaseFixture({ typescriptFiles });
+    const error = await checkExtensionBuild(root, { typescriptDist }).catch((caught) => caught);
+    expect(error.message).toContain(`${path.join("assets", "stagehand-extension.zip")} has`);
+    expect(error.message).toContain(`${path.join(typescriptDist, "extension")} has`);
   });
 
   it("rejects a wheel without the extension", async () => {
@@ -113,7 +130,14 @@ describe("checkExtensionBuild", () => {
       protocolVersion: "3.1.2-alpha-0123456",
     });
     await expect(checkExtensionBuild(root, { typescriptDist })).rejects.toThrow(
-      "built for protocol 3.1.2-alpha-0123456, protocol is now 3.1.1",
+      "built for protocol 3.1.2-alpha-0123456, protocol is now 6.5.4",
+    );
+  });
+
+  it("rejects an extension built at another extension version", async () => {
+    const { root, typescriptDist } = await releaseFixture({ extensionVersion: "9.8.6" });
+    await expect(checkExtensionBuild(root, { typescriptDist })).rejects.toThrow(
+      "built at version 9.8.6, package is now 9.8.7",
     );
   });
 

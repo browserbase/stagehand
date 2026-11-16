@@ -20,7 +20,7 @@ export type PackagedExtensions = {
 export async function checkExtensionBuild(
   repositoryRoot: string,
   packaged: PackagedExtensions,
-): Promise<string[]> {
+): Promise<{ info: ExtensionBuildInfo; checked: string[] }> {
   const extensionRoot = path.join(repositoryRoot, "packages/extension");
   const info = JSON.parse(
     await readFile(path.join(extensionRoot, "artifacts", EXTENSION_BUILD_INFO_FILE), "utf8"),
@@ -66,7 +66,7 @@ export async function checkExtensionBuild(
     }
   }
   if (errors.length > 0) throw new Error(`Packaged extension mismatch:\n- ${errors.join("\n- ")}`);
-  return [...copies.keys()];
+  return { info, checked: [...copies.keys()] };
 }
 
 function unzipFiles(archive: Uint8Array, prefix = ""): Map<string, Uint8Array> {
@@ -97,11 +97,13 @@ if (
     options: { typescript: { type: "string" }, wheel: { type: "string" } },
   });
   try {
-    const checked = await checkExtensionBuild(process.cwd(), {
+    const { info, checked } = await checkExtensionBuild(process.cwd(), {
       typescriptDist: values.typescript,
       wheel: values.wheel,
     });
-    process.stdout.write(`Packaged extension matches the release build: ${checked.join(", ")}\n`);
+    process.stdout.write(
+      `Packaged extension matches the release build (fingerprint ${info.fingerprint}, extension ${info.extensionVersion}, protocol ${info.protocolVersion}): ${checked.join(", ")}\n`,
+    );
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

@@ -80,8 +80,9 @@ publication permissions must still be verified on the first production release.
 
 `publish-python.yml` uses `just _install-python-release` for stable and alpha builds.
 It installs root release tooling plus the extension, protocol, and TypeScript SDK
-pnpm dependencies, and syncs only the Python `stagehand` environment. The SDK TS
-dependencies are required by the extension's current direct source imports.
+pnpm dependencies, and syncs only the Python `stagehand` environment. The extension
+and SDK TS dependencies date from when this job built the extension; it now downloads
+the release build (see below).
 
 The build job disables pnpm's automatic dependency installation before `run`/`exec`
 so alpha manifest changes cannot trigger a full-workspace reinstall. For local
@@ -95,9 +96,11 @@ checks and publication steps are unchanged.
 
 ## Extension build
 
-Each release flavour builds the extension once: `build-extension` for stable releases and
-`build-extension-alpha`, after the same snapshot versioning, for alphas. The TypeScript and Python
-publish jobs download that workflow artifact into `packages/extension/` instead of rebuilding it.
-Before publishing, `check-extension-build.ts` compares every packaged copy with the fingerprint in
-`extension-build.json` and confirms the extension was built for the current protocol and
-extension versions.
+Within one Release run, the npm package and the wheel are packaged from one extension build:
+`build-extension` for stable releases and `build-extension-alpha`, after the same snapshot
+versioning, for alphas. The TypeScript and Python publish jobs download that workflow artifact into
+`packages/extension/` instead of rebuilding it. Before publishing, `check-extension-build.ts`
+compares the copies in `sdk-ts/dist` and the wheel with the fingerprint in `extension-build.json`
+and confirms the extension was built for the current protocol and extension versions. Its success
+line prints the fingerprint and versions so the npm and PyPI job logs can be compared. The sdist is
+not checked; `uv build` builds the wheel from it.
