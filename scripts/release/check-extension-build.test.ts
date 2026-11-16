@@ -1,4 +1,5 @@
 import { zipSync } from "fflate";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -100,6 +101,52 @@ describe("checkExtensionBuild", () => {
     const { root, typescriptDist, wheel } = await releaseFixture();
     const { checked } = await checkExtensionBuild(root, { typescriptDist, wheel });
     expect(checked).toHaveLength(3);
+  });
+
+  it("accepts packages that match the expected fingerprint", async () => {
+    const { root, typescriptDist, wheel } = await releaseFixture();
+    const { checked } = await checkExtensionBuild(
+      root,
+      { typescriptDist, wheel },
+      fingerprintFiles(extensionFiles),
+    );
+    expect(checked).toHaveLength(3);
+  });
+
+  it("rejects a build that differs from the expected fingerprint", async () => {
+    const { root, wheel } = await releaseFixture();
+    const expected = sha256("another build");
+    const error = await checkExtensionBuild(root, { wheel }, expected).catch((caught) => caught);
+    expect(error.message).toContain(`extension-build.json records fingerprint`);
+    expect(error.message).toContain(`stagehand/_extension/ has fingerprint`);
+    expect(error.message).toContain(`expected ${expected}`);
+  });
+
+  it("rejects an expected fingerprint that is not a SHA-256 digest", async () => {
+    const { root, wheel } = await releaseFixture();
+    await expect(checkExtensionBuild(root, { wheel }, "")).rejects.toThrow(
+      "Expected fingerprint must be a SHA-256 hex digest",
+    );
+  });
+
+  it("exits non-zero when a packaged copy differs", async () => {
+    const wheelFiles = new Map(extensionFiles);
+    wheelFiles.set("Zeta.js", encoder.encode("tampered\n"));
+    const { root, wheel } = await releaseFixture({ wheelFiles });
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        import.meta.resolve("tsx"),
+        path.join(import.meta.dirname, "check-extension-build.ts"),
+        "--wheel",
+        wheel,
+      ],
+      { cwd: root, encoding: "utf8" },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Packaged extension mismatch");
+    expect(result.stdout).toBe("");
   });
 
   it("rejects a packaged copy that differs from the release build", async () => {

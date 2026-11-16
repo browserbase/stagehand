@@ -107,25 +107,25 @@ _version:
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
-# Python distributions need release tooling. The extension and SDK TS filters date from
-# when this job built the extension, which it now downloads.
+# Python distributions need release tooling. The extension and SDK TS filters are kept
+# until a narrower install can be tried in a release run.
 _install-python-release:
     pnpm --filter stagehand-workspace --filter '@browserbasehq/stagehand-extension...' --filter '@browserbasehq/stagehand...' install --frozen-lockfile
     uv sync --package stagehand --locked
 
-_publish-typescript:
+_publish-typescript extension_fingerprint:
     pnpm --filter ./packages/sdk-ts build
-    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect "{{extension_fingerprint}}"
     pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
 # Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
 # under the `alpha` dist-tag. Only packages with pending changesets are versioned,
 # so this is a no-op when nothing is unreleased.
-_publish-typescript-alpha:
+_publish-typescript-alpha extension_fingerprint:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
     pnpm --filter ./packages/sdk-ts build
-    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect "{{extension_fingerprint}}"
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk --alpha
 
 # Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)

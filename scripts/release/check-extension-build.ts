@@ -20,7 +20,13 @@ export type PackagedExtensions = {
 export async function checkExtensionBuild(
   repositoryRoot: string,
   packaged: PackagedExtensions,
+  expectedFingerprint?: string,
 ): Promise<{ info: ExtensionBuildInfo; checked: string[] }> {
+  if (expectedFingerprint !== undefined && !/^[0-9a-f]{64}$/.test(expectedFingerprint)) {
+    throw new Error(
+      `Expected fingerprint must be a SHA-256 hex digest, got "${expectedFingerprint}"`,
+    );
+  }
   const extensionRoot = path.join(repositoryRoot, "packages/extension");
   const info = JSON.parse(
     await readFile(path.join(extensionRoot, "artifacts", EXTENSION_BUILD_INFO_FILE), "utf8"),
@@ -29,6 +35,12 @@ export async function checkExtensionBuild(
   const protocolVersion = await packageVersion(path.join(repositoryRoot, "packages/protocol"));
 
   const errors: string[] = [];
+  const expected = expectedFingerprint ?? info.fingerprint;
+  if (info.fingerprint !== expected) {
+    errors.push(
+      `${EXTENSION_BUILD_INFO_FILE} records fingerprint ${info.fingerprint}, expected ${expected}`,
+    );
+  }
   if (info.extensionVersion !== extensionVersion) {
     errors.push(
       `extension was built at version ${info.extensionVersion}, package is now ${extensionVersion}`,
@@ -61,8 +73,8 @@ export async function checkExtensionBuild(
   for (const [label, read] of copies) {
     const files = await read();
     const fingerprint = files.size === 0 ? "no files" : fingerprintFiles(files);
-    if (fingerprint !== info.fingerprint) {
-      errors.push(`${label} has fingerprint ${fingerprint}, release build is ${info.fingerprint}`);
+    if (fingerprint !== expected) {
+      errors.push(`${label} has fingerprint ${fingerprint}, expected ${expected}`);
     }
   }
   if (errors.length > 0) throw new Error(`Packaged extension mismatch:\n- ${errors.join("\n- ")}`);
@@ -94,13 +106,18 @@ if (
   import.meta.url === pathToFileURL(path.resolve(invokedPath)).href
 ) {
   const { values } = parseArgs({
-    options: { typescript: { type: "string" }, wheel: { type: "string" } },
+    options: {
+      typescript: { type: "string" },
+      wheel: { type: "string" },
+      expect: { type: "string" },
+    },
   });
   try {
-    const { info, checked } = await checkExtensionBuild(process.cwd(), {
-      typescriptDist: values.typescript,
-      wheel: values.wheel,
-    });
+    const { info, checked } = await checkExtensionBuild(
+      process.cwd(),
+      { typescriptDist: values.typescript, wheel: values.wheel },
+      values.expect,
+    );
     process.stdout.write(
       `Packaged extension matches the release build (fingerprint ${info.fingerprint}, extension ${info.extensionVersion}, protocol ${info.protocolVersion}): ${checked.join(", ")}\n`,
     );

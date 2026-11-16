@@ -80,9 +80,8 @@ publication permissions must still be verified on the first production release.
 
 `publish-python.yml` uses `just _install-python-release` for stable and alpha builds.
 It installs root release tooling plus the extension, protocol, and TypeScript SDK
-pnpm dependencies, and syncs only the Python `stagehand` environment. The extension
-and SDK TS dependencies date from when this job built the extension; it now downloads
-the release build (see below).
+pnpm dependencies, and syncs only the Python `stagehand` environment. The job packages
+the release's extension build (see below) instead of building the extension.
 
 The build job disables pnpm's automatic dependency installation before `run`/`exec`
 so alpha manifest changes cannot trigger a full-workspace reinstall. For local
@@ -96,11 +95,13 @@ checks and publication steps are unchanged.
 
 ## Extension build
 
-Within one Release run, the npm package and the wheel are packaged from one extension build:
-`build-extension` for stable releases and `build-extension-alpha`, after the same snapshot
-versioning, for alphas. The TypeScript and Python publish jobs download that workflow artifact into
-`packages/extension/` instead of rebuilding it. Before publishing, `check-extension-build.ts`
-compares the copies in `sdk-ts/dist` and the wheel with the fingerprint in `extension-build.json`
-and confirms the extension was built for the current protocol and extension versions. Its success
-line prints the fingerprint and versions so the npm and PyPI job logs can be compared. The sdist is
-not checked; `uv build` builds the wheel from it.
+Within one Release run, the npm packages and the wheels are packaged from one extension
+build. `build-extension` applies the SDK snapshot versioning (a no-op when no SDK
+changeset is pending, the only case in which stable packages publish), builds the
+extension, uploads it as the `extension` workflow artifact and exposes its fingerprint as
+a job output. The TypeScript and Python publish jobs download that artifact into
+`packages/extension/` instead of rebuilding it. Before publishing,
+`check-extension-build.ts --expect <fingerprint>` compares the copies in `sdk-ts/dist`
+and the wheel with that fingerprint and confirms the extension was built for the
+job's current protocol and extension versions. The sdist is not checked; `uv build`
+builds the wheel from it.

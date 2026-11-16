@@ -16,8 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Each release flavour builds the extension once; every SDK publish job packages
-  # that artifact and checks its fingerprint before publishing.
+  # Builds the extension once, under read-only permissions, for every SDK publish job.
+  # Snapshot versioning is a no-op unless SDK changesets are pending, and stable
+  # packages only publish when none are.
   build-extension:
     name: Build extension
     if: github.ref == 'refs/heads/main'
@@ -25,41 +26,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: "11.11.0"
-          run_install: false
-
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: "24.22.1"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm --filter ./packages/extension build
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: extension-stable
-          path: |
-            packages/extension/dist/
-            packages/extension/artifacts/stagehand-extension.zip
-            packages/extension/artifacts/extension-build.json
-          if-no-files-found: error
-
-  build-extension-alpha:
-    name: Build extension alpha
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
     env:
+      # Keep pnpm run/exec from reinstalling after snapshot versioning.
       pnpm_config_verify_deps_before_run: "false"
+    outputs:
+      fingerprint: ${{ steps.build-info.outputs.fingerprint }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -77,22 +48,25 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Same snapshot versioning as the alpha publish jobs, so the extension carries
-      # the alpha versions they publish.
       - run: pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: pnpm --filter ./packages/extension build
 
+      - name: Read extension fingerprint
+        id: build-info
+        run: echo "fingerprint=$(node -p 'require("./packages/extension/artifacts/extension-build.json").fingerprint')" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: extension-alpha
+          name: extension
           path: |
             packages/extension/dist/
             packages/extension/artifacts/stagehand-extension.zip
             packages/extension/artifacts/extension-build.json
           if-no-files-found: error
+          include-hidden-files: true
 
   release-typescript:
     name: Release TypeScript SDK
@@ -139,12 +113,18 @@ jobs:
       - run: just build
       - run: just check
 
-      # Publish the extension from the shared release build, not the copies built above.
-      - run: rm -rf packages/extension/dist packages/extension/artifacts
+      - name: Check SDK changesets
+        id: sdk-status
+        run: pnpm exec tsx scripts/release/scoped-release.ts status sdk >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      # Publish the extension from the shared release build, not the copies built above.
+      - if: steps.sdk-status.outputs.has-changesets == 'false'
+        run: rm -rf packages/extension/dist packages/extension/artifacts
+
+      - if: steps.sdk-status.outputs.has-changesets == 'false'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: extension-stable
+          name: extension
           path: packages/extension
 
       - name: Scope the Changesets action to SDK changes
@@ -157,7 +137,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: just _version
-          publish: just _publish-typescript
+          publish: just _publish-typescript ${{ needs.build-extension.outputs.fingerprint }}
           title: Release Stagehand packages
           commit: release Stagehand packages
         env:
@@ -281,7 +261,7 @@ jobs:
 
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
-    needs: [release-typescript, build-extension-alpha]
+    needs: [release-typescript, build-extension]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -313,7 +293,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: extension-alpha
+          name: extension
           path: packages/extension
 
       # Versions SDK packages with a pending changeset as `<next>-alpha-<sha>` and
@@ -321,9 +301,10 @@ jobs:
       # discarded afterwards, so nothing is committed. No-op when there are no
       # unreleased changesets (e.g. the push that just cut a stable release).
       - name: Publish alpha
-        run: just _publish-typescript-alpha
+        run: just _publish-typescript-alpha "$EXTENSION_FINGERPRINT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXTENSION_FINGERPRINT: ${{ needs.build-extension.outputs.fingerprint }}
 
   python-release-status:
     name: Check Python release status
@@ -360,7 +341,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.python-release-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     with:
-      extension-artifact: extension-stable
+      extension-fingerprint: ${{ needs.build-extension.outputs.fingerprint }}
     secrets: inherit
 
   python-alpha-status:
@@ -403,10 +384,10 @@ jobs:
 
   publish-python-alpha:
     name: Release Python SDK alpha
-    needs: [python-alpha-status, build-extension-alpha]
+    needs: [python-alpha-status, build-extension]
     if: github.ref == 'refs/heads/main' && needs.python-alpha-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     with:
       alpha: true
-      extension-artifact: extension-alpha
+      extension-fingerprint: ${{ needs.build-extension.outputs.fingerprint }}
     secrets: inherit
