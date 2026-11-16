@@ -3,7 +3,7 @@ import type {
   FxEvent,
   FxToolCallRecord,
   FxToolResultRecord,
-} from "@browserbasehq/stagehand-integrations-fx-sdk";
+} from "@browserbasehq/stagehand-integrations-fx";
 import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,

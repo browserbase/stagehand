@@ -33,7 +33,10 @@ class ResponseRPCSession implements CDPSessionLike {
   async close(): Promise<void> {}
 }
 
-function createResponse(session = new ResponseRPCSession()): Response {
+function createResponse(
+  session = new ResponseRPCSession(),
+  headers: Protocol.Network.Headers = { "Content-Type": "application/octet-stream" },
+): Response {
   return new Response({
     page: {} as Page,
     session,
@@ -44,7 +47,7 @@ function createResponse(session = new ResponseRPCSession()): Response {
       url: "https://example.test/final",
       status: 201,
       statusText: "Created",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers,
       mimeType: "application/octet-stream",
       charset: "",
       connectionReused: false,
@@ -210,6 +213,81 @@ describe("response RPC methods", () => {
     await expect(call(router, "response.finished", responseId)).resolves.toStrictEqual({
       error: null,
     });
+  });
+
+  it("keeps empty header values when Chrome sends no raw header text", async () => {
+    const runtime = createStagehandRuntime();
+    // Chrome omits headersText for HTTP/2 responses, so entries come from the header map.
+    const response = createResponse(new ResponseRPCSession(), {
+      "content-type": "text/html",
+      "x-empty": "",
+    });
+    const responseId = runtime.responseHandles.register("page-1", response);
+    const router = new RPCRouter(runtime);
+
+    await expect(call(router, "response.headers_array", responseId)).resolves.toStrictEqual({
+      headers: [
+        { name: "content-type", value: "text/html" },
+        { name: "x-empty", value: "" },
+      ],
+    });
+
+    response.applyExtraInfo({
+      requestId: "cdp-request-1",
+      blockedCookies: [],
+      headers: {
+        "content-type": "text/html",
+        "x-empty": "",
+        "set-cookie": "first=1\nsecond=2",
+      },
+      resourceIPAddressSpace: "Public",
+      statusCode: 201,
+    });
+
+    await expect(call(router, "response.headers_array", responseId)).resolves.toStrictEqual({
+      headers: [
+        { name: "content-type", value: "text/html" },
+        { name: "x-empty", value: "" },
+        { name: "set-cookie", value: "first=1" },
+        { name: "set-cookie", value: "second=2" },
+      ],
+    });
+    expect(response.headers()).toStrictEqual({
+      "content-type": "text/html",
+      "x-empty": "",
+      "set-cookie": "first=1, second=2",
+    });
+    await expect(response.headerValues("X-Empty")).resolves.toStrictEqual([""]);
+    await expect(response.headerValue("X-Empty")).resolves.toBe("");
+    await expect(response.headerValues("x-missing")).resolves.toStrictEqual([]);
+    await expect(response.headerValue("x-missing")).resolves.toBeNull();
+  });
+
+  it("reports an empty header the same way with and without raw header text", async () => {
+    const headers = { "Content-Type": "text/html", "X-Empty": "" };
+    const extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent = {
+      requestId: "cdp-request-1",
+      blockedCookies: [],
+      headers,
+      resourceIPAddressSpace: "Public",
+      statusCode: 201,
+    };
+    const fromHeaderMap = createResponse(new ResponseRPCSession(), headers);
+    fromHeaderMap.applyExtraInfo(extraInfo);
+    const fromHeaderText = createResponse(new ResponseRPCSession(), headers);
+    fromHeaderText.applyExtraInfo({
+      ...extraInfo,
+      headersText: "HTTP/1.1 201 Created\r\nContent-Type: text/html\r\nX-Empty: \r\n\r\n",
+    });
+
+    for (const response of [fromHeaderMap, fromHeaderText]) {
+      await expect(response.headersArray()).resolves.toStrictEqual([
+        { name: "Content-Type", value: "text/html" },
+        { name: "X-Empty", value: "" },
+      ]);
+      await expect(response.headerValues("x-empty")).resolves.toStrictEqual([""]);
+      await expect(response.headerValue("x-empty")).resolves.toBe("");
+    }
   });
 
   it("surfaces response failures and unknown handles", async () => {

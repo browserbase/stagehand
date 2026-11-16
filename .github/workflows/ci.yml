@@ -31,6 +31,7 @@ jobs:
       !contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
       contains(fromJSON('["skip-evals", "skip-regression-evals"]'), github.event.label.name)
     outputs:
+      browse: ${{ steps.filter.outputs.browse }}
       docs-only: ${{ steps.docs-filter.outputs.docs-only }}
       evals: ${{ steps.filter.outputs.evals }}
       extension: ${{ steps.filter.outputs.extension }}
@@ -46,6 +47,14 @@ jobs:
         id: filter
         with:
           filters: |
+            browse:
+              - 'packages/cli/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.github/**'
             evals:
               - 'packages/evals/**'
               - 'packages/sdk-ts/**'
@@ -213,7 +222,6 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
       - run: pnpm test:unit
-      - run: pnpm --filter browse test:cli
       - run: uv lock --check
       - run: uv sync --all-packages --locked
       - run: uv run --locked python scripts/generate.py --check
@@ -228,8 +236,7 @@ jobs:
   cancel-after-check-failure:
     name: Cancel after check failure
     runs-on: ubuntu-latest
-    # Scoped here rather than workflow-wide: this is the only job that needs to write to the
-    # Actions API, and the fan-out means ~60 other jobs would otherwise inherit the privilege.
+    # Keep Actions write permission scoped to this cancellation job.
     permissions:
       contents: read
       actions: write
@@ -279,18 +286,144 @@ jobs:
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
             packages/integrations/core/dist/**
-            packages/integrations/claude-agent-sdk/dist/**
+            packages/integrations/claude-code/dist/**
             packages/integrations/claude-cua-sdk/dist/**
             packages/integrations/gemini-cua-sdk/dist/**
-            packages/integrations/codex-sdk/dist/**
-            packages/integrations/mastra-sdk/dist/**
+            packages/integrations/codex/dist/**
+            packages/integrations/mastra/dist/**
             packages/integrations/pi-sdk/dist/**
-            packages/integrations/eve-sdk/dist/**
+            packages/integrations/eve/harness/dist/**
             packages/integrations/deepagents-sdk/dist/**
-            packages/integrations/fx-sdk/dist/**
-            packages/integrations/cursor-sdk/dist/**
+            packages/integrations/fx/dist/**
+            packages/integrations/cursor/dist/**
             packages/evals/dist/**
           retention-days: 1
+
+  browse-build:
+    name: Browse build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      # Keep this partial build separate from the full repository's Turbo cache.
+      - name: Restore Browse Turbo cache
+        id: browse-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-browse-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-
+
+      - run: pnpm exec turbo run build --filter=browse
+
+      - name: Save Browse Turbo cache
+        if: steps.browse-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ steps.browse-cache.outputs.cache-primary-key }}
+
+      - name: Upload Browse build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browse-build-${{ runner.os }}
+          # Include the root manifest so artifact paths stay relative to the repository.
+          path: |
+            package.json
+            packages/cli/dist/**
+            packages/cli/oclif.manifest.json
+          if-no-files-found: error
+          retention-days: 1
+
+  browse-contracts:
+    name: Browse contracts (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes, browse-build]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      - name: Download Browse build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: browse-build-${{ runner.os }}
+          path: .
+
+      - run: pnpm --filter browse test:cli
+        if: runner.os != 'Windows'
+
+      # Avoid oclif spawning PowerShell to detect the shell on every CLI invocation.
+      - run: pnpm --filter browse test:cli
+        if: runner.os == 'Windows'
+        env:
+          SHELL: pwsh
+
+  browse-chrome-smoke:
+    name: Browse Chrome smoke (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [determine-changes, browse-build]
+    if: needs.determine-changes.outputs.browse == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-2025
+            platform: Windows
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      - name: Download Browse build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: browse-build-${{ runner.os }}
+          path: .
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - name: Test packed Browse with Chrome
+        run: pnpm --filter browse test:smoke:package
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
   unit-ts:
     name: TypeScript unit

@@ -135,7 +135,7 @@ export async function stopDriverDaemon(
   }
 }
 
-function assertCompatibleTarget(
+export function assertCompatibleTarget(
   session: string,
   status: DriverStatus,
   target: ConnectionTarget,
@@ -272,6 +272,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
     [entrypoint, "daemon", "--session", session, "--target", JSON.stringify(target)],
     {
       detached: true,
+      windowsHide: true,
       env: process.env,
       stdio: "ignore",
     },
