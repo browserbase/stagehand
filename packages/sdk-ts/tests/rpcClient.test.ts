@@ -1,4 +1,5 @@
 import { RPCResponseTimeoutError } from "../src/rpcErrors.js";
+import { nodeObjectModelPlatform } from "../src/nodeObjectModelPlatform.js";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import {
@@ -104,6 +105,12 @@ describe("RPCClientOptionsSchema", () => {
 });
 
 describe("RPCClient", () => {
+  it("supplies Node capabilities to the object model", () => {
+    const client = new RPCClient(new FakeCDPTransport({}));
+
+    expect(client.platform).toBe(nodeObjectModelPlatform);
+  });
+
   it("keeps callback batches in the ordinary pending RPC path", async () => {
     const source = "async () => undefined";
     const cdp = new FakeCDPTransport({});
