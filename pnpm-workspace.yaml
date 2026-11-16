@@ -75,8 +75,8 @@ catalog:
   "@types/cross-spawn": ^6.0.6
 catalogs:
   eve:
-    ai: ^7.0.137
-    eve: 1.0.0-rc.6
+    ai: ^7.0.172
+    eve: 1.0.0
 overrides:
   "@mintlify/cli>zod": 4.6.6
   "get-uri>basic-ftp": 6.2.1
@@ -116,7 +116,7 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-linux-x64@1.0.36"
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
-  - eve@1.0.0-rc.6
+  - eve@1.0.0
   - "@oxfmt/binding-android-arm-eabi@0.76.0"
   - "@oxfmt/binding-android-arm64@0.76.0"
   - "@oxfmt/binding-darwin-arm64@0.76.0"
