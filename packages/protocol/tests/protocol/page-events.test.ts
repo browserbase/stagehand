@@ -99,6 +99,58 @@ describe("console page events", () => {
   });
 });
 
+describe("pageerror page events", () => {
+  it("accepts pageerror as a public event and Runtime.exceptionThrown as its envelope method", () => {
+    expect(PageEventNameSchema.parse("pageerror")).toBe("pageerror");
+    expect(PageSubscriptionEventNameSchema.parse("pageerror")).toBe("pageerror");
+    expect(() => PageEventNameSchema.parse("Runtime.exceptionThrown")).toThrow();
+    expect(
+      PageOnParamsSchema.parse({ pageId: "page-1", subscriptionId: "s-1", event: "pageerror" })
+        .event,
+    ).toBe("pageerror");
+  });
+
+  it("round-trips exception details without rewriting CDP parameter keys", () => {
+    const apiValue = {
+      subscriptionId: "subscription-1",
+      event: {
+        pageId: "page-1",
+        method: "Runtime.exceptionThrown" as const,
+        params: {
+          timestamp: 1700000000000,
+          exceptionDetails: {
+            exceptionId: 3,
+            text: "Uncaught",
+            lineNumber: 0,
+            columnNumber: 7,
+            executionContextId: 2,
+            exception: { type: "object", subtype: "error", className: "Error" },
+            stackTrace: { callFrames: [{ functionName: "boom", scriptId: "9" }] },
+          },
+        },
+        sessionId: "session-1",
+        targetId: "target-1",
+      },
+    };
+    const definition = StagehandNotifications.pageCDPEvent;
+    const wireValue = encodeWireValue(apiValue, definition.paramsWire);
+
+    expect(wireValue).toStrictEqual({
+      subscription_id: "subscription-1",
+      event: {
+        page_id: "page-1",
+        method: "Runtime.exceptionThrown",
+        params: apiValue.event.params,
+        session_id: "session-1",
+        target_id: "target-1",
+      },
+    });
+    expect(wireSchema(definition.params, definition.paramsWire).parse(wireValue)).toStrictEqual(
+      apiValue,
+    );
+  });
+});
+
 describe("typed page events", () => {
   const routing = {
     subscriptionId: "subscription-1",

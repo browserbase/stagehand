@@ -413,8 +413,14 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
-        if event != "console":
-            raise ValueError('page.on only supports "console" events')
+        """Subscribe to raw CDP events from this page and its page-owned (OOPIF) sessions.
+
+        ``"console"`` delivers ``Runtime.consoleAPICalled`` events. ``"pageerror"`` delivers
+        ``Runtime.exceptionThrown`` events for uncaught exceptions and unhandled promise
+        rejections; ``event.params["exceptionDetails"]`` holds the CDP exception details.
+        """
+        if event not in ("console", "pageerror"):
+            raise ValueError('page.on only supports "console" and "pageerror" events')
         return await self._subscribe(
             event,
             "page.cdp_event",

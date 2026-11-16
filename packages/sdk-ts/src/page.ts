@@ -225,8 +225,17 @@ export class Page {
     });
   }
 
+  /**
+   * Subscribe to raw CDP events from this page and its page-owned (OOPIF) sessions.
+   *
+   * - `"console"` delivers `Runtime.consoleAPICalled` events.
+   * - `"pageerror"` delivers `Runtime.exceptionThrown` events for uncaught exceptions and
+   *   unhandled promise rejections; `event.params.exceptionDetails` holds the CDP details.
+   */
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
-    if (event !== "console") throw new Error('page.on only supports "console" events');
+    if (event !== "console" && event !== "pageerror") {
+      throw new Error('page.on only supports "console" and "pageerror" events');
+    }
     return this.subscribe(event, (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);

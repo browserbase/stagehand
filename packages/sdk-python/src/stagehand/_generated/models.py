@@ -1555,10 +1555,15 @@ class PageCDPEvent(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    method: Literal["Runtime.consoleAPICalled"]
+    method: PageCDPEventMethod
     params: PageCDPEventParams
     session_id: Annotated[StrictStr, Field(min_length=1)]
     target_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageCDPEventMethod(StrEnum):
+    runtime_console_api_called = "Runtime.consoleAPICalled"
+    runtime_exception_thrown = "Runtime.exceptionThrown"
 
 
 class PageCDPEventNotification(WireModel):
@@ -1652,8 +1657,9 @@ class PageEvaluateResult(WireModel):
     value: Optional[FieldSchema9]
 
 
-class PageEventName(RootModel[Literal["console"]]):
-    root: Literal["console"]
+class PageEventName(StrEnum):
+    console = "console"
+    pageerror = "pageerror"
 
 
 class PageGoBackParams(WireModel):
@@ -1962,6 +1968,7 @@ class PageSnapshotParams(WireModel):
 
 class PageSubscriptionEventName(StrEnum):
     console = "console"
+    pageerror = "pageerror"
     toolsadded = "toolsadded"
     toolsremoved = "toolsremoved"
 
