@@ -60,6 +60,7 @@ export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
 }
+export type ResponseListener = (response: Response) => unknown;
 export type ToolsAddedListener = (tools: WebMCPTool[]) => unknown;
 export type ToolsRemovedListener = (tools: WebMCPToolIdentity[]) => unknown;
 
@@ -230,6 +231,18 @@ export class Page {
     return this.subscribe(event, (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);
+      }
+    });
+  }
+
+  /** Observe future response headers. Body methods wait for completion automatically. */
+  async onResponse(listener: ResponseListener): Promise<CDPSubscription> {
+    return this.subscribe("response", (notification) => {
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        notification.params.event === "response"
+      ) {
+        return listener(new Response(this.rpcClient, notification.params.response));
       }
     });
   }
