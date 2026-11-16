@@ -3,6 +3,7 @@ import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 import * as ClientSchemas from "../../packages/sdk-ts/src/clientSchemas.js";
+import * as ObjectModelSchemas from "../../packages/shared-object-model/src/objectModelSchemas.js";
 
 registerDynamicLanguage({ python });
 
@@ -161,7 +162,7 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
       "WebMCPResultOptionsSchema",
       "WebMCPToolsOptionsSchema",
     ]);
-    const objectSchemas = Object.entries(ClientSchemas)
+    const objectSchemas = Object.entries({ ...ClientSchemas, ...ObjectModelSchemas })
       .filter(
         ([name, value]) =>
           name.endsWith("Schema") &&
