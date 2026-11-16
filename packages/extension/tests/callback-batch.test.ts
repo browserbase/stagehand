@@ -38,6 +38,98 @@ async function runCallbackBatch(
 }
 
 describe("callback batch runner", () => {
+  it.each(["upload", "page script", "context script", "screenshot", "pdf"] as const)(
+    "rejects filesystem paths for %s inside a callback even when hosted in Node",
+    async (operation) => {
+      const router = {
+        handle: vi.fn(async (request: StagehandRpcRequest) => {
+          if (request.method === "context.active_page")
+            return { pageId: "page-1", url: "about:blank" };
+          if (request.method === "page.screenshot" || request.method === "page.pdf")
+            return { data: "aGVsbG8=" };
+          throw new Error(`Unexpected method: ${request.method}`);
+        }),
+      } as unknown as RPCRouter;
+      await expect(
+        runCallbackBatch(
+          router,
+          async ({ page, context }) => {
+            switch (operation) {
+              case "upload":
+                return page.locator("input").nth(1).setInputFiles("example.txt");
+              case "page script":
+                return page.addInitScript({ path: "init.js" });
+              case "context script":
+                return context.addInitScript({ path: "init.js" });
+              case "screenshot":
+                return page.screenshot({ path: "capture.png" });
+              case "pdf":
+                return page.pdf({ path: "capture.pdf" });
+            }
+          },
+          null,
+          { timeout: 1_000 },
+        ),
+      ).rejects.toThrow("only supported in Node.js");
+    },
+  );
+
+  it("supports in-memory files, scripts, and captures through the batch browser adapter", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.active_page")
+          return { pageId: "page-1", url: "about:blank" };
+        if (request.method === "context.pages") return [{ pageId: "page-2", url: "about:blank" }];
+        if (request.method === "locator.set_input_files") return { set: true };
+        if (
+          request.method === "page.add_init_script" ||
+          request.method === "context.add_init_script"
+        )
+          return { ok: true };
+        if (request.method === "page.screenshot" || request.method === "page.pdf")
+          return { data: "aGVsbG8=" };
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    const result = await runCallbackBatch(
+      router,
+      async ({ context }) => {
+        const page = (await context.pages())[0]!;
+        await page
+          .locator("input")
+          .nth(1)
+          .setInputFiles([
+            { name: "bytes.bin", buffer: new Uint8Array([0, 127, 255]) },
+            { name: "hello.txt", buffer: "hello" },
+          ]);
+        await page.addInitScript({ content: "globalThis.ready = true" });
+        await context.addInitScript({ content: "globalThis.ready = true" });
+        return {
+          screenshot: Array.from(await page.screenshot()),
+          pdf: Array.from(await page.pdf()),
+        };
+      },
+      null,
+      { timeout: 1_000 },
+    );
+    expect(result).toEqual({
+      value: { screenshot: [104, 101, 108, 108, 111], pdf: [104, 101, 108, 108, 111] },
+    });
+    expect(
+      requests.find((request) => request.method === "locator.set_input_files")?.params,
+    ).toEqual({
+      pageId: "page-2",
+      selector: "input",
+      nth: 1,
+      files: [
+        { name: "bytes.bin", data: "AH//" },
+        { name: "hello.txt", data: "aGVsbG8=" },
+      ],
+    });
+  });
+
   it("rejects a registered request without its runtime callback attachment", async () => {
     const router = {} as RPCRouter;
     await expect(
