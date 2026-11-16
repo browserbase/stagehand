@@ -149,6 +149,27 @@ describe("checkExtensionBuild", () => {
     expect(result.stdout).toBe("");
   });
 
+  it("exits non-zero when the CLI's --expect differs from a consistent build", async () => {
+    const { root, wheel } = await releaseFixture();
+    const expected = sha256("another build");
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        import.meta.resolve("tsx"),
+        path.join(import.meta.dirname, "check-extension-build.ts"),
+        "--wheel",
+        wheel,
+        "--expect",
+        expected,
+      ],
+      { cwd: root, encoding: "utf8" },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`expected ${expected}`);
+    expect(result.stdout).toBe("");
+  });
+
   it("rejects a packaged copy that differs from the release build", async () => {
     const wheelFiles = new Map(extensionFiles);
     wheelFiles.set("Zeta.js", encoder.encode("tampered\n"));

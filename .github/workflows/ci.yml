@@ -90,6 +90,7 @@ jobs:
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
+              - 'scripts/release/**'
               - '.github/**'
             deepagents-runner:
               - 'pyproject.toml'

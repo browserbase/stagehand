@@ -56,7 +56,13 @@ jobs:
 
       - name: Read extension fingerprint
         id: build-info
-        run: echo "fingerprint=$(node -p 'require("./packages/extension/artifacts/extension-build.json").fingerprint')" >> "$GITHUB_OUTPUT"
+        run: |
+          fingerprint="$(node -p 'require("./packages/extension/artifacts/extension-build.json").fingerprint')"
+          if [[ ! "$fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Invalid extension fingerprint: $fingerprint" >&2
+            exit 1
+          fi
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -113,16 +119,10 @@ jobs:
       - run: just build
       - run: just check
 
-      - name: Check SDK changesets
-        id: sdk-status
-        run: pnpm exec tsx scripts/release/scoped-release.ts status sdk >> "$GITHUB_OUTPUT"
-
       # Publish the extension from the shared release build, not the copies built above.
-      - if: steps.sdk-status.outputs.has-changesets == 'false'
-        run: rm -rf packages/extension/dist packages/extension/artifacts
+      - run: rm -rf packages/extension/dist packages/extension/artifacts
 
-      - if: steps.sdk-status.outputs.has-changesets == 'false'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: extension
           path: packages/extension

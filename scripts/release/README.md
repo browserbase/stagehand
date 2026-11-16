@@ -105,3 +105,8 @@ a job output. The TypeScript and Python publish jobs download that artifact into
 and the wheel with that fingerprint and confirms the extension was built for the
 job's current protocol and extension versions. The sdist is not checked; `uv build`
 builds the wheel from it.
+
+The check compares each package with the extension build from the same run. A retry
+that rebuilds (re-running all jobs, or a later push that publishes a missing package)
+compares against a new build, so parity across such retries relies on the extension
+build being reproducible.
