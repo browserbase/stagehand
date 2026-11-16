@@ -31,18 +31,23 @@ async function normalizeFile(
   }
 
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
+  let bytes: Uint8Array;
   if (typeof file.buffer === "string") {
     const exceedsLimit = platform.utf8ByteLengthExceeds(file.buffer, MAX_INPUT_FILE_BYTES);
     if (exceedsLimit) {
       throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
     }
+    bytes = new TextEncoder().encode(file.buffer);
+  } else if (
+    ArrayBuffer.isView(file.buffer) &&
+    Object.prototype.toString.call(file.buffer) === "[object Uint8Array]"
+  ) {
+    bytes = file.buffer;
+  } else if (Object.prototype.toString.call(file.buffer) === "[object ArrayBuffer]") {
+    bytes = new Uint8Array(file.buffer);
+  } else {
+    throw new TypeError("setInputFiles(): buffer must be a string, Uint8Array, or ArrayBuffer");
   }
-  const bytes =
-    typeof file.buffer === "string"
-      ? new TextEncoder().encode(file.buffer)
-      : ArrayBuffer.isView(file.buffer)
-        ? file.buffer
-        : new Uint8Array(file.buffer);
   if (bytes.byteLength > MAX_INPUT_FILE_BYTES) {
     throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
   }

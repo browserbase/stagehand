@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { expect, it } from "vitest";
-import { normalizeFileInput } from "../src/fileUpload.js";
+import { normalizeFileInput, type FilePayload } from "../src/fileUpload.js";
 
 it("encodes cross-realm buffers and preserves typed-array slices", async () => {
   const [buffer, slice] = runInNewContext(`[
@@ -17,4 +17,10 @@ it("encodes cross-realm buffers and preserves typed-array slices", async () => {
     { name: "buffer.bin", data: "AH//" },
     { name: "slice.bin", data: "AH//" },
   ]);
+});
+
+it.each([undefined, null, 3])("rejects invalid file buffer %s", async (buffer) => {
+  await expect(
+    normalizeFileInput({ name: "invalid.bin", buffer } as unknown as FilePayload),
+  ).rejects.toThrow(TypeError);
 });
