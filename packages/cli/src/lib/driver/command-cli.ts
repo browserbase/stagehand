@@ -89,7 +89,10 @@ export async function resolveDriverSession(
     }
     // A status reply describes a running session; it must never supply the
     // launch options for a replacement if that daemon subsequently disappears.
-    return { kind: "existing" };
+    // However, `open` commands can recover gracefully using the caller's flags
+    // (never the daemon-reported settings) to start a fresh session.
+    const fallbackTarget = requestedTarget ?? (await resolveConnectionTarget(flags));
+    return { kind: "existing", fallbackTarget };
   }
 
   return {

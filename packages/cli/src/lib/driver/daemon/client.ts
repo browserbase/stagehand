@@ -143,6 +143,8 @@ export function assertCompatibleTarget(
   if (targetsCompatible(status.target, target)) return;
   fail(
     `Session "${session}" is already running in ${status.mode} mode. Run browse stop --session ${session} before changing modes.`,
+    1,
+    { resultCode: "session_mode_conflict" },
   );
 }
 
@@ -201,9 +203,11 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
       resolve(value);
     };
 
-    const incompleteResponseError = (): Error => {
+    const incompleteResponseError = (): CommandFailure => {
       const detail = buffer ? "with an incomplete response" : "without a response";
-      return new Error(`Driver daemon session "${session}" closed ${detail}.`);
+      return new CommandFailure(`Driver daemon session "${session}" closed ${detail}.`, 1, {
+        resultCode: "daemon_connection_lost",
+      });
     };
 
     const timeout = setTimeout(() => {
@@ -226,7 +230,8 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
         if (response.type === "error") {
           failRequest(
             new CommandFailure(response.error, 1, {
-              ...(response.code ? { resultCode: response.code } : {}),
+              // Default to driver_error for daemons that don't send a code (e.g., older versions)
+              resultCode: response.code ?? "driver_error",
               ...(response.httpStatus !== undefined ? { httpStatus: response.httpStatus } : {}),
             }),
           );
@@ -234,7 +239,12 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
         }
         completeRequest(response.data as T);
       } catch (error) {
-        failRequest(error instanceof Error ? error : new Error(String(error)));
+        const message = error instanceof Error ? error.message : String(error);
+        failRequest(
+          new CommandFailure(`Failed to parse daemon response: ${message}`, 1, {
+            resultCode: "daemon_protocol_error",
+          }),
+        );
       }
     });
     socket.on("error", (error) => {
@@ -242,7 +252,12 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
         failRequest(daemonNotRunningError(session, request));
         return;
       }
-      failRequest(error);
+      const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+      failRequest(
+        new CommandFailure(`Socket error communicating with daemon: ${error.message}`, 1, {
+          resultCode: `daemon_socket_error_${code.toLowerCase()}`,
+        }),
+      );
     });
     socket.on("end", () => {
       if (!settled) failRequest(incompleteResponseError());

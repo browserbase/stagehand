@@ -190,22 +190,86 @@ describe("driver session selection", () => {
     },
   );
 
-  it.each(["open", "snapshot"] as const)(
-    "reports disappearance before %s without starting a replacement",
-    async (command) => {
+  it("reports disappearance before snapshot without starting a replacement", async () => {
+    await listen();
+    const selection = await resolveDriverSession(session, { local: true, headed: true });
+    await closeServer();
+    await expect(
+      runDriverCommand(session, selection, "snapshot", { full: true }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(`Driver daemon session "${session}" is not running.`),
+      telemetry: { resultCode: "daemon_not_running" },
+    });
+    expect(requests.map((request) => request.type)).toEqual(["status"]);
+    expect(childProcess.spawn).not.toHaveBeenCalled();
+  });
+
+  it(
+    "auto-recovers for open when the session vanishes after selection",
+    { timeout: 35_000 },
+    async () => {
       await listen();
       const selection = await resolveDriverSession(session, { local: true, headed: true });
+      expect(selection).toMatchObject({ kind: "existing", fallbackTarget: expect.any(Object) });
       await closeServer();
-      await expect(
-        runDriverCommand(session, selection, command, { url: "about:blank" }),
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(`Driver daemon session "${session}" is not running.`),
-        telemetry: { resultCode: "daemon_not_running" },
+      // Remove socket file to trigger daemon_not_running error (ENOENT)
+      const socketPath = getSocketPath(session);
+      await fs.unlink(socketPath).catch(() => undefined);
+
+      // Recovery will call ensureDriverDaemon, which spawns and waits for the socket.
+      // The real spawn runs the vitest entrypoint instead of the browse CLI, so the
+      // daemon never starts and waitForSocketReady times out. The key assertion is
+      // that the final error comes from the recovery path (socket not ready), not
+      // from the original daemon_not_running. This confirms recovery was attempted.
+      const result = await runDriverCommand(session, selection, "open", {
+        url: "about:blank",
+      }).catch((error: unknown) => error);
+      // After recovery attempt, error should be socket timeout (from ensureDriverDaemon),
+      // not the original daemon_not_running. This confirms recovery was triggered.
+      expect(result).toMatchObject({
+        message: expect.stringContaining("socket was not ready"),
       });
       expect(requests.map((request) => request.type)).toEqual(["status"]);
-      expect(childProcess.spawn).not.toHaveBeenCalled();
     },
   );
+
+  it("auto-recovers for open when daemon_connection_lost occurs", { timeout: 35_000 }, async () => {
+    // First, start the normal server for the status check
+    await listen();
+    const selection = await resolveDriverSession(session, { local: true, headed: true });
+    expect(selection).toMatchObject({ kind: "existing", fallbackTarget: expect.any(Object) });
+
+    // Close the server and replace it with one that closes without responding
+    await closeServer();
+
+    const socketPath = getSocketPath(session);
+    // Create a server that waits for request data then closes without responding
+    // (simulating a daemon crash mid-request). This triggers daemon_connection_lost.
+    const crashingServer = net.createServer((socket) => {
+      // Wait for request data, then end without responding
+      socket.once("data", () => {
+        crashingServer.close();
+        fs.unlink(socketPath).catch(() => undefined);
+        socket.end();
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      crashingServer.once("error", reject);
+      crashingServer.listen(socketPath, resolve);
+    });
+
+    // The open command will get daemon_connection_lost, triggering recovery
+    const result = await runDriverCommand(session, selection, "open", { url: "about:blank" }).catch(
+      (error: unknown) => error,
+    );
+
+    // Recovery was attempted (socket timeout is from ensureDriverDaemon failing
+    // because spawn runs vitest instead of browse CLI in test environment)
+    expect(result).toMatchObject({
+      message: expect.stringContaining("socket was not ready"),
+    });
+    expect(requests.map((request) => request.type)).toEqual(["status"]);
+  });
 
   it.each([
     { waitsForLock: false, compatible: true },

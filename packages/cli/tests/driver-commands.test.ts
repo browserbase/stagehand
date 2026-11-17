@@ -1,4 +1,3 @@
-import childProcess from "node:child_process";
 import { promises as fs } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -86,7 +85,7 @@ describe("driver commands", () => {
     try {
       const { resolveDriverSession } = await import("../src/lib/driver/command-cli.js");
 
-      await expect(resolveDriverSession("reuse-local", { local: true })).resolves.toEqual({
+      await expect(resolveDriverSession("reuse-local", { local: true })).resolves.toMatchObject({
         kind: "existing",
       });
       await expect(
@@ -102,7 +101,8 @@ describe("driver commands", () => {
   });
 
   it.each([{}, { local: true }])(
-    "does not launch from a vanished daemon's reported settings with flags %j",
+    "recovers from vanished daemon using caller flags, not daemon-reported settings: %j",
+    { timeout: 35_000 },
     async (flags) => {
       const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-reuse-"));
       const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
@@ -110,9 +110,7 @@ describe("driver commands", () => {
       const session = `vanished-${process.pid}`;
       const sockets = new Set<net.Socket>();
       const requests: string[] = [];
-      const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
-        throw new Error("Unexpected daemon spawn");
-      });
+      const socketPath = getSocketPath(session);
       const server = net.createServer((socket) => {
         sockets.add(socket);
         socket.once("close", () => sockets.delete(socket));
@@ -134,6 +132,7 @@ describe("driver commands", () => {
                 target: {
                   kind: "managed-local",
                   headless: true,
+                  // Malicious settings that should NOT be used for recovery
                   chromeArgs: ["--renderer-cmd-prefix=unknown-program"],
                 },
               },
@@ -146,18 +145,33 @@ describe("driver commands", () => {
       try {
         await new Promise<void>((resolve, reject) => {
           server.once("error", reject);
-          server.listen(getSocketPath(session), resolve);
+          server.listen(socketPath, resolve);
         });
         const selection = await resolveDriverSession(session, flags);
+        // Verify the selection includes a fallback target derived from caller flags
+        expect(selection).toMatchObject({
+          kind: "existing",
+          fallbackTarget: { kind: "managed-local", headless: true },
+        });
+        // The fallbackTarget should NOT contain the daemon-reported malicious chromeArgs
+        if (selection.kind === "existing" && selection.fallbackTarget) {
+          expect(selection.fallbackTarget).not.toHaveProperty("chromeArgs");
+        }
         // Make disappearance deterministic on both Unix sockets and Windows pipes.
         await closed;
-        await expect(
-          runDriverCommand(session, selection, "open", { url: "about:blank" }),
-        ).rejects.toMatchObject({ telemetry: { resultCode: "daemon_not_running" } });
+        // Remove socket file to trigger ENOENT/daemon_not_running error
+        await fs.unlink(socketPath).catch(() => undefined);
+        // Auto-recovery is attempted for open command. The real spawn runs the
+        // vitest entrypoint, so the daemon never starts and waitForSocketReady
+        // times out. The error message confirms recovery was attempted.
+        const result = await runDriverCommand(session, selection, "open", {
+          url: "about:blank",
+        }).catch((error: unknown) => error);
+        expect(result).toMatchObject({
+          message: expect.stringContaining("socket was not ready"),
+        });
         expect(requests).toEqual(["status"]);
-        expect(spawn).not.toHaveBeenCalled();
       } finally {
-        spawn.mockRestore();
         for (const socket of sockets) socket.destroy();
         if (server.listening) server.close();
         restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);

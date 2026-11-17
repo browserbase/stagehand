@@ -1,9 +1,10 @@
 import { ensureDriverDaemon, openViaDaemon, runDriverCommandViaDaemon } from "./daemon/client.js";
+import { CommandFailure } from "../errors.js";
 import type { DriverCommandName } from "./commands/types.js";
 import type { ConnectionTarget } from "./types.js";
 
 export type DriverSessionSelection =
-  | { kind: "existing" }
+  | { kind: "existing"; fallbackTarget?: ConnectionTarget }
   | { kind: "create"; target: ConnectionTarget };
 
 type OpenCommandParams = {
@@ -21,13 +22,45 @@ export async function runDriverCommand(
   if (selection.kind === "create") {
     await ensureDriverDaemon({ session, target: selection.target });
   }
-  // Reusing a session never starts a daemon. If it vanished after selection,
-  // propagate the connection error instead of recreating it from its reply.
   if (command === "open" && isOpenCommandParams(params)) {
-    return openViaDaemon(session, params.url, params);
+    return openViaDaemonWithRecovery(session, selection, params);
   }
 
   return runDriverCommandViaDaemon(session, command, params);
+}
+
+async function openViaDaemonWithRecovery(
+  session: string,
+  selection: DriverSessionSelection,
+  params: OpenCommandParams,
+): Promise<unknown> {
+  try {
+    return await openViaDaemon(session, params.url, params);
+  } catch (error) {
+    // Auto-recover when reusing a session whose daemon vanished after selection.
+    // The recovery uses the caller's flags (never daemon-reported settings),
+    // preserving the security intent of the original session-reuse separation.
+    if (selection.kind === "existing" && selection.fallbackTarget && shouldRecoverDaemon(error)) {
+      await ensureDriverDaemon({ session, target: selection.fallbackTarget });
+      return openViaDaemon(session, params.url, params);
+    }
+    throw error;
+  }
+}
+
+function shouldRecoverDaemon(error: unknown): boolean {
+  if (!(error instanceof CommandFailure)) return false;
+  const code = error.telemetry.resultCode;
+  // Recover when the daemon is gone or crashed:
+  // - daemon_not_running: socket connection failed (ECONNREFUSED/ENOENT)
+  // - daemon_connection_lost: daemon closed mid-request
+  // - daemon_socket_error_*: socket write/read failed (e.g., EPIPE when daemon crashed)
+  // Do NOT recover on daemon_socket_timeout since the old process may still be alive.
+  return (
+    code === "daemon_not_running" ||
+    code === "daemon_connection_lost" ||
+    (typeof code === "string" && code.startsWith("daemon_socket_error_"))
+  );
 }
 
 function isOpenCommandParams(params: unknown): params is OpenCommandParams {

@@ -209,7 +209,7 @@ function endSocket(socket: net.Socket): Promise<void> {
 }
 
 function formatError(error: unknown): {
-  code?: string;
+  code: string;
   error: string;
   httpStatus?: number;
 } {
@@ -221,5 +221,7 @@ function formatError(error: unknown): {
       ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
     };
   }
-  return { error: message };
+  // Non-DriverError errors get a generic code so telemetry doesn't report them
+  // as "unexpected". The error message still provides specifics for debugging.
+  return { code: "driver_error", error: message };
 }
