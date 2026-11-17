@@ -49,10 +49,7 @@ async function openViaDaemonWithRecovery(
       // For driver_error (browser/page failures), force-stop the daemon first
       // since it's still running but has a stale browser. For socket errors,
       // the daemon is already gone so this is a no-op.
-      if (
-        error instanceof CommandFailure &&
-        error.telemetry.resultCode === "driver_error"
-      ) {
+      if (error instanceof CommandFailure && error.telemetry.resultCode === "driver_error") {
         await stopDriverDaemon(session, true);
       }
       await ensureDriverDaemon({ session, target: selection.fallbackTarget });
