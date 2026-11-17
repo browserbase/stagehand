@@ -1,12 +1,12 @@
 import { zipSync } from "fflate";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { fingerprintFiles } from "../../packages/extension/buildFingerprint.ts";
-import { checkExtensionBuild } from "./check-extension-build.ts";
+import { checkExtensionBuild, readBuildFingerprint } from "./check-extension-build.ts";
 
 const encoder = new TextEncoder();
 const extensionFiles = new Map([
@@ -80,6 +80,25 @@ async function releaseFixture(
     }),
   );
   return { root, typescriptDist, wheel };
+}
+
+function runCli(root: string, args: string[]) {
+  return spawnSync(
+    process.execPath,
+    [
+      "--import",
+      import.meta.resolve("tsx"),
+      path.join(import.meta.dirname, "check-extension-build.ts"),
+      ...args,
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+}
+
+async function buildFixture(distFiles = extensionFiles): Promise<string> {
+  const { root } = await releaseFixture();
+  await writeTree(path.join(root, "packages/extension/dist"), distFiles);
+  return root;
 }
 
 describe("fingerprintFiles", () => {
@@ -212,5 +231,49 @@ describe("checkExtensionBuild", () => {
   it("requires something to check", async () => {
     const { root } = await releaseFixture();
     await expect(checkExtensionBuild(root, {})).rejects.toThrow("Pass --typescript and/or --wheel");
+  });
+});
+
+describe("readBuildFingerprint", () => {
+  it("returns the recorded fingerprint when it matches dist", async () => {
+    const root = await buildFixture();
+    await expect(readBuildFingerprint(root)).resolves.toBe(fingerprintFiles(extensionFiles));
+  });
+
+  it("rejects a recorded fingerprint that differs from dist", async () => {
+    const distFiles = new Map(extensionFiles);
+    distFiles.set("Zeta.js", encoder.encode("tampered\n"));
+    const root = await buildFixture(distFiles);
+    await expect(readBuildFingerprint(root)).rejects.toThrow(
+      `records fingerprint ${fingerprintFiles(extensionFiles)}, dist has ${fingerprintFiles(distFiles)}`,
+    );
+  });
+
+  it("rejects a recorded fingerprint that is not a SHA-256 digest", async () => {
+    const root = await buildFixture();
+    const infoPath = path.join(root, "packages/extension/artifacts/extension-build.json");
+    const info = JSON.parse(await readFile(infoPath, "utf8"));
+    await writeFile(
+      infoPath,
+      JSON.stringify({ ...info, fingerprint: info.fingerprint.toUpperCase() }),
+    );
+    await expect(readBuildFingerprint(root)).rejects.toThrow("is not a SHA-256 hex digest");
+  });
+
+  it("prints only the fingerprint from the CLI", async () => {
+    const root = await buildFixture();
+    const result = runCli(root, ["--print-fingerprint"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(`${fingerprintFiles(extensionFiles)}\n`);
+  });
+
+  it("exits non-zero and prints nothing on stdout when dist differs", async () => {
+    const distFiles = new Map(extensionFiles);
+    distFiles.set("Zeta.js", encoder.encode("tampered\n"));
+    const root = await buildFixture(distFiles);
+    const result = runCli(root, ["--print-fingerprint"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("dist has");
+    expect(result.stdout).toBe("");
   });
 });

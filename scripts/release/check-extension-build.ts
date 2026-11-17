@@ -81,6 +81,23 @@ export async function checkExtensionBuild(
   return { info, checked: [...copies.keys()] };
 }
 
+export async function readBuildFingerprint(repositoryRoot: string): Promise<string> {
+  const extensionRoot = path.join(repositoryRoot, "packages/extension");
+  const { fingerprint } = JSON.parse(
+    await readFile(path.join(extensionRoot, "artifacts", EXTENSION_BUILD_INFO_FILE), "utf8"),
+  ) as ExtensionBuildInfo;
+  if (typeof fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(fingerprint)) {
+    throw new Error(`${EXTENSION_BUILD_INFO_FILE} fingerprint is not a SHA-256 hex digest`);
+  }
+  const dist = fingerprintFiles(await readDirectoryFiles(path.join(extensionRoot, "dist")));
+  if (dist !== fingerprint) {
+    throw new Error(
+      `${EXTENSION_BUILD_INFO_FILE} records fingerprint ${fingerprint}, dist has ${dist}`,
+    );
+  }
+  return fingerprint;
+}
+
 function unzipFiles(archive: Uint8Array, prefix = ""): Map<string, Uint8Array> {
   const files = new Map<string, Uint8Array>();
   const entries = unzipSync(archive, {
@@ -110,17 +127,22 @@ if (
       typescript: { type: "string" },
       wheel: { type: "string" },
       expect: { type: "string" },
+      "print-fingerprint": { type: "boolean" },
     },
   });
   try {
-    const { info, checked } = await checkExtensionBuild(
-      process.cwd(),
-      { typescriptDist: values.typescript, wheel: values.wheel },
-      values.expect,
-    );
-    process.stdout.write(
-      `Packaged extension matches the release build (fingerprint ${info.fingerprint}, extension ${info.extensionVersion}, protocol ${info.protocolVersion}): ${checked.join(", ")}\n`,
-    );
+    if (values["print-fingerprint"]) {
+      process.stdout.write(`${await readBuildFingerprint(process.cwd())}\n`);
+    } else {
+      const { info, checked } = await checkExtensionBuild(
+        process.cwd(),
+        { typescriptDist: values.typescript, wheel: values.wheel },
+        values.expect,
+      );
+      process.stdout.write(
+        `Packaged extension matches the release build (fingerprint ${info.fingerprint}, extension ${info.extensionVersion}, protocol ${info.protocolVersion}): ${checked.join(", ")}\n`,
+      );
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

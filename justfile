@@ -85,6 +85,9 @@ test-deepagents:
     uv --directory {{deepagents_python_dir}} run --locked pytest
     uv --directory {{deepagents_python_dir}}/runner run --project "{{justfile_directory()}}" --package stagehand-deepagents-eval-runner --locked pytest
 
+build-extension:
+    pnpm --filter ./packages/extension build
+
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
@@ -106,6 +109,12 @@ _version:
     uv lock
     just generate
     pnpm exec tsx scripts/release/sync-python-version.ts --check
+
+# The release workflow reads the validated fingerprint from the last line of output.
+_build-release-extension:
+    pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
+    just build-extension
+    pnpm exec tsx scripts/release/check-extension-build.ts --print-fingerprint
 
 # Python distributions need release tooling. The extension and SDK TS filters are kept
 # until a narrower install can be tried in a release run.

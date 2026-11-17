@@ -96,14 +96,15 @@ checks and publication steps are unchanged.
 ## Extension build
 
 Within one Release run, the npm packages and the wheels are packaged from one extension
-build. `build-extension` applies the SDK snapshot versioning (a no-op when no SDK
-changeset is pending, the only case in which stable packages publish), builds the
-extension, uploads it as the `extension` workflow artifact and exposes its fingerprint as
-a job output. The TypeScript and Python publish jobs download that artifact into
-`packages/extension/` instead of rebuilding it. Before publishing,
-`check-extension-build.ts --expect <fingerprint>` compares the copies in `sdk-ts/dist`
-and the wheel with that fingerprint and confirms the extension was built for the
-job's current protocol and extension versions. The sdist is not checked; `uv build`
+build. The `build-extension` job runs `just _build-release-extension`, which applies the
+SDK snapshot versioning (a no-op when no SDK changeset is pending, the only case in which
+stable packages publish), runs `just build-extension` and prints the fingerprint after
+checking it against `dist/`. The job uploads the build as the `extension` workflow
+artifact and exposes the fingerprint as a job output. The TypeScript and Python publish
+jobs download that artifact into `packages/extension/` instead of rebuilding it. Before
+publishing, `check-extension-build.ts --expect <fingerprint>` compares the copies in
+`sdk-ts/dist` and the wheel with that fingerprint and confirms the extension was built
+for the job's current protocol and extension versions. The sdist is not checked; `uv build`
 builds the wheel from it.
 
 The check compares each package with the extension build from the same run. A retry
