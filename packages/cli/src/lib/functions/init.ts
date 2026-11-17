@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -56,7 +56,7 @@ defineFn(
   },
   {
     // Upload the Stagehand extension once, then paste its ID here:
-    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    //   browse cloud extensions upload --stagehand
     sessionConfig: { extensionId: "your-extension-id" },
   },
 );
@@ -113,24 +113,17 @@ export async function initFunctionsProject({
     },
   };
 
-  await writeFile(
-    join(projectRoot, "package.json"),
-    `${JSON.stringify(packageJson, null, 2)}\n`,
-  );
+  await writeFile(join(projectRoot, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
   await writeFile(join(projectRoot, ".env"), envTemplate);
   await writeFile(join(projectRoot, ".gitignore"), gitignoreTemplate);
   await writeFile(join(projectRoot, "index.ts"), starterFunctionTemplate);
   await writeFile(join(projectRoot, "tsconfig.json"), tsconfigTemplate);
   if (packageManager === "pnpm") {
-    await writeFile(
-      join(projectRoot, "pnpm-workspace.yaml"),
-      pnpmWorkspaceTemplate,
-    );
+    await writeFile(join(projectRoot, "pnpm-workspace.yaml"), pnpmWorkspaceTemplate);
   }
 
   const install = packageManager === "pnpm" ? ["add"] : ["install"];
-  const installDev =
-    packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
+  const installDev = packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
 
   runPackageManager(
     packageManager,
@@ -144,14 +137,10 @@ export async function initFunctionsProject({
     [...install, zodVersion ? `zod@${zodVersion}` : "zod"],
     projectRoot,
   );
-  runPackageManager(
-    packageManager,
-    [...installDev, "typescript", "@types/node"],
-    projectRoot,
-  );
+  runPackageManager(packageManager, [...installDev, "typescript", "@types/node"], projectRoot);
 
   if (!existsSync(join(projectRoot, ".git"))) {
-    spawnSync("git", ["init"], {
+    spawn.sync("git", ["init"], {
       cwd: projectRoot,
       stdio: "ignore",
     });
@@ -166,7 +155,7 @@ export async function initFunctionsProject({
         nextSteps: [
           `cd ${projectName}`,
           "Edit .env with your Browserbase API key",
-          "browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip",
+          "browse cloud extensions upload --stagehand",
           "Paste the uploaded extension ID into index.ts",
           "browse functions dev index.ts",
           "browse functions publish index.ts",
@@ -180,7 +169,7 @@ export async function initFunctionsProject({
 }
 
 function ensureCommand(command: string): void {
-  const result = spawnSync(command, ["--version"], { stdio: "ignore" });
+  const result = spawn.sync(command, ["--version"], { stdio: "ignore" });
   if (result.error || result.status !== 0) {
     fail(`${command} is required but was not found on PATH.`);
   }
@@ -190,13 +179,7 @@ function readStagehandZodVersion(projectRoot: string): string | undefined {
   try {
     const stagehandPackageJson = JSON.parse(
       readFileSync(
-        join(
-          projectRoot,
-          "node_modules",
-          "@browserbasehq",
-          "stagehand",
-          "package.json",
-        ),
+        join(projectRoot, "node_modules", "@browserbasehq", "stagehand", "package.json"),
         "utf8",
       ),
     ) as { dependencies?: Record<string, string> };
@@ -206,20 +189,16 @@ function readStagehandZodVersion(projectRoot: string): string | undefined {
   }
 }
 
-function runPackageManager(
-  packageManager: "npm" | "pnpm",
-  args: string[],
-  cwd: string,
-): void {
-  const result = spawnSync(packageManager, args, {
+function runPackageManager(packageManager: "npm" | "pnpm", args: string[], cwd: string): void {
+  const result = spawn.sync(packageManager, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  if (result.stdout.length > 0) {
+  if (result.stdout?.length > 0) {
     process.stderr.write(result.stdout);
   }
-  if (result.stderr.length > 0) {
+  if (result.stderr?.length > 0) {
     process.stderr.write(result.stderr);
   }
 

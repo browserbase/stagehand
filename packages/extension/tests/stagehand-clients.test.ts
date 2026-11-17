@@ -13,6 +13,7 @@ import {
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
 import type { WebMCPToolsEvent } from "../understudy/page.js";
+import type { Response } from "../understudy/response.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -475,6 +476,15 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
+  readonly responseListeners = new Set<(response: Response) => void>();
+
+  async subscribeResponse(listener: (response: Response) => void): Promise<() => void> {
+    this.responseListeners.add(listener);
+    return () => {
+      this.responseListeners.delete(listener);
+    };
+  }
+
   readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
 
   async subscribeWebMCPToolsChanged(
@@ -916,6 +926,32 @@ describe("Stagehand worker clients", () => {
     expect(page.cdpEventListeners.get("Runtime.consoleAPICalled")?.size).toBe(2);
     await runtime.close();
     expect(page.cdpEventListeners.size).toBe(0);
+  });
+
+  it("keeps requests closed after policy cleanup fails with subscriptions already removed", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const session = new FakeBrowserSession([page]);
+    const runtime = await createConfiguredRuntime(session);
+    await runtime.initialize({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      logLevel: "off",
+    });
+    await session.setDomainPolicy({ blockedDomains: ["blocked.test"] });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "console", event: "console" });
+    expect(page.cdpEventListeners.get("Runtime.consoleAPICalled")?.size).toBe(1);
+    vi.spyOn(session, "setDomainPolicy").mockRejectedValueOnce(new Error("cleanup failed"));
+
+    await expect(runtime.disposeStagehandInstance()).rejects.toThrow("cleanup failed");
+    expect(page.cdpEventListeners.size).toBe(0);
+    expect(runtime.state.getState().status).toBe("initialized");
+    expect(() => runtime.acquireStagehandInstanceRequest()).toThrow("closing");
+
+    await runtime.disposeStagehandInstance();
+    expect(session.getDomainPolicy()).toBeNull();
+    expect(runtime.state.getState().status).toBe("idle");
+    runtime.acquireStagehandInstanceRequest()();
+    await runtime.close();
   });
 
   it.each(["page", "runtime", "instance"] as const)(

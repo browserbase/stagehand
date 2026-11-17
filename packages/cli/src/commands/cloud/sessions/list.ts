@@ -1,10 +1,6 @@
 import { Flags } from "@oclif/core";
 
-import {
-  createBrowserbaseClient,
-  outputJson,
-  withBrowserbaseApi,
-} from "../../../lib/cloud/api.js";
+import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 import {
@@ -74,9 +70,7 @@ export default class SessionsList extends BrowseCommand {
         query.status = flags.status as SessionStatus;
       }
 
-      const sessions = (await client.sessions.list(
-        query,
-      )) as BrowserbaseSession[];
+      const sessions = (await client.sessions.list(query)) as BrowserbaseSession[];
       if (resolveOutputFormat(flags) === "json") {
         outputJson(sessions);
         return;
@@ -155,10 +149,7 @@ function outputSessionsTable(
   }
 }
 
-function formatDuration(
-  startedAt: string | undefined,
-  endedAt: string | undefined,
-): string {
+function formatDuration(startedAt: string | undefined, endedAt: string | undefined): string {
   if (!startedAt || !endedAt) {
     return "-";
   }
@@ -196,8 +187,6 @@ function formatMetadata(metadata: Record<string, unknown> | undefined): string {
   }
 
   return Object.entries(metadata)
-    .map(([key, value]) =>
-      value === true || value === "true" ? key : `${key}=${String(value)}`,
-    )
+    .map(([key, value]) => (value === true || value === "true" ? key : `${key}=${String(value)}`))
     .join(",");
 }

@@ -38,15 +38,18 @@ const actionSchema = (op: string, extra: Record<string, Record<string, unknown>>
   additionalProperties: false,
 });
 
-export const RUN_TOOL_DESCRIPTION =
-  'Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+/** Where run code's `page.screenshot({ path })` files land; shared by both run descriptions. */
+const RUN_SCREENSHOT_PATH_NOTE =
+  "page.screenshot({ path }) saves a .png, .jpg or .jpeg file relative to the host's artifact directory (./stagehand-artifacts under the host's working directory unless the host configures another).";
+
+export const RUN_TOOL_DESCRIPTION = `Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. ${RUN_SCREENSHOT_PATH_NOTE} Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.`;
 
 /**
- * Run-tool description of the pre-Playwright-idiom facade surface, kept
- * byte-identical so `--surface=legacy` hosts reproduce the earlier contract.
+ * Run-tool description of the pre-Playwright-idiom facade surface, kept as
+ * before apart from the screenshot-path note so `--surface=legacy` hosts
+ * reproduce the earlier contract.
  */
-export const LEGACY_RUN_TOOL_DESCRIPTION =
-  'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+export const LEGACY_RUN_TOOL_DESCRIPTION = `Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. ${RUN_SCREENSHOT_PATH_NOTE} Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.`;
 
 export const SNAPSHOT_TOOL_DESCRIPTION =
   "Capture the active page's Stagehand accessibility tree and hydrate its displayed IDs for subsequent run actions. Every call replaces the active page's ID map.";
@@ -169,7 +172,10 @@ export const SNAPSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SNAPSHOT_TOOL_DESCRIPTION} 
 export const SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SCREENSHOT_TOOL_DESCRIPTION} Use it to verify the visible state before reporting done, on visual or canvas content, and when text evidence is ambiguous.`;
 export const RUN_TOOL_DESCRIPTION_EXPLICIT = `${RUN_TOOL_DESCRIPTION} Prefer "actions" with snapshot IDs for simple clicks/fills/selects on visible elements; use "code" for multi-step logic and extraction.`;
 
-export function explicitSnapshotActionsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+/** Environment variables as read by the facade; `process.env` satisfies it. */
+export type FacadeEnv = Readonly<Record<string, string | undefined>>;
+
+export function explicitSnapshotActionsEnabled(env: FacadeEnv = process.env): boolean {
   const v = env.EXPLICIT_SNAPSHOT_ACTIONS?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
@@ -184,12 +190,12 @@ export const FACADE_TOOLS_EXPLICIT_SNAPSHOT = FACADE_TOOLS.map((tool) => ({
         : SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT,
 })) as unknown as typeof FACADE_TOOLS;
 
-export function facadeToolsFor(surface: FacadeSurface, env: NodeJS.ProcessEnv = process.env) {
+export function facadeToolsFor(surface: FacadeSurface, env: FacadeEnv = process.env) {
   if (surface === "legacy") return FACADE_LEGACY_TOOLS;
   return explicitSnapshotActionsEnabled(env) ? FACADE_TOOLS_EXPLICIT_SNAPSHOT : FACADE_TOOLS;
 }
 
-export function facadeAgentInstructions(env: NodeJS.ProcessEnv = process.env): string {
+export function facadeAgentInstructions(env: FacadeEnv = process.env): string {
   return explicitSnapshotActionsEnabled(env)
     ? `${FACADE_AGENT_INSTRUCTIONS}\n\n${SNAPSHOT_ACTIONS_WORKFLOW}`
     : FACADE_AGENT_INSTRUCTIONS;
@@ -236,6 +242,25 @@ export const SCREENSHOT_ARTIFACT_SYMLINK_ERROR =
   "Screenshot artifact directory must not be a symlink.";
 export const SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR =
   "Screenshot artifact file must not be a symlink.";
+export const SCREENSHOT_ARTIFACT_NOT_FILE_ERROR =
+  "Screenshot artifact file must be a regular file.";
+export const SCREENSHOT_ARTIFACT_TYPE_ERROR =
+  "Screenshot artifact path must end in .png, .jpg or .jpeg.";
+export const SCREENSHOT_ARTIFACT_CONTENT_ERROR = "Screenshot artifact must be a PNG or JPEG image.";
+export const SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR =
+  "Screenshot artifact directory must not be a file.";
+/** `${cause}` is the filesystem error code, e.g. ENAMETOOLONG; never a path. */
+export const SCREENSHOT_ARTIFACT_WRITE_ERROR =
+  "Screenshot artifact could not be written (${cause}).";
+
+export function screenshotArtifactWriteError(cause: string): string {
+  return SCREENSHOT_ARTIFACT_WRITE_ERROR.replace("${cause}", cause);
+}
+/**
+ * Directory under the current working directory that screenshot artifacts are
+ * written to when a host sets no artifact root.
+ */
+export const DEFAULT_ARTIFACT_DIRECTORY = "stagehand-artifacts";
 export const FACADE_BROWSER_CLOSED_ERROR = "Stagehand facade browser is closed.";
 
 /**

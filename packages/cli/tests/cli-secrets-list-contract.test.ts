@@ -27,10 +27,9 @@ describe("project secrets list HTTP contract", () => {
     server = await startFakeBrowserbaseServer((_request, response) =>
       jsonResponse(response, 200, page),
     );
-    const result = await runCli(
-      ["cloud", "secrets", "list", "--base-url", server.baseUrl],
-      { env },
-    );
+    const result = await runCli(["cloud", "secrets", "list", "--base-url", server.baseUrl], {
+      env,
+    });
     expect(result.exitCode, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual(page);
     expect(server.requests).toHaveLength(1);
@@ -86,34 +85,22 @@ describe("project secrets list HTTP contract", () => {
     server = await startFakeBrowserbaseServer((_request, response) =>
       jsonResponse(response, 403, { message: "Forbidden" }),
     );
-    const result = await runCli(
-      ["cloud", "secrets", "list", "--base-url", server.baseUrl],
-      { env },
-    );
+    const result = await runCli(["cloud", "secrets", "list", "--base-url", server.baseUrl], {
+      env,
+    });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Forbidden");
   });
 
-  it.each(["0", "1001"])(
-    "rejects invalid limit %s before requesting",
-    async (limit) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "cloud",
-          "secrets",
-          "list",
-          "--base-url",
-          server.baseUrl,
-          "--limit",
-          limit,
-        ],
-        { env },
-      );
-      expect(result.exitCode).not.toBe(0);
-      expect(server.requests).toHaveLength(0);
-    },
-  );
+  it.each(["0", "1001"])("rejects invalid limit %s before requesting", async (limit) => {
+    server = await startFakeBrowserbaseServer((_request, response) =>
+      jsonResponse(response, 200, {}),
+    );
+    const result = await runCli(
+      ["cloud", "secrets", "list", "--base-url", server.baseUrl, "--limit", limit],
+      { env },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(server.requests).toHaveLength(0);
+  });
 });

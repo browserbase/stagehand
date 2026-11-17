@@ -43,6 +43,8 @@ export type CDPClientOptions = {
   serviceWorkerUrlIncludes?: string;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
+  /** Factory-owned lifecycle policy; never infer process ownership from a CDP URL. */
+  clientLifecycle?: { closeBrowserOnDisconnect: boolean; extensionCdpUrl?: string };
   signal: AbortSignal;
 };
 
@@ -220,6 +222,8 @@ export class CDPConnectionClosedError extends Error {
   }
 }
 
+const CLIENT_TARGET_URL = "about:blank#stagehand-client-connection";
+
 export class CDPClient {
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
@@ -230,6 +234,9 @@ export class CDPClient {
   sessionId: string | undefined;
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
+  private clientTargetId?: string;
+  /** Whether the extension shuts the browser down if this client is lost. */
+  private clientCloseBrowserOnLoss = false;
   private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private heartbeatAbort?: AbortController;
@@ -426,6 +433,9 @@ export class CDPClient {
         allowFallbackInstall: options.allowFallbackInstall,
         signal,
       });
+      if (options.clientLifecycle) {
+        await client.registerClient(options.clientLifecycle, signal);
+      }
       return client;
     } catch (error) {
       client.close();
@@ -438,6 +448,98 @@ export class CDPClient {
       throw new Error("Stagehand service worker is not attached");
     }
     return this.attachedServiceWorker;
+  }
+
+  private async registerClient(
+    policy: NonNullable<CDPClientOptions["clientLifecycle"]>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const { targetId } = await this.sendCommand<{ targetId: string }>(
+      "Target.createTarget",
+      { url: CLIENT_TARGET_URL, hidden: true, background: true },
+      undefined,
+      signal,
+    );
+    // Chrome accepts unknown parameters: a build without hidden targets opens an
+    // ordinary tab that outlives this connection and would never signal its loss.
+    const { targetInfo } = await this.sendCommand<{ targetInfo: { type: string } }>(
+      "Target.getTargetInfo",
+      { targetId },
+      undefined,
+      signal,
+    );
+    if (targetInfo.type !== "other") {
+      await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
+      throw new Error("Stagehand requires Chrome 137 or later, which supports hidden targets");
+    }
+    const supported = await this.clientLifecycleCommand(
+      {
+        action: "attach",
+        targetId,
+        cdpUrl: policy.extensionCdpUrl ?? this.webSocketDebuggerUrl,
+        closeBrowserOnDisconnect: policy.closeBrowserOnDisconnect,
+      },
+      signal,
+    );
+    if (!supported) {
+      // The protocol handshake already rejects older extensions; this one is inconsistent.
+      await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
+      throw new Error(
+        "The Stagehand extension in this browser does not support the client watchdog; update the extension",
+      );
+    }
+    this.clientTargetId = targetId;
+    this.clientCloseBrowserOnLoss = policy.closeBrowserOnDisconnect;
+  }
+
+  /** Acknowledged intentional detach, before the client's socket/marker disappears. */
+  async detachClient(): Promise<void> {
+    if (!this.clientTargetId || this.closed) return;
+    let acknowledged: boolean;
+    try {
+      acknowledged = await this.clientLifecycleCommand(
+        { action: "detach", targetId: this.clientTargetId },
+        AbortSignal.timeout(10_000),
+      );
+    } catch (error) {
+      // Browserbase ends a keepAlive: false session once the extension closes its own
+      // connection, which closes this one before the acknowledgement arrives: the detach
+      // happened. A failure or timeout with this connection still open is still an error.
+      // When the extension shuts the browser down on loss, a lost connection means it did
+      // not get the detach: the browser is closing, so do not report a clean disconnect.
+      if (!(error instanceof CDPConnectionClosedError) || this.clientCloseBrowserOnLoss) {
+        throw error;
+      }
+      acknowledged = true;
+    }
+    if (!acknowledged) throw new Error("The Stagehand extension did not acknowledge the detach");
+    this.clientTargetId = undefined;
+  }
+
+  /** Resolves false when the extension has no client lifecycle support. */
+  private async clientLifecycleCommand(params: JsonObject, signal: AbortSignal): Promise<boolean> {
+    const result = await this.sendCommand<RuntimeEvaluateResult>(
+      "Runtime.evaluate",
+      {
+        expression: `(async () => {
+          if (typeof globalThis.__stagehandClientLifecycle !== "function") return false;
+          await globalThis.__stagehandClientLifecycle(${JSON.stringify(params)});
+          return true;
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      this.sessionId,
+      signal,
+    );
+    if (result.exceptionDetails || typeof result.result?.value !== "boolean") {
+      throw new Error(
+        result.exceptionDetails?.exception?.description ??
+          result.exceptionDetails?.text ??
+          "Stagehand client lifecycle registration failed",
+      );
+    }
+    return result.result.value;
   }
 
   async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {

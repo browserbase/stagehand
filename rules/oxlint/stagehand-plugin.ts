@@ -1,13 +1,20 @@
 import { definePlugin } from "@oxlint/plugins";
 import { noLocalProtocolSchemaInference } from "./no-local-protocol-schema-inference.ts";
 import { noLooseJsonSchemaInProtocolOperations } from "./no-loose-json-schema-in-protocol-operations.ts";
+import { noLegacyOctal } from "./no-legacy-octal.ts";
+import { noDynamicCode } from "./no-dynamic-code.ts";
 import { noRenamedImports } from "./no-renamed-imports.ts";
+
+import { noNodeGlobals } from "./no-node-globals.ts";
 
 const STAGEHAND_OXLINT_PLUGIN_NAME = "stagehand";
 
 const plugin = definePlugin({
   meta: { name: STAGEHAND_OXLINT_PLUGIN_NAME },
   rules: {
+    "no-node-globals": noNodeGlobals,
+    "no-dynamic-code": noDynamicCode,
+    "no-legacy-octal": noLegacyOctal,
     "no-local-protocol-schema-inference": noLocalProtocolSchemaInference,
     "no-loose-json-schema-in-protocol-operations": noLooseJsonSchemaInProtocolOperations,
     "no-renamed-imports": noRenamedImports,

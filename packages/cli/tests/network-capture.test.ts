@@ -23,9 +23,7 @@ afterEach(async () => {
 
 describe("NetworkCapture", () => {
   it("preserves the V3 files and keeps its sidecar alive across on/off/on", async () => {
-    const daemonDir = await fs.mkdtemp(
-      join(tmpdir(), "browse-network-sidecar-"),
-    );
+    const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-network-sidecar-"));
     cleanupPaths.push(daemonDir);
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
     process.env.BROWSE_DAEMON_DIR = daemonDir;
@@ -34,28 +32,20 @@ describe("NetworkCapture", () => {
       attach: vi.fn(async () => session),
       close: vi.fn(),
     };
-    const capture = new NetworkCapture(
-      "sidecar",
-      sidecar as unknown as NetworkCdpSidecar,
-    );
+    const capture = new NetworkCapture("sidecar", sidecar as unknown as NetworkCdpSidecar);
     const originalWriteFile = fs.writeFile.bind(fs);
-    const writeFileSpy = vi
-      .spyOn(fs, "writeFile")
-      .mockImplementation(async (...args) => {
-        if (String(args[0]).endsWith("request.json")) {
-          await new Promise((resolve) => setTimeout(resolve, 25));
-        }
-        return originalWriteFile(...args);
-      });
+    const writeFileSpy = vi.spyOn(fs, "writeFile").mockImplementation(async (...args) => {
+      if (String(args[0]).endsWith("request.json")) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return originalWriteFile(...args);
+    });
 
     try {
       await expect(
         capture.enable({ pageId: "page-1" }, "ws://browser.test"),
       ).resolves.toMatchObject({ enabled: true });
-      expect(sidecar.attach).toHaveBeenCalledWith(
-        "ws://browser.test",
-        "page-1",
-      );
+      expect(sidecar.attach).toHaveBeenCalledWith("ws://browser.test", "page-1");
 
       session.emit("Network.requestWillBeSent", {
         request: {
@@ -78,16 +68,10 @@ describe("NetworkCapture", () => {
       });
       session.emit("Network.loadingFinished", { requestId: "request-1" });
 
-      const requestDir = join(
-        daemonDir,
-        "sidecar-network",
-        "000-POST-example.com-fast",
-      );
+      const requestDir = join(daemonDir, "sidecar-network", "000-POST-example.com-fast");
       const responsePath = join(requestDir, "response.json");
       await waitForFile(responsePath);
-      await expect(
-        readJson(join(requestDir, "request.json")),
-      ).resolves.toMatchObject({
+      await expect(readJson(join(requestDir, "request.json"))).resolves.toMatchObject({
         body: "hello=world",
         method: "POST",
         resourceType: "Fetch",
@@ -108,10 +92,7 @@ describe("NetworkCapture", () => {
 
       session.connected = true;
       await capture.enable({ pageId: "page-2" }, "ws://browser.test");
-      expect(sidecar.attach).toHaveBeenLastCalledWith(
-        "ws://browser.test",
-        "page-2",
-      );
+      expect(sidecar.attach).toHaveBeenLastCalledWith("ws://browser.test", "page-2");
       expect(sidecar.attach).toHaveBeenCalledTimes(2);
 
       session.emit("Network.requestWillBeSent", {
@@ -124,16 +105,9 @@ describe("NetworkCapture", () => {
       });
       session.emit("Network.loadingFinished", { requestId: "request-2" });
       await waitForFile(
-        join(
-          daemonDir,
-          "sidecar-network",
-          "001-POST-example.com-fast",
-          "response.json",
-        ),
+        join(daemonDir, "sidecar-network", "001-POST-example.com-fast", "response.json"),
       );
-      await expect(
-        readJson(join(requestDir, "request.json")),
-      ).resolves.toMatchObject({
+      await expect(readJson(join(requestDir, "request.json"))).resolves.toMatchObject({
         id: "request-1",
       });
 
@@ -146,9 +120,7 @@ describe("NetworkCapture", () => {
   });
 
   it("serializes overlapping enable operations", async () => {
-    const daemonDir = await fs.mkdtemp(
-      join(tmpdir(), "browse-network-overlap-"),
-    );
+    const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-network-overlap-"));
     cleanupPaths.push(daemonDir);
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
     process.env.BROWSE_DAEMON_DIR = daemonDir;
@@ -157,10 +129,7 @@ describe("NetworkCapture", () => {
       attach: vi.fn(async () => session),
       close: vi.fn(),
     };
-    const capture = new NetworkCapture(
-      "overlap",
-      sidecar as unknown as NetworkCdpSidecar,
-    );
+    const capture = new NetworkCapture("overlap", sidecar as unknown as NetworkCdpSidecar);
 
     try {
       const [first, second] = await Promise.all([
@@ -183,10 +152,7 @@ class FakeCdpSession implements NetworkCdpSession {
   readonly detach = vi.fn(async () => {
     this.connected = false;
   });
-  private readonly listeners = new Map<
-    string,
-    Set<(params: unknown) => void>
-  >();
+  private readonly listeners = new Map<string, Set<(params: unknown) => void>>();
 
   async send<T = unknown>(method: string): Promise<T> {
     if (method === "Network.getResponseBody") {
@@ -211,10 +177,7 @@ class FakeCdpSession implements NetworkCdpSession {
 }
 
 async function readJson(filePath: string): Promise<Record<string, unknown>> {
-  return JSON.parse(await fs.readFile(filePath, "utf8")) as Record<
-    string,
-    unknown
-  >;
+  return JSON.parse(await fs.readFile(filePath, "utf8")) as Record<string, unknown>;
 }
 
 async function waitForFile(filePath: string): Promise<void> {

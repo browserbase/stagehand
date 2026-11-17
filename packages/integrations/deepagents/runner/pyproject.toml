@@ -1,7 +1,7 @@
 [project]
 name = "stagehand-deepagents-eval-runner"
 version = "0.1.0"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11"
 # deepagents already pins langchain-anthropic and langchain-google-genai;
 # langchain-openai is the only provider package it does not carry.
 dependencies = [

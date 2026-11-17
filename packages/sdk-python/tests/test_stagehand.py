@@ -80,6 +80,7 @@ class _Transport:
     def __init__(self, web_socket_debugger_url: str | None = "ws://browser") -> None:
         self.web_socket_debugger_url = web_socket_debugger_url
         self.close_calls = 0
+        self.closed = False
 
     async def close(self) -> None:
         self.close_calls += 1
@@ -424,7 +425,10 @@ async def test_local_connect_keeps_headers_out_of_extension_initialization(
                 assert options["headers"] == headers
             else:
                 assert "headers" not in options
-            assert "extension_cdp_url" not in options
+            # The lifecycle observer now opens the extension's browser connection
+            # before Stagehand initialization. Only its URL, never client headers,
+            # is passed to that bootstrap.
+            assert options["extension_cdp_url"] == extension_cdp_url
 
             method, params, *_ = recording.calls[0]
             assert method == "stagehand.init"

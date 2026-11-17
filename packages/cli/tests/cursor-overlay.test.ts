@@ -81,9 +81,7 @@ class FakeDiv {
 type CursorEvent = { clientX: number; clientY: number };
 type CursorListener = (event?: CursorEvent) => void;
 
-function createCursorHarness(
-  options: { ready?: boolean; topFrame?: boolean } = {},
-) {
+function createCursorHarness(options: { ready?: boolean; topFrame?: boolean } = {}) {
   const elements = new Map<string, FakeDiv>();
   const listeners = new Map<string, CursorListener>();
   const root = {
@@ -91,8 +89,7 @@ function createCursorHarness(
       elements.set(element.id, element);
     },
   };
-  let documentElement: typeof root | null =
-    options.ready === false ? null : root;
+  let documentElement: typeof root | null = options.ready === false ? null : root;
   const document = {
     addEventListener: vi.fn((name: string, listener: CursorListener) => {
       listeners.set(name, listener);
@@ -105,10 +102,7 @@ function createCursorHarness(
     getElementById: vi.fn((id: string) => elements.get(id) ?? null),
   };
   const context = createContext({ document, HTMLDivElement: FakeDiv });
-  runInContext(
-    `globalThis.top = ${options.topFrame === false ? "{}" : "globalThis"}`,
-    context,
-  );
+  runInContext(`globalThis.top = ${options.topFrame === false ? "{}" : "globalThis"}`, context);
 
   return {
     cursor: () => elements.get("__browse_cursor_overlay__"),

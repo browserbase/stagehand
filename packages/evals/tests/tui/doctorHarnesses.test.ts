@@ -127,9 +127,7 @@ describe("buildHarnessMatrix", () => {
 
     expect(byName.deepagents.binary).toMatchObject({ status: "fail", label: "uv missing" });
     expect(byName.deepagents.binary.fix).toContain("astral.sh/uv/install.sh");
-    expect(byName.deepagents.extra.fix).toBe(
-      "uv sync --locked --project packages/integrations/deepagents-sdk/runner",
-    );
+    expect(byName.deepagents.extra.fix).toBe("uv sync --all-packages --locked");
 
     const reasons = harnessMatrixReasons(matrix);
     expect(reasons.failures).toEqual([

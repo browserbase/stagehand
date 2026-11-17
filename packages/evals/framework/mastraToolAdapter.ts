@@ -5,7 +5,7 @@ import {
   loadMastraSdk,
   type MastraSdk,
   type MastraStdioServerDefinition,
-} from "@browserbasehq/stagehand-integrations-mastra-sdk";
+} from "@browserbasehq/stagehand-integrations-mastra";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";
@@ -157,7 +157,7 @@ export async function prepareMastraToolAdapter(
           code: z.string().describe(mount.runTool.codeParamDescription),
         }),
         execute: async (toolInput: Record<string, unknown>) =>
-          executeViaCodeBridge(bridge!.port, String(toolInput.code)),
+          executeViaCodeBridge(bridge!.port, String(toolInput.code), bridge!.token),
       });
       const scopeNames = [...Object.keys(mount.handles), "startUrl", "task", "console"].join(", ");
       const promptInstructions = [
@@ -249,11 +249,12 @@ export function mastraToolNameMatcher(serverNames: string[]): (name: string) => 
 export async function executeViaCodeBridge(
   port: number,
   code: string,
+  token: string,
 ): Promise<{ ok: true; result: string } | { ok: false; error: string }> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/run`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ code }),
     });
     const payload: unknown = await response.json();

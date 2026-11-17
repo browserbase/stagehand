@@ -1,13 +1,6 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
-import {
-  access,
-  mkdtemp,
-  open as openFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { access, mkdtemp, open as openFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -15,12 +8,11 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { itPosix } from "./helpers/platform.js";
+import { mockDirectoryOwner, mockRootOwnedParents } from "./helpers/directory-owner.js";
 
+import { resolveConnectionTarget, targetsCompatible } from "../src/lib/driver/mode.js";
 import {
-  resolveConnectionTarget,
-  targetsCompatible,
-} from "../src/lib/driver/mode.js";
-import {
+  ensurePrivateDir,
   ensureRuntimeDir,
   getLockPath,
   getPidPath,
@@ -75,9 +67,7 @@ describe("driver foundation", () => {
       headless: true,
       kind: "managed-local",
     });
-    await expect(
-      resolveConnectionTarget({ headed: true, local: true }),
-    ).resolves.toEqual({
+    await expect(resolveConnectionTarget({ headed: true, local: true })).resolves.toEqual({
       headless: false,
       kind: "managed-local",
     });
@@ -123,9 +113,7 @@ describe("driver foundation", () => {
       ignoreDefaultArgs: true,
       kind: "managed-local",
     });
-    await expect(
-      resolveConnectionTarget({ "auto-connect": true }),
-    ).resolves.toEqual({
+    await expect(resolveConnectionTarget({ "auto-connect": true })).resolves.toEqual({
       kind: "auto-connect",
     });
     await expect(
@@ -142,63 +130,63 @@ describe("driver foundation", () => {
     await expect(
       resolveConnectionTarget({ headless: true, headed: true, local: true }),
     ).rejects.toThrow("Pass either --headed or --headless");
-    await expect(
-      resolveConnectionTarget({ local: true, remote: true }),
-    ).rejects.toThrow("Pass either --local or --remote");
-    await expect(
-      resolveConnectionTarget({ "auto-connect": true, remote: true }),
-    ).rejects.toThrow("--auto-connect cannot be combined with --remote");
+    await expect(resolveConnectionTarget({ local: true, remote: true })).rejects.toThrow(
+      "Pass either --local or --remote",
+    );
+    await expect(resolveConnectionTarget({ "auto-connect": true, remote: true })).rejects.toThrow(
+      "--auto-connect cannot be combined with --remote",
+    );
     await expect(
       resolveConnectionTarget({
         "auto-connect": true,
         "chrome-arg": ["--no-focus-on-navigate"],
       }),
     ).rejects.toThrow("--auto-connect cannot be combined with --chrome-arg");
-    await expect(
-      resolveConnectionTarget({ "auto-connect": true, local: true }),
-    ).rejects.toThrow("--auto-connect cannot be combined with --local");
-    await expect(
-      resolveConnectionTarget({ "auto-connect": true, headed: true }),
-    ).rejects.toThrow("--auto-connect cannot be combined with --headed");
-    await expect(
-      resolveConnectionTarget({ "auto-connect": true, headless: true }),
-    ).rejects.toThrow("--auto-connect cannot be combined with --headless");
+    await expect(resolveConnectionTarget({ "auto-connect": true, local: true })).rejects.toThrow(
+      "--auto-connect cannot be combined with --local",
+    );
+    await expect(resolveConnectionTarget({ "auto-connect": true, headed: true })).rejects.toThrow(
+      "--auto-connect cannot be combined with --headed",
+    );
+    await expect(resolveConnectionTarget({ "auto-connect": true, headless: true })).rejects.toThrow(
+      "--auto-connect cannot be combined with --headless",
+    );
     await expect(
       resolveConnectionTarget({
         "chrome-arg": ["--no-focus-on-navigate"],
         remote: true,
       }),
     ).rejects.toThrow("--remote cannot be combined with --chrome-arg");
-    await expect(
-      resolveConnectionTarget({ remote: true, headed: true }),
-    ).rejects.toThrow("--remote cannot be combined with --headed");
-    await expect(
-      resolveConnectionTarget({ remote: true, headless: true }),
-    ).rejects.toThrow("--remote cannot be combined with --headless");
+    await expect(resolveConnectionTarget({ remote: true, headed: true })).rejects.toThrow(
+      "--remote cannot be combined with --headed",
+    );
+    await expect(resolveConnectionTarget({ remote: true, headless: true })).rejects.toThrow(
+      "--remote cannot be combined with --headless",
+    );
     await expect(
       resolveConnectionTarget({
         cdp: "9222",
         "chrome-arg": ["--no-focus-on-navigate"],
       }),
     ).rejects.toThrow("--cdp cannot be combined with --chrome-arg");
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", local: true }),
-    ).rejects.toThrow("--cdp cannot be combined with --local");
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", remote: true }),
-    ).rejects.toThrow("--cdp cannot be combined with --remote");
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", "auto-connect": true }),
-    ).rejects.toThrow("--cdp cannot be combined with --auto-connect");
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", headed: true }),
-    ).rejects.toThrow("--cdp cannot be combined with --headed");
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", headless: true }),
-    ).rejects.toThrow("--cdp cannot be combined with --headless");
-    await expect(
-      resolveConnectionTarget({ "target-id": "target-1" }),
-    ).rejects.toThrow("--target-id requires --cdp");
+    await expect(resolveConnectionTarget({ cdp: "9222", local: true })).rejects.toThrow(
+      "--cdp cannot be combined with --local",
+    );
+    await expect(resolveConnectionTarget({ cdp: "9222", remote: true })).rejects.toThrow(
+      "--cdp cannot be combined with --remote",
+    );
+    await expect(resolveConnectionTarget({ cdp: "9222", "auto-connect": true })).rejects.toThrow(
+      "--cdp cannot be combined with --auto-connect",
+    );
+    await expect(resolveConnectionTarget({ cdp: "9222", headed: true })).rejects.toThrow(
+      "--cdp cannot be combined with --headed",
+    );
+    await expect(resolveConnectionTarget({ cdp: "9222", headless: true })).rejects.toThrow(
+      "--cdp cannot be combined with --headless",
+    );
+    await expect(resolveConnectionTarget({ "target-id": "target-1" })).rejects.toThrow(
+      "--target-id requires --cdp",
+    );
   });
 
   it("rejects combining --no-default-chrome-args with --ignore-default-chrome-arg", async () => {
@@ -238,15 +226,11 @@ describe("driver foundation", () => {
     await expect(resolveConnectionTarget({ remote: true })).resolves.toEqual({
       kind: "remote",
     });
-    await expect(
-      resolveConnectionTarget({ remote: true, verified: true }),
-    ).resolves.toEqual({
+    await expect(resolveConnectionTarget({ remote: true, verified: true })).resolves.toEqual({
       kind: "remote",
       verified: true,
     });
-    await expect(
-      resolveConnectionTarget({ proxies: true, remote: true }),
-    ).resolves.toEqual({
+    await expect(resolveConnectionTarget({ proxies: true, remote: true })).resolves.toEqual({
       kind: "remote",
       proxies: true,
     });
@@ -263,16 +247,16 @@ describe("driver foundation", () => {
       "--proxies requires --remote",
     );
     // plural subject keeps the plural verb
-    await expect(
-      resolveConnectionTarget({ proxies: true, verified: true }),
-    ).rejects.toThrow("--verified and --proxies require --remote");
+    await expect(resolveConnectionTarget({ proxies: true, verified: true })).rejects.toThrow(
+      "--verified and --proxies require --remote",
+    );
     // verified/proxies must be explicit about remote even when --cdp/--local is set
-    await expect(
-      resolveConnectionTarget({ cdp: "9222", verified: true }),
-    ).rejects.toThrow("--verified requires --remote");
-    await expect(
-      resolveConnectionTarget({ local: true, proxies: true }),
-    ).rejects.toThrow("--proxies requires --remote");
+    await expect(resolveConnectionTarget({ cdp: "9222", verified: true })).rejects.toThrow(
+      "--verified requires --remote",
+    );
+    await expect(resolveConnectionTarget({ local: true, proxies: true })).rejects.toThrow(
+      "--proxies requires --remote",
+    );
   });
 
   it("does not let --verified/--proxies imply remote from an API key", async () => {
@@ -288,21 +272,15 @@ describe("driver foundation", () => {
   });
 
   it("makes remote verified/proxies sticky for session reuse", () => {
-    expect(targetsCompatible({ kind: "remote" }, { kind: "remote" })).toBe(
-      true,
-    );
+    expect(targetsCompatible({ kind: "remote" }, { kind: "remote" })).toBe(true);
     expect(
       targetsCompatible(
         { kind: "remote", verified: true, proxies: true },
         { kind: "remote", verified: true, proxies: true },
       ),
     ).toBe(true);
-    expect(
-      targetsCompatible({ kind: "remote" }, { kind: "remote", verified: true }),
-    ).toBe(false);
-    expect(
-      targetsCompatible({ kind: "remote", proxies: true }, { kind: "remote" }),
-    ).toBe(false);
+    expect(targetsCompatible({ kind: "remote" }, { kind: "remote", verified: true })).toBe(false);
+    expect(targetsCompatible({ kind: "remote", proxies: true }, { kind: "remote" })).toBe(false);
     expect(
       targetsCompatible(
         { kind: "remote", verified: true },
@@ -399,32 +377,23 @@ describe("driver foundation", () => {
   it("sanitizes daemon session names", () => {
     expect(sanitizeSessionName("research")).toBe("research");
     expect(sanitizeSessionName("research.v1")).toBe("research.v1");
-    expect(sanitizeSessionName("../research session")).toMatch(
-      /^research-session-[a-f0-9]{8}$/,
-    );
+    expect(sanitizeSessionName("../research session")).toMatch(/^research-session-[a-f0-9]{8}$/);
     expect(sanitizeSessionName("..")).toMatch(/^default-[a-f0-9]{8}$/);
     expect(sanitizeSessionName("!!!")).toMatch(/^default-[a-f0-9]{8}$/);
-    expect(sanitizeSessionName("my/session")).toMatch(
-      /^my-session-[a-f0-9]{8}$/,
-    );
-    expect(sanitizeSessionName("my/session")).not.toBe(
-      sanitizeSessionName("my:session"),
-    );
+    expect(sanitizeSessionName("my/session")).toMatch(/^my-session-[a-f0-9]{8}$/);
+    expect(sanitizeSessionName("my/session")).not.toBe(sanitizeSessionName("my:session"));
   });
 
-  it.runIf(process.platform !== "win32")(
-    "defaults to a user-scoped runtime directory",
-    () => {
-      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-      delete process.env.BROWSE_DAEMON_DIR;
+  it.runIf(process.platform !== "win32")("defaults to a user-scoped runtime directory", () => {
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    delete process.env.BROWSE_DAEMON_DIR;
 
-      try {
-        expect(runtimeDir()).toContain(`browse-driver-${process.getuid?.()}`);
-      } finally {
-        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-      }
-    },
-  );
+    try {
+      expect(runtimeDir()).toContain(`browse-driver-${process.getuid?.()}`);
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
 
   it.runIf(process.platform !== "win32")(
     "creates the runtime directory with owner-only permissions",
@@ -442,6 +411,195 @@ describe("driver foundation", () => {
       }
     },
   );
+
+  it("rejects empty directory paths without changing the working directory permissions", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "browse-driver-empty-"));
+    cleanupPaths.push(dir);
+    if (process.platform !== "win32") await fs.chmod(dir, 0o755);
+    const before = await fs.stat(dir);
+    const previousCwd = process.cwd();
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = "";
+    process.chdir(dir);
+
+    try {
+      await expect(ensurePrivateDir("")).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+      await expect(ensureRuntimeDir()).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+      expect(runtimeDir).toThrow("empty directory path");
+      if (process.platform !== "win32") {
+        expect(() => getSocketPath("default")).toThrow("empty directory path");
+      }
+      expect(await fs.stat(dir)).toMatchObject({
+        mode: before.mode,
+        uid: before.uid,
+        ino: before.ino,
+      });
+      expect(await fs.readdir(dir)).toEqual([]);
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
+  itPosix.each(["before open", "after stat"])(
+    "does not chmod a symlink target swapped in %s",
+    async (swapAt) => {
+      const parent = await mkdtemp(join(tmpdir(), "browse-driver-swap-"));
+      cleanupPaths.push(parent);
+      const dir = join(parent, "runtime");
+      const moved = join(parent, "original");
+      const target = join(parent, "unrelated");
+      await fs.mkdir(dir);
+      await fs.mkdir(target);
+      await fs.chmod(dir, 0o755);
+      await fs.chmod(target, 0o755);
+      await fs.writeFile(join(target, "keep"), "unrelated contents");
+      const swap = async () => {
+        await fs.rename(dir, moved);
+        await fs.symlink(target, dir);
+      };
+      const open = fs.open.bind(fs);
+      let opened: Awaited<ReturnType<typeof fs.open>> | undefined;
+      const openSpy = vi.spyOn(fs, "open").mockImplementation(async (file, flags, mode) => {
+        if (String(file) !== dir) return open(file, flags, mode);
+        if (swapAt === "before open") await swap();
+        const handle = await open(file, flags, mode);
+        opened = handle;
+        if (swapAt === "after stat") {
+          const stat = handle.stat.bind(handle);
+          vi.spyOn(handle, "stat").mockImplementationOnce(async () => {
+            const entry = await stat();
+            await swap();
+            return entry;
+          });
+        }
+        return handle;
+      });
+
+      try {
+        if (swapAt === "before open") {
+          await expect(ensurePrivateDir(dir)).rejects.toMatchObject({
+            telemetry: { resultCode: "daemon_dir_invalid" },
+          });
+        } else {
+          await ensurePrivateDir(dir);
+          expect(await fileMode(moved)).toBe(0o700);
+          await expect(opened!.stat()).rejects.toMatchObject({ code: "EBADF" });
+        }
+        expect(await fileMode(target)).toBe(0o755);
+        expect(await fs.readFile(join(target, "keep"), "utf8")).toBe("unrelated contents");
+        expect(await fs.readlink(dir)).toBe(target);
+      } finally {
+        openSpy.mockRestore();
+      }
+    },
+  );
+
+  itPosix("makes an existing owned directory private without changing its contents", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "browse-driver-owned-"));
+    cleanupPaths.push(dir);
+    await fs.chmod(dir, 0o755);
+    await writeFile(join(dir, "keep"), "existing contents");
+    const before = await fs.lstat(dir);
+
+    await ensurePrivateDir(dir);
+
+    expect(await fileMode(dir)).toBe(0o700);
+    expect(await fs.lstat(dir)).toMatchObject({ ino: before.ino, uid: before.uid });
+    expect(await fs.readFile(join(dir, "keep"), "utf8")).toBe("existing contents");
+  });
+
+  itPosix.each(["unprivileged", "root"])(
+    "rejects a foreign runtime directory before chmod for a %s caller",
+    async (caller) => {
+      const dir = await mkdtemp(join(tmpdir(), "browse-driver-foreign-"));
+      cleanupPaths.push(dir);
+      await fs.chmod(dir, 0o755);
+      await writeFile(join(dir, "keep"), "existing contents");
+      const before = await fs.lstat(dir);
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = dir;
+      const uid = caller === "root" ? 0 : before.uid;
+      const uidSpy = vi.spyOn(process, "getuid").mockReturnValue(uid);
+      const parentsSpy = caller === "root" ? mockRootOwnedParents() : undefined;
+      const ownerSpy = mockDirectoryOwner(dir, () => uid + 1);
+
+      try {
+        await expect(ensureRuntimeDir()).rejects.toMatchObject({
+          exitCode: 1,
+          message: expect.stringContaining("owned by another user"),
+          telemetry: { resultCode: "daemon_dir_not_owned" },
+        });
+        expect(await fileMode(dir)).toBe(0o755);
+        expect(await fs.readFile(join(dir, "keep"), "utf8")).toBe("existing contents");
+      } finally {
+        ownerSpy.mockRestore();
+        parentsSpy?.mockRestore();
+        uidSpy.mockRestore();
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      }
+    },
+  );
+
+  itPosix.each(["", "/"])(
+    "rejects a directory symlink with suffix %j without changing its target",
+    async (suffix) => {
+      const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-symlink-"));
+      cleanupPaths.push(parentDir);
+      const target = join(parentDir, "target");
+      const link = join(parentDir, "runtime");
+      await fs.mkdir(target);
+      await fs.chmod(target, 0o755);
+      await writeFile(join(target, "keep"), "existing contents");
+      await fs.symlink(target, link);
+
+      await expect(ensurePrivateDir(link + suffix)).rejects.toMatchObject({
+        telemetry: { resultCode: "daemon_dir_invalid" },
+      });
+
+      expect(await fileMode(target)).toBe(0o755);
+      expect(await fs.readlink(link)).toBe(target);
+      expect(await fs.readFile(join(target, "keep"), "utf8")).toBe("existing contents");
+    },
+  );
+
+  itPosix("rejects a dangling symlink without creating its target", async () => {
+    const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-dangling-"));
+    cleanupPaths.push(parentDir);
+    const target = join(parentDir, "missing");
+    const link = join(parentDir, "runtime");
+    await fs.symlink(target, link);
+
+    await expect(ensurePrivateDir(link)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_invalid" },
+    });
+
+    expect(await fs.readlink(link)).toBe(target);
+    await expect(fs.lstat(target)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a regular file without changing it", async () => {
+    const parentDir = await mkdtemp(join(tmpdir(), "browse-driver-file-"));
+    cleanupPaths.push(parentDir);
+    const file = join(parentDir, "runtime");
+    await writeFile(file, "existing contents", { mode: 0o644 });
+    const before = await fs.lstat(file);
+
+    await expect(ensurePrivateDir(file)).rejects.toMatchObject({
+      telemetry: { resultCode: "daemon_dir_invalid" },
+    });
+
+    expect(await fs.lstat(file)).toMatchObject({
+      ino: before.ino,
+      mode: before.mode,
+      uid: before.uid,
+    });
+    expect(await fs.readFile(file, "utf8")).toBe("existing contents");
+  });
 
   it("exposes descriptive help for top-level driver commands", async () => {
     for (const command of ["open", "status", "stop"]) {
@@ -499,29 +657,26 @@ describe("driver foundation", () => {
     }
   });
 
-  itPosix(
-    "does not remove daemon files for an alive unresponsive daemon",
-    async () => {
-      const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
-      cleanupPaths.push(daemonDir);
-      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-      process.env.BROWSE_DAEMON_DIR = daemonDir;
-      const session = "alive-unresponsive";
-      const pidPath = getPidPath(session);
-      const socketPath = getSocketPath(session);
+  itPosix("does not remove daemon files for an alive unresponsive daemon", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "alive-unresponsive";
+    const pidPath = getPidPath(session);
+    const socketPath = getSocketPath(session);
 
-      try {
-        await writeFile(pidPath, String(process.pid));
-        await writeFile(socketPath, "not-a-socket");
+    try {
+      await writeFile(pidPath, String(process.pid));
+      await writeFile(socketPath, "not-a-socket");
 
-        await expect(getDriverStatus(session)).resolves.toBeNull();
-        await expect(access(pidPath)).resolves.toBeUndefined();
-        await expect(access(socketPath)).resolves.toBeUndefined();
-      } finally {
-        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-      }
-    },
-  );
+      await expect(getDriverStatus(session)).resolves.toBeNull();
+      await expect(access(pidPath)).resolves.toBeUndefined();
+      await expect(access(socketPath)).resolves.toBeUndefined();
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
 
   it("checks target compatibility after waiting for the daemon lock", async () => {
     const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
@@ -572,9 +727,7 @@ describe("driver foundation", () => {
 
     try {
       await writeFile(lockPath, String(process.pid));
-      await expect(
-        ensureDriverDaemon({ session, target: { kind: "remote" } }),
-      ).rejects.toThrow(
+      await expect(ensureDriverDaemon({ session, target: { kind: "remote" } })).rejects.toThrow(
         `Session "${session}" is already running in managed-local mode.`,
       );
       if (serverStartError) throw serverStartError;
@@ -626,10 +779,7 @@ describe("driver foundation", () => {
         type: "success",
       });
       await expect(
-        Promise.race([
-          runPromise,
-          rejectAfter(1_000, "Daemon server did not close."),
-        ]),
+        Promise.race([runPromise, rejectAfter(1_000, "Daemon server did not close.")]),
       ).resolves.toBe(undefined);
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
@@ -891,14 +1041,9 @@ describe("driver foundation", () => {
       await expect(
         Promise.race([
           openViaDaemon(session, "https://example.com"),
-          rejectAfter(
-            1_000,
-            "Partial daemon response was not rejected promptly.",
-          ),
+          rejectAfter(1_000, "Partial daemon response was not rejected promptly."),
         ]),
-      ).rejects.toThrow(
-        `Driver daemon session "${session}" closed with an incomplete response.`,
-      );
+      ).rejects.toThrow(`Driver daemon session "${session}" closed with an incomplete response.`);
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
       for (const socket of sockets) {
@@ -924,10 +1069,7 @@ describe("driver foundation", () => {
 
     try {
       await expect(
-        openViaDaemon(
-          "missing-daemon",
-          "https://example.com/search?q=test&page=1",
-        ),
+        openViaDaemon("missing-daemon", "https://example.com/search?q=test&page=1"),
       ).rejects.toMatchObject({
         message:
           "Driver daemon session \"missing-daemon\" is not running. Start it with: browse open 'https://example.com/search?q=test&page=1' --session missing-daemon",
@@ -1064,23 +1206,50 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("init-failure", {
         headless: true,
         kind: "managed-local",
       });
 
-      await expect(manager.open("https://example.com")).rejects.toThrow(
-        "init failed",
-      );
-      await expect(manager.open("https://example.com")).rejects.toThrow(
-        "init failed",
-      );
+      await expect(manager.open("https://example.com")).rejects.toThrow("init failed");
+      await expect(manager.open("https://example.com")).rejects.toThrow("init failed");
       expect(launch).toHaveBeenCalledTimes(1);
       expect(create).toHaveBeenCalledTimes(1);
       expect(closeBrowser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("reports a cached launch failure through status without relaunching", async () => {
+    const launch = vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED 127.0.0.1:9222"));
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create: vi.fn() },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
+      const manager = new MockedDriverSessionManager("launch-failure", {
+        headless: true,
+        kind: "managed-local",
+      });
+
+      expect((await manager.status()).initError).toBeUndefined();
+      await expect(manager.open("https://example.com")).rejects.toThrow("ECONNREFUSED");
+
+      await expect(manager.status()).resolves.toMatchObject({
+        browserConnected: false,
+        initError: "connect ECONNREFUSED 127.0.0.1:9222",
+        initialized: false,
+      });
+      expect(launch).toHaveBeenCalledTimes(1);
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
@@ -1100,17 +1269,14 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("connected-init-failure", {
         endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
         kind: "cdp",
       });
 
-      await expect(manager.open("https://example.com")).rejects.toThrow(
-        "init failed",
-      );
+      await expect(manager.open("https://example.com")).rejects.toThrow("init failed");
       expect(connect).toHaveBeenCalledOnce();
       expect(create).toHaveBeenCalledOnce();
       expect(closeBrowser).toHaveBeenCalledOnce();
@@ -1142,9 +1308,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("connected-close", {
         endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
         kind: "cdp",
@@ -1176,9 +1341,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("chrome-args", {
         chromeArgs: ["--no-focus-on-navigate"],
         headless: false,
@@ -1216,9 +1380,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("ignore-default-args", {
         headless: true,
         ignoreDefaultArgs: ["--enable-automation"],
@@ -1317,9 +1480,7 @@ describe("driver foundation", () => {
     await expect(manager.status()).resolves.toMatchObject({
       browserConnected: true,
       initialized: true,
-      pages: [
-        { targetId: "page-1", title: "Example", url: "https://example.com" },
-      ],
+      pages: [{ targetId: "page-1", title: "Example", url: "https://example.com" }],
       selectedTargetId: undefined,
       session: "status-no-active",
       url: undefined,
@@ -1364,9 +1525,7 @@ describe("driver foundation", () => {
       BROWSERBASE_API_KEY: "client-key",
     });
     await expect(collectForwardedEnv({})).resolves.toBeUndefined();
-    await expect(
-      collectForwardedEnv({ BROWSERBASE_API_KEY: "" }),
-    ).resolves.toBeUndefined();
+    await expect(collectForwardedEnv({ BROWSERBASE_API_KEY: "" })).resolves.toBeUndefined();
   });
 
   it("produces a stable, secret-free forwarded-env signature", () => {
@@ -1375,12 +1534,8 @@ describe("driver foundation", () => {
     expect(sig).toMatch(/^[a-f0-9]{64}$/);
     expect(sig).not.toContain("forwarded-key");
     // Stable for the same input, distinct for a different key.
-    expect(
-      forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" }),
-    ).toBe(sig);
-    expect(
-      forwardedEnvSignature({ BROWSERBASE_API_KEY: "other-key" }),
-    ).not.toBe(sig);
+    expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" })).toBe(sig);
+    expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "other-key" })).not.toBe(sig);
     // Empty / absent sets collapse to "".
     expect(forwardedEnvSignature(undefined)).toBe("");
     expect(forwardedEnvSignature({})).toBe("");
@@ -1404,12 +1559,9 @@ describe("driver foundation", () => {
     // A new key forwarded before init clears the cached failure so the retry
     // runs immediately instead of replaying the stale error.
     manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
+    expect((manager as unknown as { initFailure: unknown }).initFailure).toBeNull();
     expect(
-      (manager as unknown as { initFailure: unknown }).initFailure,
-    ).toBeNull();
-    expect(
-      (manager as unknown as { consecutiveInitFailures: number })
-        .consecutiveInitFailures,
+      (manager as unknown as { consecutiveInitFailures: number }).consecutiveInitFailures,
     ).toBe(0);
     // The key is stashed for the next init (threaded into the constructor),
     // never written back into process.env.
@@ -1418,8 +1570,7 @@ describe("driver foundation", () => {
     });
     expect(process.env.BROWSERBASE_API_KEY).not.toBe("late-key");
     expect(
-      (manager as unknown as { lastForwardedEnvSignature: string })
-        .lastForwardedEnvSignature,
+      (manager as unknown as { lastForwardedEnvSignature: string }).lastForwardedEnvSignature,
     ).toBe(forwardedEnvSignature({ BROWSERBASE_API_KEY: "late-key" }));
 
     // Re-applying the same forwarded env is a no-op (idempotent).
@@ -1427,9 +1578,7 @@ describe("driver foundation", () => {
       initFailure: { error: new Error("x"), retryAt: Date.now() + 60_000 },
     });
     manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
-    expect(
-      (manager as unknown as { initFailure: unknown }).initFailure,
-    ).not.toBeNull();
+    expect((manager as unknown as { initFailure: unknown }).initFailure).not.toBeNull();
   });
 
   it("does not disturb an already-initialized session when forwarded env changes", () => {
@@ -1441,9 +1590,7 @@ describe("driver foundation", () => {
     manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "new-key" });
 
     // The warm session is preserved: forwarded env only matters at init.
-    expect(
-      (manager as unknown as { stagehand: unknown }).stagehand,
-    ).not.toBeNull();
+    expect((manager as unknown as { stagehand: unknown }).stagehand).not.toBeNull();
     expect((manager as unknown as { context: unknown }).context).not.toBeNull();
   });
 });
@@ -1467,10 +1614,7 @@ function rejectAfter(ms: number, message: string): Promise<never> {
   });
 }
 
-async function waitForSocket(
-  socketPath: string,
-  timeoutMs = 1_000,
-): Promise<void> {
+async function waitForSocket(socketPath: string, timeoutMs = 1_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await canConnect(socketPath)) return;
@@ -1492,10 +1636,7 @@ function canConnect(socketPath: string): Promise<boolean> {
   });
 }
 
-function sendSocketRequest(
-  socketPath: string,
-  request: unknown,
-): Promise<string> {
+function sendSocketRequest(socketPath: string, request: unknown): Promise<string> {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
     let buffer = "";

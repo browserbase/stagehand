@@ -277,7 +277,12 @@ describe("Stagehand.create", () => {
 
     expect(browser.closed).toBe(true);
     expect(cdp.sendCommand).toHaveBeenCalledOnce();
-    expect(cdp.sendCommand).toHaveBeenCalledWith("Browser.close");
+    expect(cdp.sendCommand).toHaveBeenCalledWith(
+      "Browser.close",
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
     expect(cdp.close).toHaveBeenCalledOnce();
     expect(cdp.requestsFor("context.close")).toHaveLength(0);
 
@@ -448,13 +453,11 @@ describe("Stagehand.create", () => {
 
   it("registers a client LLM handler and sends its serializable model reference", async () => {
     const cdp = new FakeCDPClient();
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "Hello" },
-        outputFormat: "text",
-      }),
-    );
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "Hello" },
+      outputFormat: "text",
+    }));
     const { localBrowser } = createBrowserFactoriesForTest({
       connectCdp: async () => cdp as unknown as CDPClient,
     });

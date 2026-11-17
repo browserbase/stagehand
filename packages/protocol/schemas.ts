@@ -1285,7 +1285,7 @@ export const ResponseFinishedResultSchema = z
 export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
 export const PageSubscriptionEventNameSchema = z
-  .enum(["console", "toolsadded", "toolsremoved"])
+  .enum(["console", "toolsadded", "toolsremoved", "response"])
   .meta({ id: "PageSubscriptionEventName" });
 
 export const PageCDPEventParamsSchema = z
@@ -1360,10 +1360,19 @@ export const PageToolsRemovedNotificationSchema = z
   })
   .meta({ id: "PageToolsRemovedNotification" });
 
+export const PageResponseNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("response"),
+    response: NavigationResponseDescriptorSchema,
+  })
+  .meta({ id: "PageResponseNotification" });
+
 export const PageEventNotificationSchema = z
   .discriminatedUnion("event", [
     PageToolsAddedNotificationSchema,
     PageToolsRemovedNotificationSchema,
+    PageResponseNotificationSchema,
   ])
   .meta({ id: "PageEventNotification" });
 
@@ -1560,7 +1569,10 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+// Keep the standalone default inline rather than extracting its metadata id into $defs.
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({

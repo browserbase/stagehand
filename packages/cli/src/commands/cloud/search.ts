@@ -1,17 +1,9 @@
 import { Args, Flags } from "@oclif/core";
 
-import {
-  outputJson,
-  requestBrowserbaseJson,
-  writeOutputFile,
-} from "../../lib/cloud/api.js";
+import { outputJson, requestBrowserbaseJson, writeOutputFile } from "../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../base.js";
-import {
-  outputFormatFlags,
-  outputTable,
-  resolveOutputFormat,
-} from "../../lib/output.js";
+import { outputFormatFlags, outputTable, resolveOutputFormat } from "../../lib/output.js";
 
 interface SearchResult {
   id: string;
@@ -61,8 +53,7 @@ export default class Search extends BrowseCommand {
       options: ["parallel", "exa"],
     }),
     mode: Flags.string({
-      description:
-        "Search tier (Parallel only). Omit to use the provider's default tier.",
+      description: "Search tier (Parallel only). Omit to use the provider's default tier.",
       options: ["fast", "advanced"],
     }),
     output: Flags.string({
@@ -75,20 +66,16 @@ export default class Search extends BrowseCommand {
     const { args, flags } = await this.parse(Search);
     const numResults = flags["num-results"];
 
-    const result = await requestBrowserbaseJson<SearchResponse>(
-      toApiOptions(flags),
-      "/v1/search",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: args.query,
-          numResults,
-          provider: flags.provider,
-          mode: flags.mode,
-        }),
-      },
-    );
+    const result = await requestBrowserbaseJson<SearchResponse>(toApiOptions(flags), "/v1/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: args.query,
+        numResults,
+        provider: flags.provider,
+        mode: flags.mode,
+      }),
+    });
 
     const outputFormat = resolveOutputFormat(flags);
     if (flags.output) {
@@ -119,10 +106,7 @@ export default class Search extends BrowseCommand {
   }
 }
 
-function outputSearchTable(
-  results: SearchResult[],
-  options: { wide?: boolean },
-): void {
+function outputSearchTable(results: SearchResult[], options: { wide?: boolean }): void {
   if (results.length === 0) {
     console.log("No search results found.");
     return;

@@ -1600,17 +1600,7 @@
       ]
     },
     "VariablePrimitive": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        }
-      ]
+      "type": ["string", "number", "boolean"]
     },
     "DescribedVariableValue": {
       "type": "object",
@@ -3784,7 +3774,7 @@
     },
     "PageSubscriptionEventName": {
       "type": "string",
-      "enum": ["console", "toolsadded", "toolsremoved"]
+      "enum": ["console", "toolsadded", "toolsremoved", "response"]
     },
     "PageOffParams": {
       "type": "object",
@@ -4727,14 +4717,7 @@
           "$ref": "#/$defs/LocatorOptions"
         },
         "percent": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "type": ["number", "string"]
         }
       },
       "required": ["page_id", "selector", "percent"],
@@ -5385,6 +5368,9 @@
         },
         {
           "$ref": "#/$defs/PageToolsRemovedNotification"
+        },
+        {
+          "$ref": "#/$defs/PageResponseNotification"
         }
       ]
     },
@@ -5467,6 +5453,36 @@
         }
       },
       "required": ["frame_id", "name"],
+      "additionalProperties": false
+    },
+    "PageResponseNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "response"
+        },
+        "response": {
+          "$ref": "#/$defs/NavigationResponseDescriptor"
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "response"],
       "additionalProperties": false
     },
     "BrowserbaseSessionCreateParams": {
