@@ -1,5 +1,5 @@
 ---
-"browse": minor
+"browse": patch
 ---
 
 Add Browserbase Search API filtering and content options to `browse cloud search`:
