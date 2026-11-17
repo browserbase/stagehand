@@ -108,9 +108,12 @@ describe("WebMCP shared discovery", () => {
   it("delivers future-only typed notifications through the runtime RPC", async () => {
     const page = await firstPage(stagehand);
     await page.goto(new URL("registered", server.url).href, { waitUntil: "load" });
-    const events: PageEventNotification[] = [];
+    const events: Extract<PageEventNotification, { event: "toolsadded" | "toolsremoved" }>[] = [];
     const removeListener = page.rpcClient.onNotification((notification) => {
-      if (notification.method === StagehandNotifications.pageEvent.name)
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        (notification.params.event === "toolsadded" || notification.params.event === "toolsremoved")
+      )
         events.push(notification.params);
     });
     const subscribe = (subscriptionId: string, event: "toolsadded" | "toolsremoved") =>
@@ -187,6 +190,7 @@ describe("WebMCP shared discovery", () => {
       );
       await expect.poll(() => events.length).toBe(2);
       const childEvent = events[0]!;
+      if (childEvent.event !== "toolsadded") throw new Error("Expected toolsadded");
       expect(childEvent).toMatchObject({ event: "toolsadded", tools: [{ name: "initial" }] });
       expect(childEvent.tools[0]!.frameId).not.toBe(initial[0]!.frameId);
       await page.evaluate(() => document.querySelector("iframe")!.remove());

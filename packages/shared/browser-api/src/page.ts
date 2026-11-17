@@ -1,3 +1,4 @@
+import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import type {
   LoadState,
   PageCDPEvent,
@@ -37,7 +38,7 @@ import {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
-import type { WebMCPToolsOptions } from "./clientSchemas.js";
+import type { WebMCPToolsOptions } from "./schemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
@@ -60,6 +61,7 @@ export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
 }
+export type ResponseListener = (response: Response) => unknown;
 export type ToolsAddedListener = (tools: WebMCPTool[]) => unknown;
 export type ToolsRemovedListener = (tools: WebMCPToolIdentity[]) => unknown;
 
@@ -218,7 +220,12 @@ export class Page {
   }
 
   async addInitScript<Arg = unknown>(script: InitScriptSource<Arg>, arg?: Arg): Promise<void> {
-    const source = await normalizeInitScriptSource(script, arg);
+    const source = await normalizeInitScriptSource(
+      script,
+      arg,
+      "page.addInitScript",
+      this.rpcClient.platform,
+    );
     await this.rpcClient.send(StagehandMethods.pageAddInitScript, {
       pageId: this.pageId,
       source,
@@ -230,6 +237,18 @@ export class Page {
     return this.subscribe(event, (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);
+      }
+    });
+  }
+
+  /** Observe future response headers. Body methods wait for completion automatically. */
+  async onResponse(listener: ResponseListener): Promise<CDPSubscription> {
+    return this.subscribe("response", (notification) => {
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        notification.params.event === "response"
+      ) {
+        return listener(new Response(this.rpcClient, notification.params.response));
       }
     });
   }
@@ -264,6 +283,7 @@ export class Page {
     event: PageSubscriptionEventName,
     deliver: (notification: StagehandRpcNotification) => unknown,
   ): Promise<CDPSubscription> {
+    const platform = this.rpcClient.platform ?? browserPlatform;
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
@@ -276,10 +296,12 @@ export class Page {
       try {
         const result = deliver(notification);
         if (result && typeof result === "object" && "then" in result) {
-          void Promise.resolve(result).catch(reportPageEventListenerError);
+          void Promise.resolve(result).catch((error: unknown) =>
+            reportPageEventListenerError(error, platform),
+          );
         }
       } catch (error) {
-        reportPageEventListenerError(error);
+        reportPageEventListenerError(error, platform);
       }
     });
 
@@ -306,9 +328,9 @@ export class Page {
         await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
         this.eventSubscriptions.delete(subscription);
       } catch (cleanupError) {
-        process.emitWarning(
+        platform.emitWarning(
           cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-          { code: "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR" },
+          "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR",
         );
       }
       throw error;
@@ -382,7 +404,7 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    return await decodeCaptureResult(result.data, "screenshot", path);
+    return await decodeCaptureResult(result.data, "screenshot", path, this.rpcClient.platform);
   }
 
   async pdf(options?: PDFOptions): Promise<Uint8Array> {
@@ -391,7 +413,7 @@ export class Page {
       pageId: this.pageId,
       options: pdfOptions,
     });
-    return await decodeCaptureResult(result.data, "pdf", path);
+    return await decodeCaptureResult(result.data, "pdf", path, this.rpcClient.platform);
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -441,23 +463,19 @@ export class Page {
 async function decodeCaptureResult(
   data: string,
   method: "screenshot" | "pdf",
-  path?: string,
+  path: string | undefined,
+  platform: BrowserApiPlatform = browserPlatform,
 ): Promise<Uint8Array> {
   const bytes = decodeBase64(data, `page.${method}`);
   if (path !== undefined) {
-    const moduleName = "node:" + "fs/promises";
-    const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
-      throw new TypeError(
-        `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
-      );
-    })) as typeof import("node:fs/promises");
-    await writeFile(path, bytes);
+    await platform.writeCaptureFile(path, bytes, method);
   }
   return bytes;
 }
 
-function reportPageEventListenerError(error: unknown): void {
-  process.emitWarning(error instanceof Error ? error.message : String(error), {
-    code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",
-  });
+function reportPageEventListenerError(error: unknown, platform: BrowserApiPlatform): void {
+  platform.emitWarning(
+    error instanceof Error ? error.message : String(error),
+    "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",
+  );
 }
