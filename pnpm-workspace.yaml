@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - packages/shared/*
   - packages/integrations/*
   - packages/integrations/eve/harness
   - packages/examples/cookbooks/*/typescript
@@ -74,8 +75,8 @@ catalog:
   "@types/cross-spawn": ^6.0.6
 catalogs:
   eve:
-    ai: ^7.0.105
-    eve: 0.71.2
+    ai: ^7.0.172
+    eve: 1.0.0
 overrides:
   "@mintlify/cli>zod": 4.6.6
   "get-uri>basic-ftp": 6.2.1
@@ -115,7 +116,7 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-linux-x64@1.0.36"
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
-  - eve@0.71.2
+  - eve@1.0.0
   - "@earendil-works/pi-agent-core@1.5.0"
   - "@earendil-works/pi-ai@1.5.0"
   - "@earendil-works/pi-codemode@1.5.0"

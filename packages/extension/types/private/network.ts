@@ -1,4 +1,7 @@
-import { Protocol } from "devtools-protocol";
+import type { Protocol } from "devtools-protocol";
+import type { CDPSessionLike } from "../../understudy/cdp.js";
+import type { SessionNetworkCapture } from "../../understudy/sessionNetworkCapture.js";
+import type { Response } from "../../understudy/response.js";
 
 /** Metadata tracked for each network request currently in-flight. */
 export type NetworkRequestInfo = {
@@ -13,11 +16,35 @@ export type NetworkRequestInfo = {
   documentRequest: boolean;
 };
 
+export type TrackedSession = {
+  session: CDPSessionLike;
+  capture: SessionNetworkCapture;
+  childMainFrameId?: string;
+  // Unlike idle bookkeeping, these survive cache/frame-stop notifications
+  // until Chrome reports loadingFinished or loadingFailed.
+  unfinishedRequests: Map<string, NetworkRequestInfo>;
+  detach: () => void;
+};
+
+export type PendingDocumentCompletion = {
+  session: CDPSessionLike;
+  frameId: string;
+  requestId: string;
+  error: Error | null;
+};
+
+export type DocumentIdentity = {
+  requestId: string;
+  loaderId?: string;
+  frameId?: string;
+};
+
 /** Callback hooks consumers can implement to observe network transitions. */
 export interface NetworkObserver {
-  onRequestStarted(info: NetworkRequestInfo): void;
-  onRequestFinished(info: NetworkRequestInfo): void;
-  onRequestFailed(info: NetworkRequestInfo): void;
+  onRequestStarted?(info: NetworkRequestInfo): void;
+  onRequestFinished?(info: NetworkRequestInfo): void;
+  onRequestFailed?(info: NetworkRequestInfo): void;
+  onResponse?(response: Response): void;
 }
 
 /** Options for the idle waiter helper. */
