@@ -680,6 +680,8 @@ try {
 
 The broker must allow both host CDP connections and apply its rules to both. The relay does not prove that an agent started a CDP command. If untrusted code can use the same broker URL, it can also send CDP commands to that URL. Keep the broker's access rules outside the untrusted process. If the Browserbase session must stay active after `browser.disconnect()`, create it with `keepAlive: true`.
 
+For a direct TypeScript `browserbase.connect()` call, you can supply `signingKey` when the session's CDP URL has no signing key in it. The SDK sends it as a bearer header. Keep this option in a trusted process; use the brokered route above when the SDK runs in an untrusted process.
+
 #### A separate CDP URL for the extension
 
 If the client connects through a proxy or authenticated gateway, you can give the extension a separate browser-level CDP WebSocket URL:
