@@ -64,13 +64,16 @@ const PARALLEL_SUPPORTED_COUNTRIES = new Set([
   "US",
 ]);
 
+const PARALLEL_MODES = new Set(["fast", "advanced"]);
+const EXA_MODES = new Set(["fast", "deep-lite", "deep"]);
+
 export default class Search extends BrowseCommand {
   static override description =
     "Search the web using the Browserbase Search API.\n\n" +
     "Filter results by domain, date, location, and content freshness. " +
     "Use --excerpts to get the most relevant passages from each result.\n\n" +
-    "Provider/mode: Parallel (default) supports fast and advanced modes. " +
-    "Exa supports fast, deep-lite, and deep modes.";
+    "Provider/mode: When --provider is omitted, the API picks a provider that supports your params. " +
+    "Parallel supports fast and advanced modes. Exa supports fast, deep-lite, and deep modes.";
 
   static override examples = [
     `browse cloud search "best restaurants in SF"`,
@@ -99,12 +102,15 @@ export default class Search extends BrowseCommand {
       max: 25,
     }),
     provider: Flags.string({
-      description: "Search provider: parallel (default) or exa.",
+      description:
+        "Search provider. Omit to let the API pick based on params. " +
+        "Set explicitly to enforce provider-specific validation.",
       options: ["parallel", "exa"],
     }),
     mode: Flags.string({
       description:
-        "Search mode. Parallel: fast, advanced (default). Exa: fast (default), deep-lite, deep.",
+        "Search mode. Parallel: fast, advanced. Exa: fast, deep-lite, deep. " +
+        "Requires --provider, or infers exa for deep modes.",
       options: ["fast", "advanced", "deep-lite", "deep"],
     }),
     output: Flags.string({
@@ -115,42 +121,44 @@ export default class Search extends BrowseCommand {
       description:
         "Only return results from these domains (comma-separated). " +
         "Accepts hostname (example.com), path prefix (example.com/docs), " +
-        "or wildcard (*.example.com). Parallel: max 200, mutually exclusive with --exclude-domains.",
+        "or wildcard (*.example.com). With --provider parallel: max 200, mutually exclusive with --exclude-domains.",
       helpValue: "<domains>",
     }),
     "exclude-domains": Flags.string({
       description:
         "Never return results from these domains (comma-separated). " +
-        "Same format as --include-domains. Parallel: max 200, mutually exclusive with --include-domains.",
+        "Same format as --include-domains. With --provider parallel: max 200, mutually exclusive with --include-domains.",
       helpValue: "<domains>",
     }),
     "start-published-date": Flags.string({
       description:
-        "Only return results published after this date (ISO 8601, e.g. 2026-01-01 or 2026-01-01T00:00:00Z). " +
+        "Only return results published after this date (YYYY-MM-DD or RFC 3339 date-time). " +
         "Parallel rounds to UTC day.",
       helpValue: "<date>",
     }),
     "end-published-date": Flags.string({
-      description: "Only return results published before this date (ISO 8601). Exa only.",
+      description:
+        "Only return results published before this date (YYYY-MM-DD or RFC 3339). " +
+        "Requires --provider exa.",
       helpValue: "<date>",
     }),
     category: Flags.string({
-      description: "Focus on a content category. Exa only.",
+      description: "Focus on a content category. Requires --provider exa.",
       options: ["company", "publication", "news", "personal site", "financial report", "people"],
     }),
     "user-location": Flags.string({
       description:
         "Two-letter country code (ISO 3166-1) to localize ranking. " +
-        "Parallel supports a limited set of countries.",
+        "With --provider parallel: limited to supported countries.",
       helpValue: "<code>",
     }),
     moderation: Flags.boolean({
-      description: "Filter unsafe content. Exa only.",
+      description: "Filter unsafe content. Requires --provider exa.",
       allowNo: true,
     }),
     objective: Flags.string({
       description:
-        "Natural-language task intent that adds context to the query (up to 4096 characters).",
+        "Natural-language task intent that adds context to the query (up to 4096 code points).",
       helpValue: "<text>",
     }),
     "max-age-hours": Flags.integer({
@@ -167,20 +175,38 @@ export default class Search extends BrowseCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Search);
 
-    const includeDomains = parseDomainList(flags["include-domains"]);
-    const excludeDomains = parseDomainList(flags["exclude-domains"]);
+    const queryLength = [...args.query].length;
+    if (queryLength < 1 || queryLength > 200) {
+      this.error(`Query must be 1-200 characters (got ${queryLength}).`);
+    }
 
-    this.validateSearchFlags(flags, includeDomains, excludeDomains);
+    const includeDomains = this.parseDomainList(flags["include-domains"], "--include-domains");
+    const excludeDomains = this.parseDomainList(flags["exclude-domains"], "--exclude-domains");
 
-    const startPublishedDate = normalizeDate(flags["start-published-date"]);
-    const endPublishedDate = normalizeDate(flags["end-published-date"]);
+    const resolvedProvider = this.resolveProvider(flags);
+
+    this.validateSearchFlags(flags, resolvedProvider, includeDomains, excludeDomains);
+
+    const startPublishedDate = this.parseDate(
+      flags["start-published-date"],
+      "--start-published-date",
+    );
+    const endPublishedDate = this.parseDate(flags["end-published-date"], "--end-published-date");
+
+    if (startPublishedDate && endPublishedDate) {
+      const startMs = new Date(startPublishedDate).getTime();
+      const endMs = new Date(endPublishedDate).getTime();
+      if (startMs > endMs) {
+        this.error("--start-published-date cannot be after --end-published-date.");
+      }
+    }
 
     const body: Record<string, unknown> = {
       query: args.query,
     };
 
     if (flags["num-results"] !== undefined) body.numResults = flags["num-results"];
-    if (flags.provider) body.provider = flags.provider;
+    if (resolvedProvider) body.provider = resolvedProvider;
     if (flags.mode) body.mode = flags.mode;
     if (includeDomains.length > 0) body.includeDomains = includeDomains;
     if (excludeDomains.length > 0) body.excludeDomains = excludeDomains;
@@ -189,7 +215,7 @@ export default class Search extends BrowseCommand {
     if (flags.category) body.category = flags.category;
     if (flags["user-location"]) body.userLocation = flags["user-location"].toUpperCase();
     if (flags.moderation !== undefined) body.moderation = flags.moderation;
-    if (flags.objective) body.objective = flags.objective;
+    if (flags.objective !== undefined) body.objective = flags.objective;
     if (flags["max-age-hours"] !== undefined) body.maxAgeHours = flags["max-age-hours"];
     if (flags.excerpts) body.excerpts = flags.excerpts;
 
@@ -229,6 +255,74 @@ export default class Search extends BrowseCommand {
     outputJson(result);
   }
 
+  private resolveProvider(flags: { provider?: string; mode?: string }): string | undefined {
+    if (flags.provider) {
+      return flags.provider;
+    }
+    if (flags.mode && (flags.mode === "deep" || flags.mode === "deep-lite")) {
+      return "exa";
+    }
+    return undefined;
+  }
+
+  private parseDomainList(value: string | undefined, flagName: string): string[] {
+    if (value === undefined) return [];
+
+    const domains = value
+      .split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => d.length > 0);
+
+    if (domains.length === 0) {
+      this.error(`${flagName} was provided but contains no valid domains.`);
+    }
+
+    const unique = [...new Set(domains)];
+    if (unique.length < domains.length) {
+      this.warn(`${flagName} contains duplicate domains; duplicates will be removed.`);
+    }
+
+    return unique;
+  }
+
+  private parseDate(value: string | undefined, flagName: string): string | undefined {
+    if (value === undefined) return undefined;
+
+    const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+    const dateTimePattern =
+      /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-]\d{2}:\d{2})?$/;
+
+    const dateOnlyMatch = value.match(dateOnlyPattern);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      if (!isValidDate(Number(year), Number(month), Number(day))) {
+        this.error(`${flagName} contains an invalid date: ${value}`);
+      }
+      return `${year}-${month}-${day}T00:00:00Z`;
+    }
+
+    const dateTimeMatch = value.match(dateTimePattern);
+    if (dateTimeMatch) {
+      const [, year, month, day] = dateTimeMatch;
+      if (!isValidDate(Number(year), Number(month), Number(day))) {
+        this.error(`${flagName} contains an invalid date: ${value}`);
+      }
+      let normalized = value.toUpperCase();
+      if (
+        !normalized.endsWith("Z") &&
+        !normalized.includes("+") &&
+        !normalized.slice(10).includes("-")
+      ) {
+        normalized += "Z";
+      }
+      return normalized;
+    }
+
+    this.error(
+      `${flagName} must be YYYY-MM-DD or RFC 3339 date-time (e.g. 2026-01-01 or 2026-01-01T00:00:00Z). Got: ${value}`,
+    );
+  }
+
   private validateSearchFlags(
     flags: {
       provider?: string;
@@ -237,32 +331,57 @@ export default class Search extends BrowseCommand {
       "exclude-domains"?: string;
       "user-location"?: string;
       objective?: string;
+      "end-published-date"?: string;
+      category?: string;
+      moderation?: boolean;
     },
+    resolvedProvider: string | undefined,
     includeDomains: string[],
     excludeDomains: string[],
   ): void {
-    const isParallel = !flags.provider || flags.provider === "parallel";
+    const isExplicitParallel = flags.provider === "parallel";
 
-    if (isParallel && flags.mode && (flags.mode === "deep" || flags.mode === "deep-lite")) {
+    if (flags.mode && !flags.provider && flags.mode !== "deep" && flags.mode !== "deep-lite") {
+      this.error("--mode requires --provider to be set (or use deep/deep-lite to infer exa).");
+    }
+
+    if (resolvedProvider === "parallel" && flags.mode && !PARALLEL_MODES.has(flags.mode)) {
       this.error(
-        `The parallel provider does not support --mode ${flags.mode}. ` +
-          "Use --mode fast or --mode advanced, or switch to --provider exa.",
+        `--provider parallel does not support --mode ${flags.mode}. Use fast or advanced.`,
       );
     }
 
-    if (isParallel && includeDomains.length > 0 && excludeDomains.length > 0) {
+    if (resolvedProvider === "exa" && flags.mode && !EXA_MODES.has(flags.mode)) {
       this.error(
-        "The parallel provider does not support both --include-domains and --exclude-domains. " +
-          "Use only one, or switch to --provider exa.",
+        `--provider exa does not support --mode ${flags.mode}. Use fast, deep-lite, or deep.`,
       );
     }
 
-    const totalDomains = includeDomains.length + excludeDomains.length;
-    if (isParallel && totalDomains > 200) {
-      this.error(
-        `The parallel provider supports at most 200 domains total (got ${totalDomains}). ` +
-          "Reduce the list or switch to --provider exa.",
-      );
+    if (isExplicitParallel) {
+      if (flags["end-published-date"]) {
+        this.error("--end-published-date is only supported with --provider exa.");
+      }
+      if (flags.category) {
+        this.error("--category is only supported with --provider exa.");
+      }
+      if (flags.moderation !== undefined) {
+        this.error("--moderation is only supported with --provider exa.");
+      }
+
+      if (includeDomains.length > 0 && excludeDomains.length > 0) {
+        this.error(
+          "--provider parallel does not support both --include-domains and --exclude-domains. " +
+            "Use only one, or switch to --provider exa.",
+        );
+      }
+
+      const totalDomains = includeDomains.length + excludeDomains.length;
+      if (totalDomains > 200) {
+        this.error(
+          `--provider parallel supports at most 200 domains total (got ${totalDomains}). ` +
+            "Reduce the list or switch to --provider exa.",
+        );
+      }
     }
 
     for (const domain of [...includeDomains, ...excludeDomains]) {
@@ -272,9 +391,10 @@ export default class Search extends BrowseCommand {
             "Remove it and use just the hostname, path prefix, or wildcard.",
         );
       }
-      if (/^[^/]*:/.test(domain)) {
+      const hostPart = domain.split("/")[0] ?? "";
+      if (hostPart.includes(":")) {
         this.error(
-          `Domain "${domain}" appears to include a port. ` + "Remove it and use just the hostname.",
+          `Domain "${domain}" appears to include a port. Remove it and use just the hostname.`,
         );
       }
       if (domain.includes("?") || domain.includes("#")) {
@@ -285,39 +405,46 @@ export default class Search extends BrowseCommand {
       }
     }
 
+    if (includeDomains.length > 0 && excludeDomains.length > 0) {
+      const includeSet = new Set(includeDomains);
+      const overlap = excludeDomains.filter((d) => includeSet.has(d));
+      if (overlap.length > 0) {
+        this.warn(
+          `The following domains appear in both --include-domains and --exclude-domains: ${overlap.join(", ")}`,
+        );
+      }
+    }
+
     if (flags["user-location"]) {
       const code = flags["user-location"].toUpperCase();
       if (!/^[A-Za-z]{2}$/.test(code)) {
         this.error(`--user-location must be a two-letter country code (got "${code}").`);
       }
-      if (isParallel && !PARALLEL_SUPPORTED_COUNTRIES.has(code)) {
+      if (isExplicitParallel && !PARALLEL_SUPPORTED_COUNTRIES.has(code)) {
         this.error(
-          `The parallel provider does not support country code "${code}". ` +
-            "Use --provider exa for broader country support.",
+          `--provider parallel does not support country code "${code}". ` +
+            "Use --provider exa for broader country support, or omit --provider to let the API choose.",
         );
       }
     }
 
-    if (flags.objective && flags.objective.length > 4096) {
-      this.error(`--objective exceeds 4096 characters (got ${flags.objective.length}).`);
+    if (flags.objective !== undefined) {
+      if (flags.objective.trim().length === 0) {
+        this.error("--objective cannot be empty or whitespace-only.");
+      }
+      const codePoints = [...flags.objective].length;
+      if (codePoints > 4096) {
+        this.error(`--objective exceeds 4096 code points (got ${codePoints}).`);
+      }
     }
   }
 }
 
-function parseDomainList(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((d) => d.trim())
-    .filter((d) => d.length > 0);
-}
-
-function normalizeDate(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (value.includes("T")) {
-    return value;
-  }
-  return `${value}T00:00:00Z`;
+function isValidDate(year: number, month: number, day: number): boolean {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 function outputSearchTable(
@@ -368,14 +495,20 @@ function outputSearchTable(
       console.log("\nExcerpts:\n");
       for (const result of resultsWithExcerpts) {
         const index = results.indexOf(result) + 1;
-        console.log(`[${index}] ${result.title}`);
+        console.log(`[${index}] ${sanitizeOutput(result.title)}`);
         for (const excerpt of result.excerpts || []) {
-          console.log(`    ${excerpt.slice(0, 200)}${excerpt.length > 200 ? "..." : ""}`);
+          const sanitized = sanitizeOutput(excerpt.slice(0, 200));
+          console.log(`    ${sanitized}${excerpt.length > 200 ? "..." : ""}`);
         }
         console.log();
       }
     }
   }
+}
+
+function sanitizeOutput(value: string): string {
+  // eslint-disable-next-line no-control-regex -- intentionally stripping control chars from output
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ");
 }
 
 function formatDate(value: string | undefined): string {

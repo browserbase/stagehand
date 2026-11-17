@@ -273,23 +273,23 @@ Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser
 
 ### Search Options
 
-Search accepts these options:
+When `--provider` is omitted, the API picks a provider that supports your params (auto-routing). Set `--provider` explicitly to enforce provider-specific limits locally (domain count, country codes, etc.).
 
-| Flag                                     | Description                                                                                                                                             |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--provider parallel\|exa`               | Search provider. Parallel (default) or Exa.                                                                                                             |
-| `--mode fast\|advanced\|deep-lite\|deep` | Search mode. Parallel: fast, advanced (default). Exa: fast (default), deep-lite, deep.                                                                  |
-| `--num-results <1-25>`                   | Number of results (default 10).                                                                                                                         |
-| `--include-domains <domains>`            | Comma-separated list of domains to include (hostname, path prefix, or `*.example.com`). Parallel: max 200, mutually exclusive with `--exclude-domains`. |
-| `--exclude-domains <domains>`            | Comma-separated list of domains to exclude. Same format as `--include-domains`.                                                                         |
-| `--start-published-date <date>`          | ISO 8601 date (e.g. `2026-01-01`). Only results published after this date. Parallel rounds to UTC day.                                                  |
-| `--end-published-date <date>`            | ISO 8601 date. Only results published before this date. Exa only.                                                                                       |
-| `--category <type>`                      | Focus on content category: company, publication, news, personal site, financial report, people. Exa only.                                               |
-| `--user-location <code>`                 | Two-letter country code (e.g. `US`, `GB`) to localize ranking. Parallel supports limited countries.                                                     |
-| `--moderation`                           | Filter unsafe content. Exa only.                                                                                                                        |
-| `--objective <text>`                     | Natural-language task intent (up to 4096 chars) to add context to the query.                                                                            |
-| `--max-age-hours <1-720>`                | Refetch cached pages older than this many hours.                                                                                                        |
-| `--excerpts`                             | Return the most relevant passages from each result.                                                                                                     |
+| Flag                                     | Description                                                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--provider parallel\|exa`               | Search provider. Omit to let the API pick. Set explicitly for provider-specific validation.                                                                       |
+| `--mode fast\|advanced\|deep-lite\|deep` | Search mode. Parallel: fast, advanced. Exa: fast, deep-lite, deep. Requires `--provider`, or infers exa for deep modes.                                           |
+| `--num-results <1-25>`                   | Number of results (default 10).                                                                                                                                   |
+| `--include-domains <domains>`            | Comma-separated domains to include (hostname, path prefix, or `*.example.com`). With `--provider parallel`: max 200, mutually exclusive with `--exclude-domains`. |
+| `--exclude-domains <domains>`            | Comma-separated domains to exclude. Same format as `--include-domains`.                                                                                           |
+| `--start-published-date <date>`          | YYYY-MM-DD or RFC 3339 date-time (e.g. `2026-01-01`). Only results published after this date.                                                                     |
+| `--end-published-date <date>`            | YYYY-MM-DD or RFC 3339 date-time. Only results published before this date. Requires `--provider exa`.                                                             |
+| `--category <type>`                      | Focus on content category: company, publication, news, personal site, financial report, people. Requires `--provider exa`.                                        |
+| `--user-location <code>`                 | Two-letter country code (e.g. `US`, `GB`) to localize ranking. With `--provider parallel`: limited to supported countries.                                        |
+| `--moderation`                           | Filter unsafe content. Requires `--provider exa`.                                                                                                                 |
+| `--objective <text>`                     | Natural-language task intent (up to 4096 code points) to add context to the query.                                                                                |
+| `--max-age-hours <1-720>`                | Refetch cached pages older than this many hours.                                                                                                                  |
+| `--excerpts`                             | Return the most relevant passages from each result.                                                                                                               |
 
 The response includes `provider` and `mode` fields showing which provider/mode served the request. When `--excerpts` is set, each result includes an `excerpts` array with relevant passages.
 

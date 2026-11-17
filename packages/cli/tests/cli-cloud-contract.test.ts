@@ -388,14 +388,14 @@ describe("cloud API contracts", () => {
       options: { provider: "exa" },
     },
     {
-      name: "fast mode with the server's default provider",
-      args: ["--mode", "fast"],
-      options: { mode: "fast" },
+      name: "fast mode with explicit parallel provider",
+      args: ["--provider", "parallel", "--mode", "fast"],
+      options: { provider: "parallel", mode: "fast" },
     },
     {
-      name: "advanced mode with the server's default provider",
-      args: ["--mode", "advanced"],
-      options: { mode: "advanced" },
+      name: "advanced mode with explicit parallel provider",
+      args: ["--provider", "parallel", "--mode", "advanced"],
+      options: { provider: "parallel", mode: "advanced" },
     },
   ])("search sends the expected POST body and prints JSON: $name", async ({ args, options }) => {
     await withServer(
@@ -742,11 +742,43 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("search rejects both include-domains and exclude-domains for Parallel", async () => {
+  it("search accepts include+exclude domains without explicit provider (API auto-routes)", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--include-domains",
+          "bbc.com,nytimes.com",
+          "--exclude-domains",
+          "cnn.com",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          includeDomains: ["bbc.com", "nytimes.com"],
+          excludeDomains: ["cnn.com"],
+        });
+      },
+    );
+  });
+
+  it("search rejects both include+exclude domains with explicit --provider parallel", async () => {
     const result = await runCli([
       "cloud",
       "search",
       "test query",
+      "--provider",
+      "parallel",
       "--include-domains",
       "example.com",
       "--exclude-domains",
@@ -758,15 +790,42 @@ describe("cloud API contracts", () => {
     ]);
 
     expect(result.exitCode).toBe(2);
-    expect(result.stderr).toContain("parallel provider does not support both");
+    expect(result.stderr).toContain("does not support both");
   });
 
-  it("search rejects more than 200 domains for Parallel", async () => {
+  it("search accepts 201 domains without explicit provider (API auto-routes)", async () => {
+    const domains = Array.from({ length: 201 }, (_, i) => `domain${i}.com`).join(",");
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--include-domains",
+          domains,
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+      },
+    );
+  });
+
+  it("search rejects more than 200 domains with explicit --provider parallel", async () => {
     const domains = Array.from({ length: 201 }, (_, i) => `domain${i}.com`).join(",");
     const result = await runCli([
       "cloud",
       "search",
       "test query",
+      "--provider",
+      "parallel",
       "--include-domains",
       domains,
       "--api-key",
@@ -777,7 +836,66 @@ describe("cloud API contracts", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("at most 200 domains");
-    expect(result.stderr).toContain("201");
+  });
+
+  it("search rejects empty domain list (commas only)", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      ",",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("no valid domains");
+  });
+
+  it("search rejects empty domain list (whitespace)", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      " , ",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("no valid domains");
+  });
+
+  it("search lowercases and deduplicates domains", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--include-domains",
+          "Example.COM,example.com,OTHER.com",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          includeDomains: ["example.com", "other.com"],
+        });
+      },
+    );
   });
 
   it("search rejects domains with scheme", async () => {
@@ -820,7 +938,7 @@ describe("cloud API contracts", () => {
       "search",
       "test query",
       "--include-domains",
-      "example.com:8080/docs",
+      "bbc.com:443/news",
       "--api-key",
       "test-key",
       "--base-url",
@@ -829,42 +947,6 @@ describe("cloud API contracts", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("port");
-  });
-
-  it("search rejects Exa-only modes with Parallel provider", async () => {
-    const result = await runCli([
-      "cloud",
-      "search",
-      "test query",
-      "--mode",
-      "deep",
-      "--api-key",
-      "test-key",
-      "--base-url",
-      "http://127.0.0.1:1",
-    ]);
-
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr).toContain("parallel provider does not support --mode deep");
-  });
-
-  it("search rejects deep-lite mode with explicit Parallel provider", async () => {
-    const result = await runCli([
-      "cloud",
-      "search",
-      "test query",
-      "--provider",
-      "parallel",
-      "--mode",
-      "deep-lite",
-      "--api-key",
-      "test-key",
-      "--base-url",
-      "http://127.0.0.1:1",
-    ]);
-
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr).toContain("parallel provider does not support --mode deep-lite");
   });
 
   it("search rejects domains with query string", async () => {
@@ -884,6 +966,160 @@ describe("cloud API contracts", () => {
     expect(result.stderr).toContain("query string or fragment");
   });
 
+  it("search infers exa provider for deep mode", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--mode",
+          "deep",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          provider: "exa",
+          mode: "deep",
+        });
+      },
+    );
+  });
+
+  it("search infers exa provider for deep-lite mode", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--mode",
+          "deep-lite",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          provider: "exa",
+          mode: "deep-lite",
+        });
+      },
+    );
+  });
+
+  it("search rejects --mode without --provider for non-deep modes", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--mode",
+      "fast",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("--mode requires --provider");
+  });
+
+  it("search rejects deep mode with explicit --provider parallel", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--provider",
+      "parallel",
+      "--mode",
+      "deep",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("does not support --mode deep");
+  });
+
+  it("search rejects advanced mode with --provider exa", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--provider",
+      "exa",
+      "--mode",
+      "advanced",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("does not support --mode advanced");
+  });
+
+  it("search rejects Exa-only flags with --provider parallel", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--provider",
+      "parallel",
+      "--end-published-date",
+      "2026-12-31",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("only supported with --provider exa");
+  });
+
+  it("search accepts user-location IE without explicit provider (API auto-routes)", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--user-location",
+          "IE",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          userLocation: "IE",
+        });
+      },
+    );
+  });
+
   it("search rejects invalid user-location code format", async () => {
     const result = await runCli([
       "cloud",
@@ -901,11 +1137,13 @@ describe("cloud API contracts", () => {
     expect(result.stderr).toContain("two-letter country code");
   });
 
-  it("search rejects unsupported Parallel country code", async () => {
+  it("search rejects unsupported country code with explicit --provider parallel", async () => {
     const result = await runCli([
       "cloud",
       "search",
       "test query",
+      "--provider",
+      "parallel",
       "--user-location",
       "ZZ",
       "--api-key",
@@ -918,7 +1156,7 @@ describe("cloud API contracts", () => {
     expect(result.stderr).toContain('does not support country code "ZZ"');
   });
 
-  it("search accepts Exa with unsupported Parallel country codes", async () => {
+  it("search accepts any country code with --provider exa", async () => {
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, makeSearchResponse("test", []));
@@ -939,13 +1177,146 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
-        expect(requests).toHaveLength(1);
         expect(requests[0]?.jsonBody).toMatchObject({
           provider: "exa",
           userLocation: "ZZ",
         });
       },
     );
+  });
+
+  it("search rejects empty objective", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--objective",
+      "",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("cannot be empty");
+  });
+
+  it("search rejects whitespace-only objective", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--objective",
+      "   ",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("cannot be empty");
+  });
+
+  it("search rejects invalid date format", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--start-published-date",
+      "10/01/2026",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("must be YYYY-MM-DD or RFC 3339");
+  });
+
+  it("search rejects invalid date values", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--start-published-date",
+      "2026-02-30",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("invalid date");
+  });
+
+  it("search rejects partial date format", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--start-published-date",
+      "2026-10",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("must be YYYY-MM-DD or RFC 3339");
+  });
+
+  it("search accepts lowercase t and z in date-time", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--provider",
+          "exa",
+          "--start-published-date",
+          "2026-10-01t12:00:00z",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          startPublishedDate: "2026-10-01T12:00:00Z",
+        });
+      },
+    );
+  });
+
+  it("search rejects start date after end date", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--provider",
+      "exa",
+      "--start-published-date",
+      "2026-12-01",
+      "--end-published-date",
+      "2026-01-01",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("cannot be after");
   });
 
   it("search includes provider and mode in JSON output", async () => {
