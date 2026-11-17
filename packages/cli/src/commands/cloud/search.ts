@@ -270,7 +270,12 @@ export default class Search extends BrowseCommand {
 
     const domains = value
       .split(",")
-      .map((d) => d.trim().toLowerCase())
+      .map((d) => {
+        const trimmed = d.trim();
+        const slashIndex = trimmed.indexOf("/");
+        if (slashIndex === -1) return trimmed.toLowerCase();
+        return `${trimmed.slice(0, slashIndex).toLowerCase()}${trimmed.slice(slashIndex)}`;
+      })
       .filter((d) => d.length > 0);
 
     if (domains.length === 0) {
@@ -364,7 +369,7 @@ export default class Search extends BrowseCommand {
       if (flags.category) {
         this.error("--category is only supported with --provider exa.");
       }
-      if (flags.moderation !== undefined) {
+      if (flags.moderation === true) {
         this.error("--moderation is only supported with --provider exa.");
       }
 
