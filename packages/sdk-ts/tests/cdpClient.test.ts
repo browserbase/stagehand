@@ -124,6 +124,63 @@ class FakeWebSocket extends EventTarget {
   }
 }
 
+describe("host CDP relay", () => {
+  it("uses the host's headers for extension traffic without sending them to the worker", () => {
+    const upstream: Array<
+      FakeWebSocket & { url: string; options?: { headers: Record<string, string> } }
+    > = [];
+    class RelayWebSocket extends FakeWebSocket {
+      static readonly OPEN = 1;
+      static readonly CONNECTING = 0;
+      constructor(
+        readonly url: string,
+        readonly options?: { headers: Record<string, string> },
+      ) {
+        super();
+        upstream.push(this as (typeof upstream)[number]);
+      }
+    }
+    vi.stubGlobal("WebSocket", RelayWebSocket);
+    const host = new FakeWebSocket();
+    host.open();
+    const client = new CDPClient(host as never, "wss://broker.example/session", true, {
+      Authorization: "Bearer test-key",
+    });
+    client.sessionId = "worker-session";
+    const sendEvent = vi.spyOn(client, "sendHostRelayEvent").mockImplementation(() => {});
+    const relayId = crypto.randomUUID();
+    try {
+      client.handleHostRelayMessage({
+        kind: "stagehand.host_cdp_relay",
+        type: "open",
+        id: relayId,
+      });
+      expect(upstream[0]?.url).toBe("wss://broker.example/session");
+      expect(upstream[0]?.options?.headers).toEqual({ Authorization: "Bearer test-key" });
+      upstream[0]?.open();
+      expect(sendEvent).toHaveBeenCalledWith(relayId, { type: "open" });
+      expect(JSON.stringify(sendEvent.mock.calls)).not.toContain("test-key");
+
+      client.handleHostRelayMessage({
+        kind: "stagehand.host_cdp_relay",
+        type: "send",
+        id: relayId,
+        data: '{"id":1,"method":"Target.getTargets"}',
+      });
+      expect(upstream[0]?.send).toHaveBeenCalledOnce();
+      client.handleHostRelayMessage({
+        kind: "stagehand.host_cdp_relay",
+        type: "close",
+        id: relayId,
+      });
+      expect(upstream[0]?.close).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("CDP WebSocket transport", () => {
   it("opens the built-in WebSocket transport", async () => {
     const signal = new AbortController().signal;

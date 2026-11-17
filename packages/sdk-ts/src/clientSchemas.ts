@@ -103,6 +103,10 @@ export const LocalBrowserConnectOptionsSchema = z
     /** Headers for client-side CDP discovery and WebSocket connections. */
     headers: CDPHeadersSchema.optional(),
     extensionId: z.string().optional(),
+    /** Use the Stagehand extension already installed in the browser. */
+    preloadedExtension: z.literal(true).optional(),
+    /** Route extension CDP traffic through this SDK connection. */
+    relayExtensionCdp: z.literal(true).optional(),
     /**
      * Browser-level CDP WebSocket URL dialed by the extension inside Chrome.
      * Defaults to the client's URL. Set this when the client connects through
@@ -121,6 +125,10 @@ export const LocalBrowserConnectOptionsSchema = z
         { message: "Port must be between 1 and 65535" },
       )
       .optional(),
+  })
+  .refine(({ relayExtensionCdp, extensionCdpUrl }) => !relayExtensionCdp || !extensionCdpUrl, {
+    message: "relayExtensionCdp and extensionCdpUrl cannot be used together",
+    path: ["extensionCdpUrl"],
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
@@ -186,6 +194,7 @@ export const BrowserbaseConnectOptionsSchema = z
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     clientOptions: BrowserbaseClientOptionsSchema.optional(),
     sessionId: z.string().min(1),
+    signingKey: z.string().min(1).optional(),
     extensionId: z.string().optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
@@ -257,6 +266,7 @@ export const BrowserbaseSessionCreateResultSchema = z
   .object({
     id: z.string(),
     connectUrl: z.string(),
+    signingKey: z.string().optional(),
   })
   .meta({ id: "BrowserbaseSessionCreateResult" });
 
@@ -265,6 +275,7 @@ export const BrowserbaseSessionRetrieveResultSchema = z
   .object({
     id: z.string(),
     connectUrl: z.string().optional(),
+    signingKey: z.string().optional(),
     region: BrowserbaseRegionSchema.optional(),
   })
   .meta({ id: "BrowserbaseSessionRetrieveResult" });
@@ -274,6 +285,7 @@ export const BrowserbaseSessionConnectionSchema = z
   .strictObject({
     sessionId: z.string().trim().min(1),
     cdpUrl: z.string().trim().min(1),
+    signingKey: z.string().min(1).optional(),
     region: BrowserbaseRegionSchema.optional(),
   })
   .meta({ id: "BrowserbaseSessionConnection" });
