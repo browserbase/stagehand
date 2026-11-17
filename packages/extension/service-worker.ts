@@ -14,6 +14,7 @@ import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
+import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
 import { ClientLifecycle } from "./clientLifecycle.js";
@@ -34,24 +35,43 @@ export function startStagehandServiceWorker(
 ): RPCClient {
   const chromeRuntimeClient = new ChromeRuntimeClient(scope, STAGEHAND_SEND_TO_HOST_BINDING);
   let rpcClient: RPCClient | undefined;
+  let domainPolicyManager: DomainPolicyDnrManager | undefined;
   const activeRuntime =
     runtime ??
     createStagehandRuntime({
       browserSessionFactory: async (cdpUrl, logger, bootstrapLogger) => {
-        const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
-        if (!locatorRuntimeResponse.ok) {
-          throw new Error(
-            `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
-          );
+        domainPolicyManager ??= new DomainPolicyDnrManager(
+          chrome.declarativeNetRequest,
+          chrome.runtime.id,
+        );
+        const domainPolicyRules = await domainPolicyManager.openSession();
+        try {
+          const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
+          if (!locatorRuntimeResponse.ok) {
+            throw new Error(
+              `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
+            );
+          }
+          return await BrowserContext.create(cdpUrl, {
+            websocketFactory: browserWebSocketFactory,
+            logger,
+            blankPageUrl: chrome.runtime.getURL("blank.html"),
+            fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
+            chromeTabs: new ChromeTabTargetAdapter(chrome),
+            bootstrapLogger,
+            domainPolicyRules,
+          });
+        } catch (error) {
+          try {
+            await domainPolicyRules.close();
+          } catch (cleanupError) {
+            throw new AggregateError(
+              [error, cleanupError],
+              "Browser session initialization and domain policy cleanup failed",
+            );
+          }
+          throw error;
         }
-        return BrowserContext.create(cdpUrl, {
-          websocketFactory: browserWebSocketFactory,
-          logger,
-          blankPageUrl: chrome.runtime.getURL("blank.html"),
-          fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
-          chromeTabs: new ChromeTabTargetAdapter(chrome),
-          bootstrapLogger,
-        });
       },
       emitLog: (log) => {
         void rpcClient?.notify(StagehandNotifications.log, log).catch((error: unknown) => {
@@ -100,7 +120,7 @@ export function startStagehandServiceWorker(
       return session.conn;
     },
     rejectClientCallbacks: () => rpcClient?.releaseClient(),
-    closeConnection: () => activeRuntime.dropBrowserConnection(),
+    closeConnection: () => activeRuntime.disconnectBrowser(),
     disposeClient: () => activeRuntime.disposeStagehandInstance(),
     onError: (error) => {
       // The client transport may be gone; do not report through RPC.

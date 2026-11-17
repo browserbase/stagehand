@@ -1,12 +1,12 @@
 import { createServer, type Server } from "node:http";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
-import { itPosix } from "./helpers/platform.js";
+import { writeNodeExecutable } from "./helpers/node-executable.js";
 
 const cleanupPaths: string[] = [];
 const cleanupServers: Server[] = [];
@@ -281,7 +281,7 @@ describe("skills", () => {
     );
   });
 
-  itPosix("fails cleanly when a non-generated skill is missing from the catalog", async () => {
+  it("fails cleanly when a non-generated skill is missing from the catalog", async () => {
     const stubDir = await createTempDir("browse-skills-missing-bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir, logPath);
@@ -307,63 +307,57 @@ describe("skills", () => {
     );
   });
 
-  itPosix(
-    "installs suffix-shaped catalog skills from GitHub when the file API returns 404",
-    async () => {
-      const stubDir = await createTempDir("browse-skills-suffix-catalog-bin-");
-      const logPath = join(stubDir, "npx.log");
-      await writeNpxStub(stubDir, logPath);
-      const { server, baseUrl } = await startFakeSkillServer({});
-      cleanupServers.push(server);
+  it("installs suffix-shaped catalog skills from GitHub when the file API returns 404", async () => {
+    const stubDir = await createTempDir("browse-skills-suffix-catalog-bin-");
+    const logPath = join(stubDir, "npx.log");
+    await writeNpxStub(stubDir, logPath);
+    const { server, baseUrl } = await startFakeSkillServer({});
+    cleanupServers.push(server);
 
-      const result = await runCli(["skills", "add", "airline.example/book-flight"], {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-          PATH: stubDir,
-        },
-      });
+    const result = await runCli(["skills", "add", "airline.example/book-flight"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        PATH: stubDir,
+      },
+    });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).not.toContain("Downloaded");
-      await expect(readFile(logPath, "utf8")).resolves.toContain(
-        "--yes skills add browserbase/browse.sh --skill airline.example/book-flight",
-      );
-    },
-  );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("Downloaded");
+    await expect(readFile(logPath, "utf8")).resolves.toContain(
+      "--yes skills add browserbase/browse.sh --skill airline.example/book-flight",
+    );
+  });
 
-  itPosix(
-    "installs suffix-shaped catalog skills from GitHub when the file API is unavailable and no Blob fallback exists",
-    async () => {
-      const stubDir = await createTempDir("browse-skills-suffix-unavailable-bin-");
-      const logPath = join(stubDir, "npx.log");
-      await writeNpxStub(stubDir, logPath);
-      const { server, baseUrl } = await startFakeSkillServer({
-        "/api/skills/airline.example/book-flight/files": {
-          status: 500,
-          body: "server error",
-        },
-      });
-      cleanupServers.push(server);
+  it("installs suffix-shaped catalog skills from GitHub when the file API is unavailable and no Blob fallback exists", async () => {
+    const stubDir = await createTempDir("browse-skills-suffix-unavailable-bin-");
+    const logPath = join(stubDir, "npx.log");
+    await writeNpxStub(stubDir, logPath);
+    const { server, baseUrl } = await startFakeSkillServer({
+      "/api/skills/airline.example/book-flight/files": {
+        status: 500,
+        body: "server error",
+      },
+    });
+    cleanupServers.push(server);
 
-      const result = await runCli(["skills", "add", "airline.example/book-flight"], {
-        env: {
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-          BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
-          PATH: stubDir,
-        },
-      });
+    const result = await runCli(["skills", "add", "airline.example/book-flight"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
+        PATH: stubDir,
+      },
+    });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).not.toContain("Downloaded");
-      await expect(readFile(logPath, "utf8")).resolves.toContain(
-        "--yes skills add browserbase/browse.sh --skill airline.example/book-flight",
-      );
-    },
-  );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("Downloaded");
+    await expect(readFile(logPath, "utf8")).resolves.toContain(
+      "--yes skills add browserbase/browse.sh --skill airline.example/book-flight",
+    );
+  });
 
-  itPosix("downloads generated skills from the Browse.sh file API before installing", async () => {
+  it("downloads generated skills from the Browse.sh file API before installing", async () => {
     const stubDir = await createTempDir("browse-skills-api-bin-");
-    const configHome = await createTempDir("browse-skills-config-");
+    const configHome = await createTempDir("browse skills config-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir, logPath);
 
@@ -420,59 +414,53 @@ describe("skills", () => {
     await expect(readFile(logPath, "utf8")).resolves.toContain(`--yes skills add ${installPath}`);
   });
 
-  itPosix(
-    "falls back to direct SKILL.md download when the file API is unavailable for a suffix-shaped skill",
-    async () => {
-      const stubDir = await createTempDir("browse-skills-api-fallback-bin-");
-      const configHome = await createTempDir("browse-skills-api-fallback-config-");
-      const logPath = join(stubDir, "npx.log");
-      await writeNpxStub(stubDir, logPath);
+  it("falls back to direct SKILL.md download when the file API is unavailable for a suffix-shaped skill", async () => {
+    const stubDir = await createTempDir("browse-skills-api-fallback-bin-");
+    const configHome = await createTempDir("browse skills fallback config-");
+    const logPath = join(stubDir, "npx.log");
+    await writeNpxStub(stubDir, logPath);
 
-      const { server, baseUrl } = await startFakeSkillServer({
-        "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": {
-          status: 500,
-          body: "server error",
-        },
-        "/skills/mcdonalds.order.online/order-delivery-42q71n/SKILL.md": [
-          "---",
-          "name: order-delivery",
-          "description: Place a McDonald's delivery order.",
-          "---",
-          "",
-          "# Order delivery",
-          "",
-        ].join("\n"),
-      });
-      cleanupServers.push(server);
-
-      const result = await runCli(
-        ["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"],
-        {
-          env: {
-            BROWSE_SKILLS_API_BASE_URL: baseUrl,
-            BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
-            PATH: stubDir,
-            XDG_CONFIG_HOME: configHome,
-          },
-        },
-      );
-
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("Downloaded 1 skill file");
-
-      const installPath = join(
-        configHome,
-        "browserbase",
-        "skills",
-        "mcdonalds.order.online",
-        "order-delivery-42q71n",
-      );
-      await expect(readFile(join(installPath, "SKILL.md"), "utf8")).resolves.toContain(
+    const { server, baseUrl } = await startFakeSkillServer({
+      "/api/skills/mcdonalds.order.online/order-delivery-42q71n/files": {
+        status: 500,
+        body: "server error",
+      },
+      "/skills/mcdonalds.order.online/order-delivery-42q71n/SKILL.md": [
+        "---",
         "name: order-delivery",
-      );
-      await expect(readFile(logPath, "utf8")).resolves.toContain(`--yes skills add ${installPath}`);
-    },
-  );
+        "description: Place a McDonald's delivery order.",
+        "---",
+        "",
+        "# Order delivery",
+        "",
+      ].join("\n"),
+    });
+    cleanupServers.push(server);
+
+    const result = await runCli(["skills", "add", "mcdonalds.order.online/order-delivery-42q71n"], {
+      env: {
+        BROWSE_SKILLS_API_BASE_URL: baseUrl,
+        BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
+        PATH: stubDir,
+        XDG_CONFIG_HOME: configHome,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Downloaded 1 skill file");
+
+    const installPath = join(
+      configHome,
+      "browserbase",
+      "skills",
+      "mcdonalds.order.online",
+      "order-delivery-42q71n",
+    );
+    await expect(readFile(join(installPath, "SKILL.md"), "utf8")).resolves.toContain(
+      "name: order-delivery",
+    );
+    await expect(readFile(logPath, "utf8")).resolves.toContain(`--yes skills add ${installPath}`);
+  });
 
   it("rejects invalid skill ids", async () => {
     const result = await runCli(["skills", "add", "../bad"]);
@@ -490,7 +478,7 @@ describe("skills", () => {
     expect(result.stderr).toContain("browse skills find");
   });
 
-  itPosix("rejects unsafe API file paths", async () => {
+  it("rejects unsafe API file paths", async () => {
     const stubDir = await createTempDir("browse-skills-unsafe-bin-");
     const configHome = await createTempDir("browse-skills-unsafe-config-");
     const logPath = join(stubDir, "npx.log");
@@ -594,13 +582,14 @@ async function createTempDir(prefix: string): Promise<string> {
 }
 
 async function writeNpxStub(stubDir: string, logPath: string): Promise<void> {
-  const stubPath = join(stubDir, "npx");
-  await writeFile(
-    stubPath,
-    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join("\n"),
+  await writeNodeExecutable(
+    stubDir,
+    "npx",
+    [
+      'const { appendFileSync } = require("node:fs");',
+      `appendFileSync(${JSON.stringify(logPath)}, process.argv.slice(2).join(" ") + "\\n");`,
+    ].join("\n"),
   );
-  await chmod(stubPath, 0o755);
-  process.env.BB_STUB_LOG = logPath;
 }
 
 type FakeFile =

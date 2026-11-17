@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-deepagents-sdk",
-  "version": "4.0.5",
+  "version": "4.0.6",
   "private": true,
   "description": "Deep Agents (LangChain) harness adapter for Stagehand integrations",
   "files": [
