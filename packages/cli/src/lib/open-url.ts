@@ -43,19 +43,14 @@ export const platformDetection = {
 };
 
 /**
- * Parses a $BROWSER value into command and args.
- * Handles: colon-separated list (uses first), whitespace-separated args,
- * and %s placeholder (replaced with URL, or URL appended if absent).
+ * Parses a single $BROWSER entry into command and args.
+ * Handles whitespace-separated args and %s placeholder.
  */
-export function parseBrowserEnv(browser: string, url: string): { command: string; args: string[] } {
-  // Take first entry from colon-separated list (e.g., "firefox:chromium")
-  const entry = browser.split(":")[0] ?? browser;
-  // Split on whitespace into command + args
+function parseBrowserEntry(entry: string, url: string): { command: string; args: string[] } {
   const parts = entry.trim().split(/\s+/).filter(Boolean);
   const command = parts[0] ?? entry;
   const templateArgs = parts.slice(1);
 
-  // Replace %s with URL, or append URL if no placeholder
   const hasPlaceholder = templateArgs.some((arg) => arg.includes("%s"));
   const args = hasPlaceholder
     ? templateArgs.map((arg) => arg.replace(/%s/g, url))
@@ -64,10 +59,26 @@ export function parseBrowserEnv(browser: string, url: string): { command: string
   return { command, args };
 }
 
+/**
+ * Parses a $BROWSER value into a list of {command, args} alternatives.
+ * Handles: colon-separated list, whitespace-separated args per entry,
+ * and %s placeholder (replaced with URL, or URL appended if absent).
+ */
+export function parseBrowserEnv(
+  browser: string,
+  url: string,
+): Array<{ command: string; args: string[] }> {
+  return browser
+    .split(":")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => parseBrowserEntry(entry, url));
+}
+
 export interface OpenCommand {
   command: string;
   args: string[];
-  fallback?: { command: string; args: string[] };
+  fallbacks?: Array<{ command: string; args: string[] }>;
 }
 
 /**
@@ -89,7 +100,17 @@ export function getOpenCommand(
   // Linux and other Unix-like systems
   const browser = platformDetection.getBrowser();
   if (browser) {
-    return parseBrowserEnv(browser, url);
+    const entries = parseBrowserEnv(browser, url);
+    const first = entries[0];
+    if (!first) {
+      return { command: "xdg-open", args: [url] };
+    }
+    const rest = entries.slice(1);
+    return {
+      command: first.command,
+      args: first.args,
+      fallbacks: rest.length > 0 ? rest : undefined,
+    };
   }
 
   // WSL: use Windows opener via interop (unless over SSH)
@@ -97,7 +118,7 @@ export function getOpenCommand(
     return {
       command: "rundll32.exe",
       args: ["url.dll,FileProtocolHandler", url],
-      fallback: { command: "xdg-open", args: [url] },
+      fallbacks: [{ command: "xdg-open", args: [url] }],
     };
   }
 
@@ -134,7 +155,7 @@ function shouldOpenBrowser(): boolean {
 }
 
 function spawnBrowserOpen(url: string): OpenUrlResult {
-  const { command, args, fallback } = getOpenCommand(url);
+  const { command, args, fallbacks } = getOpenCommand(url);
 
   const spawnOptions: SpawnOptions = {
     stdio: "ignore",
@@ -142,26 +163,32 @@ function spawnBrowserOpen(url: string): OpenUrlResult {
     shell: false,
   };
 
-  let child: ChildProcess;
-  try {
-    child = spawn(command, args, spawnOptions);
-  } catch {
-    return { attempted: true, success: false };
+  // Try to spawn with fallback chain on error. Returns true if spawn started.
+  function trySpawn(cmd: string, cmdArgs: string[], remaining: typeof fallbacks): boolean {
+    let child: ChildProcess;
+    try {
+      child = spawn(cmd, cmdArgs, spawnOptions);
+    } catch {
+      // Sync failure: try next fallback
+      const next = remaining?.[0];
+      if (next) {
+        return trySpawn(next.command, next.args, remaining.slice(1));
+      }
+      return false;
+    }
+
+    child.on("error", () => {
+      // Async failure (e.g. ENOENT): try next fallback
+      const next = remaining?.[0];
+      if (next) {
+        trySpawn(next.command, next.args, remaining.slice(1));
+      }
+    });
+
+    child.unref();
+    return true;
   }
 
-  child.on("error", () => {
-    // Primary command failed (e.g. ENOENT). Try fallback if available.
-    if (fallback) {
-      try {
-        const fallbackChild = spawn(fallback.command, fallback.args, spawnOptions);
-        fallbackChild.on("error", () => {});
-        fallbackChild.unref();
-      } catch {
-        // Fallback also failed synchronously; URL is still printed
-      }
-    }
-  });
-
-  child.unref();
-  return { attempted: true, success: true };
+  const success = trySpawn(command, args, fallbacks);
+  return { attempted: true, success };
 }

@@ -90,11 +90,12 @@ describe("getOpenCommand", () => {
       args: ["--new-window", url, "--profile"],
     },
     {
-      name: "linux + $BROWSER colon-list (first entry)",
+      name: "linux + $BROWSER colon-list (first entry, rest as fallbacks)",
       platform: "linux",
       browser: "firefox:chromium:xdg-open",
       command: "firefox",
       args: [url],
+      hasFallback: true,
     },
     {
       name: "linux + $BROWSER + WSL (BROWSER wins)",
@@ -148,9 +149,10 @@ describe("getOpenCommand", () => {
       expect(result.command).toBe(command);
       expect(result.args).toEqual(args);
       if (hasFallback) {
-        expect(result.fallback).toEqual({ command: "xdg-open", args: [url] });
+        expect(result.fallbacks).toBeDefined();
+        expect(result.fallbacks!.length).toBeGreaterThan(0);
       } else {
-        expect(result.fallback).toBeUndefined();
+        expect(result.fallbacks).toBeUndefined();
       }
     },
   );
@@ -202,21 +204,35 @@ describe("platformDetection helpers", () => {
 
 describe("parseBrowserEnv", () => {
   it.each([
-    { browser: "firefox", url, command: "firefox", args: [url] },
-    { browser: "firefox --new-window", url, command: "firefox", args: ["--new-window", url] },
-    { browser: "firefox --new-window %s", url, command: "firefox", args: ["--new-window", url] },
+    { browser: "firefox", expected: [{ command: "firefox", args: [url] }] },
+    {
+      browser: "firefox --new-window",
+      expected: [{ command: "firefox", args: ["--new-window", url] }],
+    },
+    {
+      browser: "firefox --new-window %s",
+      expected: [{ command: "firefox", args: ["--new-window", url] }],
+    },
     {
       browser: "firefox %s --profile test",
-      url,
-      command: "firefox",
-      args: [url, "--profile", "test"],
+      expected: [{ command: "firefox", args: [url, "--profile", "test"] }],
     },
-    { browser: "firefox:chromium", url, command: "firefox", args: [url] },
-    { browser: "firefox --private:chromium", url, command: "firefox", args: ["--private", url] },
-  ])("$browser -> $command $args", ({ browser, url: testUrl, command, args }) => {
-    const result = parseBrowserEnv(browser, testUrl);
-    expect(result.command).toBe(command);
-    expect(result.args).toEqual(args);
+    {
+      browser: "firefox:chromium",
+      expected: [
+        { command: "firefox", args: [url] },
+        { command: "chromium", args: [url] },
+      ],
+    },
+    {
+      browser: "firefox --private:chromium --incognito",
+      expected: [
+        { command: "firefox", args: ["--private", url] },
+        { command: "chromium", args: ["--incognito", url] },
+      ],
+    },
+  ])("$browser -> $expected", ({ browser, expected }) => {
+    expect(parseBrowserEnv(browser, url)).toEqual(expected);
   });
 });
 
@@ -326,6 +342,66 @@ describe("openUrl", () => {
 
       openUrl(url);
       expect(() => primary.emit("error", new Error())).not.toThrow();
+    });
+  });
+
+  describe("$BROWSER colon-list fallback", () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("tries second entry when first fails with ENOENT", () => {
+      vi.mocked(platformDetection.getBrowser).mockReturnValue("firefox:chromium:xdg-open");
+
+      const first = createMockChild();
+      const second = createMockChild();
+      let callCount = 0;
+      vi.mocked(spawn).mockImplementation(() => (++callCount === 1 ? first : second));
+
+      openUrl(url);
+      expect(spawn).toHaveBeenCalledWith("firefox", [url], expect.any(Object));
+
+      first.emit("error", new Error("ENOENT"));
+
+      expect(spawn).toHaveBeenCalledWith("chromium", [url], expect.any(Object));
+      expect(second.unref).toHaveBeenCalled();
+    });
+
+    it("tries all entries in sequence until one succeeds", () => {
+      vi.mocked(platformDetection.getBrowser).mockReturnValue("bad1:bad2:xdg-open");
+
+      const children = [createMockChild(), createMockChild(), createMockChild()];
+      let callCount = 0;
+      vi.mocked(spawn).mockImplementation(() => children[callCount++]);
+
+      openUrl(url);
+      expect(spawn).toHaveBeenCalledWith("bad1", [url], expect.any(Object));
+
+      children[0].emit("error", new Error("ENOENT"));
+      expect(spawn).toHaveBeenCalledWith("bad2", [url], expect.any(Object));
+
+      children[1].emit("error", new Error("ENOENT"));
+      expect(spawn).toHaveBeenCalledWith("xdg-open", [url], expect.any(Object));
+
+      expect(children[2].unref).toHaveBeenCalled();
+    });
+
+    it("does not crash when all entries fail", () => {
+      vi.mocked(platformDetection.getBrowser).mockReturnValue("bad1:bad2");
+
+      const children = [createMockChild(), createMockChild()];
+      let callCount = 0;
+      vi.mocked(spawn).mockImplementation(() => children[callCount++]);
+
+      openUrl(url);
+      children[0].emit("error", new Error("ENOENT"));
+      expect(() => children[1].emit("error", new Error("ENOENT"))).not.toThrow();
     });
   });
 });
