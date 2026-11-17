@@ -1,3 +1,4 @@
+import { sdkSourceFiles } from "./sdk-source-files.js";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,10 +12,10 @@ registerDynamicLanguage({ python });
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py"],
   ["ExperimentalDecisions", "experimentalDecisions.ts", "experimental_decisions.py"],
-  ["BrowserContext", "browserContext.ts", "browser_context.py"],
-  ["BrowserClipboard", "browserClipboard.ts", "browser_clipboard.py"],
-  ["Page", "page.ts", "page.py"],
-  ["Locator", "locator.ts", "locator.py"],
+  ["BrowserContext", "../../shared/browser-api/src/browserContext.ts", "browser_context.py"],
+  ["BrowserClipboard", "../../shared/browser-api/src/browserClipboard.ts", "browser_clipboard.py"],
+  ["Page", "../../shared/browser-api/src/page.ts", "page.py"],
+  ["Locator", "../../shared/browser-api/src/locator.ts", "locator.py"],
 ] as const;
 
 const typescriptSource = new URL("../../packages/sdk-ts/src/", import.meta.url);
@@ -603,7 +604,7 @@ async function protocolOperations(
   boundary?: RequestBoundary,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  const files = (await readdir(source, { recursive: true }))
+  const files = (await sdkSourceFiles(source))
     .filter(
       (file) =>
         file.endsWith(extension) &&
@@ -682,9 +683,7 @@ async function clientProtocolNotifications(
   registry: ReadonlyMap<string, string>,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  const files = (await readdir(source, { recursive: true }))
-    .filter((file) => file.endsWith(extension))
-    .sort();
+  const files = (await sdkSourceFiles(source)).filter((file) => file.endsWith(extension)).sort();
   const notifications = new Set<string>();
 
   for (const file of files) {

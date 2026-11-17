@@ -130,6 +130,7 @@ const DOCS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
+const BROWSER_API_ROOT = fileURLToPath(new URL("../../shared/browser-api/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
@@ -184,25 +185,25 @@ const SDK_OBJECTS = [
   {
     className: "BrowserContext",
     classSlug: "context",
-    typescriptFile: "browserContext.ts",
+    typescriptFile: "../../shared/browser-api/src/browserContext.ts",
     pythonFile: "browser_context.py",
   },
   {
     className: "BrowserClipboard",
     classSlug: "clipboard",
-    typescriptFile: "browserClipboard.ts",
+    typescriptFile: "../../shared/browser-api/src/browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
   },
   {
     className: "Page",
     classSlug: "page",
-    typescriptFile: "page.ts",
+    typescriptFile: "../../shared/browser-api/src/page.ts",
     pythonFile: "page.py",
   },
   {
     className: "Locator",
     classSlug: "locator",
-    typescriptFile: "locator.ts",
+    typescriptFile: "../../shared/browser-api/src/locator.ts",
     pythonFile: "locator.py",
   },
 ] as const satisfies readonly SdkObject[];
@@ -476,7 +477,7 @@ This tab does not describe the active SDK API.
     const [webmcpDocs, pageDocs, typescriptSource, pythonSource] = await Promise.all([
       readFile(webmcpPath, "utf8"),
       readFile(pagePath, "utf8"),
-      readFile(resolve(TYPESCRIPT_ROOT, "webmcp.ts"), "utf8"),
+      readFile(resolve(BROWSER_API_ROOT, "webmcp.ts"), "utf8"),
       readFile(resolve(PYTHON_ROOT, "webmcp.py"), "utf8"),
     ]);
     const surfaces = new Map<Language, ResponseReferenceMember[]>([
@@ -526,7 +527,7 @@ This tab does not describe the active SDK API.
       [
         "TypeScript",
         readTypescriptHelperMembers(
-          await readFile(resolve(TYPESCRIPT_ROOT, "page.ts"), "utf8"),
+          await readFile(resolve(BROWSER_API_ROOT, "page.ts"), "utf8"),
           "CDPSubscription",
         ),
       ],
@@ -1469,7 +1470,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
 
 async function readTypescriptLocalTypeAliases(): Promise<Map<string, SgNode>> {
   const aliases = new Map<string, SgNode>();
-  const filePath = resolve(TYPESCRIPT_ROOT, "fileUpload.ts");
+  const filePath = resolve(BROWSER_API_ROOT, "fileUpload.ts");
   const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
   for (const alias of root.findAll({ rule: { kind: "type_alias_declaration" } })) {
     const name = alias.field("name")?.text();
@@ -1662,7 +1663,7 @@ function pythonTypeReferences(
 }
 
 async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[]> {
-  const filePath = resolve(TYPESCRIPT_ROOT, "response.ts");
+  const filePath = resolve(BROWSER_API_ROOT, "response.ts");
   const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
   const classNode = findClass(root, "class_declaration", "Response", filePath);
   const classBody = classNode.field("body");
@@ -2948,6 +2949,7 @@ async function readTypescriptPublicFieldNames(): Promise<Set<string>> {
   const sourceFiles = [
     PROTOCOL_SCHEMA_SOURCE,
     resolve(TYPESCRIPT_ROOT, "clientSchemas.ts"),
+    resolve(BROWSER_API_ROOT, "schemas.ts"),
     ...SDK_OBJECTS.map(({ typescriptFile }) => resolve(TYPESCRIPT_ROOT, typescriptFile)),
   ];
   const names = new Set<string>();
