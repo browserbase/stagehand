@@ -131,8 +131,7 @@ export default class Search extends BrowseCommand {
       helpValue: "<date>",
     }),
     "end-published-date": Flags.string({
-      description:
-        "Only return results published before this date (ISO 8601). Exa only.",
+      description: "Only return results published before this date (ISO 8601). Exa only.",
       helpValue: "<date>",
     }),
     category: Flags.string({
@@ -233,6 +232,7 @@ export default class Search extends BrowseCommand {
   private validateSearchFlags(
     flags: {
       provider?: string;
+      mode?: string;
       "include-domains"?: string;
       "exclude-domains"?: string;
       "user-location"?: string;
@@ -242,6 +242,13 @@ export default class Search extends BrowseCommand {
     excludeDomains: string[],
   ): void {
     const isParallel = !flags.provider || flags.provider === "parallel";
+
+    if (isParallel && flags.mode && (flags.mode === "deep" || flags.mode === "deep-lite")) {
+      this.error(
+        `The parallel provider does not support --mode ${flags.mode}. ` +
+          "Use --mode fast or --mode advanced, or switch to --provider exa.",
+      );
+    }
 
     if (isParallel && includeDomains.length > 0 && excludeDomains.length > 0) {
       this.error(
@@ -265,10 +272,9 @@ export default class Search extends BrowseCommand {
             "Remove it and use just the hostname, path prefix, or wildcard.",
         );
       }
-      if (domain.includes(":") && !domain.includes("/")) {
+      if (/^[^/]*:/.test(domain)) {
         this.error(
-          `Domain "${domain}" appears to include a port. ` +
-            "Remove it and use just the hostname.",
+          `Domain "${domain}" appears to include a port. ` + "Remove it and use just the hostname.",
         );
       }
       if (domain.includes("?") || domain.includes("#")) {
@@ -357,9 +363,7 @@ function outputSearchTable(
   );
 
   if (options.showExcerpts) {
-    const resultsWithExcerpts = results.filter(
-      (r) => r.excerpts && r.excerpts.length > 0,
-    );
+    const resultsWithExcerpts = results.filter((r) => r.excerpts && r.excerpts.length > 0);
     if (resultsWithExcerpts.length > 0) {
       console.log("\nExcerpts:\n");
       for (const result of resultsWithExcerpts) {

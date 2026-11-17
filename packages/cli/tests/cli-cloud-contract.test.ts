@@ -814,6 +814,59 @@ describe("cloud API contracts", () => {
     expect(result.stderr).toContain("port");
   });
 
+  it("search rejects domains with port in path prefix", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      "example.com:8080/docs",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("port");
+  });
+
+  it("search rejects Exa-only modes with Parallel provider", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--mode",
+      "deep",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("parallel provider does not support --mode deep");
+  });
+
+  it("search rejects deep-lite mode with explicit Parallel provider", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--provider",
+      "parallel",
+      "--mode",
+      "deep-lite",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("parallel provider does not support --mode deep-lite");
+  });
+
   it("search rejects domains with query string", async () => {
     const result = await runCli([
       "cloud",
