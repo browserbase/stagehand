@@ -644,6 +644,404 @@ describe("cloud API contracts", () => {
 
   it.each([
     {
+      name: "include-domains",
+      args: ["--include-domains", "example.com,docs.example.com"],
+      expected: { includeDomains: ["example.com", "docs.example.com"] },
+    },
+    {
+      name: "exclude-domains",
+      args: ["--exclude-domains", "spam.com,ads.net"],
+      expected: { excludeDomains: ["spam.com", "ads.net"] },
+    },
+    {
+      name: "start-published-date with time",
+      args: ["--start-published-date", "2026-01-15T12:00:00Z"],
+      expected: { startPublishedDate: "2026-01-15T12:00:00Z" },
+    },
+    {
+      name: "start-published-date without time",
+      args: ["--start-published-date", "2026-01-15"],
+      expected: { startPublishedDate: "2026-01-15T00:00:00Z" },
+    },
+    {
+      name: "end-published-date (Exa)",
+      args: ["--provider", "exa", "--end-published-date", "2026-06-01"],
+      expected: { provider: "exa", endPublishedDate: "2026-06-01T00:00:00Z" },
+    },
+    {
+      name: "category (Exa)",
+      args: ["--provider", "exa", "--category", "news"],
+      expected: { provider: "exa", category: "news" },
+    },
+    {
+      name: "user-location",
+      args: ["--user-location", "us"],
+      expected: { userLocation: "US" },
+    },
+    {
+      name: "objective",
+      args: ["--objective", "Find developer documentation"],
+      expected: { objective: "Find developer documentation" },
+    },
+    {
+      name: "max-age-hours",
+      args: ["--max-age-hours", "24"],
+      expected: { maxAgeHours: 24 },
+    },
+    {
+      name: "excerpts",
+      args: ["--excerpts"],
+      expected: { excerpts: true },
+    },
+    {
+      name: "moderation (Exa)",
+      args: ["--provider", "exa", "--moderation"],
+      expected: { provider: "exa", moderation: true },
+    },
+    {
+      name: "Exa deep mode",
+      args: ["--provider", "exa", "--mode", "deep"],
+      expected: { provider: "exa", mode: "deep" },
+    },
+    {
+      name: "Exa deep-lite mode",
+      args: ["--provider", "exa", "--mode", "deep-lite"],
+      expected: { provider: "exa", mode: "deep-lite" },
+    },
+  ])("search sends new param $name in POST body", async ({ args, expected }) => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(
+          response,
+          200,
+          makeSearchResponse("test query", [
+            { id: "res_1", url: "https://example.com", title: "Example" },
+          ]),
+        );
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          ...args,
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+        expectRequest(requests[0], "POST", "/v1/search", "test-key");
+        expect(requests[0]?.jsonBody).toMatchObject({
+          query: "test query",
+          ...expected,
+        });
+      },
+    );
+  });
+
+  it("search rejects both include-domains and exclude-domains for Parallel", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      "example.com",
+      "--exclude-domains",
+      "spam.com",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("parallel provider does not support both");
+  });
+
+  it("search rejects more than 200 domains for Parallel", async () => {
+    const domains = Array.from({ length: 201 }, (_, i) => `domain${i}.com`).join(",");
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      domains,
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("at most 200 domains");
+    expect(result.stderr).toContain("201");
+  });
+
+  it("search rejects domains with scheme", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      "https://example.com",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("includes a scheme");
+  });
+
+  it("search rejects domains with port", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      "example.com:8080",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("port");
+  });
+
+  it("search rejects domains with query string", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--include-domains",
+      "example.com?foo=bar",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("query string or fragment");
+  });
+
+  it("search rejects invalid user-location code format", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--user-location",
+      "USA",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("two-letter country code");
+  });
+
+  it("search rejects unsupported Parallel country code", async () => {
+    const result = await runCli([
+      "cloud",
+      "search",
+      "test query",
+      "--user-location",
+      "ZZ",
+      "--api-key",
+      "test-key",
+      "--base-url",
+      "http://127.0.0.1:1",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('does not support country code "ZZ"');
+  });
+
+  it("search accepts Exa with unsupported Parallel country codes", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, makeSearchResponse("test", []));
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--provider",
+          "exa",
+          "--user-location",
+          "ZZ",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          provider: "exa",
+          userLocation: "ZZ",
+        });
+      },
+    );
+  });
+
+  it("search includes provider and mode in JSON output", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, {
+          ...makeSearchResponse("test", [
+            { id: "res_1", url: "https://example.com", title: "Example" },
+          ]),
+          provider: "parallel",
+          mode: "advanced",
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        const output = JSON.parse(result.stdout) as {
+          provider: string;
+          mode: string;
+        };
+        expect(output.provider).toBe("parallel");
+        expect(output.mode).toBe("advanced");
+      },
+    );
+  });
+
+  it("search includes excerpts in results when requested", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, {
+          ...makeSearchResponse("test", [
+            {
+              id: "res_1",
+              url: "https://example.com",
+              title: "Example",
+              excerpts: ["First relevant passage.", "Second relevant passage."],
+            },
+          ]),
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--excerpts",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        const output = JSON.parse(result.stdout) as {
+          results: Array<{ excerpts?: string[] }>;
+        };
+        expect(output.results[0]?.excerpts).toEqual([
+          "First relevant passage.",
+          "Second relevant passage.",
+        ]);
+      },
+    );
+  });
+
+  it("search table output shows excerpts when requested", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, {
+          ...makeSearchResponse("test", [
+            {
+              id: "res_1",
+              url: "https://example.com",
+              title: "Example Result",
+              excerpts: ["This is the most relevant passage from the page."],
+            },
+          ]),
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test query",
+          "--excerpts",
+          "--format",
+          "table",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("Example Result");
+        expect(result.stdout).toContain("Excerpts:");
+        expect(result.stdout).toContain("most relevant passage");
+      },
+    );
+  });
+
+  it("search output file includes provider and mode in confirmation", async () => {
+    const outputDir = await createTempDir("browse-search-output-");
+    const outputPath = join(outputDir, "results.json");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, {
+          ...makeSearchResponse("test", [
+            { id: "res_1", url: "https://example.com", title: "Example" },
+          ]),
+          provider: "exa",
+          mode: "fast",
+        });
+      },
+      async ({ baseUrl }) => {
+        const result = await runCli([
+          "cloud",
+          "search",
+          "test",
+          "--output",
+          outputPath,
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        const output = JSON.parse(result.stdout) as {
+          provider: string;
+          mode: string;
+        };
+        expect(output.provider).toBe("exa");
+        expect(output.mode).toBe("fast");
+      },
+    );
+  });
+
+  it.each([
+    {
       args: ["cloud", "projects", "list"],
       expectedMethod: "GET",
       expectedPath: "/v1/projects",
@@ -1550,6 +1948,7 @@ function makeSearchResponse(
   query: string,
   results: Array<{
     author?: string;
+    excerpts?: string[];
     id: string;
     publishedDate?: string;
     title: string;
