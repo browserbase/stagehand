@@ -37,6 +37,7 @@ describe("service-worker source compatibility", () => {
           !file.includes(".test.") &&
           file !== "paths.ts" &&
           file !== "vite.config.ts" &&
+          file !== "buildFingerprint.ts" &&
           !file.startsWith(`node_modules${path.sep}`),
       )
       .sort();

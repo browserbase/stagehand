@@ -7,6 +7,8 @@ import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import extensionPackageJson from "../package.json" with { type: "json" };
+import protocolPackageJson from "../../protocol/package.json" with { type: "json" };
+import { fingerprintFiles, readDirectoryFiles } from "../buildFingerprint.ts";
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
 const stagehandExtensionArchive = fileURLToPath(
@@ -197,6 +199,17 @@ describe("extension build", () => {
     }
     expect(sha256(archiveBytes)).toBe(sha256(zipSync(deterministicEntries, { level: 9 })));
   }, 30_000);
+
+  it("records the build's versions and fingerprint next to the ZIP", async () => {
+    const buildInfo = JSON.parse(
+      await readFile(new URL("../artifacts/extension-build.json", import.meta.url), "utf8"),
+    );
+    expect(buildInfo).toEqual({
+      extensionVersion: extensionPackageJson.version,
+      protocolVersion: protocolPackageJson.version,
+      fingerprint: fingerprintFiles(await readDirectoryFiles(stagehandExtensionDistDir)),
+    });
+  });
 });
 
 function sha256(value: Uint8Array): string {

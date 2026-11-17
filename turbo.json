@@ -19,8 +19,13 @@
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!artifacts/stagehand-extension.zip",
+        "!artifacts/extension-build.json"
+      ],
+      "outputs": ["dist/**", "artifacts/stagehand-extension.zip", "artifacts/extension-build.json"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-extension#build"],
@@ -120,7 +125,12 @@
     "//#lint": {},
     "//#typecheck": {
       "dependsOn": ["@browserbasehq/stagehand#typecheck"],
-      "inputs": ["tsconfig.tooling.json", "rules/**/*.ts", "scripts/release/**/*.ts"]
+      "inputs": [
+        "tsconfig.tooling.json",
+        "rules/**/*.ts",
+        "scripts/release/**/*.ts",
+        "packages/extension/buildFingerprint.ts"
+      ]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
       "dependsOn": ["^typecheck"],
