@@ -37,7 +37,13 @@ export const integrationTestGroups = {
     "contextDomainPolicy",
     "contextExtraHttpHeaders",
   ],
-  "local/frames-shadow": ["coordinateClick", "iframeLocatorReadiness", "nestedDiv"],
+  "local/frames-shadow": [
+    "actIframeAttachment",
+    "coordinateClick",
+    "iframeLocatorReadiness",
+    "iframeNetworkCapture",
+    "nestedDiv",
+  ],
   "local/input": ["clipboard", "keyboard"],
   "local/locators-read": [
     "locatorContentMethods",
@@ -52,7 +58,12 @@ export const integrationTestGroups = {
     "locatorInputMethods",
     "locatorSelectOption",
   ],
-  "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
+  "local/page-navigation": [
+    "pageAddInitScript",
+    "pageExtraHttpHeaders",
+    "pageGotoResponse",
+    "pageOnResponse",
+  ],
   "local/page-interactions": [
     "clickCount",
     "pageDragAndDrop",

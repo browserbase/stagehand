@@ -1,5 +1,25 @@
 # browse
 
+## 0.11.4
+
+### Patch Changes
+
+- [#3426](https://github.com/browserbase/stagehand/pull/3426) [`f93e6d1`](https://github.com/browserbase/stagehand/commit/f93e6d1612d5ff0e7122794e72fd689336e0fdab) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Report an error when an active browser session disconnects during command startup instead of automatically starting a replacement.
+
+- [#3379](https://github.com/browserbase/stagehand/pull/3379) [`73fdba0`](https://github.com/browserbase/stagehand/commit/73fdba0fe6adcd9d032c81bd5e7d83b890a5a1ef) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove unused deepmerge dependency
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3289](https://github.com/browserbase/stagehand/pull/3289) [`aa67fee`](https://github.com/browserbase/stagehand/commit/aa67fee03ef7b899f9f505350e6410d207496450) Thanks [@shrey150](https://github.com/shrey150)! - Add `--stagehand` flag to `browse cloud extensions upload`.
+
+- [#3439](https://github.com/browserbase/stagehand/pull/3439) [`2fe947c`](https://github.com/browserbase/stagehand/commit/2fe947c01c828279a5df0234f0100f9750bc3b9e) Thanks [@github-actions](https://github.com/apps/github-actions)! - Make `browse doctor` fail and show the cause when the session's last browser start failed
+
+- [#3400](https://github.com/browserbase/stagehand/pull/3400) [`ce298c6`](https://github.com/browserbase/stagehand/commit/ce298c60bd7e617e38d67db8db7d34de9d37cd18) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add token validation to internal local Functions runtime requests
+
+- [#3408](https://github.com/browserbase/stagehand/pull/3408) [`6a56cbb`](https://github.com/browserbase/stagehand/commit/6a56cbb9ddb8b3e4e7339f6370a379977c3ebbab) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix Windows package-manager command launching for Functions and templates, and terminate child processes when skill installation times out.
+
+- [#3391](https://github.com/browserbase/stagehand/pull/3391) [`3fbda6b`](https://github.com/browserbase/stagehand/commit/3fbda6b67d45f140e8338ed5afc6b0c84d3ced44) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Validate daemon directory locations before connecting to a session.
+
 ## 0.11.3
 
 ### Patch Changes

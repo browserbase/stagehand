@@ -12,6 +12,19 @@ export default defineConfig({
   overrides: [
     ...cliConfig.overrides!,
     {
+      files: ["packages/extension/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+      rules: { "stagehand/no-node-globals": "error" },
+    },
+    {
+      files: [
+        "packages/extension/**/tests/**",
+        "packages/extension/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "packages/extension/{vite.config,instrumentedDecoratorBuild,buildFingerprint}.{js,mjs,cjs,ts,mts,cts}",
+        "packages/extension/{dist,artifacts,.turbo}/**",
+      ],
+      rules: { "stagehand/no-node-globals": "off" },
+    },
+    {
       files: ["packages/evals/**/*.ts"],
       rules: {
         "no-console": "off",

@@ -1,7 +1,7 @@
 import {
   runCursorSdkAgentSession,
   type CursorSdkAgentFactory,
-} from "@browserbasehq/stagehand-integrations-cursor-sdk";
+} from "@browserbasehq/stagehand-integrations-cursor";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

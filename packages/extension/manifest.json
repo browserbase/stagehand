@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stagehand Runtime",
   "minimum_chrome_version": "137",
-  "permissions": ["debugger", "offscreen", "scripting", "tabs"],
+  "permissions": ["debugger", "offscreen", "scripting", "tabs", "declarativeNetRequest"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service-worker.js",

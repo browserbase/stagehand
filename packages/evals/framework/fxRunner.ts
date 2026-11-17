@@ -7,7 +7,7 @@ import {
   type FxProcessRunner,
   type FxSessionStore,
   type FxTokenUsage,
-} from "@browserbasehq/stagehand-integrations-fx-sdk";
+} from "@browserbasehq/stagehand-integrations-fx";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
@@ -34,7 +34,7 @@ export {
   buildFxTranscript,
   normalizeFxModel,
   runFxSession,
-} from "@browserbasehq/stagehand-integrations-fx-sdk";
+} from "@browserbasehq/stagehand-integrations-fx";
 
 export interface FxRunnerInput {
   plan: ExternalHarnessTaskPlan;
