@@ -123,6 +123,11 @@ jobs:
           name: extension
           path: packages/extension
 
+      - name: Check the downloaded extension build
+        run: test "$(pnpm exec tsx scripts/release/check-extension-build.ts --print-fingerprint)" = "$EXTENSION_FINGERPRINT"
+        env:
+          EXTENSION_FINGERPRINT: ${{ needs.build-extension.outputs.fingerprint }}
+
       - name: Scope the Changesets action to SDK changes
         id: sdk-changesets
         run: pnpm exec tsx scripts/release/sdk-action-changesets.ts hide >> "$GITHUB_OUTPUT"

@@ -91,7 +91,7 @@ build-extension:
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
-    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --wheel {{python_dir}}/dist/*.whl
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --wheel {{python_dir}}/dist/*.whl --expect "$(pnpm exec tsx scripts/release/check-extension-build.ts --print-fingerprint)"
 
 changeset:
     pnpm exec changeset
@@ -124,7 +124,7 @@ _install-python-release:
 
 _publish-typescript extension_fingerprint:
     pnpm --filter ./packages/sdk-ts build
-    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect "{{extension_fingerprint}}"
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect {{quote(extension_fingerprint)}}
     pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
@@ -134,7 +134,7 @@ _publish-typescript extension_fingerprint:
 _publish-typescript-alpha extension_fingerprint:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
     pnpm --filter ./packages/sdk-ts build
-    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect "{{extension_fingerprint}}"
+    pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect {{quote(extension_fingerprint)}}
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk --alpha
 
 # Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)

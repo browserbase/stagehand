@@ -189,6 +189,14 @@ describe("checkExtensionBuild", () => {
     expect(result.stdout).toBe("");
   });
 
+  it("exits non-zero when the CLI's --expect is empty", async () => {
+    const { root, wheel } = await releaseFixture();
+    const result = runCli(root, ["--wheel", wheel, "--expect", ""]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Expected fingerprint must be a SHA-256 hex digest");
+    expect(result.stdout).toBe("");
+  });
+
   it("rejects a packaged copy that differs from the release build", async () => {
     const wheelFiles = new Map(extensionFiles);
     wheelFiles.set("Zeta.js", encoder.encode("tampered\n"));
@@ -198,14 +206,21 @@ describe("checkExtensionBuild", () => {
     );
   });
 
-  it("rejects a TypeScript package whose zip and folder differ from the release build", async () => {
-    const typescriptFiles = new Map(extensionFiles);
-    typescriptFiles.set("Zeta.js", encoder.encode("tampered\n"));
-    const { root, typescriptDist } = await releaseFixture({ typescriptFiles });
-    const error = await checkExtensionBuild(root, { typescriptDist }).catch((caught) => caught);
-    expect(error.message).toContain(`${path.join("assets", "stagehand-extension.zip")} has`);
-    expect(error.message).toContain(`${path.join(typescriptDist, "extension")} has`);
-  });
+  it.each(["zip", "folder"] as const)(
+    "names only the TypeScript %s when it alone differs from the release build",
+    async (copy) => {
+      const { root, typescriptDist } = await releaseFixture();
+      const tampered = new Map(extensionFiles).set("Zeta.js", encoder.encode("tampered\n"));
+      const zip = path.join(typescriptDist, "assets/stagehand-extension.zip");
+      const folder = path.join(typescriptDist, "extension");
+      if (copy === "zip") await writeFile(zip, zipFiles(tampered));
+      else await writeTree(folder, tampered);
+      const error = await checkExtensionBuild(root, { typescriptDist }).catch((caught) => caught);
+      const [bad, good] = copy === "zip" ? [zip, folder] : [folder, zip];
+      expect(error.message).toContain(`${bad} has fingerprint`);
+      expect(error.message).not.toContain(`${good} has fingerprint`);
+    },
+  );
 
   it("rejects a wheel without the extension", async () => {
     const { root, wheel } = await releaseFixture({ wheelFiles: new Map() });
@@ -219,6 +234,15 @@ describe("checkExtensionBuild", () => {
     await expect(checkExtensionBuild(root, { typescriptDist })).rejects.toThrow(
       "built for protocol 3.1.2-alpha-0123456, protocol is now 6.5.4",
     );
+  });
+
+  it("still compares versions when an expected fingerprint is given", async () => {
+    const { root, typescriptDist } = await releaseFixture({
+      protocolVersion: "3.1.2-alpha-0123456",
+    });
+    await expect(
+      checkExtensionBuild(root, { typescriptDist }, fingerprintFiles(extensionFiles)),
+    ).rejects.toThrow("built for protocol 3.1.2-alpha-0123456, protocol is now 6.5.4");
   });
 
   it("rejects an extension built at another extension version", async () => {

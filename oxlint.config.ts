@@ -19,7 +19,7 @@ export default defineConfig({
       files: [
         "packages/extension/**/tests/**",
         "packages/extension/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
-        "packages/extension/{vite.config,instrumentedDecoratorBuild}.{js,mjs,cjs,ts,mts,cts}",
+        "packages/extension/{vite.config,instrumentedDecoratorBuild,buildFingerprint}.{js,mjs,cjs,ts,mts,cts}",
         "packages/extension/{dist,artifacts,.turbo}/**",
       ],
       rules: { "stagehand/no-node-globals": "off" },

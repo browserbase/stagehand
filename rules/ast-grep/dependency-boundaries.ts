@@ -8,7 +8,11 @@ const sharedRoot = "packages/shared/browser-api";
 const sdkPackage = "@browserbasehq/stagehand";
 const extensionPackage = "@browserbasehq/stagehand-extension";
 const sharedRuntimeDependencies = ["@browserbasehq/stagehand-protocol", "zod"];
-const extensionBuildFiles = new Set(["vite.config", "instrumentedDecoratorBuild"]);
+const extensionBuildFiles = new Set([
+  "vite.config",
+  "instrumentedDecoratorBuild",
+  "buildFingerprint",
+]);
 
 function inside(file: string, directory: string): boolean {
   return file === directory || file.startsWith(`${directory}/`);

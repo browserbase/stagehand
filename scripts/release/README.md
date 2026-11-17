@@ -107,7 +107,8 @@ publishing, `check-extension-build.ts --expect <fingerprint>` compares the copie
 for the job's current protocol and extension versions. The sdist is not checked; `uv build`
 builds the wheel from it.
 
-The check compares each package with the extension build from the same run. A retry
-that rebuilds (re-running all jobs, or a later push that publishes a missing package)
-compares against a new build, so parity across such retries relies on the extension
-build being reproducible.
+The check compares each package with the extension build from the same run. Re-running
+all jobs rebuilds the extension from the same commit, so parity with a package the first
+attempt already published relies on the build being reproducible. A later push that
+publishes a missing package builds from a newer commit, so it also needs the extension's
+inputs to be unchanged since the release commit.
