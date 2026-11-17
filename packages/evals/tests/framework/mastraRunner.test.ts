@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import type { MastraEvent, MastraSdk } from "@browserbasehq/stagehand-integrations-mastra";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
@@ -9,6 +9,11 @@ import {
 } from "../../framework/mastraRunner.js";
 import { EvalLogger } from "../../logger.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
+import {
+  MASTRA_BROWSER_INSTRUCTIONS,
+  MASTRA_FINISH_CHECK_PROMPT,
+  MASTRA_MINIMAL_INSTRUCTIONS,
+} from "../../framework/mastraInstructions.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -108,6 +113,14 @@ describe("Mastra runner", () => {
     expect(agentConfig).toMatchObject({ model: "openai/gpt-5.4-mini" });
     expect(agentConfig?.instructions).not.toBe("Use Stagehand.");
     expect((agentConfig?.instructions as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(agentConfig?.instructions).toBe(
+      `${EVAL_SYSTEM_PROMPT}\n\n${MASTRA_BROWSER_INSTRUCTIONS}`,
+    );
+    expect(result.harnessConfiguration).toMatchObject({
+      instructions: "browser",
+      finishCheck: true,
+      promptCaching: true,
+    });
     expect(streamOptions).toMatchObject({
       maxSteps: 50,
       providerOptions: { openai: { reasoningSummary: "detailed" } },
@@ -120,6 +133,91 @@ describe("Mastra runner", () => {
     expect(metrics.harness_total_tokens.value).toBe(125);
     expect(metrics.harness_cost_usd).toBeUndefined();
     expect(Object.keys(metrics).some((key) => key.startsWith("mastra_"))).toBe(false);
+  });
+
+  describe("finish check and instructions", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    const answer = (finalAnswer: string): MastraEvent[] => [
+      {
+        type: "text-delta",
+        payload: { text: `{"success":true,"summary":"done","finalAnswer":"${finalAnswer}"}` },
+      },
+      { type: "step-finish", payload: { output: { usage: {} } } },
+      { type: "finish", payload: { stepResult: { reason: "stop" }, output: { usage: {} } } },
+    ];
+
+    /** Plays one answer per `agent.stream` call and records the prompts. */
+    function twoPassSdk(capture: { prompts: unknown[]; instructions?: unknown }): MastraSdk {
+      const firstHistory = [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          createdAt: new Date(),
+          content: { format: 2, parts: [{ type: "text", text: "first" }] },
+        },
+      ];
+      return {
+        createAgent: (config: Record<string, unknown>) => {
+          capture.instructions = config.instructions;
+          return {
+            stream: async (prompt: string | unknown[]) => {
+              capture.prompts.push(prompt);
+              const events = answer(capture.prompts.length === 1 ? "first" : "checked");
+              return {
+                fullStream: (async function* () {
+                  yield* events;
+                })(),
+                response: Promise.resolve({ dbMessages: firstHistory }),
+              };
+            },
+          };
+        },
+        createMcpClient: () => ({
+          listToolsWithErrors: async () => ({ tools: {}, errors: {} }),
+          disconnect: async () => {},
+        }),
+        createTool: (toolOptions: Parameters<MastraSdk["createTool"]>[0]) => toolOptions,
+      };
+    }
+
+    const runWith = async (capture: { prompts: unknown[]; instructions?: unknown }) =>
+      runMastraAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk: twoPassSdk(capture),
+      });
+
+    it("asks the agent once to re-check the task and reports the checked answer", async () => {
+      const capture: { prompts: unknown[]; instructions?: unknown } = { prompts: [] };
+      const result = await runWith(capture);
+      expect(capture.prompts).toHaveLength(2);
+      expect(
+        (capture.prompts[1] as Array<{ role: string; content: unknown }>).at(-1),
+      ).toMatchObject({
+        role: "user",
+        content: { parts: [{ type: "text", text: MASTRA_FINISH_CHECK_PROMPT }] },
+      });
+      expect(result._success).toBe(true);
+      expect(result.finalAnswer).toBe("checked");
+    });
+
+    it("EVAL_MASTRA_FINISH_CHECK=0 and EVAL_MASTRA_INSTRUCTIONS=minimal restore the earlier harness", async () => {
+      vi.stubEnv("EVAL_MASTRA_FINISH_CHECK", "0");
+      vi.stubEnv("EVAL_MASTRA_INSTRUCTIONS", "minimal");
+      vi.stubEnv("EVAL_MASTRA_PROMPT_CACHE", "0");
+      const capture: { prompts: unknown[]; instructions?: unknown } = { prompts: [] };
+      const result = await runWith(capture);
+      expect(capture.prompts).toHaveLength(1);
+      expect(capture.instructions).toBe(`${EVAL_SYSTEM_PROMPT}\n\n${MASTRA_MINIMAL_INSTRUCTIONS}`);
+      expect(result.finalAnswer).toBe("first");
+      expect(result.harnessConfiguration).toMatchObject({
+        instructions: "minimal",
+        finishCheck: false,
+        promptCaching: false,
+      });
+    });
   });
 
   it("returns a failed task result for SDK errors", async () => {
@@ -170,7 +268,7 @@ function fakeSdk(
     createAgent: (config: Record<string, unknown>) => {
       options.agentConfig?.(config);
       return {
-        stream: async (_prompt: string, streamOptions?: Record<string, unknown>) => {
+        stream: async (_prompt: string | unknown[], streamOptions?: Record<string, unknown>) => {
           expect(_prompt).not.toContain(EVAL_SYSTEM_PROMPT);
           expect(_prompt).toContain(plan.instruction);
           options.streamOptions?.(streamOptions);
