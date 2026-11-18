@@ -233,9 +233,10 @@ const PROVIDER_ALIASES: Record<string, string[]> = {
 
 /**
  * Alias forms of a configured model id, most specific first:
- * `gateway/` prefixes dropped, harness defaults expanded, version dashes as
- * dots (`claude-sonnet-4-6` → `claude-sonnet-4.6`), `-preview` and trailing
- * date segments stripped, provider spellings swapped, and unqualified model names matched only when one provider carries them.
+ * `gateway/` prefixes dropped, harness defaults expanded, trailing date
+ * segments stripped, version dashes as dots (`claude-sonnet-4-6` →
+ * `claude-sonnet-4.6`), `-preview` stripped, provider spellings swapped, and
+ * unqualified model names matched only when one provider carries them.
  */
 export function modelPriceCandidates(model: string): string[] {
   let id = model.trim();
@@ -248,12 +249,13 @@ export function modelPriceCandidates(model: string): string[] {
   // Only suffixes that never distinguish one priced model from another are
   // stripped; version segments (`-4-6`, `-mini`) stay so a sibling model's
   // price is never borrowed.
-  const names = new Set<string>();
-  for (const base of [name, name.replace(/(\d)-(?=\d)/g, "$1.")]) {
+  // The date goes first: turning dashes into dots before it would make
+  // `-4-6-20260101` into `-4.6.20260101`, which no date pattern matches.
+  const undated = withoutDateSuffix(name);
+  const names = new Set<string>([name]);
+  for (const base of [undated, undated.replace(/(\d)-(?=\d)/g, "$1.")]) {
     names.add(base);
-    const undated = base.replace(/-\d{8}$/u, "").replace(/-\d{2}-\d{4}$/u, "");
-    names.add(undated);
-    names.add(undated.replace(/-preview$/u, ""));
+    names.add(base.replace(/-preview$/u, ""));
   }
 
   const providers = provider ? [provider, ...(PROVIDER_ALIASES[provider] ?? [])] : [];
@@ -264,6 +266,18 @@ export function modelPriceCandidates(model: string): string[] {
   }
   if (!provider) for (const candidateName of names) candidates.push(candidateName);
   return [...new Set(candidates)];
+}
+
+/**
+ * Drop a provider snapshot date: Anthropic `-20251001`, OpenAI `-2026-03-17`,
+ * Gemini `-09-2025` and `-preview-04-17`.
+ */
+function withoutDateSuffix(name: string): string {
+  return name
+    .replace(/-\d{8}$/u, "")
+    .replace(/-\d{4}-\d{2}-\d{2}$/u, "")
+    .replace(/-\d{2}-\d{4}$/u, "")
+    .replace(/(-preview)-\d{2}-\d{2}$/u, "$1");
 }
 
 function uniqueMatch<T>(items: T[], predicate: (item: T) => boolean): T | undefined {
