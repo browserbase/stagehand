@@ -103,6 +103,132 @@ export function dispatchDomClick(
   }
 }
 
+/**
+ * Result of {@link findClickablePoint}.
+ *
+ * - `ok`: clicking at (`fx`, `fy`) reaches the element. Both are fractions
+ *   (0–1) of the element's bounding rect (`getBoundingClientRect()`, i.e. the
+ *   axis-aligned border box) at the scroll position the function left the
+ *   page in.
+ * - `covered`: every point tried was covered by another element. The page is
+ *   left with the element scrolled to the center of the viewport, and
+ *   `coveredBy` describes what is on top at the element's center there
+ *   (e.g. `div#footer`), or null if nothing is (e.g. the point is off-screen).
+ */
+export type ClickablePointResult =
+  | { status: "ok"; fx: number; fy: number }
+  | { status: "covered"; coveredBy: string | null };
+
+/**
+ * Find a point on the element that a real pointer click would actually reach,
+ * scrolling the element if something (a fixed header/footer, a banner)
+ * covers it.
+ *
+ * Order of attempts:
+ *  1) the element's center, at the current scroll position, then with the
+ *     element scrolled to the center, end and start of the viewport;
+ *  2) a few off-center points at each of those scroll positions. Center is
+ *     preferred because for sliders, canvases and maps the position matters.
+ *
+ * A point "reaches" the element when the topmost element there (per
+ * `elementFromPoint` on the element's own document or shadow root) is the
+ * element, something inside it, or one of its `<label>`s (custom checkboxes
+ * often hide the native input under its label).
+ *
+ * Scrolls are instant (not smooth) so measurements reflect the final layout.
+ * Everything runs in this one call, so the caller pays one CDP round trip.
+ * Returns null if the element can't be measured (detached, zero-size, or an
+ * unexpected error).
+ */
+export function findClickablePoint(this: Element): ClickablePointResult | null {
+  try {
+    const el = this as Element;
+    if (!el.isConnected) return null;
+
+    const root = el.getRootNode() as Document | ShadowRoot;
+    if (typeof root.elementFromPoint !== "function") return null;
+
+    const labels: Element[] = Array.from((el as HTMLInputElement).labels ?? []);
+
+    // Whether a hit at some point counts as reaching `el`.
+    const reaches = (hit: Element | null): boolean => {
+      if (!hit) return false;
+      for (let n: Node | null = hit; n; ) {
+        if (n === el) return true;
+        // Step out of shadow roots via their host.
+        n = n.parentNode ?? (n as ShadowRoot).host ?? null;
+      }
+      return labels.some((label) => label === hit || label.contains(hit));
+    };
+
+    const pointIn = (rect: DOMRect, fx: number, fy: number) =>
+      root.elementFromPoint(
+        rect.left + rect.width * fx,
+        rect.top + rect.height * fy,
+      );
+
+    type Block = "center" | "end" | "start";
+    const scrollTo = (block: Block) =>
+      el.scrollIntoView({ block, inline: block, behavior: "instant" });
+
+    const measure = (): DOMRect | null => {
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 ? rect : null;
+    };
+
+    // 1) Center, at the current scroll position and then each alternative.
+    const center = [0.5, 0.5] as const;
+    const scrolls: Array<Block | null> = [null, "center", "end", "start"];
+    for (const block of scrolls) {
+      if (block) scrollTo(block);
+      const rect = measure();
+      if (!rect) return null;
+      if (reaches(pointIn(rect, center[0], center[1]))) {
+        return { status: "ok", fx: center[0], fy: center[1] };
+      }
+    }
+
+    // 2) Off-center points. The original scroll position is gone by now, so
+    //    retry the alternatives only.
+    const offCenter: Array<readonly [number, number]> = [
+      [0.5, 0.25],
+      [0.5, 0.75],
+      [0.25, 0.5],
+      [0.75, 0.5],
+      [0.25, 0.25],
+      [0.75, 0.25],
+      [0.25, 0.75],
+      [0.75, 0.75],
+    ];
+    for (const block of ["center", "end", "start"] as const) {
+      scrollTo(block);
+      const rect = measure();
+      if (!rect) return null;
+      for (const [fx, fy] of offCenter) {
+        if (reaches(pointIn(rect, fx, fy))) return { status: "ok", fx, fy };
+      }
+    }
+
+    // Nothing reachable. Leave the element centered (the likeliest spot for a
+    // fallback click to work) and report what is in the way.
+    scrollTo("center");
+    const rect = measure();
+    const top = rect ? pointIn(rect, center[0], center[1]) : null;
+    let coveredBy: string | null = null;
+    if (top) {
+      const tag = top.tagName.toLowerCase();
+      const cls =
+        typeof top.className === "string"
+          ? top.className.trim().split(/\s+/)[0]
+          : "";
+      coveredBy = top.id ? `${tag}#${top.id}` : cls ? `${tag}.${cls}` : tag;
+    }
+    return { status: "covered", coveredBy };
+  } catch {
+    return null;
+  }
+}
+
 export function scrollElementToPercent(
   this: Element,
   percent: number | string,
