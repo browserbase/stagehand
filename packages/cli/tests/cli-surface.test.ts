@@ -111,11 +111,13 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("EXAMPLES");
   });
 
-  it("shows --verified and hides --advanced-stealth for sessions create", async () => {
+  it("shows public settings and hides --advanced-stealth for sessions create", async () => {
     const result = await runCli(["cloud", "sessions", "create", "--help"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--verified");
+    expect(result.stdout).toContain("--size");
+    expect(result.stdout).toMatch(/"regular",\s+"large",\s+"xlarge"/);
     expect(result.stdout).not.toContain("--advanced-stealth");
   });
 

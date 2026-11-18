@@ -228,6 +228,7 @@ browse cloud projects usage <project-id>
 browse cloud sessions list                       # --limit, --status, --json
 browse cloud sessions get <session-id>
 browse cloud sessions create                     # --proxies, --verified, --region, --solve-captchas…
+browse cloud sessions create --size large        # regular (default), large, xlarge
 browse cloud sessions update <session-id> --status REQUEST_RELEASE
 browse cloud sessions debug <session-id>         # live debugger URLs
 browse cloud sessions logs <session-id>
