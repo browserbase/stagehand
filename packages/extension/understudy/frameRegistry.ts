@@ -112,13 +112,6 @@ export class FrameRegistry {
    * session id. Handles root swap if the navigated frame is the new main (no parentId).
    */
   onFrameNavigated(frame: Protocol.Page.Frame, sessionId: SessionId): void {
-    this.ensureNode(frame.id);
-    const info = this.frames.get(frame.id)!;
-    info.lastSeen = frame;
-
-    // Ownership follows the session that reported the navigation
-    this.setOwnerSessionIdInternal(frame.id, sessionId);
-
     // If this frame has no parent, it might be the (new) main/root
     if (!("parentId" in frame) || !frame.parentId) {
       if (frame.id !== this.rootFrameId) {
@@ -127,6 +120,13 @@ export class FrameRegistry {
         this.rootFrameId = frame.id;
       }
     }
+
+    this.ensureNode(frame.id);
+    const info = this.frames.get(frame.id)!;
+    info.lastSeen = frame;
+
+    // Ownership follows the session that reported the navigation
+    this.setOwnerSessionIdInternal(frame.id, sessionId);
   }
 
   onNavigatedWithinDocument(frameId: FrameId, url: string, sessionId: SessionId): void {
