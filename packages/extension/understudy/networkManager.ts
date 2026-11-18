@@ -15,6 +15,9 @@ import {
   WaitForIdleOptions,
 } from "../types/private/network.js";
 
+// Bounds extra info held for requests whose response never arrives.
+const MAX_PENDING_EXTRA_INFO = 1000;
+
 /**
  * Cross-session network tracker.
  *
@@ -34,6 +37,13 @@ export class NetworkManager {
   // Captures from nested targets can replay before their parents' headers.
   // Retain only completions without a local request, scoped to the child root.
   private readonly pendingDocumentCompletions = new Map<string, PendingDocumentCompletion>();
+
+  // Chrome can send responseReceivedExtraInfo before responseReceived.
+  // Hold it by request key until the response exists or the request ends.
+  private readonly pendingExtraInfo = new Map<
+    string,
+    Protocol.Network.ResponseReceivedExtraInfoEvent
+  >();
 
   constructor(private readonly page: Page) {}
 
@@ -102,6 +112,7 @@ export class NetworkManager {
     };
 
     const completeRequest = (requestId: string, receivedAt: number, error: Error | null) => {
+      this.pendingExtraInfo.delete(this.requestKey(sid, requestId));
       this.finishResponse(session, requestId, error);
       unfinishedRequests.delete(requestId);
       const info = this.takeIdleRequest(session, requestId, receivedAt);
@@ -117,6 +128,28 @@ export class NetworkManager {
       if (url.startsWith("data:")) {
         unfinishedRequests.delete(evt.requestId);
         this.emitFinish(this.takeIdleRequest(session, evt.requestId, receivedAt));
+      }
+    };
+
+    const onExtraInfo = (evt: Protocol.Network.ResponseReceivedExtraInfoEvent) => {
+      if (!evt?.requestId) return;
+      const live = [...this.pendingResponses.keys()].filter(
+        (response) =>
+          !response.finishedSettled &&
+          response.session === session &&
+          response.requestId === evt.requestId,
+      );
+      if (live.length) {
+        // Replayed events never reached the response's own listener.
+        for (const response of live) response.applyExtraInfo(evt);
+        return;
+      }
+      const key = this.requestKey(sid, evt.requestId);
+      this.pendingExtraInfo.delete(key);
+      this.pendingExtraInfo.set(key, evt);
+      if (this.pendingExtraInfo.size > MAX_PENDING_EXTRA_INFO) {
+        const oldest = this.pendingExtraInfo.keys().next().value;
+        if (oldest !== undefined) this.pendingExtraInfo.delete(oldest);
       }
     };
 
@@ -159,6 +192,7 @@ export class NetworkManager {
           }
         },
         "Network.responseReceived": onResponse,
+        "Network.responseReceivedExtraInfo": onExtraInfo,
         "Page.frameStoppedLoading": onFrameStopped,
       });
     } catch (error) {
@@ -184,6 +218,9 @@ export class NetworkManager {
     this.sessions.delete(sid);
     for (const [key, completion] of this.pendingDocumentCompletions) {
       if (completion.session === entry.session) this.pendingDocumentCompletions.delete(key);
+    }
+    for (const key of this.pendingExtraInfo.keys()) {
+      if (key.startsWith(`${sid}:`)) this.pendingExtraInfo.delete(key);
     }
 
     for (const info of this.requests.values()) {
@@ -325,6 +362,7 @@ export class NetworkManager {
     for (const response of this.pendingResponses.keys()) response.dispose();
     this.pendingResponses.clear();
     this.pendingDocumentCompletions.clear();
+    this.pendingExtraInfo.clear();
     this.sessions.clear();
     this.observers.clear();
     this.requests.clear();
@@ -346,6 +384,9 @@ export class NetworkManager {
         this.requestKey(this.sessionKey(completion.session), event.requestId),
       );
     }
+    const extraInfoKey = this.requestKey(this.sessionKey(session), event.requestId);
+    const extraInfo = this.pendingExtraInfo.get(extraInfoKey);
+    this.pendingExtraInfo.delete(extraInfoKey);
     if (![...this.observers].some((observer) => typeof observer.onResponse === "function")) return;
     const response = new Response({
       page: this.page,
@@ -356,6 +397,8 @@ export class NetworkManager {
       response: event.response,
       fromServiceWorker: Boolean(event.response.fromServiceWorker),
     });
+    // A redirect hop shares the request id; its extra info belongs to that hop only.
+    if (extraInfo?.statusCode === event.response.status) response.applyExtraInfo(extraInfo);
     this.pendingResponses.set(response, event.type);
     void response.finished().then(() => this.pendingResponses.delete(response));
     if (completion) {

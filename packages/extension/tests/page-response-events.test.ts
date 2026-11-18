@@ -108,6 +108,39 @@ describe("page response events", () => {
     page.dispose();
   });
 
+  it("keeps extra-info headers that arrive before the response", async () => {
+    const { page, session } = setup();
+    const responses: Response[] = [];
+    await page.subscribeResponse((response) => responses.push(response));
+    session.emit("Network.responseReceivedExtraInfo", {
+      requestId: "request",
+      statusCode: 200,
+      headers: { "content-type": "application/json", "set-cookie": "session=abc" },
+    });
+    headers(session);
+    expect(responses).toHaveLength(1);
+    await expect(responses[0]!.allHeaders()).resolves.toMatchObject({
+      "set-cookie": "session=abc",
+    });
+    await expect(responses[0]!.headerValue("set-cookie")).resolves.toBe("session=abc");
+    page.dispose();
+  });
+
+  it("does not apply a redirect hop's early extra info to the final response", async () => {
+    const { page, session } = setup();
+    const responses: Response[] = [];
+    await page.subscribeResponse((response) => responses.push(response));
+    session.emit("Network.responseReceivedExtraInfo", {
+      requestId: "request",
+      statusCode: 302,
+      headers: { location: "/final", "set-cookie": "hop=1" },
+    });
+    headers(session);
+    await expect(responses[0]!.headerValue("set-cookie")).resolves.toBeNull();
+    await expect(responses[0]!.headerValue("location")).resolves.toBeNull();
+    page.dispose();
+  });
+
   it("supports future OOPIFs and session-scoped request IDs, and settles detach/failure", async () => {
     const { page, session } = setup();
     const received: Response[] = [];
