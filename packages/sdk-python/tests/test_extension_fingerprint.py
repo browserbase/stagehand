@@ -42,7 +42,11 @@ def test_reads_the_build_file_of_a_checkout_extension(
     assert extension_assets._extension_fingerprint() == FINGERPRINT
 
 
-@pytest.mark.parametrize("contents", ["", "null", "[]", '{"fingerprint": 1}'])
+@pytest.mark.parametrize(
+    "contents",
+    ["", "null", "[]", '{"fingerprint": 1}']
+    + [json.dumps({"fingerprint": value}) for value in ("", "a" * 63, "A" * 64, "g" * 64)],
+)
 def test_rejects_a_malformed_build_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, contents: str
 ) -> None:

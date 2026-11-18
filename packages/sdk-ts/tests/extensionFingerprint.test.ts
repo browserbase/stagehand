@@ -38,13 +38,18 @@ describe("getExtensionFingerprint", () => {
     expect(await read()).toBe("a".repeat(64));
   });
 
-  it.each(["", "null", "[]", '{"fingerprint":1}'])(
-    "rejects a malformed build file (%j)",
-    async (contents) => {
-      const read = await readerWithBuildFile(contents);
-      await expect(read()).rejects.toThrow("does not contain an extension fingerprint");
-    },
-  );
+  it.each([
+    "",
+    "null",
+    "[]",
+    '{"fingerprint":1}',
+    ...["", "a".repeat(63), "A".repeat(64), "g".repeat(64)].map((fingerprint) =>
+      JSON.stringify({ fingerprint }),
+    ),
+  ])("rejects a malformed build file (%j)", async (contents) => {
+    const read = await readerWithBuildFile(contents);
+    await expect(read()).rejects.toThrow("does not contain an extension fingerprint");
+  });
 
   it("rejects a missing build file", async () => {
     const read = await readerWithBuildFile();

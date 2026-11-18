@@ -47,7 +47,7 @@ export async function getExtensionFingerprint(): Promise<string> {
   } catch {
     fingerprint = undefined;
   }
-  if (typeof fingerprint !== "string") {
+  if (typeof fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(fingerprint)) {
     throw new Error(`${buildInfo} does not contain an extension fingerprint`);
   }
   return fingerprint;

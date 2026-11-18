@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import zipfile
 from pathlib import Path
 
@@ -31,7 +32,7 @@ def _extension_fingerprint() -> str:
     except ValueError:
         parsed = None
     fingerprint = parsed.get("fingerprint") if isinstance(parsed, dict) else None
-    if not isinstance(fingerprint, str):
+    if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
         raise ValueError(f"{build_info} does not contain an extension fingerprint")
     return fingerprint
 
