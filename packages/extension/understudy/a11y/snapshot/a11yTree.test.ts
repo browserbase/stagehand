@@ -133,7 +133,7 @@ describe("a11yForFrame focused locators", () => {
       expect(result.outline).toContain("Second detail");
       expect(result.outline).not.toContain("First match");
       expect(result.outline).not.toContain("First detail");
-      expect(resolver).toHaveBeenCalledWith(session, selector, "root-frame", 1, undefined);
+      expect(resolver).toHaveBeenCalledWith(session, selector, "root-frame", [1], undefined);
       expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
         objectId: "object-second",
       });
