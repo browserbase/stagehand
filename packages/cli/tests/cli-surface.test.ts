@@ -62,6 +62,7 @@ describe("CLI surface", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("$ browse");
     expect(result.stdout).toContain("cloud");
+    expect(result.stdout).toContain("discord");
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
     expect(result.stdout).toContain("skills");
