@@ -190,6 +190,8 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
     const socket = net.createConnection(socketPath);
+    // Decode across chunk boundaries so split multi-byte characters survive.
+    socket.setEncoding("utf8");
     let buffer = "";
     let settled = false;
 
@@ -226,7 +228,7 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
       socket.write(`${JSON.stringify(request)}\n`);
     });
     socket.on("data", (chunk) => {
-      buffer += chunk.toString();
+      buffer += chunk;
       const newline = buffer.indexOf("\n");
       if (newline === -1) return;
       try {
