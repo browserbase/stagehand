@@ -8,6 +8,8 @@ import {
   locatorScriptGlobalRefs,
   locatorScriptSources,
 } from "../dom/build/locatorScripts.generated.js";
+import type { ClickablePointResult } from "../dom/locatorScripts/scripts.js";
+import { v3Logger } from "../logger.js";
 import type { Frame } from "./frame.js";
 import {
   FrameSelectorResolver,
@@ -247,6 +249,8 @@ export class Locator {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
     try {
+      // Deliberately not getClickPoint: centroid promises the box center, so
+      // it must not move to an off-center point when the center is covered.
       await session
         .send("DOM.scrollIntoViewIfNeeded", { objectId })
         .catch(() => {});
@@ -350,21 +354,14 @@ export class Locator {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
     try {
-      await session
-        .send("DOM.scrollIntoViewIfNeeded", { objectId })
-        .catch(() => {});
-
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
-        "DOM.getBoxModel",
-        { objectId },
-      );
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { x, y } = await this.getClickPoint(objectId, {
+        bestEffortScroll: true,
+      });
 
       await session.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
-        x: cx,
-        y: cy,
+        x,
+        y,
         button: "none",
       } as Protocol.Input.DispatchMouseEventRequest);
     } finally {
@@ -378,9 +375,8 @@ export class Locator {
    * Click the element at its visual center.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
-   *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
-   *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
-   *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
+   *  2) Scroll into view and compute the click point ({@link getClickPoint}).
+   *  3) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
   async click(options?: {
     button?: MouseButton;
@@ -393,16 +389,7 @@ export class Locator {
     const clickCount = options?.clickCount ?? 1;
 
     try {
-      // Scroll into view using objectId (avoids frontend nodeId dependence)
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
-
-      // Get geometry using objectId
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
-        "DOM.getBoxModel",
-        { objectId },
-      );
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { x, y } = await this.getClickPoint(objectId);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -410,8 +397,8 @@ export class Locator {
       dispatches.push(
         session.send<never>("Input.dispatchMouseEvent", {
           type: "mouseMoved",
-          x: cx,
-          y: cy,
+          x,
+          y,
           button: "none",
         } as Protocol.Input.DispatchMouseEventRequest),
       );
@@ -420,8 +407,8 @@ export class Locator {
         dispatches.push(
           session.send<never>("Input.dispatchMouseEvent", {
             type: "mousePressed",
-            x: cx,
-            y: cy,
+            x,
+            y,
             button,
             clickCount: i,
           } as Protocol.Input.DispatchMouseEventRequest),
@@ -429,8 +416,8 @@ export class Locator {
         dispatches.push(
           session.send<never>("Input.dispatchMouseEvent", {
             type: "mouseReleased",
-            x: cx,
-            y: cy,
+            x,
+            y,
             button,
             clickCount: i,
           } as Protocol.Input.DispatchMouseEventRequest),
@@ -464,14 +451,7 @@ export class Locator {
     const { objectId } = await this.resolveNode();
 
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
-
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
-        "DOM.getBoxModel",
-        { objectId },
-      );
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { x, y } = await this.getClickPoint(objectId);
 
       // Pipelined burst, matching click's press/release batching: CDP preserves
       // per-session command order, so awaiting each dispatch in turn would only
@@ -479,7 +459,7 @@ export class Locator {
       await Promise.all([
         session.send<never>("Input.dispatchTouchEvent", {
           type: "touchStart",
-          touchPoints: [{ x: cx, y: cy }],
+          touchPoints: [{ x, y }],
         } as Protocol.Input.DispatchTouchEventRequest),
         session.send<never>("Input.dispatchTouchEvent", {
           type: "touchEnd",
@@ -972,6 +952,99 @@ export class Locator {
       throw new StagehandElementNotFoundError([this.selector]);
     }
     return resolved;
+  }
+
+  /**
+   * Scroll the element into view and return the viewport point that pointer
+   * input (mouse or touch) should target, in the coordinate space
+   * `Input.dispatch*Event` expects for this frame's session. Shared by click,
+   * tap and hover. (Not centroid, which promises the box center.)
+   *
+   * Steps:
+   *  1) `DOM.scrollIntoViewIfNeeded`. By default a failed scroll propagates
+   *     (click, tap); with `bestEffortScroll` it is ignored (hover).
+   *  2) Run the in-page `findClickablePoint` script, which finds a point that
+   *     isn't covered by another element (a fixed footer, a sticky header),
+   *     scrolling the element if needed.
+   *  3) `DOM.getBoxModel` → map that point onto the element's border box.
+   *     The box model already accounts for iframe offsets and transforms.
+   *
+   * If no uncovered point exists (or the script fails), fall back to the
+   * center of the content box, the pre-hit-testing behavior, and log what is
+   * in the way.
+   */
+  private async getClickPoint(
+    objectId: Protocol.Runtime.RemoteObjectId,
+    options?: { bestEffortScroll?: boolean },
+  ): Promise<{ x: number; y: number }> {
+    const session = this.frame.session;
+
+    // Scroll into view using objectId (avoids frontend nodeId dependence)
+    const scrolled = session.send("DOM.scrollIntoViewIfNeeded", { objectId });
+    if (options?.bestEffortScroll) await scrolled.catch(() => {});
+    else await scrolled;
+
+    const hitTest = await session
+      .send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: locatorScriptSources.findClickablePoint,
+        returnByValue: true,
+      })
+      .then((res) => (res.result?.value ?? null) as ClickablePointResult | null)
+      .catch((): null => null);
+
+    const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+      "DOM.getBoxModel",
+      { objectId },
+    );
+    if (!box.model) throw new ElementNotVisibleError(this.selector);
+
+    if (hitTest?.status === "ok") {
+      return this.pointInBorderBox(box.model.border, hitTest.fx, hitTest.fy);
+    }
+
+    if (hitTest?.status === "covered") {
+      v3Logger({
+        category: "locator",
+        message:
+          "element is covered by another element at every point tried; clicking its center anyway",
+        level: 1,
+        auxiliary: {
+          selector: { value: this.selector, type: "string" },
+          coveredBy: {
+            value: hitTest.coveredBy ?? "unknown",
+            type: "string",
+          },
+        },
+      });
+    }
+
+    const { cx, cy } = this.centerFromBoxContent(box.model.content);
+    return { x: cx, y: cy };
+  }
+
+  /**
+   * Map fractions of the element's bounding rect (as returned by
+   * `findClickablePoint`, measured with `getBoundingClientRect`) onto the
+   * axis-aligned bounding box of its BoxModel border quad.
+   */
+  private pointInBorderBox(
+    border: number[],
+    fx: number,
+    fy: number,
+  ): { x: number; y: number } {
+    // border is [x1,y1, x2,y2, x3,y3, x4,y4]
+    if (!border || border.length < 8) {
+      throw new StagehandInvalidArgumentError("Invalid box model border quad");
+    }
+    const xs = [border[0], border[2], border[4], border[6]];
+    const ys = [border[1], border[3], border[5], border[7]];
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return {
+      x: minX + (Math.max(...xs) - minX) * fx,
+      y: minY + (Math.max(...ys) - minY) * fy,
+    };
   }
 
   /** Compute a center point from a BoxModel content quad */
