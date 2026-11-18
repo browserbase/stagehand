@@ -1,4 +1,8 @@
 import { writeFile } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { computeListCost, loadPriceMap, type PriceMap } from "../framework/costEstimate.js";
+import type { NormalizedUsage } from "../framework/usageNormalization.js";
 import {
   fetchExperimentData,
   type BenchCaseRow,
@@ -152,107 +156,6 @@ const TESTED_RUN_INFERENCE_MS_KEYS = [
   "codex_inference_time_ms",
   "claude_code_inference_time_ms",
 ];
-
-type ModelPricing = {
-  input: number;
-  cachedInput?: number;
-  output: number;
-  longContext?: {
-    thresholdTokens: number;
-    input: number;
-    cachedInput?: number;
-    output: number;
-  };
-};
-
-const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
-  // Standard (non-introductory) Sonnet 5 pricing. NOTE: introductory pricing
-  // ($2 / $0.20 cached / $10 per 1M) applies through 2026-08-31, so costs
-  // published before then are overstated ~1.5x; standard rates are used
-  // deliberately to keep the dashboard stable across the cutover.
-  ["anthropic/claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
-  // GPT-5.6 tiers per OpenAI pricing (2026-07).
-  ["openai/gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
-  ["gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
-  ["openai/gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
-  ["gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
-  ["openai/gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
-  ["gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
-  // xAI pricing per docs.x.ai/developers/models (2026-07).
-  ["xai/grok-4.5", { input: 2, cachedInput: 0.5, output: 6 }],
-  ["grok-4.5", { input: 2, cachedInput: 0.5, output: 6 }],
-  ["xai/grok-4.3", { input: 1.25, cachedInput: 0.2, output: 2.5 }],
-  ["grok-4.3", { input: 1.25, cachedInput: 0.2, output: 2.5 }],
-  ["anthropic/claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["anthropic/claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["anthropic/claude-opus-4-5", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["claude-opus-4-5", { input: 5, cachedInput: 0.5, output: 25 }],
-  ["anthropic/claude-sonnet-4-6", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["claude-sonnet-4-6", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["anthropic/claude-sonnet-4-5", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["claude-sonnet-4-5", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["anthropic/claude-haiku-4-5", { input: 1, cachedInput: 0.1, output: 5 }],
-  ["claude-haiku-4-5", { input: 1, cachedInput: 0.1, output: 5 }],
-  ["openai/gpt-5.5", { input: 5, cachedInput: 0.5, output: 30 }],
-  ["gpt-5.5", { input: 5, cachedInput: 0.5, output: 30 }],
-  ["openai/gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
-  ["gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
-  ["openai/gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
-  ["gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
-  ["google/gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
-  ["gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
-  [
-    "google/gemini-2.5-computer-use-preview-10-2025",
-    {
-      input: 1.25,
-      output: 10,
-      longContext: {
-        thresholdTokens: 200_000,
-        input: 2.5,
-        output: 15,
-      },
-    },
-  ],
-  [
-    "gemini-2.5-computer-use-preview-10-2025",
-    {
-      input: 1.25,
-      output: 10,
-      longContext: {
-        thresholdTokens: 200_000,
-        input: 2.5,
-        output: 15,
-      },
-    },
-  ],
-  [
-    "google/gemini-2.5-computer-use-preview",
-    {
-      input: 1.25,
-      output: 10,
-      longContext: {
-        thresholdTokens: 200_000,
-        input: 2.5,
-        output: 15,
-      },
-    },
-  ],
-  [
-    "gemini-2.5-computer-use-preview",
-    {
-      input: 1.25,
-      output: 10,
-      longContext: {
-        thresholdTokens: 200_000,
-        input: 2.5,
-        output: 15,
-      },
-    },
-  ],
-]);
 
 function usage(): string {
   return [
@@ -547,13 +450,16 @@ function round(value: number, places = 2): number {
   return Math.round(value * scale) / scale;
 }
 
-function caseCost(benchCase: BenchCaseRow): number | undefined {
+export function caseCost(
+  benchCase: BenchCaseRow,
+  priceMap: PriceMap = loadPriceMap(),
+): number | undefined {
   for (const key of COST_METRIC_KEYS) {
     const value = benchCase.metrics[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
   }
 
-  const estimated = estimatedTokenCost(benchCase);
+  const estimated = estimatedTokenCost(benchCase, priceMap);
   if (estimated !== undefined) return estimated;
 
   const matched = Object.entries(benchCase.metrics).find(
@@ -579,16 +485,18 @@ function firstMetric(metrics: Record<string, number>, keys: string[]): number | 
   return undefined;
 }
 
-function modelPricing(model: string | undefined): ModelPricing | undefined {
-  if (!model) return undefined;
-  const normalized = model.trim().toLowerCase();
-  return MODEL_PRICING_USD_PER_1M_TOKENS.get(normalized);
-}
-
-function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
-  const basePricing = modelPricing(benchCase.model);
-  if (!basePricing) return undefined;
-
+/**
+ * List-price estimate for a case with no reported cost, from the same dated
+ * catalog the eval runs use (pricing/pricing.json via costEstimate.ts).
+ *
+ * The case metrics are totals across every model call in the run, so they
+ * cannot select a per-request long-context tier; the catalog's base rate is
+ * used, the same as for computed `cost_usd` in the eval runs.
+ */
+export function estimatedTokenCost(
+  benchCase: BenchCaseRow,
+  priceMap: PriceMap = loadPriceMap(),
+): number | undefined {
   // Only use metrics emitted by the tested agent/harness. Braintrust scorer
   // spans and task logs can contain verifier model usage, usually Gemini, and
   // must not be billed as the evaluated model.
@@ -600,17 +508,17 @@ function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
     return undefined;
   }
 
-  const billableInputTokens = Math.max((inputTokens ?? 0) - cachedInputTokens, 0);
-  const pricing =
-    basePricing.longContext && (inputTokens ?? 0) > basePricing.longContext.thresholdTokens
-      ? basePricing.longContext
-      : basePricing;
-  const inputCost =
-    (billableInputTokens * pricing.input +
-      cachedInputTokens * (pricing.cachedInput ?? pricing.input)) /
-    1_000_000;
-  const outputCost = ((outputTokens ?? 0) * pricing.output) / 1_000_000;
-  return inputCost + outputCost;
+  const usage: NormalizedUsage = {
+    input_total: inputTokens ?? 0,
+    input_cached: cachedInputTokens,
+    input_cache_write: 0,
+    input_uncached: Math.max((inputTokens ?? 0) - cachedInputTokens, 0),
+    output: outputTokens ?? 0,
+    reasoning: 0,
+    reasoning_in_output: true,
+    convention: "openai_cached_subset",
+  };
+  return computeListCost(usage, benchCase.model?.trim().toLowerCase(), priceMap);
 }
 
 function experimentTimestamp(experiment: ExperimentData): number {
@@ -642,7 +550,9 @@ function benchmarkRow(
   const durations = cases
     .map((benchCase) => caseSpeedMs(benchCase) ?? benchCase.durationMs)
     .filter((value): value is number => typeof value === "number");
-  const costs = cases.map(caseCost).filter((value): value is number => typeof value === "number");
+  const costs = cases
+    .map((benchCase) => caseCost(benchCase))
+    .filter((value): value is number => typeof value === "number");
   const totalCost =
     costs.length > 0
       ? round(
@@ -942,8 +852,10 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });
+}

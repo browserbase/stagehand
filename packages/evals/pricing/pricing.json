@@ -13,6 +13,13 @@
       "output_per_m": 30,
       "source": "https://ai-gateway.vercel.sh/v1/models (openai/gpt-5.5)"
     },
+    "openai/gpt-5.4": {
+      "input_per_m": 2.5,
+      "cached_input_per_m": 0.25,
+      "output_per_m": 15,
+      "source": "https://ai-gateway.vercel.sh/v1/models (openai/gpt-5.4)",
+      "note": "matches https://developers.openai.com/api/docs/pricing on 2026-11-17; requests over 272K input tokens bill 5 / 0.5 / 22.5, which run totals cannot select, so the base rate is used"
+    },
     "anthropic/claude-sonnet-4.6": {
       "input_per_m": 3,
       "cached_input_per_m": 0.3,
@@ -26,6 +33,46 @@
       "cache_write_input_per_m": 6.25,
       "output_per_m": 25,
       "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-4.8)"
+    },
+    "anthropic/claude-opus-4.7": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "cache_write_input_per_m": 6.25,
+      "output_per_m": 25,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-4.7)",
+      "note": "matches https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-17"
+    },
+    "anthropic/claude-opus-4.6": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "cache_write_input_per_m": 6.25,
+      "output_per_m": 25,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-4.6)",
+      "note": "matches https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-17"
+    },
+    "anthropic/claude-opus-4.5": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "cache_write_input_per_m": 6.25,
+      "output_per_m": 25,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-4.5)",
+      "note": "matches https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-17"
+    },
+    "anthropic/claude-sonnet-4.5": {
+      "input_per_m": 3,
+      "cached_input_per_m": 0.3,
+      "cache_write_input_per_m": 3.75,
+      "output_per_m": 15,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-sonnet-4.5)",
+      "note": "matches https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-17; the gateway lists a 200K-token request tier (6 in / 22.5 out) that run totals cannot select, so the base rate is used"
+    },
+    "anthropic/claude-haiku-4.5": {
+      "input_per_m": 1,
+      "cached_input_per_m": 0.1,
+      "cache_write_input_per_m": 1.25,
+      "output_per_m": 5,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-haiku-4.5)",
+      "note": "matches https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-17"
     },
     "anthropic/claude-sonnet-5": {
       "input_per_m": 2,
@@ -46,6 +93,13 @@
       "cached_input_per_m": 0.05,
       "output_per_m": 3,
       "source": "https://ai-gateway.vercel.sh/v1/models (google/gemini-3-flash)"
+    },
+    "google/gemini-2.5-computer-use-preview": {
+      "input_per_m": 1.25,
+      "cached_input_per_m": 1.25,
+      "output_per_m": 10,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing (Gemini 2.5 Computer Use Preview, archived 2026-06-02 at https://web.archive.org/web/20260602081519/https://ai.google.dev/gemini-api/docs/pricing)",
+      "note": "covers gemini-2.5-computer-use-preview-10-2025, shut down 2026-07-28 and not on the gateway, so a refresh marks it not listed. No context caching price was published, so cached input bills at the input rate. Prompts over 200K tokens billed 2.50 in / 15.00 out per request, which run totals cannot select, so the base rate is used"
     },
     "google/gemini-3.5-flash": {
       "input_per_m": 1.5,
@@ -70,6 +124,13 @@
       "cached_input_per_m": 0.3,
       "output_per_m": 6,
       "source": "https://ai-gateway.vercel.sh/v1/models (spacexai/grok-4.5)"
+    },
+    "spacexai/grok-4.3": {
+      "input_per_m": 1.25,
+      "cached_input_per_m": 0.2,
+      "output_per_m": 2.5,
+      "source": "https://ai-gateway.vercel.sh/v1/models (spacexai/grok-4.3)",
+      "note": "matches https://docs.x.ai/developers/models on 2026-11-17; prompts of 200K tokens or more bill 2.5 / 0.4 / 5 per request, which run totals cannot select, so the base rate is used"
     },
     "spacexai/grok-4.6": {
       "input_per_m": 2,
