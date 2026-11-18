@@ -10,6 +10,7 @@
     "src/lib/functions",
     "src/lib/skills",
     "src/lib/templates",
-    "src/lib/driver/remote.ts"
+    "src/lib/driver/remote.ts",
+    "src/lib/auth"
   ]
 }
