@@ -231,6 +231,76 @@ test.describe("locator.click() hit target", () => {
     ).toEqual(["confirm"]);
   });
 
+  test("taps a button partly under a fixed footer with trusted touch", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(fixedFooterFixture);
+    // Record touch/pointer events on the button and the footer covering it.
+    // Mirrors the probe in perform-understudy-method.spec.ts. Chromium follows
+    // a tap with compatibility mouse events, so the check is that the pointer
+    // events are touch, not that no mouse events fire.
+    await page.evaluate(() => {
+      const w = window as unknown as { touchEvents: string[] };
+      w.touchEvents = [];
+      for (const id of ["confirm", "footer"]) {
+        const el = document.getElementById(id)!;
+        for (const type of ["touchstart", "touchend", "pointerdown"]) {
+          el.addEventListener(type, (e) => {
+            if ((e.target as Element).id !== id) return;
+            const pointerType = (e as PointerEvent).pointerType;
+            w.touchEvents.push(
+              `${id}:${type}` +
+                (pointerType ? `:${pointerType}` : "") +
+                (e.isTrusted ? "" : ":untrusted"),
+            );
+          });
+        }
+      }
+    });
+
+    await page.locator("#confirm").tap();
+
+    const events = await page.evaluate(
+      () => (window as unknown as { touchEvents: string[] }).touchEvents,
+    );
+    expect(events).toContain("confirm:pointerdown:touch");
+    expect(events).toContain("confirm:touchstart");
+    expect(events).toContain("confirm:touchend");
+    expect(events.indexOf("confirm:touchstart")).toBeLessThan(
+      events.indexOf("confirm:touchend"),
+    );
+    expect(events.filter((e) => e.startsWith("footer:"))).toEqual([]);
+  });
+
+  test("centroid() stays at the box center even when it is covered", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(fixedFooterFixture);
+
+    // centroid() promises the center, so unlike click() it must not move to a
+    // point that isn't covered: here the center stays under the footer.
+    const { x, y } = await page.locator("#confirm").centroid();
+
+    const expected = await page.evaluate(() => {
+      const el = document.getElementById("confirm")!;
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      const px = (v: string) => parseFloat(v) || 0;
+      // Content-box center, matching the BoxModel content quad.
+      const left = r.left + px(s.borderLeftWidth) + px(s.paddingLeft);
+      const right = r.right - px(s.borderRightWidth) - px(s.paddingRight);
+      const top = r.top + px(s.borderTopWidth) + px(s.paddingTop);
+      const bottom = r.bottom - px(s.borderBottomWidth) - px(s.paddingBottom);
+      const cx = (left + right) / 2;
+      const cy = (top + bottom) / 2;
+      return {
+        x: Math.round(cx),
+        y: Math.round(cy),
+        top: document.elementFromPoint(cx, cy)?.id,
+      };
+    });
+    expect({ x, y }).toEqual({ x: expected.x, y: expected.y });
+    expect(expected.top).toBe("footer");
+  });
+
   test("clicks a button that scrolls in under a sticky header", async () => {
     const page = v3.context.pages()[0];
     await page.goto(stickyHeaderFixture);

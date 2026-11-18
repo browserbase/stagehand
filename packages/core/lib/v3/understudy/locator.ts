@@ -249,10 +249,18 @@ export class Locator {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
     try {
-      const { x, y } = await this.getClickPoint(objectId, {
-        bestEffortScroll: true,
-      });
-      return { x: Math.round(x), y: Math.round(y) };
+      // Deliberately not getClickPoint: centroid promises the box center, so
+      // it must not move to an off-center point when the center is covered.
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
+      );
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
+      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
       await session
         .send<never>("Runtime.releaseObject", { objectId })
@@ -950,11 +958,11 @@ export class Locator {
    * Scroll the element into view and return the viewport point that pointer
    * input (mouse or touch) should target, in the coordinate space
    * `Input.dispatch*Event` expects for this frame's session. Shared by click,
-   * tap, hover and centroid.
+   * tap and hover. (Not centroid, which promises the box center.)
    *
    * Steps:
    *  1) `DOM.scrollIntoViewIfNeeded`. By default a failed scroll propagates
-   *     (click, tap); with `bestEffortScroll` it is ignored (hover, centroid).
+   *     (click, tap); with `bestEffortScroll` it is ignored (hover).
    *  2) Run the in-page `findClickablePoint` script, which finds a point that
    *     isn't covered by another element (a fixed footer, a sticky header),
    *     scrolling the element if needed.
