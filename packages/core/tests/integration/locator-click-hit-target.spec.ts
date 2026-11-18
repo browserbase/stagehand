@@ -6,13 +6,15 @@ import { v3TestConfig } from "./v3.config.js";
 import { closeV3 } from "./testUtils.js";
 
 /**
- * Guards for locator.click() on targets where the element under the click
- * point is not simply the target itself: shadow DOM (hit-testing retargets to
- * the host), native inputs hidden under their label, iframes (coordinates must
- * be translated to the top-level viewport), and smooth-scrolling pages.
+ * locator.click() hit-tests before clicking: it looks for a point on the
+ * element that no other element covers, scrolling if needed.
  *
- * These all pass with the current scroll-then-click-the-center behavior and
- * must keep passing once click() starts hit-testing before it clicks.
+ * Covered targets: fixed footers, sticky headers, and fully covered elements
+ * (which fall back to clicking the center). Also guarded: targets where the
+ * element under the click point is legitimately not the target itself:
+ * shadow DOM (hit-testing retargets to the host), native inputs hidden under
+ * their label, iframes (coordinates must be translated to the top-level
+ * viewport), and smooth-scrolling pages.
  *
  * Each fixture records clicks in `window.clicked` (ids of elements whose own
  * click listener fired), so assertions check the intended element received
@@ -98,6 +100,54 @@ const smoothScrollFixture = html(
   `<style>html { scroll-behavior: smooth; }</style>`,
 );
 
+// The reported bug: the button's bottom edge sits just below the fold, so
+// scrollIntoViewIfNeeded scrolls it only until its bottom edge is visible,
+// which leaves its center under a 36px fixed footer.
+const fixedFooterFixture = html(`
+  <button id="confirm" style="display: block; margin: calc(100vh - 50px) 0 0 40px; width: 320px; height: 60px">Confirm</button>
+  <div id="footer" style="position: fixed; left: 0; right: 0; bottom: 0; height: 36px; background: rgba(20,20,20,.55)">
+    <button id="help" style="height: 28px; margin: 4px 40px; float: right">Help</button>
+  </div>
+  <div style="height: 400px"></div>
+  <script>
+    ${recordClick('document.getElementById("confirm")', "confirm")}
+    ${recordClick('document.getElementById("footer")', "footer")}
+    window.hovered = [];
+    for (const id of ["confirm", "footer"]) {
+      document.getElementById(id).addEventListener("mouseover", (e) => {
+        if (e.target.id === id) window.hovered.push(id);
+      });
+    }
+  </script>
+`);
+
+// A 60px sticky header and a button scrolled 10px past the top of the
+// viewport. It is partly visible, so scrollIntoViewIfNeeded only aligns its
+// top edge with the top of the viewport, leaving it under the header. (A
+// button fully out of view would be centered instead, missing the bug.)
+const stickyHeaderFixture = html(`
+  <div id="header" style="position: sticky; top: 0; height: 60px; background: #333; z-index: 1"></div>
+  <div style="height: 300px"></div>
+  <button id="save" style="display: block; margin-left: 40px; width: 200px; height: 40px">Save</button>
+  <div style="height: 3000px"></div>
+  <script>
+    ${recordClick('document.getElementById("save")', "save")}
+    ${recordClick('document.getElementById("header")', "header")}
+    // The button starts at 60 (header) + 300 (spacer) = 360px.
+    window.scrollTo(0, 370);
+  </script>
+`);
+
+// A full-screen modal over the button: no point on it is reachable.
+const modalFixture = html(`
+  <button id="behind" style="margin: 100px">Behind the modal</button>
+  <div id="modal" style="position: fixed; inset: 0; background: rgba(0,0,0,.5)"></div>
+  <script>
+    ${recordClick('document.getElementById("behind")', "behind")}
+    ${recordClick('document.getElementById("modal")', "modal")}
+  </script>
+`);
+
 // Iframe content: a button partway down the frame that reports clicks to the
 // top-level page via postMessage (works for same- and cross-origin frames).
 const iframeContent = `<!doctype html>
@@ -158,6 +208,48 @@ test.describe("locator.click() hit target", () => {
       return hit?.id || hit?.className || hit?.tagName;
     }, id);
   };
+
+  test("clicks a button partly under a fixed footer", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(fixedFooterFixture);
+
+    await page.locator("#confirm").click();
+
+    expect(await clickedIds()).toEqual(["confirm"]);
+  });
+
+  test("hovers a button partly under a fixed footer", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(fixedFooterFixture);
+
+    await page.locator("#confirm").hover();
+
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { hovered: string[] }).hovered,
+      ),
+    ).toEqual(["confirm"]);
+  });
+
+  test("clicks a button that scrolls in under a sticky header", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(stickyHeaderFixture);
+
+    await page.locator("#save").click();
+
+    expect(await clickedIds()).toEqual(["save"]);
+  });
+
+  test("still clicks the center of a fully covered element", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(modalFixture);
+
+    // No uncovered point exists, so click() falls back to the center (the
+    // pre-hit-testing behavior) instead of throwing; the modal gets the click.
+    await page.locator("#behind").click();
+
+    expect(await clickedIds()).toEqual(["modal"]);
+  });
 
   for (const mode of ["open", "closed"] as const) {
     test(`clicks a button inside a ${mode} shadow root`, async () => {
