@@ -1,6 +1,11 @@
 import { Args, Flags } from "@oclif/core";
 
-import { outputJson, requestBrowserbaseJson, writeOutputFile } from "../../lib/cloud/api.js";
+import {
+  createBrowserbaseClient,
+  outputJson,
+  withBrowserbaseApi,
+  writeOutputFile,
+} from "../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../base.js";
 import { outputFormatFlags, outputTable, resolveOutputFormat } from "../../lib/output.js";
@@ -14,14 +19,6 @@ interface SearchResult {
   image?: string;
   favicon?: string;
   excerpts?: string[];
-}
-
-interface SearchResponse {
-  requestId: string;
-  query: string;
-  provider?: "parallel" | "exa";
-  mode?: "fast" | "advanced" | "deep-lite" | "deep";
-  results: SearchResult[];
 }
 
 const PARALLEL_SUPPORTED_COUNTRIES = new Set([
@@ -201,29 +198,35 @@ export default class Search extends BrowseCommand {
       }
     }
 
-    const body: Record<string, unknown> = {
+    const params = {
       query: args.query,
+      ...(flags["num-results"] !== undefined && { numResults: flags["num-results"] }),
+      ...(resolvedProvider && { provider: resolvedProvider as "parallel" | "exa" }),
+      ...(flags.mode && {
+        mode: flags.mode as "fast" | "advanced" | "deep-lite" | "deep",
+      }),
+      ...(includeDomains.length > 0 && { includeDomains }),
+      ...(excludeDomains.length > 0 && { excludeDomains }),
+      ...(startPublishedDate && { startPublishedDate }),
+      ...(endPublishedDate && { endPublishedDate }),
+      ...(flags.category && {
+        category: flags.category as
+          | "company"
+          | "publication"
+          | "news"
+          | "personal site"
+          | "financial report"
+          | "people",
+      }),
+      ...(flags["user-location"] && { userLocation: flags["user-location"].toUpperCase() }),
+      ...(flags.moderation !== undefined && { moderation: flags.moderation }),
+      ...(flags.objective !== undefined && { objective: flags.objective }),
+      ...(flags["max-age-hours"] !== undefined && { maxAgeHours: flags["max-age-hours"] }),
+      ...(flags.excerpts && { excerpts: flags.excerpts }),
     };
 
-    if (flags["num-results"] !== undefined) body.numResults = flags["num-results"];
-    if (resolvedProvider) body.provider = resolvedProvider;
-    if (flags.mode) body.mode = flags.mode;
-    if (includeDomains.length > 0) body.includeDomains = includeDomains;
-    if (excludeDomains.length > 0) body.excludeDomains = excludeDomains;
-    if (startPublishedDate) body.startPublishedDate = startPublishedDate;
-    if (endPublishedDate) body.endPublishedDate = endPublishedDate;
-    if (flags.category) body.category = flags.category;
-    if (flags["user-location"]) body.userLocation = flags["user-location"].toUpperCase();
-    if (flags.moderation !== undefined) body.moderation = flags.moderation;
-    if (flags.objective !== undefined) body.objective = flags.objective;
-    if (flags["max-age-hours"] !== undefined) body.maxAgeHours = flags["max-age-hours"];
-    if (flags.excerpts) body.excerpts = flags.excerpts;
-
-    const result = await requestBrowserbaseJson<SearchResponse>(toApiOptions(flags), "/v1/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const client = createBrowserbaseClient(toApiOptions(flags));
+    const result = await withBrowserbaseApi("search", () => client.search.web(params));
 
     const outputFormat = resolveOutputFormat(flags);
     if (flags.output) {
