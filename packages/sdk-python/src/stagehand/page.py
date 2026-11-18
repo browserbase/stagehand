@@ -415,10 +415,15 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
+        """Deprecated: use on_console(listener) instead."""
         if event != "console":
             raise ValueError('page.on only supports "console" events')
+        return await self.on_console(listener)
+
+    async def on_console(self, listener: PageEventListener) -> CDPSubscription:
+        """Subscribe to console messages from this page and its page-owned sessions."""
         return await self._subscribe(
-            event,
+            "console",
             "page.cdp_event",
             PageCDPEventNotification,
             lambda notification: listener(notification.event),

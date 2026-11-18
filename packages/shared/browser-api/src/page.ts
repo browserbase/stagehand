@@ -232,9 +232,15 @@ export class Page {
     });
   }
 
+  /** @deprecated Use onConsole(listener) instead. */
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
     if (event !== "console") throw new Error('page.on only supports "console" events');
-    return this.subscribe(event, (notification) => {
+    return this.onConsole(listener);
+  }
+
+  /** Subscribe to console messages from this page and its page-owned sessions. */
+  async onConsole(listener: PageEventListener): Promise<CDPSubscription> {
+    return this.subscribe("console", (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);
       }

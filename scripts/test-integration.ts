@@ -62,6 +62,7 @@ export const integrationTestGroups = {
     "pageAddInitScript",
     "pageExtraHttpHeaders",
     "pageGotoResponse",
+    "pageOnConsole",
     "pageOnResponse",
   ],
   "local/page-interactions": [

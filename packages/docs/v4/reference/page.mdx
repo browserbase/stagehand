@@ -334,23 +334,19 @@ const title = await page.evaluate(() => document.title);
   The operation result.
 </ResponseField>
 
-## on()
+## onConsole()
 
 Subscribe to console messages from this page and its page-owned sessions. Stagehand
 delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```typescript
-const subscription = await page.on("console", (event) => {
+const subscription = await page.onConsole((event) => {
   console.log(event.method, event.params);
 });
 
 await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
 ```
-
-<ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
-</ParamField>
 
 <ParamField path="listener" type="PageEventListener">
   A callback that receives the event method, raw parameters, session ID, target ID,
@@ -366,6 +362,33 @@ await subscription.unsubscribe();
 `unsubscribe(): Promise<void>` removes the listener locally and from the Stagehand runtime.
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
+
+## on()
+
+<Warning>
+  Deprecated: use [`page.onConsole(listener)`](#onconsole) instead.
+  `page.on("console", listener)` remains available for backward compatibility, with
+  the same callback payload, behavior, and subscription handle.
+</Warning>
+
+```typescript
+const subscription = await page.on("console", (event) => {
+  console.log(event.method, event.params);
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  The same callback accepted by [`onConsole()`](#onconsole).
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
 
 ## onResponse()
 
@@ -1239,7 +1262,7 @@ title = await page.evaluate("document.title", result_type=str)
   The operation result.
 </ResponseField>
 
-## on()
+## on_console()
 
 Subscribe to console messages from this page and its page-owned sessions. Stagehand
 delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
@@ -1248,14 +1271,10 @@ delivers each message using the underlying `"Runtime.consoleAPICalled"` event en
 async def handle_console(event: PageCDPEvent) -> None:
     print(event.method, event.params)
 
-subscription = await page.on("console", handle_console)
+subscription = await page.on_console(handle_console)
 await page.evaluate('console.log("ready")')
 await subscription.unsubscribe()
 ```
-
-<ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
-</ParamField>
 
 <ParamField path="listener" type="PageEventListener">
   A sync or async callback that receives the event method, raw parameters, session
@@ -1272,6 +1291,26 @@ await subscription.unsubscribe()
 `await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
+## on()
+
+<Warning>
+  Deprecated: use `page.on_console(listener)` instead.
+  `page.on("console", listener)` remains available for backward compatibility, with
+  the same callback payload, behavior, and subscription handle.
+</Warning>
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  The same synchronous or asynchronous callback accepted by `on_console()`.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
 
 ## on_response()
 
