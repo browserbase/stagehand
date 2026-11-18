@@ -1,6 +1,11 @@
 import { stat } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
+import {
+  credentialFetch,
+  resolveCredential,
+  type ResolvedCredential,
+} from "../auth/credentials.js";
 import { CommandFailure, fail } from "../errors.js";
 import { classifyCommandHttpFailure, readBrowserbaseError, resolveApiKey } from "../cloud/api.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
@@ -10,6 +15,7 @@ const defaultFunctionsBaseUrl = "https://api.browserbase.com";
 export interface FunctionsApiConfig {
   apiKey: string;
   baseUrl: string;
+  credential?: ResolvedCredential;
 }
 
 export interface PollOptions<T> {
@@ -22,13 +28,16 @@ export function resolveFunctionsApiConfig(args: {
   apiKey?: string;
   baseUrl?: string;
 }): FunctionsApiConfig {
-  return {
-    apiKey: resolveApiKey(args),
+  const options = {
+    ...args,
     baseUrl:
-      args.baseUrl ||
-      process.env.BROWSERBASE_BASE_URL ||
-      process.env.BROWSERBASE_API_BASE_URL ||
-      defaultFunctionsBaseUrl,
+      args.baseUrl || process.env.BROWSERBASE_BASE_URL || process.env.BROWSERBASE_API_BASE_URL,
+  };
+  const credential = resolveCredential(options);
+  return {
+    apiKey: credential?.apiKey ?? resolveApiKey(options),
+    baseUrl: credential?.baseUrl ?? options.baseUrl ?? defaultFunctionsBaseUrl,
+    credential,
   };
 }
 
@@ -39,11 +48,13 @@ export async function functionsRequest(
 ): Promise<Response> {
   let response: Response;
   try {
-    response = await fetch(new URL(path, config.baseUrl), {
+    const request =
+      config.credential?.source === "saved" ? credentialFetch(config.credential) : fetch;
+    response = await request(new URL(path, config.baseUrl), {
       ...init,
       headers: {
         "x-bb-api-key": config.apiKey,
-        ...(init.headers ?? {}),
+        ...Object.fromEntries(new Headers(init.headers).entries()),
       },
     });
   } catch (error) {

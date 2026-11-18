@@ -30,6 +30,10 @@ export function forwardedEnvKeys(): readonly string[] {
   return [];
 }
 
+export function savedCredentialFingerprint(): undefined {
+  return undefined;
+}
+
 export async function remoteStagehandOptions(): Promise<RemoteStagehandOptions> {
   // Accepts the forwarded-env arg structurally (fewer params is
   // assignable) without naming it, keeping this stub key-name-free.

@@ -7,6 +7,8 @@ import type { BrowserbaseIdentity, ConnectionTarget, RemoteConnectionTarget } fr
 
 export interface RemoteStagehandOptions {
   apiKey: string;
+  baseUrl?: string;
+  clientOptions?: Pick<import("@browserbasehq/sdk").ClientOptions, "fetch">;
   browser: Browserbase.SessionCreateParams;
 }
 
@@ -41,7 +43,7 @@ export interface DriverInitHints {
 
 /**
  * The Browserbase (cloud) capability surface. The real implementation lives in
- * `remote.ts` and is the only place that reads `BROWSERBASE_API_KEY`. The
+ * `remote.ts` and its credential helpers. The
  * `build:local-only` build excludes `remote.ts` and resolves `remote.disabled.ts`
  * instead, so a local-only artifact contains no API-key code paths at all.
  */
@@ -56,6 +58,8 @@ export interface RemoteCapability {
    * build, which never reaches the cloud.
    */
   forwardedEnvKeys(): readonly string[];
+  /** Non-secret change marker used to retry a failed login after credentials change. */
+  savedCredentialFingerprint(env: NodeJS.ProcessEnv): string | undefined;
   /**
    * Stagehand options for a remote (BROWSERBASE) session. The target carries
    * the optional verified/proxies flags. Forwarded env vars (if any) are

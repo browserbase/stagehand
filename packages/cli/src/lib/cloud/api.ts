@@ -8,6 +8,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Readable } from "node:stream";
 
+import { credentialFetch, sdkCredentialFetch, resolveCredential } from "../auth/credentials.js";
 import { CommandFailure, fail } from "../errors.js";
 import { getCliVersion, peekInstallId, resolveInstallId } from "../identity.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
@@ -48,14 +49,14 @@ export type BrowserbaseApiCommand =
   | "secrets"
   | "sessions";
 
-export function resolveApiKey(args: { apiKey?: string }): string {
-  const apiKey = args.apiKey ?? process.env.BROWSERBASE_API_KEY;
+export function resolveApiKey(args: { apiKey?: string; baseUrl?: string }): string {
+  const apiKey = resolveCredential(args)?.apiKey;
   return (
     apiKey ||
     fail(
       [
         "Missing Browserbase API key. Cloud commands (search, fetch, sessions, functions, ...) need one.",
-        "Set BROWSERBASE_API_KEY or pass --api-key.",
+        "Run browse login, set BROWSERBASE_API_KEY, or pass --api-key.",
         `Get a key at ${browserbaseSettingsUrl}.`,
         "",
         "No key? Local browser automation needs none. Try: browse open <url> --local",
@@ -69,18 +70,21 @@ export function resolveApiKey(args: { apiKey?: string }): string {
   );
 }
 
-export function resolveBaseUrl(args: { baseUrl?: string }): string | undefined {
-  return args.baseUrl ?? process.env.BROWSERBASE_BASE_URL;
+export function resolveBaseUrl(args: { baseUrl?: string; apiKey?: string }): string | undefined {
+  return resolveCredential(args)?.baseUrl ?? args.baseUrl ?? process.env.BROWSERBASE_BASE_URL;
 }
 
-export function resolveApiBaseUrl(args: { baseUrl?: string }): string {
+export function resolveApiBaseUrl(args: { baseUrl?: string; apiKey?: string }): string {
   return resolveBaseUrl(args) ?? defaultBrowserbaseApiUrl;
 }
 
 export function createBrowserbaseClient(args: { apiKey?: string; baseUrl?: string }) {
+  const credential = resolveCredential(args);
+  const apiKey = credential?.apiKey ?? resolveApiKey(args);
   return new Browserbase({
-    apiKey: resolveApiKey(args),
-    baseURL: resolveBaseUrl(args),
+    apiKey,
+    baseURL: credential?.baseUrl ?? resolveBaseUrl(args),
+    ...(credential?.source === "saved" ? { fetch: sdkCredentialFetch(credential) } : {}),
     defaultHeaders: attributionHeaders(),
   });
 }
@@ -169,12 +173,15 @@ export async function requestBrowserbase(
 ): Promise<Response> {
   let response: Response;
   try {
-    response = await fetch(new URL(pathname, resolveApiBaseUrl(args)), {
+    const credential = resolveCredential(args);
+    const apiKey = credential?.apiKey ?? resolveApiKey(args);
+    const request = credential?.source === "saved" ? credentialFetch(credential) : fetch;
+    response = await request(new URL(pathname, credential?.baseUrl ?? resolveApiBaseUrl(args)), {
       ...init,
       headers: {
-        "x-bb-api-key": resolveApiKey(args),
+        "x-bb-api-key": apiKey,
         ...attributionHeaders(),
-        ...(init.headers ?? {}),
+        ...Object.fromEntries(new Headers(init.headers).entries()),
       },
     });
   } catch (error) {
