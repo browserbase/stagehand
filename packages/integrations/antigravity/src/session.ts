@@ -71,7 +71,7 @@ export function normalizeAntigravityModel(model: string): string {
 export function readAntigravityThinkingLevel(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
-  return env.EVAL_ANTIGRAVITY_THINKING_LEVEL?.trim() || undefined;
+  return env.EVAL_ANTIGRAVITY_THINKING_LEVEL?.trim().toLowerCase() || undefined;
 }
 
 /**

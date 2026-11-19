@@ -104,6 +104,10 @@ describe("readAntigravityThinkingLevel", () => {
     expect(readAntigravityThinkingLevel({ EVAL_ANTIGRAVITY_THINKING_LEVEL: " " })).toBeUndefined();
     expect(readAntigravityThinkingLevel({})).toBeUndefined();
   });
+
+  it("lowercases so it records what the runner sends", () => {
+    expect(readAntigravityThinkingLevel({ EVAL_ANTIGRAVITY_THINKING_LEVEL: "HIGH" })).toBe("high");
+  });
 });
 
 describe("runAntigravitySession", () => {
