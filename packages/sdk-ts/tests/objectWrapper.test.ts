@@ -8,6 +8,7 @@ import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-regis
 import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import {
+  type ConsoleListener,
   BrowserClipboard,
   BrowserContext,
   type ExperimentalBatchContext,
@@ -539,53 +540,64 @@ describe("Stagehand TS object wrapper", () => {
     });
   });
 
-  it("subscribes with page.on, canonicalizes console events, and unsubscribes", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, { ok: true });
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    const page = new Page(client, { pageId: "page-1" });
-    const events: unknown[] = [];
+  it("preserves the console callback and subscription types", () => {
+    expectTypeOf<Page["onConsole"]>().parameter(0).toEqualTypeOf<ConsoleListener>();
+    expectTypeOf<ConsoleListener>().toEqualTypeOf<Parameters<Page["on"]>[1]>();
+    expectTypeOf<Page["onConsole"]>().returns.toEqualTypeOf<ReturnType<Page["on"]>>();
+  });
 
-    const subscription = await page.on("console", (event) => events.push(event));
-    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
-    client.emitNotification({
-      jsonrpc: "2.0",
-      method: "page.cdp_event",
-      params: {
-        subscriptionId,
-        event: {
+  it.each(["on", "onConsole"] as const)(
+    "subscribes with page.on, canonicalizes console events, and unsubscribes (%s)",
+    async (method) => {
+      const subscribe = (page: Page, listener: Parameters<Page["onConsole"]>[0]) =>
+        method === "on" ? page.on("console", listener) : page.onConsole(listener);
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, { ok: true });
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const events: unknown[] = [];
+
+      const subscription = await subscribe(page, (event) => events.push(event));
+      const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
+      client.emitNotification({
+        jsonrpc: "2.0",
+        method: "page.cdp_event",
+        params: {
+          subscriptionId,
+          event: {
+            pageId: "page-1",
+            method: "Runtime.consoleAPICalled",
+            params: { type: "log", executionContextId: 1 },
+            sessionId: "session-1",
+            targetId: "target-1",
+          },
+        },
+      });
+
+      expect(events).toStrictEqual([
+        {
           pageId: "page-1",
           method: "Runtime.consoleAPICalled",
           params: { type: "log", executionContextId: 1 },
           sessionId: "session-1",
           targetId: "target-1",
         },
-      },
-    });
+      ]);
+      expect(client.calls[0]).toStrictEqual(
+        requestCall(StagehandMethods.pageOn, {
+          pageId: "page-1",
+          subscriptionId,
+          event: "console",
+        }),
+      );
 
-    expect(events).toStrictEqual([
-      {
-        pageId: "page-1",
-        method: "Runtime.consoleAPICalled",
-        params: { type: "log", executionContextId: 1 },
-        sessionId: "session-1",
-        targetId: "target-1",
-      },
-    ]);
-    expect(client.calls[0]).toStrictEqual(
-      requestCall(StagehandMethods.pageOn, {
-        pageId: "page-1",
-        subscriptionId,
-        event: "console",
-      }),
-    );
-
-    await subscription.unsubscribe();
-    expect(client.calls[1]).toStrictEqual(
-      requestCall(StagehandMethods.pageOff, { subscriptionId }),
-    );
-    expect(client.listeners).toHaveLength(0);
-  });
+      await subscription.unsubscribe();
+      expect(client.calls[1]).toStrictEqual(
+        requestCall(StagehandMethods.pageOff, { subscriptionId }),
+      );
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
 
   it.each(["toolsadded", "toolsremoved", "unknown", ""])(
     "rejects unsupported generic page.on event %j before subscribing",
@@ -600,23 +612,28 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
-  it("cleans up page.on state when remote registration fails", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    client.queueResponse(StagehandMethods.pageClose, { closed: true });
-    const page = new Page(client, { pageId: "page-1" });
+  it.each(["on", "onConsole"] as const)(
+    "cleans up page.on state when remote registration fails (%s)",
+    async (method) => {
+      const subscribe = (page: Page, listener: Parameters<Page["onConsole"]>[0]) =>
+        method === "on" ? page.on("console", listener) : page.onConsole(listener);
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      client.queueResponse(StagehandMethods.pageClose, { closed: true });
+      const page = new Page(client, { pageId: "page-1" });
 
-    await expect(page.on("console", () => {})).rejects.toThrow("registration failed");
-    expect(client.listeners).toHaveLength(0);
+      await expect(subscribe(page, () => {})).rejects.toThrow("registration failed");
+      expect(client.listeners).toHaveLength(0);
 
-    await page.close();
-    expect(client.calls.map((call) => call.method)).toStrictEqual([
-      "page.on",
-      "page.off",
-      "page.close",
-    ]);
-  });
+      await page.close();
+      expect(client.calls.map((call) => call.method)).toStrictEqual([
+        "page.on",
+        "page.off",
+        "page.close",
+      ]);
+    },
+  );
 
   it("delivers response wrappers with lazy body methods and filters subscription IDs", async () => {
     const client = new FakeProtocolClient();
@@ -771,7 +788,7 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
-  it.each(["on", "onToolsAdded", "onToolsRemoved"] as const)(
+  it.each(["on", "onConsole", "onToolsAdded", "onToolsRemoved"] as const)(
     "cleans up timed-out %s registration and retains failed cleanup for page close",
     async (method) => {
       for (const cleanupFails of [false, true]) {
@@ -813,76 +830,91 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
-  it("retries the remote unsubscribe after a transient failure", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, { ok: true });
-    client.queueResponse(StagehandMethods.pageOff, new Error("temporary failure"));
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    const page = new Page(client, { pageId: "page-1" });
-    const subscription = await page.on("console", () => {});
+  it.each(["on", "onConsole"] as const)(
+    "retries the remote unsubscribe after a transient failure (%s)",
+    async (method) => {
+      const subscribe = (page: Page, listener: Parameters<Page["onConsole"]>[0]) =>
+        method === "on" ? page.on("console", listener) : page.onConsole(listener);
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, { ok: true });
+      client.queueResponse(StagehandMethods.pageOff, new Error("temporary failure"));
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const subscription = await subscribe(page, () => {});
 
-    await expect(subscription.unsubscribe()).rejects.toThrow("temporary failure");
-    await expect(subscription.unsubscribe()).resolves.toBeUndefined();
+      await expect(subscription.unsubscribe()).rejects.toThrow("temporary failure");
+      await expect(subscription.unsubscribe()).resolves.toBeUndefined();
 
-    expect(client.calls.map((call) => call.method)).toStrictEqual([
-      "page.on",
-      "page.off",
-      "page.off",
-    ]);
-  });
+      expect(client.calls.map((call) => call.method)).toStrictEqual([
+        "page.on",
+        "page.off",
+        "page.off",
+      ]);
+    },
+  );
 
-  it("delivers page events in notification order across page-owned CDP sessions", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, { ok: true });
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    const page = new Page(client, { pageId: "page-1" });
-    const sessions: string[] = [];
-    const subscription = await page.on("console", (event) => {
-      sessions.push(event.sessionId);
-    });
-    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
-
-    for (const [sessionId, targetId] of [
-      ["main-session", "main-target"],
-      ["oopif-session", "oopif-target"],
-    ] as const) {
-      client.emitNotification({
-        jsonrpc: "2.0",
-        method: "page.cdp_event",
-        params: {
-          subscriptionId,
-          event: {
-            pageId: "page-1",
-            method: "Runtime.consoleAPICalled",
-            params: { type: "log", executionContextId: 1 },
-            sessionId,
-            targetId,
-          },
-        },
+  it.each(["on", "onConsole"] as const)(
+    "delivers page events in notification order across page-owned CDP sessions (%s)",
+    async (method) => {
+      const subscribe = (page: Page, listener: Parameters<Page["onConsole"]>[0]) =>
+        method === "on" ? page.on("console", listener) : page.onConsole(listener);
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, { ok: true });
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const sessions: string[] = [];
+      const subscription = await subscribe(page, (event) => {
+        sessions.push(event.sessionId);
       });
-    }
+      const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
 
-    expect(sessions).toStrictEqual(["main-session", "oopif-session"]);
-    await subscription.unsubscribe();
-  });
+      for (const [sessionId, targetId] of [
+        ["main-session", "main-target"],
+        ["oopif-session", "oopif-target"],
+      ] as const) {
+        client.emitNotification({
+          jsonrpc: "2.0",
+          method: "page.cdp_event",
+          params: {
+            subscriptionId,
+            event: {
+              pageId: "page-1",
+              method: "Runtime.consoleAPICalled",
+              params: { type: "log", executionContextId: 1 },
+              sessionId,
+              targetId,
+            },
+          },
+        });
+      }
 
-  it("unsubscribes page event listeners before closing the page", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, { ok: true });
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    client.queueResponse(StagehandMethods.pageClose, { closed: true });
-    const page = new Page(client, { pageId: "page-1" });
-    await page.on("console", () => {});
+      expect(sessions).toStrictEqual(["main-session", "oopif-session"]);
+      await subscription.unsubscribe();
+    },
+  );
 
-    await page.close();
+  it.each(["on", "onConsole"] as const)(
+    "unsubscribes page event listeners before closing the page (%s)",
+    async (method) => {
+      const subscribe = (page: Page, listener: Parameters<Page["onConsole"]>[0]) =>
+        method === "on" ? page.on("console", listener) : page.onConsole(listener);
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, { ok: true });
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      client.queueResponse(StagehandMethods.pageClose, { closed: true });
+      const page = new Page(client, { pageId: "page-1" });
+      await subscribe(page, () => {});
 
-    expect(client.calls.map((call) => call.method)).toStrictEqual([
-      "page.on",
-      "page.off",
-      "page.close",
-    ]);
-    expect(client.listeners).toHaveLength(0);
-  });
+      await page.close();
+
+      expect(client.calls.map((call) => call.method)).toStrictEqual([
+        "page.on",
+        "page.off",
+        "page.close",
+      ]);
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
 
   it.each(["page", "context"] as const)(
     "reads %s init-script paths through the SDK adapter",
@@ -914,19 +946,27 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
-  it.each([false, true])(
-    "reports browser listener failures (async: %s) through console warnings",
-    async (asyncListener) => {
+  it.each([
+    ["on", false],
+    ["on", true],
+    ["onConsole", false],
+    ["onConsole", true],
+  ] as const)(
+    "reports %s browser listener failures (async: %s) through console warnings",
+    async (method, asyncListener) => {
       const client = new FakeProtocolClient(browserPlatform);
       client.queueResponse(StagehandMethods.pageOn, { ok: true });
       client.queueResponse(StagehandMethods.pageOff, { ok: true });
       const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
         const page = new Page(client, { pageId: "page-1" });
-        const subscription = await page.on("console", () => {
+        const listener = () => {
           if (asyncListener) return Promise.reject(new Error("listener failed"));
           throw new Error("listener failed");
-        });
+        };
+        const subscription = await (method === "on"
+          ? page.on("console", listener)
+          : page.onConsole(listener));
         const subscriptionId = (client.calls[0]!.params as { subscriptionId: string })
           .subscriptionId;
         client.emitNotification({
