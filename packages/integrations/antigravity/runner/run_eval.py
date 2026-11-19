@@ -61,7 +61,7 @@ def normalize_model(model: str) -> str:
     """Strip provider prefixes: google/x, google_genai:x, gemini:x -> x."""
     for prefix in ("google_genai:", "google/", "gemini:"):
         if model.startswith(prefix):
-            return model[len(prefix):]
+            return model[len(prefix) :]
     return model
 
 
@@ -140,14 +140,17 @@ def stdio_server_spec(server: dict[str, Any], env: dict[str, str] | None = None)
     cwd = server.get("cwd")
     if cwd:
         command, args = sys.executable, ["-c", _CWD_SHIM, cwd, command, *args]
-    return {"command": command, "args": args,
-            "env": {**browser_env(env), **(server.get("env") or {})}}
+    return {
+        "command": command,
+        "args": args,
+        "env": {**browser_env(env), **(server.get("env") or {})},
+    }
 
 
 def path_within(path: str, root: str) -> bool:
     """True when `path` (plain path or file:// URI) resolves inside `root`."""
     if path.startswith("file://"):
-        path = path[len("file://"):]
+        path = path[len("file://") :]
     path = path.split("#", 1)[0]
     try:
         real, real_root = os.path.realpath(path), os.path.realpath(root)
@@ -167,8 +170,9 @@ def view_file_target(call_args: object, canonical_path: str | None) -> str | Non
     return None
 
 
-def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str],
-                          not_before: float | None = None) -> str | None:
+def find_offloaded_output(
+    brain_root: str, step_id: str | None, claimed: set[str], not_before: float | None = None
+) -> str | None:
     """Locate the output.txt the runtime wrote for a tool call, if it offloaded one.
 
     Files live at <brain>/<conversation>/.system_generated/steps/<n>/output.txt.
@@ -177,7 +181,9 @@ def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str
     call started (`not_before`), so a file left by an earlier call is never
     attributed to this one.
     """
-    pattern = os.path.join(glob.escape(brain_root), "*", ".system_generated", "steps", "*", "output.txt")
+    pattern = os.path.join(
+        glob.escape(brain_root), "*", ".system_generated", "steps", "*", "output.txt"
+    )
     candidates = sorted(path for path in glob.glob(pattern) if path not in claimed)
     if not candidates:
         return None
@@ -212,8 +218,12 @@ def offloaded_images(text: str, brain_root: str) -> list[dict[str, str]]:
                 data = handle.read()
         except OSError:
             continue
-        images.append({"data": base64.b64encode(data).decode(),
-                       "mime_type": mimetypes.guess_type(path)[0] or "image/png"})
+        images.append(
+            {
+                "data": base64.b64encode(data).decode(),
+                "mime_type": mimetypes.guess_type(path)[0] or "image/png",
+            }
+        )
     return images
 
 
@@ -284,7 +294,12 @@ def result_payload(result: object) -> tuple[str, list[dict[str, str]]]:
             kind = value.get("type")
             if kind == "image" and isinstance(value.get("data"), str):
                 images.append(
-                    {"data": value["data"], "mime_type": str(value.get("mimeType") or value.get("mime_type") or "image/png")}
+                    {
+                        "data": value["data"],
+                        "mime_type": str(
+                            value.get("mimeType") or value.get("mime_type") or "image/png"
+                        ),
+                    }
                 )
                 return
             if kind == "text" and isinstance(value.get("text"), str):
@@ -305,7 +320,11 @@ def result_payload(result: object) -> tuple[str, list[dict[str, str]]]:
             return
         data = getattr(value, "data", None)
         mime = getattr(value, "mime_type", None)
-        if isinstance(data, (bytes, bytearray)) and isinstance(mime, str) and mime.startswith("image/"):
+        if (
+            isinstance(data, (bytes, bytearray))
+            and isinstance(mime, str)
+            and mime.startswith("image/")
+        ):
             images.append({"data": base64.b64encode(data).decode(), "mime_type": mime})
             return
         mapping = _as_mapping(value)
@@ -327,8 +346,15 @@ def usage_event(usage: object) -> Event:
     Thoughts bill as output.
     """
     if usage is None:
-        return {"type": "usage", "reported": False, "input_tokens": 0, "output_tokens": 0,
-                "cache_read_input_tokens": 0, "reasoning_output_tokens": 0, "total_tokens": 0}
+        return {
+            "type": "usage",
+            "reported": False,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "reasoning_output_tokens": 0,
+            "total_tokens": 0,
+        }
 
     def count(name: str) -> int:
         value = getattr(usage, name, None)
@@ -401,7 +427,10 @@ async def run(config: RunnerConfig) -> int:
             (
                 (sid, st)
                 for sid, st in unreported
-                if any(tool_name(c.name) == call["name"] and (c.args or {}) == call["args"] for c in st.tool_calls)
+                if any(
+                    tool_name(c.name) == call["name"] and (c.args or {}) == call["args"]
+                    for c in st.tool_calls
+                )
             ),
             unreported[0] if unreported else None,
         )
@@ -425,21 +454,45 @@ async def run(config: RunnerConfig) -> int:
                 return pending_calls.pop(index)
         return pending_calls.pop(0) if pending_calls else None
 
-    def complete_call(call_id: str, name: str, server: str | None, ok: bool, text: str,
-                      images: list[dict[str, str]]) -> None:
-        call = take_pending(call_id, name) or {"id": call_id, "name": name, "server": server, "args": {}}
+    def complete_call(
+        call_id: str,
+        name: str,
+        server: str | None,
+        ok: bool,
+        text: str,
+        images: list[dict[str, str]],
+    ) -> None:
+        call = take_pending(call_id, name) or {
+            "id": call_id,
+            "name": name,
+            "server": server,
+            "args": {},
+        }
         reasoning_for(call)
         emit({"type": "tool_call", **call})
-        emit({"type": "tool_result", "id": call["id"], "name": call["name"],
-              "server": server or call.get("server"), "ok": ok, "text": text,
-              "images": images, "structured": None})
+        emit(
+            {
+                "type": "tool_result",
+                "id": call["id"],
+                "name": call["name"],
+                "server": server or call.get("server"),
+                "ok": ok,
+                "text": text,
+                "images": images,
+                "structured": None,
+            }
+        )
 
     @hooks.pre_tool_call_decide
     async def on_pre_tool(data: types.ToolCall) -> types.HookResult:
         nonlocal counted_calls
         name = tool_name(data.name)
-        call = {"id": str(data.id or ""), "name": name,
-                "server": data.server_name, "args": unwrap_hook_args(data.args)}
+        call = {
+            "id": str(data.id or ""),
+            "name": name,
+            "server": data.server_name,
+            "args": unwrap_hook_args(data.args),
+        }
         if data.server_name is None and name == _VIEW_FILE:
             # Reading saved tool outputs is free; anything else on disk is off limits.
             target = view_file_target(data.args, data.canonical_path)
@@ -447,8 +500,18 @@ async def run(config: RunnerConfig) -> int:
                 message = "view_file may only read tool outputs that were saved to a file."
                 reasoning_for(call)
                 emit({"type": "tool_call", **call})
-                emit({"type": "tool_result", "id": call["id"], "name": name, "server": None,
-                      "ok": False, "text": message, "images": [], "structured": None})
+                emit(
+                    {
+                        "type": "tool_result",
+                        "id": call["id"],
+                        "name": name,
+                        "server": None,
+                        "ok": False,
+                        "text": message,
+                        "images": [],
+                        "structured": None,
+                    }
+                )
                 return types.HookResult(allow=False, message=message)
         else:
             counted_calls += 1
@@ -468,8 +531,12 @@ async def run(config: RunnerConfig) -> int:
         if error is None and name != _VIEW_FILE:
             # What the hook sees for an offloaded output is only a title or a
             # pointer; record the real output so the verifier has the evidence.
-            saved = find_offloaded_output(brain_root, getattr(data, "step_id", None), claimed_outputs,
-                                          call_started.pop(str(getattr(data, "id", "") or ""), None))
+            saved = find_offloaded_output(
+                brain_root,
+                getattr(data, "step_id", None),
+                claimed_outputs,
+                call_started.pop(str(getattr(data, "id", "") or ""), None),
+            )
             if saved is not None:
                 try:
                     with open(saved, encoding="utf-8", errors="replace") as handle:
@@ -477,15 +544,22 @@ async def run(config: RunnerConfig) -> int:
                 except OSError:
                     pass
             images = images + offloaded_images(text, brain_root)
-        complete_call(str(getattr(data, "id", "") or ""), name,
-                      getattr(data, "server_name", None), error is None,
-                      sanitize_error(str(error)) if error else text, images)
+        complete_call(
+            str(getattr(data, "id", "") or ""),
+            name,
+            getattr(data, "server_name", None),
+            error is None,
+            sanitize_error(str(error)) if error else text,
+            images,
+        )
 
     @hooks.on_tool_error
     async def on_tool_error(data: Exception) -> None:
         call_id = str(getattr(data, "call_id", "") or getattr(data, "id", "") or "")
         name = tool_name(getattr(data, "tool_name", "") or getattr(data, "name", ""))
-        complete_call(call_id, name, None, False, sanitize_error(f"{type(data).__name__}: {data}"), [])
+        complete_call(
+            call_id, name, None, False, sanitize_error(f"{type(data).__name__}: {data}"), []
+        )
         return None  # let the SDK report the error to the model as usual
 
     def flush_pending() -> None:
@@ -494,10 +568,16 @@ async def run(config: RunnerConfig) -> int:
             reasoning_for(call)
             emit({"type": "tool_call", **call})
 
-    options = GeminiModelOptions(thinking_level=config.thinking_level) if config.thinking_level else None
-    target = ModelTarget(name=config.model, endpoint=GeminiAPIEndpoint(api_key=resolve_api_key(), options=options))
-    servers = [types.McpStdioServer(name=name, **stdio_server_spec(server))
-               for name, server in config.mcp_servers.items()]
+    options = (
+        GeminiModelOptions(thinking_level=config.thinking_level) if config.thinking_level else None
+    )
+    target = ModelTarget(
+        name=config.model, endpoint=GeminiAPIEndpoint(api_key=resolve_api_key(), options=options)
+    )
+    servers = [
+        types.McpStdioServer(name=name, **stdio_server_spec(server))
+        for name, server in config.mcp_servers.items()
+    ]
     agent_config = LocalAgentConfig(
         model=target,
         mcp_servers=servers,
@@ -519,14 +599,18 @@ async def run(config: RunnerConfig) -> int:
             return agent.conversation.total_usage if agent is not None else None
         except Exception:
             return None
+
     async def drive(agent: Any) -> None:
         nonlocal final_text
         response = await agent.chat(config.prompt)
         text_task = asyncio.create_task(response.text())
         budget_task = asyncio.create_task(budget_exhausted.wait())
         try:
-            done, _ = await asyncio.wait({text_task, budget_task}, timeout=config.wall_timeout_s,
-                                         return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait(
+                {text_task, budget_task},
+                timeout=config.wall_timeout_s,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
             budget_hit = budget_task in done and not text_task.done()
             if budget_hit or not done:
                 try:
@@ -550,13 +634,25 @@ async def run(config: RunnerConfig) -> int:
         flush_pending()
         stop = getattr(response.stop_reason, "value", str(response.stop_reason or ""))
         if budget_hit:
-            emit({"type": "error", "kind": "tool_step_budget",
-                  "message": f"Tool-call budget exhausted (max_tool_steps={config.max_tool_steps})"})
+            emit(
+                {
+                    "type": "error",
+                    "kind": "tool_step_budget",
+                    "message": f"Tool-call budget exhausted (max_tool_steps={config.max_tool_steps})",
+                }
+            )
         elif stop in _BUDGET_STOPS:
-            emit({"type": "error", "kind": "tool_step_budget",
-                  "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})"})
+            emit(
+                {
+                    "type": "error",
+                    "kind": "tool_step_budget",
+                    "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})",
+                }
+            )
         elif stop and stop != "UNSPECIFIED":
-            emit({"type": "error", "kind": "stop_reason", "message": f"Antigravity stopped: {stop}"})
+            emit(
+                {"type": "error", "kind": "stop_reason", "message": f"Antigravity stopped: {stop}"}
+            )
 
     # SIGTERM cancels this task so the agent context unwinds and the terminal
     # events below are still written. A handler that raises out of the event
@@ -578,7 +674,13 @@ async def run(config: RunnerConfig) -> int:
                 usage = current_usage()
     except WallTimeout:
         flush_pending()
-        emit({"type": "error", "kind": "wall_timeout", "message": f"wall timeout after {config.wall_timeout_s}s"})
+        emit(
+            {
+                "type": "error",
+                "kind": "wall_timeout",
+                "message": f"wall timeout after {config.wall_timeout_s}s",
+            }
+        )
     except (KeyboardInterrupt, asyncio.CancelledError):
         flush_pending()
         emit({"type": "error", "kind": "exception", "message": "terminated"})
@@ -587,7 +689,13 @@ async def run(config: RunnerConfig) -> int:
         return 1
     except Exception as error:  # noqa: BLE001 - reported to the parent as an event
         flush_pending()
-        emit({"type": "error", "kind": "exception", "message": sanitize_error(f"{type(error).__name__}: {error}")})
+        emit(
+            {
+                "type": "error",
+                "kind": "exception",
+                "message": sanitize_error(f"{type(error).__name__}: {error}"),
+            }
+        )
         emit({"type": "final", "text": final_text})
         emit(usage_event(usage))
         return 1
@@ -607,12 +715,21 @@ def main() -> int:
     try:
         config = parse_config(json.loads(sys.stdin.read()))
     except (json.JSONDecodeError, ValueError, TypeError) as error:
-        print_line({"type": "error", "kind": "config", "message": sanitize_error(str(error)), "ts": time.time()})
+        print_line(
+            {
+                "type": "error",
+                "kind": "config",
+                "message": sanitize_error(str(error)),
+                "ts": time.time(),
+            }
+        )
         return 2
     try:
         return asyncio.run(run(config))
     except KeyboardInterrupt:
-        print_line({"type": "error", "kind": "exception", "message": "terminated", "ts": time.time()})
+        print_line(
+            {"type": "error", "kind": "exception", "message": "terminated", "ts": time.time()}
+        )
         return 1
 
 

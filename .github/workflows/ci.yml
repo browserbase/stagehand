@@ -625,6 +625,7 @@ jobs:
 
       - run: uv lock --check
       - run: uv sync --locked --dev
+      - run: uv run --locked ruff format --check
       - run: uv run --locked pytest
 
   python-wheel-smoke:

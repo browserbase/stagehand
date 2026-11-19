@@ -51,7 +51,10 @@ def test_unwrap_hook_args():
 
 def test_result_payload_splits_text_and_images():
     text, images = run_eval.result_payload(
-        [{"type": "text", "text": "hello"}, {"type": "image", "data": "QUJD", "mimeType": "image/jpeg"}]
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image", "data": "QUJD", "mimeType": "image/jpeg"},
+        ]
     )
     assert text == "hello"
     assert images == [{"data": "QUJD", "mime_type": "image/jpeg"}]
@@ -82,9 +85,17 @@ def test_sanitize_error_redacts_google_keys():
 
 
 def test_browser_env_forwards_only_browser_credentials():
-    env = {"BROWSERBASE_API_KEY": "bb", "STAGEHAND_BROWSER": "browserbase", "GEMINI_API_KEY": "g",
-           "BROWSERBASE_PROJECT_ID": "", "PATH": "/bin"}
-    assert run_eval.browser_env(env) == {"BROWSERBASE_API_KEY": "bb", "STAGEHAND_BROWSER": "browserbase"}
+    env = {
+        "BROWSERBASE_API_KEY": "bb",
+        "STAGEHAND_BROWSER": "browserbase",
+        "GEMINI_API_KEY": "g",
+        "BROWSERBASE_PROJECT_ID": "",
+        "PATH": "/bin",
+    }
+    assert run_eval.browser_env(env) == {
+        "BROWSERBASE_API_KEY": "bb",
+        "STAGEHAND_BROWSER": "browserbase",
+    }
 
 
 def test_path_within_handles_uris_fragments_and_escapes(tmp_path):
@@ -101,7 +112,10 @@ def test_path_within_handles_uris_fragments_and_escapes(tmp_path):
 
 def test_view_file_target_prefers_canonical_path():
     assert run_eval.view_file_target({"AbsolutePath": "/a/b"}, "/c/d") == "/c/d"
-    assert run_eval.view_file_target({"StartLine": 1, "AbsolutePath": "file:///a/b"}, None) == "file:///a/b"
+    assert (
+        run_eval.view_file_target({"StartLine": 1, "AbsolutePath": "file:///a/b"}, None)
+        == "file:///a/b"
+    )
     assert run_eval.view_file_target({"StartLine": 1}, None) is None
 
 
@@ -131,7 +145,9 @@ def test_find_offloaded_output_ignores_files_older_than_the_call(tmp_path):
     # Without a start time there is nothing to tie the file to this call.
     assert run_eval.find_offloaded_output(str(root), "traj:7", set()) is None
     # A matching step number is enough on its own.
-    assert run_eval.find_offloaded_output(str(root), "traj:4", set(), not_before=later) == str(stale)
+    assert run_eval.find_offloaded_output(str(root), "traj:4", set(), not_before=later) == str(
+        stale
+    )
 
 
 def test_find_offloaded_output_is_none_when_ambiguous(tmp_path):
@@ -151,7 +167,9 @@ def test_offloaded_images_reads_only_inside_brain(tmp_path):
     outside = tmp_path / "other.png"
     outside.write_bytes(b"NO")
     text = f"[Resource offloaded to file://{media}] and file://{outside}"
-    assert run_eval.offloaded_images(text, str(root)) == [{"data": "UE5H", "mime_type": "image/png"}]
+    assert run_eval.offloaded_images(text, str(root)) == [
+        {"data": "UE5H", "mime_type": "image/png"}
+    ]
 
 
 @pytest.mark.parametrize("raw", [[], "go", 3, None])
@@ -196,21 +214,35 @@ def test_result_payload_reads_content_blocks_of_object_results():
         content: list[Block]
         isError: bool = False
 
-    result = CallToolResult(content=[Block(type="text", text="short output"),
-                                     Block(type="image", data="QUJD", mimeType="image/png")])
-    assert run_eval.result_payload(result) == ("short output", [{"data": "QUJD", "mime_type": "image/png"}])
+    result = CallToolResult(
+        content=[
+            Block(type="text", text="short output"),
+            Block(type="image", data="QUJD", mimeType="image/png"),
+        ]
+    )
+    assert run_eval.result_payload(result) == (
+        "short output",
+        [{"data": "QUJD", "mime_type": "image/png"}],
+    )
 
     # A plain object with the same shape reads the same way.
     plain = pytypes.SimpleNamespace(
-        content=[pytypes.SimpleNamespace(type="text", text="hi"),
-                 {"type": "image", "data": "WFla", "mime_type": "image/jpeg"}]
+        content=[
+            pytypes.SimpleNamespace(type="text", text="hi"),
+            {"type": "image", "data": "WFla", "mime_type": "image/jpeg"},
+        ]
     )
     assert run_eval.result_payload(plain) == ("hi", [{"data": "WFla", "mime_type": "image/jpeg"}])
 
     # A dict-shaped result, and an embedded text resource.
     assert run_eval.result_payload(
-        {"content": [{"type": "text", "text": "a"},
-                     {"type": "resource", "resource": {"uri": "x://y", "text": "b"}}], "isError": False}
+        {
+            "content": [
+                {"type": "text", "text": "a"},
+                {"type": "resource", "resource": {"uri": "x://y", "text": "b"}},
+            ],
+            "isError": False,
+        }
     ) == ("a\nb", [])
 
 
@@ -231,17 +263,26 @@ def test_stdio_server_spec_merges_browser_env_and_passes_command_through_without
         {"command": "node", "args": ["facade.js"], "env": {"STAGEHAND_BROWSER": "local"}},
         env={"BROWSERBASE_API_KEY": "bb", "STAGEHAND_BROWSER": "browserbase", "PATH": "/bin"},
     )
-    assert spec == {"command": "node", "args": ["facade.js"],
-                    "env": {"BROWSERBASE_API_KEY": "bb", "STAGEHAND_BROWSER": "local"}}
+    assert spec == {
+        "command": "node",
+        "args": ["facade.js"],
+        "env": {"BROWSERBASE_API_KEY": "bb", "STAGEHAND_BROWSER": "local"},
+    }
 
 
 def test_stdio_server_spec_runs_the_server_in_its_cwd(tmp_path):
     spec = run_eval.stdio_server_spec(
-        {"command": sys.executable, "args": ["-c", "import os; print(os.getcwd())"], "cwd": str(tmp_path)},
+        {
+            "command": sys.executable,
+            "args": ["-c", "import os; print(os.getcwd())"],
+            "cwd": str(tmp_path),
+        },
         env={},
     )
     assert spec["command"] == sys.executable
-    out = subprocess.run([spec["command"], *spec["args"]], capture_output=True, text=True, check=True)
+    out = subprocess.run(
+        [spec["command"], *spec["args"]], capture_output=True, text=True, check=True
+    )
     assert os.path.realpath(out.stdout.strip()) == os.path.realpath(tmp_path)
 
 
@@ -250,7 +291,9 @@ def test_stdio_server_spec_builds_a_valid_sdk_server(tmp_path):
 
     server = types.McpStdioServer(
         name="stagehand",
-        **run_eval.stdio_server_spec({"command": "node", "args": ["a.js"], "cwd": str(tmp_path)}, env={}),
+        **run_eval.stdio_server_spec(
+            {"command": "node", "args": ["a.js"], "cwd": str(tmp_path)}, env={}
+        ),
     )
     assert server.args[-2:] == ["node", "a.js"]
     assert str(tmp_path) in server.args
