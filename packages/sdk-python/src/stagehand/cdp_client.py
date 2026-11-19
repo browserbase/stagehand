@@ -241,7 +241,7 @@ class _ServiceWorkerBuild:
     @property
     def stale(self) -> bool:
         """A directory without a build identity predates this check and is not compared."""
-        if _UNSTAMPED_BUILD_ID in (self.running, self.on_disk):
+        if {"", _UNSTAMPED_BUILD_ID} & {self.running, self.on_disk}:
             return False
         return self.on_disk is not None and self.running != self.on_disk
 

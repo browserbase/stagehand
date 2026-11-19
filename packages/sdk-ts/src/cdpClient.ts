@@ -987,7 +987,9 @@ const UNSTAMPED_BUILD_ID = "__STAGEHAND_EXTENSION_BUILD_ID__";
 
 /** @internal A directory without a build identity predates this check and is not compared. */
 export function isStaleServiceWorker(build: ServiceWorkerBuild): boolean {
-  if (build.running === UNSTAMPED_BUILD_ID || build.onDisk === UNSTAMPED_BUILD_ID) return false;
+  if ([build.running, build.onDisk].some((id) => id === "" || id === UNSTAMPED_BUILD_ID)) {
+    return false;
+  }
   return build.onDisk !== null && build.running !== build.onDisk;
 }
 

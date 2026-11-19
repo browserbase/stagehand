@@ -744,80 +744,84 @@ describe("service worker build check", () => {
     installed: unknown[] = [],
     reloadError?: { code: number; message: string },
   ) {
-    const socket = new FakeWebSocket();
     const originalWebSocket = globalThis.WebSocket;
-    const createSocket = vi.fn(function WebSocket() {
-      return socket;
-    });
-    Object.defineProperty(createSocket, "OPEN", { value: 1 });
-    vi.stubGlobal("WebSocket", createSocket);
     const commands: Array<{ method: string; params?: Record<string, unknown> }> = [];
-    socket.send.mockImplementation((raw: string) => {
-      const command = JSON.parse(raw) as {
-        id: number;
-        method: string;
-        params?: Record<string, unknown>;
-        sessionId?: string;
-      };
-      const reloading =
-        command.method === "Extensions.loadUnpacked" &&
-        commands.some(({ method }) => method === "Extensions.uninstall");
-      commands.push({ method: command.method, params: command.params });
-      if (reloading && reloadError) {
+    let outcome: { client: CDPClient | undefined; error: Error | undefined };
+    try {
+      const socket = new FakeWebSocket();
+      const createSocket = vi.fn(function WebSocket() {
+        return socket;
+      });
+      Object.defineProperty(createSocket, "OPEN", { value: 1 });
+      vi.stubGlobal("WebSocket", createSocket);
+      socket.send.mockImplementation((raw: string) => {
+        const command = JSON.parse(raw) as {
+          id: number;
+          method: string;
+          params?: Record<string, unknown>;
+          sessionId?: string;
+        };
+        const reloading =
+          command.method === "Extensions.loadUnpacked" &&
+          commands.some(({ method }) => method === "Extensions.uninstall");
+        commands.push({ method: command.method, params: command.params });
+        if (reloading && reloadError) {
+          queueMicrotask(() => {
+            socket.dispatchEvent(
+              new MessageEvent("message", {
+                data: JSON.stringify({ id: command.id, error: reloadError }),
+              }),
+            );
+          });
+          return;
+        }
+        const result = (() => {
+          switch (command.method) {
+            case "Extensions.getExtensions":
+              return { extensions: installed };
+            case "Extensions.loadUnpacked":
+              return { id: "stagehand-extension" };
+            case "Target.getTargets":
+              return {
+                targetInfos: ["old-worker", "new-worker"].map((targetId) => ({
+                  targetId,
+                  type: "service_worker",
+                  title: "Stagehand",
+                  url: "chrome-extension://stagehand-extension/service-worker.js",
+                })),
+              };
+            case "Target.attachToTarget":
+              return { sessionId: `${String(command.params?.targetId)}-session` };
+            case "Runtime.evaluate":
+              return String(command.params?.expression).includes("build-id.txt")
+                ? { result: { value: builds[command.sessionId!.replace("-session", "")] } }
+                : { result: { value: ready } };
+            default:
+              return {};
+          }
+        })();
         queueMicrotask(() => {
           socket.dispatchEvent(
             new MessageEvent("message", {
-              data: JSON.stringify({ id: command.id, error: reloadError }),
+              data: JSON.stringify({ id: command.id, result, sessionId: command.sessionId }),
             }),
           );
         });
-        return;
-      }
-      const result = (() => {
-        switch (command.method) {
-          case "Extensions.getExtensions":
-            return { extensions: installed };
-          case "Extensions.loadUnpacked":
-            return { id: "stagehand-extension" };
-          case "Target.getTargets":
-            return {
-              targetInfos: ["old-worker", "new-worker"].map((targetId) => ({
-                targetId,
-                type: "service_worker",
-                title: "Stagehand",
-                url: "chrome-extension://stagehand-extension/service-worker.js",
-              })),
-            };
-          case "Target.attachToTarget":
-            return { sessionId: `${String(command.params?.targetId)}-session` };
-          case "Runtime.evaluate":
-            return String(command.params?.expression).includes("build-id.txt")
-              ? { result: { value: builds[command.sessionId!.replace("-session", "")] } }
-              : { result: { value: ready } };
-          default:
-            return {};
-        }
-      })();
-      queueMicrotask(() => {
-        socket.dispatchEvent(
-          new MessageEvent("message", {
-            data: JSON.stringify({ id: command.id, result, sessionId: command.sessionId }),
-          }),
-        );
       });
-    });
-    const connecting = CDPClient.connect({
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      ...source,
-      signal: new AbortController().signal,
-    });
-    await vi.waitFor(() => expect(createSocket).toHaveBeenCalledOnce());
-    socket.open();
-    const outcome = await connecting.then(
-      (client) => ({ client, error: undefined }),
-      (error: unknown) => ({ client: undefined, error: error as Error }),
-    );
-    vi.stubGlobal("WebSocket", originalWebSocket);
+      const connecting = CDPClient.connect({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        ...source,
+        signal: new AbortController().signal,
+      });
+      await vi.waitFor(() => expect(createSocket).toHaveBeenCalledOnce());
+      socket.open();
+      outcome = await connecting.then(
+        (client) => ({ client, error: undefined }),
+        (error: unknown) => ({ client: undefined, error: error as Error }),
+      );
+    } finally {
+      vi.stubGlobal("WebSocket", originalWebSocket);
+    }
     outcome.client?.close();
     return { ...outcome, commands };
   }
@@ -862,6 +866,16 @@ describe("service worker build check", () => {
     const { client, commands } = await connectWith(
       { extensionDir: "/bundle" },
       { "old-worker": { running: "a".repeat(64), onDisk: null } },
+    );
+
+    expect(client?.serviceWorker.targetId).toBe("old-worker");
+    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+  });
+
+  it("does not compare an empty build identity", async () => {
+    const { client, commands } = await connectWith(
+      { extensionDir: "/bundle" },
+      { "old-worker": { running: "a".repeat(64), onDisk: "" } },
     );
 
     expect(client?.serviceWorker.targetId).toBe("old-worker");
@@ -1014,6 +1028,8 @@ describe("service worker build check", () => {
     [{ running: null, onDisk: null }, false],
     [{ running: "__STAGEHAND_EXTENSION_BUILD_ID__", onDisk: "b" }, false],
     [{ running: "a", onDisk: "__STAGEHAND_EXTENSION_BUILD_ID__" }, false],
+    [{ running: "a", onDisk: "" }, false],
+    [{ running: "", onDisk: "b" }, false],
   ])("treats %j as stale: %s", (build, stale) => {
     expect(isStaleServiceWorker(build)).toBe(stale);
   });

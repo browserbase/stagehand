@@ -1213,7 +1213,11 @@ async def test_connect_replaces_a_worker_from_another_build_after_loading(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "build",
-    [{"running": _BUILD_A, "onDisk": _BUILD_A}, {"running": _BUILD_A, "onDisk": None}],
+    [
+        {"running": _BUILD_A, "onDisk": _BUILD_A},
+        {"running": _BUILD_A, "onDisk": None},
+        {"running": _BUILD_A, "onDisk": ""},
+    ],
 )
 async def test_connect_keeps_a_worker_that_is_current_or_unidentified(
     monkeypatch: pytest.MonkeyPatch, build: dict[str, object]
@@ -1409,6 +1413,8 @@ async def test_service_worker_build_is_not_compared_when_it_cannot_be_read(
         (None, None, False),
         ("__STAGEHAND_EXTENSION_BUILD_ID__", "b", False),
         ("a", "__STAGEHAND_EXTENSION_BUILD_ID__", False),
+        ("a", "", False),
+        ("", "b", False),
     ],
 )
 def test_service_worker_build_staleness(
