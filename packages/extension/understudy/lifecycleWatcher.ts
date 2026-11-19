@@ -84,10 +84,12 @@ export class LifecycleWatcher {
     });
 
     if (this.navigationCommandId === undefined) {
-      const mainFrame = this.page.registry.frames.get(this.page.mainFrameId());
-      this.setExpectedLoaderId(mainFrame?.lastSeen?.loaderId);
-      // Count requests the current document already has in flight.
-      this.idleStartTime = 0;
+      const loaderId = this.page.registry.frames.get(this.page.mainFrameId())?.lastSeen?.loaderId;
+      this.setExpectedLoaderId(loaderId);
+      // Count requests the current document already has in flight. Without a known loader the
+      // idle filter falls back to matching by frame, which would also count requests left over
+      // from earlier documents, so only count requests that start from now on.
+      if (loaderId) this.idleStartTime = 0;
       this.resolveNavigationStart(false);
     }
 
