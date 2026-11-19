@@ -8,6 +8,16 @@ import { describe, expect, it } from "vitest";
 import { fingerprintFiles } from "../../packages/extension/buildFingerprint.ts";
 import { checkExtensionBuild, readBuildFingerprint } from "./check-extension-build.ts";
 
+function packageLabels(typescriptDist: string, wheel: string): string[] {
+  return [
+    path.join(typescriptDist, "assets/stagehand-extension.zip"),
+    path.join(typescriptDist, "extension"),
+    `${wheel}:stagehand/_extension/`,
+    path.join(typescriptDist, "assets", "extension-build.json"),
+    `${wheel}:stagehand/_extension_build.json`,
+  ];
+}
+
 const encoder = new TextEncoder();
 const extensionFiles = new Map([
   ["manifest.json", encoder.encode('{"manifest_version":3}\n')],
@@ -36,24 +46,29 @@ async function releaseFixture(
     protocolVersion?: string;
     typescriptFiles?: Map<string, Uint8Array>;
     wheelFiles?: Map<string, Uint8Array>;
+    embeddedBuildInfo?: string | null;
   } = {},
 ) {
+  const buildInfo = encoder.encode(
+    JSON.stringify({
+      extensionVersion: options.extensionVersion ?? "9.8.7",
+      protocolVersion: options.protocolVersion ?? "6.5.4",
+      fingerprint: fingerprintFiles(extensionFiles),
+    }),
+  );
+  const embeddedBuildInfo =
+    options.embeddedBuildInfo === null
+      ? undefined
+      : options.embeddedBuildInfo === undefined
+        ? buildInfo
+        : encoder.encode(options.embeddedBuildInfo);
   const root = await mkdtemp(path.join(os.tmpdir(), "stagehand-extension-build-"));
   await writeTree(
     root,
     new Map([
       ["packages/extension/package.json", encoder.encode('{"version":"9.8.7"}')],
       ["packages/protocol/package.json", encoder.encode('{"version":"6.5.4"}')],
-      [
-        "packages/extension/artifacts/extension-build.json",
-        encoder.encode(
-          JSON.stringify({
-            extensionVersion: options.extensionVersion ?? "9.8.7",
-            protocolVersion: options.protocolVersion ?? "6.5.4",
-            fingerprint: fingerprintFiles(extensionFiles),
-          }),
-        ),
-      ],
+      ["packages/extension/artifacts/extension-build.json", buildInfo],
     ]),
   );
   const typescriptDist = path.join(root, "packages/sdk-ts/dist");
@@ -61,13 +76,17 @@ async function releaseFixture(
   await writeTree(path.join(typescriptDist, "extension"), typescriptFiles);
   await writeTree(
     typescriptDist,
-    new Map([["assets/stagehand-extension.zip", zipFiles(typescriptFiles)]]),
+    new Map([
+      ["assets/stagehand-extension.zip", zipFiles(typescriptFiles)],
+      ...(embeddedBuildInfo ? [["assets/extension-build.json", embeddedBuildInfo] as const] : []),
+    ]),
   );
   const wheel = path.join(root, "stagehand-4.4.0-py3-none-any.whl");
   await writeFile(
     wheel,
     zipSync({
       "stagehand/__init__.py": encoder.encode(""),
+      ...(embeddedBuildInfo ? { "stagehand/_extension_build.json": embeddedBuildInfo } : {}),
       // uv writes directory entries into wheels.
       "stagehand/_extension/": new Uint8Array(),
       "stagehand/_extension/offscreen/": new Uint8Array(),
@@ -119,8 +138,58 @@ describe("checkExtensionBuild", () => {
   it("accepts TypeScript and Python packages that carry the release build", async () => {
     const { root, typescriptDist, wheel } = await releaseFixture();
     const { checked } = await checkExtensionBuild(root, { typescriptDist, wheel });
-    expect(checked).toHaveLength(3);
+    expect(checked).toEqual(packageLabels(typescriptDist, wheel));
   });
+
+  it("checks only the TypeScript package when given --typescript", async () => {
+    const { root, typescriptDist, wheel } = await releaseFixture();
+    const { checked } = await checkExtensionBuild(root, { typescriptDist });
+    expect(checked).toEqual(
+      packageLabels(typescriptDist, wheel).filter((label) => !label.startsWith(wheel)),
+    );
+  });
+
+  it("checks only the wheel when given --wheel", async () => {
+    const { root, typescriptDist, wheel } = await releaseFixture();
+    const { checked } = await checkExtensionBuild(root, { wheel });
+    expect(checked).toEqual(
+      packageLabels(typescriptDist, wheel).filter((label) => label.startsWith(wheel)),
+    );
+  });
+
+  it("prints both build files when the embedded one differs", async () => {
+    const embedded = JSON.stringify({ fingerprint: fingerprintFiles(extensionFiles) });
+    const { root, wheel } = await releaseFixture({ embeddedBuildInfo: embedded });
+    const release = await readFile(
+      path.join(root, "packages/extension/artifacts/extension-build.json"),
+      "utf8",
+    );
+    const error = await checkExtensionBuild(root, { wheel }).catch((caught) => caught);
+    expect(error.message).toContain(`packaged ${JSON.stringify(embedded)}`);
+    expect(error.message).toContain(`release ${JSON.stringify(release)}`);
+  });
+
+  it.each([
+    ["typescript", "differs", "assets/extension-build.json differs from the release"],
+    ["typescript", "missing", "assets/extension-build.json is missing"],
+    ["wheel", "differs", "stagehand/_extension_build.json differs from the release"],
+    ["wheel", "missing", "stagehand/_extension_build.json is missing"],
+  ] as const)(
+    "rejects a %s package whose embedded build info %s",
+    async (side, problem, message) => {
+      const { root, typescriptDist, wheel } = await releaseFixture({
+        // Same fingerprint, other bytes: the embedded file is compared whole.
+        embeddedBuildInfo:
+          problem === "missing"
+            ? null
+            : JSON.stringify({ fingerprint: fingerprintFiles(extensionFiles) }),
+      });
+      const packaged = side === "typescript" ? { typescriptDist } : { wheel };
+      await expect(checkExtensionBuild(root, packaged)).rejects.toThrow(
+        side === "typescript" ? path.join(typescriptDist, message) : message,
+      );
+    },
+  );
 
   it("accepts packages that match the expected fingerprint", async () => {
     const { root, typescriptDist, wheel } = await releaseFixture();
@@ -129,7 +198,7 @@ describe("checkExtensionBuild", () => {
       { typescriptDist, wheel },
       fingerprintFiles(extensionFiles),
     );
-    expect(checked).toHaveLength(3);
+    expect(checked).toEqual(packageLabels(typescriptDist, wheel));
   });
 
   it("rejects a build that differs from the expected fingerprint", async () => {

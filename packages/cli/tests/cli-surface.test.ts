@@ -62,6 +62,7 @@ describe("CLI surface", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("$ browse");
     expect(result.stdout).toContain("cloud");
+    expect(result.stdout).toContain("discord");
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
     expect(result.stdout).toContain("skills");
@@ -88,6 +89,24 @@ describe("CLI surface", () => {
     expect(result.stdout).not.toContain("Start here (for AI agents):");
   });
 
+  it("shows community footer on root help", async () => {
+    const helpResult = await runCli(["--help"]);
+    const bareResult = await runCli([]);
+
+    for (const result of [helpResult, bareResult]) {
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("COMMUNITY");
+      expect(result.stdout).toContain("Discord:");
+      expect(result.stdout).toContain("Report a bug:");
+    }
+  });
+
+  it("does not show community footer on subcommand help", async () => {
+    const result = await runCli(["open", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("COMMUNITY");
+  });
+
   it("prints cloud topic help", async () => {
     const result = await runCli(["cloud", "--help"]);
     expect(result.exitCode).toBe(0);
@@ -111,11 +130,13 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("EXAMPLES");
   });
 
-  it("shows --verified and hides --advanced-stealth for sessions create", async () => {
+  it("shows public settings and hides --advanced-stealth for sessions create", async () => {
     const result = await runCli(["cloud", "sessions", "create", "--help"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--verified");
+    expect(result.stdout).toContain("--size");
+    expect(result.stdout).toMatch(/"regular",\s+"large",\s+"xlarge"/);
     expect(result.stdout).not.toContain("--advanced-stealth");
   });
 

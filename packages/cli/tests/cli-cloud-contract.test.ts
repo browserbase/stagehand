@@ -2080,7 +2080,9 @@ describe("cloud API contracts", () => {
           "sessions",
           "create",
           "--body",
-          '{"keepAlive":true,"browserSettings":{"context":{"id":"ctx_123"}}}',
+          '{"keepAlive":true,"browserSettings":{"context":{"id":"ctx_123"},"size":"regular"}}',
+          "--size",
+          "large",
           "--proxies",
           "--verified",
           "--solve-captchas",
@@ -2102,9 +2104,73 @@ describe("cloud API contracts", () => {
             verified: true,
             solveCaptchas: true,
             viewport: { width: 1280, height: 720 },
+            size: "large",
             context: { id: "ctx_123", persist: true },
           },
         });
+      },
+    );
+  });
+
+  it.each([
+    { name: "regular", args: ["--size", "regular"], size: "regular" },
+    { name: "xlarge", args: ["--size", "xlarge"], size: "xlarge" },
+    { name: "omitted", args: [], size: undefined },
+    {
+      name: "body only",
+      args: ["--body", '{"browserSettings":{"size":"large"}}'],
+      size: "large",
+    },
+  ])("sessions create forwards size: $name", async ({ args, size }) => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          ...args,
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(requests).toHaveLength(1);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        if (size === undefined) {
+          expect(requests[0]?.jsonBody).not.toHaveProperty("browserSettings");
+        } else {
+          expect(requests[0]?.jsonBody).toHaveProperty("browserSettings", { size });
+        }
+      },
+    );
+  });
+
+  it("sessions create rejects invalid sizes before making a request", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--size",
+          "medium",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain("--size");
+        expect(requests).toHaveLength(0);
       },
     );
   });
