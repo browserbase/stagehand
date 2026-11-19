@@ -248,7 +248,7 @@ A single wait isn't the same as Playwright's per-action retry. When a step races
 
 There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForFunction()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
 
-Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.onConsole()` subscribes to console events; Stagehand marks the older `page.on("console", handler)` form as deprecated. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
+Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.onConsole()` subscribes to console events; the older `page.on("console", handler)` form is deprecated. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
 
 Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
 
