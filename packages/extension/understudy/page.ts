@@ -41,11 +41,13 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
+import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { waitForFunction, type FunctionWaitOptions } from "./functionWait.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
   applyMaskOverlays,
@@ -258,7 +260,7 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(this);
     this.networkManager.trackSession(this.mainSession);
   }
 
@@ -381,7 +383,7 @@ export class Page {
 
   /**
    * Parent/child session emitted a `frameAttached`.
-   * Topology update + ownership stamped to **emitting session**.
+   * Topology update + ownership stamped to the session selected by Context.
    */
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
@@ -462,8 +464,16 @@ export class Page {
    * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
-  public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
-    if (this.disposed) return;
+  public adoptOopifSession(
+    childSession: CDPSessionLike,
+    childMainFrameId: string,
+    onFrameTreeSeeded?: () => void,
+    networkCapture?: SessionNetworkCapture,
+  ): void {
+    if (this.disposed) {
+      networkCapture?.dispose();
+      return;
+    }
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
     if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
@@ -472,7 +482,7 @@ export class Page {
       this.attachCDPEventSubscription(subscription, childSession);
     }
 
-    this.networkManager.trackSession(childSession);
+    this.networkManager.trackSession(childSession, networkCapture, childMainFrameId);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
 
@@ -487,9 +497,8 @@ export class Page {
     childSession.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
       this.onFrameNavigated(evt.frame, childSession);
     });
-    childSession.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
-      this.onFrameAttached(evt.frameId, evt.parentFrameId ?? null, childSession);
-    });
+    // Frame attachments are handled by BrowserContext.installFrameEventBridges,
+    // whose ownership guard protects adopted nested OOPIFs from late parent events.
     childSession.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
     });
@@ -512,6 +521,7 @@ export class Page {
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
           this.reconcilePendingWebMCPTools();
+          onFrameTreeSeeded?.();
         }
       } catch {
         // If snapshot races, live events will still converge the registry.
@@ -596,6 +606,17 @@ export class Page {
     return this.subscribeWhenReady(
       undefined,
       () => this.attachCDPEventListener(pageEventName, listener),
+      signal,
+    );
+  }
+
+  public async subscribeResponse(
+    listener: (response: Response) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.networkManager.subscribeResponse(listener),
       signal,
     );
   }
@@ -1745,6 +1766,19 @@ export class Page {
    */
   async waitForTimeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Poll an expression in the page's main world until its value is truthy. */
+  async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
+    return waitForFunction(
+      () => {
+        if (this.disposed) throw new Error("Page is disposed");
+        if (!this.conn.connected) throw new Error("CDP connection closed: function wait stopped");
+        return this.mainFrameWrapper;
+      },
+      expression,
+      options,
+    );
   }
 
   /**

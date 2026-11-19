@@ -56,12 +56,12 @@ function normaliseHeaderName(name: string): string {
   return name.toLowerCase();
 }
 
-/** Split multi-value header strings into discrete values while trimming. */
+/**
+ * Split multi-value header strings into discrete values while trimming. An
+ * empty value is kept: the header was still sent, so it must stay visible.
+ */
 function splitHeaderValues(value: string): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  return value.split(/\r?\n/).map((part) => part.trim());
 }
 
 /**
@@ -94,7 +94,7 @@ function parseHeadersText(headersText: string | undefined): Array<{ name: string
  */
 export class Response {
   readonly page: Page;
-  readonly session: CDPSessionLike;
+  private _session: CDPSessionLike;
   readonly requestId: string;
   readonly frameId?: string;
   readonly loaderId?: string;
@@ -147,7 +147,7 @@ export class Response {
     fromServiceWorker: boolean;
   }) {
     this.page = params.page;
-    this.session = params.session;
+    this._session = params.session;
     this.requestId = params.requestId;
     this.frameId = params.frameId;
     this.loaderId = params.loaderId;
@@ -360,6 +360,18 @@ export class Response {
       this.headerValuesMap.set(lower, segments);
       this.headersObject[lower] = segments.join(", ");
     }
+  }
+
+  get session(): CDPSessionLike {
+    return this._session;
+  }
+
+  /** Follow a document request into its iframe session before completing it. */
+  public updateSession(session: CDPSessionLike): void {
+    if (this.finishedSettled || session === this._session) return;
+    this.removeLifecycleListeners();
+    this._session = session;
+    this.installLifecycleListeners();
   }
 
   /** Marks the response as finished and resolves the `finished()` promise. */

@@ -98,6 +98,8 @@ import {
   PageWaitForLoadStateParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
+  PageWaitForFunctionParamsSchema,
+  PageWaitForFunctionResultSchema,
   PageWaitForTimeoutParamsSchema,
   PageWebMCPCancelInvocationParamsSchema,
   PageWebMCPInvocationResultParamsSchema,
@@ -386,6 +388,12 @@ export const StagehandMethods = {
     name: "page.wait_for_selector",
     params: PageWaitForSelectorParamsSchema,
     result: PageWaitForSelectorResultSchema,
+  },
+  pageWaitForFunction: {
+    name: "page.wait_for_function",
+    params: PageWaitForFunctionParamsSchema,
+    result: PageWaitForFunctionResultSchema,
+    resultWire: { opaqueKeys: ["value"] },
   },
   pageWebMCPTools: {
     name: "page.webmcp_tools",

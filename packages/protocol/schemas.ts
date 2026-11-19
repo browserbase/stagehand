@@ -1285,7 +1285,7 @@ export const ResponseFinishedResultSchema = z
 export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
 export const PageSubscriptionEventNameSchema = z
-  .enum(["console", "toolsadded", "toolsremoved"])
+  .enum(["console", "toolsadded", "toolsremoved", "response"])
   .meta({ id: "PageSubscriptionEventName" });
 
 export const PageCDPEventParamsSchema = z
@@ -1360,10 +1360,19 @@ export const PageToolsRemovedNotificationSchema = z
   })
   .meta({ id: "PageToolsRemovedNotification" });
 
+export const PageResponseNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("response"),
+    response: NavigationResponseDescriptorSchema,
+  })
+  .meta({ id: "PageResponseNotification" });
+
 export const PageEventNotificationSchema = z
   .discriminatedUnion("event", [
     PageToolsAddedNotificationSchema,
     PageToolsRemovedNotificationSchema,
+    PageResponseNotificationSchema,
   ])
   .meta({ id: "PageEventNotification" });
 
@@ -1560,7 +1569,10 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+// Keep the standalone default inline rather than extracting its metadata id into $defs.
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({
@@ -1887,6 +1899,17 @@ export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
 }).meta({ id: "PageWaitForTimeoutParams" });
 
+export const PageWaitForFunctionParamsSchema = PageIdParamsSchema.extend({
+  expression: z.string(),
+  options: z
+    .strictObject({
+      polling: z.union([z.literal("raf"), z.number().positive().max(2_147_483_647)]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+    })
+    .meta({ id: "PageWaitForFunctionOptions" })
+    .optional(),
+}).meta({ id: "PageWaitForFunctionParams" });
+
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
   options: z
@@ -2067,6 +2090,10 @@ export const PageWaitForSelectorResultSchema = z
     matched: z.boolean(),
   })
   .meta({ id: "PageWaitForSelectorResult" });
+
+export const PageWaitForFunctionResultSchema = z
+  .strictObject({ value: z.json() })
+  .meta({ id: "PageWaitForFunctionResult" });
 
 export const LocatorClickResultSchema = z
   .strictObject({

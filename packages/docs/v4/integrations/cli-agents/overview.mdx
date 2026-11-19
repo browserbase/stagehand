@@ -6,6 +6,17 @@ description: "Connect coding agents to a persistent Stagehand browser with the M
 
 Give your coding agent a browser it can use alongside its coding tools. Stagehand's MCP adapter lets the agent navigate a running application, interact with its UI, and read page content without adding a browser tool loop to your project.
 
+<Note>
+**Using Claude Code, Cursor, or Codex interactively?** Install the `browse` CLI and skill instead of cloning this repository:
+
+```bash
+npm install -g browse
+npx skills add browserbase/stagehand --skill browse
+```
+
+The CLI gives your agent a local browser with no API keys required. See [Choosing Your Path](/v4/first-steps/choosing-your-path) for when to use the CLI vs the MCP adapter below.
+</Note>
+
 CLI agents that support stdio MCP can connect to the Stagehand MCP adapter. One server process owns the browser session, so navigation, authentication, and page state remain available across tool calls.
 
 ## Choose a CLI agent

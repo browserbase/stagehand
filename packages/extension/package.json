@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-extension",
-  "version": "1.1.1",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,6 +28,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-browser-api": "workspace:*",
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",

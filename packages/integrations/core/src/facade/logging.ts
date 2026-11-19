@@ -2,6 +2,7 @@ import { closeSync, constants, openSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { StagehandFacadeConfigError } from "./config.js";
 import { sanitizeErrorMessage } from "../harness/redact.js";
+import type { FacadeEnv } from "./contract.js";
 
 export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
   const seen = new WeakSet<object>();
@@ -28,7 +29,7 @@ export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
     : JSON.parse(text);
 }
 
-export function createFacadeLogger(env: NodeJS.ProcessEnv = process.env) {
+export function createFacadeLogger(env: FacadeEnv = process.env) {
   const file = env.STAGEHAND_FACADE_LOG_FILE;
   const level = env.STAGEHAND_FACADE_LOG_LEVEL ?? (file ? "calls" : "off");
   if (!["off", "calls", "debug"].includes(level))

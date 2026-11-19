@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { expect, it, vi } from "vitest";
 import { localBrowser, Stagehand, type StagehandBrowser } from "@browserbasehq/stagehand";
+import { staleSnapshotIdError } from "../src/facade/contract.js";
 import { StagehandFacadeTools } from "../src/facade/tools.js";
 
 type FrameState = {
@@ -143,6 +144,19 @@ it("runs the shared facade against same-origin and out-of-process local frames",
     expect(snapshot).toContain("Same value");
     expect(snapshot).toContain("Cross value");
     expect(snapshot).toContain("Shadow-only action");
+    // Snapshot-ID actions resolve their XPaths inside the batch, across frames.
+    const crossValue = /\[(\d+-\d+)\] textbox: Cross value/u.exec(snapshot)?.[1];
+    expect(crossValue).toBeDefined();
+    await expect(
+      tools.runActions([{ op: "fill", id: crossValue!, value: "by-id" }]),
+    ).resolves.toMatchObject({ completed: 1 });
+    await expect(
+      tools.run(`return await page.frameLocator("#cross").locator("#value").inputValue();`),
+    ).resolves.toBe("by-id");
+    await tools.snapshot({ includeIframes: true });
+    await expect(tools.runActions([{ op: "click", id: "0-999999" }])).rejects.toThrow(
+      staleSnapshotIdError("0-999999"),
+    );
     // Confirm the cross-site frame really is an OOPIF, rather than assuming
     // that every cross-origin iframe has a distinct renderer process.
     const transport = stagehand.rpcClient.cdp as unknown as {

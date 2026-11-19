@@ -9,8 +9,8 @@ import * as observeService from "../services/observeService.js";
 
 describe("observe inference", () => {
   it("runs one structured observation call and exposes variable placeholders", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => observationResult(),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      observationResult(),
     );
 
     const result = await inference.observe({
@@ -61,18 +61,17 @@ describe("observe inference", () => {
   });
 
   it("rejects malformed structured observation output", async () => {
-    const generate = vi.fn(
-      async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        observationResult({
-          elements: [
-            {
-              elementId: "12",
-              description: "Invalid element ID",
-              method: "click",
-              arguments: [],
-            },
-          ],
-        }),
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      observationResult({
+        elements: [
+          {
+            elementId: "12",
+            description: "Invalid element ID",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      }),
     );
 
     await expect(

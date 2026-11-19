@@ -20,7 +20,7 @@ async function fixture(pendingChangesets = false) {
   const originalManifest = {
     name: "browse",
     version: "0.11.1",
-    dependencies: { sdk: "workspace:*" },
+    dependencies: { sdk: "4.0.0" },
   };
   await writeFile(manifestPath, `${JSON.stringify(originalManifest, null, 2)}\n`);
   const sdkManifestPath = path.join(repositoryRoot, "packages/sdk/package.json");
@@ -115,7 +115,7 @@ it("preserves pending release notes, SDK versions, and workspace dependencies", 
   expect(await prepareCliAlpha(repositoryRoot, "HEAD^", registry)).toBe(`0.11.1-alpha-${head}`);
   expect(await Promise.all(protectedPaths.map((file) => readFile(file, "utf8")))).toEqual(before);
   expect(JSON.parse(await readFile(manifestPath, "utf8")).dependencies).toEqual({
-    sdk: "workspace:*",
+    sdk: "4.0.0",
   });
   expect(git("diff", "--name-only")).toBe("packages/cli/package.json");
   expect(git("tag", "--list")).toBe("");

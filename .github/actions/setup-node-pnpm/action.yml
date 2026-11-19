@@ -4,7 +4,7 @@ inputs:
   node-version:
     description: Node.js version to use.
     required: false
-    default: "24"
+    default: "24.22.1"
   use-prebuilt-artifacts:
     description: Whether to download pre-built package from build artifacts.
     required: false

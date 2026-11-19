@@ -1,13 +1,13 @@
+import { sdkSourceFiles } from "./sdk-source-files.js";
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ python });
 
-type Language = "go" | "python" | "typescript";
+type Language = "python" | "typescript";
 
 type JsonSchema = {
   $ref?: string;
@@ -47,103 +47,32 @@ type RpcCall = {
 const sources = {
   typescript: new URL("../../packages/sdk-ts/src/", import.meta.url),
   python: new URL("../../packages/sdk-python/src/stagehand/", import.meta.url),
-  go: new URL("../../packages/sdk-go/", import.meta.url),
 } as const;
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 const referenceUrl = new URL("../../packages/docs/v4/reference/", import.meta.url);
 
-describe("Every public SDK field participates in the protocol pipeline", () => {
-  it("constructs every declared request field in every SDK", async () => {
+describe("Every public TypeScript/Python field participates in the protocol pipeline", () => {
+  it("constructs every declared request field in both active SDKs", async () => {
     const [protocol, calls, helperBodies] = await Promise.all([
       protocolDocument(),
       publicRpcCalls(),
       callableBodies(),
     ]);
-    const missing: string[] = [];
-
-    for (const call of calls) {
-      const method = protocol.properties.methods.properties[call.wireMethod];
-      if (!method) continue;
-      const params = resolveSchema(protocol, method.properties.params);
-      const topLevelFields = Object.keys(schemaProperties(protocol, params));
-      if (topLevelFields.length === 0 || isWholeParamsReference(call.params)) continue;
-
-      const scopeText = call.scope.text();
-      const extendedText = `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`;
-      const tokens = semanticTokens(extendedText);
-      const descriptorFields = Object.keys(
-        schemaProperties(protocol, protocol.$defs.LocatorDescriptor ?? {}),
-      );
-
-      for (const field of topLevelFields) {
-        const normalized = snakeCase(field);
-        const coveredByDescriptor =
-          /descriptor/u.test(scopeText) &&
-          descriptorFields.some((descriptorField) => snakeCase(descriptorField) === normalized);
-        if (!tokens.has(normalized) && !coveredByDescriptor) {
-          missing.push(`${call.language} ${call.wireMethod}: request field ${field}`);
-        }
-      }
-
-      for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
-        const nestedFields = nestedFieldNames(protocol, fieldSchema);
-        if (nestedFields.length === 0) continue;
-        if (directlyForwardsParameter(call.params, field, extendedText)) continue;
-
-        // A rest spread forwards newly added fields automatically. Explicitly transformed
-        // fields remain visible beside the spread.
-        if (/\.\.\.[A-Za-z_$][A-Za-z0-9_$]*\b/u.test(extendedText)) continue;
-        for (const nestedField of nestedFields) {
-          if (!tokens.has(snakeCase(nestedField))) {
-            missing.push(
-              `${call.language} ${call.wireMethod}: nested request field ${field}.${nestedField}`,
-            );
-          }
-        }
-      }
-    }
+    const missing = missingRequestFields(protocol, calls, helperBodies);
 
     expect(
-      missing.sort(),
+      missing,
       "Every protocol request field must be visibly constructed, forwarded wholesale, or handled by a complete adapter",
     ).toEqual([]);
   }, 15_000);
 
-  it("consumes every declared result field in every SDK", async () => {
+  it("consumes every declared result field in both active SDKs", async () => {
     const [protocol, calls] = await Promise.all([protocolDocument(), publicRpcCalls()]);
-    const missing: string[] = [];
-
-    for (const call of calls) {
-      const method = protocol.properties.methods.properties[call.wireMethod];
-      if (!method) continue;
-      const fields = Object.entries(
-        schemaProperties(protocol, resolveSchema(protocol, method.properties.result)),
-      )
-        .filter(([, schema]) => resolveSchema(protocol, schema).const === undefined)
-        .map(([field]) => field);
-      if (fields.length === 0 || callReturnsTransportResult(call)) continue;
-
-      const resultName = resultBinding(call);
-      if (!resultName) continue;
-      const scopeText = call.scope.text();
-      if (
-        returnsOrSpreads(scopeText, resultName) ||
-        passesResultWhole(call, resultName) ||
-        assignsResultWhole(call, resultName)
-      ) {
-        continue;
-      }
-
-      for (const field of fields) {
-        if (!usesResultField(scopeText, resultName, field)) {
-          missing.push(`${call.language} ${call.wireMethod}: result field ${field}`);
-        }
-      }
-    }
+    const missing = missingResultFields(protocol, calls);
 
     expect(
-      missing.sort(),
+      missing,
       "Every protocol result field must be returned wholesale, spread, or visibly consumed by the public wrapper",
     ).toEqual([]);
   });
@@ -173,6 +102,158 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
     ).toStrictEqual(referencePages);
   });
 });
+
+describe("active SDK field coverage regressions", () => {
+  const protocol: ProtocolDocument = {
+    $defs: {},
+    properties: {
+      methods: {
+        properties: {
+          "page.fresh": {
+            properties: {
+              params: { properties: { freshOption: { type: "string" } } },
+              result: { properties: { value: { type: "string" }, added: { type: "string" } } },
+            },
+          },
+        },
+      },
+    },
+  };
+  const fixtures = {
+    typescript: `class Page {
+      async fresh(input: string) {
+        const result = await this.client.send(StagehandMethods.fresh, { freshOption: input });
+        return { value: result.value, added: result.added };
+      }
+    }`,
+    python: `class Page:
+    async def fresh(self, input: str):
+        result = await self._client.send("page.fresh", {"fresh_option": input}, Result)
+        return {"value": result.value, "added": result.added}
+`,
+  };
+
+  function callsFromFixtures(missing?: { language: Language; field: "request" | "result" }) {
+    return (Object.entries(fixtures) as Array<[Language, string]>).flatMap(([language, source]) => {
+      if (missing?.language === language) {
+        source =
+          missing.field === "request"
+            ? source.replace(/freshOption: input|"fresh_option": input/u, "")
+            : source.replace(/, added: result.added|, "added": result.added/u, "");
+      }
+      const calls = rpcCallsInModule(
+        language,
+        "page",
+        parse(language, source).root(),
+        new Map([["fresh", "page.fresh"]]),
+      );
+      expect(calls, `${language} fixture must exercise a public RPC call`).toHaveLength(1);
+      return calls;
+    });
+  }
+
+  it("accepts a new request and result field in TS/Python without a Go implementation", () => {
+    const calls = callsFromFixtures();
+    expect(missingRequestFields(protocol, calls, new Map())).toEqual([]);
+    expect(missingResultFields(protocol, calls)).toEqual([]);
+  });
+
+  it.each(["typescript", "python"] as const)("detects a missing %s request field", (language) => {
+    expect(
+      missingRequestFields(protocol, callsFromFixtures({ language, field: "request" }), new Map()),
+    ).toEqual([`${language} page.fresh: request field freshOption`]);
+  });
+
+  it.each(["typescript", "python"] as const)("detects a missing %s result field", (language) => {
+    expect(missingResultFields(protocol, callsFromFixtures({ language, field: "result" }))).toEqual(
+      [`${language} page.fresh: result field added`],
+    );
+  });
+});
+
+function missingRequestFields(
+  protocol: ProtocolDocument,
+  calls: RpcCall[],
+  helperBodies: ReadonlyMap<Language, ReadonlyMap<string, string>>,
+): string[] {
+  const missing: string[] = [];
+
+  for (const call of calls) {
+    const method = protocol.properties.methods.properties[call.wireMethod];
+    if (!method) continue;
+    const params = resolveSchema(protocol, method.properties.params);
+    const topLevelFields = Object.keys(schemaProperties(protocol, params));
+    if (topLevelFields.length === 0 || isWholeParamsReference(call.params)) continue;
+
+    const scopeText = call.scope.text();
+    const extendedText = `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`;
+    const tokens = semanticTokens(extendedText);
+    const descriptorFields = Object.keys(
+      schemaProperties(protocol, protocol.$defs.LocatorDescriptor ?? {}),
+    );
+
+    for (const field of topLevelFields) {
+      const normalized = snakeCase(field);
+      const coveredByDescriptor =
+        /descriptor/u.test(scopeText) &&
+        descriptorFields.some((descriptorField) => snakeCase(descriptorField) === normalized);
+      if (!tokens.has(normalized) && !coveredByDescriptor) {
+        missing.push(`${call.language} ${call.wireMethod}: request field ${field}`);
+      }
+    }
+
+    for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
+      const nestedFields = nestedFieldNames(protocol, fieldSchema);
+      if (nestedFields.length === 0) continue;
+      if (directlyForwardsParameter(call.params, field, extendedText)) continue;
+
+      // A rest spread forwards newly added fields automatically. Explicitly transformed
+      // fields remain visible beside the spread.
+      if (/\.\.\.[A-Za-z_$][A-Za-z0-9_$]*\b/u.test(extendedText)) continue;
+      for (const nestedField of nestedFields) {
+        if (!tokens.has(snakeCase(nestedField))) {
+          missing.push(
+            `${call.language} ${call.wireMethod}: nested request field ${field}.${nestedField}`,
+          );
+        }
+      }
+    }
+  }
+  return missing.sort();
+}
+
+function missingResultFields(protocol: ProtocolDocument, calls: RpcCall[]): string[] {
+  const missing: string[] = [];
+
+  for (const call of calls) {
+    const method = protocol.properties.methods.properties[call.wireMethod];
+    if (!method) continue;
+    const fields = Object.entries(
+      schemaProperties(protocol, resolveSchema(protocol, method.properties.result)),
+    )
+      .filter(([, schema]) => resolveSchema(protocol, schema).const === undefined)
+      .map(([field]) => field);
+    if (fields.length === 0 || callReturnsTransportResult(call)) continue;
+
+    const resultName = resultBinding(call);
+    if (!resultName) continue;
+    const scopeText = call.scope.text();
+    if (
+      returnsOrSpreads(scopeText, resultName) ||
+      passesResultWhole(call, resultName) ||
+      assignsResultWhole(call, resultName)
+    ) {
+      continue;
+    }
+
+    for (const field of fields) {
+      if (!usesResultField(scopeText, resultName, field)) {
+        missing.push(`${call.language} ${call.wireMethod}: result field ${field}`);
+      }
+    }
+  }
+  return missing.sort();
+}
 
 async function protocolDocument(): Promise<ProtocolDocument> {
   return JSON.parse(await readFile(protocolUrl, "utf8")) as ProtocolDocument;
@@ -207,9 +288,9 @@ function nestedFieldNames(protocol: ProtocolDocument, schema: JsonSchema): strin
   return [...new Set(Object.keys(properties))];
 }
 
-async function sdkSourceFiles(source: URL, language: Language): Promise<string[]> {
-  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
-  return (await readdir(source, { recursive: true }))
+async function sdkLanguageSourceFiles(source: URL, language: Language): Promise<string[]> {
+  const extension = language === "typescript" ? ".ts" : ".py";
+  return (await sdkSourceFiles(source))
     .filter(
       (file) =>
         file.endsWith(extension) &&
@@ -228,43 +309,51 @@ async function publicRpcCalls(): Promise<RpcCall[]> {
   ]);
   const calls = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const languageCalls: RpcCall[] = [];
 
       for (const file of files) {
         if (language === "typescript" && !exportedTypescriptModules.has(file)) continue;
         const module = parse(language, await readFile(new URL(file, source), "utf8")).root();
-        const callKind = language === "python" ? "call" : "call_expression";
-        for (const call of module.findAll({ rule: { kind: callKind } })) {
-          const called = namedChildren(call)[0]?.text();
-          const isOutbound =
-            language === "go"
-              ? called?.endsWith(".call") === true
-              : called?.endsWith(".send") === true || called?.endsWith("?.send") === true;
-          if (!isOutbound) continue;
-          const arguments_ = callArguments(call);
-          const methodNode = language === "go" ? arguments_[1] : arguments_[0];
-          const params = language === "go" ? arguments_[2] : arguments_[1];
-          const result = language === "go" ? arguments_[3] : arguments_[2];
-          const wireMethod = wireMethodName(methodNode, language, registry);
-          const scope = enclosingScope(call, language);
-          if (!wireMethod || !params || !scope || !isPublicScope(scope, language)) continue;
-          languageCalls.push({
-            call,
-            file,
-            language,
-            module,
-            params,
-            result,
-            scope,
-            wireMethod,
-          });
-        }
+        languageCalls.push(...rpcCallsInModule(language, file, module, registry));
       }
       return languageCalls;
     }),
   );
   return calls.flat();
+}
+
+function rpcCallsInModule(
+  language: Language,
+  file: string,
+  module: SgNode,
+  registry: ReadonlyMap<string, string>,
+): RpcCall[] {
+  const calls: RpcCall[] = [];
+  const callKind = language === "python" ? "call" : "call_expression";
+  for (const call of module.findAll({ rule: { kind: callKind } })) {
+    const called = namedChildren(call)[0]?.text();
+    const isOutbound = called?.endsWith(".send") === true || called?.endsWith("?.send") === true;
+    if (!isOutbound) continue;
+    const arguments_ = callArguments(call);
+    const methodNode = arguments_[0];
+    const params = arguments_[1];
+    const result = arguments_[2];
+    const wireMethod = wireMethodName(methodNode, language, registry);
+    const scope = enclosingScope(call, language);
+    if (!wireMethod || !params || !scope || !isPublicScope(scope, language)) continue;
+    calls.push({
+      call,
+      file,
+      language,
+      module,
+      params,
+      result,
+      scope,
+      wireMethod,
+    });
+  }
+  return calls;
 }
 
 async function registryNames(): Promise<Map<string, string>> {
@@ -298,17 +387,14 @@ function wireMethodName(
     if (!method.text().startsWith("StagehandMethods.")) return undefined;
     return registry.get(method.text().slice("StagehandMethods.".length));
   }
-  const expectedKind = language === "python" ? "string" : "interpreted_string_literal";
-  return method.kind() === expectedKind ? stringLiteral(method) : undefined;
+  return method.kind() === "string" ? stringLiteral(method) : undefined;
 }
 
 function enclosingScope(call: SgNode, language: Language): SgNode | undefined {
   const kinds =
     language === "typescript"
       ? new Set<string>(["method_definition", "function_declaration"])
-      : language === "python"
-        ? new Set<string>(["function_definition"])
-        : new Set<string>(["method_declaration", "function_declaration"]);
+      : new Set<string>(["function_definition"]);
   const scopes = call.ancestors().filter((ancestor) => kinds.has(String(ancestor.kind())));
   return language === "python" ? scopes.at(-1) : scopes[0];
 }
@@ -317,7 +403,6 @@ function isPublicScope(scope: SgNode, language: Language): boolean {
   const name = scope.field("name")?.text() ?? firstNamedIdentifier(scope)?.text();
   if (!name) return false;
   if (language === "python") return !name.startsWith("_");
-  if (language === "go") return /^[A-Z]/u.test(name);
   if (name === "constructor" || name.startsWith("#")) return false;
   const prefix = scope.text().slice(0, scope.text().indexOf(name));
   return !/\b(?:private|protected)\b/u.test(prefix);
@@ -354,11 +439,7 @@ function directlyForwardsParameter(params: SgNode, field: string, scopeText: str
 }
 
 function isWholeParamsReference(params: SgNode): boolean {
-  return (
-    params.kind() === "member_expression" ||
-    params.kind() === "attribute" ||
-    params.kind() === "selector_expression"
-  );
+  return params.kind() === "member_expression" || params.kind() === "attribute";
 }
 
 function callReturnsTransportResult(call: RpcCall): boolean {
@@ -369,12 +450,6 @@ function callReturnsTransportResult(call: RpcCall): boolean {
 }
 
 function resultBinding(call: RpcCall): string | undefined {
-  if (call.language === "go") {
-    return call.result
-      ?.text()
-      .replace(/^&/u, "")
-      .match(/[A-Za-z_][A-Za-z0-9_]*/u)?.[0];
-  }
   const assignmentKinds =
     call.language === "python"
       ? new Set<string>(["assignment"])
@@ -426,20 +501,16 @@ function passesResultWhole(call: RpcCall, resultName: string): boolean {
 
 function assignsResultWhole(call: RpcCall, resultName: string): boolean {
   const text = call.scope.text();
+  // Copying result.value (or result["value"]) does not forward the whole result.
   if (
     new RegExp(
-      `(?:[.#][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b`,
+      `(?:[.#][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b(?!\\s*(?:\\?\\.|[.\\[]))`,
       "u",
     ).test(text)
   ) {
     return true;
   }
-  const assignmentKinds =
-    call.language === "python"
-      ? ["assignment"]
-      : call.language === "go"
-        ? ["assignment_statement"]
-        : ["assignment_expression"];
+  const assignmentKinds = call.language === "python" ? ["assignment"] : ["assignment_expression"];
   return assignmentKinds.some((kind) =>
     call.scope.findAll({ rule: { kind } }).some((assignment) => {
       const children = namedChildren(assignment);
@@ -453,16 +524,14 @@ function assignsResultWhole(call: RpcCall, resultName: string): boolean {
 async function callableBodies(): Promise<Map<Language, Map<string, string>>> {
   const entries = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const bodies = new Map<string, string>();
       for (const file of files) {
         const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
         const kinds =
           language === "typescript"
             ? ["function_declaration", "method_definition"]
-            : language === "python"
-              ? ["function_definition"]
-              : ["function_declaration", "method_declaration"];
+            : ["function_definition"];
         for (const kind of kinds) {
           for (const callable of root.findAll({ rule: { kind } })) {
             const name = callable.field("name")?.text() ?? firstNamedIdentifier(callable)?.text();
@@ -504,9 +573,17 @@ async function typescriptExportedModules(): Promise<Set<string>> {
     const source = statement
       .findAll({ rule: { kind: "string" } })
       .map(stringLiteral)
-      .find((value) => value.startsWith("./"));
+      .find(
+        (value) =>
+          value.startsWith("./") || value.startsWith("@browserbasehq/stagehand-browser-api/"),
+      );
     if (!source) continue;
-    modules.add(source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"));
+    modules.add(
+      source.startsWith("@browserbasehq/stagehand-browser-api/")
+        ? source.replace("@browserbasehq/stagehand-browser-api/", "../../shared/browser-api/src/") +
+            ".ts"
+        : source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"),
+    );
   }
   return modules;
 }

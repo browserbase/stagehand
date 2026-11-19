@@ -1,3 +1,4 @@
+import { nodeBrowserApiPlatform } from "./nodeBrowserApiPlatform.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   ROOT_CONTEXT,
@@ -82,6 +83,7 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageWebMCPTools.name, 1_000],
 ]);
 const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
+  StagehandMethods.pageWaitForFunction.name,
   StagehandMethods.stagehandInit.name,
   StagehandMethods.stagehandClose.name,
   StagehandMethods.stagehandAct.name,
@@ -146,6 +148,8 @@ export type CDPTransport = {
 };
 
 export class RPCClient {
+  readonly platform = nodeBrowserApiPlatform;
+
   readonly serviceWorker: ServiceWorkerInfo;
   readonly browserWebSocketDebuggerUrl?: string;
   nextRequestId = 1;
@@ -558,6 +562,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pagePDF.name:
     case StagehandMethods.pageSnapshot.name:
     case StagehandMethods.pageWaitForSelector.name:
+    case StagehandMethods.pageWaitForFunction.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:
       operationTimeoutMs = numericProperty(recordProperty(params, "options"), "timeout");
@@ -574,7 +579,8 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     if (
       (method === StagehandMethods.pagePDF.name ||
         method === StagehandMethods.pageSnapshot.name ||
-        method === StagehandMethods.pageWaitForSelector.name) &&
+        method === StagehandMethods.pageWaitForSelector.name ||
+        method === StagehandMethods.pageWaitForFunction.name) &&
       operationTimeoutMs === 0
     )
       return undefined;

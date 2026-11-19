@@ -1,4 +1,4 @@
-import { runClaudeAgentSession } from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
+import { runClaudeAgentSession } from "@browserbasehq/stagehand-integrations-claude-code";
 import {
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,

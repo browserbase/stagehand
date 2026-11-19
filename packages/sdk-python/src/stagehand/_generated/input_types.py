@@ -277,6 +277,9 @@ FieldSchema13: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema13"
 FieldSchema14: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema14"], dict[str, "FieldSchema14"]]]
 
 
+FieldSchema15: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema15"], dict[str, "FieldSchema15"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -332,7 +335,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema14]
+    data: NotRequired[FieldSchema15]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -718,7 +721,7 @@ class PageAddInitScriptParams(TypedDict):
     source: str
 
 
-PageCDPEventParams: TypeAlias = dict[str, FieldSchema12]
+PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]
 
 
 class PageCDPEvent(TypedDict):
@@ -889,6 +892,15 @@ class PageReloadParams(TypedDict):
     options: NotRequired[PageReloadOptions]
 
 
+class PageResponseNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["response"]
+    response: NavigationResponseDescriptor
+
+
 class PageScreenshotClip(TypedDict):
     x: float
     y: float
@@ -954,7 +966,7 @@ class PageSnapshotParams(TypedDict):
     options: NotRequired[PageSnapshotOptions]
 
 
-PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved"]
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved", "response"]
 
 
 class PageOnParams(TypedDict):
@@ -982,6 +994,21 @@ PageUrlResult: TypeAlias = str
 
 class PageVoidResult(TypedDict):
     ok: Literal[True]
+
+
+class PageWaitForFunctionOptions(TypedDict):
+    polling: NotRequired[Literal["raf"] | float]
+    timeout: NotRequired[int]
+
+
+class PageWaitForFunctionParams(TypedDict):
+    page_id: str
+    expression: str
+    options: NotRequired[PageWaitForFunctionOptions]
+
+
+class PageWaitForFunctionResult(TypedDict):
+    value: FieldSchema10
 
 
 class PageWaitForLoadStateParams(TypedDict):
@@ -1101,7 +1128,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema11]
+StagehandLogData: TypeAlias = dict[str, FieldSchema12]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -1242,7 +1269,7 @@ class WebMCPAnnotation(TypedDict):
 WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
 
 
-WebMCPJsonValue: TypeAlias = FieldSchema10
+WebMCPJsonValue: TypeAlias = FieldSchema11
 
 
 class PageWebMCPInvokeToolParams(TypedDict):
@@ -1308,7 +1335,7 @@ class PageToolsRemovedNotification(TypedDict):
     tools: list[WebMCPToolIdentity]
 
 
-PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification
+PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification | PageResponseNotification
 
 
 class WebMCPToolResponse(TypedDict):

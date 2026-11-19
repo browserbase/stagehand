@@ -14,13 +14,11 @@ import {
 } from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
-  vi.fn(
-    async (): Promise<RunEvalsResult> => ({
-      experimentName: "test-experiment",
-      summary: { passed: 0, failed: 0, total: 0 },
-      results: [],
-    }),
-  ),
+  vi.fn(async (): Promise<RunEvalsResult> => ({
+    experimentName: "test-experiment",
+    summary: { passed: 0, failed: 0, total: 0 },
+    results: [],
+  })),
 );
 
 vi.mock("../../framework/runner.js", () => ({

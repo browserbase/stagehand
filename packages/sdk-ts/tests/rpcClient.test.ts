@@ -1,4 +1,5 @@
 import { RPCResponseTimeoutError } from "../src/rpcErrors.js";
+import { nodeBrowserApiPlatform } from "../src/nodeBrowserApiPlatform.js";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import {
@@ -104,6 +105,12 @@ describe("RPCClientOptionsSchema", () => {
 });
 
 describe("RPCClient", () => {
+  it("supplies Node capabilities to the browser API", () => {
+    const client = new RPCClient(new FakeCDPTransport({}));
+
+    expect(client.platform).toBe(nodeBrowserApiPlatform);
+  });
+
   it("keeps callback batches in the ordinary pending RPC path", async () => {
     const source = "async () => undefined";
     const cdp = new FakeCDPTransport({});
@@ -449,7 +456,7 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector"])(
+  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector", "page.wait_for_function"])(
     "honors explicit %s deadlines and allows disabling them",
     (method) => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
@@ -460,6 +467,13 @@ describe("RPCClient", () => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
     },
   );
+
+  it("leaves function waits without a response deadline by default", () => {
+    expect(rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, {})).toBeUndefined();
+    expect(
+      rpcResponseTimeoutMs(StagehandMethods.pageWaitForFunction.name, { options: {} }),
+    ).toBeUndefined();
+  });
 
   it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
     "uses the effective locator timeout plus delivery grace for $name",

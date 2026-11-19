@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,7 +10,7 @@ import {
   type FakeBrowserbaseServer,
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
-import { itPosix } from "./helpers/platform.js";
+import { prependPath, writeNodeExecutable } from "./helpers/node-executable.js";
 import { buildNextSteps } from "../src/lib/templates/scaffold.js";
 
 interface TemplateFixture {
@@ -98,9 +98,11 @@ describe("templates commands", () => {
           scripts: { [script]: "node index.js" },
         }),
       );
-      await expect(
-        buildNextSteps(dest, "my-app", "typescript"),
-      ).resolves.toEqual(["cd my-app", install, run]);
+      await expect(buildNextSteps(dest, "my-app", "typescript")).resolves.toEqual([
+        "cd my-app",
+        install,
+        run,
+      ]);
     },
   );
 
@@ -209,9 +211,7 @@ describe("templates commands", () => {
       expect(result.exitCode).toBe(0);
       expect(requests).toHaveLength(1);
       expect(requests[0]?.path).toBe("/google-trends-keywords");
-      expect(result.stdout).toContain(
-        "Extract trending keywords from Google Trends",
-      );
+      expect(result.stdout).toContain("Extract trending keywords from Google Trends");
       expect(result.stdout).toContain("slug: google-trends-keywords");
       expect(result.stdout).toContain("Scaffold commands:");
     });
@@ -219,12 +219,9 @@ describe("templates commands", () => {
 
   it("prints exact template JSON with the same shape as search results", async () => {
     await withTemplatesApi(async ({ baseUrl }) => {
-      const result = await runCli(
-        ["templates", "find", "google-trends-keywords", "--json"],
-        {
-          env: { BROWSERBASE_TEMPLATES_API: baseUrl },
-        },
-      );
+      const result = await runCli(["templates", "find", "google-trends-keywords", "--json"], {
+        env: { BROWSERBASE_TEMPLATES_API: baseUrl },
+      });
 
       expect(result.exitCode).toBe(0);
       const payload = JSON.parse(result.stdout) as {
@@ -240,18 +237,12 @@ describe("templates commands", () => {
 
   it("finds templates by partial query", async () => {
     await withTemplatesApi(async ({ baseUrl, requests }) => {
-      const result = await runCli(
-        ["templates", "find", "amazon", "--format", "table"],
-        {
-          env: { BROWSERBASE_TEMPLATES_API: baseUrl },
-        },
-      );
+      const result = await runCli(["templates", "find", "amazon", "--format", "table"], {
+        env: { BROWSERBASE_TEMPLATES_API: baseUrl },
+      });
 
       expect(result.exitCode).toBe(0);
-      expect(requests.map((request) => request.path)).toEqual([
-        "/amazon",
-        "/?scope=all",
-      ]);
+      expect(requests.map((request) => request.path)).toEqual(["/amazon", "/?scope=all"]);
       expect(result.stdout).toContain('Templates matching "amazon" (1)');
       expect(result.stdout).toContain("Template");
       expect(result.stdout).toContain("amazon-product-scraping");
@@ -279,134 +270,113 @@ describe("templates commands", () => {
     });
   });
 
-  itPosix(
-    "clones TypeScript templates with create-browser-app via npx",
-    async () => {
-      const stubDir = await createTempDir("browse-templates-ts-stub-");
-      const logPath = join(stubDir, "commands.log");
-      await writeExecutable(
-        join(stubDir, "npx"),
-        [
-          "#!/bin/sh",
-          'if [ "$1" = "--version" ]; then',
-          "  exit 0",
-          "fi",
-          'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-          'project="$2"',
-          'mkdir -p "$project"',
-          'printf \'{"name":"stub-app","packageManager":"pnpm@10.24.0","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
-          "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
-        ].join("\n"),
-      );
-
-      await withTemplatesApi(async ({ baseUrl, requests }) => {
-        const cwd = await createTempDir("browse-templates-ts-project-");
-        const dest = join(cwd, "my-scraper");
-        const result = await runCli(
-          ["templates", "clone", "amazon-product-scraping", dest],
-          {
-            env: {
-              BB_STUB_LOG: logPath,
-              BROWSERBASE_TEMPLATES_API: baseUrl,
-              PATH: `${stubDir}:${process.env.PATH ?? ""}`,
-            },
-          },
-        );
-
-        expect(result.exitCode).toBe(0);
-        expect(requests.map((request) => request.path)).toEqual([
-          "/amazon-product-scraping",
-        ]);
-        expect(await readFile(logPath, "utf8")).toContain(
-          "npx create-browser-app@latest my-scraper --template amazon-product-scraping-starter",
-        );
-        expect(result.stdout).toContain(
-          `Scaffolding typescript/amazon-product-scraping into ${dest}...`,
-        );
-        expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
-        expect(result.stdout).toContain(`cd ${dest}`);
-        expect(result.stdout).toContain("pnpm install");
-        expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("pnpm dev");
-        expect(await readFile(join(dest, "package.json"), "utf8")).toContain(
-          "stub-app",
-        );
-      });
-    },
-  );
-
-  itPosix(
-    "clones Python templates with create-browser-app via uvx",
-    async () => {
-      const stubDir = await createTempDir("browse-templates-py-stub-");
-      const logPath = join(stubDir, "commands.log");
-      await writeExecutable(
-        join(stubDir, "uvx"),
-        [
-          "#!/bin/sh",
-          'if [ "$1" = "--version" ]; then',
-          "  exit 0",
-          "fi",
-          'printf \'uvx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-          'project="$2"',
-          'mkdir -p "$project"',
-          'printf \'print("hello")\\n\' > "$project/main.py"',
-          "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
-          'printf \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\' > "$project/pyproject.toml"',
-        ].join("\n"),
-      );
-
-      await withTemplatesApi(async ({ baseUrl }) => {
-        const cwd = await createTempDir("browse-templates-py-project-");
-        const dest = join(cwd, "py-scraper");
-        const result = await runCli(
-          [
-            "templates",
-            "clone",
-            "amazon-product-scraping",
-            "--language",
-            "python",
-            dest,
-          ],
-          {
-            env: {
-              BB_STUB_LOG: logPath,
-              BROWSERBASE_TEMPLATES_API: baseUrl,
-              PATH: `${stubDir}:${process.env.PATH ?? ""}`,
-            },
-          },
-        );
-
-        expect(result.exitCode).toBe(0);
-        expect(await readFile(logPath, "utf8")).toContain(
-          "uvx create-browser-app py-scraper --template amazon-product-scraping-starter",
-        );
-        expect(result.stdout).toContain(
-          `Scaffolding python/amazon-product-scraping into ${dest}...`,
-        );
-        expect(result.stdout).toContain("uv sync");
-        expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("uv run python main.py");
-        expect(await readFile(join(dest, "main.py"), "utf8")).toContain(
-          "hello",
-        );
-      });
-    },
-  );
-
-  itPosix("prints clone results as JSON", async () => {
-    const stubDir = await createTempDir("browse-templates-json-stub-");
-    await writeExecutable(
-      join(stubDir, "npx"),
+  it("clones TypeScript templates with create-browser-app via npx", async () => {
+    const stubDir = await createTempDir("browse templates ts stub-");
+    const logPath = join(stubDir, "commands.log");
+    await writeNodeExecutable(
+      stubDir,
+      "npx",
       [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        '[ "$4" = "google-trends-keywords" ] || exit 1',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'{"name":"json-app"}\\n\' > "$project/package.json"',
+        'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'appendFileSync(process.env.BB_STUB_LOG, "npx " + args.join(" ") + "\\n");',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "package.json"), JSON.stringify({ name: "stub-app", packageManager: "pnpm@10.24.0", scripts: { dev: "tsx index.ts" } }));',
+        'writeFileSync(join(project, ".env.example"), "BROWSERBASE_API_KEY=\\n");',
+      ].join("\n"),
+    );
+
+    await withTemplatesApi(async ({ baseUrl, requests }) => {
+      const cwd = await createTempDir("browse-templates-ts-project-");
+      const dest = join(cwd, "my-scraper");
+      const result = await runCli(["templates", "clone", "amazon-product-scraping", dest], {
+        env: {
+          BB_STUB_LOG: logPath,
+          BROWSERBASE_TEMPLATES_API: baseUrl,
+          PATH: prependPath(stubDir),
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(requests.map((request) => request.path)).toEqual(["/amazon-product-scraping"]);
+      expect(await readFile(logPath, "utf8")).toContain(
+        "npx create-browser-app@latest my-scraper --template amazon-product-scraping-starter",
+      );
+      expect(result.stdout).toContain(
+        `Scaffolding typescript/amazon-product-scraping into ${dest}...`,
+      );
+      expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
+      expect(result.stdout).toContain(`cd ${dest}`);
+      expect(result.stdout).toContain("pnpm install");
+      expect(result.stdout).toContain("cp .env.example .env");
+      expect(result.stdout).toContain("pnpm dev");
+      expect(await readFile(join(dest, "package.json"), "utf8")).toContain("stub-app");
+    });
+  });
+
+  it("clones Python templates with create-browser-app via uvx", async () => {
+    const stubDir = await createTempDir("browse templates py stub-");
+    const logPath = join(stubDir, "commands.log");
+    await writeNodeExecutable(
+      stubDir,
+      "uvx",
+      [
+        'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'appendFileSync(process.env.BB_STUB_LOG, "uvx " + args.join(" ") + "\\n");',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "main.py"), \'print("hello")\\n\');',
+        'writeFileSync(join(project, ".env.example"), "BROWSERBASE_API_KEY=\\n");',
+        'writeFileSync(join(project, "pyproject.toml"), \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\');',
+      ].join("\n"),
+    );
+
+    await withTemplatesApi(async ({ baseUrl }) => {
+      const cwd = await createTempDir("browse-templates-py-project-");
+      const dest = join(cwd, "py-scraper");
+      const result = await runCli(
+        ["templates", "clone", "amazon-product-scraping", "--language", "python", dest],
+        {
+          env: {
+            BB_STUB_LOG: logPath,
+            BROWSERBASE_TEMPLATES_API: baseUrl,
+            PATH: prependPath(stubDir),
+          },
+        },
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(await readFile(logPath, "utf8")).toContain(
+        "uvx create-browser-app py-scraper --template amazon-product-scraping-starter",
+      );
+      expect(result.stdout).toContain(`Scaffolding python/amazon-product-scraping into ${dest}...`);
+      expect(result.stdout).toContain("uv sync");
+      expect(result.stdout).toContain("cp .env.example .env");
+      expect(result.stdout).toContain("uv run python main.py");
+      expect(await readFile(join(dest, "main.py"), "utf8")).toContain("hello");
+    });
+  });
+
+  it("prints clone results as JSON", async () => {
+    const stubDir = await createTempDir("browse templates json stub-");
+    await writeNodeExecutable(
+      stubDir,
+      "npx",
+      [
+        'const { mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "const args = process.argv.slice(2);",
+        'if (args[0] === "--version") process.exit(0);',
+        'if (args[3] !== "google-trends-keywords") process.exit(1);',
+        "const project = args[1];",
+        "mkdirSync(project, { recursive: true });",
+        'writeFileSync(join(project, "package.json"), JSON.stringify({ name: "json-app" }));',
       ].join("\n"),
     );
 
@@ -418,7 +388,7 @@ describe("templates commands", () => {
         {
           env: {
             BROWSERBASE_TEMPLATES_API: baseUrl,
-            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            PATH: prependPath(stubDir),
           },
         },
       );
@@ -442,12 +412,9 @@ describe("templates commands", () => {
   it("fails when clone destination already exists", async () => {
     await withTemplatesApi(async ({ baseUrl }) => {
       const dest = await createTempDir("browse-templates-existing-");
-      const result = await runCli(
-        ["templates", "clone", "amazon-product-scraping", dest],
-        {
-          env: { BROWSERBASE_TEMPLATES_API: baseUrl },
-        },
-      );
+      const result = await runCli(["templates", "clone", "amazon-product-scraping", dest], {
+        env: { BROWSERBASE_TEMPLATES_API: baseUrl },
+      });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain(`Destination already exists: ${dest}`);
@@ -497,12 +464,4 @@ async function createTempDir(prefix: string): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
   cleanupPaths.push(directory);
   return directory;
-}
-
-async function writeExecutable(
-  pathname: string,
-  contents: string,
-): Promise<void> {
-  await writeFile(pathname, `${contents}\n`);
-  await chmod(pathname, 0o755);
 }

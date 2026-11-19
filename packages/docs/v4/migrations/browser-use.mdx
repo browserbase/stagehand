@@ -173,7 +173,7 @@ Expose the real API:
 | Element inspection | `locator.text_content()`, `locator.inner_text()`, `locator.is_visible()`, `locator.is_checked()`, `locator.count()`, `locator.input_value()` |
 | Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.key_press()`, `page.drag_and_drop()` |
 | Tabs and state | `context.new_page()`, `context.pages()`, `context.set_active_page()`, `context.cookies()` |
-| Waiting | `page.wait_for_selector()`, `page.wait_for_load_state()`, `page.wait_for_timeout()` |
+| Waiting | `page.wait_for_selector()`, `page.wait_for_function()`, `page.wait_for_load_state()`, `page.wait_for_timeout()` |
 | Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
 | Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
 
@@ -272,7 +272,7 @@ Browser Use constructs a browser inside the agent and closes it for you. v4 sepa
 +     await browser.close()
 ```
 
-Use `local_browser.launch()` for a browser on your machine, `browserbase.launch(api_key=...)` for a hosted one, and `local_browser.connect(cdp_url=...)` or `browserbase.connect(api_key=..., session_id=...)` to attach to one that's already running. `browserbase.launch()` is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). Stagehand closes only the browsers it launched, so `stagehand.close()` leaves the browser running and you call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Use `local_browser.launch()` for a browser on your machine, `browserbase.launch(api_key=...)` for a hosted one, and `local_browser.connect(cdp_url=...)` or `browserbase.connect(api_key=..., session_id=...)` to attach to one that's already running. `browserbase.launch()` is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). `stagehand.close()` leaves the browser running. Call `browser.close()` when you're done. See [browser configuration](/v4/configuration/browser).
 
 ### The task string becomes explicit steps
 
@@ -338,7 +338,7 @@ Both frameworks keep secrets out of the model's context. Browser Use uses a `sen
 + await stagehand.act("click the login button")
 ```
 
-Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: [server-side caching](/v4/best-practices/caching) is on by default and sends variable values to the cache service. Set `cache: false` on calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
+Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: when Browserbase enables [server-side caching](/v4/best-practices/caching) for your project, Stagehand sends variable values to the cache service. Set `cache: false` on calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
 
 ### Custom tools
 

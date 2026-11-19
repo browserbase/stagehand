@@ -367,6 +367,30 @@ await subscription.unsubscribe();
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
 
+## onResponse()
+
+Subscribe to future network responses from this page and its child frames. The callback
+receives a [Response](/v4/reference/response) when status and headers arrive. Body methods
+wait for completion automatically. Subscriptions remain active across navigation and do
+not replay earlier responses. Async callbacks may overlap.
+
+```typescript
+const subscription = await page.onResponse(async (response) => {
+  if (response.url().includes("/api/orders") && response.ok()) {
+    console.log(await response.json());
+  }
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A callback with the signature `(response: Response) => unknown`.
+</ParamField>
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops future callbacks. Responses
+  already delivered can still be read while their handles remain available.
+</ResponseField>
+
 ## onToolsAdded()
 
 Run a callback when WebMCP tools are added to this page or its child frames. The subscription
@@ -532,6 +556,47 @@ await page.waitForTimeout(500);
 
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
+</ResponseField>
+
+## waitForFunction()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+Polling happens inside the browser and resumes after navigation. The browser awaits
+async predicates before the next poll; thrown errors reject the wait. The result is a detached
+JSON value, not a browser handle. Functions cannot capture variables from your SDK process.
+
+```typescript
+const text = await page.waitForFunction(
+  (selector) => document.querySelector(selector)?.textContent,
+  "#ready",
+  { timeout: 5_000 },
+);
+```
+
+<ParamField path="expression" type="string | ((arg: Arg) => R | Promise<R>)">
+  A JavaScript expression string or a function to run in the page. If a string evaluates
+  to a function, such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  JSON-serializable argument passed to the function. Strings that don't evaluate to a function ignore it.
+</ParamField>
+
+<ParamField path="options" type="PageWaitForFunctionOptions" optional>
+  Options that configure this wait.
+
+  <ParamField path="options.polling" type="PageWaitForFunctionOptions['polling']" optional>
+    Defaults to `"raf"` (animation frames). A positive interval up to `2147483647`
+    polls in milliseconds. Use an interval if the browser pauses animation frames.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<R>">
+  The browser converts the truthy result to JSON. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## waitForSelector()
@@ -1208,6 +1273,28 @@ await subscription.unsubscribe()
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
 
+## on_response()
+
+Subscribe to future response headers from this page and its child frames. The callback
+receives a [Response](/v4/reference/response); body methods await completion. Subscriptions
+remain active across navigation and do not replay previous responses.
+
+```python
+async def handle_response(response):
+    if "/api/orders" in response.url and response.ok:
+        print(await response.json())
+
+subscription = await page.on_response(handle_response)
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A synchronous or asynchronous callback accepting a `Response`.
+</ParamField>
+<ResponseField name="result" type="CDPSubscription">
+  A subscription whose `unsubscribe()` method stops future callbacks.
+</ResponseField>
+
 ## on_tools_added()
 
 Run a callback when WebMCP tools are added to this page or its child frames. The subscription
@@ -1363,6 +1450,42 @@ await page.wait_for_timeout(500)
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_function()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+The browser runs each poll and resumes after navigation. It awaits promises before
+the next poll; thrown errors reject the wait.
+
+```python
+value = await page.wait_for_function(
+    "selector => document.querySelector(selector)?.textContent",
+    arg="#ready",
+    polling=50,
+    timeout=5_000,
+)
+```
+
+<ParamField path="expression" type="str">
+  JavaScript expression to run in the page, not a Python callable. If the expression
+  evaluates to a function, such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="arg" type="JsonValue" optional>
+  JSON-serializable argument passed to the function. Expressions that don't evaluate to a function ignore it. `None` passes JSON `null`; omit `arg` to pass nothing.
+</ParamField>
+
+<ParamField path="polling" type="Literal['raf'] | float | None" optional>
+  Defaults to `"raf"` (animation frames), or use a positive interval in milliseconds up to `2147483647`.
+</ParamField>
+
+<ParamField path="timeout" type="int | None" optional>
+  Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+</ParamField>
+
+<ResponseField name="result" type="JsonValue">
+  The browser converts the truthy result to JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## wait_for_selector()
@@ -2265,6 +2388,43 @@ if err := page.WaitForTimeout(ctx, 500); err != nil {
 
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForFunction()
+
+Poll a JavaScript expression in the page's main world until it returns a truthy value.
+Polling happens in the browser and resumes after navigation. The browser awaits promises
+before the next poll; thrown errors reject the wait. Embed any arguments in the JavaScript
+expression, as with `Evaluate`.
+
+```go
+value, err := page.WaitForFunction(ctx, "document.querySelector('#ready')?.textContent", nil)
+if err != nil {
+    return err
+}
+fmt.Println(string(value))
+```
+
+<ParamField path="expression" type="string">
+  JavaScript expression to run in the page. If the expression evaluates to a function,
+  such as `"() => window.ready"`, the browser calls it on each poll.
+</ParamField>
+
+<ParamField path="options" type="*PageWaitForFunctionOptions" optional>
+  Options that configure this wait. Pass `nil` for defaults.
+
+  <ParamField path="options.Polling" type="*FunctionPolling" optional>
+    Defaults to animation frames. Use `AnimationFramePolling()` or `IntervalPolling(ms)`
+    for a positive millisecond interval up to `2147483647`.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*int" optional>
+    Timeout in milliseconds including readiness and navigation recovery. Defaults to `0`, no deadline.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(json.RawMessage, error)">
+  The truthy result as raw JSON, not a browser handle. Non-serializable results such as cyclic values and BigInt reject.
 </ResponseField>
 
 ## WaitForSelector()
