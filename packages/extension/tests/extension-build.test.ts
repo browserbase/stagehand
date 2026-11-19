@@ -110,7 +110,7 @@ describe("extension build", () => {
     expect(() => vm.runInContext(contentScript, world)).not.toThrow();
     const second = vm.runInContext(globals, world) as unknown[];
 
-    expect(first.every((value) => typeof value === "object")).toBe(true);
+    expect(first.every((value) => typeof value === "object" && value !== null)).toBe(true);
     second.forEach((value, index) => expect(value).toBe(first[index]));
   });
 
