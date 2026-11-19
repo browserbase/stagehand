@@ -503,8 +503,8 @@ importers:
   packages/cli:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.14.0
-        version: 2.16.0
+        specifier: ^2.28.0
+        version: 2.28.0
       '@browserbasehq/stagehand':
         specifier: 4.4.0
         version: 4.4.0
@@ -958,12 +958,12 @@ importers:
         specifier: 'catalog:'
         version: 5.0.14(@types/react@19.2.17)(immer@9.0.21)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     devDependencies:
-      '@browserbasehq/stagehand-protocol':
-        specifier: workspace:*
-        version: link:../protocol
       '@browserbasehq/stagehand-browser-api':
         specifier: workspace:*
         version: link:../shared/browser-api
+      '@browserbasehq/stagehand-protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@types/chrome':
         specifier: 'catalog:'
         version: 0.2.2
@@ -1424,12 +1424,12 @@ importers:
         specifier: 'catalog:'
         version: 4.6.6
     devDependencies:
-      '@browserbasehq/stagehand-protocol':
-        specifier: workspace:*
-        version: link:../protocol
       '@browserbasehq/stagehand-browser-api':
         specifier: workspace:*
         version: link:../shared/browser-api
+      '@browserbasehq/stagehand-protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
@@ -2133,6 +2133,9 @@ packages:
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
+
+  '@browserbasehq/sdk@2.28.0':
+    resolution: {integrity: sha512-O7pmtwDPlFdYriKZsp3rdmUoBvz9XVnYM7hrhsolv5dCf/EoucpwRmi0Fq/oC8I2JYHryacM2S8NUkN3gD+44Q==}
 
   '@browserbasehq/stagehand@3.7.1':
     resolution: {integrity: sha512-vAuYSZWIhh3d76BxwppNVE3dB0ztEBLBi85G6TWulZNiebdWptNoANOMuprOB/cw5dE+80b/ZZQo4G33Pc9i6w==}
@@ -10513,7 +10516,7 @@ snapshots:
 
   '@browserbasehq/sdk-functions@1.0.2':
     dependencies:
-      '@browserbasehq/sdk': 2.16.0
+      '@browserbasehq/sdk': 2.28.0
       archiver: 7.0.1
       chalk: 5.6.2
       commander: 14.0.3
@@ -10527,6 +10530,18 @@ snapshots:
       - react-native-b4a
 
   '@browserbasehq/sdk@2.16.0':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@browserbasehq/sdk@2.28.0':
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -10581,7 +10596,7 @@ snapshots:
 
   '@browserbasehq/stagehand@4.4.0':
     dependencies:
-      '@browserbasehq/sdk': 2.16.0
+      '@browserbasehq/sdk': 2.28.0
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
       zod: 4.6.6
