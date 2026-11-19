@@ -92,6 +92,7 @@ export async function withBrowserbaseApi<T>(
   try {
     const result = await operation();
     setRunTelemetryCompletion({
+      httpStatus: 200,
       requestHadHttpResponse: true,
     });
     return result;
