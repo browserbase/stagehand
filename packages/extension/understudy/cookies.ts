@@ -8,6 +8,15 @@ export type UnderstudyClearCookieOptions = {
   path?: string | RegExp;
 };
 
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "[::1]" ||
+    /^127\.\d+\.\d+\.\d+$/.test(hostname)
+  );
+}
+
 const CookieUrlsSchema = z.array(z.string()).superRefine((urls, context) => {
   for (const [index, url] of urls.entries()) {
     try {
@@ -52,9 +61,7 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
         (c.path.length < p.length && !c.path.endsWith("/") && p[c.path.length] !== "/")
       )
         continue;
-      const isLoopback =
-        url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-      if (url.protocol !== "https:" && !isLoopback && c.secure) continue;
+      if (url.protocol !== "https:" && !isLoopbackHostname(url.hostname) && c.secure) continue;
       return true;
     }
     return false;
