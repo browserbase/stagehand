@@ -4,7 +4,10 @@ import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/sc
 import {
   CDPClient,
   CDPConnectionClosedError,
+  isStaleServiceWorker,
+  readServiceWorkerBuild,
   resolveExtension,
+  StagehandRuntimeIncompatibleError,
   openCDPWebSocket,
   stagehandMessageExpression,
   waitForRuntimeReady,
@@ -299,6 +302,7 @@ describe("CDP WebSocket transport", () => {
         "Extensions.getExtensions",
         "Target.getTargets",
         "Target.attachToTarget",
+        "Runtime.evaluate",
         "Runtime.enable",
         "Runtime.addBinding",
         "Runtime.evaluate",
@@ -717,5 +721,300 @@ describe("client lifecycle registration", () => {
     });
     await register();
     await expect(client.detachClient()).rejects.toThrow("did not acknowledge the detach");
+  });
+});
+
+describe("service worker build check", () => {
+  const ready = {
+    marker: {
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      serverInfo: { name: "stagehand", version: "4.0.2" },
+    },
+    hasReceiver: true,
+  };
+
+  async function connectWith(
+    source: (
+      | { extensionDir: string }
+      | { localExtensionDir: string }
+      | { extensionId: string }
+      | { preloadedExtension: true }
+    ) & { runtimeRequirement?: { protocolVersion: string } },
+    builds: Record<string, { running: string | null; onDisk: string | null }>,
+    installed: unknown[] = [],
+    reloadError?: { code: number; message: string },
+  ) {
+    const socket = new FakeWebSocket();
+    const originalWebSocket = globalThis.WebSocket;
+    const createSocket = vi.fn(function WebSocket() {
+      return socket;
+    });
+    Object.defineProperty(createSocket, "OPEN", { value: 1 });
+    vi.stubGlobal("WebSocket", createSocket);
+    const commands: Array<{ method: string; params?: Record<string, unknown> }> = [];
+    socket.send.mockImplementation((raw: string) => {
+      const command = JSON.parse(raw) as {
+        id: number;
+        method: string;
+        params?: Record<string, unknown>;
+        sessionId?: string;
+      };
+      const reloading =
+        command.method === "Extensions.loadUnpacked" &&
+        commands.some(({ method }) => method === "Extensions.uninstall");
+      commands.push({ method: command.method, params: command.params });
+      if (reloading && reloadError) {
+        queueMicrotask(() => {
+          socket.dispatchEvent(
+            new MessageEvent("message", {
+              data: JSON.stringify({ id: command.id, error: reloadError }),
+            }),
+          );
+        });
+        return;
+      }
+      const result = (() => {
+        switch (command.method) {
+          case "Extensions.getExtensions":
+            return { extensions: installed };
+          case "Extensions.loadUnpacked":
+            return { id: "stagehand-extension" };
+          case "Target.getTargets":
+            return {
+              targetInfos: ["old-worker", "new-worker"].map((targetId) => ({
+                targetId,
+                type: "service_worker",
+                title: "Stagehand",
+                url: "chrome-extension://stagehand-extension/service-worker.js",
+              })),
+            };
+          case "Target.attachToTarget":
+            return { sessionId: `${String(command.params?.targetId)}-session` };
+          case "Runtime.evaluate":
+            return String(command.params?.expression).includes("build-id.txt")
+              ? { result: { value: builds[command.sessionId!.replace("-session", "")] } }
+              : { result: { value: ready } };
+          default:
+            return {};
+        }
+      })();
+      queueMicrotask(() => {
+        socket.dispatchEvent(
+          new MessageEvent("message", {
+            data: JSON.stringify({ id: command.id, result, sessionId: command.sessionId }),
+          }),
+        );
+      });
+    });
+    const connecting = CDPClient.connect({
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      ...source,
+      signal: new AbortController().signal,
+    });
+    await vi.waitFor(() => expect(createSocket).toHaveBeenCalledOnce());
+    socket.open();
+    const outcome = await connecting.then(
+      (client) => ({ client, error: undefined }),
+      (error: unknown) => ({ client: undefined, error: error as Error }),
+    );
+    vi.stubGlobal("WebSocket", originalWebSocket);
+    outcome.client?.close();
+    return { ...outcome, commands };
+  }
+
+  it.each([{ extensionDir: "/bundle" }, { localExtensionDir: "/bundle" }])(
+    "replaces a worker from another build after loading %j",
+    async (source) => {
+      const { client, error, commands } = await connectWith(source, {
+        "old-worker": { running: null, onDisk: "b".repeat(64) },
+        "new-worker": { running: "b".repeat(64), onDisk: "b".repeat(64) },
+      });
+
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("new-worker");
+      const methods = commands.map(({ method }) => method);
+      expect(methods.filter((method) => method.startsWith("Extensions."))).toEqual([
+        ...("localExtensionDir" in source ? ["Extensions.getExtensions"] : []),
+        "Extensions.loadUnpacked",
+        "Extensions.uninstall",
+        "Extensions.loadUnpacked",
+      ]);
+      expect(commands.find(({ method }) => method === "Extensions.uninstall")?.params).toEqual({
+        id: "stagehand-extension",
+      });
+      expect(
+        commands.filter(({ method }) => method === "Extensions.loadUnpacked").at(-1)?.params,
+      ).toEqual({ path: "/bundle" });
+    },
+  );
+
+  it("keeps a matching worker without reloading", async () => {
+    const { client, commands } = await connectWith(
+      { extensionDir: "/bundle" },
+      { "old-worker": { running: "a".repeat(64), onDisk: "a".repeat(64) } },
+    );
+
+    expect(client?.serviceWorker.targetId).toBe("old-worker");
+    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+  });
+
+  it("does not compare a directory without a build identity", async () => {
+    const { client, commands } = await connectWith(
+      { extensionDir: "/bundle" },
+      { "old-worker": { running: "a".repeat(64), onDisk: null } },
+    );
+
+    expect(client?.serviceWorker.targetId).toBe("old-worker");
+    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+  });
+
+  it.each([{ running: null }, { running: "a".repeat(64) }])(
+    "replaces a worker from another build when the extension is installed from its own directory: %j",
+    async ({ running }) => {
+      const { client, error, commands } = await connectWith(
+        { localExtensionDir: "/bundle/" },
+        {
+          "old-worker": { running, onDisk: "b".repeat(64) },
+          "new-worker": { running: "b".repeat(64), onDisk: "b".repeat(64) },
+        },
+        [extension({ id: "stagehand-extension", path: "/bundle" })],
+      );
+
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("new-worker");
+      expect(
+        commands.map(({ method }) => method).filter((method) => method.startsWith("Extensions.")),
+      ).toEqual(["Extensions.getExtensions", "Extensions.uninstall", "Extensions.loadUnpacked"]);
+      expect(commands.find(({ method }) => method === "Extensions.loadUnpacked")?.params).toEqual({
+        path: "/bundle/",
+      });
+    },
+  );
+
+  it.each([
+    { localExtensionDir: "/bundle" },
+    { extensionId: "stagehand-extension" },
+    { preloadedExtension: true as const },
+  ])("warns and continues with an extension Stagehand does not own: %j", async (source) => {
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    try {
+      const { client, error, commands } = await connectWith(
+        source,
+        { "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) } },
+        [extension({ id: "stagehand-extension" })],
+      );
+
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("old-worker");
+      expect(emitWarning).toHaveBeenCalledOnce();
+      expect(emitWarning.mock.calls[0][0]).toContain(
+        `runs service worker build ${"a".repeat(64)}, but its directory holds build ${"b".repeat(64)}: the browser profile kept the worker of another build`,
+      );
+      expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+      expect(commands.map(({ method }) => method)).not.toContain("Extensions.loadUnpacked");
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
+
+  it("keeps the incompatibility error for a worker Stagehand does not replace", async () => {
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    try {
+      const { error } = await connectWith(
+        { extensionId: "stagehand-extension", runtimeRequirement: { protocolVersion: "999.0.0" } },
+        { "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) } },
+      );
+
+      expect(error).toBeInstanceOf(StagehandRuntimeIncompatibleError);
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
+
+  it("warns and continues when the reloaded worker still runs another build", async () => {
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    try {
+      const { client, error, commands } = await connectWith(
+        { extensionDir: "/bundle" },
+        {
+          "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) },
+          "new-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) },
+        },
+      );
+
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("new-worker");
+      expect(emitWarning).toHaveBeenCalledOnce();
+      expect(emitWarning.mock.calls[0]).toEqual([
+        `The Stagehand extension stagehand-extension still runs service worker build ${"a".repeat(64)} after it was reloaded from a directory that holds build ${"b".repeat(64)}, so Stagehand continues with the running worker.`,
+        { code: "STAGEHAND_STALE_SERVICE_WORKER" },
+      ]);
+      expect(commands.filter(({ method }) => method === "Extensions.uninstall")).toHaveLength(1);
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
+
+  it("reports an extension it uninstalled and could not load again", async () => {
+    const { error, commands } = await connectWith(
+      { extensionDir: "/bundle" },
+      { "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) } },
+      [],
+      { code: -32000, message: "Manifest file is missing or unreadable" },
+    );
+
+    expect(error?.message).toBe(
+      "Stagehand uninstalled the extension stagehand-extension to replace a service worker from another build and could not load it again from /bundle.",
+    );
+    expect((error?.cause as Error | undefined)?.message).toContain(
+      "Manifest file is missing or unreadable",
+    );
+    expect(
+      commands.map(({ method }) => method).filter((method) => method.startsWith("Extensions.")),
+    ).toEqual(["Extensions.loadUnpacked", "Extensions.uninstall", "Extensions.loadUnpacked"]);
+  });
+
+  it("waits for the runtime marker before reading the build", async () => {
+    const delayFn = vi.fn(async () => {});
+    const sendCommand = vi
+      .fn()
+      .mockResolvedValueOnce({ result: { value: null } })
+      .mockResolvedValueOnce({ result: { value: { running: "a", onDisk: "b" } } });
+
+    await expect(
+      readServiceWorkerBuild({ sendCommand }, "worker-session", {
+        delayFn,
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ running: "a", onDisk: "b" });
+    expect(delayFn).toHaveBeenCalledOnce();
+    expect(sendCommand).toHaveBeenLastCalledWith(
+      "Runtime.evaluate",
+      expect.objectContaining({ awaitPromise: true, returnByValue: true }),
+      "worker-session",
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("does not compare when the build cannot be read", async () => {
+    const sendCommand = vi.fn().mockRejectedValue(new Error("Execution context was destroyed"));
+
+    await expect(
+      readServiceWorkerBuild({ sendCommand }, "worker-session", {
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ running: null, onDisk: null });
+  });
+
+  it.each([
+    [{ running: "a", onDisk: "a" }, false],
+    [{ running: "a", onDisk: "b" }, true],
+    [{ running: null, onDisk: "b" }, true],
+    [{ running: "a", onDisk: null }, false],
+    [{ running: null, onDisk: null }, false],
+    [{ running: "__STAGEHAND_EXTENSION_BUILD_ID__", onDisk: "b" }, false],
+    [{ running: "a", onDisk: "__STAGEHAND_EXTENSION_BUILD_ID__" }, false],
+  ])("treats %j as stale: %s", (build, stale) => {
+    expect(isStaleServiceWorker(build)).toBe(stale);
   });
 });

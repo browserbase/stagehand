@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Self, cast
+from typing import Any, Self, cast
 from urllib.request import Request
 
 import pytest
@@ -138,6 +138,7 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
             "Extensions.loadUnpacked",
             "Target.getTargets",
             "Target.attachToTarget",
+            "Runtime.evaluate",
             "Runtime.enable",
             "Runtime.addBinding",
             "Runtime.evaluate",
@@ -629,6 +630,7 @@ async def test_connect_discovers_or_loads_extension(
             *(["Extensions.loadUnpacked"] if mode in ("missing", "unsupported") else []),
             "Target.getTargets",
             "Target.attachToTarget",
+            "Runtime.evaluate",
             "Runtime.enable",
             "Runtime.addBinding",
             "Runtime.evaluate",
@@ -1111,3 +1113,305 @@ async def test_detach_client_still_raises_when_detach_fails_with_the_connection_
             await client.detach_client()
     finally:
         await client.close()
+
+
+_BUILD_A = "a" * 64
+_BUILD_B = "b" * 64
+
+
+async def _connect_with_builds(
+    monkeypatch: pytest.MonkeyPatch,
+    source: dict[str, object],
+    builds: dict[str, object],
+    installed: list[dict[str, object]] | None = None,
+    readiness: dict[str, object] | None = None,
+    reload_error: dict[str, object] | None = None,
+) -> tuple[CDPClient | None, BaseException | None, list[dict[str, object]]]:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = message["method"]
+        params = cast(dict[str, object], message.get("params") or {})
+        if method == "Extensions.getExtensions":
+            return {"result": {"extensions": installed or []}}
+        if method == "Extensions.loadUnpacked":
+            if reload_error is not None and "Extensions.uninstall" in _methods(socket.sent):
+                return {"error": reload_error}
+            return {"result": {"id": "stagehand-extension"}}
+        if method == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": target_id,
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://stagehand-extension/service-worker.js",
+                        }
+                        for target_id in ("old-worker", "new-worker")
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            return {"result": {"sessionId": f"{params['targetId']}-session"}}
+        if method == "Runtime.evaluate":
+            if "build-id.txt" in str(params["expression"]):
+                worker = str(message["sessionId"]).removesuffix("-session")
+                return {"result": {"result": {"value": builds[worker]}}}
+            return {"result": {"result": {"value": readiness or _ready_marker()}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, **__: object) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, **__: object) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    try:
+        client = await CDPClient.connect(cdp_url="ws://browser", **cast(dict[str, Any], source))
+    except Exception as error:
+        return None, error, socket.sent
+    return client, None, socket.sent
+
+
+def _methods(sent: list[dict[str, object]]) -> list[object]:
+    return [message["method"] for message in sent]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["extension_dir", "local_extension_dir"])
+async def test_connect_replaces_a_worker_from_another_build_after_loading(
+    monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    client, error, sent = await _connect_with_builds(
+        monkeypatch,
+        {source: "/bundle" if source == "extension_dir" else lambda: "/bundle"},
+        {
+            "old-worker": {"running": None, "onDisk": _BUILD_B},
+            "new-worker": {"running": _BUILD_B, "onDisk": _BUILD_B},
+        },
+    )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "new-worker"
+        assert [method for method in _methods(sent) if str(method).startswith("Extensions.")] == [
+            *(["Extensions.getExtensions"] if source == "local_extension_dir" else []),
+            "Extensions.loadUnpacked",
+            "Extensions.uninstall",
+            "Extensions.loadUnpacked",
+        ]
+        uninstall = next(m for m in sent if m["method"] == "Extensions.uninstall")
+        assert uninstall["params"] == {"id": "stagehand-extension"}
+        reload = [m for m in sent if m["method"] == "Extensions.loadUnpacked"][-1]
+        assert reload["params"] == {"path": "/bundle"}
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "build",
+    [{"running": _BUILD_A, "onDisk": _BUILD_A}, {"running": _BUILD_A, "onDisk": None}],
+)
+async def test_connect_keeps_a_worker_that_is_current_or_unidentified(
+    monkeypatch: pytest.MonkeyPatch, build: dict[str, object]
+) -> None:
+    client, error, sent = await _connect_with_builds(
+        monkeypatch, {"extension_dir": "/bundle"}, {"old-worker": build}
+    )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "old-worker"
+        assert "Extensions.uninstall" not in _methods(sent)
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("running", [None, _BUILD_A])
+async def test_connect_replaces_a_worker_when_installed_from_its_own_directory(
+    monkeypatch: pytest.MonkeyPatch, running: str | None
+) -> None:
+    installed = {**_installed_extension(), "path": "/bundle"}
+    client, error, sent = await _connect_with_builds(
+        monkeypatch,
+        {"local_extension_dir": lambda: "/bundle/"},
+        {
+            "old-worker": {"running": running, "onDisk": _BUILD_B},
+            "new-worker": {"running": _BUILD_B, "onDisk": _BUILD_B},
+        },
+        [installed],
+    )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "new-worker"
+        assert [method for method in _methods(sent) if str(method).startswith("Extensions.")] == [
+            "Extensions.getExtensions",
+            "Extensions.uninstall",
+            "Extensions.loadUnpacked",
+        ]
+        reload = next(m for m in sent if m["method"] == "Extensions.loadUnpacked")
+        assert reload["params"] == {"path": "/bundle/"}
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"local_extension_dir": lambda: "/bundle"},
+        {"extension_id": "stagehand-extension"},
+        {"preloaded_extension": True},
+    ],
+)
+async def test_connect_warns_and_continues_with_an_extension_it_does_not_own(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    source: dict[str, object],
+) -> None:
+    with caplog.at_level("WARNING", logger=cdp_client.__name__):
+        client, error, sent = await _connect_with_builds(
+            monkeypatch,
+            source,
+            {"old-worker": {"running": _BUILD_A, "onDisk": _BUILD_B}},
+            [_installed_extension()],
+        )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "old-worker"
+        warnings = [record.getMessage() for record in caplog.records]
+        assert len(warnings) == 1
+        assert (
+            f"runs service worker build {_BUILD_A}, but its directory holds build {_BUILD_B}: "
+            "the browser profile kept the worker of another build" in warnings[0]
+        )
+        assert "Extensions.uninstall" not in _methods(sent)
+        assert "Extensions.loadUnpacked" not in _methods(sent)
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_connect_keeps_the_incompatibility_error_for_a_worker_it_does_not_replace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, error, _ = await _connect_with_builds(
+        monkeypatch,
+        {"extension_id": "stagehand-extension"},
+        {"old-worker": {"running": _BUILD_A, "onDisk": _BUILD_B}},
+        readiness={**_ready_marker(), "marker": _marker(_INCOMPATIBLE_PROTOCOL_VERSION)},
+    )
+    assert isinstance(error, StagehandRuntimeIncompatibleError)
+
+
+@pytest.mark.asyncio
+async def test_connect_warns_and_continues_when_the_reloaded_worker_still_runs_another_build(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stale = {"running": _BUILD_A, "onDisk": _BUILD_B}
+    with caplog.at_level("WARNING", logger=cdp_client.__name__):
+        client, error, sent = await _connect_with_builds(
+            monkeypatch, {"extension_dir": "/bundle"}, {"old-worker": stale, "new-worker": stale}
+        )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "new-worker"
+        assert [record.getMessage() for record in caplog.records] == [
+            f"The Stagehand extension stagehand-extension still runs service worker build "
+            f"{_BUILD_A} after it was reloaded from a directory that holds build {_BUILD_B}, "
+            "so Stagehand continues with the running worker."
+        ]
+        assert _methods(sent).count("Extensions.uninstall") == 1
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_connect_reports_an_extension_it_uninstalled_and_could_not_load_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, error, sent = await _connect_with_builds(
+        monkeypatch,
+        {"extension_dir": "/bundle"},
+        {"old-worker": {"running": _BUILD_A, "onDisk": _BUILD_B}},
+        reload_error={"code": -32000, "message": "Manifest file is missing or unreadable"},
+    )
+    assert isinstance(error, RuntimeError)
+    assert str(error) == (
+        "Stagehand uninstalled the extension stagehand-extension to replace a service worker "
+        "from another build and could not load it again from /bundle."
+    )
+    assert "Manifest file is missing or unreadable" in str(error.__cause__)
+    assert [method for method in _methods(sent) if str(method).startswith("Extensions.")] == [
+        "Extensions.loadUnpacked",
+        "Extensions.uninstall",
+        "Extensions.loadUnpacked",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_service_worker_build_waits_for_the_runtime_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values: list[object] = [None, {"running": "a", "onDisk": "b"}]
+    client = CDPClient(FakeWebSocket(lambda _: None), "ws://browser")
+    sent: list[dict[str, object]] = []
+
+    async def send_command(
+        method: str, params: dict[str, object] | None = None, **kwargs: object
+    ) -> dict[str, object]:
+        sent.append({"method": method, "params": params, **kwargs})
+        return {"result": {"value": values.pop(0)}}
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(client, "send_command", send_command)
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", no_sleep)
+    try:
+        build = await client._read_service_worker_build("worker-session")
+        assert (build.running, build.on_disk, build.stale) == ("a", "b", True)
+        assert len(sent) == 2
+        assert sent[-1]["session_id"] == "worker-session"
+        assert cast(dict[str, object], sent[-1]["params"])["awaitPromise"] is True
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_service_worker_build_is_not_compared_when_it_cannot_be_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = CDPClient(FakeWebSocket(lambda _: None), "ws://browser")
+
+    async def send_command(*_: object, **__: object) -> dict[str, object]:
+        raise RuntimeError("CDP command failed: Runtime.evaluate: Execution context was destroyed")
+
+    monkeypatch.setattr(client, "send_command", send_command)
+    try:
+        build = await client._read_service_worker_build("worker-session")
+        assert (build.running, build.on_disk, build.stale) == (None, None, False)
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize(
+    ("running", "on_disk", "stale"),
+    [
+        ("a", "a", False),
+        ("a", "b", True),
+        (None, "b", True),
+        ("a", None, False),
+        (None, None, False),
+        ("__STAGEHAND_EXTENSION_BUILD_ID__", "b", False),
+        ("a", "__STAGEHAND_EXTENSION_BUILD_ID__", False),
+    ],
+)
+def test_service_worker_build_staleness(
+    running: str | None, on_disk: str | None, stale: bool
+) -> None:
+    assert cdp_client._ServiceWorkerBuild(running=running, on_disk=on_disk).stale is stale
