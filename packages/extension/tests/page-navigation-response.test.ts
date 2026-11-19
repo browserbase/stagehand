@@ -11,6 +11,7 @@ type NavigationOptions = {
   emitResponse?: boolean;
   finalUrl?: string;
   finishAfterLifecycle?: boolean;
+  neverCommits?: boolean;
   omitLoaderId?: boolean;
   sameDocument?: boolean;
   status?: number;
@@ -33,6 +34,7 @@ class NavigationCDPSession implements CDPSessionLike {
     this.calls.push({ method, params });
 
     if (method === "Page.navigate") {
+      if (this.navigationOptions.neverCommits) return new Promise<Result>(() => {});
       const url = String((params as { url?: string } | undefined)?.url ?? "");
       this.currentUrl = url;
       const loaderId = this.dispatchNavigation(url, {
@@ -305,5 +307,15 @@ describe("Page navigation responses", () => {
     const page = createPage(session);
 
     await expect(page.goto("https://example.test/current#details")).resolves.toBeNull();
+  });
+
+  it("times out a goto whose Page.navigate never answers", async () => {
+    const session = new NavigationCDPSession();
+    session.navigationOptions = { neverCommits: true };
+    const page = createPage(session);
+
+    await expect(page.goto("https://example.test/unresponsive", { timeout: 50 })).rejects.toThrow(
+      "Navigation start timed out after 50ms",
+    );
   });
 });

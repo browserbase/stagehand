@@ -1301,9 +1301,8 @@ export class Page {
     });
 
     try {
-      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
-        "Page.navigate",
-        { url },
+      const response = await watcher.awaitNavigationCommand(
+        this.mainSession.send<Protocol.Page.NavigateResponse>("Page.navigate", { url }),
       );
       this._currentUrl = url;
       if (response?.loaderId) {
@@ -1350,9 +1349,11 @@ export class Page {
     });
 
     try {
-      await this.mainSession.send("Page.reload", {
-        ignoreCache: options?.ignoreCache ?? false,
-      });
+      await watcher.awaitNavigationCommand(
+        this.mainSession.send("Page.reload", {
+          ignoreCache: options?.ignoreCache ?? false,
+        }),
+      );
 
       await watcher.wait();
       return await tracker.navigationCompleted();
@@ -1394,9 +1395,11 @@ export class Page {
     });
 
     try {
-      await this.mainSession.send("Page.navigateToHistoryEntry", {
-        entryId: prev.id,
-      });
+      await watcher.awaitNavigationCommand(
+        this.mainSession.send("Page.navigateToHistoryEntry", {
+          entryId: prev.id,
+        }),
+      );
       this._currentUrl = prev.url ?? this._currentUrl;
 
       await watcher.wait();
@@ -1439,9 +1442,11 @@ export class Page {
     });
 
     try {
-      await this.mainSession.send("Page.navigateToHistoryEntry", {
-        entryId: next.id,
-      });
+      await watcher.awaitNavigationCommand(
+        this.mainSession.send("Page.navigateToHistoryEntry", {
+          entryId: next.id,
+        }),
+      );
       this._currentUrl = next.url ?? this._currentUrl;
 
       await watcher.wait();
