@@ -23,7 +23,6 @@ const cloudCommandsWithExamples = [
   ["cloud", "contexts", "add"],
   ["cloud", "contexts", "list"],
   ["cloud", "contexts", "get"],
-  ["cloud", "contexts", "update"],
   ["cloud", "contexts", "delete"],
   ["cloud", "extensions", "upload"],
   ["cloud", "extensions", "get"],
@@ -188,5 +187,11 @@ describe("CLI surface", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("DESCRIPTION");
     expect(result.stdout).toContain("EXAMPLES");
+  });
+
+  it("rejects removed contexts update command", async () => {
+    const result = await runCli(["cloud", "contexts", "update", "test-id"]);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatch(/command.+not found|unknown command/i);
   });
 });
