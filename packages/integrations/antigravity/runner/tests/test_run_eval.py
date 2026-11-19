@@ -22,6 +22,38 @@ def test_parse_config_strips_provider_prefix_and_reads_env_knobs():
     assert config.wall_timeout_s == 30.0
 
 
+def test_thinking_level_is_stripped_and_validated_against_the_sdk():
+    from google.antigravity.models import ThinkingLevel
+
+    assert run_eval.parse_thinking_level(" High ") == "high"
+    assert run_eval.parse_thinking_level("extra_high") == "extra_high"
+    assert run_eval.parse_thinking_level("  ") is None
+    assert run_eval.parse_thinking_level(None) is None
+    for level in ThinkingLevel:
+        assert run_eval.parse_thinking_level(level.value) == level.value
+    with pytest.raises(ValueError, match="EVAL_ANTIGRAVITY_THINKING_LEVEL"):
+        run_eval.parse_thinking_level("max")
+
+
+def test_main_reports_a_bad_thinking_level_as_a_config_error(monkeypatch, capsys):
+    monkeypatch.setenv("EVAL_ANTIGRAVITY_THINKING_LEVEL", "ultra")
+    monkeypatch.setattr(run_eval.sys, "stdin", io.StringIO('{"prompt": "go", "model": "m"}'))
+    assert run_eval.main() == 2
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(e["type"], e["kind"]) for e in events] == [("error", "config")]
+    assert "EVAL_ANTIGRAVITY_THINKING_LEVEL" in events[0]["message"]
+
+
+def test_budget_stop_message_names_the_real_sdk_backstop():
+    assert run_eval.sdk_tool_call_backstop(50) == 160
+    message = run_eval.budget_stop_message("MAX_TOOL_CALLS_EXCEEDED", 50)
+    assert "160 tool calls including view_file" in message
+    assert "runner budget 50" in message
+    assert run_eval.budget_stop_message("MAX_MODEL_CALLS_EXCEEDED", 50) == (
+        "Antigravity stopped: MAX_MODEL_CALLS_EXCEEDED"
+    )
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -61,23 +93,46 @@ def test_result_payload_splits_text_and_images():
     assert run_eval.result_payload("plain") == ("plain", [])
 
 
-def test_usage_event_adds_cached_to_net_prompt_and_counts_thoughts_as_output():
-    # Shape observed live: cached exceeds the SDK's (net) prompt count.
+def test_usage_event_on_recorded_run_where_cached_exceeds_net_prompt():
+    # Recorded run: gemini-4-argon on HardBench task 042fce39001b44c6 (2026-11-18,
+    # SDK 0.1.20). Raw SDK fields are not persisted, so they are reconstructed
+    # from the runner's emitted usage event in that trajectory
+    # (input 4_323_999, cached 4_093_431, output 17_995, reasoning 7_285):
+    # prompt_token_count = input - cached, candidates = output - reasoning, and
+    # total_token_count = prompt + candidates + thoughts (cached left out).
+    # Cached (4.09M) is ~18x the net prompt count (230_568).
     usage = pytypes.SimpleNamespace(
-        prompt_token_count=1000,
-        cached_content_token_count=4000,
-        candidates_token_count=100,
-        thoughts_token_count=50,
-        total_token_count=1150,
+        prompt_token_count=230_568,
+        cached_content_token_count=4_093_431,
+        candidates_token_count=10_710,
+        thoughts_token_count=7_285,
+        total_token_count=248_563,
     )
     event = run_eval.usage_event(usage)
-    assert event["reported"] is True
-    assert event["input_tokens"] == 5000
-    assert event["cache_read_input_tokens"] == 4000
-    assert event["output_tokens"] == 150
-    assert event["reasoning_output_tokens"] == 50
-    assert event["total_tokens"] == 5150
+    assert event == {
+        "type": "usage",
+        "reported": True,
+        "input_tokens": 4_323_999,
+        "output_tokens": 17_995,
+        "cache_read_input_tokens": 4_093_431,
+        "reasoning_output_tokens": 7_285,
+        "total_tokens": 4_341_994,
+    }
+
+
+def test_usage_event_is_unreported_without_a_model_response():
     assert run_eval.usage_event(None)["reported"] is False
+    # What total_usage returns before any model response: every count is None.
+    from google.antigravity import types
+
+    empty = types.UsageMetadata()
+    assert all(getattr(empty, name) is None for name in run_eval._USAGE_COUNT_FIELDS)
+    event = run_eval.usage_event(empty)
+    assert event["reported"] is False
+    assert event["input_tokens"] == event["output_tokens"] == 0
+    # One real count is enough to report.
+    partial = pytypes.SimpleNamespace(prompt_token_count=0)
+    assert run_eval.usage_event(partial)["reported"] is True
 
 
 def test_sanitize_error_redacts_google_keys():
@@ -156,7 +211,8 @@ def test_find_offloaded_output_is_none_when_ambiguous(tmp_path):
         path = root / "conv" / ".system_generated" / "steps" / step / "output.txt"
         path.parent.mkdir(parents=True)
         path.write_text(step)
-    assert run_eval.find_offloaded_output(str(root), "traj:2", set()) is None
+    # Two fresh unclaimed files and no step match: nothing to tie to this call.
+    assert run_eval.find_offloaded_output(str(root), "traj:2", set(), not_before=0.0) is None
 
 
 def test_offloaded_images_reads_only_inside_brain(tmp_path):

@@ -65,6 +65,38 @@ def normalize_model(model: str) -> str:
     return model
 
 
+def parse_thinking_level(raw: str | None) -> str | None:
+    """EVAL_ANTIGRAVITY_THINKING_LEVEL, stripped and checked against the SDK's ThinkingLevel."""
+    from google.antigravity.models import ThinkingLevel
+
+    value = (raw or "").strip().lower()
+    if not value:
+        return None
+    allowed = [level.value for level in ThinkingLevel]
+    if value not in allowed:
+        raise ValueError(
+            f"EVAL_ANTIGRAVITY_THINKING_LEVEL must be one of {', '.join(allowed)}; got {raw!r}"
+        )
+    return value
+
+
+def sdk_tool_call_backstop(max_tool_steps: int) -> int:
+    """SDK-side max_tool_calls. It counts view_file reads too, so it sits well
+    above the runner's own budget and only catches a runaway turn."""
+    return max_tool_steps * 3 + 10
+
+
+def budget_stop_message(stop: str, max_tool_steps: int) -> str:
+    """Message for an SDK-side budget stop (the runner's own stop has its own message)."""
+    if stop == "MAX_TOOL_CALLS_EXCEEDED":
+        return (
+            f"Antigravity stopped: {stop} (SDK backstop of "
+            f"{sdk_tool_call_backstop(max_tool_steps)} tool calls including view_file reads; "
+            f"runner budget {max_tool_steps})"
+        )
+    return f"Antigravity stopped: {stop}"
+
+
 def parse_config(raw: object, env: dict[str, str] | None = None) -> RunnerConfig:
     env = dict(os.environ) if env is None else env
     if not isinstance(raw, dict):
@@ -96,7 +128,7 @@ def parse_config(raw: object, env: dict[str, str] | None = None) -> RunnerConfig
         cwd = server.get("cwd")
         if cwd is not None and (not isinstance(cwd, str) or not cwd):
             raise ValueError(f"mcp server {name!r} cwd must be a non-empty string")
-    thinking = env.get("EVAL_ANTIGRAVITY_THINKING_LEVEL") or None
+    thinking = parse_thinking_level(env.get("EVAL_ANTIGRAVITY_THINKING_LEVEL"))
     wall = env.get("EVAL_ANTIGRAVITY_WALL_TIMEOUT_S")
     return RunnerConfig(
         prompt=prompt,
@@ -337,15 +369,34 @@ def result_payload(result: object) -> tuple[str, list[dict[str, str]]]:
     return "\n".join(texts), images
 
 
+_USAGE_COUNT_FIELDS = (
+    "prompt_token_count",
+    "cached_content_token_count",
+    "candidates_token_count",
+    "thoughts_token_count",
+    "total_token_count",
+)
+
+
+def _usage_count(usage: object, name: str) -> int | None:
+    value = getattr(usage, name, None)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def usage_event(usage: object) -> Event:
     """Map the SDK's cumulative usage onto the cached-subset convention.
 
-    Despite its docstring, the SDK's `prompt_token_count` is net of cached
-    tokens (cached regularly exceeds it), and `total_token_count` leaves them
-    out too. Report input as prompt + cached so cached is a subset of input.
-    Thoughts bill as output.
+    The SDK docstring calls `cached_content_token_count` a subset of
+    `prompt_token_count`, but in google-antigravity 0.1.20 the prompt count is
+    net of cached tokens: measured 2026-09-30, cached exceeded prompt in 35 of
+    38 tasks. `total_token_count` leaves cached out too. Report input as
+    prompt + cached so cached is a subset of input. Thoughts bill as output.
+
+    With no model response (early 429, wall timeout, SIGTERM) `total_usage` is
+    a UsageMetadata whose counts are all None; that is reported:false, not a
+    measured zero.
     """
-    if usage is None:
+    if usage is None or all(_usage_count(usage, name) is None for name in _USAGE_COUNT_FIELDS):
         return {
             "type": "usage",
             "reported": False,
@@ -357,8 +408,7 @@ def usage_event(usage: object) -> Event:
         }
 
     def count(name: str) -> int:
-        value = getattr(usage, name, None)
-        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+        return _usage_count(usage, name) or 0
 
     cached = count("cached_content_token_count")
     prompt = count("prompt_token_count") + cached
@@ -585,7 +635,9 @@ async def run(config: RunnerConfig) -> int:
         capabilities=types.CapabilitiesConfig(enabled_tools=[types.BuiltinTools.VIEW_FILE]),
         # The runner enforces the real budget (view_file reads are not counted);
         # the SDK limit is only a backstop.
-        budget_config=types.BudgetConfig(max_tool_calls=config.max_tool_steps * 3 + 10),
+        budget_config=types.BudgetConfig(
+            max_tool_calls=sdk_tool_call_backstop(config.max_tool_steps)
+        ),
         hooks=[on_pre_tool, on_post_tool, on_tool_error],
         **({"system_instructions": config.system_prompt} if config.system_prompt else {}),
     )
@@ -646,7 +698,7 @@ async def run(config: RunnerConfig) -> int:
                 {
                     "type": "error",
                     "kind": "tool_step_budget",
-                    "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})",
+                    "message": budget_stop_message(stop, config.max_tool_steps),
                 }
             )
         elif stop and stop != "UNSPECIFIED":
