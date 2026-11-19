@@ -112,16 +112,12 @@ export class LifecycleWatcher {
       if (sameDocument) return;
 
       if (this.waitUntil === "domcontentloaded") {
-        await this.awaitWithAbort(
-          this.page.waitForMainLoadState("domcontentloaded", this.timeRemaining(deadline)),
-        );
+        await this.waitForMainLoadState("domcontentloaded", deadline);
         return;
       }
 
       while (true) {
-        await this.awaitWithAbort(
-          this.page.waitForMainLoadState("load", this.timeRemaining(deadline)),
-        );
+        await this.waitForMainLoadState("load", deadline);
 
         if (this.waitUntil !== "networkidle") break;
 
@@ -247,6 +243,20 @@ export class LifecycleWatcher {
       return await this.awaitWithAbort(Promise.race([this.navigationStartPromise, timeoutPromise]));
     } finally {
       if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** Wait for a main-frame load state, reporting timeouts against the caller's full budget. */
+  async waitForMainLoadState(state: LoadState, deadline: number): Promise<void> {
+    try {
+      await this.awaitWithAbort(
+        this.page.waitForMainLoadState(state, this.timeRemaining(deadline)),
+      );
+    } catch (error) {
+      if (error instanceof TimeoutError && !this.abortError) {
+        throw new TimeoutError(state, this.timeout);
+      }
+      throw error;
     }
   }
 

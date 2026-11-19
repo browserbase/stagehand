@@ -40,6 +40,7 @@ import type {
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
+import { TimeoutError } from "../errors.js";
 import { NetworkManager } from "./networkManager.js";
 import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
@@ -2806,7 +2807,7 @@ export class Page {
         done = true;
         clearPollTimer();
         off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        reject(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
       }, timeout);
     });
   }
