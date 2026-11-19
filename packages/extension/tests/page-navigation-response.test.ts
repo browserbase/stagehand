@@ -11,6 +11,7 @@ type NavigationOptions = {
   emitResponse?: boolean;
   finalUrl?: string;
   finishAfterLifecycle?: boolean;
+  unansweredMethods?: string[];
   omitLoaderId?: boolean;
   sameDocument?: boolean;
   status?: number;
@@ -31,6 +32,10 @@ class NavigationCDPSession implements CDPSessionLike {
 
   async send<Result = unknown>(method: string, params?: object): Promise<Result> {
     this.calls.push({ method, params });
+
+    if (this.navigationOptions.unansweredMethods?.includes(method)) {
+      return new Promise<Result>(() => {});
+    }
 
     if (method === "Page.navigate") {
       const url = String((params as { url?: string } | undefined)?.url ?? "");
@@ -306,4 +311,57 @@ describe("Page navigation responses", () => {
 
     await expect(page.goto("https://example.test/current#details")).resolves.toBeNull();
   });
+
+  it("times out a goto whose Page.navigate never answers", async () => {
+    const session = new NavigationCDPSession();
+    session.navigationOptions = { unansweredMethods: ["Page.navigate"] };
+    const page = createPage(session);
+
+    await expect(page.goto("https://example.test/unresponsive", { timeout: 50 })).rejects.toThrow(
+      "Page.navigate timed out after 50ms",
+    );
+  });
+
+  it("times out a reload whose Page.reload never answers", async () => {
+    const session = new NavigationCDPSession();
+    session.navigationOptions = { unansweredMethods: ["Page.reload"] };
+    const page = createPage(session);
+
+    await expect(page.reload({ timeout: 50 })).rejects.toThrow("Page.reload timed out after 50ms");
+  });
+
+  it.each([
+    ["goBack", 1],
+    ["goForward", 0],
+  ] as const)(
+    "times out a %s whose Page.navigateToHistoryEntry never answers",
+    async (method, historyIndex) => {
+      const session = new NavigationCDPSession();
+      session.historyEntries = [
+        historyEntry(1, "https://example.test/first"),
+        historyEntry(2, "https://example.test/second"),
+      ];
+      session.historyIndex = historyIndex;
+      session.navigationOptions = { unansweredMethods: ["Page.navigateToHistoryEntry"] };
+      const page = createPage(session);
+
+      await expect(page[method]({ timeout: 50 })).rejects.toThrow(
+        "Page.navigateToHistoryEntry timed out after 50ms",
+      );
+    },
+  );
+
+  it.each(["goBack", "goForward"] as const)(
+    "times out a %s whose Page.getNavigationHistory never answers",
+    async (method) => {
+      const session = new NavigationCDPSession();
+      session.navigationOptions = { unansweredMethods: ["Page.getNavigationHistory"] };
+      const page = createPage(session);
+
+      await expect(page[method]({ timeout: 50 })).rejects.toThrow(
+        "Page.getNavigationHistory timed out after 50ms",
+      );
+      expect(session.callsFor("Page.navigateToHistoryEntry")).toHaveLength(0);
+    },
+  );
 });
