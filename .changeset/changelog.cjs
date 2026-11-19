@@ -31,10 +31,12 @@ async function creditMirroredContributor(changeset, repo) {
 module.exports = {
   ...base,
   async getReleaseLine(changeset, type, options) {
-    return base.getReleaseLine(
-      await creditMirroredContributor(changeset, options.repo),
-      type,
-      options,
-    );
+    let credited = changeset;
+    try {
+      credited = await creditMirroredContributor(changeset, options.repo);
+    } catch (error) {
+      console.warn(`Could not credit mirrored contributor for ${changeset.id}: ${error.message}`);
+    }
+    return base.getReleaseLine(credited, type, options);
   },
 };
