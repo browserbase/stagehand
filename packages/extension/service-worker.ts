@@ -9,6 +9,7 @@ import type { RuntimeDescriptor } from "@browserbasehq/stagehand-protocol/types"
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
+import { injectContentScriptIntoOpenTabs } from "./service-worker-lifecycle/content-script-injection.js";
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
@@ -156,5 +157,7 @@ export function startStagehandServiceWorker(
 
 if (typeof chrome !== "undefined") {
   installServiceWorkerHeartbeat();
+  // Every worker start, since onInstalled misses re-enable; a rerun in a live world is a no-op.
+  void injectContentScriptIntoOpenTabs(chrome);
   startStagehandServiceWorker();
 }
