@@ -1,0 +1,35 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-antigravity",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Google Antigravity SDK eval runner and harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-antigravity && vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-deepagents-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
