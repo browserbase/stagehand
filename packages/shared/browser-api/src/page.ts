@@ -61,6 +61,7 @@ export type PageWaitForFunctionOptions = NonNullable<PageWaitForFunctionParams["
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
 }
+export type ConsoleListener = PageEventListener;
 export type ResponseListener = (response: Response) => unknown;
 export type ToolsAddedListener = (tools: WebMCPTool[]) => unknown;
 export type ToolsRemovedListener = (tools: WebMCPToolIdentity[]) => unknown;
@@ -239,7 +240,7 @@ export class Page {
   }
 
   /** Subscribe to console messages from this page and its page-owned sessions. */
-  async onConsole(listener: PageEventListener): Promise<CDPSubscription> {
+  async onConsole(listener: ConsoleListener): Promise<CDPSubscription> {
     return this.subscribe("console", (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);

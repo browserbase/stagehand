@@ -8,6 +8,7 @@ import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-regis
 import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import {
+  type ConsoleListener,
   BrowserClipboard,
   BrowserContext,
   type ExperimentalBatchContext,
@@ -540,7 +541,8 @@ describe("Stagehand TS object wrapper", () => {
   });
 
   it("preserves the console callback and subscription types", () => {
-    expectTypeOf<Page["onConsole"]>().parameter(0).toEqualTypeOf<Parameters<Page["on"]>[1]>();
+    expectTypeOf<Page["onConsole"]>().parameter(0).toEqualTypeOf<ConsoleListener>();
+    expectTypeOf<ConsoleListener>().toEqualTypeOf<Parameters<Page["on"]>[1]>();
     expectTypeOf<Page["onConsole"]>().returns.toEqualTypeOf<ReturnType<Page["on"]>>();
   });
 

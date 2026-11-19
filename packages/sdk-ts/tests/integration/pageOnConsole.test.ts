@@ -1,6 +1,6 @@
 /* oxlint-disable no-console -- Browser-side console calls are the behavior under test. */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type PageEventListener, type Stagehand } from "../../src/index.js";
+import { type ConsoleListener, type Stagehand } from "../../src/index.js";
 import {
   closeStagehand,
   createStagehand,
@@ -9,7 +9,7 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
-type ConsoleEvent = Parameters<PageEventListener>[0];
+type ConsoleEvent = Parameters<ConsoleListener>[0];
 
 describe("dedicated console callbacks", () => {
   let stagehand: Stagehand;

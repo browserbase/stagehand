@@ -348,7 +348,7 @@ await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
 ```
 
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A callback that receives the event method, raw parameters, session ID, target ID,
   and page ID. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -1276,7 +1276,7 @@ await page.evaluate('console.log("ready")')
 await subscription.unsubscribe()
 ```
 
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A sync or async callback that receives the event method, raw parameters, session
   ID, target ID, and page ID. Async callbacks may overlap and are not awaited by
   later page calls.
@@ -1295,17 +1295,25 @@ cancelled while awaiting cleanup, the shared cleanup task continues in the backg
 ## on()
 
 <Warning>
-  Deprecated: use `page.on_console(listener)` instead.
+  Deprecated: use [`page.on_console(listener)`](#on_console) instead.
   `page.on("console", listener)` remains available for backward compatibility, with
   the same callback payload, behavior, and subscription handle.
 </Warning>
+
+```python
+async def handle_console(event: PageCDPEvent) -> None:
+    print(event.method, event.params)
+
+subscription = await page.on("console", handle_console)
+await subscription.unsubscribe()
+```
 
 <ParamField path="event" type="PageEventName">
   The console event name. Currently, the only supported value is `"console"`.
 </ParamField>
 
 <ParamField path="listener" type="PageEventListener">
-  The same synchronous or asynchronous callback accepted by `on_console()`.
+  The same synchronous or asynchronous callback accepted by [`on_console()`](#on_console).
 </ParamField>
 
 <ResponseField name="result" type="CDPSubscription">
