@@ -131,6 +131,8 @@ export async function extract<T extends z.ZodObject>(params: {
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
+  /** True when the schema has element fields, so the prompt explains how to answer them. */
+  includesElementFields?: boolean;
 }): Promise<
   z.infer<T> & {
     metadata: z.infer<typeof ExtractMetadataSchema>;
@@ -141,13 +143,27 @@ export async function extract<T extends z.ZodObject>(params: {
     inference_time_ms: number;
   }
 > {
-  const { instruction, domElements, schema, generate, userProvidedInstructions, screenshot } =
-    params;
+  const {
+    instruction,
+    domElements,
+    schema,
+    generate,
+    userProvidedInstructions,
+    screenshot,
+    includesElementFields = false,
+  } = params;
   const extraction = await generateStructured(
     generate,
     "Extraction",
     schema,
-    promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
+    promptText(
+      buildExtractSystemPrompt(
+        false,
+        userProvidedInstructions,
+        Boolean(screenshot),
+        includesElementFields,
+      ),
+    ),
     buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
   const metadata = await generateStructured(

@@ -16,6 +16,13 @@ export interface ZodPathSegments {
    * to the targeted field.
    */
   segments: Array<string | number>;
+  /**
+   * What the element ID extracted at this path resolves to: the element's URL (`z.string().url()`
+   * fields) or a selector for the element itself (fields marked as extract elements).
+   */
+  kind: ExtractIdFieldKind;
 }
+
+export type ExtractIdFieldKind = "url" | "element";
 
 export type InitScriptSource<Arg> = string | { content: string } | ((arg: Arg) => unknown);

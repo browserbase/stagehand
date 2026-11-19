@@ -867,6 +867,67 @@ fmt.Println("the link to the contact us page is: ", extracted.Data.ContactLink)
 Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs to URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final result.
 </Tip>
 
+### Element references
+
+To get the element a value came from, add an element field to your schema. After extraction, the field holds an `xpath=` selector for that element, in the same format `observe()` returns. Pass it to `page.locator()` to act on the element.
+
+This lets your code make the decision instead of the LLM. For example, you can extract every account number, match one with deterministic code, and click the matching entry.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { elementRef } from "@browserbasehq/stagehand";
+
+const target = "554063503-3";
+const normalize = (value: string) => value.replace(/^0+/, "");
+
+const { data } = await stagehand.extract(
+  "extract every account number in the list",
+  z.object({
+    accounts: z.array(z.object({ number: z.string(), element: elementRef() })),
+  }),
+);
+
+const match = data.accounts.find((account) => normalize(account.number) === target);
+if (match?.element) await page.locator(match.element).click();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+from pydantic import BaseModel, Field
+
+# Marks the field as an element reference in the JSON Schema Stagehand sends.
+ELEMENT_REF = Field(json_schema_extra={"x-stagehand": "element"})
+
+
+class Account(BaseModel):
+    number: str
+    element: str = ELEMENT_REF
+
+
+class Accounts(BaseModel):
+    accounts: list[Account]
+
+
+target = "554063503-3"
+result = await stagehand.extract("extract every account number in the list", Accounts)
+
+match = next((a for a in result.data.accounts if a.number.lstrip("0") == target), None)
+if match and match.element:
+    await page.locator(match.element).click()
+```
+</Tab>
+</Tabs>
+
+<Note>
+If Stagehand can't resolve the LLM's answer to an element on the page, the field is an empty string and Stagehand logs a warning. Check for it before you use the selector.
+</Note>
+
+<Note>
+Element fields work inside objects, arrays, tuples, unions, and optional, nullable, default, catch, or readonly fields. Stagehand rejects a schema that puts an element field inside a record or a recursive schema.
+</Note>
+
 ## Troubleshooting
 
 <AccordionGroup>
