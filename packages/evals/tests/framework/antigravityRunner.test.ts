@@ -68,7 +68,9 @@ describe("Antigravity runner", () => {
     });
     expect(capture.args?.join(" ")).toContain("integrations/antigravity/runner");
     expect(capture.args?.at(-1)).toMatch(/run_eval\.py$/);
-    expect((capture.payload?.system_prompt as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    const systemPrompt = capture.payload?.system_prompt;
+    expect(typeof systemPrompt).toBe("string");
+    expect((systemPrompt as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
     expect(capture.payload?.system_prompt).toContain("exactly three tools");
     expect(capture.payload?.model).toBe("gemini-3.8-flash");
     expect(capture.payload?.prompt).toContain(plan.instruction);
