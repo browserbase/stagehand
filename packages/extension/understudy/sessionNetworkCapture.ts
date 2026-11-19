@@ -8,6 +8,7 @@ type SessionNetworkEvents = {
   "Network.requestServedFromCache": Protocol.Network.RequestServedFromCacheEvent;
   "Network.responseReceived": Protocol.Network.ResponseReceivedEvent;
   "Page.frameStoppedLoading": Protocol.Page.FrameStoppedLoadingEvent;
+  "Page.frameNavigated": Protocol.Page.FrameNavigatedEvent;
 };
 
 export type SessionNetworkHandlers = {
@@ -38,6 +39,7 @@ export class SessionNetworkCapture {
       this.listen("Network.requestServedFromCache");
       this.listen("Network.responseReceived");
       this.listen("Page.frameStoppedLoading");
+      this.listen("Page.frameNavigated");
     } catch (error) {
       this.dispose();
       throw error;

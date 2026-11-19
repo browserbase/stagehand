@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import { TimeoutError } from "../errors.js";
 import { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import type { Page } from "./page.js";
 import { Response } from "./response.js";
@@ -133,6 +134,17 @@ export class NetworkManager {
       this.emitFinish({ ...stored, timestamp: receivedAt });
     };
 
+    const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
+      if (!evt?.frame) return;
+      const { id, loaderId } = evt.frame;
+      // Chrome sends no loadingFinished/loadingFailed for requests of the replaced document.
+      for (const info of this.requests.values()) {
+        if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
+        this.removeIdleRequest(info);
+        this.emitFailure(info);
+      }
+    };
+
     const capture = pendingCapture ?? new SessionNetworkCapture(session);
     // Register ownership before replay: observers may untrack or dispose during delivery.
     this.sessions.set(sid, {
@@ -160,6 +172,7 @@ export class NetworkManager {
         },
         "Network.responseReceived": onResponse,
         "Page.frameStoppedLoading": onFrameStopped,
+        "Page.frameNavigated": onFrameNavigated,
       });
     } catch (error) {
       this.untrackSession(sid);
@@ -292,19 +305,19 @@ export class NetworkManager {
       rejectFn = reject;
     });
 
+    // Requests that started inside the wait window but before this waiter was
+    // registered (for example during the load event) are still in flight.
+    for (const info of this.requests.values()) {
+      if (info.timestamp < startTime || !filter(info)) continue;
+      tracked.add(info.requestKey);
+    }
+
     // Trigger initial idle check so that we still respect the quiet window
     maybeIdle();
 
     if (Number.isFinite(timeout)) {
       timeoutTimer = setTimeout(
-        () => {
-          const elapsed = Date.now() - startTime;
-          const message =
-            originalBudgetMs !== undefined
-              ? `networkidle timed out after ${originalBudgetMs}ms`
-              : `networkidle timed out after ${elapsed}ms`;
-          cleanup(new Error(message));
-        },
+        () => cleanup(new TimeoutError("networkidle", originalBudgetMs ?? Date.now() - startTime)),
         Math.max(0, timeout),
       );
     }
