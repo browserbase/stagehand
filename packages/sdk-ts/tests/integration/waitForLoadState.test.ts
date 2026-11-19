@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Stagehand } from "../../src/index.js";
 import {
   closeStagehand,
@@ -8,9 +8,26 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
+// Longer than the 500ms networkidle quiet window, so a wait that ignores an
+// in-flight request would have resolved by then.
+const PAST_IDLE_WINDOW_MS = 1_000;
+
+/** Track a promise's settlement without leaving a rejection unhandled. */
+function track(promise: Promise<unknown>): { settled: boolean } {
+  const state = { settled: false };
+  promise.then(
+    () => (state.settled = true),
+    () => (state.settled = true),
+  );
+  return state;
+}
+
 describe("Page.waitForLoadState", () => {
   let stagehand: Stagehand;
   let fixture: FixtureServer;
+  // `/slow` holds its response until the current test releases it.
+  let releaseSlow: () => void = () => {};
+  let slowGate: Promise<void> = Promise.resolve();
 
   beforeAll(async () => {
     fixture = await startFixtureServer({
@@ -20,13 +37,23 @@ describe("Page.waitForLoadState", () => {
           addEventListener("load", () => fetch("/slow").then(() => { window.slowDone = true; }));
         </script>`,
       "/slow": async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        await slowGate;
         return "done";
       },
       "/worker": `<!doctype html><title>worker</title><body>Worker page
         <script>new Worker(URL.createObjectURL(new Blob([""], { type: "text/javascript" })));</script>`,
     });
     stagehand = await createStagehand();
+  });
+
+  beforeEach(() => {
+    slowGate = new Promise((resolve) => {
+      releaseSlow = resolve;
+    });
+  });
+
+  afterEach(() => {
+    releaseSlow();
   });
 
   afterAll(async () => {
@@ -45,7 +72,13 @@ describe("Page.waitForLoadState", () => {
     const page = await firstPage(stagehand);
     await page.goto(`${fixture.url}busy`, { waitUntil: "load" });
 
-    await page.waitForLoadState("networkidle", 5_000);
+    const idle = page.waitForLoadState("networkidle", 10_000);
+    const state = track(idle);
+    await page.waitForTimeout(PAST_IDLE_WINDOW_MS);
+    expect(state.settled).toBe(false);
+
+    releaseSlow();
+    await expect(idle).resolves.toBeUndefined();
     await expect(page.evaluate("window.slowDone")).resolves.toBe(true);
   });
 
@@ -59,9 +92,16 @@ describe("Page.waitForLoadState", () => {
   it("stops waiting for requests of a document that navigated away", async () => {
     const page = await firstPage(stagehand);
     await page.goto(`${fixture.url}busy`, { waitUntil: "load" });
-    await page.evaluate("setTimeout(() => { location.href = '/'; }, 300)");
 
-    await expect(page.waitForLoadState("networkidle", 5_000)).resolves.toBeUndefined();
+    // `/slow` never responds in this test, so only the navigation can end the wait.
+    const idle = page.waitForLoadState("networkidle", 10_000);
+    const state = track(idle);
+    await page.waitForTimeout(PAST_IDLE_WINDOW_MS);
+    expect(state.settled).toBe(false);
+
+    // Deferred so the evaluate call returns before its execution context is destroyed.
+    await page.evaluate("setTimeout(() => { location.href = '/'; }, 0)");
+    await expect(idle).resolves.toBeUndefined();
   });
 
   it.each(["goto", "reload"] as const)(
@@ -69,13 +109,20 @@ describe("Page.waitForLoadState", () => {
     async (method) => {
       const page = await firstPage(stagehand);
       await page.goto(`${fixture.url}busy`, { waitUntil: "load" });
-      const idle = expect(page.waitForLoadState("networkidle", 5_000)).resolves.toBeUndefined();
+
+      const idle = page.waitForLoadState("networkidle", 15_000);
+      const state = track(idle);
       await page.waitForTimeout(300);
       await (method === "goto"
         ? page.goto(`${fixture.url}busy?next`, { waitUntil: "load" })
         : page.reload({ waitUntil: "load" }));
 
-      await idle;
+      // The new document's own `/slow` request must still hold the wait open.
+      await page.waitForTimeout(PAST_IDLE_WINDOW_MS);
+      expect(state.settled).toBe(false);
+
+      releaseSlow();
+      await expect(idle).resolves.toBeUndefined();
       await expect(page.evaluate("window.slowDone")).resolves.toBe(true);
     },
   );
