@@ -238,7 +238,6 @@ browse cloud sessions uploads create <session-id> ./file.pdf
 # Contexts
 browse cloud contexts create
 browse cloud contexts get <context-id>
-browse cloud contexts update <context-id>        # refresh the upload URL
 browse cloud contexts delete <context-id>
 
 # Extensions

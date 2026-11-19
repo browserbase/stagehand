@@ -1659,16 +1659,6 @@ describe("cloud API contracts", () => {
       responseBody: { id: "00000000-0000-4000-8000-000000000000" },
     },
     {
-      args: ["cloud", "contexts", "update", "00000000-0000-4000-8000-000000000000"],
-      expectedMethod: "PUT",
-      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
-      expectedBody: undefined,
-      responseBody: {
-        id: "00000000-0000-4000-8000-000000000000",
-        uploadUrl: "https://example.com/upload",
-      },
-    },
-    {
       args: ["cloud", "contexts", "delete", "00000000-0000-4000-8000-000000000000"],
       expectedMethod: "DELETE",
       expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
