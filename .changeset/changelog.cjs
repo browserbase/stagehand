@@ -31,6 +31,10 @@ async function creditMirroredContributor(changeset, repo) {
 module.exports = {
   ...base,
   async getReleaseLine(changeset, type, options) {
-    return base.getReleaseLine(await creditMirroredContributor(changeset, options.repo), type, options);
+    return base.getReleaseLine(
+      await creditMirroredContributor(changeset, options.repo),
+      type,
+      options,
+    );
   },
 };
