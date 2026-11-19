@@ -1006,7 +1006,7 @@ describe("cloud API contracts", () => {
     {
       args: ["cloud", "sessions", "get", "sess_123"],
       expectedMethod: "GET",
-      expectedPath: "/v1/sessions/sess_123",
+      expectedPath: "/v1/sessions/sess_123?includeLabels=true",
       expectedBody: undefined,
       responseBody: { id: "sess_123" },
     },

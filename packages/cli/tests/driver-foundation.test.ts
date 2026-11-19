@@ -374,6 +374,84 @@ describe("driver foundation", () => {
     ).toBe(false);
   });
 
+  it("requires explicit remote mode for creation labels", async () => {
+    for (const flags of [{}, { local: true }, { cdp: "9222" }, { "auto-connect": true }]) {
+      await expect(resolveConnectionTarget({ ...flags, label: ["Checkout"] })).rejects.toThrow(
+        "--label requires --remote",
+      );
+    }
+  });
+
+  it("compares creation labels by identity without silently replacing them", () => {
+    const existing = { kind: "remote" as const, labels: ["Checkout", "Smoke test"] };
+    expect(targetsCompatible(existing, { kind: "remote" })).toBe(true);
+    expect(
+      targetsCompatible(existing, {
+        kind: "remote",
+        labels: [" smoke test ", "CHECKOUT", "Checkout"],
+      }),
+    ).toBe(true);
+    expect(targetsCompatible(existing, { kind: "remote", labels: ["Checkout"] })).toBe(false);
+    expect(
+      targetsCompatible(
+        { kind: "remote" },
+        {
+          kind: "remote",
+          labels: ["Checkout"],
+        },
+      ),
+    ).toBe(false);
+    expect(existing.labels).toEqual(["Checkout", "Smoke test"]);
+  });
+
+  it("retains labels in daemon status and rejects changing a running session's creation labels", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-labels-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "creation-labels";
+    const runPromise = runDriverDaemon({
+      session,
+      target: { kind: "remote", labels: ["Checkout"] },
+    });
+    try {
+      await waitForSocket(getSocketPath(session));
+      expect(await getDriverStatus(session)).toMatchObject({
+        initialized: false,
+        target: { kind: "remote", labels: ["Checkout"] },
+      });
+      await expect(
+        ensureDriverDaemon({ session, target: { kind: "remote" } }),
+      ).resolves.toBeUndefined();
+      await expect(
+        ensureDriverDaemon({
+          session,
+          target: {
+            kind: "remote",
+            labels: ["checkout"],
+          },
+        }),
+      ).resolves.toBeUndefined();
+      await expect(
+        ensureDriverDaemon({
+          session,
+          target: {
+            kind: "remote",
+            labels: ["Smoke test"],
+          },
+        }),
+      ).rejects.toThrow("Use browse cloud sessions labels set");
+      expect(await getDriverStatus(session)).toMatchObject({
+        initialized: false,
+        target: { kind: "remote", labels: ["Checkout"] },
+      });
+    } finally {
+      await stopDriverDaemon(session);
+      await runPromise;
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
   it("sanitizes daemon session names", () => {
     expect(sanitizeSessionName("research")).toBe("research");
     expect(sanitizeSessionName("research.v1")).toBe("research.v1");

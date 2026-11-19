@@ -58,7 +58,7 @@ export interface RemoteCapability {
   forwardedEnvKeys(): readonly string[];
   /**
    * Stagehand options for a remote (BROWSERBASE) session. The target carries
-   * the optional verified/proxies flags. Forwarded env vars (if any) are
+   * the optional session creation flags. Forwarded env vars (if any) are
    * threaded into the constructor here so a key set after the daemon started is
    * honored without touching `process.env`.
    */

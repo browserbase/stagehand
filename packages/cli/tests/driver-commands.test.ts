@@ -56,6 +56,7 @@ describe("driver commands", () => {
   it("treats headed and headless as explicit local target choices", () => {
     expect(hasExplicitDriverTarget({})).toBe(false);
     expect(hasExplicitDriverTarget({ local: true })).toBe(true);
+    expect(hasExplicitDriverTarget({ label: ["Checkout"] })).toBe(true);
     expect(hasExplicitDriverTarget({ headed: true })).toBe(true);
     expect(hasExplicitDriverTarget({ headless: true })).toBe(true);
     expect(hasExplicitDriverTarget({ cdp: "9222" })).toBe(true);
@@ -95,6 +96,54 @@ describe("driver commands", () => {
       await expect(resolveDriverSession("reuse-local", { remote: true })).rejects.toThrow(
         'Session "reuse-local" is already running in managed-local mode.',
       );
+    } finally {
+      vi.doUnmock("../src/lib/driver/daemon/client.js");
+      vi.resetModules();
+    }
+  });
+
+  it("reuses remote creation labels and rejects conflicting requests before running a command", async () => {
+    vi.resetModules();
+    const target = { kind: "remote", labels: ["Checkout"], proxies: true };
+    const getDriverStatus = vi.fn().mockResolvedValue({ mode: "remote", target });
+    vi.doMock("../src/lib/driver/daemon/client.js", async () => ({
+      ...(await vi.importActual("../src/lib/driver/daemon/client.js")),
+      getDriverStatus,
+    }));
+    try {
+      const { resolveDriverSession } = await import("../src/lib/driver/command-cli.js");
+      await expect(resolveDriverSession("reuse-remote", {})).resolves.toEqual({
+        kind: "existing",
+      });
+      await expect(resolveDriverSession("reuse-remote", { remote: true })).resolves.toEqual({
+        kind: "existing",
+      });
+      await expect(
+        resolveDriverSession("reuse-remote", {
+          remote: true,
+          proxies: true,
+          label: ["checkout"],
+        }),
+      ).resolves.toEqual({ kind: "existing" });
+      await expect(
+        resolveDriverSession("reuse-remote", {
+          remote: true,
+          proxies: true,
+          label: ["Smoke test"],
+        }),
+      ).rejects.toThrow("Use browse cloud sessions labels set");
+      await expect(
+        resolveDriverSession("reuse-remote", {
+          label: ["Checkout"],
+        }),
+      ).rejects.toThrow("--label requires --remote");
+      getDriverStatus.mockResolvedValueOnce(null);
+      await expect(
+        resolveDriverSession("new-remote", { remote: true, label: ["Smoke test"] }),
+      ).resolves.toEqual({
+        kind: "create",
+        target: { kind: "remote", labels: ["Smoke test"] },
+      });
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();
