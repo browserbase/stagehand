@@ -102,6 +102,35 @@ describe("AISdkClient structured output provider options", () => {
     );
   });
 
+  it.each([
+    "claude-fable-5",
+    "claude-fable-5-1",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
+  ])(
+    "requests native structured output for %s, which rejects forced tool use",
+    async (modelId) => {
+      const client = new LLMProvider(vi.fn()).getClient(`anthropic/${modelId}`);
+
+      await client.createChatCompletion({
+        options: {
+          messages: [{ role: "user", content: "hello" }],
+          response_model: {
+            name: "test",
+            schema: z.object({ ok: z.boolean() }),
+          },
+        },
+        logger: vi.fn(),
+      });
+
+      expect(mockGenerateObject.mock.calls[0][0]).toMatchObject({
+        providerOptions: {
+          anthropic: { structuredOutputMode: "outputFormat" },
+        },
+      });
+    },
+  );
+
   it("omits temperature for claude-opus-4-7 structured calls", async () => {
     const client = new AISdkClient({
       model: createModel("anthropic/claude-opus-4-7"),

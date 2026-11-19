@@ -17,7 +17,10 @@ import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
-import { anthropicFallbacksOptions } from "./anthropicOptions.js";
+import {
+  anthropicFallbacksOptions,
+  rejectsForcedToolUse,
+} from "./anthropicOptions.js";
 import {
   FlowLogger,
   extractLlmPromptSummary,
@@ -182,7 +185,12 @@ export class AISdkClient extends LLMClient {
         break;
       case "anthropic":
         providerOptions.anthropic = {
-          structuredOutputMode: "auto",
+          // "auto" falls back to a forced JSON tool for models the provider
+          // doesn't list as supporting structured output; models that reject
+          // forced tool use need native structured output instead.
+          structuredOutputMode: rejectsForcedToolUse(this.model.modelId)
+            ? "outputFormat"
+            : "auto",
           // Fable 5 opts into the API's server-side refusal fallback; the
           // provider adds the required beta header automatically.
           ...(anthropicFallbacksOptions(this.model.modelId) ?? {}),
