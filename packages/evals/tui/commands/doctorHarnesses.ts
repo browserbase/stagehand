@@ -554,7 +554,9 @@ async function buildHarnessRow(
             fix: "pnpm install",
           };
       break;
-    case "deepagents": {
+    case "deepagents":
+    case "antigravity": {
+      // Both spawn a Python runner through the Deep Agents session driver's uv.
       const uv = env.STAGEHAND_DEEPAGENTS_UV?.trim() || "uv";
       const found = path.isAbsolute(uv) ? (isExecutable(uv) ? uv : undefined) : which(uv);
       binary = found
@@ -565,13 +567,22 @@ async function buildHarnessRow(
             detail: "uv is not on PATH (or STAGEHAND_DEEPAGENTS_UV points nowhere).",
             fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
           };
-      extra = {
-        status: "unknown",
-        label: "python env",
-        detail:
-          "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
-        fix: "uv sync --all-packages --locked",
-      };
+      extra =
+        harness === "deepagents"
+          ? {
+              status: "unknown",
+              label: "python env",
+              detail:
+                "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
+              fix: "uv sync --all-packages --locked",
+            }
+          : {
+              status: "unknown",
+              label: "python env",
+              detail:
+                "the Antigravity runner is its own uv project; run `uv sync --locked --check` in it to confirm the env is synced.",
+              fix: "uv sync --locked --project packages/integrations/antigravity/runner",
+            };
       break;
     }
     default:

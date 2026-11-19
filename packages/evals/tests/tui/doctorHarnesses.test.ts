@@ -94,6 +94,7 @@ describe("buildHarnessMatrix", () => {
       "pi",
       "eve",
       "deepagents",
+      "antigravity",
       "claude_cua",
       "gemini_cua",
     ]);
@@ -108,7 +109,7 @@ describe("buildHarnessMatrix", () => {
       options({
         env: { OPENAI_API_KEY: "sk", CODEX_HOME: os.tmpdir() },
         resolvePackage: (specifier) => specifier !== "@anthropic-ai/claude-agent-sdk",
-        requested: ["claude_code", "codex", "deepagents"],
+        requested: ["claude_code", "codex", "deepagents", "antigravity"],
       }),
     );
     const byName = Object.fromEntries(matrix.harnesses.map((row) => [row.harness, row]));
@@ -128,6 +129,10 @@ describe("buildHarnessMatrix", () => {
     expect(byName.deepagents.binary).toMatchObject({ status: "fail", label: "uv missing" });
     expect(byName.deepagents.binary.fix).toContain("astral.sh/uv/install.sh");
     expect(byName.deepagents.extra.fix).toBe("uv sync --all-packages --locked");
+    expect(byName.antigravity.binary).toMatchObject({ status: "fail", label: "uv missing" });
+    expect(byName.antigravity.extra.fix).toBe(
+      "uv sync --locked --project packages/integrations/antigravity/runner",
+    );
 
     const reasons = harnessMatrixReasons(matrix);
     expect(reasons.failures).toEqual([
@@ -136,6 +141,8 @@ describe("buildHarnessMatrix", () => {
       ),
       expect.stringContaining("claude_code: ANTHROPIC_API_KEY is not set"),
       expect.stringContaining("deepagents: uv is not on PATH"),
+      expect.stringContaining("antigravity: uv is not on PATH"),
+      expect.stringContaining("antigravity: GOOGLE_GENERATIVE_AI_API_KEY is not set"),
       // requested → verifier + browserbase rows count too
       expect.stringContaining("verifier: GOOGLE_GENERATIVE_AI_API_KEY is not set"),
     ]);

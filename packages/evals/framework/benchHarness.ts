@@ -24,6 +24,11 @@ import { runEveAgent } from "./eveRunner.js";
 import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
 import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
+import {
+  runAntigravityAgent,
+  ANTIGRAVITY_DEFAULT_MODELS,
+  ANTIGRAVITY_TOOL_SURFACES,
+} from "./antigravityRunner.js";
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
@@ -369,6 +374,18 @@ export const deepagentsHarness = defineExternalHarness({
   runAgent: runDeepagentsAgent,
 });
 
+/**
+ * Google Antigravity's agent loop via its Python SDK; the runner speaks the
+ * Deep Agents event protocol, so it shares that harness's MCP tool mount.
+ */
+export const antigravityHarness = defineExternalHarness({
+  harness: "antigravity",
+  supportedToolSurfaces: ANTIGRAVITY_TOOL_SURFACES,
+  defaultModels: ANTIGRAVITY_DEFAULT_MODELS,
+  prepareToolAdapter: prepareDeepagentsToolAdapter,
+  runAgent: runAntigravityAgent,
+});
+
 export const fxHarness = defineExternalHarness({
   harness: "fx",
   supportedToolSurfaces: FX_TOOL_SURFACES,
@@ -409,6 +426,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["pi", piHarness],
   ["eve", eveHarness],
   ["deepagents", deepagentsHarness],
+  ["antigravity", antigravityHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
   ["claude_cua", claudeCuaHarness],
