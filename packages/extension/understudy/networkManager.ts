@@ -140,6 +140,9 @@ export class NetworkManager {
       // Chrome sends no loadingFinished/loadingFailed for requests of the replaced document.
       for (const info of this.requests.values()) {
         if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
+        const owner = this.sessions.get(info.sessionId);
+        owner?.unfinishedRequests.delete(info.requestId);
+        if (owner) this.failReplacedResponses(owner.session, info.requestId);
         this.removeIdleRequest(info);
         this.emitFailure(info);
       }
@@ -411,6 +414,18 @@ export class NetworkManager {
       timestamp: receivedAt,
       documentRequest: false,
     };
+  }
+
+  /**
+   * Settle responses of a request whose document was replaced. Deliberately narrower than
+   * finishResponse: no cross-session handoff, which could record a bogus pending completion.
+   */
+  private failReplacedResponses(session: CDPSessionLike, requestId: string): void {
+    for (const response of this.pendingResponses.keys()) {
+      if (response.finishedSettled) continue;
+      if (response.session !== session || response.requestId !== requestId) continue;
+      response.markFinished(new Error("Request was abandoned by a replaced document"));
+    }
   }
 
   private removeIdleRequest(info: NetworkRequestInfo): void {

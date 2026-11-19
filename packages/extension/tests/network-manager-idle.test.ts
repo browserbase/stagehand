@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { NetworkManager } from "../understudy/networkManager.js";
 import type { Page } from "../understudy/page.js";
+import type { Response } from "../understudy/response.js";
 
 type Handler = (params: unknown) => void;
 
@@ -116,5 +117,35 @@ describe("NetworkManager.waitForIdle", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(settled).toBe(true);
     expect(manager.requests.size).toBe(0);
+  });
+
+  it("settles bookkeeping and responses of requests abandoned by a replaced document", async () => {
+    const manager = new NetworkManager({} as Page);
+    const { session, emit } = createSession();
+    manager.trackSession(session);
+    const responses: Response[] = [];
+    manager.subscribeResponse((response) => responses.push(response));
+
+    emit("Network.requestWillBeSent", {
+      requestId: "xhr-1",
+      loaderId: "loader-1",
+      frameId: "main",
+      type: "XHR",
+      request: { url: "https://example.com/api" },
+    });
+    emit("Network.responseReceived", {
+      requestId: "xhr-1",
+      loaderId: "loader-1",
+      frameId: "main",
+      type: "XHR",
+      response: { url: "https://example.com/api", status: 200, headers: {} },
+    });
+    expect(responses).toHaveLength(1);
+
+    emit("Page.frameNavigated", { frame: { id: "main", loaderId: "loader-2" } });
+
+    expect(manager.sessions.get("session-1")?.unfinishedRequests.size).toBe(0);
+    const finished = await responses[0]!.finished();
+    expect(finished).toBeInstanceOf(Error);
   });
 });
