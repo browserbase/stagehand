@@ -90,7 +90,11 @@ export async function withBrowserbaseApi<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
-    return await operation();
+    const result = await operation();
+    setRunTelemetryCompletion({
+      requestHadHttpResponse: true,
+    });
+    return result;
   } catch (error) {
     rethrowBrowserbaseApiError(error, command);
   }
