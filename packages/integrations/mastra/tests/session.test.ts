@@ -96,12 +96,61 @@ describe("Mastra SDK session", () => {
     });
     expect(agentConfig).toMatchObject({
       model: "anthropic/claude-sonnet-4-6",
-      instructions: "Use the browser.",
       tools: { stagehand_run: { id: "run" }, local: { id: "local" } },
     });
     expect(streamOptions).toMatchObject({ maxSteps: 7 });
     expect(streamOptions?.abortSignal).toBeInstanceOf(AbortSignal);
     expect(servers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
+  });
+
+  it("asks Anthropic to cache the instructions, tools and conversation", async () => {
+    const capture = async (model: string, session: Record<string, unknown> = {}) => {
+      let agentConfig: Record<string, unknown> | undefined;
+      let streamOptions: Record<string, unknown> | undefined;
+      await runMastraSession({
+        prompt: "task",
+        model,
+        logger,
+        sdk: fakeSdk({
+          agentConfig: (value) => (agentConfig = value),
+          streamOptions: (value) => (streamOptions = value),
+        }),
+        session: { instructions: "Use the browser.", ...session },
+      });
+      return {
+        instructions: agentConfig?.instructions,
+        providerOptions: streamOptions?.providerOptions,
+      };
+    };
+    const cacheControl = { type: "ephemeral" };
+
+    // The breakpoint on the system message covers the tool definitions rendered before it; the
+    // call-level option is Anthropic's automatic caching for the growing conversation.
+    expect(
+      await capture("anthropic/claude-sonnet-4-6", {
+        providerOptions: { anthropic: { sendReasoning: true }, openai: { store: false } },
+      }),
+    ).toEqual({
+      instructions: {
+        role: "system",
+        content: "Use the browser.",
+        providerOptions: { anthropic: { cacheControl } },
+      },
+      providerOptions: {
+        anthropic: { sendReasoning: true, cacheControl },
+        openai: { store: false },
+      },
+    });
+
+    expect(await capture("anthropic/claude-sonnet-4-6", { promptCaching: false })).toEqual({
+      instructions: "Use the browser.",
+      providerOptions: undefined,
+    });
+    // Other providers cache without a request option.
+    expect(await capture("openai/gpt-5.4")).toEqual({
+      instructions: "Use the browser.",
+      providerOptions: undefined,
+    });
   });
 
   it("collects final text after the last tool call and finish usage", async () => {

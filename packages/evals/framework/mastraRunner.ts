@@ -21,6 +21,12 @@ import {
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
 import { mastraAdapter } from "./harnesses/mastraAdapter.js";
+import {
+  MASTRA_BROWSER_INSTRUCTIONS,
+  MASTRA_FINISH_CHECK_PROMPT,
+  MASTRA_MINIMAL_INSTRUCTIONS,
+  resolveMastraHarnessSettings,
+} from "./mastraInstructions.js";
 import type { PreparedMastraToolAdapter } from "./mastraToolAdapter.js";
 import { openAiReasoningProviderOptions } from "./reasoningSummary.js";
 import { resolveStepBudget } from "./stepBudget.js";
@@ -84,6 +90,7 @@ export async function runMastraAgent({
     dataset: plan.dataset,
     harnessDefault: 50,
   });
+  const settings = resolveMastraHarnessSettings();
   const result = await runExternalHarnessTask({
     harness: "mastra",
     plan,
@@ -95,6 +102,7 @@ export async function runMastraAgent({
     fallbackErrorMessage: "Mastra did not report success",
     stepBudget: maxSteps,
     stepBudgetUnit: "model_steps",
+    configuration: { ...settings },
     systemPromptMode: "native",
     runSession: async (
       prompt,
@@ -107,7 +115,13 @@ export async function runMastraAgent({
         sdk: sdk ?? (await loadMastraSdk()),
         signal,
         session: {
-          instructions: `${systemPrompt}\n\nUse the available browser/web tools to complete the task.`,
+          instructions: `${systemPrompt}\n\n${
+            settings.instructions === "minimal"
+              ? MASTRA_MINIMAL_INSTRUCTIONS
+              : MASTRA_BROWSER_INSTRUCTIONS
+          }`,
+          ...(settings.finishCheck && { finishCheckPrompt: MASTRA_FINISH_CHECK_PROMPT }),
+          promptCaching: settings.promptCaching,
           maxSteps,
           mcpServers: toolAdapter?.mcpServers,
           tools: toolAdapter?.tools,

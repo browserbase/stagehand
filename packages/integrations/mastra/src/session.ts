@@ -36,12 +36,15 @@ export type MastraStdioServerDefinition = {
 
 export type MastraAgentLike = {
   stream: (
-    prompt: string,
+    /** A prompt, or the full message list when continuing an earlier call. */
+    prompt: string | unknown[],
     options?: Record<string, unknown>,
   ) => Promise<{
     fullStream: AsyncIterable<MastraEvent>;
     text?: Promise<string>;
     error?: unknown;
+    /** Resolves once the stream is consumed; `dbMessages` is what this call produced, in Mastra's stored format. */
+    response?: Promise<{ dbMessages?: unknown[] } | undefined>;
   }>;
 };
 
@@ -80,6 +83,19 @@ export type MastraSessionConfig = {
   providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
+  /**
+   * Follow-up sent once, as a user message, the first time the model stops on its own with step
+   * budget left. The run continues in the same conversation, so the model either keeps working or
+   * restates its answer. A check pass that fails or produces no text leaves the first answer and
+   * its completed status in place.
+   */
+  finishCheckPrompt?: string;
+  /**
+   * Prompt caching for `anthropic/` models, on unless set to false: a cache breakpoint on the
+   * instructions (which also covers the tool definitions) plus Anthropic's automatic caching for
+   * the growing conversation. Anthropic caches nothing unless asked; other providers need no option.
+   */
+  promptCaching?: boolean;
 };
 
 export type MastraTokenUsage = {
@@ -202,6 +218,32 @@ export function resolveMastraModel(
   }
 }
 
+const ANTHROPIC_CACHE_CONTROL = { anthropic: { cacheControl: { type: "ephemeral" } } };
+
+/** A finish check needs room for at least one tool call and a new answer. */
+const FINISH_CHECK_MIN_STEPS = 3;
+
+/**
+ * A user turn in Mastra's stored message format. The finish check continues from stored
+ * messages because they convert to model messages exactly as they did during the run. Model
+ * messages do not round-trip: image tool results come back as base64 text and turns regroup.
+ */
+function storedUserMessage(text: string, createdAt: Date): Record<string, unknown> {
+  return {
+    id: randomUUID(),
+    role: "user",
+    createdAt,
+    content: { format: 2, parts: [{ type: "text", text }] },
+  };
+}
+
+function earliestCreatedAt(messages: unknown[]): number {
+  const times = messages
+    .map((message) => (isRecord(message) ? new Date(message.createdAt as string).getTime() : NaN))
+    .filter((time) => Number.isFinite(time));
+  return times.length > 0 ? Math.min(...times) : Date.now();
+}
+
 export async function runMastraSession(input: {
   prompt: string;
   model: string;
@@ -271,65 +313,140 @@ export async function runMastraSession(input: {
     }
 
     if (!stopReason) {
+      const instructions =
+        input.session.instructions ?? "Use the available browser/web tools to complete the task.";
+      const cacheControl =
+        input.session.promptCaching !== false &&
+        normalizeMastraModel(input.model).startsWith("anthropic/")
+          ? ANTHROPIC_CACHE_CONTROL
+          : undefined;
       const agent = sdk.createAgent({
         id: input.session.agentId ?? "stagehand-evals-mastra",
         name: input.session.agentName ?? "Stagehand Evals Mastra Agent",
-        instructions:
-          input.session.instructions ?? "Use the available browser/web tools to complete the task.",
+        instructions: cacheControl
+          ? { role: "system", content: instructions, providerOptions: cacheControl }
+          : instructions,
         model: resolveMastraModel(input.model),
         tools: { ...mcpTools, ...input.session.tools },
       });
-      const stream = await agent.stream(input.prompt, {
-        maxSteps,
+      const providerOptions = cacheControl
+        ? {
+            ...input.session.providerOptions,
+            anthropic: { ...input.session.providerOptions?.anthropic, ...cacheControl.anthropic },
+          }
+        : input.session.providerOptions;
+      const streamOptions = {
         abortSignal: controller.signal,
         ...(input.session.modelSettings && { modelSettings: input.session.modelSettings }),
-        ...(input.session.providerOptions && { providerOptions: input.session.providerOptions }),
-      });
+        ...(providerOptions && { providerOptions }),
+      };
 
-      for await (const event of stream.fullStream) {
-        events.push(compactMastraEvent(event));
-        logMastraEvent(input.logger, event);
-        const payload = isRecord(event.payload) ? event.payload : {};
-        if (event.type === "tool-call") {
-          textBuffer = "";
-        } else if (event.type === "text-delta" && typeof payload.text === "string") {
-          textBuffer += payload.text;
-        } else if (event.type === "tool-result" || event.type === "tool-error") {
-          if (typeof payload.toolName === "string") {
-            await input.onToolResult?.(payload.toolName);
+      /** One `agent.stream` call, folded into the session totals. Returns the text after its last tool call. */
+      const runPass = async (
+        prompt: string | unknown[],
+      ): Promise<{ text: string; history?: unknown[] }> => {
+        const stream = await agent.stream(prompt, {
+          maxSteps: Math.max(1, maxSteps - stepCount),
+          ...streamOptions,
+        });
+        const usageBefore = tokenUsage;
+        textBuffer = "";
+        for await (const event of stream.fullStream) {
+          events.push(compactMastraEvent(event));
+          logMastraEvent(input.logger, event);
+          const payload = isRecord(event.payload) ? event.payload : {};
+          if (event.type === "tool-call") {
+            textBuffer = "";
+          } else if (event.type === "text-delta" && typeof payload.text === "string") {
+            textBuffer += payload.text;
+          } else if (event.type === "tool-result" || event.type === "tool-error") {
+            if (typeof payload.toolName === "string") {
+              await input.onToolResult?.(payload.toolName);
+            }
+          } else if (event.type === "step-finish") {
+            stepCount += 1;
+            const output = isRecord(payload.output) ? payload.output : undefined;
+            if (isRecord(output?.usage)) {
+              summedStepUsage = addTokenUsage(
+                summedStepUsage,
+                extractMastraTokenUsage(output.usage),
+              );
+            }
+          } else if (event.type === "finish") {
+            const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
+            finishReason =
+              typeof stepResult?.reason === "string" ? stepResult.reason : finishReason;
+            const output = isRecord(payload.output) ? payload.output : undefined;
+            if (isRecord(output?.usage)) {
+              // A finish event reports its own call's total; passes add up.
+              tokenUsage = addTokenUsage(usageBefore, extractMastraTokenUsage(output.usage));
+            }
+          } else if (event.type === "error") {
+            stopReason = sanitizeErrorMessage(stringifyError(payload.error) || "error");
+          } else if (event.type === "abort") {
+            stopReason = sanitizeErrorMessage(stringifyError(input.signal?.reason) || "aborted");
           }
-        } else if (event.type === "step-finish") {
-          stepCount += 1;
-          const output = isRecord(payload.output) ? payload.output : undefined;
-          if (isRecord(output?.usage)) {
-            summedStepUsage = addTokenUsage(summedStepUsage, extractMastraTokenUsage(output.usage));
-          }
-        } else if (event.type === "finish") {
-          const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
-          finishReason = typeof stepResult?.reason === "string" ? stepResult.reason : finishReason;
-          const output = isRecord(payload.output) ? payload.output : undefined;
-          if (isRecord(output?.usage)) tokenUsage = extractMastraTokenUsage(output.usage);
-        } else if (event.type === "error") {
-          stopReason = sanitizeErrorMessage(stringifyError(payload.error) || "error");
-        } else if (event.type === "abort") {
-          stopReason = sanitizeErrorMessage(stringifyError(input.signal?.reason) || "aborted");
         }
-      }
-      if (controller.signal.aborted && !stopReason) {
-        stopReason = sanitizeErrorMessage(
-          stringifyError(controller.signal.reason) || "Mastra session aborted",
-        );
-      }
-      finalText = textBuffer;
-      if (!finalText && stream.text) {
+        if (controller.signal.aborted && !stopReason) {
+          stopReason = sanitizeErrorMessage(
+            stringifyError(controller.signal.reason) || "Mastra session aborted",
+          );
+        }
+        let text = textBuffer;
+        if (!text && stream.text) {
+          try {
+            text = await stream.text;
+          } catch {
+            // The stream's explicit error is reported below when available.
+          }
+        }
+        if (stream.error && !stopReason) {
+          stopReason = sanitizeErrorMessage(stringifyError(stream.error));
+        }
+        const response = await stream.response?.catch((): undefined => undefined);
+        return {
+          text,
+          ...(Array.isArray(response?.dbMessages) && { history: response.dbMessages }),
+        };
+      };
+
+      const first = await runPass(input.prompt);
+      finalText = first.text;
+
+      const finishCheckPrompt = input.session.finishCheckPrompt?.trim();
+      if (
+        finishCheckPrompt &&
+        !stopReason &&
+        finishReason === "stop" &&
+        first.history?.length &&
+        maxSteps - stepCount >= FINISH_CHECK_MIN_STEPS
+      ) {
+        events.push({ type: "finish-check", payload: { text: finishCheckPrompt } });
         try {
-          finalText = await stream.text;
-        } catch {
-          // The stream's explicit error is reported below when available.
+          // Continue the same conversation: the task, everything the model produced, then the
+          // check. Mastra orders stored messages by time, so the task is dated before the history.
+          const check = await runPass([
+            storedUserMessage(input.prompt, new Date(earliestCreatedAt(first.history) - 1)),
+            ...first.history,
+            storedUserMessage(finishCheckPrompt, new Date()),
+          ]);
+          if (check.text && !stopReason) finalText = check.text;
+        } catch (error) {
+          if (controller.signal.aborted) throw error;
+          stopReason = sanitizeErrorMessage(stringifyError(error) || "finish check failed");
         }
-      }
-      if (stream.error && !stopReason) {
-        stopReason = sanitizeErrorMessage(stringifyError(stream.error));
+        // The first pass already ended with an answer. Unless the row was aborted, a check pass
+        // that errors or runs out of steps must not turn that answer into a failed session.
+        if (!controller.signal.aborted && (stopReason || finishReason !== "stop")) {
+          input.logger.warn({
+            category: "mastra",
+            message: `Mastra finish check did not complete (${stopReason ?? finishReason}); keeping the first answer`,
+            level: 1,
+          });
+          stopReason = undefined;
+          finishReason = "stop";
+          finalText = first.text;
+        }
       }
     }
   } catch (error) {
