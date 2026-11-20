@@ -2,9 +2,10 @@ import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
 import { detectAgent } from "../lib/agent.js";
-import { buildBugReportUrl } from "../lib/bug-report.js";
 import { getCliVersion } from "../lib/identity.js";
 import { openUrl } from "../lib/open-url.js";
+
+const GITHUB_ISSUES_URL = "https://github.com/browserbase/stagehand/issues/new";
 
 export default class Bug extends BrowseCommand {
   static override description =
@@ -32,14 +33,31 @@ export default class Bug extends BrowseCommand {
 
     const agent = await detectAgent();
 
-    const env = {
-      browseVersion: getCliVersion(),
-      nodeVersion: process.version,
-      os: `${process.platform}/${process.arch}`,
-      agent: agent ?? "none",
-    };
+    const body = `## What happened
 
-    const url = buildBugReportUrl({ title, env });
+<!-- Describe the issue -->
+
+## Steps to reproduce
+
+1. 
+2. 
+3. 
+
+## Environment
+
+| Key | Value |
+|-----|-------|
+| browse | ${getCliVersion()} |
+| node | ${process.version} |
+| os | ${process.platform}/${process.arch} |
+| agent | ${agent ?? "none"} |
+`;
+
+    const params = new URLSearchParams();
+    if (title) params.set("title", title);
+    params.set("body", body);
+
+    const url = `${GITHUB_ISSUES_URL}?${params.toString()}`;
 
     const result = openUrl(url, { noOpen });
 
