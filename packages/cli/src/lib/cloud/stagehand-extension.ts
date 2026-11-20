@@ -27,7 +27,13 @@ function sleep(ms: number): Promise<void> {
 export async function uploadStagehandExtension(
   client: BrowserbaseClientLike,
 ): Promise<{ extensionId: string } | undefined> {
-  const archive = await getExtensionArchive();
+  let archive: Uint8Array;
+  try {
+    archive = await getExtensionArchive();
+  } catch {
+    console.error("Warning: Stagehand extension archive not available");
+    return undefined;
+  }
 
   let uploaded: { id: string } | undefined;
   let lastError: unknown;
@@ -54,8 +60,12 @@ export async function uploadStagehandExtension(
   }
 
   if (uploaded === undefined) {
-    const message = lastError instanceof Error ? lastError.message : String(lastError);
-    console.error(`Warning: Stagehand extension upload failed: ${message}`);
+    // Sanitize error message - don't expose Browserbase API response details
+    const status =
+      lastError && typeof lastError === "object" && "status" in lastError
+        ? ` (HTTP ${lastError.status})`
+        : "";
+    console.error(`Warning: Stagehand extension upload failed${status}`);
     return undefined;
   }
 

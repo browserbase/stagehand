@@ -484,6 +484,7 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
   }
 
   // Handle extension path inaccessible error (e.g., remote browser can't see local path)
+  // Omit cause to avoid exposing remote CDP response details.
   if (
     error &&
     typeof error === "object" &&
@@ -494,7 +495,7 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
       `The browser cannot access the local extension path. ` +
         `For remote browsers, create the session with the bundled extension: ` +
         `\`browse cloud sessions create\` (default) or use \`--extension-id\` to specify a pre-uploaded extension.`,
-      { cause: error, code: "extension_path_inaccessible" },
+      { code: "extension_path_inaccessible" },
     );
   }
 
