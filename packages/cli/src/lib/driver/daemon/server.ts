@@ -13,6 +13,8 @@ import {
 } from "./paths.js";
 import { parseRequest, serializeResponse, type DriverRequest } from "./protocol.js";
 
+const MANAGER_CLOSE_TIMEOUT_MS = 5_000;
+
 interface RunDriverDaemonOptions {
   session: string;
   target: ConnectionTarget;
@@ -33,7 +35,10 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   const shutdown = (): Promise<void> => {
     shutdownPromise ??= (async () => {
       await closeServer(server);
-      await manager.close();
+      await Promise.race([
+        manager.close(),
+        new Promise<void>((resolve) => setTimeout(resolve, MANAGER_CLOSE_TIMEOUT_MS)),
+      ]).catch(() => undefined);
       await cleanupDaemonFiles(session);
     })();
     return shutdownPromise;
