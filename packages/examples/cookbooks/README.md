@@ -10,6 +10,17 @@ Browser jobs you can run, adapt, and combine. Each has a [docs page](https://doc
 | [Form approval](approve-form-submission) | TypeScript, Python | Submission or rejection; TypeScript receipt |
 | [Research agent](ai-sdk-research-agent)  | TypeScript         | Report citing approved sources              |
 
+## Durable cookbooks
+
+CLI recipes for browser work that waits for a human or resumes after a process exits. Each uses a 30-minute Browserbase keep-alive session. Persisted agent state does not extend the browser's lifetime.
+
+| Cookbook                                               | Agent                         | Output                                          |
+| ------------------------------------------------------ | ----------------------------- | ----------------------------------------------- |
+| [Approve an order later](pi-durable-approval)          | Native Pi Durable with SQLite | Saved proposal, approval and matching receipt   |
+| [Collect receipts](libfx-receipts)                     | Native libfx                  | Receipt metadata and completeness manifest      |
+| [Recover a submission](opencode-submission)            | OpenCode on durable-harness   | Confirmed or uncertain submission outcome       |
+| [Durable order approval](pydantic-ai-durable-approval) | Python Pydantic AI with DBOS  | Saved proposal, decision and submission outcome |
+
 ## Run
 
 Clone the repository so the cookbooks can use the local SDKs and root workspaces:
@@ -21,7 +32,7 @@ cd stagehand
 
 ### TypeScript
 
-Use Node.js 22.18+ with pnpm and [just](https://just.systems/). Install dependencies once from the repository root:
+Use Node.js 22.18+ for the core recipes, or Node.js 24.18+ for durable agents, with pnpm and [just](https://just.systems/). Install dependencies once from the repository root:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -34,6 +45,14 @@ just cookbook paginated-catalog
 ```
 
 Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the local SDK and extension before starting the recipe in its TypeScript directory. Its `.env` and `out/` files live in that directory. TypeScript cookbooks share the root catalog and `pnpm-lock.yaml`.
+
+The durable examples use these model keys:
+
+| Cookbook       | Model keys                                                                    |
+| -------------- | ----------------------------------------------------------------------------- |
+| Pi Durable     | `OPENAI_API_KEY` for the agent                                                |
+| libfx receipts | `AI_GATEWAY_API_KEY` for the agent; `OPENAI_API_KEY` for Stagehand extraction |
+| OpenCode       | `AI_GATEWAY_API_KEY` for the agent                                            |
 
 ### Python
 
@@ -49,9 +68,11 @@ Copy the selected cookbook's `python/.env.example` to `python/.env` and fill in 
 just cookbook-python paginated-catalog
 ```
 
-Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Python cookbooks keep their own `pyproject.toml` files, share the root `uv.lock` and `.venv`, and use the local Python SDK source. After building the extension, you can also run `uv run --locked python main.py` from a cookbook's `python/` directory; uv discovers the root workspace automatically.
+Replace `paginated-catalog` with the selected cookbook's folder name. The command builds the extension and starts the recipe in its Python directory, where `.env` and `out/` live. Pass recipe arguments after the folder name. Python cookbooks keep their own `pyproject.toml` files, share the root `uv.lock` and `.venv`, and use the local Python SDK source. After building the extension, you can also run `uv run --locked python main.py` from a cookbook's `python/` directory; uv discovers the root workspace automatically.
 
-Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, print a session link, and limit browser lifetime to five minutes. Page and step limits bound work, not cost.
+The Pydantic AI durable cookbook uses `OPENAI_API_KEY` for the agent. Stagehand fills and checks the form with locators, so that recipe does not use a separate browser model.
+
+Cloud jobs require `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` and print a session link. Core recipes limit browser lifetime to five minutes. Page and step limits bound work, not cost.
 
 Recorded jobs live in [the showcase](https://stagehand.dev/showcase); their scripts use `just showcase-script <slug>`.
 
