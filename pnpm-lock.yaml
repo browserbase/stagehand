@@ -988,9 +988,6 @@ importers:
 
   packages/integrations/antigravity:
     dependencies:
-      '@browserbasehq/stagehand-integrations':
-        specifier: workspace:*
-        version: link:../core
       '@browserbasehq/stagehand-integrations-deepagents-sdk':
         specifier: workspace:*
         version: link:../deepagents-sdk

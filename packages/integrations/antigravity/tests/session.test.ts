@@ -89,9 +89,9 @@ describe("normalizeAntigravityModel", () => {
     expect(normalizeAntigravityModel("gemini-3.8-flash")).toBe("gemini-3.8-flash");
   });
 
-  it("rejects other providers", () => {
-    for (const model of ["openai/gpt-5", "anthropic:claude", "google/", ""]) {
-      expect(() => normalizeAntigravityModel(model)).toThrow(/Gemini models only/);
+  it("passes any other id through for the SDK to accept or reject", () => {
+    for (const model of ["openai/gpt-5", "anthropic:claude", "models/gemini-x", ""]) {
+      expect(normalizeAntigravityModel(model)).toBe(model);
     }
   });
 });
@@ -185,17 +185,15 @@ describe("runAntigravitySession", () => {
     expect(result.status).toBe("max_turns");
   });
 
-  it("rejects a non-Gemini model before spawning", async () => {
+  it("leaves a non-Google model to the runner and SDK", async () => {
     const capture: Capture = {};
-    await expect(
-      runAntigravitySession({
-        prompt: "go",
-        model: "openai/gpt-5",
-        logger,
-        spawn: eventSpawner([], capture),
-        session: {},
-      }),
-    ).rejects.toThrow(/Gemini models only/);
-    expect(capture.args).toBeUndefined();
+    await runAntigravitySession({
+      prompt: "go",
+      model: "custom-model",
+      logger,
+      spawn: eventSpawner([{ type: "final", text: "" }, { type: "usage" }], capture),
+      session: {},
+    });
+    expect(capture.payload?.model).toBe("custom-model");
   });
 });

@@ -17,7 +17,6 @@ import {
   type DeepagentsProcessSpawner,
   type DeepagentsSessionResult,
 } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
-import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 
 export {
   buildDeepagentsTranscript as buildAntigravityTranscript,
@@ -53,18 +52,12 @@ export function readAntigravitySdkVersion(runnerDir: string): string | undefined
 const GOOGLE_MODEL_PREFIXES = ["google/", "google_genai:", "gemini:"];
 
 /**
- * Antigravity only runs Gemini models: strip a Google provider prefix and reject
- * any other provider up front instead of failing inside the SDK.
+ * Strip a Google provider prefix (`google/x`, `google_genai:x`, `gemini:x` -> `x`).
+ * Any other id passes through unchanged; the SDK rejects models it cannot run.
  */
 export function normalizeAntigravityModel(model: string): string {
   const prefix = GOOGLE_MODEL_PREFIXES.find((candidate) => model.startsWith(candidate));
-  const name = prefix ? model.slice(prefix.length) : model;
-  if (!name || /[/:]/.test(name)) {
-    throw new HarnessAdapterError(
-      `Antigravity runs Gemini models only; got "${model}". Use google/<model>.`,
-    );
-  }
-  return name;
+  return prefix ? model.slice(prefix.length) : model;
 }
 
 /** `EVAL_ANTIGRAVITY_THINKING_LEVEL`, read by the runner; undefined keeps the SDK default. */
