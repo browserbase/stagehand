@@ -84,7 +84,9 @@ describe("classifyRemoteInitError", () => {
   });
 
   it("maps an error with status property to the correct code", () => {
-    const error = Object.assign(new Error("Failed to create a Browserbase session"), { status: 402 });
+    const error = Object.assign(new Error("Failed to create a Browserbase session"), {
+      status: 402,
+    });
     const classified = classifyRemoteInitError(error);
     expect(classified.code).toBe("remote_payment_required");
     expect(classified.httpStatus).toBe(402);
