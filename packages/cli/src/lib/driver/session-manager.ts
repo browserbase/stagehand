@@ -462,18 +462,18 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
   }
 
   if (error instanceof StagehandRuntimeIncompatibleError) {
-    // Check if this error includes a replacement failure (happens when connecting to
-    // a remote browser where the local extension path isn't accessible).
+    // Check if this error includes a replacement failure. This can happen when:
+    // - Remote browser: can't access the local extension path
+    // - Local browser: Chrome rejected Extensions.loadUnpacked for other reasons
     const hasReplacementError =
       "replacementError" in error && error.replacementError !== undefined;
     if (hasReplacementError) {
       return new DriverError(
-        `Incompatible Stagehand extension on remote browser. ` +
+        `Incompatible Stagehand extension and automatic replacement failed. ` +
           `The browser has ${error.serverInfo.name}/${error.serverInfo.version} ` +
           `but this CLI requires protocol ${error.clientProtocolVersion}. ` +
-          `Extension replacement failed because the browser cannot access the local extension. ` +
-          `For remote browsers, use "browse open --remote" or create a new session with the correct extension.`,
-        { cause: error, code: "runtime_incompatible_remote" },
+          `${error.remediation} If this is a remote browser, the extension must be installed at session creation time.`,
+        { cause: error, code: "runtime_incompatible_replace_failed" },
       );
     }
     return new DriverError(

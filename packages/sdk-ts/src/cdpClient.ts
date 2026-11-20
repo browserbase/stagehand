@@ -431,6 +431,8 @@ export class CDPClient {
             extensionId = await loadUnpackedExtension(client, options.localExtensionDir, signal);
             await attachAndVerifyExtension(client, extensionId, options);
           } catch (replacementError) {
+            // Preserve cancellation so callers can recognize an aborted connection.
+            if (signal.aborted) throw replacementError;
             // Wrap the original incompatibility error with replacement failure info.
             // This allows callers to check for replacement failure via error.cause.
             const enhancedError = new StagehandRuntimeIncompatibleError(error.compatibility);
@@ -440,8 +442,7 @@ export class CDPClient {
                 : String(replacementError);
             enhancedError.message =
               error.message +
-              ` Automatic extension replacement failed: ${replacementMessage}. ` +
-              `For remote browsers, the extension must be installed at session creation time.`;
+              ` Automatic extension replacement failed: ${replacementMessage}.`;
             (enhancedError as { replacementError?: unknown }).replacementError = replacementError;
             throw enhancedError;
           }
