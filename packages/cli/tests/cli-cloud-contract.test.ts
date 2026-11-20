@@ -1932,6 +1932,47 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("sessions create continues without extension when upload fails", async () => {
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/extensions") {
+          // Simulate extension upload failure
+          textResponse(response, 500, "Internal Server Error");
+        } else if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, { id: "sess_123", connectUrl: "ws://example.com" });
+        } else {
+          textResponse(response, 404, "Not Found");
+        }
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        // Session creation should succeed even though extension upload failed
+        expect(result.exitCode).toBe(0);
+
+        // Should have attempted extension upload
+        const uploadRequest = requests.find((r) => r.path === "/v1/extensions");
+        expect(uploadRequest).toBeDefined();
+
+        // Should have created session without extension ID
+        const sessionRequest = requests.find((r) => r.path === "/v1/sessions");
+        expect(sessionRequest).toBeDefined();
+        expect(sessionRequest?.jsonBody?.extensionId).toBeUndefined();
+
+        // Should have printed warning to stderr
+        expect(result.stderr).toContain("Warning: Stagehand extension upload failed");
+      },
+    );
+  });
+
   it.each([
     {
       args: ["cloud", "sessions", "list", "--q", "status:RUNNING"],

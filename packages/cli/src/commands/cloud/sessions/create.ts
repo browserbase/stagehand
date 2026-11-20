@@ -230,13 +230,17 @@ export default class SessionsCreate extends BrowseCommand {
       // Auto-provision the Stagehand extension unless --extension-id is provided
       // or --no-stagehand-extension is set. This ensures later `--cdp` attaches
       // find a compatible runtime instead of failing with an incompatibility error.
+      // On upload failure, warn and continue - session creation shouldn't fail
+      // just because extension upload failed.
       const hasExplicitExtension =
         flags["extension-id"] ||
         body.extensionId ||
         (body.browserSettings as Record<string, unknown> | undefined)?.extensionId;
       if (!hasExplicitExtension && flags["stagehand-extension"]) {
-        const { extensionId } = await uploadStagehandExtension(client);
-        body = deepMerge(body, { extensionId });
+        const result = await uploadStagehandExtension(client);
+        if (result) {
+          body = deepMerge(body, { extensionId: result.extensionId });
+        }
       }
 
       await applyCliAttribution(body);

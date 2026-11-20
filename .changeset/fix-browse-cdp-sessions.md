@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-Fix `browse open --cdp` failing on sessions from `browse cloud sessions create`.
+fix `browse open --cdp` failing on sessions from `browse cloud sessions create`

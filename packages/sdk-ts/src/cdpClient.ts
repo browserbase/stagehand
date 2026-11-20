@@ -1024,6 +1024,26 @@ export async function loadUnpackedExtension(
       );
     }
 
+    // Chrome returns "File path cannot be resolved" when it can't access the local path.
+    // This happens when connecting to a remote browser via CDP - the browser can't see
+    // the local filesystem. Provide a clearer error message.
+    if (
+      error &&
+      typeof error === "object" &&
+      "message" in error &&
+      typeof error.message === "string" &&
+      error.message.includes("File path cannot be resolved")
+    ) {
+      const pathError = new Error(
+        "The browser cannot access the local extension path. " +
+          "For remote browsers, create the session with the extension bundled (default for `browse cloud sessions create`), " +
+          "or use `--extension-id` to specify a pre-uploaded extension.",
+        { cause: error },
+      );
+      (pathError as Error & { code: string }).code = "extension_path_inaccessible";
+      throw pathError;
+    }
+
     throw error;
   }
 
