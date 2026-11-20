@@ -9,14 +9,26 @@ import type { StagehandLogger } from "../logger.js";
  * Uses an injected text transport and multiplexes flattened Target sessions.
  * Tracks inflight CDP calls, routes responses to the right session, and forwards events.
  *
- * This does not interpret Page/DOM/Runtime semantics — callers own that logic.
+ * Raw sends always reach the transport. Internal callers can reuse successful
+ * DOM/Runtime setup until an explicit enable/disable or session teardown.
  */
 export interface CDPSessionLike {
   send<R = unknown>(method: string, params?: object): Promise<R>;
+  ensureDomainEnabled?(domain: SetupDomain): Promise<void>;
   on<P = unknown>(event: string, handler: (params: P) => void): void;
   off<P = unknown>(event: string, handler: (params: P) => void): void;
   close(): Promise<void>;
   readonly id: string | null;
+}
+
+type SetupDomain = "DOM" | "Runtime";
+
+/** Reuse internal setup when supported; lightweight session adapters still work. */
+export function ensureCdpDomainEnabled(
+  session: CDPSessionLike,
+  domain: SetupDomain,
+): Promise<void> {
+  return session.ensureDomainEnabled?.(domain) ?? session.send<void>(`${domain}.enable`);
 }
 
 /** Closure errors emitted by this transport, not transient execution-context loss. */
@@ -111,6 +123,7 @@ export class CdpConnection implements CDPSessionLike {
   public readonly id: string | null = null; // root
   transportCloseHandlers = new Set<(why: string) => void>();
   private readonly telemetryScopes = new Map<symbol, CdpTelemetryLogger[]>();
+  private readonly domainEnables = new Map<string | null, Map<SetupDomain, Promise<void>>>();
 
   get connected(): boolean {
     return this.transport.connected;
@@ -206,6 +219,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async send<R = unknown>(method: string, params?: object): Promise<R> {
+    this.invalidateDomainEnablement(null, method);
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
@@ -235,6 +249,42 @@ export class CdpConnection implements CDPSessionLike {
     return p as Promise<R>;
   }
 
+  ensureDomainEnabled(domain: SetupDomain): Promise<void> {
+    return this._ensureDomainEnabled(null, domain);
+  }
+
+  _ensureDomainEnabled(sessionId: string | null, domain: SetupDomain): Promise<void> {
+    let enables = this.domainEnables.get(sessionId);
+    if (!enables) {
+      enables = new Map();
+      this.domainEnables.set(sessionId, enables);
+    }
+    const existing = enables.get(domain);
+    if (existing) return existing;
+
+    const request =
+      sessionId === null
+        ? this.send<void>(`${domain}.enable`)
+        : this._sendViaSession<void>(sessionId, `${domain}.enable`);
+    const pending: Promise<void> = request.catch((error: unknown) => {
+      // A disable or raw enable may have replaced this request in the meantime.
+      if (enables.get(domain) === pending) enables.delete(domain);
+      throw error;
+    });
+    enables.set(domain, pending);
+    return pending;
+  }
+
+  private invalidateDomainEnablement(sessionId: string | null, method: string): void {
+    const domain =
+      method === "DOM.enable" || method === "DOM.disable"
+        ? "DOM"
+        : method === "Runtime.enable" || method === "Runtime.disable"
+          ? "Runtime"
+          : undefined;
+    if (domain) this.domainEnables.get(sessionId)?.delete(domain);
+  }
+
   on<P = unknown>(event: string, handler: (params: P) => void): void {
     const set = this.eventHandlers.get(event) ?? new Set<EventHandler>();
     set.add(handler as EventHandler);
@@ -247,10 +297,12 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async close(): Promise<void> {
+    this.domainEnables.clear();
     await this.transport.close();
   }
 
   rejectAllInflight(why: string): void {
+    this.domainEnables.clear();
     for (const [id, entry] of this.inflight.entries()) {
       entry.reject(new Error(`CDP connection closed: ${why}`));
       this.inflight.delete(id);
@@ -270,6 +322,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   rejectSessionPendingWork(sessionId: string, targetId: string | null): void {
+    this.domainEnables.delete(sessionId);
     for (const [id, entry] of this.inflight.entries()) {
       if (entry.sessionId === sessionId) {
         entry.reject(
@@ -438,6 +491,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   _sendViaSession<R = unknown>(sessionId: string, method: string, params?: object): Promise<R> {
+    this.invalidateDomainEnablement(sessionId, method);
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
@@ -503,6 +557,10 @@ export class CdpSession implements CDPSessionLike {
 
   send<R = unknown>(method: string, params?: object): Promise<R> {
     return this.root._sendViaSession<R>(this.id, method, params);
+  }
+
+  ensureDomainEnabled(domain: SetupDomain): Promise<void> {
+    return this.root._ensureDomainEnabled(this.id, domain);
   }
 
   on<P = unknown>(event: string, handler: (params: P) => void): void {

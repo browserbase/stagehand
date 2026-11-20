@@ -1,6 +1,6 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
-import { isCdpClosedError } from "./cdp.js";
+import { ensureCdpDomainEnabled, isCdpClosedError } from "./cdp.js";
 import {
   assignFilePayloadsToInputElement,
   dispatchDomClick,
@@ -166,7 +166,7 @@ export class Locator {
     const { objectId } = await this.resolveNode(progress);
     try {
       await runLocatorStep(progress, "enabling DOM", () =>
-        session.send("DOM.enable").catch((error) => {
+        ensureCdpDomainEnabled(session, "DOM").catch((error) => {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
         }),
@@ -189,8 +189,10 @@ export class Locator {
   /** Return how many nodes the current selector resolves to. */
   public async count(progress?: Progress): Promise<number> {
     const session = this.frame.session;
-    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
-    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+    await runLocatorStep(progress, "enabling runtime", () =>
+      ensureCdpDomainEnabled(session, "Runtime"),
+    );
+    await runLocatorStep(progress, "enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
     return this.selectorResolver.count(this.selectorQuery, progress);
   }
 
@@ -281,7 +283,7 @@ export class Locator {
 
       // Prefer backendNodeId to keep a persistent highlight after releasing objectId.
       await runLocatorStep(progress, "enabling DOM", () =>
-        session.send("DOM.enable").catch((error) => {
+        ensureCdpDomainEnabled(session, "DOM").catch((error) => {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
         }),
@@ -928,8 +930,10 @@ export class Locator {
     progress?.throwIfStopped();
     const session = this.frame.session;
 
-    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
-    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+    await runLocatorStep(progress, "enabling runtime", () =>
+      ensureCdpDomainEnabled(session, "Runtime"),
+    );
+    await runLocatorStep(progress, "enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
 
     const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(
@@ -956,8 +960,8 @@ export class Locator {
   > {
     const session = this.frame.session;
 
-    await progress.run("enabling runtime", () => session.send("Runtime.enable"));
-    await progress.run("enabling DOM", () => session.send("DOM.enable"));
+    await progress.run("enabling runtime", () => ensureCdpDomainEnabled(session, "Runtime"));
+    await progress.run("enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
 
     if (this.nthIndex >= 0) {
       const resolved = await this.selectorResolver.resolveAtIndex(
