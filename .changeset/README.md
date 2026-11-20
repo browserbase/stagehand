@@ -43,12 +43,13 @@ Respect host-only cookie domains when filtering context cookies by URL
 
 ## Which packages and bump levels?
 
-| Change                                | Bump                                               |
-| ------------------------------------- | -------------------------------------------------- |
-| Bug fix in one SDK                    | Patch for that SDK only                            |
-| New feature in one SDK                | Minor for that SDK only                            |
-| Extension-only fix                    | Extension patch, plus each SDK that should ship it |
-| Backward-compatible protocol addition | Protocol minor, plus affected implementations      |
-| Breaking protocol change              | Protocol major and a coordinated release           |
+| Change                                          | Bump                                               |
+| ----------------------------------------------- | -------------------------------------------------- |
+| Bug fix in one SDK                              | Patch for that SDK only                            |
+| New feature in one SDK                          | Minor for that SDK only                            |
+| Extension-only fix                              | Extension patch, plus each SDK that should ship it |
+| Protocol correction requiring no new capability | Protocol patch, plus affected implementations      |
+| Backward-compatible protocol addition           | Protocol minor, plus affected implementations      |
+| Breaking protocol change                        | Protocol major and a coordinated release           |
 
 Select only the packages intended for release. The release workflow handles the rest.
