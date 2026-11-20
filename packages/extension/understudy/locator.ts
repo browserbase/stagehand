@@ -52,18 +52,24 @@ export class Locator {
   readonly selectorQuery: SelectorQuery;
 
   // -1 means "no explicit nth()"; default locator resolves to first match for actions.
+  // An explicitly negative nth() (Playwright-style, counting from the end) is kept
+  // as-is and resolved against the match count at resolution time.
   readonly nthIndex: number;
+
+  readonly hasExplicitNth: boolean;
 
   constructor(
     readonly frame: Frame,
     readonly selector: string,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
+    hasExplicitNth: boolean = false,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
     const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
-    this.nthIndex = normalized < 0 ? -1 : normalized;
+    this.nthIndex = hasExplicitNth ? normalized : normalized < 0 ? -1 : normalized;
+    this.hasExplicitNth = hasExplicitNth;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -900,22 +906,38 @@ export class Locator {
     return this.nth(0);
   }
 
-  /** Return a locator narrowed to the element at the given zero-based index. */
+  /** Return a locator narrowed to the element at the given index. Negative
+   * indices count from the end of the match list, matching Playwright
+   * (`nth(-1)` selects the last match). */
   nth(index: number): Locator {
     const value = Number(index);
-    if (!Number.isFinite(value) || value < 0) {
-      throw new RangeError("locator().nth() expects a non-negative index");
+    if (!Number.isFinite(value)) {
+      throw new RangeError("locator().nth() expects a finite index");
     }
 
     const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) {
+    if (this.hasExplicitNth && nextIndex === this.nthIndex) {
       return this;
     }
 
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(this.frame, this.selector, this.options, nextIndex, true);
   }
 
   // ---------- helpers ----------
+
+  /**
+   * Resolve the concrete match index for single-element operations:
+   * default locators target the first match, explicit non-negative nth()
+   * targets that index, and explicit negative nth() counts from the end
+   * of the match list (Playwright semantics, e.g. nth(-1) = last match).
+   */
+  private async resolveActionIndex(progress?: Progress): Promise<number> {
+    if (!this.hasExplicitNth || this.nthIndex >= 0) {
+      return this.nthIndex < 0 ? 0 : this.nthIndex;
+    }
+    const total = await this.selectorResolver.count(this.selectorQuery, progress);
+    return total + this.nthIndex;
+  }
 
   /**
    * Resolve `this.selector` within the frame to `{ objectId, nodeId? }`:
@@ -931,7 +953,7 @@ export class Locator {
     await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
     await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
 
-    const index = this.nthIndex < 0 ? 0 : this.nthIndex;
+    const index = await this.resolveActionIndex(progress);
     const resolved = await this.selectorResolver.resolveAtIndex(
       this.selectorQuery,
       index,
@@ -959,10 +981,11 @@ export class Locator {
     await progress.run("enabling runtime", () => session.send("Runtime.enable"));
     await progress.run("enabling DOM", () => session.send("DOM.enable"));
 
-    if (this.nthIndex >= 0) {
+    if (this.nthIndex >= 0 || this.hasExplicitNth) {
+      const index = await this.resolveActionIndex(progress);
       const resolved = await this.selectorResolver.resolveAtIndex(
         this.selectorQuery,
-        this.nthIndex,
+        index,
         progress,
       );
       if (!resolved) {
