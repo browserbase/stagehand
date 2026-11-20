@@ -33,6 +33,21 @@ describe("classifyDriverError", () => {
       expectedMessage: "RPC response timed out after 30000ms: page.goto",
     },
     {
+      message: "RPC response timed out after 30000ms: page.reload",
+      expectedCode: "navigation_timeout",
+      expectedMessage: "RPC response timed out after 30000ms: page.reload",
+    },
+    {
+      message: "RPC response timed out after 30000ms: page.go_back",
+      expectedCode: "navigation_timeout",
+      expectedMessage: "RPC response timed out after 30000ms: page.go_back",
+    },
+    {
+      message: "RPC response timed out after 30000ms: page.go_forward",
+      expectedCode: "navigation_timeout",
+      expectedMessage: "RPC response timed out after 30000ms: page.go_forward",
+    },
+    {
       message: "Navigation start timed out after 30000ms",
       expectedCode: "navigation_timeout",
       expectedMessage: "Navigation start timed out after 30000ms",

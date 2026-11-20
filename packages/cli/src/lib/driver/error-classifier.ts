@@ -4,7 +4,8 @@ const ELEMENT_NOT_FOUND_PATTERN = /^Could not find an element for the given xPat
 
 const WAIT_FOR_SELECTOR_TIMEOUT_PATTERN = /waitForSelector timed out after \d+ms/;
 
-const RPC_GOTO_TIMEOUT_PATTERN = /RPC response timed out after \d+ms: page\.goto/;
+const RPC_NAVIGATION_TIMEOUT_PATTERN =
+  /RPC response timed out after \d+ms: page\.(goto|reload|go_back|go_forward)/;
 const NAVIGATION_START_TIMEOUT_PATTERN = /Navigation start timed out after \d+ms/;
 
 const RPC_PAGE_UNRESPONSIVE_PATTERN =
@@ -39,7 +40,10 @@ export function classifyDriverError(error: unknown): DriverError | null {
     return new DriverError(message, { code: "wait_timeout", cause: error });
   }
 
-  if (RPC_GOTO_TIMEOUT_PATTERN.test(message) || NAVIGATION_START_TIMEOUT_PATTERN.test(message)) {
+  if (
+    RPC_NAVIGATION_TIMEOUT_PATTERN.test(message) ||
+    NAVIGATION_START_TIMEOUT_PATTERN.test(message)
+  ) {
     return new DriverError(message, { code: "navigation_timeout", cause: error });
   }
 

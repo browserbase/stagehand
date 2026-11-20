@@ -32,7 +32,10 @@ export abstract class BrowseCommand extends Command {
     }
 
     if (err instanceof DriverError) {
-      recordCommandError("runtime", "DRIVER_ERROR", { resultCode: err.code, httpStatus: err.httpStatus });
+      recordCommandError("runtime", "DRIVER_ERROR", {
+        resultCode: err.code,
+        httpStatus: err.httpStatus,
+      });
       process.stderr.write(`${SUPPORT_HINT}\n`);
       process.stderr.write(`    DriverError: ${err.message}\n`);
       process.stderr.write(`    Code: ${err.code}\n`);
