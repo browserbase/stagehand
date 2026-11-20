@@ -281,16 +281,33 @@ export class DriverSessionManager {
 
       const page = pageProbe.timedOut ? undefined : pageProbe.value;
       const pages = pagesProbe.timedOut ? [] : pagesProbe.value;
+
+      let rpcClosedDetected: Error | undefined;
       const url = page
         ? await withTimeoutFallback(
-            page.url().catch(() => undefined),
+            page.url().catch((e: unknown) => {
+              if (isRpcClosedError(e)) rpcClosedDetected = e as Error;
+              return undefined;
+            }),
             STATUS_CALL_TIMEOUT_MS,
             undefined,
           )
         : undefined;
       const title = page
-        ? await withTimeoutFallback(safeTitle(page), STATUS_CALL_TIMEOUT_MS, "")
+        ? await withTimeoutFallback(
+            safeTitleWithRpcDetection(page, (e) => {
+              rpcClosedDetected = e;
+            }),
+            STATUS_CALL_TIMEOUT_MS,
+            "",
+          )
         : undefined;
+
+      if (rpcClosedDetected) {
+        const reason = rpcClosedDetected.message || "Browser disconnected";
+        this.markDisconnected(reason);
+        return this.disconnectedStatus();
+      }
 
       return {
         ...this.browserbaseIdentity(),
@@ -593,6 +610,18 @@ async function safeTitle(page: DriverPage): Promise<string> {
   try {
     return await page.title();
   } catch {
+    return "";
+  }
+}
+
+async function safeTitleWithRpcDetection(
+  page: DriverPage,
+  onRpcClosed: (e: Error) => void,
+): Promise<string> {
+  try {
+    return await page.title();
+  } catch (error) {
+    if (isRpcClosedError(error)) onRpcClosed(error as Error);
     return "";
   }
 }
