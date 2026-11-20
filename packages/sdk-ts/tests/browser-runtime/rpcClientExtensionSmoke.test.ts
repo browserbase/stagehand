@@ -236,6 +236,24 @@ describe("Stagehand service worker RPC client smoke", () => {
           }),
         ).resolves.toBe("Pay second");
       }
+      // The page has a shadow root, so scoped XPath takes the composed resolver.
+      // The second card's button is a grandchild: descendant paths (`//`, `.//`)
+      // must reach it above, and child paths (`/`, `./`) must not.
+      for (const [value, expected] of [
+        ["/button", 0],
+        ["./button", 0],
+        ["button", 0],
+        ["./div/button", 1],
+        ["/div//button", 1],
+      ] as const) {
+        await expect(
+          client.send(StagehandMethods.locatorCount, {
+            pageId: page.pageId,
+            selector: { steps: [query("css", ".card", 1), query("xpath", value)] },
+          }),
+          value,
+        ).resolves.toBe(expected);
+      }
       await expect(
         client.send(StagehandMethods.locatorCount, {
           pageId: page.pageId,
