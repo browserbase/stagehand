@@ -296,6 +296,55 @@ describe("Browserbase session creation", () => {
     expect(cleanupExtension).toHaveBeenCalledOnce();
   });
 
+  it("copies HTTP status from the original error when session creation fails", async () => {
+    const createError = Object.assign(new Error("401 Unauthorized"), { status: 401 });
+    const cleanupExtension = vi.fn(async () => {});
+    const browserbase = fakeBrowserbaseApiClient({
+      createSession: vi.fn(async () => {
+        throw createError;
+      }),
+    });
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase,
+        provisionExtension: async () => ({
+          extensionId: "ext_stagehand",
+          cleanup: cleanupExtension,
+        }),
+      },
+    );
+
+    const error = await client.createSession({}).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BrowserbaseSessionError);
+    expect((error as BrowserbaseSessionError).status).toBe(401);
+    expect((error as Error).cause).toBeUndefined();
+  });
+
+  it("copies HTTP status from the original error when session retrieval fails", async () => {
+    const retrieveError = Object.assign(new Error("402 Payment Required"), { status: 402 });
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase: fakeBrowserbaseApiClient({
+          retrieveSession: async () => {
+            throw retrieveError;
+          },
+        }),
+        provisionExtension: vi.fn(),
+      },
+    );
+
+    const error = await client.connectSession?.("session_123").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BrowserbaseSessionError);
+    expect((error as BrowserbaseSessionError).status).toBe(402);
+    expect((error as Error).cause).toBeUndefined();
+  });
+
   it.each([
     {
       response: { id: "", connectUrl: "wss://connect.browserbase.com/session" },

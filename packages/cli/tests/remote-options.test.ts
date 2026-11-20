@@ -120,8 +120,8 @@ describe("remote.ts (Browserbase capability)", () => {
     });
   });
 
-  it("sanitizes Browserbase launch failures", async () => {
-    stagehandMocks.launch.mockRejectedValue(new Error("sensitive provider detail"));
+  it("includes upstream message in Browserbase launch failures", async () => {
+    stagehandMocks.launch.mockRejectedValue(new Error("connection timed out"));
 
     const error = await launchRemoteBrowser({ kind: "remote" }).catch((cause: unknown) => cause);
     expect(error).toMatchObject({
@@ -129,7 +129,7 @@ describe("remote.ts (Browserbase capability)", () => {
       name: "DriverError",
     });
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).not.toContain("sensitive provider detail");
+    expect((error as Error).message).toContain("connection timed out");
     expect((error as Error & { cause?: unknown }).cause).toBeUndefined();
   });
 
