@@ -1,7 +1,17 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import { z } from "zod";
 
+import { DriverError } from "../errors.js";
 import type { DriverCommandHandlers } from "./types.js";
+
+function isRpcClosedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message;
+  return (
+    message.startsWith("CDP connection closed:") ||
+    message.startsWith("No Page found for target closed before CDP ")
+  );
+}
 
 const GetWhatSchema = z.enum([
   "box",
@@ -62,6 +72,12 @@ export const pageInfoHandlers: DriverCommandHandlers = {
   async eval(manager, params) {
     const { expression } = z.object({ expression: z.string().min(1) }).parse(params);
     const page = await manager.activePage();
-    return { result: await page.evaluate(expression) };
+    try {
+      return { result: await page.evaluate(expression) };
+    } catch (error) {
+      if (isRpcClosedError(error)) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      throw new DriverError(message, { cause: error, code: "eval_exception" });
+    }
   },
 };
