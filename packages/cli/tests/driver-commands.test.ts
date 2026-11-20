@@ -848,7 +848,7 @@ describe("driver commands", () => {
     });
   });
 
-  it("rethrows RPC closed errors from eval without wrapping", async () => {
+  it("rethrows CDP connection closed errors from eval without wrapping", async () => {
     const closedError = new Error("CDP connection closed: socket-close");
     const page = { evaluate: vi.fn().mockRejectedValue(closedError) };
     const manager = {
@@ -868,6 +868,28 @@ describe("driver commands", () => {
     } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
 
     await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(closedError);
+  });
+
+  it("rethrows CDP connection errors from socket errors without wrapping", async () => {
+    const socketError = new Error("CDP connection closed: socket-error connection reset");
+    const page = { evaluate: vi.fn().mockRejectedValue(socketError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(socketError);
+  });
+
+  it("rethrows target-closed errors from CDP send without wrapping", async () => {
+    const sendError = new Error(
+      "No Page found for target closed before CDP send (sessionId=abc, targetId=xyz)",
+    );
+    const page = { evaluate: vi.fn().mockRejectedValue(sendError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(sendError);
   });
 });
 

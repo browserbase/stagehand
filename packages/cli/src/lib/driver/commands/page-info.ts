@@ -4,7 +4,18 @@ import { z } from "zod";
 import { DriverError } from "../errors.js";
 import type { DriverCommandHandlers } from "./types.js";
 
-function isRpcClosedError(error: unknown): boolean {
+/**
+ * Detect CDP transport-level errors that should not be wrapped as eval_exception.
+ *
+ * These errors indicate a transport failure (connection closed, target destroyed)
+ * rather than a JavaScript exception thrown by user code. Preserving them allows
+ * callers and telemetry to distinguish transport failures from evaluation errors.
+ *
+ * Known patterns:
+ * - "CDP connection closed: ..." - WebSocket close/error events
+ * - "No Page found for target closed before CDP ..." - target destroyed before response
+ */
+function isRpcTransportError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const message = error.message;
   return (
@@ -75,7 +86,7 @@ export const pageInfoHandlers: DriverCommandHandlers = {
     try {
       return { result: await page.evaluate(expression) };
     } catch (error) {
-      if (isRpcClosedError(error)) throw error;
+      if (isRpcTransportError(error)) throw error;
       const message = error instanceof Error ? error.message : String(error);
       throw new DriverError(message, { cause: error, code: "eval_exception" });
     }
