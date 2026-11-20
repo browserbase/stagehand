@@ -35,18 +35,6 @@ describe("AI SDK language models", () => {
       modelId: "gemini-3-flash-preview",
       provider: "google.generative-ai",
     },
-    {
-      name: "Groq",
-      modelName: "groq/openai/gpt-oss-120b" as const,
-      modelId: "openai/gpt-oss-120b",
-      provider: "groq.chat",
-    },
-    {
-      name: "Cerebras",
-      modelName: "cerebras/gpt-oss-120b" as const,
-      modelId: "gpt-oss-120b",
-      provider: "cerebras.chat",
-    },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
       modelName: testCase.modelName,
@@ -64,8 +52,6 @@ describe("AI SDK language models", () => {
     ["openai/future-model-v1", "openai.responses"],
     ["anthropic/future-model-v1", "anthropic.messages"],
     ["google/future-model-v1", "google.generative-ai"],
-    ["groq/vendor/future-model-v1", "groq.chat"],
-    ["cerebras/future-model-v1", "cerebras.chat"],
   ] as const)("passes the unknown ID in %s to its provider", (modelName, provider) => {
     const model = createAiSdkLanguageModel({ modelName, apiKey: "provider-secret" });
     expect(model).toMatchObject({
@@ -73,6 +59,15 @@ describe("AI SDK language models", () => {
       modelId: modelName.slice(modelName.indexOf("/") + 1),
     });
   });
+
+  it.each(["groq/future-model-v1", "cerebras/future-model-v1"])(
+    "rejects removed provider model %s",
+    (modelName) => {
+      expect(() =>
+        createAiSdkLanguageModel({ modelName: modelName as never, apiKey: "provider-secret" }),
+      ).toThrow();
+    },
+  );
 
   it("uses Chat Completions for OpenAI requests with stop sequences", () => {
     const model = createAiSdkLanguageModel(

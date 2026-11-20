@@ -166,10 +166,6 @@ function providerApiKey(provider: string | undefined, env: FacadeEnv): string | 
       return nonEmpty(env.OPENAI_API_KEY);
     case "anthropic":
       return nonEmpty(env.ANTHROPIC_API_KEY);
-    case "groq":
-      return nonEmpty(env.GROQ_API_KEY);
-    case "cerebras":
-      return nonEmpty(env.CEREBRAS_API_KEY);
     default:
       return undefined;
   }

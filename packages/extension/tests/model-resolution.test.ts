@@ -52,14 +52,11 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 
 describe("model configuration", () => {
   describe("supported models", () => {
-    it.each(["openai", "anthropic", "google", "groq", "cerebras"])(
-      "accepts an unknown model from %s",
-      (provider) => {
-        const modelName = `${provider}/future-model-v1`;
-        expect(ModelNameSchema.parse(modelName)).toBe(modelName);
-        expect(ModelConfigSchema.parse({ modelName })).toEqual({ modelName });
-      },
-    );
+    it.each(["openai", "anthropic", "google"])("accepts an unknown model from %s", (provider) => {
+      const modelName = `${provider}/future-model-v1`;
+      expect(ModelNameSchema.parse(modelName)).toBe(modelName);
+      expect(ModelConfigSchema.parse({ modelName })).toEqual({ modelName });
+    });
 
     it.each(["openai/", "openai/model id", "openai/ model", "openai/model\n", "gpt-5"])(
       "rejects a malformed model name %j",
@@ -69,8 +66,15 @@ describe("model configuration", () => {
     );
 
     it("accepts a provider model ID that contains additional slashes", () => {
-      expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
+      expect(ModelNameSchema.safeParse("openai/openai/gpt-oss-120b").success).toBe(true);
     });
+
+    it.each(["groq/future-model-v1", "cerebras/future-model-v1"])(
+      "rejects a removed provider model %s",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
 
     it("rejects a model from an unsupported provider", () => {
       expect(ModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success).toBe(false);
