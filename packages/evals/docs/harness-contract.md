@@ -20,13 +20,13 @@ historical harness default. Only positive safe integers are accepted.
 and requested reasoning settings where supported. Equal budget numbers do not
 mean equal work:
 
-| Harness                                 | Counted unit          |
-| --------------------------------------- | --------------------- |
-| Codex, Cursor, DeepAgents               | Tool calls            |
-| Eve                                     | Successful tool calls |
-| Mastra                                  | Model steps           |
-| fx                                      | Agent steps           |
-| Claude Code, Pi, Claude CUA, Gemini CUA | Turns                 |
+| Harness                                             | Counted unit          |
+| --------------------------------------------------- | --------------------- |
+| Codex, Cursor, DeepAgents                           | Tool calls            |
+| Eve                                                 | Successful tool calls |
+| Mastra                                              | Model steps           |
+| fx                                                  | Agent steps           |
+| Claude Code, Pi, Claude CUA, Gemini CUA, Grok Build | Turns                 |
 
 These are execution limits, not comparable measures of model efficiency.
 

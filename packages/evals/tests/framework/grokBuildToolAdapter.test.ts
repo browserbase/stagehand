@@ -1,0 +1,73 @@
+import fsp from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { parse } from "smol-toml";
+import {
+  buildGrokBuildMcpConfig,
+  copyGrokBuildAuth,
+  isGrokBuildMountToolName,
+  writeGrokBuildWorkspace,
+} from "../../framework/grokBuildToolAdapter.js";
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => fsp.rm(dir, { recursive: true, force: true })));
+});
+
+describe("Grok Build tool adapter helpers", () => {
+  it("writes the MCP config to the isolated user scope", async () => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "grok-build-workspace-test-"));
+    tempDirs.push(root);
+    const grokHome = path.join(root, "home", ".grok");
+    const result = await writeGrokBuildWorkspace(grokHome, {
+      stagehand: { command: "node", args: ["server.mjs"], env: { TOKEN: "value" } },
+    });
+    const userConfig = parse(await fsp.readFile(path.join(grokHome, "config.toml"), "utf8"));
+    expect(result.mcpConfigPath).toBe(path.join(grokHome, "config.toml"));
+    expect(userConfig).toMatchObject({
+      mcp_servers: {
+        stagehand: { command: "node", args: ["server.mjs"], env: { TOKEN: "value" } },
+      },
+      cli: { auto_update: false, use_leader: false },
+      subagents: { enabled: false },
+      memory: { enabled: false },
+    });
+  });
+
+  it.each([
+    { command: "" },
+    { command: "node", args: [1] },
+    { command: "node", env: { TOKEN: 1 } },
+    { command: "node", cwd: 1 },
+  ])("rejects malformed MCP launch configuration: %j", (config) => {
+    expect(() => buildGrokBuildMcpConfig({ stagehand: config })).toThrow(/Invalid Grok Build MCP/);
+  });
+
+  it("copies cached auth only when no API key is supplied", async () => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "grok-build-auth-test-"));
+    tempDirs.push(root);
+    const source = path.join(root, "source");
+    const target = path.join(root, "target");
+    await Promise.all([fsp.mkdir(source), fsp.mkdir(target)]);
+    await fsp.writeFile(path.join(source, "auth.json"), '{"token":"cached"}\n');
+    await expect(copyGrokBuildAuth({ GROK_HOME: source }, target)).resolves.toBe(true);
+    await expect(fsp.readFile(path.join(target, "auth.json"), "utf8")).resolves.toContain("cached");
+    await fsp.rm(path.join(target, "auth.json"));
+    await expect(
+      copyGrokBuildAuth({ GROK_HOME: source, XAI_API_KEY: "secret" }, target),
+    ).resolves.toBe(false);
+    await expect(fsp.stat(path.join(target, "auth.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("matches Grok MCP tool identities", () => {
+    const matches = (name: string) => isGrokBuildMountToolName(["stagehand"], name);
+    for (const name of ["stagehand.run", "stagehand__run", "mcp__stagehand__run"]) {
+      expect(matches(name)).toBe(true);
+    }
+    expect(matches("shell")).toBe(false);
+  });
+});

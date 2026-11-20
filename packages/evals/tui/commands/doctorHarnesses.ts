@@ -13,7 +13,7 @@
  * verdict; the rest of the matrix is informational (see
  * harnessMatrixReasons).
  *
- * fx and cursor are not probed yet: their auth state lives inside the CLI and
+ * fx, cursor, and Grok Build are not probed yet: their auth state lives inside the CLI and
  * the status subcommands have not been confirmed by the owners.
  */
 
@@ -76,7 +76,7 @@ export interface HarnessMatrix {
 }
 
 /** Harnesses whose auth lives inside a third-party CLI; not probed yet. */
-export const UNPROBED_HARNESSES: ReadonlySet<string> = new Set(["fx", "cursor"]);
+export const UNPROBED_HARNESSES: ReadonlySet<string> = new Set(["fx", "cursor", "grok_build"]);
 
 /** In-process harnesses that need the heap flag past this concurrency. */
 const HEAP_HARNESSES: ReadonlySet<string> = new Set(["mastra", "pi"]);
