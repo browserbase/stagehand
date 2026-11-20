@@ -1,6 +1,6 @@
 import { Help } from "@oclif/core";
 
-import { DISCORD_INVITE_URL, getGitHubIssuesUrl } from "./lib/support-links.js";
+import { DISCORD_INVITE_URL, GITHUB_ISSUES_URL } from "./lib/support-links.js";
 import { captureHelpLinksShown } from "./lib/telemetry.js";
 
 // Custom root-help formatter so `browse --help` (and bare `browse`) lead with
@@ -16,19 +16,17 @@ const AGENT_HEADER = `Start here (for AI agents):
   guessing commands from flag docs alone.
 `;
 
-function buildHelpFooter(): string {
-  return `
+const HELP_FOOTER = `
 COMMUNITY
   Discord: ${DISCORD_INVITE_URL}
-  Report a bug: ${getGitHubIssuesUrl("help_footer")}
+  Report a bug: ${GITHUB_ISSUES_URL}
 `;
-}
 
 export default class BrowseHelp extends Help {
   override async showRootHelp(): Promise<void> {
     this.log(AGENT_HEADER);
     await super.showRootHelp();
-    this.log(buildHelpFooter());
+    this.log(HELP_FOOTER);
 
     await captureHelpLinksShown(this.config.version, { source: "help_footer" });
   }

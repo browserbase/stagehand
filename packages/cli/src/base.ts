@@ -2,12 +2,10 @@ import { Command } from "@oclif/core";
 
 import { CommandFailure } from "./lib/errors.js";
 import { setCliVersion } from "./lib/identity.js";
-import { DISCORD_INVITE_URL, getGitHubIssuesUrl } from "./lib/support-links.js";
+import { DISCORD_INVITE_URL, GITHUB_ISSUES_URL } from "./lib/support-links.js";
 import { captureHelpLinksShown, recordCommandError } from "./lib/telemetry.js";
 
-function buildSupportHint(): string {
-  return `Get help: ${DISCORD_INVITE_URL} · Report a bug: ${getGitHubIssuesUrl("error_hint")}`;
-}
+const SUPPORT_HINT = `Get help: ${DISCORD_INVITE_URL} · Report a bug: ${GITHUB_ISSUES_URL}`;
 
 function isOclifError(err: Error): boolean {
   const oclifData = (err as { oclif?: { exit?: unknown } }).oclif;
@@ -43,7 +41,7 @@ export abstract class BrowseCommand extends Command {
     // For unexpected runtime errors (not oclif validation/usage errors),
     // print a support hint before the default error handling.
     if (!isOclifError(err)) {
-      process.stderr.write(`${buildSupportHint()}\n`);
+      process.stderr.write(`${SUPPORT_HINT}\n`);
 
       await captureHelpLinksShown(this.config.version, {
         source: "error_hint",
