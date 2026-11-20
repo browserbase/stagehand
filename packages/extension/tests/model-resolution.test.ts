@@ -52,7 +52,7 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 
 describe("model configuration", () => {
   describe("supported models", () => {
-    it.each(["openai", "anthropic", "google", "groq", "cerebras"])(
+    it.each(["openai", "anthropic", "google", "groq", "cerebras", "xai"])(
       "accepts an unknown model from %s",
       (provider) => {
         const modelName = `${provider}/future-model-v1`;

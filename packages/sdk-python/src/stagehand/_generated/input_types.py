@@ -698,24 +698,6 @@ class NavigationServerAddr(TypedDict):
 OpenAIModelName: TypeAlias = str
 
 
-ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName
-
-
-class ModelConfig(TypedDict):
-    api_key: NotRequired[str]
-    headers: NotRequired[dict[str, str]]
-    model_name: ModelName
-
-
-class ExtractOptions(TypedDict):
-    model: NotRequired[ModelConfig]
-    timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
-    screenshot: NotRequired[bool]
-    cache: NotRequired[Caching]
-
-
 class PageAddInitScriptParams(TypedDict):
     page_id: str
     source: str
@@ -1116,13 +1098,6 @@ class StagehandCloseResult(TypedDict):
     closed: Literal[True]
 
 
-class StagehandExtractParams(TypedDict):
-    page_id: str
-    instruction: str
-    schema: NotRequired[FieldSchema0]
-    options: NotRequired[ExtractOptions]
-
-
 class StagehandInitResult(TypedDict):
     initialized: Literal[True]
     pages: list[PageRef]
@@ -1201,21 +1176,6 @@ class TelemetryConfig(TypedDict):
     traces: TelemetryTraces
 
 
-class StagehandInitParams(TypedDict):
-    protocol_version: str
-    client_info: ImplementationInfo
-    browser_cdp_url: NotRequired[str]
-    browserbase: NotRequired[Literal["client"]]
-    browser: NotRequired[BrowserSessionMetadata]
-    model: NotRequired[ModelConfig | ClientModelReference]
-    telemetry: NotRequired[TelemetryConfig]
-    log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
-    system_prompt: NotRequired[str]
-    self_heal: NotRequired[bool]
-    dom_settle_timeout_ms: NotRequired[int]
-    cache: NotRequired[Caching]
-
-
 VariablePrimitive: TypeAlias = str | float | bool
 
 
@@ -1228,36 +1188,6 @@ VariableValue: TypeAlias = VariablePrimitive | DescribedVariableValue
 
 
 Variables: TypeAlias = dict[str, VariableValue]
-
-
-class ActOptions(TypedDict):
-    model: NotRequired[ModelConfig]
-    variables: NotRequired[Variables]
-    timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
-    cache: NotRequired[Caching]
-
-
-class ObserveOptions(TypedDict):
-    model: NotRequired[ModelConfig]
-    variables: NotRequired[Variables]
-    timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
-    cache: NotRequired[Caching]
-
-
-class StagehandActParams(TypedDict):
-    page_id: str
-    instruction: str | Action
-    options: NotRequired[ActOptions]
-
-
-class StagehandObserveParams(TypedDict):
-    page_id: str
-    instruction: NotRequired[str]
-    options: NotRequired[ObserveOptions]
 
 
 class WebMCPAnnotation(TypedDict):
@@ -1353,3 +1283,76 @@ class WebMCPToolsOptions(TypedDict):
 class PageWebMCPToolsParams(TypedDict):
     page_id: str
     options: NotRequired[WebMCPToolsOptions]
+
+
+XaiModelName: TypeAlias = str
+
+
+ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName | XaiModelName
+
+
+class ModelConfig(TypedDict):
+    api_key: NotRequired[str]
+    headers: NotRequired[dict[str, str]]
+    model_name: ModelName
+
+
+class ActOptions(TypedDict):
+    model: NotRequired[ModelConfig]
+    variables: NotRequired[Variables]
+    timeout: NotRequired[float]
+    locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    cache: NotRequired[Caching]
+
+
+class ExtractOptions(TypedDict):
+    model: NotRequired[ModelConfig]
+    timeout: NotRequired[float]
+    locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    screenshot: NotRequired[bool]
+    cache: NotRequired[Caching]
+
+
+class ObserveOptions(TypedDict):
+    model: NotRequired[ModelConfig]
+    variables: NotRequired[Variables]
+    timeout: NotRequired[float]
+    locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    cache: NotRequired[Caching]
+
+
+class StagehandActParams(TypedDict):
+    page_id: str
+    instruction: str | Action
+    options: NotRequired[ActOptions]
+
+
+class StagehandExtractParams(TypedDict):
+    page_id: str
+    instruction: str
+    schema: NotRequired[FieldSchema0]
+    options: NotRequired[ExtractOptions]
+
+
+class StagehandInitParams(TypedDict):
+    protocol_version: str
+    client_info: ImplementationInfo
+    browser_cdp_url: NotRequired[str]
+    browserbase: NotRequired[Literal["client"]]
+    browser: NotRequired[BrowserSessionMetadata]
+    model: NotRequired[ModelConfig | ClientModelReference]
+    telemetry: NotRequired[TelemetryConfig]
+    log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
+    system_prompt: NotRequired[str]
+    self_heal: NotRequired[bool]
+    dom_settle_timeout_ms: NotRequired[int]
+    cache: NotRequired[Caching]
+
+
+class StagehandObserveParams(TypedDict):
+    page_id: str
+    instruction: NotRequired[str]
+    options: NotRequired[ObserveOptions]

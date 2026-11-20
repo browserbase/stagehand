@@ -26,6 +26,15 @@ describe("Stagehand facade contract", () => {
     });
   });
 
+  it("loads the xAI key for direct Grok inference", () => {
+    expect(
+      stagehandFacadeConfigFromEnv({
+        STAGEHAND_MODEL_NAME: "xai/grok-4.7",
+        XAI_API_KEY: "xai-secret",
+      }).stagehand.model,
+    ).toEqual({ modelName: "xai/grok-4.7", apiKey: "xai-secret" });
+  });
+
   it("reads STAGEHAND_FACADE_QUIET_WAIT, off by default", () => {
     expect(stagehandFacadeConfigFromEnv({}).quietWait).toBe(false);
     for (const on of ["1", "true", "YES", " on "]) {

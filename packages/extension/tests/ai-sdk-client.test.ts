@@ -47,6 +47,12 @@ describe("AI SDK language models", () => {
       modelId: "gpt-oss-120b",
       provider: "cerebras.chat",
     },
+    {
+      name: "xAI",
+      modelName: "xai/grok-4" as const,
+      modelId: "grok-4",
+      provider: "xai.responses",
+    },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
       modelName: testCase.modelName,
@@ -66,6 +72,7 @@ describe("AI SDK language models", () => {
     ["google/future-model-v1", "google.generative-ai"],
     ["groq/vendor/future-model-v1", "groq.chat"],
     ["cerebras/future-model-v1", "cerebras.chat"],
+    ["xai/future-model-v1", "xai.responses"],
   ] as const)("passes the unknown ID in %s to its provider", (modelName, provider) => {
     const model = createAiSdkLanguageModel({ modelName, apiKey: "provider-secret" });
     expect(model).toMatchObject({
@@ -87,6 +94,15 @@ describe("AI SDK language models", () => {
       provider: "openai.chat",
       modelId: "gpt-5.4-mini",
     });
+  });
+
+  it("rejects stop sequences for xAI", () => {
+    expect(() =>
+      createAiSdkLanguageModel(
+        { modelName: "xai/grok-4", apiKey: "provider-secret" },
+        { stopSequences: ["STOP"] },
+      ),
+    ).toThrow("xAI does not support stopSequences");
   });
 
   it("routes a configured provider model through the AI SDK client", async () => {

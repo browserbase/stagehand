@@ -183,7 +183,9 @@ def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None
     }
 
 
-@pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "groq", "cerebras"])
+@pytest.mark.parametrize(
+    "provider", ["openai", "anthropic", "google", "groq", "cerebras", "xai"]
+)
 def test_unknown_model_ids_round_trip(provider: str) -> None:
     model_name = f"{provider}/vendor/future-model-v1"
     model = models.ModelConfig.model_validate({"model_name": model_name})
