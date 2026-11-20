@@ -1,9 +1,10 @@
 import Browserbase from "@browserbasehq/sdk";
 import {
   createBrowserbaseExtensionClient,
-  provisionBrowserbaseExtension,
+  shareBrowserbaseExtension,
   type BrowserbaseExtensionClient,
   type BrowserbaseExtensionSdk,
+  type ProvisionExtension,
   type ProvisionedBrowserbaseExtension,
 } from "../browserbaseExtension.js";
 import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
@@ -40,9 +41,7 @@ export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
 
 type BrowserbaseSessionClientDependencies = {
   browserbase?: BrowserbaseApiClient;
-  provisionExtension?: (
-    client: BrowserbaseExtensionClient,
-  ) => Promise<ProvisionedBrowserbaseExtension>;
+  provisionExtension?: ProvisionExtension;
 };
 
 type BrowserbaseSdk = BrowserbaseExtensionSdk & {
@@ -74,7 +73,8 @@ export function createBrowserbaseSessionClient(
 ): BrowserbaseSessionClient {
   const browserbase =
     dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl, clientOptions);
-  const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
+  const provisionExtension =
+    dependencies.provisionExtension ?? shareBrowserbaseExtension(`${apiKey}\0${baseUrl}`);
 
   return {
     async createSession(params) {
