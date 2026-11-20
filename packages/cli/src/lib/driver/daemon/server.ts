@@ -13,7 +13,7 @@ import {
 } from "./paths.js";
 import { parseRequest, serializeResponse, type DriverRequest } from "./protocol.js";
 
-const MANAGER_CLOSE_TIMEOUT_MS = 5_000;
+const SHUTDOWN_DEADLINE_MS = 5_000;
 
 interface RunDriverDaemonOptions {
   session: string;
@@ -30,25 +30,30 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   const socketPath = getSocketPath(session);
   const manager = new DriverSessionManager(session, target);
   const server = net.createServer();
+  const sockets = new Set<net.Socket>();
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
     shutdownPromise ??= (async () => {
-      await closeServer(server);
-      let closeTimer: ReturnType<typeof setTimeout> | undefined;
+      let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
       let timedOut = false;
+      const deadline = new Promise<void>((resolve) => {
+        deadlineTimer = setTimeout(() => {
+          timedOut = true;
+          for (const socket of sockets) socket.destroy();
+          resolve();
+        }, SHUTDOWN_DEADLINE_MS);
+      });
       await Promise.race([
-        manager.close(),
-        new Promise<void>((resolve) => {
-          closeTimer = setTimeout(() => {
-            timedOut = true;
-            resolve();
-          }, MANAGER_CLOSE_TIMEOUT_MS);
-        }),
+        (async () => {
+          await closeServer(server);
+          await manager.close();
+        })(),
+        deadline,
       ])
         .catch(() => undefined)
         .finally(() => {
-          if (closeTimer) clearTimeout(closeTimer);
+          if (deadlineTimer) clearTimeout(deadlineTimer);
         });
       await cleanupDaemonFiles(session);
       if (timedOut) {
@@ -59,6 +64,8 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   };
 
   server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
     void handleConnection(socket, manager, shutdown);
   });
 

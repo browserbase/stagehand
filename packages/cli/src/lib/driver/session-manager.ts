@@ -273,7 +273,9 @@ export class DriverSessionManager {
       const pageTimedOut = pageResult === (TIMEOUT_SENTINEL as unknown);
       const pagesTimedOut = pagesResult === (TIMEOUT_SENTINEL as unknown);
       if (pageTimedOut && pagesTimedOut) {
-        this.markDisconnected("Browser unresponsive (status probes timed out)");
+        this.markDisconnected(
+          `Browser unresponsive (status probes timed out after ${STATUS_CALL_TIMEOUT_MS}ms)`,
+        );
         return {
           browserConnected: false,
           disconnectReason: this.disconnectReason,
