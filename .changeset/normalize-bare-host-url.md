@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-prefix https:// (or http:// for localhost/127.0.0.1) when browse open receives a bare host
+accept bare hostnames in `browse open` (e.g. `example.com` instead of `https://example.com`)
