@@ -11,7 +11,8 @@ session driver and trajectory adapter:
 
 The agent runs Antigravity's own loop and system prompt (eval instructions
 are appended as a section, not a replacement). The mounted MCP servers are the
-agent's only way to act.
+agent's only way to act on the browser; the one builtin it keeps, view_file,
+only reads the runtime's saved outputs (see below).
 
 The Antigravity runtime replaces any tool output larger than about 4 KB with a
 notice pointing at a file under its app-data "brain" directory. The one builtin
@@ -35,6 +36,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+from collections.abc import Iterable
 from typing import Any
 
 Event = dict[str, Any]
@@ -142,10 +144,12 @@ def parse_config(raw: object, env: dict[str, str] | None = None) -> RunnerConfig
 
 
 def resolve_api_key(env: dict[str, str] | None = None) -> str | None:
+    """Same order as the Stagehand facade's Google key resolution."""
     env = dict(os.environ) if env is None else env
-    for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"):
-        if env.get(key):
-            return env[key]
+    for key in ("GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        value = (env.get(key) or "").strip()
+        if value:
+            return value
     return None
 
 
@@ -259,12 +263,32 @@ def offloaded_images(text: str, brain_root: str) -> list[dict[str, str]]:
     return images
 
 
-def sanitize_error(message: str) -> str:
-    for name, value in os.environ.items():
-        if len(value) >= 6 and re.search(
+_MIN_SECRET_LENGTH = 6
+
+
+def server_env_secrets(mcp_servers: dict[str, dict[str, Any]]) -> list[str]:
+    """Every MCP server env value long enough to redact; those env maps carry credentials."""
+    return [
+        value
+        for server in mcp_servers.values()
+        for value in (server.get("env") or {}).values()
+        if isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
+    ]
+
+
+def sanitize_error(message: str, extra_secrets: Iterable[str] = ()) -> str:
+    secrets = {
+        value
+        for name, value in os.environ.items()
+        if len(value) >= _MIN_SECRET_LENGTH
+        and re.search(
             r"(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)", name, re.IGNORECASE
-        ):
-            message = message.replace(value, "[redacted]")
+        )
+    }
+    secrets.update(value for value in extra_secrets if len(value) >= _MIN_SECRET_LENGTH)
+    # Longest first, so a secret that contains another is replaced whole.
+    for value in sorted(secrets, key=len, reverse=True):
+        message = message.replace(value, "[redacted]")
     message = re.sub(r"\bAIza[0-9A-Za-z_-]{30,}", "AIza[redacted]", message)
     message = re.sub(r"\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+", r"\1[redacted]", message)
     return re.sub(r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}", r"\1[redacted]", message, flags=re.I)
@@ -434,6 +458,26 @@ class WallTimeout(Exception):
 
 
 async def run(config: RunnerConfig) -> int:
+    """Run one turn. Setup failures (SDK import, hooks, config objects) still
+    produce the error, final and usage events, like failures inside the turn."""
+    app_data_dir = tempfile.mkdtemp(prefix="stagehand-antigravity-")
+    secrets = server_env_secrets(config.mcp_servers)
+    try:
+        return await _run(config, app_data_dir, secrets)
+    except Exception as error:  # noqa: BLE001 - _run reports its own turn failures
+        message = sanitize_error(f"{type(error).__name__}: {error}", secrets)
+        for event in (
+            {"type": "error", "kind": "exception", "message": message},
+            {"type": "final", "text": ""},
+            usage_event(None),
+        ):
+            print_line({**event, "ts": time.time()})
+        return 1
+    finally:
+        shutil.rmtree(app_data_dir, ignore_errors=True)
+
+
+async def _run(config: RunnerConfig, app_data_dir: str, secrets: list[str]) -> int:
     from google.antigravity import Agent, LocalAgentConfig, types
     from google.antigravity.hooks import hooks
     from google.antigravity.models import GeminiAPIEndpoint, GeminiModelOptions, ModelTarget
@@ -441,7 +485,6 @@ async def run(config: RunnerConfig) -> int:
     agent_ref: dict[str, Any] = {}
     reported_steps: set[str] = set()
     pending_calls: list[Event] = []
-    app_data_dir = tempfile.mkdtemp(prefix="stagehand-antigravity-")
     brain_root = os.path.join(app_data_dir, "brain")
     claimed_outputs: set[str] = set()
     call_started: dict[str, float] = {}
@@ -599,7 +642,7 @@ async def run(config: RunnerConfig) -> int:
             name,
             getattr(data, "server_name", None),
             error is None,
-            sanitize_error(str(error)) if error else text,
+            sanitize_error(str(error), secrets) if error else text,
             images,
         )
 
@@ -608,7 +651,12 @@ async def run(config: RunnerConfig) -> int:
         call_id = str(getattr(data, "call_id", "") or getattr(data, "id", "") or "")
         name = tool_name(getattr(data, "tool_name", "") or getattr(data, "name", ""))
         complete_call(
-            call_id, name, None, False, sanitize_error(f"{type(data).__name__}: {data}"), []
+            call_id,
+            name,
+            None,
+            False,
+            sanitize_error(f"{type(data).__name__}: {data}", secrets),
+            [],
         )
         return None  # let the SDK report the error to the model as usual
 
@@ -745,14 +793,12 @@ async def run(config: RunnerConfig) -> int:
             {
                 "type": "error",
                 "kind": "exception",
-                "message": sanitize_error(f"{type(error).__name__}: {error}"),
+                "message": sanitize_error(f"{type(error).__name__}: {error}", secrets),
             }
         )
         emit({"type": "final", "text": final_text})
         emit(usage_event(usage))
         return 1
-    finally:
-        shutil.rmtree(app_data_dir, ignore_errors=True)
     emit({"type": "final", "text": final_text})
     emit(usage_event(usage))
     return 0

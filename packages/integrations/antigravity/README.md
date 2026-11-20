@@ -16,8 +16,9 @@ Behavior:
 
 - Antigravity keeps its native system prompt; the eval policy is appended as a
   section.
-- The mounted MCP servers are the only tools that act, apart from the SDK's
-  generic MCP helpers (`call_mcp_tool`, `list_resources`, `read_resource`).
+- Browser actions go only through the mounted MCP servers (plus the SDK's generic
+  MCP helpers `call_mcp_tool`, `list_resources`, `read_resource`). The one builtin
+  left on is `view_file`, which only reads the runtime's saved outputs (below).
 - The Antigravity runtime replaces any tool output over about 4 KB with a notice
   pointing at a file under its app-data `brain` directory, and stores MCP tool
   schemas there too. This limit is not configurable, so the builtin `view_file`
@@ -44,7 +45,7 @@ Requires [uv](https://docs.astral.sh/uv/), a Gemini API key, and Browserbase
 credentials for `-e browserbase`:
 
 ```sh
-export GEMINI_API_KEY=...
+export GOOGLE_GENERATIVE_AI_API_KEY=...
 export BROWSERBASE_API_KEY=bb_live_...
 export BROWSERBASE_PROJECT_ID=...   # optional
 pnpm exec turbo run build --filter @browserbasehq/stagehand-evals
@@ -53,15 +54,15 @@ EVAL_HARDBENCHMARK_IDS=a0a18ca6a3529f3e97c771aadd42d3a0 \
   --harness antigravity -m google/gemini-3.8-flash -t 1
 ```
 
-| Variable                           | Purpose                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`                   | Gemini API key (`GOOGLE_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` also accepted). |
-| `BROWSERBASE_API_KEY`              | Browserbase credential for the browser session (required for `-e browserbase`).   |
-| `BROWSERBASE_PROJECT_ID`           | Optional Browserbase project.                                                     |
-| `EVAL_ANTIGRAVITY_MAX_STEPS`       | Tool-call budget (then `AGENT_EVAL_MAX_STEPS`, dataset default, 50).              |
-| `EVAL_ANTIGRAVITY_THINKING_LEVEL`  | `minimal`, `low`, `medium`, `high` or `extra_high`.                               |
-| `EVAL_ANTIGRAVITY_WALL_TIMEOUT_S`  | Optional wall-clock limit for the agent turn.                                     |
-| `STAGEHAND_ANTIGRAVITY_RUNNER_DIR` | Override the runner project directory.                                            |
+| Variable                           | Purpose                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `GOOGLE_GENERATIVE_AI_API_KEY`     | Gemini API key; then `GEMINI_API_KEY`, then `GOOGLE_API_KEY` (the facade's order). |
+| `BROWSERBASE_API_KEY`              | Browserbase credential for the browser session (required for `-e browserbase`).    |
+| `BROWSERBASE_PROJECT_ID`           | Optional Browserbase project.                                                      |
+| `EVAL_ANTIGRAVITY_MAX_STEPS`       | Tool-call budget (then `AGENT_EVAL_MAX_STEPS`, dataset default, 50).               |
+| `EVAL_ANTIGRAVITY_THINKING_LEVEL`  | `minimal`, `low`, `medium`, `high` or `extra_high`.                                |
+| `EVAL_ANTIGRAVITY_WALL_TIMEOUT_S`  | Optional wall-clock limit for the agent turn.                                      |
+| `STAGEHAND_ANTIGRAVITY_RUNNER_DIR` | Override the runner project directory.                                             |
 
 ## Tests
 

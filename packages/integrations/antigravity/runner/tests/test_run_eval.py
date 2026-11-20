@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -68,10 +69,27 @@ def test_parse_config_rejects_invalid_requests(raw):
         run_eval.parse_config(raw, env={})
 
 
-def test_api_key_falls_back_to_google_names():
-    assert run_eval.resolve_api_key({"GOOGLE_API_KEY": "k1"}) == "k1"
-    assert run_eval.resolve_api_key({"GEMINI_API_KEY": "k0", "GOOGLE_API_KEY": "k1"}) == "k0"
+def test_api_key_follows_the_facade_google_key_order():
+    # GOOGLE_GENERATIVE_AI_API_KEY > GEMINI_API_KEY > GOOGLE_API_KEY, blanks skipped.
+    every = {"GOOGLE_GENERATIVE_AI_API_KEY": "g0", "GEMINI_API_KEY": "g1", "GOOGLE_API_KEY": "g2"}
+    assert run_eval.resolve_api_key(every) == "g0"
+    assert run_eval.resolve_api_key({**every, "GOOGLE_GENERATIVE_AI_API_KEY": " "}) == "g1"
+    assert run_eval.resolve_api_key({"GOOGLE_API_KEY": " g2 "}) == "g2"
     assert run_eval.resolve_api_key({}) is None
+
+
+def test_sanitize_error_redacts_mcp_server_env_values():
+    secrets = run_eval.server_env_secrets(
+        {
+            "s": {
+                "command": "x",
+                "env": {"PORT": "54321", "SESSION": "tok-123456", "B": "tok-1234567890"},
+            }
+        }
+    )
+    assert secrets == ["tok-123456", "tok-1234567890"]  # 5-char port is below the threshold
+    message = run_eval.sanitize_error("bad tok-1234567890 and tok-123456 on 54321", secrets)
+    assert message == "bad [redacted] and [redacted] on 54321"
 
 
 def test_unwrap_hook_args():
@@ -353,3 +371,28 @@ def test_stdio_server_spec_builds_a_valid_sdk_server(tmp_path):
     )
     assert server.args[-2:] == ["node", "a.js"]
     assert str(tmp_path) in server.args
+
+
+def test_invalid_sdk_server_config_emits_terminal_events(monkeypatch, capsys):
+    # A server name the SDK rejects (pattern ^[a-zA-Z0-9_-]+$) fails while the
+    # config objects are built, before any network call.
+    created: list[str] = []
+    real_mkdtemp = run_eval.tempfile.mkdtemp
+    monkeypatch.setattr(
+        run_eval.tempfile, "mkdtemp", lambda **kw: created.append(real_mkdtemp(**kw)) or created[-1]
+    )
+    token = "server-secret-123456"
+    config = run_eval.RunnerConfig(
+        prompt="go",
+        system_prompt=None,
+        model="gemini-3.8-flash",
+        mcp_servers={"bad name!": {"command": "node", "args": [], "env": {"T": token}}},
+    )
+    assert asyncio.run(run_eval.run(config)) == 1
+    out = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [e["type"] for e in out] == ["error", "final", "usage"]
+    assert out[0]["kind"] == "exception" and "ValidationError" in out[0]["message"]
+    assert out[1]["text"] == ""
+    assert out[2]["reported"] is False
+    assert created and not os.path.exists(created[0])
+    assert token not in json.dumps(out)

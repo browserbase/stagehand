@@ -99,10 +99,14 @@ def call(name: str, server: str | None = "stagehand", args=None, canonical_path=
     )
 
 
-def run_with(monkeypatch, max_tool_steps, script):
+def run_with(monkeypatch, max_tool_steps, script, mcp_servers=None):
     install_fake_sdk(monkeypatch, script)
     config = run_eval.RunnerConfig(
-        prompt="go", system_prompt=None, model="m", max_tool_steps=max_tool_steps
+        prompt="go",
+        system_prompt=None,
+        model="m",
+        max_tool_steps=max_tool_steps,
+        mcp_servers=mcp_servers or {},
     )
     return asyncio.run(run_eval.run(config))
 
@@ -196,3 +200,54 @@ def test_a_tool_named_view_file_on_an_mcp_server_still_counts(monkeypatch, capsy
     # Only the builtin (no server) is exempt; an MCP tool of the same name is budgeted.
     assert decisions == ([True, False] if server else [True, True])
     capsys.readouterr()
+
+
+def test_tool_errors_echoing_a_server_env_token_are_redacted(monkeypatch, capsys):
+    token = "srv-token-abcdef123456"
+
+    async def script(config, pre):
+        _, post, on_error = config["hooks"]
+        first = call("run")
+        await pre(first)
+        await post(
+            pytypes.SimpleNamespace(
+                id=first.id,
+                name="run",
+                server_name="stagehand",
+                result=None,
+                error=f"401 for {token}",
+                step_id=None,
+            )
+        )
+        second = call("snapshot")
+        await pre(second)
+        await on_error(RuntimeError(f"connect failed with {token}"))
+
+    servers = {"stagehand": {"command": "node", "args": [], "env": {"BRIDGE_TOKEN": token}}}
+    run_with(monkeypatch, 5, script, servers)
+    out = capsys.readouterr().out
+    assert token not in out
+    results = [json.loads(line) for line in out.splitlines()]
+    failed = [e["text"] for e in results if e["type"] == "tool_result" and e["ok"] is False]
+    assert failed == ["401 for [redacted]", "RuntimeError: connect failed with [redacted]"]
+
+
+def test_setup_failure_in_the_fake_sdk_still_emits_terminal_events(monkeypatch, capsys):
+    install_fake_sdk(monkeypatch, None)
+
+    def broken(_fn):
+        raise RuntimeError("hook registration failed")
+
+    sys.modules["google.antigravity.hooks"].hooks.pre_tool_call_decide = broken
+    created: list[str] = []
+    real_mkdtemp = run_eval.tempfile.mkdtemp
+    monkeypatch.setattr(
+        run_eval.tempfile, "mkdtemp", lambda **kw: created.append(real_mkdtemp(**kw)) or created[-1]
+    )
+    config = run_eval.RunnerConfig(prompt="go", system_prompt=None, model="m")
+    assert asyncio.run(run_eval.run(config)) == 1
+    out = events(capsys)
+    assert [e["type"] for e in out] == ["error", "final", "usage"]
+    assert "hook registration failed" in out[0]["message"]
+    assert out[2]["reported"] is False
+    assert created and not os.path.exists(created[0])
