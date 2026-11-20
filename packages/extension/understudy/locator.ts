@@ -3,12 +3,14 @@ import { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import {
   assignFilePayloadsToInputElement,
-  codeInputIndex,
+  codeInputGroup,
+  codeInputPosition,
+  deepActiveElement,
   dispatchDomClick,
   ensureFileInputElement,
   fillElementValue,
   focusElement,
-  focusedInputIndexAfterInput,
+  focusedCodeInputAfterInput,
   isElementChecked,
   isElementVisible,
   prepareElementForTyping,
@@ -16,6 +18,7 @@ import {
   readElementInnerText,
   readElementInputValue,
   readElementTextContent,
+  restoreInputValue,
   scrollElementToPercent,
   selectElementOptions,
 } from "../dom/locatorScripts/scripts.js";
@@ -28,6 +31,9 @@ import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+
+/** Returned by `focusedCodeInputAfterInput` when the page removed the code input group. */
+const CODE_GROUP_DETACHED = -2;
 
 /**
  * Locator
@@ -732,10 +738,16 @@ export class Locator {
   /**
    * Insert text into the focused element with `Input.insertText`.
    *
-   * Code forms often use one input per character and move focus after each input event, so
-   * inserting a whole code at once leaves it all in the first box. For an input that looks like
-   * one of those boxes, insert one character at a time while focus keeps moving forward, then
-   * insert whatever is left in one step.
+   * Code forms often use one `maxlength="1"` input per character and move focus after each input
+   * event, so inserting a whole code at once leaves only its first character. When the element
+   * is one of those boxes, insert one character at a time while focus moves forward within the
+   * same group.
+   *
+   * - If focus does not move after the first character, the page is not advancing like a code
+   *   form: put the input's value back and insert the whole text at once, as for any field.
+   * - If focus stops moving later, the text is longer than the boxes, so stop there.
+   * - If focus moves backward or leaves the group, stop instead of typing into another field.
+   * - If the page replaces the group's container, find the group again from the focused input.
    */
   private async insertText(
     text: string,
@@ -747,33 +759,102 @@ export class Locator {
       runLocatorStep(progress, "inserting text", () =>
         session.send<never>("Input.insertText", { text: chunk }),
       );
-    const inputIndex = async (fn: (this: Element) => number | Promise<number>, step: string) => {
-      const res = await runLocatorStep(progress, step, () =>
-        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: fn.toString(),
-          awaitPromise: true,
-          returnByValue: true,
-        }),
+    const releaseNow = (id: Protocol.Runtime.RemoteObjectId) =>
+      session.send<never>("Runtime.releaseObject", { objectId: id }).catch(() => {});
+    const release = async (id: Protocol.Runtime.RemoteObjectId | undefined) => {
+      if (!id) return;
+      if (progress) await progress.cleanup(() => releaseNow(id));
+      else await releaseNow(id);
+    };
+    const call = (
+      target: Protocol.Runtime.RemoteObjectId,
+      fn: (...args: never[]) => unknown,
+      step: string,
+      options: { args?: Protocol.Runtime.CallArgument[]; byValue?: boolean } = {},
+    ) =>
+      runLocatorStep(
+        progress,
+        step,
+        () =>
+          session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+            objectId: target,
+            functionDeclaration: fn.toString(),
+            arguments: options.args,
+            awaitPromise: true,
+            returnByValue: options.byValue,
+          }),
+        // A handle that arrives after the deadline would otherwise never be released.
+        (late) => (late.result.objectId ? releaseNow(late.result.objectId) : undefined),
       );
+    const handle = async (
+      target: Protocol.Runtime.RemoteObjectId,
+      fn: (...args: never[]) => unknown,
+    ) => (await call(target, fn, "evaluating element")).result.objectId;
+    const position = async (
+      group: Protocol.Runtime.RemoteObjectId,
+      fn: (...args: never[]) => unknown,
+      step: string,
+      args?: Protocol.Runtime.CallArgument[],
+    ) => {
+      const res = await call(group, fn, step, { args, byValue: true });
       return typeof res.result.value === "number" ? res.result.value : -1;
     };
 
     const chars = Array.from(text);
-    let current = chars.length > 1 ? await inputIndex(codeInputIndex, "evaluating element") : -1;
-    if (current < 0) {
+    let groupId = chars.length > 1 ? await handle(objectId, codeInputGroup) : undefined;
+    if (!groupId) {
       await insert(text);
       return;
     }
 
-    let next = 0;
-    while (next < chars.length - 1) {
-      await insert(chars[next++]);
-      const focused = await inputIndex(focusedInputIndexAfterInput, "waiting for focus to advance");
-      if (focused <= current) break;
-      current = focused;
+    try {
+      let current = await position(groupId, codeInputPosition, "evaluating element", [
+        { objectId },
+      ]);
+      if (current < 0) {
+        await insert(text);
+        return;
+      }
+      const original = (
+        await call(objectId, readElementInputValue, "evaluating element", { byValue: true })
+      ).result.value as string;
+
+      await insert(chars[0]);
+      for (let next = 1; next < chars.length; next++) {
+        let focused = await position(
+          groupId,
+          focusedCodeInputAfterInput,
+          "waiting for focus to advance",
+        );
+        if (focused === CODE_GROUP_DETACHED) {
+          const activeId = await handle(objectId, deepActiveElement);
+          if (!activeId) return;
+          try {
+            const regrouped = await handle(activeId, codeInputGroup);
+            if (!regrouped) return;
+            await release(groupId);
+            groupId = regrouped;
+            focused = await position(groupId, codeInputPosition, "evaluating element", [
+              { objectId: activeId },
+            ]);
+          } finally {
+            await release(activeId);
+          }
+        }
+        if (focused === current && next === 1) {
+          await call(objectId, restoreInputValue, "inserting text", {
+            args: [{ value: original ?? "" }],
+          });
+          await insert(text);
+          return;
+        }
+        if (focused <= current) return;
+        current = focused;
+        await insert(chars[next]);
+      }
+    } finally {
+      await release(groupId);
     }
-    await insert(chars.slice(next).join(""));
   }
 
   /**

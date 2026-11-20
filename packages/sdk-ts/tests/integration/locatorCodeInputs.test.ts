@@ -41,10 +41,25 @@ const layouts: CodeLayout[] = [
     attrs: 'maxlength="1"',
     advance: "raf",
   },
+  {
+    name: 'maxlength="1" number inputs',
+    attrs: 'maxlength="1"',
+    advance: "sync",
+    inputType: "number",
+  },
+];
+
+// Auto-advancing inputs that are not marked as one-character boxes keep the old behavior:
+// the whole value goes into the first input.
+const ordinaryLayouts: CodeLayout[] = [
   { name: 'size="1"', attrs: 'size="1"', advance: "sync" },
   { name: "adjacent inputs without maxlength", attrs: "", advance: "sync" },
   { name: "number inputs", attrs: "", advance: "sync", inputType: "number" },
 ];
+
+function page(html: string): string {
+  return "data:text/html," + encodeURIComponent(`<!doctype html><html><body>${html}</body></html>`);
+}
 
 async function codeValues(stagehand: Stagehand): Promise<string[]> {
   const page = await firstPage(stagehand);
@@ -79,6 +94,196 @@ describe("Locator.fill() and type() on auto-advancing code inputs", () => {
       expect(await codeValues(stagehand)).toEqual(["1", "2", "3", "4"]);
     });
   }
+
+  for (const layout of ordinaryLayouts) {
+    it(`fill() inserts the value at once into ${layout.name}`, async () => {
+      const page = await firstPage(stagehand);
+      await page.goto(codePage(layout));
+      await page.locator("#d0").fill("1234");
+      expect(await codeValues(stagehand)).toEqual(["1234", "", "", ""]);
+    });
+  }
+
+  it("fill() does not split values for ordinary fields with input handlers", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code">
+          <input id="a" type="number" /><input id="b" type="number" /><input id="c" type="number" />
+        </div>
+        <script>
+          document.querySelectorAll("input").forEach((input) =>
+            input.addEventListener("input", () => {
+              if (input.value !== "" && Number(input.value) < 10) input.value = "10";
+            }),
+          );
+        </script>`),
+    );
+    await p.locator("#a").fill("25");
+    expect(await codeValues(stagehand)).toEqual(["25", "", ""]);
+  });
+
+  it("fill() treats a one-character field among other fields as an ordinary field", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <form id="code">
+          <input id="first" /><input id="initial" maxlength="1" /><input id="last" />
+        </form>
+        <script>
+          const initial = document.getElementById("initial");
+          initial.addEventListener("input", () => document.getElementById("last").focus());
+        </script>`),
+    );
+    await p.locator("#initial").fill("QX");
+    expect(await codeValues(stagehand)).toEqual(["", "Q", ""]);
+  });
+
+  it("fill() stops typing when focus leaves the code inputs", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code">
+          <input maxlength="1" /><input maxlength="1" /><input maxlength="1" />
+        </div>
+        <input id="email" />
+        <script>
+          const inputs = [...document.querySelectorAll("#code input")];
+          inputs.forEach((input, index) =>
+            input.addEventListener("input", () =>
+              (inputs[index + 1] ?? document.getElementById("email")).focus(),
+            ),
+          );
+        </script>`),
+    );
+    await p.locator("#code input").first().fill("1234");
+    expect(await codeValues(stagehand)).toEqual(["1", "2", "3"]);
+    expect(await p.locator("#email").inputValue()).toBe("");
+  });
+
+  it("fill() replaces a prefilled code next to a hidden input", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code" role="group">
+          <input id="hidden" type="hidden" value="e3c7" />
+          <input id="d0" maxlength="1" value="e" /><input maxlength="1" value="3" />
+          <input maxlength="1" value="c" /><input maxlength="1" value="7" />
+        </div>
+        <script>
+          const inputs = [...document.querySelectorAll("#code input:not([type=hidden])")];
+          const sync = () => (document.getElementById("hidden").value = inputs.map((i) => i.value).join(""));
+          inputs.forEach((input, index) => {
+            input.addEventListener("focus", () => input.select());
+            input.addEventListener("input", () => {
+              sync();
+              if (input.value) inputs[index + 1]?.focus();
+            });
+          });
+        </script>`),
+    );
+    await p.locator("#d0").fill("5831");
+    expect(await codeValues(stagehand)).toEqual(["5831", "5", "8", "3", "1"]);
+  });
+
+  it("fill() replaces a prefilled code when the page does not select on focus", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code">
+          <input id="d0" maxlength="1" value="e" /><input maxlength="1" value="3" />
+          <input maxlength="1" value="c" /><input maxlength="1" value="7" />
+        </div>
+        <script>
+          const inputs = [...document.querySelectorAll("#code input")];
+          inputs.forEach((input, index) =>
+            input.addEventListener("input", () => input.value && inputs[index + 1]?.focus()),
+          );
+        </script>`),
+    );
+    await p.locator("#d0").fill("5831");
+    expect(await codeValues(stagehand)).toEqual(["5", "8", "3", "1"]);
+  });
+
+  it("fill() inserts the whole value when one-character number boxes do not advance", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code">
+          <input id="a" type="number" maxlength="1" /><input type="number" maxlength="1" />
+          <input type="number" maxlength="1" />
+        </div>
+        <script>
+          document.querySelectorAll("input").forEach((input) =>
+            input.addEventListener("input", () => {
+              if (input.value !== "" && Number(input.value) < 10) input.value = "10";
+            }),
+          );
+        </script>`),
+    );
+    await p.locator("#a").fill("25");
+    expect(await codeValues(stagehand)).toEqual(["25", "", ""]);
+  });
+
+  it("fill() stops at the last number box when the code is longer than the boxes", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      codePage({ name: "number", attrs: 'maxlength="1"', advance: "sync", inputType: "number" }, 3),
+    );
+    await p.locator("#d0").fill("12345");
+    expect(await codeValues(stagehand)).toEqual(["1", "2", "3"]);
+  });
+
+  it("type() stops typing when focus leaves the code inputs", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="code">
+          <input maxlength="1" /><input maxlength="1" /><input maxlength="1" />
+        </div>
+        <input id="email" />
+        <script>
+          const inputs = [...document.querySelectorAll("#code input")];
+          inputs.forEach((input, index) =>
+            input.addEventListener("input", () =>
+              (inputs[index + 1] ?? document.getElementById("email")).focus(),
+            ),
+          );
+        </script>`),
+    );
+    await p.locator("#code input").first().type("1234");
+    expect(await codeValues(stagehand)).toEqual(["1", "2", "3"]);
+    expect(await p.locator("#email").inputValue()).toBe("");
+  });
+
+  it("fill() follows focus when the page replaces the whole code group after each digit", async () => {
+    const p = await firstPage(stagehand);
+    await p.goto(
+      page(`
+        <div id="outer"></div>
+        <script>
+          const digits = ["", "", "", ""];
+          const outer = document.getElementById("outer");
+          function render(focusIndex) {
+            outer.innerHTML =
+              '<div id="code">' +
+              digits.map((d, i) => '<input maxlength="1" data-index="' + i + '" value="' + d + '" />').join("") +
+              "</div>";
+            outer.querySelectorAll("input").forEach((input) =>
+              input.addEventListener("input", () => {
+                const i = Number(input.dataset.index);
+                digits[i] = input.value;
+                render(input.value ? i + 1 : i);
+              }),
+            );
+            outer.querySelectorAll("input")[focusIndex]?.focus();
+          }
+          render();
+        </script>`),
+    );
+    await p.locator("#code input").first().fill("1234");
+    expect(await codeValues(stagehand)).toEqual(["1", "2", "3", "4"]);
+  });
 
   it("fill() leaves adjacent ordinary fields as one insertion", async () => {
     const page = await firstPage(stagehand);
