@@ -381,7 +381,11 @@ export class DriverSessionManager {
           index,
           targetId: page.pageId,
           title: await this.safeTitle(page),
-          url: await withTimeoutFallback(page.url().catch(() => ""), STATUS_CALL_TIMEOUT_MS, ""),
+          url: await withTimeoutFallback(
+            page.url().catch(() => ""),
+            STATUS_CALL_TIMEOUT_MS,
+            "",
+          ),
         })),
       );
     } catch (error) {
