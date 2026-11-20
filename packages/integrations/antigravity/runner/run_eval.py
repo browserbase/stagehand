@@ -812,7 +812,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _terminated)
     try:
         config = parse_config(json.loads(sys.stdin.read()))
-    except (json.JSONDecodeError, ValueError, TypeError) as error:
+    except (json.JSONDecodeError, ValueError, TypeError, ImportError) as error:
         print_line(
             {
                 "type": "error",

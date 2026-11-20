@@ -5,7 +5,7 @@
  * The Python runner in `../runner` speaks the Deep Agents JSONL event protocol,
  * so this adapter reuses the Deep Agents process driver (subprocess lifecycle,
  * event parsing, status mapping) and only owns what is Antigravity-specific:
- * where the runner lives, which models it accepts, and the system prompt
+ * where the runner lives, how model ids are normalized, and the system prompt
  * section that explains the runtime's saved-output handling to the agent.
  */
 import fs from "node:fs";

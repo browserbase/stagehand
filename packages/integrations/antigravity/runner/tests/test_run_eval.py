@@ -396,3 +396,12 @@ def test_invalid_sdk_server_config_emits_terminal_events(monkeypatch, capsys):
     assert out[2]["reported"] is False
     assert created and not os.path.exists(created[0])
     assert token not in json.dumps(out)
+
+
+def test_main_reports_a_missing_sdk_while_parsing_config(monkeypatch, capsys):
+    monkeypatch.setenv("EVAL_ANTIGRAVITY_THINKING_LEVEL", "high")
+    monkeypatch.setitem(sys.modules, "google.antigravity.models", None)
+    monkeypatch.setattr(run_eval.sys, "stdin", io.StringIO('{"prompt": "go", "model": "m"}'))
+    assert run_eval.main() == 2
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(e["type"], e["kind"]) for e in events] == [("error", "config")]
