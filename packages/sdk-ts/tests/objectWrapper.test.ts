@@ -2344,7 +2344,7 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.locatorClick, {
         pageId: "page-1",
         selector: "button",
-        nth: 2,
+        nthPath: [0, 2],
       }),
     ]);
   });

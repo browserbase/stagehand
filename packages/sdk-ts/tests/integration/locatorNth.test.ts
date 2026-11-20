@@ -184,6 +184,42 @@ describe("Locator nth() method tests", () => {
     expect(isVisible).toBe(true);
   });
 
+  it("keeps an earlier nth() selection when another index is chained", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          '<div class="test">First</div>' +
+            '<div class="test">Second</div>' +
+            '<div class="test">Third</div>',
+        ),
+    );
+
+    await expect(page.locator(".test").nth(2).first().textContent()).resolves.toBe("Third");
+    await expect(page.locator(".test").nth(2).nth(1).textContent()).rejects.toThrow(
+      /Could not find an element.*\.test/,
+    );
+  });
+
+  it("counts only matches that survive the entire chained nth() path", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          '<div class="test">First</div>' +
+            '<div class="test">Second</div>' +
+            '<div class="test">Third</div>',
+        ),
+    );
+
+    const items = page.locator(".test");
+    await expect(items.nth(2).first().count()).resolves.toBe(1);
+    await expect(items.nth(2).nth(1).count()).resolves.toBe(0);
+    await expect(items.nth(99).first().count()).resolves.toBe(0);
+  });
+
   it("nth(0) is equivalent to first()", async () => {
     const page = await firstPage(stagehand);
 

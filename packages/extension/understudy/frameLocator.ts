@@ -109,17 +109,26 @@ export class FrameLocator {
 
 /** A small delegating wrapper that resolves the frame lazily per call. */
 class LocatorDelegate {
+  readonly nthPath: readonly number[];
+
   constructor(
     readonly fl: FrameLocator,
     readonly sel: string,
-    readonly nthIndex: number = -1,
-  ) {}
+    nthIndex: number | readonly number[] = -1,
+  ) {
+    this.nthPath =
+      typeof nthIndex === "number"
+        ? Number.isFinite(nthIndex) && nthIndex >= 0
+          ? [Math.floor(nthIndex)]
+          : []
+        : [...nthIndex];
+  }
 
   async real(progress?: Progress): Promise<Locator> {
     const frame = await this.fl.resolveFrame(progress);
-    const locator = frame.locator(this.sel);
-    if (this.nthIndex < 0) return locator;
-    return locator.nth(this.nthIndex);
+    let locator = frame.locator(this.sel);
+    for (const index of this.nthPath) locator = locator.nth(index);
+    return locator;
   }
 
   // Locator API delegates
@@ -175,9 +184,7 @@ class LocatorDelegate {
     }
 
     const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) return this;
-
-    return new LocatorDelegate(this.fl, this.sel, nextIndex);
+    return new LocatorDelegate(this.fl, this.sel, [...this.nthPath, nextIndex]);
   }
 }
 

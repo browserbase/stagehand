@@ -1626,6 +1626,15 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
         }
       },
       "required": ["selector"],
@@ -3906,6 +3915,15 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
         }
       },
       "required": ["page_id", "selector"],
@@ -4542,6 +4560,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorClickOptions"
         }
@@ -4594,6 +4621,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
         },
@@ -4640,6 +4676,15 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
@@ -4697,6 +4742,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
         },
@@ -4745,6 +4799,15 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
         },
         "options": {
           "$ref": "#/$defs/LocatorHighlightOptions"
@@ -4820,6 +4883,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorSendClickEventOptions"
         }
@@ -4876,6 +4948,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorTypeOptions"
         },
@@ -4927,6 +5008,15 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
         },
@@ -4967,6 +5057,15 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "nth_path": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"

@@ -319,7 +319,7 @@ describe("snapshot Unicode repair", () => {
       expect.anything(),
       "root",
       expect.objectContaining({
-        focusLocator: { selector: "#target", nth: 2 },
+        focusLocator: { selector: "#target", nthPath: [2] },
       }),
       undefined,
     );

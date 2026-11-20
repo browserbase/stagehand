@@ -1187,8 +1187,10 @@ export class StagehandRuntime {
   }
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
-    const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
-    return params.nth === undefined ? locator : locator.nth(params.nth);
+    let locator = this.resolvePage(params.pageId).deepLocator(params.selector);
+    const nthPath = params.nthPath ?? (params.nth === undefined ? [] : [params.nth]);
+    for (const index of nthPath) locator = locator.nth(index);
+    return locator;
   }
 
   clipboardOptions(pageId?: string): UnderstudyRuntimeClipboardOptions | undefined {

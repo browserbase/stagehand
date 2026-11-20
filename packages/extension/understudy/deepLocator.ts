@@ -114,18 +114,28 @@ export async function resolveLocatorWithHops(
  *   page.deepLocator('iframe#ifrA >> #btn').click()
  */
 export class DeepLocatorDelegate {
+  readonly nthPath: readonly number[];
+
   constructor(
     readonly page: Page,
     readonly root: Frame,
     readonly selector: string,
     // -1 preserves every match for operations such as screenshot masking while
     // ordinary single-element operations still resolve their first match.
-    readonly nthIndex: number = -1,
-  ) {}
+    nthIndex: number | readonly number[] = -1,
+  ) {
+    this.nthPath =
+      typeof nthIndex === "number"
+        ? Number.isFinite(nthIndex) && nthIndex >= 0
+          ? [Math.floor(nthIndex)]
+          : []
+        : [...nthIndex];
+  }
 
   async real(progress?: Progress): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
-    return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
+    let locator = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
+    for (const index of this.nthPath) locator = locator.nth(index);
+    return locator;
   }
 
   // Locator API delegates
@@ -208,9 +218,10 @@ export class DeepLocatorDelegate {
     }
 
     const nextIndex = Math.floor(value);
-    if (nextIndex === this.nthIndex) return this;
-
-    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
+    return new DeepLocatorDelegate(this.page, this.root, this.selector, [
+      ...this.nthPath,
+      nextIndex,
+    ]);
   }
 }
 

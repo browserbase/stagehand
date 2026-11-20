@@ -62,7 +62,7 @@ export async function a11yForFrame(
     let objectId: string | null = null;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
-      const nth = locator.nth ?? 0;
+      const nth = locator.nthPath ?? (locator.nth === undefined ? [0] : [locator.nth]);
       objectId = looksLikeXPath
         ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
         : await resolveObjectIdForCss(session, sel, frameId, nth, progress);

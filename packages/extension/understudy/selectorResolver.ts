@@ -125,6 +125,26 @@ export class FrameSelectorResolver {
     return selected;
   }
 
+  public async resolveAtIndexPath(
+    query: SelectorQuery,
+    indices: readonly number[],
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
+    if (indices.length === 0) return this.resolveAtIndex(query, 0, progress);
+
+    const selected = await this.resolveAtIndex(query, indices[0], progress);
+    if (!selected || indices.slice(1).every((index) => index === 0)) return selected;
+
+    if (progress) {
+      await this.releaseNodes([selected], progress);
+    } else {
+      await this.frame.session
+        .send("Runtime.releaseObject", { objectId: selected.objectId })
+        .catch(() => {});
+    }
+    return null;
+  }
+
   async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
     return this.resolveElements("resolveCssSelector", selector, limit, progress);
   }

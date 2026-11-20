@@ -17,6 +17,17 @@ describe("client locator option serialization", () => {
     });
   });
 
+  it("preserves chained nth() selections when serializing client locators", () => {
+    const page = testPage("page-1");
+
+    expect(
+      serializeClientLocator(page.locator("button").nth(2).first().nth(0), "page-1", "act"),
+    ).toEqual({
+      selector: "button",
+      nthPath: [2, 0, 0],
+    });
+  });
+
   it("serializes empty ignoreLocators arrays and preserves non-locator fields", () => {
     const page = testPage("page-1");
     const options = serializeClientLocatorOptions("extract", "page-1", {

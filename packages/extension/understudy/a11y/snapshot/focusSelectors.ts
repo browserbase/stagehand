@@ -211,9 +211,11 @@ export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
   frameId?: string,
-  index = 0,
+  indexOrPath: number | readonly number[] = 0,
   progress?: Progress,
 ): Promise<string | null> {
+  const index = firstIndexOfPath(indexOrPath);
+  if (index === null) return null;
   const expression = buildLocatorInvocation("resolveXPathMainWorld", [
     JSON.stringify(xpath),
     JSON.stringify(index),
@@ -226,14 +228,22 @@ export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
   frameId?: string,
-  index = 0,
+  indexOrPath: number | readonly number[] = 0,
   progress?: Progress,
 ): Promise<string | null> {
+  const index = firstIndexOfPath(indexOrPath);
+  if (index === null) return null;
   const expression = buildLocatorInvocation("resolveCssSelector", [
     JSON.stringify(selector),
     JSON.stringify(index),
   ]);
   return resolveObjectId(session, expression, frameId, progress);
+}
+
+function firstIndexOfPath(indexOrPath: number | readonly number[]): number | null {
+  const path = typeof indexOrPath === "number" ? [indexOrPath] : indexOrPath;
+  if (path.slice(1).some((index) => index !== 0)) return null;
+  return path[0] ?? 0;
 }
 
 async function resolveObjectId(

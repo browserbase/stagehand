@@ -1091,6 +1091,7 @@ class Locator(WireModel):
     )
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
 
 
 class LocatorCentroidResult(WireModel):
@@ -1121,6 +1122,7 @@ class LocatorClickParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorClickOptions] = None
 
 
@@ -1144,6 +1146,7 @@ class LocatorDescriptor(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
 
 
 class LocatorFillParams(WireModel):
@@ -1154,6 +1157,7 @@ class LocatorFillParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorOptions] = None
     value: StrictStr
 
@@ -1186,6 +1190,7 @@ class LocatorHighlightParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorHighlightOptions] = None
 
 
@@ -1242,6 +1247,7 @@ class LocatorParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorOptions] = None
 
 
@@ -1253,6 +1259,7 @@ class LocatorScrollToParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorOptions] = None
     percent: Union[StrictFloat, StrictStr]
 
@@ -1273,6 +1280,7 @@ class LocatorSelectOptionParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
 
@@ -1302,6 +1310,7 @@ class LocatorSendClickEventParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorSendClickEventOptions] = None
 
 
@@ -1321,6 +1330,7 @@ class LocatorSetInputFilesParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorOptions] = None
     files: list[InputFilePayload]
 
@@ -1355,6 +1365,7 @@ class LocatorTypeParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    nth_path: Annotated[Optional[list[NthPathItem]], Field(min_length=1)] = None
     options: Optional[LocatorTypeOptions] = None
     text: StrictStr
 
@@ -1455,6 +1466,10 @@ class NavigationServerAddr(WireModel):
     )
     ip_address: StrictStr
     port: Annotated[StrictInt, Field(ge=0, le=65535)]
+
+
+class NthPathItem(RootModel[StrictInt]):
+    root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
 class ObserveOptions(WireModel):

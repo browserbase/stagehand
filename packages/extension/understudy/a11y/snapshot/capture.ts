@@ -187,7 +187,8 @@ export async function tryScopedSnapshot(
   if (!focusLocator) return null;
   const requestedFocus = focusLocator.selector.trim();
   if (!requestedFocus) return null;
-  const focusNth = focusLocator.nth;
+  const focusNthPath =
+    focusLocator.nthPath ?? (focusLocator.nth === undefined ? undefined : [focusLocator.nth]);
 
   const logScopeFallback = () => {
     logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
@@ -246,7 +247,7 @@ export async function tryScopedSnapshot(
         focusLocator: tailSelector
           ? {
               selector: tailSelector,
-              ...(focusNth === undefined ? {} : { nth: focusNth }),
+              ...(focusNthPath === undefined ? {} : { nthPath: focusNthPath }),
             }
           : undefined,
         isIgnoredBackendNode: makeIsIgnoredBackendNode(
@@ -511,7 +512,7 @@ async function resolveIgnoredNodesForLocator(
         kind: "xpath",
         value: tailXPath,
       },
-      locator.nth,
+      locator.nthPath ?? (locator.nth === undefined ? undefined : [locator.nth]),
       progress,
     );
   }
@@ -531,7 +532,7 @@ async function resolveIgnoredNodesForLocator(
       kind: "css",
       value: hit.tailSelector || selector,
     },
-    locator.nth,
+    locator.nthPath ?? (locator.nth === undefined ? undefined : [locator.nth]),
     progress,
   );
 }
@@ -540,7 +541,7 @@ async function resolveIgnoredNodesInFrame(
   page: Page,
   frameId: string,
   query: SelectorQuery,
-  nth: number | undefined,
+  nthPath: readonly number[] | undefined,
   progress?: Progress,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const session = ownerSession(page, frameId);
@@ -548,9 +549,9 @@ async function resolveIgnoredNodesInFrame(
   // An unavailable ignore locator can be skipped; progress still enforces expiry.
   const resolver = new FrameSelectorResolver(frame, { readinessRetries: "none" });
   const resolvedNodes =
-    nth === undefined
+    nthPath === undefined
       ? await resolver.resolveAll(query, {}, progress)
-      : [await resolver.resolveAtIndex(query, nth, progress)].filter(
+      : [await resolver.resolveAtIndexPath(query, nthPath, progress)].filter(
           (node): node is ResolvedNode => !!node,
         );
   if (!resolvedNodes.length) return [];

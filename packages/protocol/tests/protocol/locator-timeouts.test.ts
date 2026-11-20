@@ -64,4 +64,14 @@ describe("locator timeout compatibility", () => {
     ).toBe(false);
     expect(LocatorDescriptorSchema.safeParse({ ...descriptor, timeout: 0 }).success).toBe(false);
   });
+
+  it("accepts a non-empty chained nth path", () => {
+    expect(
+      LocatorDescriptorSchema.parse({ pageId: "page-1", selector: "button", nthPath: [2, 0] }),
+    ).toStrictEqual({ pageId: "page-1", selector: "button", nthPath: [2, 0] });
+    expect(
+      LocatorDescriptorSchema.safeParse({ pageId: "page-1", selector: "button", nthPath: [] })
+        .success,
+    ).toBe(false);
+  });
 });
