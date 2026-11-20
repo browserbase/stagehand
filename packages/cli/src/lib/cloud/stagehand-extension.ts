@@ -18,7 +18,9 @@ export async function uploadStagehandExtension(
     type: "application/zip",
   });
 
-  const result = await client.extensions.create({ file });
+  // maxRetries: 0 prevents duplicate uploads if the response is lost but the
+  // upload succeeded - matches the SDK's provisionBrowserbaseExtension pattern.
+  const result = await client.extensions.create({ file }, { maxRetries: 0 });
   const extensionId = result.id?.trim();
   if (!extensionId) {
     throw new Error("Browserbase extension upload returned an empty extension ID");
