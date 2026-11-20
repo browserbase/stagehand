@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-preserve http status on BrowserbaseSessionError and extension upload failures
+fix http status codes being lost during browserbase session creation, so downstream consumers can distinguish auth/payment/rate-limit failures

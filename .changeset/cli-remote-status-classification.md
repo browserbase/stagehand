@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-classify 401/402/403/429 from error cause chain and add remote_payment_required and remote_rate_limited codes
+fix remote session errors showing generic messages instead of actionable guidance for auth (401), payment (402), permission (403), and rate limit (429) failures
