@@ -31,6 +31,10 @@ export default defineConfig({
       to: "dist/assets",
     },
     {
+      from: "../extension/artifacts/extension-build.json",
+      to: "dist/assets",
+    },
+    {
       from: "../extension/dist",
       to: "dist",
       rename: "extension",

@@ -259,12 +259,17 @@ async def test_page_on_rejects_unsupported_events_before_subscribing(event: str)
 
 
 @pytest.mark.asyncio
-async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> None:
+@pytest.mark.parametrize("method", ["on", "on_console"])
+async def test_page_on_delivers_canonical_console_events_and_unsubscribes(method: str) -> None:
     recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     events = []
 
-    subscription = await page.on("console", events.append)
+    subscription = (
+        await page.on("console", events.append)
+        if method == "on"
+        else await page.on_console(events.append)
+    )
     _, on_params, _ = recording.calls[0]
     assert isinstance(on_params, PageOnParams)
     _, raw_listener = recording.notifications["page.cdp_event"]
@@ -412,7 +417,9 @@ async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed", "on_response"])
+@pytest.mark.parametrize(
+    "method", ["on", "on_console", "on_tools_added", "on_tools_removed", "on_response"]
+)
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 @pytest.mark.parametrize("failure_kind", ["cancellation", "timeout", "remote_error"])
 async def test_unsuccessful_registration_unsubscribes_remotely(

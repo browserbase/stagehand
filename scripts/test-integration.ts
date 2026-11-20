@@ -62,6 +62,7 @@ export const integrationTestGroups = {
     "pageAddInitScript",
     "pageExtraHttpHeaders",
     "pageGotoResponse",
+    "pageOnConsole",
     "pageOnResponse",
   ],
   "local/page-interactions": [
@@ -73,7 +74,12 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForFunction", "waitForSelector", "waitForTimeout"],
+  "local/waits-timeouts": [
+    "waitForFunction",
+    "waitForLoadState",
+    "waitForSelector",
+    "waitForTimeout",
+  ],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 

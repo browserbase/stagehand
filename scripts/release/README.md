@@ -103,8 +103,10 @@ checking it against `dist/`. The job uploads the build as the `extension` workfl
 artifact and exposes the fingerprint as a job output. The TypeScript and Python publish
 jobs download that artifact into `packages/extension/` instead of rebuilding it. Before
 publishing, `check-extension-build.ts --expect <fingerprint>` compares the copies in
-`sdk-ts/dist` and the wheel with that fingerprint and confirms the extension was built
-for the job's current protocol and extension versions. The sdist is not checked; `uv build`
+`sdk-ts/dist` and the wheel with that fingerprint, checks that each package embeds the
+same `extension-build.json` (`dist/assets/extension-build.json`,
+`stagehand/_extension_build.json`) and confirms the extension was built for the job's
+current protocol and extension versions. The sdist is not checked; `uv build`
 builds the wheel from it.
 
 The check compares each package with the extension build from the same run. Re-running
