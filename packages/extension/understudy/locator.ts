@@ -191,7 +191,9 @@ export class Locator {
     const session = this.frame.session;
     await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
     await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
-    return this.selectorResolver.count(this.selectorQuery, progress);
+    const total = await this.selectorResolver.count(this.selectorQuery, progress);
+    if (this.nthIndex < 0) return total;
+    return this.nthIndex < total ? 1 : 0;
   }
 
   /**
