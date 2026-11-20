@@ -251,6 +251,34 @@ describe("buildHarnessMatrix", () => {
     }
   });
 
+  it("--probe checks an OpenRouter judge's model and key separately", async () => {
+    const judge = { EVAL_VERIFIER_MODEL: "openrouter/google/gemini-3.5-flash" };
+    const model = "https://openrouter.ai/api/v1/models/google/gemini-3.5-flash/endpoints";
+    const key = "https://openrouter.ai/api/v1/key";
+    const run = (env: NodeJS.ProcessEnv, routes: Record<string, number>) =>
+      buildHarnessMatrix(
+        options({ probe: true, fetchImpl: fetchStub(routes), env, requested: ["stagehand"] }),
+      );
+
+    const missing = await run(judge, {});
+    expect(missing.verifier.probes[0]).toMatchObject({
+      status: "fail",
+      label: "OPENROUTER_API_KEY",
+    });
+
+    const env = { ...judge, OPENROUTER_API_KEY: "or" };
+    const served = await run(env, { [model]: 200, [key]: 200 });
+    expect(served.verifier.probes[0]).toMatchObject({ status: "ok", label: "OPENROUTER_API_KEY" });
+    expect(served.verifier.probes[1]).toMatchObject({ status: "ok", label: "200" });
+
+    const rejected = await run(env, { [model]: 200, [key]: 401 });
+    expect(rejected.verifier.probes[1]).toMatchObject({ status: "fail", label: "401" });
+
+    // The model lookup is public, so a 404 means retired whatever the key is.
+    const retired = await run(env, { [model]: 404 });
+    expect(retired.verifier.probes[1]).toMatchObject({ status: "fail", label: "model not found" });
+  });
+
   it("probes the judge set in config when EVAL_VERIFIER_MODEL is unset", async () => {
     const config = baseConfig({ verifier: { model: "openai/gpt-5.4-mini" } });
     const fromConfig = await buildHarnessMatrix(options({ config, env: {} }));

@@ -28,7 +28,11 @@ import { reportRowPhase } from "./rowContext.js";
 import type { TaskResult } from "./types.js";
 import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
 
-import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "./verifierModel.js";
+import {
+  DEFAULT_VERIFIER_MODEL,
+  resolveOpenRouterVerifier,
+  resolveVerifierModel,
+} from "./verifierModel.js";
 
 export { DEFAULT_VERIFIER_MODEL, resolveVerifierModel };
 
@@ -107,6 +111,15 @@ export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evalu
   const explicitModel =
     modelOverride?.trim() || (resolved.source === "env" ? resolved.modelName : undefined);
   const modelName = explicitModel || resolved.modelName;
+
+  const openRouter = resolveOpenRouterVerifier(modelName);
+  if (openRouter) {
+    return new V3Evaluator(v3, {
+      backend: "verifier",
+      modelName: openRouter.modelName as AvailableModel,
+      modelClientOptions: openRouter.modelClientOptions,
+    });
+  }
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
