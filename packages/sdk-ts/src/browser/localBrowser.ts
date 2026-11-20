@@ -297,9 +297,11 @@ function chromeCandidates(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): st
     return roots.flatMap((root) => suffixes.map((suffix) => path.win32.join(root, ...suffix)));
   }
   if (platform === "linux") {
-    const directories = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
+    const directories = (env.PATH ?? "").split(path.posix.delimiter).filter(Boolean);
     const names = ["google-chrome-stable", "google-chrome", "chromium-browser", "chromium"];
-    return names.flatMap((name) => directories.map((directory) => path.join(directory, name)));
+    return names.flatMap((name) =>
+      directories.map((directory) => path.posix.join(directory, name)),
+    );
   }
   throw new Error(`Chrome launching is not supported on ${platform}`);
 }
