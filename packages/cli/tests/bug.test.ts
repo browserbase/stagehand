@@ -31,8 +31,8 @@ describe("browse bug", () => {
       expect(result.exitCode).toBe(0);
       const decoded = decodeURIComponent(result.stdout).replace(/\+/g, " ");
       expect(decoded).toContain("browse |");
-      expect(decoded).toContain("node |");
-      expect(decoded).toContain(process.platform);
+      expect(decoded).toContain(`node | ${process.version}`);
+      expect(decoded).toContain(`${process.platform}/${process.arch}`);
       expect(decoded).toContain("agent |");
     });
 
