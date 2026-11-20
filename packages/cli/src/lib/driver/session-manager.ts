@@ -1,4 +1,9 @@
-import { localBrowser, Stagehand, type StagehandBrowser } from "@browserbasehq/stagehand";
+import {
+  localBrowser,
+  Stagehand,
+  StagehandRuntimeIncompatibleError,
+  type StagehandBrowser,
+} from "@browserbasehq/stagehand";
 
 import {
   emptyRefMaps,
@@ -438,8 +443,8 @@ async function safeTitle(page: DriverPage): Promise<string> {
 /**
  * Turn raw `stagehand.init()` failures into typed, actionable errors. Remote
  * failures are classified by the remote capability (401/403/etc.); a missing
- * local Chrome gets install/escape-hatch guidance. Anything else is rethrown
- * unchanged.
+ * local Chrome gets install/escape-hatch guidance. Runtime incompatibility
+ * gets a typed code. Anything else is rethrown unchanged.
  */
 async function describeInitError(error: unknown, target: ConnectionTarget): Promise<unknown> {
   if (error instanceof DriverError) return error;
@@ -454,6 +459,15 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
       cause: error,
       code: "no_chrome_found",
     });
+  }
+
+  if (error instanceof StagehandRuntimeIncompatibleError) {
+    return new DriverError(
+      `Incompatible Stagehand extension: ${error.detail}. ` +
+        `The browser has ${error.serverInfo.name}/${error.serverInfo.version} ` +
+        `but this CLI requires protocol ${error.clientProtocolVersion}. ${error.remediation}`,
+      { cause: error, code: "runtime_incompatible" },
+    );
   }
 
   return error;

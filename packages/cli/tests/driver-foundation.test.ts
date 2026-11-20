@@ -1203,6 +1203,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect: vi.fn(), launch },
       Stagehand: { create },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {
@@ -1231,6 +1232,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect: vi.fn(), launch },
       Stagehand: { create: vi.fn() },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {
@@ -1266,6 +1268,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect, launch: vi.fn() },
       Stagehand: { create },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {
@@ -1305,6 +1308,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect, launch: vi.fn() },
       Stagehand: { create },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {
@@ -1338,6 +1342,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect: vi.fn(), launch },
       Stagehand: { create },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {
@@ -1377,6 +1382,7 @@ describe("driver foundation", () => {
     vi.doMock("@browserbasehq/stagehand", () => ({
       localBrowser: { connect: vi.fn(), launch },
       Stagehand: { create },
+      StagehandRuntimeIncompatibleError: class extends Error {},
     }));
 
     try {

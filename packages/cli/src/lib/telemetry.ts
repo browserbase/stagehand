@@ -249,12 +249,22 @@ function commandCompletedProperties(
     error_code: completion.success
       ? null
       : (completion.recordedError?.code ?? inferErrorCode(completion.error)),
+    error_message: completion.success ? null : truncateErrorMessage(completion.error),
     result_code: resultCode,
     http_status: failureTelemetry?.httpStatus ?? runTelemetry.httpStatus ?? null,
     request_had_http_response:
       failureTelemetry?.requestHadHttpResponse ?? runTelemetry.requestHadHttpResponse ?? null,
     skill_id: runTelemetry.skillId ?? null,
   };
+}
+
+const ERROR_MESSAGE_MAX_LENGTH = 200;
+
+function truncateErrorMessage(error: Error | undefined): string | null {
+  if (!error) return null;
+  const message = error.message || String(error);
+  if (message.length <= ERROR_MESSAGE_MAX_LENGTH) return message;
+  return message.slice(0, ERROR_MESSAGE_MAX_LENGTH - 3) + "...";
 }
 
 function fallbackResultCode(success: boolean, errorType: CliTelemetryErrorType | null): string {

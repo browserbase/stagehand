@@ -395,44 +395,41 @@ export class CDPClient {
           "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
-      const serviceWorker = await waitForServiceWorker(client, {
-        extensionId,
-        urlIncludes: options.serviceWorkerUrlIncludes,
-        signal,
-      });
-      const attached = await client.sendCommand<{ sessionId: string }>(
-        "Target.attachToTarget",
-        {
-          targetId: serviceWorker.targetId,
-          flatten: true,
-        },
-        undefined,
-        signal,
-      );
 
-      client.sessionId = attached.sessionId;
-      client.attachedServiceWorker = {
-        targetId: serviceWorker.targetId,
-        title: serviceWorker.title,
-        url: serviceWorker.url,
-        extensionId,
-      };
+      // Attach to the extension and verify runtime compatibility.
+      // When connecting to a browser with an old extension (localExtensionDir case with default
+      // runtime requirement), replace it with the bundled extension and retry on incompatibility.
+      // We only auto-replace when using the default requirement because a custom runtimeRequirement
+      // indicates the caller explicitly needs a specific version that may not be in the bundle.
+      try {
+        await attachAndVerifyExtension(client, extensionId, options);
+      } catch (error) {
+        if (
+          options.localExtensionDir &&
+          !options.runtimeRequirement &&
+          error instanceof StagehandRuntimeIncompatibleError
+        ) {
+          // Detach from the incompatible extension's service worker before replacing it.
+          if (client.sessionId) {
+            await client
+              .sendCommand(
+                "Target.detachFromTarget",
+                { sessionId: client.sessionId },
+                undefined,
+                signal,
+              )
+              .catch(() => undefined);
+            client.sessionId = undefined;
+            client.attachedServiceWorker = undefined;
+          }
+          // Load the bundled extension, replacing the old one (same path = replace).
+          extensionId = await loadUnpackedExtension(client, options.localExtensionDir, signal);
+          await attachAndVerifyExtension(client, extensionId, options);
+        } else {
+          throw error;
+        }
+      }
 
-      await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
-        throwIfAborted(signal);
-        return undefined;
-      });
-      await client.sendCommand(
-        "Runtime.addBinding",
-        { name: STAGEHAND_SEND_TO_HOST_BINDING },
-        attached.sessionId,
-        signal,
-      );
-      await waitForRuntimeReady(client, attached.sessionId, {
-        runtimeRequirement: options.runtimeRequirement,
-        allowFallbackInstall: options.allowFallbackInstall,
-        signal,
-      });
       if (options.clientLifecycle) {
         await client.registerClient(options.clientLifecycle, signal);
       }
@@ -681,6 +678,56 @@ export class CDPClient {
     }
     this.pending.clear();
   }
+}
+
+/**
+ * Attach to an extension's service worker and verify the runtime is compatible.
+ * Throws `StagehandRuntimeIncompatibleError` if the runtime version doesn't match.
+ */
+async function attachAndVerifyExtension(
+  client: CDPClient,
+  extensionId: string,
+  options: CDPClientOptions,
+): Promise<void> {
+  const { signal } = options;
+  const serviceWorker = await waitForServiceWorker(client, {
+    extensionId,
+    urlIncludes: options.serviceWorkerUrlIncludes,
+    signal,
+  });
+  const attached = await client.sendCommand<{ sessionId: string }>(
+    "Target.attachToTarget",
+    {
+      targetId: serviceWorker.targetId,
+      flatten: true,
+    },
+    undefined,
+    signal,
+  );
+
+  client.sessionId = attached.sessionId;
+  client.attachedServiceWorker = {
+    targetId: serviceWorker.targetId,
+    title: serviceWorker.title,
+    url: serviceWorker.url,
+    extensionId,
+  };
+
+  await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
+    throwIfAborted(signal);
+    return undefined;
+  });
+  await client.sendCommand(
+    "Runtime.addBinding",
+    { name: STAGEHAND_SEND_TO_HOST_BINDING },
+    attached.sessionId,
+    signal,
+  );
+  await waitForRuntimeReady(client, attached.sessionId, {
+    runtimeRequirement: options.runtimeRequirement,
+    allowFallbackInstall: options.allowFallbackInstall,
+    signal,
+  });
 }
 
 type CDPWebSocketFactory = (url: string, headers?: Record<string, string>) => WebSocket;
