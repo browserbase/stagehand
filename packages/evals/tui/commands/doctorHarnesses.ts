@@ -557,16 +557,24 @@ async function buildHarnessRow(
     case "deepagents":
     case "antigravity": {
       // Both spawn a Python runner through the Deep Agents session driver's uv.
-      const uv = env.STAGEHAND_DEEPAGENTS_UV?.trim() || "uv";
+      const override = env.STAGEHAND_DEEPAGENTS_UV?.trim();
+      const uv = override || "uv";
       const found = path.isAbsolute(uv) ? (isExecutable(uv) ? uv : undefined) : which(uv);
       binary = found
         ? { status: "ok", label: "uv" }
-        : {
-            status: "fail",
-            label: "uv missing",
-            detail: "uv is not on PATH (or STAGEHAND_DEEPAGENTS_UV points nowhere).",
-            fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
-          };
+        : override
+          ? {
+              status: "fail",
+              label: "uv override invalid",
+              detail: `STAGEHAND_DEEPAGENTS_UV=${override} is not an executable uv.`,
+              fix: "point STAGEHAND_DEEPAGENTS_UV at a uv binary, or unset it to use uv from PATH",
+            }
+          : {
+              status: "fail",
+              label: "uv missing",
+              detail: "uv is not on PATH.",
+              fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
+            };
       extra =
         harness === "deepagents"
           ? {

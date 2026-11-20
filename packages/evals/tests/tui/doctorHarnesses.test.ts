@@ -148,6 +148,22 @@ describe("buildHarnessMatrix", () => {
     ]);
   });
 
+  it("blames an invalid STAGEHAND_DEEPAGENTS_UV instead of suggesting a uv install", async () => {
+    const matrix = await buildHarnessMatrix(
+      options({
+        env: { CODEX_HOME: os.tmpdir(), STAGEHAND_DEEPAGENTS_UV: "/nope/uv" },
+        requested: ["deepagents", "antigravity"],
+      }),
+    );
+    for (const name of ["deepagents", "antigravity"]) {
+      const row = matrix.harnesses.find((candidate) => candidate.harness === name)!;
+      expect(row.binary).toMatchObject({ status: "fail", label: "uv override invalid" });
+      expect(row.binary.detail).toContain("STAGEHAND_DEEPAGENTS_UV=/nope/uv");
+      expect(row.binary.fix).toMatch(/unset it/);
+      expect(row.binary.fix).not.toContain("install.sh");
+    }
+  });
+
   it("does not let unrequested harnesses or a quiet environment move the verdict", async () => {
     const matrix = await buildHarnessMatrix(options({ env: { OPENAI_API_KEY: "sk" } }));
     expect(matrix.harnesses.find((row) => row.harness === "claude_code")?.key.status).toBe("fail");
