@@ -356,6 +356,50 @@ describe("CLI telemetry", () => {
       await telemetryServer.close();
     }
   });
+
+  it("emits cli.link_opened for browse discord --no-open", async () => {
+    const telemetryServer = await startTelemetryServer();
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-link-discord-");
+      const result = await runCli(["discord", "--no-open"], {
+        env: telemetryEnv(telemetryServer, installIdFile),
+      });
+
+      expect(result.exitCode).toBe(0);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const linkPayload = findPayload(payloads, "cli.link_opened");
+
+      expect(linkPayload.properties.target).toBe("discord");
+      expect(linkPayload.properties.source).toBe("discord_command");
+      expect(linkPayload.properties.opened).toBe(false);
+      expect(linkPayload.properties.browser_open_succeeded).toBe(true);
+    } finally {
+      await telemetryServer.close();
+    }
+  });
+
+  it("emits cli.help_links_shown once for root help", async () => {
+    const telemetryServer = await startTelemetryServer();
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-help-links-");
+      const result = await runCli(["--help"], {
+        env: telemetryEnv(telemetryServer, installIdFile),
+      });
+
+      expect(result.exitCode).toBe(0);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const helpPayloads = payloads.filter((p) => p.event === "cli.help_links_shown");
+
+      expect(helpPayloads).toHaveLength(1);
+      expect(helpPayloads[0].properties.source).toBe("help_footer");
+    } finally {
+      await telemetryServer.close();
+    }
+  });
 });
 
 async function startTelemetryServer(): Promise<FakeBrowserbaseServer> {

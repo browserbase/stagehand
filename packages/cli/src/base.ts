@@ -2,9 +2,8 @@ import { Command } from "@oclif/core";
 
 import { CommandFailure } from "./lib/errors.js";
 import { setCliVersion } from "./lib/identity.js";
-import { captureHelpLinksShown } from "./lib/link-telemetry.js";
 import { DISCORD_INVITE_URL, getGitHubIssuesUrl } from "./lib/support-links.js";
-import { recordCommandError } from "./lib/telemetry.js";
+import { captureHelpLinksShown, recordCommandError } from "./lib/telemetry.js";
 
 function buildSupportHint(): string {
   return `Get help: ${DISCORD_INVITE_URL} · Report a bug: ${getGitHubIssuesUrl("error_hint")}`;
@@ -46,9 +45,8 @@ export abstract class BrowseCommand extends Command {
     if (!isOclifError(err)) {
       process.stderr.write(`${buildSupportHint()}\n`);
 
-      await captureHelpLinksShown({
+      await captureHelpLinksShown(this.config.version, {
         source: "error_hint",
-        result_code: null,
         error_type: inferErrorName(err),
       });
     }

@@ -1,7 +1,7 @@
 import { Help } from "@oclif/core";
 
-import { captureHelpLinksShown } from "./lib/link-telemetry.js";
 import { DISCORD_INVITE_URL, getGitHubIssuesUrl } from "./lib/support-links.js";
+import { captureHelpLinksShown } from "./lib/telemetry.js";
 
 // Custom root-help formatter so `browse --help` (and bare `browse`) lead with
 // a short block pointing agents at the bundled skill, ahead of oclif's
@@ -30,10 +30,6 @@ export default class BrowseHelp extends Help {
     await super.showRootHelp();
     this.log(buildHelpFooter());
 
-    await captureHelpLinksShown({
-      source: "help_footer",
-      result_code: null,
-      error_type: null,
-    });
+    await captureHelpLinksShown(this.config.version, { source: "help_footer" });
   }
 }

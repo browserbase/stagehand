@@ -1,9 +1,9 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { captureLinkOpened } from "../lib/link-telemetry.js";
 import { openUrl } from "../lib/open-url.js";
 import { DISCORD_INVITE_URL } from "../lib/support-links.js";
+import { captureLinkOpened } from "../lib/telemetry.js";
 
 export default class Discord extends BrowseCommand {
   static override description =
@@ -33,7 +33,7 @@ export default class Discord extends BrowseCommand {
       "Join our Discord community to contribute to Stagehand and the Browse CLI, request features, and share feedback!",
     );
 
-    await captureLinkOpened({
+    await captureLinkOpened(this.config.version, {
       target: "discord",
       source: "discord_command",
       opened: result.attempted,

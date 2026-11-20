@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-Track help and community link opens with telemetry events.
+Track Discord and help link opens in telemetry.
