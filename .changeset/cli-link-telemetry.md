@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-track Discord and help link opens in telemetry
+track discord link interactions and when help links are shown
