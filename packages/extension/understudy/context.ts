@@ -495,6 +495,13 @@ export class BrowserContext {
           await this.domainPolicyRules?.close();
           this.domainPolicy = null;
         } finally {
+          for (const page of Array.from(this.pagesByTarget.values())) {
+            try {
+              page.dispose();
+            } catch {
+              // Ignore per-page dispose errors so context maps clear completely
+            }
+          }
           this.pagesByTarget.clear();
           this.mainFrameToTarget.clear();
           this.sessionOwnerPage.clear();
@@ -510,6 +517,7 @@ export class BrowserContext {
           this.pendingNewPageTargets.clear();
           this.domainPolicyClosingTargets.clear();
           this.domainPolicyClosePromises.clear();
+          this._targetSessionListeners.clear();
           this._sessionInit.clear();
         }
       }
@@ -805,7 +813,7 @@ export class BrowserContext {
         this.pagesByTarget.set(info.targetId, page);
         this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
         this.sessionOwnerPage.set(sessionId, page);
-        this.frameOwnerPage.set(page.mainFrameId(), page);
+        this.syncPageFrameOwnership(page);
         this.typeByTarget.set(info.targetId, "page");
         if (!this.createdAtByTarget.has(info.targetId)) {
           this.createdAtByTarget.set(info.targetId, Date.now());
@@ -887,6 +895,7 @@ export class BrowserContext {
         childMainId,
         () => {
           // Seeding can reveal same-origin parents of OOPIFs that are still pending.
+          this.syncPageFrameOwnership(owner);
           this.adoptPendingOopifsByParent();
         },
         pending?.capture,
@@ -907,6 +916,30 @@ export class BrowserContext {
   private disposePendingNetworkCapture(sessionId: SessionId): void {
     this.pendingNetworkCaptures.get(sessionId)?.capture.dispose();
     this.pendingNetworkCaptures.delete(sessionId);
+  }
+
+  private syncPageFrameOwnership(page: Page): void {
+    this.frameOwnerPage.set(page.mainFrameId(), page);
+    for (const frameId of page.registry.frames.keys()) {
+      this.frameOwnerPage.set(frameId, page);
+    }
+  }
+
+  private prunePageFrameOwnership(page: Page, removedFrameIds: Iterable<string> = []): void {
+    for (const frameId of removedFrameIds) {
+      if (this.frameOwnerPage.get(frameId) === page && !page.registry.frames.has(frameId)) {
+        this.frameOwnerPage.delete(frameId);
+      }
+      if (!page.registry.frames.has(frameId)) {
+        this.adoptedOopifSessionByFrame.delete(frameId);
+      }
+    }
+    for (const [frameId, owner] of Array.from(this.frameOwnerPage.entries())) {
+      if (owner === page && !page.registry.frames.has(frameId)) {
+        this.frameOwnerPage.delete(frameId);
+        this.adoptedOopifSessionByFrame.delete(frameId);
+      }
+    }
   }
 
   private removePendingOopif(frameId: string): void {
@@ -1039,7 +1072,8 @@ export class BrowserContext {
 
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
-      owner.detachOopifSession(sessionId);
+      const removed = owner.detachOopifSession(sessionId);
+      this.prunePageFrameOwnership(owner, removed);
       this.sessionOwnerPage.delete(sessionId);
     }
 
@@ -1074,21 +1108,62 @@ export class BrowserContext {
     if (!page) return;
 
     this.removePendingOopifsForPage(page);
-    page.dispose();
-    const mainId = page.mainFrameId();
-    this.mainFrameToTarget.delete(mainId);
+    const pageFrameIds = new Set<string>([page.mainFrameId(), ...page.registry.frames.keys()]);
     for (const [frameId, owner] of this.frameOwnerPage) {
-      if (owner === page) this.frameOwnerPage.delete(frameId);
+      if (owner === page) pageFrameIds.add(frameId);
+    }
+    const pageSessionIds = new Set<string>();
+    for (const [sid, p] of this.sessionOwnerPage) {
+      if (p === page) pageSessionIds.add(sid);
     }
 
-    for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
-      if (p === page) this.sessionOwnerPage.delete(sid);
-    }
+    try {
+      page.dispose();
+    } finally {
+      const mainId = page.mainFrameId();
+      this.mainFrameToTarget.delete(mainId);
+      for (const [frameId, tid] of Array.from(this.mainFrameToTarget.entries())) {
+        if (tid === targetId || pageFrameIds.has(frameId)) {
+          this.mainFrameToTarget.delete(frameId);
+        }
+      }
+      for (const frameId of pageFrameIds) {
+        if (this.frameOwnerPage.get(frameId) === page) {
+          this.frameOwnerPage.delete(frameId);
+        }
+        const adoptedSid = this.adoptedOopifSessionByFrame.get(frameId);
+        if (adoptedSid) {
+          pageSessionIds.add(adoptedSid);
+          this.adoptedOopifSessionByFrame.delete(frameId);
+        }
+      }
+      for (const [frameId, owner] of Array.from(this.frameOwnerPage.entries())) {
+        if (owner === page) {
+          this.frameOwnerPage.delete(frameId);
+          this.adoptedOopifSessionByFrame.delete(frameId);
+        }
+      }
+      for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
+        if (p === page) {
+          pageSessionIds.add(sid);
+          this.sessionOwnerPage.delete(sid);
+        }
+      }
+      for (const [frameId, sid] of Array.from(this.adoptedOopifSessionByFrame.entries())) {
+        if (pageSessionIds.has(sid)) {
+          this.adoptedOopifSessionByFrame.delete(frameId);
+        }
+      }
+      for (const sid of pageSessionIds) {
+        this._targetSessionListeners.delete(sid);
+        this._sessionInit.delete(sid);
+      }
 
-    this.pagesByTarget.delete(targetId);
-    this.createdAtByTarget.delete(targetId);
-    this.typeByTarget.delete(targetId);
-    this.pendingCreatedTargetUrl.delete(targetId);
+      this.pagesByTarget.delete(targetId);
+      this.createdAtByTarget.delete(targetId);
+      this.typeByTarget.delete(targetId);
+      this.pendingCreatedTargetUrl.delete(targetId);
+    }
   }
 
   private recordPageCreationFailure(
@@ -1122,6 +1197,7 @@ export class BrowserContext {
 
     session.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
       const { frameId, parentFrameId } = evt;
+      const prevRoot = owner.mainFrameId();
 
       // Record the parent edge even if the child's subtree seed is still pending or failed.
       // A live adopted OOPIF session keeps ownership instead of the parent emitter.
@@ -1143,6 +1219,12 @@ export class BrowserContext {
       // Root handoff: keep mainFrameToTarget aligned for the page
       if (!parentFrameId) {
         const newRoot = owner.mainFrameId();
+        if (newRoot !== prevRoot) {
+          this.mainFrameToTarget.delete(prevRoot);
+          if (this.frameOwnerPage.get(prevRoot) === owner) {
+            this.frameOwnerPage.delete(prevRoot);
+          }
+        }
         const topTargetId = this.findTargetIdByPage(owner);
         if (topTargetId) {
           this.mainFrameToTarget.set(newRoot, topTargetId);
@@ -1155,14 +1237,28 @@ export class BrowserContext {
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
-      owner.onFrameDetached(evt.frameId, evt.reason ?? "remove");
+      const removed = owner.onFrameDetached(evt.frameId, evt.reason ?? "remove");
       if (evt.reason !== "swap") {
-        this.frameOwnerPage.delete(evt.frameId);
+        this.prunePageFrameOwnership(owner, removed);
       }
     });
 
     session.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
+      const prevRoot = owner.mainFrameId();
       owner.onFrameNavigated(evt.frame, session);
+      this.frameOwnerPage.set(evt.frame.id, owner);
+      const newRoot = owner.mainFrameId();
+      if (newRoot !== prevRoot) {
+        this.mainFrameToTarget.delete(prevRoot);
+        if (this.frameOwnerPage.get(prevRoot) === owner) {
+          this.frameOwnerPage.delete(prevRoot);
+        }
+        const topTargetId = this.findTargetIdByPage(owner);
+        if (topTargetId) {
+          this.mainFrameToTarget.set(newRoot, topTargetId);
+        }
+        this.frameOwnerPage.set(newRoot, owner);
+      }
     });
 
     session.on<Protocol.Page.NavigatedWithinDocumentEvent>(
