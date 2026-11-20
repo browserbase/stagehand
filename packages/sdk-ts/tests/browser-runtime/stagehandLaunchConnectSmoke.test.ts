@@ -49,19 +49,6 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
             throw new Error("The smoke LLM only supports structured generation");
           }
 
-          if (params.responseFormat.name === "Metadata") {
-            return {
-              role: "assistant",
-              content: { type: "text", text: "complete" },
-              outputFormat: "json_schema",
-              structuredContent: {
-                progress: "The requested heading was extracted",
-                completed: true,
-              },
-              usage: SMOKE_LLM_USAGE,
-            };
-          }
-
           if (params.responseFormat.name === "Observation") {
             const promptText = params.messages
               .flatMap((message) =>
@@ -387,10 +374,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       metadata: {
         cache: { status: "DISABLED" },
         usage: {
-          inputTokens: 22,
-          outputTokens: 8,
-          reasoningTokens: 4,
-          cachedInputTokens: 6,
+          inputTokens: 11,
+          outputTokens: 4,
+          reasoningTokens: 2,
+          cachedInputTokens: 3,
           inferenceTimeMs: expect.any(Number),
         },
       },
@@ -398,10 +385,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expectUsageCrossedRpc(
       result.metadata.usage,
       {
-        inputTokens: 22,
-        outputTokens: 8,
-        reasoningTokens: 4,
-        cachedInputTokens: 6,
+        inputTokens: 11,
+        outputTokens: 4,
+        reasoningTokens: 2,
+        cachedInputTokens: 3,
       },
       rawOperationUsages,
     );

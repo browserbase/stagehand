@@ -26,13 +26,8 @@ const schema = {
   additionalProperties: false,
 };
 const params = { pageId: "page-1", instruction: "Extract the answer", schema };
-const dataFor = (name?: string): Record<string, string | number | boolean> =>
-  name === "Metadata" ? { progress: "Complete", completed: true } : { answer: 42 };
-const completion = (name?: string) => {
-  const response = structuredClone(fixtures.gateway.response);
-  response.output[0]!.content[0]!.text = JSON.stringify(dataFor(name));
-  return response;
-};
+const gatewayResponse = structuredClone(fixtures.gateway.response);
+gatewayResponse.output[0]!.content[0]!.text = JSON.stringify({ answer: 42 });
 type HttpRequest = { path: string; body: Record<string, unknown> };
 let server: Server;
 let apiUrl: string;
@@ -78,11 +73,10 @@ function respond(request: HttpRequest, response: ServerResponse) {
     return;
   }
   response.writeHead(200, { "content-type": "application/json" });
-  const format = request.body.text as { format?: { name?: string } } | undefined;
   response.end(
     JSON.stringify(
       gateway
-        ? completion(format?.format?.name)
+        ? gatewayResponse
         : {
             success: true,
             data: request.path.endsWith("/cache/get")
@@ -107,10 +101,8 @@ beforeEach(() => {
   nextId = 100;
   ({ runtime, transport, rpc, messages, pendingReplies } = createBrowserbaseTestBridge(
     { apiUrl: `${apiUrl}/v1`, apiKey: "bb-client-key", sessionId: "session-test" },
-    (input) => {
-      const data = dataFor(
-        input.responseFormat?.type === "json_schema" ? input.responseFormat.name : undefined,
-      );
+    () => {
+      const data = { answer: 42 };
       return {
         role: "assistant",
         content: { type: "text", text: JSON.stringify(data) },
@@ -195,13 +187,12 @@ describe("combined Browserbase routing", () => {
         data: { answer: 42 },
         metadata: {
           cache: { status: "MISS", missReason: "not_found" },
-          usage: { inputTokens: 20, outputTokens: 10 },
+          usage: { inputTokens: 10, outputTokens: 5 },
         },
       },
     });
     expect(paths()).toEqual([
       "/v1/cache/get",
-      "/v1/llm/responses",
       "/v1/llm/responses",
       "/v1/llm/responses",
       "/v1/cache/set",
@@ -210,9 +201,9 @@ describe("combined Browserbase routing", () => {
       expect(request.body).not.toHaveProperty("model");
     expect(requests.at(-1)?.body).toMatchObject({
       value: { answer: 42 },
-      llmUsage: { inputTokens: 20, outputTokens: 10 },
+      llmUsage: { inputTokens: 10, outputTokens: 5 },
     });
-    expect(reverseMethods()).toEqual(Array(5).fill("browserbase.request"));
+    expect(reverseMethods()).toEqual(Array(4).fill("browserbase.request"));
   });
 
   it.each([false, true])(
@@ -224,12 +215,7 @@ describe("combined Browserbase routing", () => {
         data: { answer: 42 },
         metadata: { cache: { status: "MISS", missReason: "read_failed" } },
       });
-      expect(paths()).toEqual([
-        "/v1/cache/get",
-        "/v1/llm/responses",
-        "/v1/llm/responses",
-        "/v1/cache/set",
-      ]);
+      expect(paths()).toEqual(["/v1/cache/get", "/v1/llm/responses", "/v1/cache/set"]);
     },
   );
 
@@ -240,7 +226,6 @@ describe("combined Browserbase routing", () => {
     expect(paths()).toEqual(["/v1/cache/get", "/v1/cache/set"]);
     expect(reverseMethods()).toEqual([
       "browserbase.request",
-      "llm.generate",
       "llm.generate",
       "browserbase.request",
     ]);
@@ -272,7 +257,7 @@ describe("combined Browserbase routing", () => {
     init = { ...init, model };
     initialize();
     await extract(true, { modelName: "anthropic/claude-sonnet-4-6" });
-    expect(reverseMethods()).toEqual(Array(4).fill("browserbase.request"));
+    expect(reverseMethods()).toEqual(Array(3).fill("browserbase.request"));
     for (const request of requests) {
       if (request.path.endsWith("/responses"))
         expect(request.body.model).toBe("anthropic/claude-sonnet-4-6");

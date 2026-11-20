@@ -7,6 +7,7 @@ from ._generated.input_types import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
+    ExperimentalDecisionsConfig,
     ExternalProxyConfig,
     ModelConfig,
     PageDragAndDropRoutePoint,
@@ -75,6 +76,7 @@ from .client_types import (
     LLMGenerateOutput,
     StagehandClientLoggingConfig,
 )
+from .experimental_decisions import ExperimentalDecisions
 from .extension_assets import get_extension_archive
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
@@ -123,6 +125,8 @@ __all__ = [
     "DomainPolicy",
     "DomainPolicyInput",
     "DefaultExtract",
+    "ExperimentalDecisions",
+    "ExperimentalDecisionsConfig",
     "ExternalProxyConfig",
     "ExtractResult",
     "FileInput",

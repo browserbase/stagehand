@@ -4,6 +4,7 @@ import {
   localBrowser,
   Stagehand,
   type ClientLLM,
+  type ExperimentalDecisionsConfig,
   type LocalBrowserLaunchOptions,
 } from "../../src/index.js";
 
@@ -30,12 +31,16 @@ const closePromises = new WeakMap<Stagehand, Promise<void>>();
 export async function createStagehand(options?: {
   browser?: LocalBrowserLaunchOptions;
   model?: ClientLLM;
+  experimentalDecisions?: ExperimentalDecisionsConfig;
 }): Promise<Stagehand> {
   // The integration suite is always headless; callers may customize other launch options.
   const browser = await localBrowser.launch({ ...options?.browser, headless: true });
   try {
     return await Stagehand.create({
       browser,
+      ...(options?.experimentalDecisions && {
+        experimentalDecisions: options.experimentalDecisions,
+      }),
       model: options?.model ?? {
         generate: async (): Promise<LLMGenerateResult> => ({
           role: "assistant",

@@ -138,6 +138,19 @@ describe("generated Stagehand schema integrity", () => {
       },
     });
   });
+
+  it("preserves decision endpoint and Cloudflare account constraints in the generated contract", async () => {
+    const protocol = await readProtocol();
+    const config = asRecord(asRecord(protocol.$defs).ExperimentalDecisionsConfig);
+    expect(config.if).toStrictEqual({
+      properties: { provider: { const: "cloudflare" } },
+      required: ["provider"],
+    });
+    expect(config.then).toStrictEqual({
+      anyOf: [{ required: ["account_id"] }, { required: ["api_url"] }],
+    });
+    expect(asRecord(asRecord(config.properties).api_url).format).toBe("uri");
+  });
 });
 
 async function readProtocol(): Promise<Record<string, unknown>> {

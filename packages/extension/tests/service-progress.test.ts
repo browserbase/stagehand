@@ -13,6 +13,7 @@ import { extract } from "../services/extractService.js";
 import { observe } from "../services/observeService.js";
 import { Frame } from "../understudy/frame.js";
 import { Locator } from "../understudy/locator.js";
+import { NetworkManager } from "../understudy/networkManager.js";
 import { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
 
@@ -80,9 +81,7 @@ function fixture(
                   { elementId: "0-1", method: "click", arguments: [], description: "Submit" },
                 ],
               }
-            : name === "Extraction"
-              ? { count: 1 }
-              : { completed: true, progress: "Extracted count" },
+            : { count: 1 },
     });
   });
   const get = vi.fn<CacheClient["get"]>().mockResolvedValue({ hit: false, cacheKey: "key" });
@@ -150,9 +149,7 @@ describe.each(["act", "observe", "extract"] as const)("%s shared deadline", (met
       const callsAtDeadline = calls();
       await vi.advanceTimersByTimeAsync(100);
       expect(calls()).toEqual(callsAtDeadline);
-      expect(generate).toHaveBeenCalledTimes(
-        phase === "cache write" ? (method === "extract" ? 2 : 1) : phase === "model" ? 1 : 0,
-      );
+      expect(generate).toHaveBeenCalledTimes(phase === "cache write" || phase === "model" ? 1 : 0);
       expect(performAction).toHaveBeenCalledTimes(
         method === "act" && phase === "cache write" ? 1 : 0,
       );
@@ -209,18 +206,14 @@ describe.each(["act", "observe", "extract"] as const)("%s shared deadline", (met
 });
 
 describe("extract downstream work", () => {
-  it("gives the completion request only the first model call's remaining time", async () => {
+  it("returns the extraction when a single call fits the remaining budget", async () => {
     const { delays, generate, set, run } = fixture("extract");
     delays.model = 15;
-    const rejected = expect(run(20)).rejects.toThrow("extract() timed out after 20ms");
+    const result = run(20);
     await vi.advanceTimersByTimeAsync(20);
-    await rejected;
-    expect(generate.mock.calls.map(([params]) => params.responseFormat)).toEqual([
-      expect.objectContaining({ name: "Extraction" }),
-      expect.objectContaining({ name: "Metadata" }),
-    ]);
-    await vi.advanceTimersByTimeAsync(30);
-    expect(set).not.toHaveBeenCalled();
+    expect((await result).data).toEqual({ count: 1 });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledTimes(1);
   });
 
   it("interrupts a screenshot using the time remaining after the snapshot", async () => {
@@ -339,17 +332,19 @@ describe("act downstream work", () => {
         },
       } as unknown as Frame;
       const { captureSnapshot, generate, options } = fixture("act");
+      const networkManager = new NetworkManager(options.page);
       const result = act({
         ...options,
-        page: Object.assign(options.page, { mainFrame: () => frame }),
+        page: Object.assign(options.page, { mainFrame: () => frame, networkManager }),
         params: { pageId: "page-1", instruction: "Submit", options: { timeout: 20 } },
       });
       const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
       await vi.advanceTimersByTimeAsync(0);
-      expect(session.eventNames().length).toBeGreaterThan(0);
+      expect(session.eventNames().length + networkManager.observers.size).toBeGreaterThan(0);
       await vi.advanceTimersByTimeAsync(20);
       await rejected;
       expect(session.eventNames()).toEqual([]);
+      expect(networkManager.observers.size).toBe(0);
       expect(vi.getTimerCount()).toBe(0);
       expect(captureSnapshot).not.toHaveBeenCalled();
       expect(generate).not.toHaveBeenCalled();

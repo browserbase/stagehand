@@ -129,6 +129,20 @@ class TelemetryConfigValidation(WireModel):
         return value
 
 
+class ExperimentalDecisionsConfigValidation(WireModel):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_cloudflare_account(cls, value: object) -> object:
+        if (
+            isinstance(value, Mapping)
+            and value.get("provider") == "cloudflare"
+            and not value.get("account_id")
+            and not value.get("api_url")
+        ):
+            raise ValueError("Cloudflare decisions require account_id or an account-scoped api_url")
+        return value
+
+
 class StagehandInitParamsValidation(WireModel):
     @model_validator(mode="before")
     @classmethod

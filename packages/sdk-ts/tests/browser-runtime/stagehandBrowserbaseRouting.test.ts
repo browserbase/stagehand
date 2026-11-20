@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders, Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
-import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
+import type { LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import { Stagehand, type StagehandBrowser } from "../../src/index.js";
 import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
@@ -15,12 +15,8 @@ import fixture from "../../../../tests/fixtures/browserbase-routing.json" with {
 
 const answerSchema = z.object({ answer: z.number() });
 const usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-const valueFor = (name?: string): Record<string, string | number | boolean> =>
-  name === "Metadata" ? { progress: "Complete", completed: true } : { answer: 42 };
-const customGenerate = vi.fn(async (input: LLMGenerateParams): Promise<LLMGenerateResult> => {
-  const value = valueFor(
-    input.responseFormat?.type === "json_schema" ? input.responseFormat.name : undefined,
-  );
+const customGenerate = vi.fn(async (): Promise<LLMGenerateResult> => {
+  const value = { answer: 42 };
   return {
     role: "assistant",
     content: { type: "text", text: JSON.stringify(value) },
@@ -62,8 +58,7 @@ beforeAll(async () => {
     }
     res.writeHead(200, { "content-type": "application/json" });
     if (req.url?.endsWith("/responses")) {
-      const text = body.text as { format: { name: string } };
-      res.end(JSON.stringify(text.format.name === "Metadata" ? fixture.metadata : fixture.gateway));
+      res.end(JSON.stringify(fixture.gateway));
     } else {
       res.end(
         JSON.stringify(
@@ -171,12 +166,7 @@ describe("TypeScript Browserbase routing in Chromium", () => {
     ).toMatchObject({ data: { answer: 42 } });
     expect(requests.map((request) => request.path)).toEqual(
       Array(2)
-        .fill([
-          "/services/v1/cache/get",
-          "/services/v1/llm/responses",
-          "/services/v1/llm/responses",
-          "/services/v1/cache/set",
-        ])
+        .fill(["/services/v1/cache/get", "/services/v1/llm/responses", "/services/v1/cache/set"])
         .flat(),
     );
     for (const request of requests) {
@@ -198,7 +188,7 @@ describe("TypeScript Browserbase routing in Chromium", () => {
         additionalProperties: false,
       }),
     );
-    expect(customGenerate).toHaveBeenCalledTimes(2);
+    expect(customGenerate).toHaveBeenCalledTimes(1);
     expect(requests.map((request) => request.path)).toEqual([
       "/services/v1/cache/get",
       "/services/v1/cache/set",
@@ -206,7 +196,7 @@ describe("TypeScript Browserbase routing in Chromium", () => {
     await client.extract("Extract the answer", answerSchema, {
       model: { modelName: "anthropic/claude-sonnet-4-6" },
     });
-    expect(customGenerate).toHaveBeenCalledTimes(2);
+    expect(customGenerate).toHaveBeenCalledTimes(1);
     await client.experimentalBatch(async (batch) =>
       batch.extract(
         "Extract the answer",
@@ -219,9 +209,9 @@ describe("TypeScript Browserbase routing in Chromium", () => {
         { model: { modelName: "anthropic/claude-sonnet-4-6" } },
       ),
     );
-    expect(customGenerate).toHaveBeenCalledTimes(2);
+    expect(customGenerate).toHaveBeenCalledTimes(1);
     const gateway = requests.filter((request) => request.path.endsWith("/responses"));
-    expect(gateway).toHaveLength(4);
+    expect(gateway).toHaveLength(2);
     expect(gateway.every((request) => request.body.model === "anthropic/claude-sonnet-4-6")).toBe(
       true,
     );
@@ -234,7 +224,7 @@ describe("TypeScript Browserbase routing in Chromium", () => {
       data: { answer: 42 },
       metadata: { cache: { status: "MISS", missReason: "read_failed" } },
     });
-    expect(customGenerate).toHaveBeenCalledTimes(2);
+    expect(customGenerate).toHaveBeenCalledTimes(1);
     expect(requests).toHaveLength(2);
   });
 

@@ -69,13 +69,7 @@ describe.sequential("recorded extraction regression", () => {
           const format = params.responseFormat;
           expect(format?.type).toBe("json_schema");
           if (format?.type !== "json_schema") throw new Error("Expected extraction schema");
-          if (format.name === "Metadata")
-            return {
-              role: "assistant",
-              content: { type: "text", text: "complete" },
-              outputFormat: "json_schema",
-              structuredContent: { progress: "Extracted both fields", completed: true },
-            };
+          expect(format.name).toBe("Extraction");
           modelCalls++;
           // This is the exact invariant broken by #2624. Check the schema that
           // actually reaches the model, not the original SDK argument.

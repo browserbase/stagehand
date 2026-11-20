@@ -56,20 +56,14 @@ import {
   type ExperimentalBatchCallback,
   type ExperimentalBatchOptions,
 } from "./batch.js";
+import { ExperimentalDecisions } from "./experimentalDecisions.js";
+import { isZodSchema } from "./zodSchema.js";
 
 type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
 };
-
-const isZodSchema = (value: unknown): value is z.ZodType =>
-  typeof value === "object" &&
-  value !== null &&
-  "parse" in value &&
-  typeof value.parse === "function" &&
-  "safeParse" in value &&
-  typeof value.safeParse === "function";
 
 // setTimeout treats larger delays as 1ms; MAX_CALLBACK_BATCH_TIMEOUT_MS leaves 10s below this.
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -85,6 +79,7 @@ export class Stagehand {
   private removeBrowserbaseTransport: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
+  private decisions: ExperimentalDecisions | undefined;
 
   private constructor(
     private readonly browserHandle: StagehandBrowser,
@@ -125,6 +120,17 @@ export class Stagehand {
 
   get browser(): StagehandBrowser {
     return this.browserHandle;
+  }
+
+  /**
+   * Experimental decisions for act, observe and extract, with automatic LLM fallback. Requires `experimentalDecisions` in `create()`.
+   */
+  get experimentalDecisions(): ExperimentalDecisions {
+    this.decisions ??= new ExperimentalDecisions({
+      rpcClient: () => this.connectedRpcClient,
+      activePage: () => this.browser.context.activePage(),
+    });
+    return this.decisions;
   }
 
   get initialized(): boolean {
@@ -217,11 +223,15 @@ export class Stagehand {
         );
       }
 
-      this.initRequestStarted = true;
-      await rpcClient.sendStagehandInit(
-        stagehandCreateParamsForWorker(createConfig, browser, browserbaseConnection !== undefined),
-        signal,
+      // Build (and validate) the init params before the request counts as
+      // started: a configuration error must not invalidate the browser claim.
+      const initParams = stagehandCreateParamsForWorker(
+        createConfig,
+        browser,
+        browserbaseConnection !== undefined,
       );
+      this.initRequestStarted = true;
+      await rpcClient.sendStagehandInit(initParams, signal);
       attachStagehandBrowserContext(
         this.browserHandle,
         new BrowserContext(rpcClient, () => this.browserHandle.close()),

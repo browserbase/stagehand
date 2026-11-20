@@ -52,7 +52,7 @@ def routing_server() -> Iterator[tuple[str, dict[str, Any]]]:
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             if self.path.endswith("/responses"):
-                key = "metadata" if body["text"]["format"]["name"] == "Metadata" else "gateway"
+                key = "gateway"
             elif self.path.endswith("/cache/get"):
                 key = "cacheHit" if state["hit"] else "cacheMiss"
             else:
@@ -94,14 +94,10 @@ async def test_browserbase_routing_in_chromium(
     monkeypatch.setattr(browser._attachment.cdp_client, "send", send)
     calls = 0
 
-    async def generate(params: LLMGenerateInput) -> LLMGenerateOutput:
+    async def generate(_params: LLMGenerateInput) -> LLMGenerateOutput:
         nonlocal calls
         calls += 1
-        value = (
-            {"progress": "Complete", "completed": True}
-            if getattr(params.response_format, "name", None) == "Metadata"
-            else {"answer": 42}
-        )
+        value = {"answer": 42}
         return LLMStructuredGenerateResult.model_validate({
             "role": "assistant",
             "content": {"type": "text", "text": json.dumps(value)},
@@ -142,15 +138,15 @@ async def test_browserbase_routing_in_chromium(
             await client.experimental_batch(source)
             assert calls == before
         elif mode == "cache-failure":
-            assert calls == 2
+            assert calls == 1
             assert result.metadata.cache.miss_reason == "read_failed"
 
         requests = state["requests"]
         paths = [path for path, _, _ in requests]
         gateway = [body for path, _, body in requests if path.endswith("/responses")]
         expected_counts = {
-            "gateway": (2, 4, 2),
-            "custom": (4, 4, 4),
+            "gateway": (2, 2, 2),
+            "custom": (4, 2, 4),
             "cache-failure": (1, 0, 1),
             "direct": (1, 0, 0),
         }[mode]

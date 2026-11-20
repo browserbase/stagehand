@@ -11,6 +11,7 @@ registerDynamicLanguage({ python });
 
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py"],
+  ["ExperimentalDecisions", "experimentalDecisions.ts", "experimental_decisions.py"],
   ["BrowserContext", "../../shared/browser-api/src/browserContext.ts", "browser_context.py"],
   ["BrowserClipboard", "../../shared/browser-api/src/browserClipboard.ts", "browser_clipboard.py"],
   ["Page", "../../shared/browser-api/src/page.ts", "page.py"],
@@ -28,6 +29,7 @@ const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import
 const pythonWireResultModels: Readonly<Record<string, string>> = {
   "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
+  "stagehand.experimental_decisions_extract": "_ExtractWireResult",
 };
 
 type SdkLanguage = "typescript" | "python";
