@@ -248,7 +248,7 @@ A single wait isn't the same as Playwright's per-action retry. When a step races
 
 There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForFunction()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
 
-Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.on()` supports `"console"` only. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
+Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, or `waitForEvent()`. `page.onConsole()` subscribes to console events; the older `page.on("console", handler)` form is deprecated. For navigation, `page.waitForFunction()` runs inside the browser and keeps waiting across the page load, so it stands in for `waitForNavigation()` and `waitForURL()`. Pass a `timeout`: unlike those methods, it has no deadline by default. You can also wait for something that only exists on the destination page.
 
 Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
 
@@ -555,7 +555,7 @@ Each of these is a direct substitution:
 | `mouse.wheel(dx, dy)` | `page.scroll(x, y, dx, dy)` |
 | `request.fetch(url)` | `page.evaluate(async (u) => (await fetch(u)).text(), url)` |
 
-What doesn't rebuild this way is anything that needs the network layer rather than the DOM: `page.route()`, request mocking, `waitForResponse()`, `waitForRequest()`, and the `request`, `response`, and `download` page events. The SDK exposes no CDP escape hatch and `page.on()` carries `"console"` only, so those stay unported.
+What doesn't rebuild this way is anything that needs the network layer rather than the DOM: `page.route()`, request mocking, `waitForResponse()`, `waitForRequest()`, and the `request`, `response`, and `download` page events. The SDK exposes no CDP escape hatch and `page.onConsole()` carries console events only, so those stay unported.
 
 ## What to convert after the port
 
@@ -649,7 +649,7 @@ Reach for `page.locator()` everywhere a selector is stable. A model call per ste
 | `page.setDefaultTimeout()`, `setDefaultNavigationTimeout()` | No equivalent. Pass `timeout` per call |
 | `page.waitForFunction()` | Same name, arguments, and defaults; returns a detached JSON value, not a `JSHandle`, and `arg` must be JSON, not a handle |
 | `page.waitForResponse()`, `waitForRequest()`, `waitForEvent()` | No equivalent |
-| `page.on("request")`, `on("response")`, `on("dialog")` | `page.on("console")` only |
+| `page.on("request")`, `on("response")`, `on("dialog")` | `page.onConsole(handler)` for console events (`page.on("console", handler)` is deprecated) |
 | `expect(locator).toBeVisible()` | `waitForSelector()`, then your runner's assertion |
 | `expect(locator).toHaveText()` | `innerText()`, or `extract()` with a schema |
 

@@ -60,6 +60,7 @@ jobs:
               - 'packages/sdk-ts/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared/browser-api/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -68,6 +69,7 @@ jobs:
             extension:
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared/browser-api/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -75,7 +77,9 @@ jobs:
               - 'packages/sdk-ts/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared/browser-api/**'
               - 'packages/integrations/**'
+              - 'rules/ast-grep/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -89,7 +93,9 @@ jobs:
               - 'packages/sdk-python/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/shared/browser-api/**'
               - 'pnpm-lock.yaml'
+              - 'scripts/release/check-extension-build*'
               - '.github/**'
             deepagents-runner:
               - 'pyproject.toml'
@@ -220,6 +226,7 @@ jobs:
       # still compares freshly generated output with the committed schema.
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      - run: pnpm exec tsx scripts/release/check-extension-build.ts --typescript packages/sdk-ts/dist --expect "$(pnpm exec tsx scripts/release/check-extension-build.ts --print-fingerprint)"
       - run: pnpm check
       - run: pnpm test:unit
       - run: uv lock --check
