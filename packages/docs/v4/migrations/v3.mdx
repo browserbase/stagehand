@@ -356,7 +356,7 @@ func actTool(ctx context.Context, client *stagehand.Stagehand, instruction strin
 Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
 </Tip>
 
-{/* TODO: Link to agent integrations overview page */}
+If you previously wrapped Stagehand in an agent framework rather than calling `agent()` directly, start from the [integrations overview](/v4/integrations/overview) for CrewAI, Deep Agents, Eve, Mastra, and the Vercel AI SDK.
 
 ## Let a coding assistant do the rest
 
