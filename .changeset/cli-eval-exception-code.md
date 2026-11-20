@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-wrap eval user-code errors in DriverError with code eval_exception
+JavaScript errors from `browse eval` now carry the `eval_exception` code
