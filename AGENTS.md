@@ -36,3 +36,7 @@ Requires Node.js 22.18+ and Chrome/Chromium. No LLM key or Browserbase account n
 - **[llms-full.txt](https://docs.stagehand.dev/llms-full.txt)** — Full v4 documentation for LLM context
 
 ---
+
+# Contributor rules
+
+- Write changesets as one terse, user-facing sentence—no file names, test notes, or multi-paragraph explanations. See [`.changeset/README.md`](.changeset/README.md).
