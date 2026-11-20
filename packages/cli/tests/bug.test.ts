@@ -39,7 +39,7 @@ describe("browse bug", () => {
     it("includes title when provided", async () => {
       const result = await runCli(["bug", "--no-open", "--title", "Test title"]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("title=Test");
+      expect(result.stdout).toContain("title=Test+title");
     });
   });
 
