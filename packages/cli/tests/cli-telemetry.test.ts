@@ -374,7 +374,7 @@ describe("CLI telemetry", () => {
       expect(linkPayload.properties.target).toBe("discord");
       expect(linkPayload.properties.source).toBe("discord_command");
       expect(linkPayload.properties.opened).toBe(false);
-      expect(linkPayload.properties.browser_open_succeeded).toBe(true);
+      expect(linkPayload.properties.browser_open_succeeded).toBe(false);
     } finally {
       await telemetryServer.close();
     }

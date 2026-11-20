@@ -37,7 +37,7 @@ export default class Discord extends BrowseCommand {
       target: "discord",
       source: "discord_command",
       opened: result.attempted,
-      browser_open_succeeded: result.success,
+      browser_open_succeeded: result.attempted && result.success,
     });
   }
 }

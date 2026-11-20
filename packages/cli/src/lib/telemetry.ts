@@ -176,7 +176,7 @@ export async function captureHelpLinksShown(
   await getCliTelemetry(cliVersion)
     .capture("cli.help_links_shown", {
       source: properties.source,
-      error_type: properties.error_type ?? null,
+      error_type: properties.error_type ? sanitizeErrorCode(properties.error_type) : null,
     })
     .catch(() => {});
 }
