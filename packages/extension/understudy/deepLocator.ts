@@ -35,7 +35,7 @@ function parseXPath(path: string): Step[] {
     const raw = s.slice(start, i).trim();
     if (!raw) continue;
 
-    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
+    const name = raw.replace(/\[[^\]]*\]/g, "").toLowerCase();
     steps.push({ axis, raw, name });
   }
   return steps;

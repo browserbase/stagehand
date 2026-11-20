@@ -36,4 +36,25 @@ describe("planDeepXPathTarget", () => {
       finalSelector: "xpath=/html/body/div",
     });
   });
+
+  it("hops into an iframe selected by an attribute predicate", () => {
+    expect(planDeepXPathTarget("//iframe[@name='main']//button")).toEqual({
+      frameHopSelectors: ["xpath=//iframe[@name='main']"],
+      finalSelector: "xpath=//button",
+    });
+  });
+
+  it("hops into an iframe selected by mixed positional and attribute predicates", () => {
+    expect(planDeepXPathTarget("//iframe[2][@title='content']//button")).toEqual({
+      frameHopSelectors: ["xpath=//iframe[2][@title='content']"],
+      finalSelector: "xpath=//button",
+    });
+  });
+
+  it("keeps predicate-free iframe steps hopping unchanged", () => {
+    expect(planDeepXPathTarget("/html/iframe/html/body/button")).toEqual({
+      frameHopSelectors: ["xpath=/html/iframe"],
+      finalSelector: "xpath=/html/body/button",
+    });
+  });
 });
