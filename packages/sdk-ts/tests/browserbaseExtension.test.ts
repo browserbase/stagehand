@@ -1,3 +1,6 @@
+import { ReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createBrowserbaseExtensionClient,
@@ -51,6 +54,27 @@ describe("Browserbase extension client", () => {
     expect(remove).toHaveBeenCalledWith("ext_uploaded", {
       headers: { "Content-Type": null },
     });
+  });
+  it("uploads the archive as a named File rather than an fs stream", async () => {
+    let uploaded: unknown;
+    const create = vi.fn(async (params: { file: unknown }) => {
+      uploaded = params.file;
+      return { id: "ext_uploaded" };
+    });
+    const client = createBrowserbaseExtensionClient("bb_key", () => ({
+      extensions: { create, delete: vi.fn() },
+    }));
+
+    await client.uploadExtension(import.meta.filename);
+
+    // Deno's FormData can't take a Node ReadStream (#3152); a File works everywhere.
+    expect(uploaded).not.toBeInstanceOf(ReadStream);
+    const file = uploaded as File;
+    expect(file.name).toBe(basename(import.meta.filename));
+    expect(file.type).toBe("application/zip");
+    expect(Buffer.from(await file.arrayBuffer())).toStrictEqual(
+      await readFile(import.meta.filename),
+    );
   });
 });
 
