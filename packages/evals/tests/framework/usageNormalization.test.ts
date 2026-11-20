@@ -126,7 +126,7 @@ describe("normalizeUsage", () => {
   });
 
   it("treats OpenAI-style cached tokens as a subset of input (codex, mastra, eve, deepagents, fx)", () => {
-    for (const harness of ["codex", "mastra", "eve", "deepagents"]) {
+    for (const harness of ["codex", "mastra", "eve", "deepagents", "pydantic_ai"]) {
       const usage = normalizeUsage({
         harness,
         raw: {
