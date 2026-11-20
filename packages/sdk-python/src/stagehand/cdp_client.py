@@ -1016,7 +1016,8 @@ def _same_directory(first: str, second: str) -> bool:
     try:
         return os.path.samefile(first, second)
     except OSError:
-        return False
+        # A browser on another machine reports a path that may not exist here.
+        return os.path.normpath(first) == os.path.normpath(second)
 
 
 def _stale_service_worker_message(

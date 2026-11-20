@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
+import path from "node:path";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -874,8 +875,16 @@ async function sameDirectory(first: string, second: string): Promise<boolean> {
     ]);
     return a.dev === b.dev && a.ino === b.ino;
   } catch {
-    return false;
+    // A browser on another machine reports a path that may not exist here.
+    return normalizeDirectory(first) === normalizeDirectory(second);
   }
+}
+
+function normalizeDirectory(directory: string): string {
+  const normalized = path.normalize(directory);
+  return normalized !== path.parse(normalized).root && normalized.endsWith(path.sep)
+    ? normalized.slice(0, -1)
+    : normalized;
 }
 
 async function getInstalledStagehandExtension(

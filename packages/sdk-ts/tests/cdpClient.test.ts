@@ -794,7 +794,9 @@ describe("service worker build check", () => {
               return { id: "stagehand-extension" };
             case "Target.getTargets":
               return {
-                targetInfos: ["old-worker", "new-worker"].map((targetId) => ({
+                targetInfos: [
+                  reloads(commands).length > 0 && !reloadError ? "new-worker" : "old-worker",
+                ].map((targetId) => ({
                   targetId,
                   type: "service_worker",
                   title: "Stagehand",
@@ -959,10 +961,30 @@ describe("service worker build check", () => {
     });
   });
 
-  it("does not treat a path it cannot read as its own directory", async () => {
+  it.each(["/missing/bundle", "/missing/other/../bundle/"])(
+    "treats a path it cannot read as its own directory when it names the same path: %s",
+    async (localExtensionDir) => {
+      const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+      try {
+        const { client, error, commands } = await connectInstalledFrom(
+          "/missing/bundle",
+          localExtensionDir,
+        );
+
+        expect(error).toBeUndefined();
+        expect(client?.serviceWorker.targetId).toBe("new-worker");
+        expect(reloads(commands)).toEqual([localExtensionDir]);
+        expect(emitWarning).not.toHaveBeenCalled();
+      } finally {
+        emitWarning.mockRestore();
+      }
+    },
+  );
+
+  it("does not treat a path it cannot read as its own directory when it names another path", async () => {
     const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
     try {
-      const { client, commands } = await connectInstalledFrom("/missing/bundle", "/missing/bundle");
+      const { client, commands } = await connectInstalledFrom("/missing/bundle", "/missing/other");
 
       expect(client?.serviceWorker.targetId).toBe("old-worker");
       expect(reloads(commands)).toEqual([]);

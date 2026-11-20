@@ -1148,7 +1148,11 @@ async def _connect_with_builds(
                             "title": "Stagehand",
                             "url": "chrome-extension://stagehand-extension/service-worker.js",
                         }
-                        for target_id in ("old-worker", "new-worker")
+                        for target_id in (
+                            "new-worker"
+                            if _reloads(socket.sent) and reload_error is None
+                            else "old-worker",
+                        )
                     ]
                 }
             }
@@ -1172,7 +1176,9 @@ async def _connect_with_builds(
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
     try:
-        client = await CDPClient.connect(cdp_url="ws://browser", **cast(dict[str, Any], source))
+        # Waiting for a service worker has no deadline, so a missing replacement would hang.
+        async with asyncio.timeout(5):
+            client = await CDPClient.connect(cdp_url="ws://browser", **cast(dict[str, Any], source))
     except Exception as error:
         return None, error, socket.sent
     return client, None, socket.sent
@@ -1312,12 +1318,30 @@ async def test_connect_treats_a_directory_in_another_letter_case_as_its_own(
 
 
 @pytest.mark.asyncio
-async def test_connect_does_not_treat_a_path_it_cannot_read_as_its_own_directory(
+@pytest.mark.parametrize("local_dir", ["/missing/bundle", "/missing/other/../bundle/"])
+async def test_connect_owns_a_directory_it_cannot_read_given_as_the_same_path(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, local_dir: str
+) -> None:
+    with caplog.at_level("WARNING", logger=cdp_client.__name__):
+        client, error, sent = await _connect_installed_from(
+            monkeypatch, "/missing/bundle", local_dir
+        )
+    assert error is None and client is not None
+    try:
+        assert client.service_worker.target_id == "new-worker"
+        assert _reloads(sent) == [local_dir]
+        assert caplog.records == []
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_connect_does_not_own_a_directory_it_cannot_read_given_as_another_path(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level("WARNING", logger=cdp_client.__name__):
         client, error, sent = await _connect_installed_from(
-            monkeypatch, "/missing/bundle", "/missing/bundle"
+            monkeypatch, "/missing/bundle", "/missing/other"
         )
     assert error is None and client is not None
     try:
