@@ -57,9 +57,14 @@ export async function uploadStagehandExtension(
   }
 
   if (uploaded === undefined) {
+    // Re-throw the original error to preserve its type (e.g., APIError) for
+    // telemetry classification in withBrowserbaseApi. The retry context is lost
+    // but correct HTTP status/result code tracking is more important.
+    if (lastError) {
+      throw lastError;
+    }
     throw new Error(
       `Failed to upload the Stagehand extension to Browserbase after ${attemptsMade} attempt(s).`,
-      { cause: lastError },
     );
   }
 
