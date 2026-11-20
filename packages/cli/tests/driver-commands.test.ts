@@ -855,9 +855,7 @@ describe("driver commands", () => {
       activePage: vi.fn(async () => page),
     } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
 
-    await expect(
-      pageInfoHandlers.eval!(manager, { expression: "1" }),
-    ).rejects.toBe(closedError);
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(closedError);
   });
 
   it("rethrows target-closed errors from eval without wrapping", async () => {
@@ -869,9 +867,7 @@ describe("driver commands", () => {
       activePage: vi.fn(async () => page),
     } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
 
-    await expect(
-      pageInfoHandlers.eval!(manager, { expression: "1" }),
-    ).rejects.toBe(closedError);
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(closedError);
   });
 });
 
