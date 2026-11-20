@@ -1,4 +1,6 @@
-const BASE64_PATTERN = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/;
+// Keep character-class validation linear (length % 4 === 0 enforces quartet alignment)
+// so V8 regex backtracking does not overflow the call stack on large captures.
+const BASE64_PATTERN = /^[A-Za-z\d+/]*={0,2}$/;
 
 export function decodeBase64(value: string, source: string): Uint8Array {
   if (value.length % 4 !== 0 || !BASE64_PATTERN.test(value)) {
