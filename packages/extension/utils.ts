@@ -341,6 +341,41 @@ export function injectUrls(
   }
 }
 
+const BRACKETED_ID_PATTERN = /\[(\d+-\d+)\]/g;
+
+/**
+ * Recursively resolves link element IDs left behind in plain string fields.
+ *
+ * The extract system prompt asks the model to return link element IDs rather
+ * than hrefs, but {@link transformSchema} only marks `z.string().url()` fields
+ * for ID→URL resolution. When a plain `z.string()` field carries an ID (either
+ * a bare `"0-74"` or a bracketed `"[0-74]"` copied from the accessibility
+ * tree), it is returned as-is. This walks the extracted value and resolves any
+ * ID that is actually present in the snapshot's URL map, leaving unrelated
+ * text such as a score of `"3-2"` unchanged.
+ */
+export function resolveUrlIds(value: unknown, idToUrlMapping: Record<string, string>): unknown {
+  if (typeof value === "string") {
+    if (ID_PATTERN.test(value) && idToUrlMapping[value] !== undefined) {
+      return idToUrlMapping[value];
+    }
+    return value.replace(BRACKETED_ID_PATTERN, (match, id: string) => idToUrlMapping[id] ?? match);
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      value[i] = resolveUrlIds(value[i], idToUrlMapping);
+    }
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      record[key] = resolveUrlIds(record[key], idToUrlMapping);
+    }
+  }
+  return value;
+}
+
 // Helper to check if a schema is of a specific type
 function isKind(s: z.ZodType, kind: string): boolean {
   try {
