@@ -69,25 +69,33 @@ export function isChromeNotFoundError(error: unknown): boolean {
 
 export function isRpcClosedError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  const message = error.message;
-  if (/RPC client is closed/i.test(message)) return true;
+  if (/RPC client is closed/i.test(error.message)) return true;
   if (error.name === "CDPConnectionClosedError") return true;
-  if (/Target closed/i.test(message)) return true;
-  if (/Protocol error.*Target closed/i.test(message)) return true;
-  if (/Session closed/i.test(message)) return true;
+  if (/Target closed/i.test(error.message)) return true;
   return false;
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+type WithTimeoutResult<T> = { value: T; timedOut: false } | { value: undefined; timedOut: true };
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<WithTimeoutResult<T>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<T>((resolve) => {
-    timer = setTimeout(() => resolve(fallback), ms);
+  const timeout = new Promise<WithTimeoutResult<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ value: undefined, timedOut: true }), ms);
   });
   try {
-    return await Promise.race([promise, timeout]);
+    const value = await Promise.race([
+      promise.then((v) => ({ value: v, timedOut: false as const })),
+      timeout,
+    ]);
+    return value;
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function withTimeoutFallback<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  const result = await withTimeout(promise, ms);
+  return result.timedOut ? fallback : result.value;
 }
 
 export class DriverSessionManager {
@@ -114,6 +122,20 @@ export class DriverSessionManager {
     this.network = new NetworkCapture(session);
   }
 
+  private disconnectedStatus(): DriverStatus {
+    return {
+      browserConnected: false,
+      disconnectReason: this.disconnectReason,
+      initialized: false,
+      mode: this.target.kind,
+      pages: [],
+      pid: process.pid,
+      selectedTargetId: this.selectedTargetId,
+      session: this.session,
+      target: this.target,
+    };
+  }
+
   /**
    * Mark the browser as disconnected (e.g. Chrome crashed or remote session ended).
    * Nulls stagehand/context/browser and fires close() with a bounded timeout.
@@ -133,12 +155,18 @@ export class DriverSessionManager {
     this.consecutiveInitFailures = 0;
 
     const closeWithTimeout = async () => {
-      await withTimeout(this.network.close(), CLOSE_TIMEOUT_MS, undefined).catch(() => undefined);
+      await withTimeoutFallback(this.network.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+        () => undefined,
+      );
       if (stagehand) {
-        await withTimeout(stagehand.close(), CLOSE_TIMEOUT_MS, undefined).catch(() => undefined);
+        await withTimeoutFallback(stagehand.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+          () => undefined,
+        );
       }
       if (browser) {
-        await withTimeout(browser.close(), CLOSE_TIMEOUT_MS, undefined).catch(() => undefined);
+        await withTimeoutFallback(browser.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+          () => undefined,
+        );
       }
     };
     void closeWithTimeout();
@@ -230,76 +258,38 @@ export class DriverSessionManager {
 
   async status(): Promise<DriverStatus> {
     if (this.disconnectReason) {
-      return {
-        browserConnected: false,
-        disconnectReason: this.disconnectReason,
-        initialized: false,
-        mode: this.target.kind,
-        pages: [],
-        pid: process.pid,
-        selectedTargetId: this.selectedTargetId,
-        session: this.session,
-        target: this.target,
-      };
+      return this.disconnectedStatus();
     }
 
     if (!this.stagehand || !this.context) {
       return {
-        browserConnected: false,
+        ...this.disconnectedStatus(),
         ...(this.initFailure ? { initError: initFailureMessage(this.initFailure.error) } : {}),
-        initialized: false,
-        mode: this.target.kind,
-        pages: [],
-        pid: process.pid,
-        selectedTargetId: this.selectedTargetId,
-        session: this.session,
-        target: this.target,
       };
     }
 
     try {
-      const TIMEOUT_SENTINEL = Symbol("timeout");
-      const pageResult = await withTimeout(
-        this.activePageIfPresent(),
-        STATUS_CALL_TIMEOUT_MS,
-        TIMEOUT_SENTINEL as unknown as undefined,
-      );
-      const pagesResult = await withTimeout(
-        this.pageSummaries(),
-        STATUS_CALL_TIMEOUT_MS,
-        TIMEOUT_SENTINEL as unknown as never[],
-      );
+      const pageProbe = await withTimeout(this.activePageIfPresent(), STATUS_CALL_TIMEOUT_MS);
+      const pagesProbe = await withTimeout(this.pageSummaries(), STATUS_CALL_TIMEOUT_MS);
 
-      const pageTimedOut = pageResult === (TIMEOUT_SENTINEL as unknown);
-      const pagesTimedOut = pagesResult === (TIMEOUT_SENTINEL as unknown);
-      if (pageTimedOut && pagesTimedOut) {
+      if (pageProbe.timedOut && pagesProbe.timedOut) {
         this.markDisconnected(
           `Browser unresponsive (status probes timed out after ${STATUS_CALL_TIMEOUT_MS}ms)`,
         );
-        return {
-          browserConnected: false,
-          disconnectReason: this.disconnectReason,
-          initialized: false,
-          mode: this.target.kind,
-          pages: [],
-          pid: process.pid,
-          selectedTargetId: this.selectedTargetId,
-          session: this.session,
-          target: this.target,
-        };
+        return this.disconnectedStatus();
       }
 
-      const page = pageTimedOut ? undefined : pageResult;
-      const pages = pagesTimedOut ? [] : pagesResult;
+      const page = pageProbe.timedOut ? undefined : pageProbe.value;
+      const pages = pagesProbe.timedOut ? [] : pagesProbe.value;
       const url = page
-        ? await withTimeout(
+        ? await withTimeoutFallback(
             page.url().catch(() => undefined),
             STATUS_CALL_TIMEOUT_MS,
             undefined,
           )
         : undefined;
       const title = page
-        ? await withTimeout(safeTitle(page), STATUS_CALL_TIMEOUT_MS, "")
+        ? await withTimeoutFallback(safeTitle(page), STATUS_CALL_TIMEOUT_MS, "")
         : undefined;
 
       return {
@@ -319,28 +309,9 @@ export class DriverSessionManager {
       if (isRpcClosedError(error)) {
         const reason = error instanceof Error ? error.message : "Browser disconnected";
         this.markDisconnected(reason);
-        return {
-          browserConnected: false,
-          disconnectReason: this.disconnectReason,
-          initialized: false,
-          mode: this.target.kind,
-          pages: [],
-          pid: process.pid,
-          selectedTargetId: this.selectedTargetId,
-          session: this.session,
-          target: this.target,
-        };
+        return this.disconnectedStatus();
       }
-      return {
-        browserConnected: false,
-        initialized: false,
-        mode: this.target.kind,
-        pages: [],
-        pid: process.pid,
-        selectedTargetId: this.selectedTargetId,
-        session: this.session,
-        target: this.target,
-      };
+      return this.disconnectedStatus();
     }
   }
 
@@ -410,11 +381,7 @@ export class DriverSessionManager {
           index,
           targetId: page.pageId,
           title: await this.safeTitle(page),
-          url: await withTimeout(
-            page.url().catch(() => ""),
-            STATUS_CALL_TIMEOUT_MS,
-            "",
-          ),
+          url: await withTimeoutFallback(page.url().catch(() => ""), STATUS_CALL_TIMEOUT_MS, ""),
         })),
       );
     } catch (error) {
