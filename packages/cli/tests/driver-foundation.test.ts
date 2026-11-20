@@ -1654,16 +1654,22 @@ describe("driver foundation", () => {
     };
     Object.assign(manager, { stagehand: { close: vi.fn() }, context });
 
-    vi.spyOn(
-      manager as unknown as { ensureInitialized: () => Promise<void> },
-      "ensureInitialized",
-    ).mockImplementation(async () => {
-      expect(
-        (manager as unknown as { disconnectReason: string | undefined }).disconnectReason,
-      ).toBeUndefined();
-    });
+    let disconnectReasonDuringInit: string | undefined = "not-checked";
+    const ensureInitializedSpy = vi
+      .spyOn(manager as unknown as { ensureInitialized: () => Promise<void> }, "ensureInitialized")
+      .mockImplementation(async () => {
+        disconnectReasonDuringInit = (
+          manager as unknown as { disconnectReason: string | undefined }
+        ).disconnectReason;
+      });
 
-    await manager.open("https://example.com").catch(() => undefined);
+    try {
+      await manager.open("https://example.com");
+    } catch {
+      // Expected to fail when actually trying to navigate
+    }
+    expect(ensureInitializedSpy).toHaveBeenCalled();
+    expect(disconnectReasonDuringInit).toBeUndefined();
   });
 
   it("status() resolves within ~2.5s when page.title() never resolves", async () => {

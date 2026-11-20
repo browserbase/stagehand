@@ -10,15 +10,16 @@ export function isProcessAlive(pid: number): boolean {
   }
 }
 
-export function isDaemonProcess(pid: number): boolean {
+export function isDaemonProcess(pid: number, session: string): boolean {
   if (!isProcessAlive(pid)) return false;
   // On Windows, skip identity check - process.kill still verifies the PID exists
   if (process.platform === "win32") return true;
   try {
     const cmdline = getProcessCommandLine(pid);
-    return cmdline === null || (cmdline.includes("daemon") && cmdline.includes("--session"));
+    if (cmdline === null) return false;
+    return cmdline.includes("daemon") && cmdline.includes(`--session ${session}`);
   } catch {
-    return true;
+    return false;
   }
 }
 

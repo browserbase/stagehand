@@ -35,11 +35,25 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   const shutdown = (): Promise<void> => {
     shutdownPromise ??= (async () => {
       await closeServer(server);
+      let closeTimer: ReturnType<typeof setTimeout> | undefined;
+      let timedOut = false;
       await Promise.race([
         manager.close(),
-        new Promise<void>((resolve) => setTimeout(resolve, MANAGER_CLOSE_TIMEOUT_MS)),
-      ]).catch(() => undefined);
+        new Promise<void>((resolve) => {
+          closeTimer = setTimeout(() => {
+            timedOut = true;
+            resolve();
+          }, MANAGER_CLOSE_TIMEOUT_MS);
+        }),
+      ])
+        .catch(() => undefined)
+        .finally(() => {
+          if (closeTimer) clearTimeout(closeTimer);
+        });
       await cleanupDaemonFiles(session);
+      if (timedOut) {
+        process.exit(1);
+      }
     })();
     return shutdownPromise;
   };

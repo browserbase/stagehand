@@ -140,7 +140,8 @@ export async function stopDriverDaemon(
 
   if (!status) {
     if (force) {
-      await cleanupDaemonFiles(session);
+      const killed = await forceKillDaemon(session);
+      return { stopped: killed };
     }
     return { stopped: false };
   }
@@ -155,8 +156,11 @@ export async function stopDriverDaemon(
         id: requestId(),
         type: "stop",
       });
-    } catch {
-      return { stopped: false };
+    } catch (error) {
+      if (error instanceof CommandFailure && error.telemetry.resultCode === "daemon_not_running") {
+        return { stopped: false };
+      }
+      throw error;
     }
   }
 
@@ -194,7 +198,7 @@ async function forceKillDaemon(session: string): Promise<boolean> {
       await cleanupDaemonFiles(session);
       return false;
     }
-    if (!isDaemonProcess(pid)) {
+    if (!isDaemonProcess(pid, session)) {
       await cleanupDaemonFiles(session);
       return false;
     }
@@ -245,7 +249,7 @@ async function tryDriverStatus(session: string): Promise<TryDriverStatusResult> 
     });
   } catch (error) {
     if (isRuntimeDirFailure(error)) throw error;
-    if (error instanceof CommandFailure) {
+    if (error instanceof CommandFailure && error.telemetry.resultCode !== "daemon_not_running") {
       return { kind: "status_failed", session };
     }
     await cleanupStaleDaemonFiles(session);

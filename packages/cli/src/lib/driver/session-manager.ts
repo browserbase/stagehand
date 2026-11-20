@@ -133,7 +133,7 @@ export class DriverSessionManager {
     this.consecutiveInitFailures = 0;
 
     const closeWithTimeout = async () => {
-      await this.network.close().catch(() => undefined);
+      await withTimeout(this.network.close(), CLOSE_TIMEOUT_MS, undefined).catch(() => undefined);
       if (stagehand) {
         await withTimeout(stagehand.close(), CLOSE_TIMEOUT_MS, undefined).catch(() => undefined);
       }
@@ -258,8 +258,37 @@ export class DriverSessionManager {
     }
 
     try {
-      const page = await withTimeout(this.activePageIfPresent(), STATUS_CALL_TIMEOUT_MS, undefined);
-      const pages = await withTimeout(this.pageSummaries(), STATUS_CALL_TIMEOUT_MS, []);
+      const TIMEOUT_SENTINEL = Symbol("timeout");
+      const pageResult = await withTimeout(
+        this.activePageIfPresent(),
+        STATUS_CALL_TIMEOUT_MS,
+        TIMEOUT_SENTINEL as unknown as undefined,
+      );
+      const pagesResult = await withTimeout(
+        this.pageSummaries(),
+        STATUS_CALL_TIMEOUT_MS,
+        TIMEOUT_SENTINEL as unknown as never[],
+      );
+
+      const pageTimedOut = pageResult === (TIMEOUT_SENTINEL as unknown);
+      const pagesTimedOut = pagesResult === (TIMEOUT_SENTINEL as unknown);
+      if (pageTimedOut && pagesTimedOut) {
+        this.markDisconnected("Browser unresponsive (status probes timed out)");
+        return {
+          browserConnected: false,
+          disconnectReason: this.disconnectReason,
+          initialized: false,
+          mode: this.target.kind,
+          pages: [],
+          pid: process.pid,
+          selectedTargetId: this.selectedTargetId,
+          session: this.session,
+          target: this.target,
+        };
+      }
+
+      const page = pageTimedOut ? undefined : pageResult;
+      const pages = pagesTimedOut ? [] : pagesResult;
       const url = page
         ? await withTimeout(
             page.url().catch(() => undefined),
