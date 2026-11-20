@@ -57,6 +57,32 @@ describe("Locator.fill()", () => {
     expect(value).toBe("2026-01-01");
   });
 
+  it.each([
+    { type: "month", value: "2026-01" },
+    { type: "week", value: "2026-W03" },
+  ] as const)(
+    "fills $type inputs via value setter even when beforeinput blocks insertText",
+    async ({ type, value }) => {
+      const page = await firstPage(stagehand);
+      await page.goto(
+        "data:text/html," +
+          encodeURIComponent(`<!doctype html><html><body>
+          <input id="target" type="${type}" />
+          <script>
+            const input = document.getElementById('target');
+            input.addEventListener('beforeinput', (event) => {
+              if (event && event.inputType === 'insertText') event.preventDefault();
+            });
+          </script>
+        </body></html>`),
+      );
+
+      const input = page.locator("xpath=/html/body/input");
+      await input.fill(value);
+      expect(await input.inputValue()).toBe(value);
+    },
+  );
+
   it("xpath case: throws an error when fill encounters an exception", async () => {
     const page = await firstPage(stagehand);
     await page.goto(
