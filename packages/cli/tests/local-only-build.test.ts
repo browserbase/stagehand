@@ -77,6 +77,9 @@ describe("local-only build", () => {
 
   it("excludes the cloud / functions / skills / templates modules and the remote driver", async () => {
     const excluded = [
+      "lib/mcp",
+      "commands/setup.js",
+      "lib/setup",
       "commands/cloud",
       "commands/functions",
       "commands/skills",

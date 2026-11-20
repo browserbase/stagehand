@@ -104,16 +104,17 @@ export async function resolveConnectionTarget(flags: DriverModeFlags): Promise<C
     fail("Pass either --local or --remote, not both.");
   }
 
-  if (flags.remote) {
-    failOnConflictingFlags("--remote", [
-      ...chromeArgFlags,
-      flags.headed ? "--headed" : null,
-      flags.headless ? "--headless" : null,
-    ]);
+  if (flags.remote || (!flags.local && process.env.BROWSE_BROWSER === "cloud")) {
+    failOnConflictingFlags(
+      flags.remote
+        ? "--remote"
+        : "The cloud browser saved by browse setup (pass --local to override it)",
+      [...chromeArgFlags, flags.headed ? "--headed" : null, flags.headless ? "--headless" : null],
+    );
     return (await getRemote()).resolveExplicitRemoteTarget(flags);
   }
 
-  if (flags.local) {
+  if (flags.local || process.env.BROWSE_BROWSER === "local") {
     return managedLocalTarget(resolveHeadless(flags), resolveChromeArgs(flags));
   }
 
