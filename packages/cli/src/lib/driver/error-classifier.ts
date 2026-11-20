@@ -2,7 +2,7 @@ import { DriverError } from "./errors.js";
 
 const ELEMENT_NOT_FOUND_PATTERN = /^Could not find an element for the given xPath\(s\): (.*)$/;
 
-const WAIT_FOR_SELECTOR_TIMEOUT_PATTERN = /waitForSelector: Timeout \d+ms exceeded waiting for/;
+const WAIT_FOR_SELECTOR_TIMEOUT_PATTERN = /waitForSelector timed out after \d+ms/;
 
 const RPC_GOTO_TIMEOUT_PATTERN = /RPC response timed out after \d+ms: page\.goto/;
 const NAVIGATION_START_TIMEOUT_PATTERN = /Navigation start timed out after \d+ms/;

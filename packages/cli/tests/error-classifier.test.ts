@@ -18,16 +18,14 @@ describe("classifyDriverError", () => {
         'No element matches "//div[@id="container"]". Run browse snapshot for fresh refs or check the selector.',
     },
     {
-      message: 'waitForSelector: Timeout 30000ms exceeded waiting for "#nope" to be visible',
+      message: "waitForSelector timed out after 30000ms while waiting for selector",
       expectedCode: "wait_timeout",
-      expectedMessage:
-        'waitForSelector: Timeout 30000ms exceeded waiting for "#nope" to be visible',
+      expectedMessage: "waitForSelector timed out after 30000ms while waiting for selector",
     },
     {
-      message: 'waitForSelector: Timeout 5000ms exceeded waiting for ".loading" to be detached',
+      message: "waitForSelector timed out after 2000ms while waiting for selector",
       expectedCode: "wait_timeout",
-      expectedMessage:
-        'waitForSelector: Timeout 5000ms exceeded waiting for ".loading" to be detached',
+      expectedMessage: "waitForSelector timed out after 2000ms while waiting for selector",
     },
     {
       message: "RPC response timed out after 30000ms: page.goto",
