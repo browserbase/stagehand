@@ -59,7 +59,7 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions" | "extensionCdpUrl">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
     expectTypeOf<BrowserbaseLaunchOptions["clientOptions"]>().toEqualTypeOf<
       BrowserbaseClientOptions | undefined

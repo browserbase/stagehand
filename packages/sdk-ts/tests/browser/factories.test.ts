@@ -790,6 +790,61 @@ describe("Stagehand browser factories", () => {
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
+  it("launches Browserbase with an extension CDP URL kept client-side", async () => {
+    const createSession = vi.fn(async () => ({
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      sessionId: "session_123",
+      close: vi.fn(),
+    }));
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: vi.fn(() => ({ createSession })),
+      connectCdp,
+    });
+    const extensionCdpUrl = "ws://127.0.0.1:9222/devtools/browser/abc";
+
+    const browser = await browserbase.launch({
+      apiKey: "bb_key",
+      projectId: "project_123",
+      extensionCdpUrl,
+    });
+
+    expect(createSession).toHaveBeenCalledWith({ projectId: "project_123" });
+    expect(connectCdp.mock.calls[0]?.[0].clientLifecycle).toMatchObject({ extensionCdpUrl });
+    expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
+      apiKey: "bb_key",
+      browser: { sessionId: "session_123" },
+      browserCdpUrl: extensionCdpUrl,
+    });
+  });
+
+  it.each([
+    "",
+    "http://browser",
+    "https://browser",
+    "ws://",
+    "/devtools/browser/abc",
+    "ws://browser:bad/devtools",
+    "ws://browser:99999/devtools",
+    "ws://browser:0/devtools",
+  ])(
+    "rejects invalid Browserbase extension CDP URL %s before creating a session",
+    async (extensionCdpUrl) => {
+      const createSession = vi.fn();
+      const connectCdp = vi.fn(async () => fakeCdpClient());
+      const { browserbase } = createBrowserFactoriesForTest({
+        createBrowserbaseSessionClient: vi.fn(() => ({ createSession })),
+        connectCdp,
+      });
+
+      await expect(
+        browserbase.launch({ apiKey: "bb_key", projectId: "project_123", extensionCdpUrl }),
+      ).rejects.toThrow();
+      expect(createSession).not.toHaveBeenCalled();
+      expect(connectCdp).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([undefined, "", "installed-stagehand", "wrong-id"])(
     "ignores Browserbase connect extension ID %s",
     async (extensionId) => {
