@@ -151,7 +151,7 @@ export async function captureLinkOpened(
   cliVersion: string,
   properties: {
     target: "discord" | "github_issues";
-    source: string;
+    source: "discord_command";
     opened: boolean;
     browser_open_succeeded: boolean;
   },
