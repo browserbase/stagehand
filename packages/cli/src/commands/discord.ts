@@ -1,6 +1,7 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
+import { captureLinkOpened } from "../lib/link-telemetry.js";
 import { openUrl } from "../lib/open-url.js";
 import { DISCORD_INVITE_URL } from "../lib/support-links.js";
 
@@ -31,5 +32,12 @@ export default class Discord extends BrowseCommand {
     this.log(
       "Join our Discord community to contribute to Stagehand and the Browse CLI, request features, and share feedback!",
     );
+
+    await captureLinkOpened({
+      target: "discord",
+      source: "discord_command",
+      opened: result.attempted,
+      browser_open_succeeded: result.success,
+    });
   }
 }

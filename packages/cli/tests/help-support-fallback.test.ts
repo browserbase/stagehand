@@ -8,7 +8,9 @@ describe("help footer", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("COMMUNITY");
     expect(result.stdout).toContain(DISCORD_INVITE_URL);
+    // GitHub URL includes UTM params in help footer
     expect(result.stdout).toContain(GITHUB_ISSUES_URL);
+    expect(result.stdout).toContain("utm_source=browse_cli");
     expect(result.stdout).toContain("Report a bug");
   });
 

@@ -258,7 +258,7 @@ describe("CLI telemetry", () => {
     }
   });
 
-  it("does not emit telemetry for help and topic-help paths", async () => {
+  it("does not emit command telemetry for help and topic-help paths", async () => {
     const telemetryServer = await startTelemetryServer();
 
     try {
@@ -272,7 +272,12 @@ describe("CLI telemetry", () => {
 
       expect(rootHelp.exitCode).toBe(0);
       expect(topicHelp.exitCode).toBe(0);
-      expect(telemetryPayloads(telemetryServer)).toHaveLength(0);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const commandPayloads = payloads.filter(
+        (p) => p.event === "cli.command_invoked" || p.event === "cli.command_completed",
+      );
+      expect(commandPayloads).toHaveLength(0);
     } finally {
       await telemetryServer.close();
     }
