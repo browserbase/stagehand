@@ -265,7 +265,7 @@ func run(ctx context.Context) (err error) {
 ## Install
 
 ```bash
-pnpm add @browserbasehq/stagehand 'zod@~4.4.3'
+pnpm add @browserbasehq/stagehand zod@4.6.6
 ```
 
 <details>
@@ -394,7 +394,7 @@ if err != nil {
 
 ## Hosted MCP: browser tools without installing anything
 
-The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser. Requires a [Browserbase API key](https://www.browserbase.com/overview).
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/v4/first-steps/choosing-your-path#hosted-mcp-for-zero-install-browser-tools) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser. Requires a [Browserbase API key](https://www.browserbase.com/overview).
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \

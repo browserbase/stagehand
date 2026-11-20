@@ -1,0 +1,57 @@
+# Stagehand
+
+> Stagehand v4 is the current version. v4 uses `Stagehand.create()` (the constructor is private), pages live on `browser.context`, and `act`/`observe`/`extract` return `{ data, metadata }`. If you have v3 code, see the [migration guide](https://docs.stagehand.dev/v4/migrations/v3.md).
+
+- [Introducing Stagehand](https://docs.stagehand.dev/v4/first-steps/introduction.md): Developers use Stagehand to reliably automate the web.
+- [Choosing your path](https://docs.stagehand.dev/v4/first-steps/choosing-your-path.md): Pick the right Stagehand integration: SDK for building agent apps, browse CLI for coding agents, or hosted MCP for zero-install browser tools.
+- [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart.md): Build your first Stagehand automation with act, extract, and observe.
+- [Installation](https://docs.stagehand.dev/v4/first-steps/installation.md): Add Stagehand to an existing project.
+- [AI rules](https://docs.stagehand.dev/v4/first-steps/ai-rules.md): Give your AI coding assistant the rules it needs to write correct Stagehand v4 code.
+- [Act](https://docs.stagehand.dev/v4/basics/act.md): Interact with a web page
+- [Extract](https://docs.stagehand.dev/v4/basics/extract.md): Extract structured data from a webpage
+- [Observe](https://docs.stagehand.dev/v4/basics/observe.md): Discover and plan executable actions on any web page
+- [WebMCP](https://docs.stagehand.dev/v4/basics/webmcp.md): List and invoke tools registered by the current web page
+- [Browser](https://docs.stagehand.dev/v4/configuration/browser.md): Configure Stagehand on Browserbase or locally
+- [Logging](https://docs.stagehand.dev/v4/configuration/logging.md): Control terminal output and forward structured Stagehand logs
+- [Search](https://docs.stagehand.dev/v4/add-ons/search.md): Search the live web and hand your agent a ranked list of URLs
+- [Fetch](https://docs.stagehand.dev/v4/add-ons/fetch.md): Turn any webpage into agent context, without launching a browser
+- [Models](https://docs.stagehand.dev/v4/configuration/models.md): Use any LLM with Stagehand
+- [Observability](https://docs.stagehand.dev/v4/configuration/observability.md): Track Stagehand automation with session visibility and analytics
+- [Integrations](https://docs.stagehand.dev/v4/integrations/overview.md): Connect Stagehand to your agents, frameworks, and application workflows.
+- [Agent Frameworks](https://docs.stagehand.dev/v4/integrations/agent-frameworks/overview.md): Add persistent browser tools to your agent framework through MCP or native bindings.
+- [Claude Toolset](https://docs.stagehand.dev/v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.md): Give Claude browser tools through the Anthropic SDK, with Stagehand driving local Chrome or a Browserbase session.
+- [OpenAI Toolset](https://docs.stagehand.dev/v4/integrations/agent-frameworks/openai-cua-toolset-quickstart.md): Give GPT browser tools through the OpenAI SDK, with Stagehand driving local Chrome or a Browserbase session.
+- [Eve](https://docs.stagehand.dev/v4/integrations/agent-frameworks/eve.md): Connect Eve to Stagehand
+- [Deep Agents](https://docs.stagehand.dev/v4/integrations/agent-frameworks/deep-agents.md): Give LangChain Deep Agents browser tools with langchain-stagehand.
+- [Mastra](https://docs.stagehand.dev/v4/integrations/agent-frameworks/mastra.md): Give a Mastra agent persistent Stagehand browser tools over MCP/stdio.
+- [Vercel AI SDK](https://docs.stagehand.dev/v4/integrations/agent-frameworks/vercel-ai-sdk.md): Give a Vercel AI SDK agent persistent Stagehand browser tools over MCP/stdio.
+- [CLI Agents](https://docs.stagehand.dev/v4/integrations/cli-agents/overview.md): Connect coding agents to a persistent Stagehand browser with the MCP adapter.
+- [Claude Code](https://docs.stagehand.dev/v4/integrations/cli-agents/claude-code.md): Give a Claude Code agent persistent Stagehand browser tools over MCP/stdio.
+- [Codex](https://docs.stagehand.dev/v4/integrations/cli-agents/codex.md): Give a Codex agent persistent Stagehand browser tools over MCP/stdio.
+- [Cursor](https://docs.stagehand.dev/v4/integrations/cli-agents/cursor.md): Give a local Cursor SDK agent persistent Stagehand browser tools over MCP/stdio.
+- [fx](https://docs.stagehand.dev/v4/integrations/cli-agents/fx.md): Give the fx coding agent persistent Stagehand browser tools over MCP/stdio.
+- [Pi](https://docs.stagehand.dev/v4/integrations/cli-agents/pi.md): Give the Pi coding agent native Stagehand browser tools registered directly by an extension.
+- [Stripe](https://docs.stagehand.dev/v4/integrations/applications/stripe.md): Use Stagehand and WebMCP to fill Stripe Checkout and submit payment.
+- [Prompting best practices](https://docs.stagehand.dev/v4/best-practices/prompting-best-practices.md): Write effective prompts for reliable Stagehand automation
+- [Observe use cases](https://docs.stagehand.dev/v4/best-practices/usecase-observe.md): Real-world patterns for planning automations with observe()
+- [Caching actions](https://docs.stagehand.dev/v4/best-practices/caching.md): Cache actions automatically to reduce costs and improve performance
+- [Using multiple tabs](https://docs.stagehand.dev/v4/best-practices/using-multiple-tabs.md): Act on multiple tabs with Stagehand
+- [User data](https://docs.stagehand.dev/v4/best-practices/user-data.md): Persist browser data between sessions
+- [Speed optimization](https://docs.stagehand.dev/v4/best-practices/speed-optimization.md): Optimize Stagehand performance for faster automation and reduced latency
+- [Cost optimization](https://docs.stagehand.dev/v4/best-practices/cost-optimization.md): Minimize costs while maintaining automation performance
+- [Deploying Stagehand](https://docs.stagehand.dev/v4/best-practices/deployments.md): Deploy your AI agents and automations to the cloud
+- [Stagehand cookbooks](https://docs.stagehand.dev/v4/cookbooks/overview.md): Runnable Stagehand cookbooks with prompts, setup instructions, and source code.
+- [Reuse an authenticated session](https://docs.stagehand.dev/v4/cookbooks/persisted-login.md): Persist login across browser jobs with a Browserbase context and verify authentication before each run.
+- [Export a paginated book catalog](https://docs.stagehand.dev/v4/cookbooks/paginated-catalog.md): Collect every Books to Scrape result across pages with extract, observe, and act.
+- [Save extracted files to a bucket](https://docs.stagehand.dev/v4/cookbooks/files-to-bucket.md): Extract book data with Stagehand, download a cover, and upload both with Files SDK.
+- [Approve a form submission](https://docs.stagehand.dev/v4/cookbooks/approve-form-submission.md): Fill a test form with Stagehand, then require a human decision before the submit click.
+- [Build an AI SDK research agent](https://docs.stagehand.dev/v4/cookbooks/ai-sdk-research-agent.md): Research approved Stagehand docs pages in one browser and return a typed report with source URLs.
+- [Migrate v3 to v4](https://docs.stagehand.dev/v4/migrations/v3.md): Upgrade from Stagehand v3 to v4
+- [Migrate Playwright to v4](https://docs.stagehand.dev/v4/migrations/playwright.md): Port Playwright code to Stagehand v4
+- [Stagehand](https://docs.stagehand.dev/v4/reference/stagehand.md): Initialize a browser session and run AI-powered actions, observations, and extractions
+- [context](https://docs.stagehand.dev/v4/reference/context.md): Manage pages, cookies, headers, policies, and clipboard access within a browser context
+- [clipboard](https://docs.stagehand.dev/v4/reference/clipboard.md): Read, write, and dispatch clipboard operations in the browser
+- [page](https://docs.stagehand.dev/v4/reference/page.md): Navigate, inspect, and interact with a browser page
+- [WebMCP](https://docs.stagehand.dev/v4/reference/webmcp.md): Inspect and invoke page-provided WebMCP tools
+- [response](https://docs.stagehand.dev/v4/reference/response.md): Inspect the main-document network response returned by page navigation
+- [locator](https://docs.stagehand.dev/v4/reference/locator.md): Target elements and perform focused DOM interactions
