@@ -7,6 +7,20 @@ import { resolveVariableValue } from "../../handlers/handlerUtils/variables.js";
  * by the decision model from a closed set these helpers produce.
  */
 
+// A single address is self-delimiting. Free-form prose can contain instructions
+// or require generating a value, so it stays on the ordinary act path.
+export function emailFill(instruction: string) {
+  const text = instruction.trim();
+  const leading = /^(?:enter|type) (\S+) (?:in|into) the (.+) field\.?$/iu.exec(text);
+  const trailing = /^fill the (.+) field with (\S+)$/iu.exec(text);
+  const value = leading?.[1] ?? trailing?.[2];
+  const field = leading?.[2] ?? trailing?.[1];
+  if (!value || !field || !/^[\p{L}\p{N}][\p{L}\p{M}\p{N} -]*$/u.test(field)) return;
+  if (!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}._+-]*@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+$/u.test(value))
+    return;
+  return { field, value };
+}
+
 /** Quoted strings and declared %variables%: the closed set a fill value can come from. */
 export function fillValueCandidates(instruction: string, variables?: Variables): string[] {
   const values = new Set<string>();

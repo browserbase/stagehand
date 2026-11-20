@@ -13,6 +13,7 @@ import { extract } from "../services/extractService.js";
 import { observe } from "../services/observeService.js";
 import { Frame } from "../understudy/frame.js";
 import { Locator } from "../understudy/locator.js";
+import { NetworkManager } from "../understudy/networkManager.js";
 import { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
 
@@ -331,17 +332,19 @@ describe("act downstream work", () => {
         },
       } as unknown as Frame;
       const { captureSnapshot, generate, options } = fixture("act");
+      const networkManager = new NetworkManager(options.page);
       const result = act({
         ...options,
-        page: Object.assign(options.page, { mainFrame: () => frame }),
+        page: Object.assign(options.page, { mainFrame: () => frame, networkManager }),
         params: { pageId: "page-1", instruction: "Submit", options: { timeout: 20 } },
       });
       const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
       await vi.advanceTimersByTimeAsync(0);
-      expect(session.eventNames().length).toBeGreaterThan(0);
+      expect(session.eventNames().length + networkManager.observers.size).toBeGreaterThan(0);
       await vi.advanceTimersByTimeAsync(20);
       await rejected;
       expect(session.eventNames()).toEqual([]);
+      expect(networkManager.observers.size).toBe(0);
       expect(vi.getTimerCount()).toBe(0);
       expect(captureSnapshot).not.toHaveBeenCalled();
       expect(generate).not.toHaveBeenCalled();

@@ -71,6 +71,14 @@ const ActInferenceSchema = z
   })
   .strict();
 
+const ActFollowupSchema = ActInferenceSchema.pick({ action: true }).extend({
+  previousActionCompletedRequest: z
+    .boolean()
+    .describe(
+      "True only when the executed interaction satisfied every explicit part of the user's request. An opened control does not establish a requested selection. An absent target or uncertain result is incomplete.",
+    ),
+});
+
 function promptText(prompt: { content: unknown }): string {
   if (typeof prompt.content !== "string") {
     throw new TypeError("Structured LLM prompts must contain text");
@@ -127,6 +135,7 @@ function includesNumericSchema(value: unknown): boolean {
 export async function extract<T extends z.ZodObject>(params: {
   instruction: string;
   domElements: string;
+  linkEvidence?: string;
   schema: T;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
@@ -144,9 +153,17 @@ export async function extract<T extends z.ZodObject>(params: {
         userProvidedInstructions,
         Boolean(screenshot),
         includesNumericSchema(z.toJSONSchema(schema)),
+        Boolean(params.linkEvidence),
       ),
     ),
-    buildExtractUserPrompt(instruction, domElements, false, screenshot),
+    buildExtractUserPrompt(
+      instruction,
+      params.linkEvidence
+        ? `${domElements}\nMatching anchor attributes: ${params.linkEvidence}`
+        : domElements,
+      false,
+      screenshot,
+    ),
   );
 }
 
@@ -196,9 +213,11 @@ export async function act(params: {
   domElements: string;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
+  checkPreviousAction?: boolean;
 }): Promise<{
   element: z.output<typeof ActInferenceSchema>["action"];
   twoStep: boolean;
+  previousActionCompletedRequest: boolean;
   prompt_tokens: number;
   completion_tokens: number;
   reasoning_tokens: number;
@@ -209,14 +228,16 @@ export async function act(params: {
   const result = await generateStructured(
     generate,
     "Act",
-    ActInferenceSchema,
+    params.checkPreviousAction ? ActFollowupSchema : ActInferenceSchema,
     promptText(buildActSystemPrompt(userProvidedInstructions)),
     promptText(buildObserveUserMessage(instruction, domElements)),
   );
 
   return {
     element: result.data.action,
-    twoStep: result.data.twoStep,
+    twoStep: "twoStep" in result.data && result.data.twoStep,
+    previousActionCompletedRequest:
+      "previousActionCompletedRequest" in result.data && result.data.previousActionCompletedRequest,
     prompt_tokens: result.usage?.inputTokens ?? 0,
     completion_tokens: result.usage?.outputTokens ?? 0,
     reasoning_tokens: result.usage?.reasoningTokens ?? 0,

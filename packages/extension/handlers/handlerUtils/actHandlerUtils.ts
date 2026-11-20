@@ -1,5 +1,6 @@
 // lib/v3/handlers/handlerUtils/actHandlerUtils.ts
 import { Protocol } from "devtools-protocol";
+import { IGNORED_RESOURCE_TYPES, type NetworkRequestInfo } from "../../types/private/network.js";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
@@ -452,19 +453,15 @@ export async function hover(ctx: UnderstudyMethodHandlerContext) {
 
 /* ===================== Helpers ===================== */
 
-/**
- * More robust DOM settle using Network + Page events to detect network quiet.
- * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
- */
 export async function waitForDomNetworkQuiet(
-  frame: Frame,
+  page: Page,
   logger: StagehandLogger,
   timeout: number | undefined,
   progress: Progress,
 ): Promise<void> {
   const overallTimeout =
     typeof timeout === "number" && Number.isFinite(timeout) ? Math.max(0, timeout) : 5_000;
-  const client = frame.session;
+  const frame = page.mainFrame();
   const settleStart = Date.now();
 
   // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
@@ -490,18 +487,9 @@ export async function waitForDomNetworkQuiet(
     return;
   }
 
-  // BrowserContext owns child-target auto-attachment; settling only observes events.
-  await progress.run("enabling network events", () =>
-    client.send("Network.enable").catch(() => {}),
-  );
-  await progress.run("enabling page events", () => client.send("Page.enable").catch(() => {}));
-
   progress.throwIfStopped();
   await new Promise<void>((resolve) => {
-    const inflight = new Set<string>();
-    const meta = new Map<string, { url: string; start: number }>();
-    const docByFrame = new Map<string, string>();
-
+    const inflight = new Map<string, NetworkRequestInfo>();
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     let stalledRequestSweepTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -518,52 +506,39 @@ export async function waitForDomNetworkQuiet(
 
     const finishReq = (id: string) => {
       if (!inflight.delete(id)) return;
-      meta.delete(id);
-      for (const [fid, rid] of docByFrame) if (rid === id) docByFrame.delete(fid);
       clearQuiet();
       maybeQuiet();
     };
 
-    const onRequest = (p: Protocol.Network.RequestWillBeSentEvent) => {
-      // Ignore long-lived streams
-      // ResourceType includes: Document, XHR, Fetch, WebSocket, EventSource, etc.
-      if (p.type === "WebSocket" || p.type === "EventSource") return;
-
-      inflight.add(p.requestId);
-      meta.set(p.requestId, { url: p.request.url, start: Date.now() });
-
-      if (p.type === "Document" && p.frameId) docByFrame.set(p.frameId, p.requestId);
-
+    const mainSession = page.networkManager.sessionKey(frame.session);
+    const track = (request: NetworkRequestInfo) => {
+      if (request.sessionId !== mainSession && !request.documentRequest) return;
+      if (IGNORED_RESOURCE_TYPES.has(request.resourceType)) return;
+      inflight.set(request.requestKey, request);
       clearQuiet();
     };
 
-    const onFinish = (p: { requestId: string }) => finishReq(p.requestId);
-    const onCached = (p: { requestId: string }) => finishReq(p.requestId);
-    const onDataUrl = (p: Protocol.Network.ResponseReceivedEvent) => {
-      if (p.response.url?.startsWith("data:")) finishReq(p.requestId);
-    };
-
-    const onFrameStop = (f: Protocol.Page.FrameStoppedLoadingEvent) => {
-      const id = docByFrame.get(f.frameId);
-      if (id) finishReq(id);
-    };
-
-    client.on("Network.requestWillBeSent", onRequest);
-    client.on("Network.loadingFinished", onFinish);
-    client.on("Network.loadingFailed", onFinish);
-    client.on("Network.requestServedFromCache", onCached);
-    client.on("Network.responseReceived", onDataUrl);
-    client.on("Page.frameStoppedLoading", onFrameStop);
+    const stopObserving = page.networkManager.addObserver({
+      onRequestStarted: track,
+      onRequestFinished: (request) => finishReq(request.requestKey),
+      onRequestFailed: (request) => finishReq(request.requestKey),
+    });
+    // goto can return at the main document's DOMContentLoaded while a child
+    // navigation is already in flight, before Act subscribes to network events.
+    for (const request of page.networkManager.requests.values()) {
+      if (request.documentRequest && request.frameId && request.frameId !== frame.frameId) {
+        track(request);
+      }
+    }
 
     stalledRequestSweepTimer = setInterval(() => {
       const now = Date.now();
-      for (const [id, m] of meta) {
-        if (now - m.start > 2_000) {
+      for (const [id, request] of inflight) {
+        if (now - request.timestamp > 2_000) {
           inflight.delete(id);
-          meta.delete(id);
-          logger.debug("Forcing completion of stalled iframe document", {
+          logger.debug("Forcing completion of stalled request", {
             category: "dom",
-            url: (m.url ?? "").slice(0, 120),
+            url: (request.url ?? "").slice(0, 120),
           });
         }
       }
@@ -583,12 +558,7 @@ export async function waitForDomNetworkQuiet(
     }, remainingBudget);
 
     const resolveDone = () => {
-      client.off("Network.requestWillBeSent", onRequest);
-      client.off("Network.loadingFinished", onFinish);
-      client.off("Network.loadingFailed", onFinish);
-      client.off("Network.requestServedFromCache", onCached);
-      client.off("Network.responseReceived", onDataUrl);
-      client.off("Page.frameStoppedLoading", onFrameStop);
+      stopObserving();
       if (quietTimer) clearTimeout(quietTimer);
       if (stalledRequestSweepTimer) clearInterval(stalledRequestSweepTimer);
       clearTimeout(guard);

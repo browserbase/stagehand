@@ -1,3 +1,4 @@
+import { startsWithHover } from "./hover.js";
 import type { ActionSnapshot } from "./actionPlans.js";
 import {
   headingLevel,
@@ -9,7 +10,7 @@ import type { OutlineNode } from "./tree.js";
 
 const LANDMARK = /\/(?:nav|aside|footer)(?:\[\d+\])?(?:\/|$)/u;
 const SECTION_REQUEST =
-  /^(?:click|open|press|tap)\s+(?:.+\blink\s+(?:in|under)\s+(.+?)|.+\s+(?:in|under)\s+(.+? section))[.!]?$/iu;
+  /^(?:click|open|press|tap|hover(?: over)?)\s+(?:.+\blink\s+(?:in|under)\s+(.+?)|.+\s+(?:in|under)\s+(.+? section))[.!]?$/iu;
 const TITLE_REQUEST = /^(?:click|open|press|tap|find)\b.*\btitle links?\b/iu;
 
 export type StructuralEvidence =
@@ -75,6 +76,7 @@ export function actionContext(
   if (request) {
     const section = sectionContext(snapshot, nodes, request);
     if (section) return section;
+    if (startsWithHover(instruction)) return () => undefined;
   }
 
   const unquoted = instruction.replace(/"[^"]*"|“[^”]*”/gu, "");

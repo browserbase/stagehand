@@ -2,6 +2,29 @@ import { describe, expect, it } from "vitest";
 import { buildDataView, readSlot } from "../services/decisions/dataView.js";
 
 describe("nested record scopes", () => {
+  it("keeps inline siblings under their label across whitespace", () => {
+    const { groups } = buildDataView(
+      `[1] RootWebArea
+  [2] heading: Files
+  [3] div
+    [4] StaticText: Current
+    [5] link: January
+    [6] StaticText
+    [7] link: February
+    [8] StaticText: Archived
+    [9] link: March
+    [10] StaticText
+    [11] link: April`,
+      {},
+    );
+    expect(groups.find((group) => group.role === "link")?.context).toEqual([
+      "Current",
+      "Current",
+      "Archived",
+      "Archived",
+    ]);
+  });
+
   it("keeps all list rows under the heading inside their section", () => {
     const tree = `[1] document
   [2] section
@@ -196,4 +219,40 @@ it("builds records for alternating labels and prose within one heading", () => {
     ["10", "Save"],
     ["14", "Close"],
   ]);
+});
+
+describe("scalar heading evidence", () => {
+  it("retains the full split title alongside its parts and optional permalink glyph", () => {
+    const { facts } = buildDataView(
+      `[1] heading: 2. Recovery §
+  [2] StaticText: 2.
+  [3] StaticText: Recovery
+  [4] link: §
+[5] heading: Using the CLI
+  [6] StaticText: Using
+  [7] StaticText: the
+  [8] link: CLI
+[9] heading: Appendix
+  [10] StaticText: Appendix
+[11] heading: A. Notes
+  [12] StaticText: A.
+  [13] StaticText: Notes
+  [14] link`,
+      { "4": "https://example.org/manual#recovery", "8": "https://example.org/manual#cli" },
+    );
+    expect(facts.map((fact) => fact.value)).toEqual([
+      "2. Recovery §",
+      "2. Recovery",
+      "2.",
+      "Recovery",
+      "§",
+      "Using the CLI",
+      "Using",
+      "the",
+      "CLI",
+      "Appendix",
+      "A.",
+      "Notes",
+    ]);
+  });
 });

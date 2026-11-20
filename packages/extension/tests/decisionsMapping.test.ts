@@ -36,6 +36,38 @@ describe("Decisions missing values", () => {
     expect(outcome.verdict?.problems).toEqual([]);
   });
 
+  it.each([
+    { fact: "t0", number: "none", problems: ["number-not-stated:value"] },
+    { fact: "t0", number: undefined, problems: [] },
+    { fact: "none", number: undefined, problems: [] },
+  ])("distinguishes explicit numeric abstention (fact=$fact, number=$number)", async (test) => {
+    vi.spyOn(client, "decide").mockImplementation(async (_config, _state, questions) => ({
+      model: "test",
+      answers: Object.fromEntries(
+        Object.keys(questions).flatMap((key) => {
+          const choice = key === "f_value" ? test.fact : test.number;
+          return choice
+            ? [[key, { type: "choice", choice, probabilities: { [choice]: 1 }, confidence: 1 }]]
+            : [];
+        }),
+      ),
+      usage: { inputTokens: 1, outputTokens: 1 },
+      durationMs: 1,
+    }));
+    const result = await mapCopyExtract(
+      { apiKey: "test" },
+      {
+        instruction: "Extract the first listed score.",
+        schema: { type: "object", properties: { value: { type: "number" } }, required: ["value"] },
+        tree: "[1] paragraph: The scores are 31 and 42.",
+        urlMap: {},
+        reader: async () => ({ value: 31 }),
+      },
+    );
+    expect(result.data.value).toBe(31);
+    expect(result.verdict.problems).toEqual(test.problems);
+  });
+
   it("rejects a required unresolved scalar instead of inventing an empty string", async () => {
     await expect(
       mapCopyExtract(

@@ -231,6 +231,94 @@ describe("decision observations", () => {
       actions: [{ selector: "xpath=/html/body/input[1]", method: "click" }],
     });
   });
+  it("requires one exact role and label for a named hover on a large page", async () => {
+    const snap = snapshot(650);
+    snap.formattedTree = snap.formattedTree.replaceAll("textbox: Field", "button: Field");
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const instruction = 'Hover over the button named "Field 650"';
+    expect(await selectObservation(config(), snap, instruction)).toMatchObject({
+      kind: "done",
+      actions: [{ selector: "xpath=/html/body/input[650]", method: "hover", arguments: [] }],
+    });
+    snap.formattedTree = snap.formattedTree.replace("button: Field 649", "button: %label%");
+    expect(
+      await selectObservation(config(), snap, instruction.replace("Field 650", "%label%"), {
+        label: "Field 650",
+      }),
+    ).toMatchObject({ actions: [{ selector: "xpath=/html/body/input[650]" }] });
+    for (const bad of [instruction.replace("650", "651"), instruction.replace("button", "link")])
+      expect(await selectObservation(config(), snap, bad)).toMatchObject({ kind: "fallback" });
+    snap.formattedTree = snap.formattedTree.replace("button: %label%", "button: Field 650");
+    expect(await selectObservation(config(), snap, instruction)).toMatchObject({
+      kind: "fallback",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("defers when classification drops the initial hover from a compound instruction", async () => {
+    const requests = serve("perplexity", (key) =>
+      key === "operation" ? { choice: "click", p: 0.99 } : undefined,
+    );
+    expect(
+      await selectObservation(config(), snapshot(), "Hover over Field 1 then click it"),
+    ).toEqual({
+      kind: "fallback",
+      reason: "unsupported_observation",
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("rejects a semantic hover when only the selection question accepts the target", async () => {
+    const requests = serve("perplexity", (key) => {
+      if (key === "operation") return { choice: "hover", p: 0.99 };
+      if (key === "verdict") return { choice: "unrelated", p: 0.99 };
+    });
+    expect(await selectObservation(config(), snapshot(), "Hover over the contact field")).toEqual({
+      kind: "fallback",
+      reason: "hover_target_uncertain",
+    });
+    expect(requests).toHaveLength(3);
+  });
+
+  it.each([
+    "Hover over the link to the harbor tide tables",
+    "Hover over the link that goes to /harbor-tide-tables",
+  ])("checks the selected destination against competing links for %s", async (instruction) => {
+    const requests = serve("perplexity", (key) => {
+      if (key === "operation") return { choice: "hover", p: 0.99 };
+      if (key === "verdict") return { choice: "unrelated", p: 0.99 };
+    });
+    const snap = snapshot(2);
+    snap.formattedTree =
+      "[0-1] RootWebArea: Port\n  [0-12] link: Harbor tide tables\n  [0-13] link: Radio";
+    snap.xpathMap = { "0-12": "/html/body/a[1]", "0-13": "/html/body/a[2]" };
+    snap.editableIds = [];
+    const tables = snap.facts["0-12"]!;
+    const radio = snap.facts["0-13"]!;
+    Object.assign(tables, {
+      tag: "a",
+      editable: false,
+      href: snap.url + "harbor-tide-tables",
+      text: "Harbor tide tables",
+    });
+    Object.assign(radio, { tag: "a", editable: false, href: snap.url + "radio", text: "Radio" });
+    expect(await selectObservation(config(), snap, instruction)).toMatchObject({
+      kind: "done",
+      actions: [{ method: "hover", selector: "xpath=/html/body/a[1]" }],
+    });
+    expect(requests).toHaveLength(2);
+    radio.href = tables.href;
+    expect(await selectObservation(config(), snap, instruction)).toMatchObject({
+      kind: "fallback",
+    });
+    radio.href = snap.url + "radio";
+    tables.href = "https://other.test/harbor-tide-tables";
+    expect(await selectObservation(config(), snap, instruction)).toMatchObject({
+      kind: "fallback",
+    });
+  });
+
   it("accounts for all set members across batches", async () => {
     serve("perplexity", (key) => (key === "cardinality" ? { choice: "all", p: 0.99 } : undefined));
     const result = await selectObservation(config(), snapshot(300), "Find all fields");

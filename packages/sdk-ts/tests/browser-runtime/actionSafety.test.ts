@@ -210,6 +210,42 @@ describe("action safety with real DOM and AX snapshots", () => {
     expect(await target.evaluate(() => document.body.dataset.clicked)).toBeUndefined();
   });
 
+  it("keeps an offered document usable for fallback key presses", async () => {
+    const target = await open(
+      '<script>addEventListener("keydown", event => document.body.dataset.key = event.key)</script><p>Keyboard shortcut</p>',
+    );
+    const { combinedXpathMap } = await target.captureSnapshot();
+    const id = Object.keys(combinedXpathMap).find((id) => combinedXpathMap[id] === "/")!;
+    decideAfter(async () => {}, "none_match");
+    const result = await act({
+      params: {
+        pageId: target.pageId,
+        instruction: "Press Shift",
+        options: { cache: false, timeout: 5000 },
+      },
+      page: target,
+      logger,
+      model: { source: "client" },
+      decisions: config,
+      clientLLMGenerate: async () => ({
+        role: "assistant",
+        content: { type: "text", text: "action" },
+        outputFormat: "json_schema",
+        structuredContent: {
+          action: {
+            elementId: id,
+            method: "press",
+            description: "Press Shift",
+            arguments: ["Shift"],
+          },
+          twoStep: false,
+        },
+      }),
+    });
+    expect(result.data.success).toBe(true);
+    expect(await target.evaluate(() => document.body.dataset.key)).toBe("Shift");
+  });
+
   it("rejects a fallback click intercepted by a parent", async () => {
     const target = await open(
       '<div onclick="document.body.dataset.clicked=\'wrong\'"><button style="pointer-events:none">Open</button></div>',

@@ -3,7 +3,7 @@ import type { Protocol } from "devtools-protocol";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import type { Progress } from "../../understudy/progress.js";
-import { checkTargetInPage } from "./actionTarget.js";
+import { checkResolvedTarget } from "./actionTarget.js";
 
 export async function guardActionTarget(
   page: Page,
@@ -62,17 +62,22 @@ export async function guardActionTarget(
         const verdict = response.result.value;
         if (verdict !== "ok") return typeof verdict === "string" ? verdict : "target_check_failed";
         if (["click", "doubleClick", "hover", "dragAndDrop"].includes(method)) {
-          const hit = await progress.run("checking action pointer target", () =>
-            session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-              objectId,
-              functionDeclaration: checkTargetInPage.toString(),
-              arguments: [{ value: true }],
-              awaitPromise: true,
-              returnByValue: true,
-            }),
+          const requireInView = method !== "dragAndDrop";
+          if (requireInView) {
+            await progress.run("scrolling pointer target into view", () =>
+              session.send("DOM.scrollIntoViewIfNeeded", { objectId }),
+            );
+          }
+          const { verdict: hitVerdict } = await checkResolvedTarget(
+            page,
+            locator,
+            objectId,
+            progress,
+            requireInView ? "content" : "rect",
+            requireInView,
           );
-          if (hit.exceptionDetails) return "target_check_failed";
-          const hitVerdict = hit.result.value?.verdict;
+          if (hitVerdict === "probe_failed" || hitVerdict === "no_verdict")
+            return "target_check_failed";
           if (hitVerdict !== "ok")
             return typeof hitVerdict === "string" ? `target_${hitVerdict}` : "target_check_failed";
         }

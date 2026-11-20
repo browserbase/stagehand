@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { guardActionTarget } from "../services/decisions/actionGuard.js";
-import { checkTargetInPage } from "../services/decisions/actionTarget.js";
+import { checkTargetInPage, hitTargetInPage } from "../services/decisions/actionTarget.js";
 import { resolveLocatorWithHops } from "../understudy/deepLocator.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
@@ -11,19 +11,26 @@ afterEach(() => vi.restoreAllMocks());
 function setup(verdict = "ok", nodeId = 12) {
   const send = vi.fn(async (method: string, params?: Record<string, unknown>) => {
     if (method === "DOM.describeNode") return { node: { backendNodeId: nodeId } };
-    if (params?.functionDeclaration === checkTargetInPage.toString())
+    if (params?.functionDeclaration === hitTargetInPage.toString())
       return { result: { value: { verdict: "ok" } } };
+    if (params?.functionDeclaration === checkTargetInPage.toString())
+      return { result: { value: { verdict: "ok", position: "10,10,30,30" } } };
     return method === "Runtime.callFunctionOn" ? { result: { value: verdict } } : {};
   });
   const locator = {
     backendNodeId: vi.fn(async () => nodeId),
+    contentPoint: vi.fn(async () => ({ cx: 15.5, cy: 17.5 })),
     getFrame: () => ({ frameId: "main", session: { send } }),
     resolveNode: vi.fn(async () => ({ objectId: "input" })),
   };
   vi.mocked(resolveLocatorWithHops)
     .mockReset()
     .mockResolvedValue(locator as never);
-  const page = { mainFrame: () => ({}), getOrdinal: () => 0 } as unknown as Page;
+  const page = {
+    registry: { getParent: () => null },
+    mainFrame: () => ({}),
+    getOrdinal: () => 0,
+  } as unknown as Page;
   const progress = new Progress("guard-test", 0);
   return { page, progress, send, locator };
 }
@@ -60,6 +67,25 @@ describe("action execution eligibility", () => {
       expect(send).toHaveBeenLastCalledWith("Runtime.releaseObject", { objectId: "input" });
     },
   );
+  it.each(["click", "doubleClick", "hover"])("scrolls before the %s hit test", async (method) => {
+    const { page, progress, send } = setup();
+    expect(
+      await guardActionTarget(page, { selector: "a", method, description: "Chart" }, progress),
+    ).toBeUndefined();
+    const methods = send.mock.calls.map(([method]) => method);
+    expect(methods.indexOf("DOM.scrollIntoViewIfNeeded")).toBeGreaterThan(-1);
+    expect(methods.indexOf("DOM.scrollIntoViewIfNeeded")).toBeLessThan(
+      methods.lastIndexOf("Runtime.callFunctionOn"),
+    );
+    expect(send).toHaveBeenCalledWith(
+      "Runtime.callFunctionOn",
+      expect.objectContaining({
+        functionDeclaration: hitTargetInPage.toString(),
+        arguments: [{ value: true }, { value: "10,10,30,30" }, { value: { x: 15.5, y: 17.5 } }],
+      }),
+    );
+  });
+
   it("fails closed when the eligibility probe has no result", async () => {
     const { page, progress, send } = setup();
     send.mockResolvedValueOnce({} as never);

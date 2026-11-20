@@ -4,6 +4,8 @@ import type { Locator } from "@browserbasehq/stagehand-protocol/types";
  * Options that control how hybrid snapshots and targeted scopes are captured.
  */
 export type SnapshotOptions = {
+  /** Keep page-authored names from creating extra target lines in Act fallback. */
+  singleLineNames?: boolean;
   /**
    * Filter the snapshot to a specific element/subtree using a locator that can cross iframes.
    * Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
@@ -117,6 +119,8 @@ export type A11yNode = {
 };
 
 export type A11yOptions = {
+  /** Keep page-authored names from creating extra target lines in Act fallback. */
+  singleLineNames?: boolean;
   focusLocator?: Locator;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;

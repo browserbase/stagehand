@@ -1,4 +1,5 @@
 import type { Action, Variables } from "@browserbasehq/stagehand-protocol/types";
+import { namedHoverTarget, startsWithHover, verifyHover } from "./hover.js";
 import { settleAll } from "./concurrency.js";
 import {
   choiceAnswer,
@@ -110,6 +111,47 @@ export async function classifyObservation(
   };
 }
 
+// A site-relative path can be checked exactly. For a named destination, also
+// require the URL's final segment to corroborate the visible link name.
+function verifyLinkDestination(
+  instruction: string,
+  pageUrl: string,
+  candidates: ObservationCandidate[],
+  selected: ObservationCandidate,
+): boolean | undefined {
+  const path =
+    /^hover over the link (?:that goes to|with destination|to) (\/[A-Za-z0-9_./-]*)$/i.exec(
+      instruction.trim(),
+    )?.[1];
+  const name = /^hover over the link to (?:the )?([\p{L}\p{N}]+(?: [\p{L}\p{N}]+)*)$/iu
+    .exec(instruction.trim())?.[1]
+    ?.toLowerCase();
+  if ((!name && !path) || !/^https?:\/\//i.test(pageUrl)) return;
+  if (selected.node.role !== "link" || selected.fact.tag !== "a") return false;
+  if (path?.startsWith("//")) return;
+  const links = candidates.filter((c) => c.node.role === "link" || c.fact.tag === "a");
+  if (path) {
+    const href = new URL(pageUrl).origin + path;
+    const matches = links.filter((c) => c.fact.href === href);
+    return matches.length === 1 && matches[0] === selected && selected.fact.enabled;
+  }
+  if (!name || selected.node.name.toLowerCase() !== name) return;
+  const href = selected.fact.href;
+  if (!href || !/^https?:\/\//i.test(href)) return;
+  const destination = new URL(href);
+  if (destination.origin !== new URL(pageUrl).origin || destination.search || destination.hash)
+    return;
+  const slug = destination.pathname.split("/").filter(Boolean).at(-1);
+  if (slug?.toLowerCase() !== name.replaceAll(" ", "-")) return;
+  return (
+    selected.fact.enabled &&
+    selected.fact.text.toLowerCase() === name &&
+    !links.some(
+      (c) => c !== selected && (c.node.name.toLowerCase().includes(name) || c.fact.href === href),
+    )
+  );
+}
+
 export async function selectObservation(
   config: DecisionModelConfig,
   snapshot: ObservationSnapshot,
@@ -149,6 +191,14 @@ export async function selectObservation(
       actions: candidates.filter(isInteractive).map((c) => toAction(c, "default")),
     };
   }
+  const literal = namedHoverTarget(instruction, variables);
+  if (literal) {
+    const matches = candidates.filter((c) => literal(c.node));
+    const target = matches[0];
+    if (matches.length !== 1 || !target) return fallback("named_target_not_unique");
+    if (!target.fact.enabled) return fallback("hover_target_disabled");
+    return { kind: "done", actions: [toAction(target, "hover")] };
+  }
   const section = parseObservationSection(instruction);
   if (section) {
     const links = resolveObservationSection(snapshot, section, view);
@@ -160,6 +210,8 @@ export async function selectObservation(
   if (!candidates.length) return fallback("candidate_budget:0");
   const intent = classified ?? (await classifyObservation(config, instruction, variables));
   if (intent.kind === "fallback") return intent;
+  if (startsWithHover(instruction) && intent.operation !== "hover")
+    return fallback("unsupported_observation");
   const narrowed = candidates.filter((candidate) =>
     matchesObservationType(candidate, intent.targetType),
   );
@@ -241,7 +293,7 @@ export async function selectObservation(
     }),
   );
   if (results.some((response) => !response)) return fallback("provider_context_budget");
-  const selected: ObservationCandidate[] = [];
+  let selected: ObservationCandidate[] = [];
   for (const [index, batch] of batches.entries()) {
     const response = results[index]!;
     const exists = noulAnswer(response, "exists").noul;
@@ -302,7 +354,16 @@ export async function selectObservation(
       return fallback("target_uncertain");
     const winner = selected.find((c) => c.node.id === answer.choice);
     if (!winner) return fallback("unknown_target");
-    return { kind: "done", actions: [toAction(winner, intent.operation)] };
+    selected = [winner];
+  }
+  const target = selected[0];
+  if (target && intent.operation === "hover" && intent.cardinality === "one") {
+    const local = variables
+      ? undefined
+      : verifyLinkDestination(instruction, snapshot.url, candidates, target);
+    const accepted =
+      local ?? (await verifyHover(config, instruction, target.evidence, variables)).accepted;
+    if (!accepted) return fallback("hover_target_uncertain");
   }
   if (exact.length && !selected.length) return fallback("quoted_target_uncertain");
   // A role-specific view can find a target, but absence must also check the broader view.

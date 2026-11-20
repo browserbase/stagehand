@@ -13,20 +13,46 @@ export type ElementFacts = {
   checked?: boolean;
   context: string;
   editableRoot?: boolean;
+  transparentText?: boolean;
 };
 
 // Serialized into the page. Keep all DOM reads inside this function.
-export function readFacts(paths: Record<string, string>): Record<string, ElementFacts> {
+export function readFacts(
+  paths: Record<string, string>,
+  resolvePath?: (path: string) => Element | null,
+): Record<string, ElementFacts> {
   const result: Record<string, ElementFacts> = {};
+  // DOM maps visit parents before children. An indexed child of a unique parent
+  // is also unique, so its descendants can start their XPath lookups there.
+  const parents = new Map<string, Node>([["", document]]);
+  const childStep = /^(?:[a-z][a-z0-9-]*|text\(\)|comment\(\))\[[1-9]\d*\]$/u;
+  let validity: XPathResult | undefined;
   for (const [id, path] of Object.entries(paths)) {
     try {
-      const found = document.evaluate(
-        path,
-        document,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null,
-      ).singleNodeValue;
+      const slash = path.lastIndexOf("/");
+      const step = path.slice(slash + 1);
+      const parent = parents.get(path.slice(0, slash));
+      const relative =
+        parent && slash >= 0 && childStep.test(step) && !validity?.invalidIteratorState;
+      const found = resolvePath
+        ? resolvePath(path)
+        : document.evaluate(
+            relative ? step : path,
+            relative ? parent : document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null,
+          ).singleNodeValue;
+      if (relative && found instanceof Element) {
+        // A page-defined property getter can mutate the DOM during this loop.
+        validity ??= document.evaluate(
+          ".",
+          document,
+          null,
+          XPathResult.UNORDERED_NODE_ITERATOR_TYPE,
+        );
+        parents.set(path, found);
+      }
       const element = found instanceof Element ? found : found?.parentElement;
       if (!element) continue;
       const style = getComputedStyle(element);
@@ -45,6 +71,9 @@ export function readFacts(paths: Record<string, string>): Record<string, Element
           style.display !== "none" &&
           !element.closest('[hidden],[aria-hidden="true"]'),
         enabled: !disabled,
+        ...(found instanceof Text && style.pointerEvents === "none"
+          ? { transparentText: true }
+          : {}),
         editable:
           Boolean((element as HTMLElement).isContentEditable) ||
           element.matches(

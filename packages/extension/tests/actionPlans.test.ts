@@ -8,6 +8,7 @@ import {
   type ActionSnapshot,
 } from "../services/decisions/actionPlans.js";
 import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/act.js";
+import { fakeDecisionProvider } from "./decisionsTestUtils.js";
 import { StagehandLogger } from "../logger.js";
 import { resolveLocatorWithHops } from "../understudy/deepLocator.js";
 import type { ElementFacts } from "../services/decisions/actionFacts.js";
@@ -145,6 +146,52 @@ describe("complete action choices", () => {
     ).toBe(false);
   });
 
+  it("excludes footer links outside a requested hover section", () => {
+    const page = snapshot();
+    page.formattedTree =
+      "[0-1] RootWebArea\n  [0-4] section\n    [0-5] heading: Payroll\n    [0-2] link: Open\n  [0-6] contentinfo\n    [0-7] link: Open";
+    page.xpathMap = {
+      "0-5": "/html/body/section/h2",
+      "0-2": "/html/body/section/a",
+      "0-7": "/html/body/footer/a",
+    };
+    page.facts["0-5"] = facts({ tag: "h2", text: "Payroll" });
+    page.facts["0-7"] = facts();
+    const ids = buildPlans(page, "Hover over the Open link under Payroll").map(
+      (plan) => plan.nodeId,
+    );
+    expect(ids).toEqual(["0-2"]);
+  });
+
+  it("offers only the exact address and uniquely named field", () => {
+    const page = snapshot();
+    page.facts["0-3"]!.type = "text";
+    const value = "Zoe\u0308+Été@Example.test";
+    for (const instruction of [
+      `Type ${value} into the Search field.`,
+      `Fill the Search field with ${value}`,
+    ]) {
+      expect(buildPlans(page, instruction)).toEqual([
+        expect.objectContaining({ method: "fill", nodeId: "0-3", arguments: [value] }),
+      ]);
+    }
+    for (const instruction of [
+      `Search for ${value} and submit`,
+      `Type ${value} into the Search field and press "Enter"`,
+      `Fill the Search field with ${value}.`,
+      `Type ${value} into the absent field`,
+    ])
+      expect(buildPlans(page, instruction)).toEqual([]);
+  });
+
+  it.each(["@handle", "sales@example.test"])("keeps quoted fill values for field %s", (label) => {
+    expect(
+      buildPlans(snapshot(), `Fill the ${label} field with "demo"`).filter(
+        (p) => p.method === "fill",
+      ),
+    ).toEqual([expect.objectContaining({ arguments: ["demo"] })]);
+  });
+
   it("offers an editor's root rather than its editable paragraphs", () => {
     const page = editorSnapshot();
     page.formattedTree = page.formattedTree.replace("StaticText: old text", "paragraph");
@@ -251,8 +298,8 @@ function dependencies(page = snapshot()) {
   const locator = {
     backendNodeId,
     getFrame: () => ({ session }),
+    contentPoint: async () => ({ cx: 16, cy: 20 }),
     resolveNode: async () => ({ objectId: "target" }),
-    inputValue: async () => "hello",
   };
   vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator as never);
   const deps = {
@@ -266,6 +313,7 @@ function dependencies(page = snapshot()) {
       evaluate,
       mainFrame: () => ({}),
       getOrdinal: () => 0,
+      registry: { getParent: () => null },
       url: () => page.url,
     },
     instruction: "Open details",
@@ -283,6 +331,27 @@ function dependencies(page = snapshot()) {
 }
 
 describe("action execution guards", () => {
+  it.each(["option", "li"])("checks the DOM tag of a chosen listbox option (%s)", async (tag) => {
+    const page = snapshot();
+    page.formattedTree = "[0-1] listbox: Colors\n  [0-2] option: Blue";
+    page.xpathMap = { "0-2": tag === "option" ? "/html/body/select/option" : "/html/body/ul/li" };
+    page.facts = { "0-2": facts({ tag, text: "Blue" }) };
+    provider("action_0");
+    const { deps, takeAction } = dependencies(page);
+    deps.instruction = "Choose Blue";
+    const result = await runDecisionsAct(config, deps);
+    if (tag === "option") {
+      expect(result).toEqual({ kind: "fallback", reason: "action_plan_native_option" });
+      expect(takeAction).not.toHaveBeenCalled();
+    } else {
+      expect(result.kind).toBe("done");
+      expect(takeAction).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ method: "click" }),
+        "0-2",
+      );
+    }
+  });
+
   it("executes a recovered editor using the DOM element's backend identity", async () => {
     provider("action_0");
     const { deps, locator, takeAction } = dependencies(editorSnapshot());
@@ -346,6 +415,124 @@ describe("action execution guards", () => {
     },
   );
 
+  it("defers when a second field acquires the requested name before dispatch", async () => {
+    provider("action_0");
+    const page = snapshot();
+    page.facts["0-3"]!.type = "text";
+    const { deps, locator, takeAction } = dependencies(page);
+    locator.backendNodeId.mockResolvedValue(3);
+    deps.instruction = "Enter Sample@example.test into the Search field";
+    const original = await deps.page.captureSnapshot({}, deps.progress);
+    deps.page.captureSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce({
+        ...original,
+        combinedTree: original.combinedTree + "\n  [0-55] textbox: Search",
+      });
+    expect(await runDecisionsAct(config, deps)).toMatchObject({
+      kind: "fallback",
+      reason: "action_plan_evidence_changed",
+    });
+    expect(takeAction).not.toHaveBeenCalled();
+  });
+
+  it("dispatches a unique literal hover with no click or model call", async () => {
+    const fetch = provider("none_match");
+    const { deps, takeAction } = dependencies();
+    deps.instruction = 'Hover over the link labeled "Open"';
+    expect(await runDecisionsAct(config, deps)).toMatchObject({ kind: "done" });
+    expect(takeAction).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "hover", arguments: [], selector: "xpath=/html/body/a" }),
+      "0-2",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a duplicate literal target introduced before dispatch", async () => {
+    const { deps, takeAction } = dependencies();
+    deps.instruction = 'Hover over the link labeled "Open"';
+    const original = await deps.page.captureSnapshot({}, deps.progress);
+    deps.page.captureSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce({
+        ...original,
+        combinedTree: original.combinedTree + "\n  [0-55] link: OPEN",
+      });
+    expect(await runDecisionsAct(config, deps)).toMatchObject({ kind: "fallback" });
+    expect(takeAction).not.toHaveBeenCalled();
+  });
+
+  it("rechecks pointer evidence when unrelated accessible text changes", async () => {
+    fakeDecisionProvider(
+      "typesafe",
+      (key) => ({ choice: key === "action" ? "action_0" : "exact", p: 0.99 }),
+      (mock) => vi.stubGlobal("fetch", vi.fn(mock)),
+    );
+    const { deps, evaluate, takeAction } = dependencies();
+    deps.instruction = "Hover over the link to the details page";
+    const original = await deps.page.captureSnapshot({}, deps.progress);
+    deps.page.captureSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce({
+        ...original,
+        combinedTree: original.combinedTree + "\n  [0-77] status: Updated",
+      });
+    expect(await runDecisionsAct(config, deps)).toMatchObject({ kind: "done" });
+    expect(takeAction).toHaveBeenCalledOnce();
+    expect(evaluate.mock.calls.at(-1)?.[1]).toEqual({ "0-2": "/html/body/a" });
+  });
+
+  it("abstains if another semantic hover candidate acquires the requested destination", async () => {
+    fakeDecisionProvider(
+      "typesafe",
+      (key) => ({ choice: key === "action" ? "action_0" : "exact", p: 0.99 }),
+      (mock) => vi.stubGlobal("fetch", vi.fn(mock)),
+    );
+    const page = snapshot();
+    page.formattedTree = page.formattedTree.replace("textbox: Search", "link: More");
+    page.facts["0-3"] = facts({ href: "https://example.org/other" });
+    const { deps, evaluate, takeAction } = dependencies(page);
+    deps.instruction = "Hover over the link to the details page";
+    evaluate
+      .mockResolvedValueOnce(page.facts)
+      .mockResolvedValueOnce({ "0-2": page.facts["0-2"] })
+      .mockResolvedValueOnce({
+        ...page.facts,
+        "0-3": facts({ href: "https://example.org/details" }),
+      });
+    expect(await runDecisionsAct(config, deps)).toMatchObject({
+      kind: "fallback",
+      reason: "action_plan_evidence_changed",
+    });
+    expect(takeAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["exact", 0.96, true],
+    ["exact", 0.94, false],
+    ["unrelated", 0.98, false],
+  ] as const)("checks a semantic hover verdict %s at %d", async (choice, p, accepted) => {
+    const requests = fakeDecisionProvider(
+      "typesafe",
+      (key) => (key === "action" ? { choice: "action_0", p: 0.99 } : { choice, p }),
+      (mock) => vi.stubGlobal("fetch", vi.fn(mock)),
+    );
+    const result = await choosePlan(config, snapshot(), "Hover over the link to open details");
+    expect(requests).toHaveLength(2);
+    expect(result.plan).toEqual(
+      accepted
+        ? expect.objectContaining({
+            method: "hover",
+            nodeId: "0-2",
+            arguments: [],
+          })
+        : undefined,
+    );
+  });
+
   it("executes a checked complete action exactly once", async () => {
     provider("action_0");
     const { deps, takeAction } = dependencies();
@@ -361,14 +548,19 @@ describe("action execution guards", () => {
     const { deps, takeAction, locator } = dependencies();
     deps.instruction = 'Fill Search with "hello"';
     locator.backendNodeId.mockResolvedValue(3);
-    locator.inputValue = async () => "wrong value";
+    takeAction.mockImplementation(async (action) => ({
+      success: false,
+      message: "fill_input_unverified",
+      actionDescription: action.description,
+      actions: [action],
+    }));
     const outcome = await runDecisionsAct(config, deps);
     expect(outcome).toMatchObject({
       kind: "done",
       noCache: true,
       result: {
         success: false,
-        message: "fill_readback_mismatch",
+        message: "fill_input_unverified",
         actions: [expect.objectContaining({ method: "fill", arguments: ["hello"] })],
       },
     });

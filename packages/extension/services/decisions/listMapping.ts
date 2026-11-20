@@ -14,6 +14,7 @@ import {
   problem,
   numberCandidates,
   convert,
+  readFieldSlot,
 } from "./extractionShared.js";
 import { type DecisionQuestion, type DecisionModelConfig } from "./client.js";
 import { type OutlineNode } from "./outline.js";
@@ -397,7 +398,7 @@ export async function readList(
       if (!slot || (field.type !== "number" && field.type !== "integer")) continue;
       const texts = records
         .slice(0, 5)
-        .map(({ record }) => readSlot(view, record, slot.key)?.name ?? "");
+        .map(({ record }) => readFieldSlot(view, record, slot.key, field)?.name ?? "");
       const sample = texts.map(numberCandidates).find((candidates) => candidates.length >= 2);
       if (!sample || sample.length > 12) continue;
       samples.set(field.name, sample);
@@ -449,9 +450,10 @@ export async function readList(
           )
         : [];
       const readText = textReaders.get(field.name);
+      const source = slot ? readFieldSlot(view, record, slot.key, field) : undefined;
       let value =
         slot && readText
-          ? readText(readSlot(view, record, slot.key)?.name ?? "")
+          ? readText(source?.name ?? "")
           : slot && inner.length && field.type === "string"
             ? residual(
                 view,
@@ -461,12 +463,10 @@ export async function readList(
               )
             : slot
               ? position.has(field.name)
-                ? numberCandidates(readSlot(view, record, slot.key)?.name ?? "")[
-                    position.get(field.name)!
-                  ]?.value
-                : convert(view, readSlot(view, record, slot.key), field, true)
+                ? numberCandidates(source?.name ?? "")[position.get(field.name)!]?.value
+                : convert(view, source, field, true)
               : undefined;
-      let sourceId = slot ? readSlot(view, record, slot.key)?.id : undefined;
+      let sourceId = source?.id;
       if (
         slot &&
         slot.coverage < 0.5 &&

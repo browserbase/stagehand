@@ -1,3 +1,5 @@
+import { prepareDocumentExtraction } from "./decisions/documentExtraction.js";
+import { readTableRules } from "./decisions/tableReader.js";
 import { runDecisionsExtract } from "./decisions/extract.js";
 import type { DecisionsConfig } from "./decisions/config.js";
 import { withDecisionUsage } from "./decisions/usage.js";
@@ -32,7 +34,9 @@ export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
 
 type ExtractServiceOptions = {
   params: StagehandExtractParams;
-  page: Pick<Page, "captureSnapshot" | "screenshot">;
+  page: Pick<Page, "captureSnapshot" | "screenshot"> & {
+    evaluate?(expression: string): Promise<unknown>;
+  };
   model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
@@ -67,6 +71,17 @@ async function extractWithProgress(
   const { instruction, options } = params;
   decisions = withDecisionUsage(decisions, progress.signal, logger);
 
+  const document =
+    decisions && !systemPrompt
+      ? prepareDocumentExtraction(
+          params,
+          page.evaluate?.bind(page),
+          progress,
+          Boolean(model || gateway),
+        )
+      : undefined;
+  const destination = document?.destination;
+
   // Cache keys contain DOM state, not screenshot pixels. Do not serve a
   // visual extraction from a cache entry that cannot represent its image.
   if (options?.screenshot) {
@@ -78,7 +93,10 @@ async function extractWithProgress(
     page,
     data: cacheService.buildExtractCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    // The accessibility cache key omits link attributes, rendered text and visual row order.
+    bypass:
+      Boolean(destination || document?.table) ||
+      cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
     progress,
@@ -101,6 +119,8 @@ async function extractWithProgress(
     progress.throwIfStopped();
 
     const { combinedTree, combinedUrlMap } = snapshot;
+    const readerUsage = zeroStagehandResultUsage();
+    let linkEvidence: string | undefined;
     let decisionUsage = zeroStagehandResultUsage();
     const screenshot = options?.screenshot
       ? await page.screenshot({ fullPage: false, type: "png" }, progress)
@@ -119,10 +139,25 @@ async function extractWithProgress(
         instruction,
         schema: params.schema,
         snapshot,
+        document,
+        tableReader: document?.table
+          ? (evidence) =>
+              readTableRules(evidence, {
+                model,
+                clientLLMGenerate,
+                gateway,
+                progress,
+                usage: readerUsage,
+              })
+          : undefined,
         progress,
         logger,
       });
       decisionUsage = outcome.usage;
+      decisionUsage.inputTokens += readerUsage.inputTokens;
+      decisionUsage.outputTokens += readerUsage.outputTokens;
+      decisionUsage.reasoningTokens += readerUsage.reasoningTokens;
+      decisionUsage.cachedInputTokens += readerUsage.cachedInputTokens;
       if (outcome.kind === "done")
         return {
           result: {
@@ -130,8 +165,13 @@ async function extractWithProgress(
             metadata: { usage: decisionUsage, cache: disabledCacheMetadata() },
           },
           cacheValue: outcome.data,
-          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+          llmUsage: {
+            inputTokens: readerUsage.inputTokens,
+            outputTokens: readerUsage.outputTokens,
+            llmDurationMs: readerUsage.inferenceTimeMs,
+          },
         };
+      linkEvidence = outcome.linkEvidence;
     }
     if (decisions && !model && !gateway)
       throw new Error(
@@ -157,6 +197,7 @@ async function extractWithProgress(
     const { data, usage, durationMs } = await inference.extract({
       instruction,
       domElements: combinedTree,
+      linkEvidence: urlFieldPaths.length ? undefined : linkEvidence,
       schema: transformedSchema as z.ZodObject,
       generate: (input) =>
         progress.run("waiting for extract inference", () =>
@@ -191,6 +232,23 @@ async function extractWithProgress(
         idToUrl as unknown as Record<string, string>,
       );
     }
+    // The ordinary link prompt can return an AX ID even for a plain string field.
+    // Only a resolved destination can be reconstructed from the snapshot URL map.
+    if (
+      destination?.representation === "absolute" &&
+      !destination.conditional &&
+      !urlFieldPaths.length
+    ) {
+      const value = (data as Record<string, unknown>)[destination.field];
+      if (typeof value === "string" && Object.hasOwn(idToUrl, value)) {
+        injectUrls(output, [destination.field], idToUrl);
+      }
+    }
+    if (destination?.optional && !destination.conditional) {
+      // The ordinary extractor may encode missing information as an empty string.
+      const record = output as Record<string, unknown>;
+      if (record[destination.field] === "") delete record[destination.field];
+    }
     if (!isObjectSchema && output && typeof output === "object") {
       output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
     }
@@ -209,8 +267,8 @@ async function extractWithProgress(
           usage: {
             inputTokens: inputTokens + decisionUsage.inputTokens,
             outputTokens: outputTokens + decisionUsage.outputTokens,
-            reasoningTokens,
-            cachedInputTokens,
+            reasoningTokens: reasoningTokens + decisionUsage.reasoningTokens,
+            cachedInputTokens: cachedInputTokens + decisionUsage.cachedInputTokens,
             inferenceTimeMs: durationMs + decisionUsage.inferenceTimeMs,
           },
           cache: disabledCacheMetadata(),
@@ -218,9 +276,9 @@ async function extractWithProgress(
       },
       cacheValue: output,
       llmUsage: {
-        inputTokens,
-        outputTokens,
-        llmDurationMs: durationMs,
+        inputTokens: inputTokens + readerUsage.inputTokens,
+        outputTokens: outputTokens + readerUsage.outputTokens,
+        llmDurationMs: durationMs + readerUsage.inferenceTimeMs,
       },
     };
   }

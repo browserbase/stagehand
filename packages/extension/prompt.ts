@@ -49,6 +49,7 @@ export function buildExtractSystemPrompt(
   userProvidedInstructions?: string,
   includeScreenshot: boolean = false,
   preferPreciseNumbers: boolean = false,
+  hasLinkEvidence: boolean = false,
 ): TextPrompt {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -78,9 +79,10 @@ ONLY print the content using the print_extracted_data tool provided.
   `.trim()
     : "";
 
-  const additionalInstructions =
-    "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
-    "Do not attempt to extract links directly from the text unless absolutely necessary. ";
+  const additionalInstructions = hasLinkEvidence
+    ? "Use the supplied anchor attributes for a requested destination. Copy resolvedUrl for an absolute URL, or href for the authored attribute. Follow the user's conditions. Omit an optional field if no anchor supplies the requested value."
+    : "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
+      "Do not attempt to extract links directly from the text unless absolutely necessary. ";
 
   const userInstructions = buildUserInstructionsString(userProvidedInstructions);
 
@@ -251,13 +253,22 @@ export function buildStepTwoPrompt(
   previousAction: string,
   supportedActions: string[],
   variables?: Variables,
+  checkPreviousAction = false,
 ): string {
   // Base instruction
   let instruction = `
   The original user action was: ${originalUserAction}.
-  You have just taken the following action which completed step 1 of 2: ${previousAction}.
+  ${
+    checkPreviousAction
+      ? `The SDK executed this interaction: ${previousAction}.
+  Match the method and target of that executed interaction to the original instruction using the page evidence. A request for the interaction itself is complete once that interaction was delivered to the requested target, even if the page looks unchanged. A request for a particular result still needs that result.
+  If it fulfilled the entire instruction, return null and set previousActionCompletedRequest to true.
+  Otherwise set previousActionCompletedRequest to false and identify the remaining action, or return null if it is unavailable.
+  Never repeat an interaction the user requested only once.`
+      : `You have just taken the following action which completed step 1 of 2: ${previousAction}.
   
-  Now, you must find the most relevant element to perform an action on in order to complete step 2 of 2. 
+  Now, you must find the most relevant element to perform an action on in order to complete step 2 of 2. `
+  }
   
   General Instructions: 
   Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.

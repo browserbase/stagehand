@@ -1,5 +1,5 @@
 import { type DecisionModelConfig, decide, type DecisionQuestion } from "./client.js";
-import { type DataView, type Slot, clip, type Fact } from "./dataView.js";
+import { type DataView, type Slot, clip, readSlot, type Fact } from "./dataView.js";
 import { type OutlineNode } from "./outline.js";
 import { type Field, fieldText } from "./extractionSchema.js";
 
@@ -171,6 +171,13 @@ function urlFor(view: DataView, node: OutlineNode): string | undefined {
     current = current.parent === undefined ? undefined : view.nodes[current.parent];
   }
   return undefined;
+}
+
+export function readFieldSlot(view: DataView, record: OutlineNode, key: string, field: Field) {
+  const node = readSlot(view, record, key);
+  if (node && (field.type === "number" || field.type === "integer"))
+    return view.numericNodes.get(node.index) ?? node;
+  return node;
 }
 
 export function convert(

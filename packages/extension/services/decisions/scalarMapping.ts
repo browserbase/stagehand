@@ -5,7 +5,6 @@ import {
   buildDataView,
   type Group,
   recordText,
-  readSlot,
 } from "./dataView.js";
 import { type Field, fieldText, type ListPlan, type JsonSchema, plan } from "./extractionSchema.js";
 import {
@@ -24,6 +23,7 @@ import {
   rankSlots,
   describeSlot,
   convert,
+  readFieldSlot,
 } from "./extractionShared.js";
 import { settleAll } from "./concurrency.js";
 import { type DecisionModelConfig, type DecisionQuestion } from "./client.js";
@@ -32,12 +32,21 @@ import { rankGroups, describeGroup } from "./listMapping.js";
 // Keep the mapper and the independent reader on the same bounded evidence.
 // Short prefix previews can hide the requested fact later in a paragraph.
 const SCALAR_EVIDENCE_LIMIT = 1500;
+const VERIFICATION_EVIDENCE_LIMIT = 8000;
+const VERIFICATION_CONFIDENCE = 0.9;
 
 function rankFacts(view: DataView, field: Field, instruction: string): Fact[] {
   const own = tokens(fieldText(field));
   const task = tokens(instruction);
   const numeric = field.type === "number" || field.type === "integer";
-  const all = view.facts.filter((fact) =>
+  const facts =
+    numeric && view.numericNodes.size
+      ? view.facts.map((fact) => {
+          const node = view.numericNodes.get(fact.node.index);
+          return node ? { ...fact, node, id: node.id, value: node.name } : fact;
+        })
+      : view.facts;
+  const all = facts.filter((fact) =>
     field.type === "url" ? fact.url : numeric ? /\d/.test(fact.value) : true,
   );
   const main = all.filter((fact) => !fact.chrome);
@@ -85,7 +94,8 @@ export async function readScalars(
   fields: Field[],
   instruction: string,
   trace: TraceEntry[],
-  reader?: ScalarReader,
+  reader: ScalarReader | undefined,
+  scalarOnly: boolean,
 ): Promise<Record<string, unknown>> {
   const options = new Map(fields.map((field) => [field.name, rankFacts(view, field, instruction)]));
   const questions: Record<string, DecisionQuestion> = {};
@@ -145,7 +155,9 @@ export async function readScalars(
     Object.keys(questions).length
       ? ask(config, { task: instruction }, questions).then((result) => result.answers)
       : {},
-    reader ? readFromSheet(reader, fields, instruction, options, readerTrace) : {},
+    reader
+      ? readFromSheet(reader, fields, instruction, options, readerTrace, view.numericNodes.size > 0)
+      : {},
   ] as const);
 
   const data: Record<string, unknown> = {};
@@ -162,8 +174,11 @@ export async function readScalars(
       candidatesFor.set(field.name, candidates);
       ambiguous[`n_${field.name}`] = {
         type: "choice",
-        instructions: `Task: ${instruction}\nWhich bracketed number is "${fieldText(field)}"?`,
-        criteria: Object.fromEntries(candidates.map((candidate, i) => [`p${i}`, candidate.shown])),
+        instructions: `Task: ${instruction}\nWhich bracketed number directly states "${fieldText(field)}" in the requested units? Choose none if no candidate states that value.`,
+        criteria: {
+          ...Object.fromEntries(candidates.map((candidate, i) => [`p${i}`, candidate.shown])),
+          [NONE]: "No bracketed number directly states the requested value",
+        },
       };
     }
     const value = valueFromFact(fact, field);
@@ -181,13 +196,18 @@ export async function readScalars(
   if (Object.keys(ambiguous).length) {
     const resolved = (await ask(config, { task: instruction }, ambiguous)).answers;
     for (const [name, candidates] of candidatesFor) {
+      const answer = resolved[`n_${name}`];
       const { choice } = choiceOf(
         resolved,
         `n_${name}`,
         trace,
         `${name}:number`,
-        candidates.length,
+        candidates.length + 1,
       );
+      if (answer?.type === "choice" && answer.choice === NONE) {
+        delete data[name];
+        problem(trace, `number-not-stated:${name}`);
+      }
       if (choice.startsWith("p")) data[name] = candidates[Number(choice.slice(1))]!.value;
     }
   }
@@ -201,13 +221,30 @@ export async function readScalars(
     }
   }
 
+  const needsVerification = new Map<Field, string | undefined>();
   if (reader) {
     trace.push(...readerTrace);
-    // A second reading fills gaps and flags disagreements.
-    for (const [name, value] of Object.entries(read)) {
-      const mine = data[name];
-      if (mine === undefined || mine === "") data[name] = value;
-      else if (!sameValue(mine, value)) problem(trace, `scalar-disagree:${name}`);
+    for (const field of fields) {
+      const name = field.name;
+      if (field.type === "url") continue;
+      const mapped = data[name];
+      const located = Object.hasOwn(read, name) ? read[name] : undefined;
+      if (located === undefined || mapped === undefined || mapped === "") {
+        if (located !== undefined) data[name] = located;
+        if (scalarOnly && data[name] !== undefined) needsVerification.set(field, undefined);
+      } else if (!sameValue(mapped, located)) {
+        // The mapper returns a whole fact. The span reader can isolate a requested
+        // substring within it, but substring containment alone does not prove scope.
+        if (
+          scalarOnly &&
+          typeof mapped === "string" &&
+          typeof located === "string" &&
+          mapped.includes(located)
+        ) {
+          data[name] = located;
+          needsVerification.set(field, mapped);
+        } else problem(trace, `scalar-disagree:${name}`);
+      }
     }
   }
 
@@ -228,7 +265,112 @@ export async function readScalars(
     if (field.nullable) data[field.name] = null;
     else throw new Error(`unresolved:${field.name}`);
   }
+  const disputed = [...needsVerification].filter(([field]) => data[field.name] !== undefined);
+  if (disputed.length && !trace.some((entry) => entry.step === "problem")) {
+    await verifyScalarReadings(config, view, instruction, options, data, disputed, trace);
+  }
   return data;
+}
+
+async function verifyScalarReadings(
+  config: DecisionModelConfig,
+  view: DataView,
+  instruction: string,
+  options: Map<string, Fact[]>,
+  data: Record<string, unknown>,
+  disputed: [Field, string | undefined][],
+  trace: TraceEntry[],
+): Promise<void> {
+  const page = view.nodes
+    .filter((node) => node.name)
+    .map((node) => node.name)
+    .join("\n");
+  const evidence =
+    page.length <= VERIFICATION_EVIDENCE_LIMIT
+      ? page
+      : scalarReaderEvidence(
+          disputed.map(([field]) => field),
+          instruction,
+          options,
+        ).input.sheet.slice(0, VERIFICATION_EVIDENCE_LIMIT);
+  const questions: Record<string, DecisionQuestion> = Object.create(null);
+  for (const [field, whole] of disputed) {
+    const value = JSON.stringify(data[field.name]);
+    questions[field.name] =
+      whole === undefined
+        ? {
+            type: "choice",
+            instructions: `Is ${value} the correct, complete value for "${fieldText(field)}" as requested? Check the entity, units, and requested representation against the page.`,
+            criteria: {
+              yes: "The evidence establishes the exact answer.",
+              no: "Wrong or insufficient evidence.",
+            },
+          }
+        : {
+            type: "choice",
+            instructions: `Which candidate exactly answers "${fieldText(field)}" for the task? Check whether the request calls for the whole text or just a part. Select neither if the entity, scope, or requested format differs.`,
+            criteria: {
+              full: JSON.stringify(whole),
+              span: value,
+              none: "Neither candidate is the complete requested value.",
+            },
+          };
+  }
+  const verification = await ask(config, { task: instruction, evidence }, questions);
+  for (const [field, whole] of disputed) {
+    const name = field.name;
+    const verified = choiceOf(
+      verification.answers,
+      name,
+      trace,
+      `${name}:verified`,
+      whole === undefined ? 2 : 3,
+    );
+    // A strong contrary vote can veto one witness. Reversing a disagreement
+    // requires a strong vote for one of the two exact copies.
+    if (whole === undefined) {
+      if (verified.choice === "no" && verified.confidence >= VERIFICATION_CONFIDENCE)
+        problem(trace, `unverified:${name}`);
+    } else if (verified.confidence < VERIFICATION_CONFIDENCE || verified.choice === NONE) {
+      problem(trace, `unverified:${name}`);
+    } else if (verified.choice === "full") {
+      data[name] = whole;
+    }
+  }
+}
+
+export async function verifyScalarMagnitude(
+  config: DecisionModelConfig,
+  view: DataView,
+  field: Field,
+  value: number,
+  instruction: string,
+  trace: TraceEntry[],
+): Promise<string | undefined> {
+  // A record read can replace the initial scalar choice. Check the source of the final value.
+  const source = trace.findLast((entry) => entry.step === `${field.name}:source`);
+  const id = source?.sourceIds?.[0];
+  if (!id) return;
+  const fact = view.facts.find((candidate) => candidate.id === id);
+  const text = fact?.value ?? view.nodes.find((node) => node.id === id)?.name;
+  if (!text || !/\dm\b/u.test(text)) return;
+
+  const { answers } = await ask(
+    config,
+    { task: instruction, ...(fact && { label: fact.label }), source: text, proposedValue: value },
+    {
+      magnitude: {
+        type: "choice",
+        instructions: `Read the source in context. Does it state ${value} for "${fieldText(field)}" in the requested units? A compact m can denote metres or millions.`,
+        criteria: {
+          supported: "The stated quantity equals the proposed value in the requested units",
+          [NONE]: "Different quantity, different scale, or insufficient evidence",
+        },
+      },
+    },
+  );
+  const { choice } = choiceOf(answers, "magnitude", trace, `${field.name}:magnitude`, 2);
+  if (choice !== "supported") return `unsupported-magnitude:${field.name}`;
 }
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -284,6 +426,7 @@ async function readFromSheet(
   instruction: string,
   options: Map<string, Fact[]>,
   trace: TraceEntry[],
+  hasNumericProjections: boolean,
 ): Promise<Record<string, unknown>> {
   const { facts, scalarFields, input } = scalarReaderEvidence(fields, instruction, options);
   if (!facts.length || !scalarFields.length) return {};
@@ -300,7 +443,10 @@ async function readFromSheet(
           ? raw
           : parseNumber(raw, tokens(fieldText(field)));
     if (value === undefined) continue;
-    const sources = facts.filter((fact) =>
+    // On pages with split exponents, the sheet can contain both the literal
+    // and its original text for a string field. Verify against the requested representation.
+    const evidence = hasNumericProjections ? options.get(field.name)! : facts;
+    const sources = evidence.filter((fact) =>
       typeof value === "number"
         ? numberCandidates(fact.value).some((candidate) => candidate.value === value)
         : normal(fact.value).includes(normal(value)),
@@ -393,10 +539,10 @@ async function readRecord(
     // Two fields read from the same part means the values are not one item's columns.
     if (usedSlots.has(slot.key)) return undefined;
     usedSlots.add(slot.key);
-    const value = convert(view, readSlot(view, record, slot.key), field);
+    const source = readFieldSlot(view, record, slot.key, field);
+    const value = convert(view, source, field);
     if (value !== undefined) {
       values[field.name] = value;
-      const source = readSlot(view, record, slot.key);
       trace.push({
         step: `${field.name}:source`,
         choice: slot.key,

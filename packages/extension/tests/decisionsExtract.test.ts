@@ -63,6 +63,47 @@ describe("Decisions extract service", () => {
     expect(options.page.captureSnapshot).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { visible: ["A", "B"], direct: true },
+    { visible: ["B", "A"], direct: false },
+    { visible: ["A"], direct: false },
+    { visible: ["Visible A", "B"], direct: false },
+  ])(
+    "requires complete ordered visible and accessibility names: $visible",
+    async ({ visible, direct }) => {
+      const options = setup();
+      options.clientLLMGenerate.mockResolvedValue({
+        role: "assistant",
+        content: { type: "text", text: "result" },
+        outputFormat: "json_schema",
+        structuredContent: { headings: ["Fallback"] },
+      });
+      const outline = "[0-1] heading: A\n[0-2] heading: B";
+      const paths = { "0-1": "/html/body/h2[1]", "0-2": "/html/body/h2[2]" };
+      const snapshot = {
+        combinedTree: outline,
+        combinedXpathMap: paths,
+        combinedUrlMap: {},
+        perFrame: [{ frameId: "main", outline, xpathMap: paths, urlMap: {} }],
+      };
+      const result = await extract({
+        ...options,
+        params: {
+          ...options.params,
+          instruction: "List all H2 headings.",
+          schema: z.json().parse(z.toJSONSchema(z.object({ headings: z.array(z.string()) }))),
+        },
+        page: {
+          ...options.page,
+          captureSnapshot: async () => snapshot,
+          evaluate: async () => visible,
+        },
+      });
+      expect(options.clientLLMGenerate).toHaveBeenCalledTimes(direct ? 0 : 1);
+      expect(result.data).toEqual({ headings: direct ? ["A", "B"] : ["Fallback"] });
+    },
+  );
+
   it("preserves omitted optional fields", async () => {
     vi.spyOn(mapping, "mapCopyExtract").mockResolvedValue({
       data: { name: "Example" },

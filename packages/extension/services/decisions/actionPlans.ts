@@ -1,5 +1,5 @@
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
-import { fillValueCandidates, redactDeep, redactor } from "./args.js";
+import { emailFill, fillValueCandidates, redactDeep, redactor } from "./args.js";
 import {
   buildView,
   describeCandidate,
@@ -11,6 +11,7 @@ import {
 import { choiceAnswer, decide, type DecisionModelConfig, type JsonValue } from "./client.js";
 import type { ElementFacts } from "./actionFacts.js";
 import { actionContext, type StructuralEvidence } from "./actionContext.js";
+import { namedHoverTarget, startsWithHover, verifyHover } from "./hover.js";
 import { normalizeHeading } from "./nativeHeading.js";
 
 export type ActionSnapshot = {
@@ -24,7 +25,7 @@ export type ActionSnapshot = {
 export type ActionPlan = {
   id: string;
   nodeId: string;
-  method: "click" | "fill";
+  method: "click" | "fill" | "hover";
   arguments: string[];
   evidence: Record<string, JsonValue>;
 };
@@ -179,23 +180,85 @@ export function buildPlans(
   instruction: string,
   { compact = true, includeDestination = true, variables }: ActionPlanOptions = {},
 ): ActionPlan[] {
+  const fill = emailFill(instruction);
+  if (fill) {
+    const nodes = actionNodes(snapshot);
+    const matches = buildView(nodes, "input").filter(
+      (node) => node.name.replace(/:$/, "").toLowerCase() === fill.field.toLowerCase(),
+    );
+    const target = matches[0];
+    if (!target || matches.length !== 1) return [];
+    const fact = snapshot.facts[target.id];
+    if (
+      !fact?.editable ||
+      !fact.enabled ||
+      !fact.visible ||
+      fact.readonly ||
+      !(
+        fact.tag === "textarea" ||
+        (fact.tag === "input" && ["text", "email", "search"].includes(fact.type))
+      )
+    )
+      return [];
+    return [
+      {
+        id: "action_0",
+        nodeId: target.id,
+        method: "fill",
+        arguments: [fill.value],
+        evidence: evidence(snapshot, nodes, target, { compact, includeDestination }),
+      },
+    ];
+  }
+  // An address in a longer instruction does not authorize an isolated click or fill.
+  if (
+    /^(?:(?:enter|type|search(?: for)?) |fill .+ field with )[^\s@]+@[^\s@]+\.[^\s@]+/iu.test(
+      instruction.trimStart(),
+    ) &&
+    !fillValueCandidates(instruction, variables).some((value) => value.includes("@"))
+  )
+    return [];
+  const literal = namedHoverTarget(instruction, variables);
+  if (literal) {
+    const nodes = actionNodes(snapshot);
+    const matches = nodes.filter(literal);
+    const node = matches[0];
+    if (matches.length !== 1 || !node) return [];
+    const fact = snapshot.facts[node.id];
+    if (!snapshot.xpathMap[node.id] || !fact?.visible || !fact.enabled) return [];
+    return [
+      {
+        id: "action_0",
+        nodeId: node.id,
+        method: "hover",
+        arguments: [],
+        evidence: evidence(snapshot, nodes, node, { compact, includeDestination }),
+      },
+    ];
+  }
   const pointer = candidates(snapshot, instruction, "pointer");
-  const input = candidates(snapshot, instruction, "input");
-  const values = fillValueCandidates(instruction, variables);
-  if (pointer.selected.length + values.length * input.selected.length > 254) return [];
+  const hover = startsWithHover(instruction);
   const plans: ActionPlan[] = [];
-  for (const node of pointer.selected)
+  for (const node of pointer.selected) {
+    const context = pointer.context?.(node);
+    if (hover && pointer.context && !(context && "inSection" in context && context.inSection))
+      continue;
     plans.push({
       id: `action_${plans.length}`,
       nodeId: node.id,
-      method: "click",
+      method: hover ? "hover" : "click",
       arguments: [],
       evidence: evidence(snapshot, pointer.nodes, node, {
         compact,
         includeDestination,
-        context: pointer.context?.(node),
+        context,
       }),
     });
+  }
+  if (hover) return plans;
+  const input = candidates(snapshot, instruction, "input");
+  const values = fillValueCandidates(instruction, variables);
+  if (plans.length + values.length * input.selected.length > 254) return [];
   for (const value of values)
     for (const node of input.selected)
       plans.push({
@@ -214,8 +277,18 @@ export async function choosePlan(
   instruction: string,
   options: ActionPlanOptions = {},
 ) {
-  const plans = buildPlans(snapshot, instruction, options);
+  return chooseAction(config, buildPlans(snapshot, instruction, options), instruction, options);
+}
+
+export async function chooseAction(
+  config: DecisionModelConfig,
+  plans: ActionPlan[],
+  instruction: string,
+  options: ActionPlanOptions,
+) {
   if (!plans.length) return { plan: undefined, confidence: 0, plans };
+  if (plans[0]?.method === "hover" && namedHoverTarget(instruction, options.variables))
+    return { plan: plans[0], confidence: 1, plans };
   const questions = {
     action: {
       type: "choice" as const,
@@ -240,13 +313,14 @@ export async function choosePlan(
     redact ? redactDeep(questions, redact) : questions,
   );
   const answer = choiceAnswer(response, "action");
-  return {
-    plan:
-      answer.confidence >= (options.threshold ?? 0.7)
-        ? plans.find(({ id }) => id === answer.choice)
-        : undefined,
-    confidence: answer.confidence,
-    plans,
-    response,
-  };
+  const plan =
+    answer.confidence >= (options.threshold ?? 0.7)
+      ? plans.find(({ id }) => id === answer.choice)
+      : undefined;
+  if (plan?.method === "hover") {
+    const verdict = await verifyHover(config, instruction, plan.evidence, options.variables);
+    if (!verdict.accepted)
+      return { plan: undefined, confidence: verdict.confidence, plans, response };
+  }
+  return { plan, confidence: answer.confidence, plans, response };
 }

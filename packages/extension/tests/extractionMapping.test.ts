@@ -35,6 +35,52 @@ function scriptDecisions(
 }
 
 describe("extraction acceptance", () => {
+  it.each([
+    ["Cable length: 2m", "none", ["unsupported-magnitude:value"]],
+    ["Downloads: 2m", "supported", []],
+  ] as const)(
+    "checks the selected scalar source %s before accepting its scale",
+    async (text, choice, problems) => {
+      const decide = scriptDecisions((key) => (key === "magnitude" ? choice : undefined));
+      const result = await mapCopyExtract(
+        { apiKey: "test" },
+        {
+          instruction: "Read the stated quantity.",
+          schema: {
+            type: "object",
+            properties: { value: { type: "number" } },
+            required: ["value"],
+          },
+          tree: `[1] StaticText: ${text}`,
+          urlMap: {},
+          reader: async () => ({ value: 2_000_000 }),
+        },
+      );
+      const check = decide.mock.calls.find(([, , questions]) => "magnitude" in questions);
+      expect(check?.[1]).toMatchObject({ source: text, proposedValue: 2_000_000 });
+      expect(result.verdict.problems).toEqual(problems);
+    },
+  );
+
+  it("preserves numeric projections in multi-field records", async () => {
+    const decide = scriptDecisions();
+    const result = await mapCopyExtract(
+      { apiKey: "test" },
+      {
+        instruction: "Read both counts.",
+        schema: {
+          type: "object",
+          properties: { first: { type: "number" }, second: { type: "number" } },
+          required: ["first", "second"],
+        },
+        tree: "[1] StaticText: 2m",
+        urlMap: {},
+      },
+    );
+    expect(result.data).toEqual({ first: 2_000_000, second: 2_000_000 });
+    expect(decide.mock.calls.some(([, , questions]) => "magnitude" in questions)).toBe(false);
+  });
+
   it("keeps rejected rows out of a fixed-count result when too few qualify", async () => {
     scriptDecisions((key) =>
       /^r\d+$/.test(key) ? (Number(key.slice(1)) >= 4 ? 1 : 0) : undefined,
@@ -175,6 +221,158 @@ describe("extraction acceptance", () => {
     ["3.5 million", 3500000],
   ] as const)("reads a complete numeric literal %s", (text, expected) => {
     expect(parseNumber(text, new Set())).toBe(expected);
+  });
+
+  it("reads a scientific literal split across AX nodes and cites their containing cell", async () => {
+    scriptDecisions();
+    const result = await mapCopyExtract(
+      { apiKey: "test" },
+      {
+        instruction: "Extract the mass.",
+        schema: { type: "object", properties: { mass: { type: "number" } }, required: ["mass"] },
+        tree: `[1] LayoutTableCell: 2.176 434 × 10−8 kg
+  [2] StaticText: 2.176 434 × 10
+  [3] superscript
+    [4] StaticText: −8
+  [5] StaticText: kg`,
+        urlMap: {},
+        reader: async ({ sheet }) => {
+          expect(sheet).toContain("2.176434e-8");
+          return { mass: "2.176434e-8" };
+        },
+      },
+    );
+    expect(result.data).toEqual({ mass: 2.176434e-8 });
+    expect(result.verdict.problems).toEqual([]);
+    expect(result.trace).toContainEqual(
+      expect.objectContaining({ step: "mass:source", sourceIds: ["1"] }),
+    );
+  });
+
+  it("copies scientific literals at the mapped slot for each list item", async () => {
+    scriptDecisions();
+    const tree = [
+      "[0] list",
+      ...["3", "−4", "5"].map(
+        (power, i) =>
+          `  [${i}-1] listitem
+    [${i}-2] paragraph
+      [${i}-3] StaticText: 1.5 × 10
+      [${i}-4] superscript
+        [${i}-5] StaticText: ${power}`,
+      ),
+    ].join("\n");
+    const result = await mapCopyExtract(
+      { apiKey: "test" },
+      {
+        instruction: "Extract every measurement.",
+        schema: {
+          type: "object",
+          properties: { items: { type: "array", items: { type: "number" } } },
+          required: ["items"],
+        },
+        tree,
+        urlMap: {},
+      },
+    );
+    expect(result.data.items).toEqual([1500, 0.00015, 150000]);
+    expect(result.verdict.problems).toEqual([]);
+  });
+
+  it.each([
+    ["2 x 10", "superscript", "3", "2e3"],
+    ["2 x 10", "StaticText", "3", undefined],
+    ["2 m", "superscript", "3", undefined],
+    ["2 x 10", "superscript", "n", undefined],
+    ["9.109 383 7139 x 10", "superscript", "-31", "9.1093837139e-31"],
+    ["2.100 12345 x 10", "superscript", "3", undefined],
+    ["2.1 2 x 10", "superscript", "3", undefined],
+  ])(
+    "uses the exponent role and complete coefficient in %s %s %s",
+    (prefix, role, power, expected) => {
+      const view = buildDataView(
+        `[1] paragraph
+  [2] StaticText: ${prefix}
+  [3] ${role}
+    [4] StaticText: ${power}`,
+        {},
+      );
+      expect(view.numericNodes.get(0)?.name).toBe(expected);
+      expect(view.nodes[1]?.name).toBe(prefix);
+    },
+  );
+
+  it("grounds both range bounds in the same cell and preserves its string value", async () => {
+    const raw = "2 × 103 to 2 × 106 m";
+    const tree = `[1] cell: ${raw}
+  [2] StaticText: 2 × 10
+  [3] superscript
+    [4] StaticText: 3
+  [5] StaticText: to 2 × 10
+  [6] superscript
+    [7] StaticText: 6
+  [8] StaticText: m`;
+    const view = buildDataView(tree, {});
+    expect(view.numericNodes.get(0)?.name).toBe("2e3 to 2e6 m");
+    for (const [index, projection] of view.numericNodes)
+      expect(projection.id).toBe(view.nodes[index]!.id);
+    scriptDecisions((key) => (key === "n_upper" ? "p1" : undefined));
+    const result = await mapCopyExtract(
+      { apiKey: "test" },
+      {
+        instruction: "Read both bounds and copy the original range text.",
+        schema: {
+          type: "object",
+          properties: {
+            lower: { type: "number" },
+            upper: { type: "number" },
+            text: { type: "string" },
+          },
+          required: ["lower", "upper", "text"],
+        },
+        tree,
+        urlMap: {},
+        reader: async () => ({ lower: "2e3", upper: "2e6", text: raw }),
+      },
+    );
+    expect(result.data).toEqual({ lower: 2000, upper: 2000000, text: raw });
+    expect(result.verdict.problems).toEqual([]);
+    for (const name of ["lower", "upper", "text"]) {
+      expect(result.trace).toContainEqual(
+        expect.objectContaining({
+          step: name + ":reader",
+          sourceIds: ["1"],
+        }),
+      );
+    }
+  });
+
+  it("keeps the following citation and unit out of the scientific exponent", () => {
+    const view = buildDataView(
+      `[1] cell: 4 × 1031m2
+  [2] StaticText: 4 × 10
+  [3] superscript
+    [4] StaticText: 3
+  [5] superscript
+    [6] link: 1
+  [7] StaticText: m
+  [8] superscript
+    [9] StaticText: 2`,
+      {},
+    );
+    expect(view.numericNodes.get(0)?.name).toBe("4e3 1 m 2");
+  });
+
+  it.each([
+    ["paragraph", "superscript: Footnote 3", ""],
+    ["paragraph", "superscript", "\n[5] paragraph: 3. Dimensions in cm."],
+    ["cell: unrelated 2 × 103", "superscript", ""],
+  ])("requires the AX pieces to establish the exponent (%s, %s)", (parent, role, suffix) => {
+    const tree = `[1] ${parent}
+  [2] StaticText: 2 × 10
+  [3] ${role}
+    [4] StaticText: 3${suffix}`;
+    expect(buildDataView(tree, {}).numericNodes.size).toBe(0);
   });
 
   it("does not certify a numeric reader span taken from inside another number", async () => {

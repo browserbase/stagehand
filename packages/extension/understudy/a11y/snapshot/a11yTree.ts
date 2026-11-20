@@ -125,7 +125,7 @@ export async function a11yForFrame(
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   progress?.throwIfStopped();
-  const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
+  const simplified = tree.map((n) => formatTreeLine(n, 0, opts.singleLineNames)).join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied, editableIds };
 }
 

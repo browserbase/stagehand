@@ -4,6 +4,7 @@ import type { Page } from "../../understudy/page.js";
 import type { HybridSnapshot } from "../../types/private/snapshot.js";
 import type { Progress } from "../../understudy/progress.js";
 import { settleAll } from "./concurrency.js";
+import { namedHoverTarget } from "./hover.js";
 import { parseOutline } from "./outline.js";
 import { readFacts } from "./actionFacts.js";
 import type { DecisionsConfig } from "./config.js";
@@ -98,7 +99,7 @@ export async function runDecisionsObserve(
     const [captured, intent] = await deps.progress.run("preparing observation decisions", () =>
       settleAll([
         deps.page.captureSnapshot(deps.snapshotOptions, deps.progress),
-        !section && deps.instruction?.trim()
+        !section && deps.instruction?.trim() && !namedHoverTarget(deps.instruction, deps.variables)
           ? classifyObservation(decisionConfig, deps.instruction, deps.variables)
           : Promise.resolve(undefined),
       ] as const),

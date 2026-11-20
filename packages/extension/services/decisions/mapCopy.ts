@@ -3,7 +3,7 @@ import { type JsonSchema, plan } from "./extractionSchema.js";
 import { type TraceEntry, type ScalarReader } from "./extractionShared.js";
 import { settleAll } from "./concurrency.js";
 import { buildDataView } from "./dataView.js";
-import { readScalars } from "./scalarMapping.js";
+import { readScalars, verifyScalarMagnitude } from "./scalarMapping.js";
 import { readList } from "./listMapping.js";
 
 export async function mapCopyExtract(
@@ -30,7 +30,7 @@ export async function mapCopyExtract(
   const stopOnDisagreement = lists.length === 1 && scalars.length === 0;
   const [scalarData, listData] = await settleAll([
     scalars.length
-      ? readScalars(config, view, scalars, instruction, trace, reader)
+      ? readScalars(config, view, scalars, instruction, trace, reader, lists.length === 0)
       : Promise.resolve({}),
     settleAll(
       lists.map((list) => readList(config, view, list, instruction, trace, stopOnDisagreement)),
@@ -46,6 +46,14 @@ export async function mapCopyExtract(
     data[list.name] = items;
   });
   const problems = structuralProblems({ lists, scalars }, data, trace);
+  if (!problems.length && !lists.length && scalars.length === 1) {
+    const field = scalars[0]!;
+    const value = data[field.name];
+    if (typeof value === "number") {
+      const reason = await verifyScalarMagnitude(config, view, field, value, instruction, trace);
+      if (reason) problems.push(reason);
+    }
+  }
   return { data, trace, verdict: { problems } };
 }
 

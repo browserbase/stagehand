@@ -243,6 +243,7 @@ export async function tryScopedSnapshot(
       owningSess,
       targetFrameId,
       {
+        singleLineNames: options?.singleLineNames,
         focusLocator: tailSelector
           ? {
               selector: tailSelector,
@@ -419,6 +420,7 @@ export async function collectPerFrameMaps(
       sess,
       frameId,
       {
+        singleLineNames: options?.singleLineNames,
         isIgnoredBackendNode,
         tagNameMap,
         scrollableMap,

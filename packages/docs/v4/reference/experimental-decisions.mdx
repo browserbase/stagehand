@@ -13,11 +13,36 @@ bounded choices from page evidence, asks the decision model to select, and uses 
 when the request cannot be resolved safely. The methods accept the same arguments and return the
 same result shapes as their ordinary counterparts.
 
-`act()` selects complete click or literal-fill actions and checks the target before input. Other
-operations use the ordinary LLM pipeline. `extract()` maps schema fields to page records and copies
-values, with schema and evidence checks. `observe()` selects one target or classifies every candidate in a matching set, with
-explicit abstention and a fresh evidence check. Without an instruction it enumerates supported
-interactive controls without model inference, falling back to the LLM for unsupported page content.
+`act()` supports clicks, literal fills and explicit hovers. For example,
+`Enter QA+1@example.test into the Username field` offers the exact address when one text field has that name.
+For a text fill, Stagehand checks which element received the edit and verifies its value.
+If the page replaces the field during the edit, the action can return `success: false` after input has taken effect.
+A proposed click on a native dropdown option goes through the ordinary LLM pipeline.
+For a custom control, Stagehand can identify the element that owns a visible caption and its click handler.
+If opening a menu succeeds but the requested option is unavailable, the result can include the opener in
+`actions` and return `success: false`. Inspect the action list before retrying.
+
+`extract()` maps schema fields to page records and copies their values. A numeric field can read scientific
+notation split across text and superscript elements. When a scalar fact contains several candidate
+numbers, the decision model can decline them all and use ordinary extraction. For example, part of
+a measurement may appear on the page even when the value in the requested units does not.
+For a single numeric field, Stagehand can ask the provider to distinguish compact units such as
+`2m` for metres or millions. String fields retain the source text.
+
+For a request such as `List all H2 headings in document order.` with a single required
+`headings: string[]` field, Stagehand can return the rendered headings without a model call.
+It checks that their count, order and text agree with the accessibility snapshot.
+
+For a single link-destination field, Stagehand can copy an anchor’s resolved URL or its authored
+`href`. It checks the anchor’s label, path and destination against a fresh DOM read.
+For requests covering all rows of a supported table, it compares the rendered rows with the
+accessibility snapshot. Tables with several possible text boundaries can use the configured LLM
+to select a copy rule for each field. The SDK copies the selected text from each row.
+Scalar extraction can ask an additional decision question when only one reader supplies a value
+or the readers disagree about a substring.
+
+`observe()` selects one target or classifies each candidate in a requested set, then checks the evidence again.
+Without an instruction it enumerates supported interactive controls and falls back for unsupported page content.
 
 The ordinary methods on the Stagehand instance never call the decision provider. A namespace call
 without configuration fails. LLM fallback needs an ordinary model configuration or the existing
