@@ -54,6 +54,35 @@ describe("DeepLocatorDelegate match selection", () => {
     expect(await delegate.count()).toBe(1);
     expect(await delegate.real()).toMatchObject({ backendId: 2 });
   });
+
+  // count() resolves the chain directly rather than through real(), so the
+  // shared progress-forwarding tests in locatorActions.test.ts don't cover it.
+  it("passes the caller's progress through count", async () => {
+    const delegate = createDelegate();
+    await runWithProgress({ name: "count", timeout: 1000 }, async (progress) => {
+      await expect(delegate.count(progress)).resolves.toBe(2);
+      expect(FrameSelectorResolver.prototype.resolveAll).toHaveBeenCalledExactlyOnceWith(
+        { kind: "css", value: ".item" },
+        {},
+        progress,
+      );
+    });
+  });
+
+  it("rejects count with an expired context before resolving the chain", async () => {
+    vi.useFakeTimers();
+    try {
+      const delegate = createDelegate();
+      const progress = new Progress("count", 100);
+      await vi.advanceTimersByTimeAsync(100);
+      await expect(delegate.count(progress)).rejects.toBe(progress.signal.reason);
+      expect(FrameSelectorResolver.prototype.resolveAll).not.toHaveBeenCalled();
+      progress.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("locator resolution contexts", () => {

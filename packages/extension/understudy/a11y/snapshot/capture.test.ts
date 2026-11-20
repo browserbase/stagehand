@@ -280,9 +280,10 @@ describe("snapshot Unicode repair", () => {
         scopeApplied: true,
       });
 
+      const chain = { steps: [{ type: "query" as const, selector, nth: 2 }] };
       const snapshot = await tryScopedSnapshot(
         page,
-        { focusLocator: { selector: { steps: [{ type: "query", selector, nth: 2 }] } } },
+        { focusLocator: { selector: chain } },
         {
           rootId: "root",
           frames: ["root"],
@@ -295,6 +296,17 @@ describe("snapshot Unicode repair", () => {
       );
 
       expect(snapshot).not.toBeNull();
+      // Capture doesn't apply `nth` itself: it must hand the chain (index included)
+      // to the resolver unchanged, then scope to the node the resolver picked.
+      expect(resolveLocatorChain).toHaveBeenCalledExactlyOnceWith(page, frame, chain, undefined, {
+        readinessRetries: "none",
+      });
+      expect(a11yForFrame).toHaveBeenCalledWith(
+        expect.anything(),
+        "root",
+        expect.objectContaining({ focusBackendNodeId: 20 }),
+        undefined,
+      );
       expect(snapshot!.combinedTree).toContain("Scoped �");
       expect((snapshot!.combinedTree as string & { isWellFormed(): boolean }).isWellFormed()).toBe(
         true,

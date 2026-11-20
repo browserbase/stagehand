@@ -46,13 +46,22 @@ export function resolveXPathAtIndex(
       );
       return composed[Math.floor(index)] ?? null;
     }
-    const snapshot = scope.ownerDocument.evaluate(
-      relative,
-      scope,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
+    let snapshot: XPathResult;
+    try {
+      snapshot = scope.ownerDocument.evaluate(
+        relative,
+        scope,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null,
+      );
+    } catch (error) {
+      // Don't fall back to the composed resolver: it drops what it can't parse
+      // (e.g. `//button[@id=` becomes `//button`) and would match the wrong element.
+      throw new Error(
+        `Invalid XPath "${xp}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     const matches: Element[] = [];
     for (let i = 0; i < snapshot.snapshotLength; i++) {
       const node = snapshot.snapshotItem(i);

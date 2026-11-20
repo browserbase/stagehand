@@ -74,34 +74,40 @@ async def test_sdk_chains_legacy_inputs_scopes_exclusions_and_masks(locator_serv
             client = await Stagehand.create(
                 browser=browser, model=generate, logging={"level": "off"}
             )
-            page = await browser.context.new_page(locator_server)
-            cards = page.locator(".card").nth(1)
-            pay = cards.locator({"type": "text", "value": "Pay"})
-            assert await pay.text_content() == "Pay second"
-            assert (
-                await page.locator(".card").locator("button").nth(1).text_content() == "Pay second"
-            )
-            for selector in (
-                'iframe >> text="Pay frame"',
-                "xpath=/html/body/iframe[2]/html/body/button",
-                "//iframe[2]//button",
-            ):
-                assert await page.locator(selector).text_content() == "Pay frame"
-            assert (
-                await page.locator("iframe").locator({"type": "text", "value": "Pay frame"}).count()
-                == 2
-            )
-            await client.observe(
-                "List available actions", page=page, locator=cards, ignore_locators=[pay]
-            )
-            assert len(prompts) == 1
-            assert "Keep second" in prompts[0]
-            assert "Pay second" not in prompts[0]
-            assert "Pay outside" not in prompts[0]
-            screenshot = await page.screenshot(mask=[page.locator("iframe").locator("button")])
-            assert screenshot[:4] == bytes.fromhex("89504e47")
-            await pay.click()
-            assert await cards.locator("button").text_content() == "Paid second"
-            await client.close()
+            try:
+                page = await browser.context.new_page(locator_server)
+                cards = page.locator(".card").nth(1)
+                pay = cards.locator({"type": "text", "value": "Pay"})
+                assert await pay.text_content() == "Pay second"
+                assert (
+                    await page.locator(".card").locator("button").nth(1).text_content()
+                    == "Pay second"
+                )
+                for selector in (
+                    'iframe >> text="Pay frame"',
+                    "xpath=/html/body/iframe[2]/html/body/button",
+                    "//iframe[2]//button",
+                ):
+                    assert await page.locator(selector).text_content() == "Pay frame"
+                assert (
+                    await page
+                    .locator("iframe")
+                    .locator({"type": "text", "value": "Pay frame"})
+                    .count()
+                    == 2
+                )
+                await client.observe(
+                    "List available actions", page=page, locator=cards, ignore_locators=[pay]
+                )
+                assert len(prompts) == 1
+                assert "Keep second" in prompts[0]
+                assert "Pay second" not in prompts[0]
+                assert "Pay outside" not in prompts[0]
+                screenshot = await page.screenshot(mask=[page.locator("iframe").locator("button")])
+                assert screenshot[:4] == bytes.fromhex("89504e47")
+                await pay.click()
+                assert await cards.locator("button").text_content() == "Paid second"
+            finally:
+                await client.close()
         finally:
             await browser.close()
