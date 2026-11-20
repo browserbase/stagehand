@@ -1,0 +1,48 @@
+---
+title: "Observability providers"
+sidebarTitle: "Overview"
+description: "Export Stagehand browser traces to an OpenTelemetry backend."
+---
+
+Configure `telemetry.traces` in `Stagehand.create()` to export traces from the browser extension. Stagehand sends OTLP over HTTP using JSON to the full traces URL, including `/v1/traces`. You do not need a provider SDK in your application.
+
+<CardGroup cols={2}>
+  <Card title="Braintrust" icon="/images/observability/braintrust.svg" href="/v4/observability/braintrust">
+    Send browser traces to a Braintrust project.
+  </Card>
+  <Card title="Langfuse" icon="/images/observability/langfuse.svg" href="/v4/observability/langfuse">
+    Inspect browser operations alongside your Langfuse traces.
+  </Card>
+  <Card title="LangSmith" icon="/images/integrations/deep-agents.svg" href="/v4/observability/langsmith">
+    Send browser traces to a LangSmith tracing project.
+  </Card>
+  <Card title="Sentry" icon="/images/observability/sentry.svg" href="/v4/observability/sentry">
+    Inspect browser operation timing and failures in Sentry.
+  </Card>
+</CardGroup>
+
+Use an [OpenTelemetry Collector](/v4/observability/otel-collector) to forward traces to multiple backends or convert JSON to protobuf.
+
+## Trace format
+
+Stagehand samples all spans and sets these resource attributes:
+
+| Attribute | Value |
+| --- | --- |
+| `service.name` | `stagehand-service-worker` |
+| `service.namespace` | `browserbase` |
+| `service.version` | The browser extension version |
+| `stagehand.client.name` | The connected SDK's name |
+| `stagehand.client.version` | The connected SDK's version |
+
+Operation spans wrap calls such as `act`, `observe`, and `extract`. They set `stagehand.span.type` to `operation` and store their structured payload as JSON in `stagehand.span.data`. Failures set error status and record an exception event.
+
+Each log record produces a separate span with `stagehand.span.type = log`. Its attributes include `stagehand.log.level`, `stagehand.log.message`, and a JSON payload in `stagehand.log.data`. Logs inside an operation use that operation as their parent. The logging level filters SDK log notifications, not exported log spans.
+
+These are Stagehand attributes. Provider-specific LLM inputs, outputs, token usage, costs, and session grouping are not automatically populated.
+
+## Export lifecycle
+
+The exporter batches spans every second. Close Stagehand before closing the browser so pending spans can flush. Export failures do not fail cleanup; verify receipt in the provider's UI.
+
+For Browserbase sessions, the endpoint must be reachable from the remote browser. `localhost` refers to that browser, not the machine running your SDK. For full configuration details, see [Tracing](/v4/configuration/observability#tracing).
