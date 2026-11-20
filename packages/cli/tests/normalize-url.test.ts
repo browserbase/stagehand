@@ -54,4 +54,20 @@ describe("normalizeUrlScheme", () => {
   it("prefixes http:// for plain 127.0.0.1", () => {
     expect(normalizeUrlScheme("127.0.0.1")).toBe("http://127.0.0.1");
   });
+
+  it("prefixes http:// for localhost with query string", () => {
+    expect(normalizeUrlScheme("localhost?x=1")).toBe("http://localhost?x=1");
+  });
+
+  it("prefixes http:// for 127.0.0.1 with query string", () => {
+    expect(normalizeUrlScheme("127.0.0.1?x=1")).toBe("http://127.0.0.1?x=1");
+  });
+
+  it("prefixes http:// for uppercase LOCALHOST", () => {
+    expect(normalizeUrlScheme("LOCALHOST:3000")).toBe("http://LOCALHOST:3000");
+  });
+
+  it("prefixes https:// for uppercase domain", () => {
+    expect(normalizeUrlScheme("EXAMPLE.COM")).toBe("https://EXAMPLE.COM");
+  });
 });

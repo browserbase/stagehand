@@ -21,16 +21,20 @@ function hasScheme(input: string): boolean {
   return true;
 }
 
+function extractHost(input: string): string {
+  return input.split(/[/:?#]/)[0]!.toLowerCase();
+}
+
 function looksLikeHost(input: string): boolean {
   if (input.includes(" ")) return false;
-  const hostPart = input.split("/")[0]!.split(":")[0]!;
-  if (hostPart === "localhost") return true;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostPart)) return true;
-  if (hostPart.includes(".")) return true;
+  const host = extractHost(input);
+  if (host === "localhost") return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+  if (host.includes(".")) return true;
   return false;
 }
 
 function needsHttp(input: string): boolean {
-  const hostPart = input.split("/")[0]!.split(":")[0]!;
-  return hostPart === "localhost" || hostPart === "127.0.0.1";
+  const host = extractHost(input);
+  return host === "localhost" || host === "127.0.0.1";
 }
