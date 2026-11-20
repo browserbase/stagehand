@@ -25,6 +25,8 @@ export type DriverPage = NonNullable<Awaited<ReturnType<DriverContext["activePag
 
 const INIT_FAILURE_RETRY_MS = 5_000;
 const INIT_FAILURE_RETRY_MAX_MS = 60_000;
+const STATUS_CALL_TIMEOUT_MS = 1_000;
+const CLOSE_TIMEOUT_MS = 3_000;
 
 // chrome-launcher reports "no Chrome on this machine" with these codes (its
 // LaunchErrorCodes const enum, which can't be imported directly: const enums
@@ -65,6 +67,37 @@ export function isChromeNotFoundError(error: unknown): boolean {
   );
 }
 
+export function isRpcClosedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (/RPC client is closed/i.test(error.message)) return true;
+  if (error.name === "CDPConnectionClosedError") return true;
+  if (/Target closed/i.test(error.message)) return true;
+  return false;
+}
+
+type WithTimeoutResult<T> = { value: T; timedOut: false } | { value: undefined; timedOut: true };
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<WithTimeoutResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<WithTimeoutResult<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ value: undefined, timedOut: true }), ms);
+  });
+  try {
+    const value = await Promise.race([
+      promise.then((v) => ({ value: v, timedOut: false as const })),
+      timeout,
+    ]);
+    return value;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function withTimeoutFallback<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  const result = await withTimeout(promise, ms);
+  return result.timedOut ? fallback : result.value;
+}
+
 export class DriverSessionManager {
   readonly network: NetworkCapture;
 
@@ -73,6 +106,7 @@ export class DriverSessionManager {
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
   private cursorOverlayPageIds = new Set<string>();
+  private disconnectReason: string | undefined;
   private lastForwardedEnvSignature: string | null = null;
   private pendingEnv: ForwardedEnv | undefined;
   private initFailure: InitFailure | null = null;
@@ -88,11 +122,71 @@ export class DriverSessionManager {
     this.network = new NetworkCapture(session);
   }
 
+  private disconnectedStatus(): DriverStatus {
+    return {
+      browserConnected: false,
+      disconnectReason: this.disconnectReason,
+      initialized: false,
+      mode: this.target.kind,
+      pages: [],
+      pid: process.pid,
+      selectedTargetId: this.selectedTargetId,
+      session: this.session,
+      target: this.target,
+    };
+  }
+
+  /**
+   * Mark the browser as disconnected (e.g. Chrome crashed or remote session ended).
+   * Nulls stagehand/context/browser and fires close() with a bounded timeout.
+   * Does not throw - safe to call from status() or error handlers.
+   */
+  markDisconnected(reason: string): void {
+    if (this.disconnectReason) return;
+    this.disconnectReason = reason;
+    const stagehand = this.stagehand;
+    const browser = this.browser;
+    this.stagehand = null;
+    this.browser = null;
+    this.context = null;
+    this.cursorOverlayPageIds.clear();
+    this.browserbaseIdentityValue = {};
+    this.initFailure = null;
+    this.consecutiveInitFailures = 0;
+
+    const closeWithTimeout = async () => {
+      await withTimeoutFallback(this.network.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+        () => undefined,
+      );
+      if (stagehand) {
+        await withTimeoutFallback(stagehand.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+          () => undefined,
+        );
+      }
+      if (browser) {
+        await withTimeoutFallback(browser.close(), CLOSE_TIMEOUT_MS, undefined).catch(
+          () => undefined,
+        );
+      }
+    };
+    void closeWithTimeout();
+  }
+
   async open(url: string): Promise<OpenResult> {
     return (await this.execute("open", { url })) as OpenResult;
   }
 
   async execute(command: DriverCommandName, params?: unknown): Promise<unknown> {
+    if (this.disconnectReason) {
+      if (command === "open") {
+        this.disconnectReason = undefined;
+      } else {
+        throw new DriverError(
+          `The browser for session "${this.session}" disconnected (Chrome closed or the remote session ended). Run browse open <url> --session ${this.session} to start a new one.`,
+          { code: "browser_disconnected" },
+        );
+      }
+    }
     return executeDriverCommand(this, command, params);
   }
 
@@ -163,35 +257,79 @@ export class DriverSessionManager {
   }
 
   async status(): Promise<DriverStatus> {
+    if (this.disconnectReason) {
+      return this.disconnectedStatus();
+    }
+
     if (!this.stagehand || !this.context) {
       return {
-        browserConnected: false,
+        ...this.disconnectedStatus(),
         ...(this.initFailure ? { initError: initFailureMessage(this.initFailure.error) } : {}),
-        initialized: false,
-        mode: this.target.kind,
-        pages: [],
-        pid: process.pid,
-        selectedTargetId: this.selectedTargetId,
-        session: this.session,
-        target: this.target,
       };
     }
 
-    const page = await this.activePageIfPresent();
-    const pages = await this.pageSummaries();
-    return {
-      ...this.browserbaseIdentity(),
-      browserConnected: true,
-      initialized: true,
-      mode: this.target.kind,
-      pages,
-      pid: process.pid,
-      selectedTargetId: page?.pageId ?? this.selectedTargetId,
-      session: this.session,
-      target: this.target,
-      title: page ? await safeTitle(page) : undefined,
-      url: page ? await page.url() : undefined,
-    };
+    try {
+      const pageProbe = await withTimeout(this.activePageIfPresent(), STATUS_CALL_TIMEOUT_MS);
+      const pagesProbe = await withTimeout(this.pageSummaries(), STATUS_CALL_TIMEOUT_MS);
+
+      if (pageProbe.timedOut && pagesProbe.timedOut) {
+        this.markDisconnected(
+          `Browser unresponsive (status probes timed out after ${STATUS_CALL_TIMEOUT_MS}ms)`,
+        );
+        return this.disconnectedStatus();
+      }
+
+      const page = pageProbe.timedOut ? undefined : pageProbe.value;
+      const pages = pagesProbe.timedOut ? [] : pagesProbe.value;
+
+      let rpcClosedDetected: Error | undefined;
+      const url = page
+        ? await withTimeoutFallback(
+            page.url().catch((e: unknown) => {
+              if (isRpcClosedError(e)) rpcClosedDetected = e as Error;
+              return undefined;
+            }),
+            STATUS_CALL_TIMEOUT_MS,
+            undefined,
+          )
+        : undefined;
+      const title = page
+        ? await withTimeoutFallback(
+            safeTitleWithRpcDetection(page, (e) => {
+              rpcClosedDetected = e;
+            }),
+            STATUS_CALL_TIMEOUT_MS,
+            "",
+          )
+        : undefined;
+
+      if (rpcClosedDetected) {
+        const reason = rpcClosedDetected.message || "Browser disconnected";
+        this.markDisconnected(reason);
+        return this.disconnectedStatus();
+      }
+
+      return {
+        ...this.browserbaseIdentity(),
+        browserConnected: true,
+        initialized: true,
+        mode: this.target.kind,
+        pages,
+        pid: process.pid,
+        selectedTargetId: page?.pageId ?? this.selectedTargetId,
+        session: this.session,
+        target: this.target,
+        title,
+        url,
+      };
+    } catch (error) {
+      if (isRpcClosedError(error)) {
+        const reason = error instanceof Error ? error.message : "Browser disconnected";
+        this.markDisconnected(reason);
+        return this.disconnectedStatus();
+      }
+      return this.disconnectedStatus();
+    }
   }
 
   /**
@@ -252,15 +390,28 @@ export class DriverSessionManager {
   }
 
   async pageSummaries(): Promise<PageSummary[]> {
-    const pages = this.context ? await this.context.pages() : [];
-    return Promise.all(
-      pages.map(async (page, index) => ({
-        index,
-        targetId: page.pageId,
-        title: await this.safeTitle(page),
-        url: await page.url(),
-      })),
-    );
+    if (!this.context) return [];
+    try {
+      const pages = await this.context.pages();
+      return Promise.all(
+        pages.map(async (page, index) => ({
+          index,
+          targetId: page.pageId,
+          title: await this.safeTitle(page),
+          url: await withTimeoutFallback(
+            page.url().catch(() => ""),
+            STATUS_CALL_TIMEOUT_MS,
+            "",
+          ),
+        })),
+      );
+    } catch (error) {
+      if (isRpcClosedError(error)) {
+        const reason = error instanceof Error ? error.message : "Browser disconnected";
+        this.markDisconnected(reason);
+      }
+      return [];
+    }
   }
 
   async safeTitle(page: DriverPage): Promise<string> {
@@ -273,43 +424,56 @@ export class DriverSessionManager {
       throw new Error("Driver context failed to initialize.");
     }
 
-    const target = this.target;
-    if (target.kind === "cdp" && target.targetId) {
-      const page = (await this.context.pages()).find(
-        (candidate) => candidate.pageId === target.targetId,
-      );
-      if (!page) {
-        throw new Error(`Target ${target.targetId} was not found in the attached browser.`);
+    try {
+      const target = this.target;
+      if (target.kind === "cdp" && target.targetId) {
+        const page = (await this.context.pages()).find(
+          (candidate) => candidate.pageId === target.targetId,
+        );
+        if (!page) {
+          throw new Error(`Target ${target.targetId} was not found in the attached browser.`);
+        }
+        await this.activateIfNeeded(page);
+        this.selectedTargetId = page.pageId;
+        return page;
       }
-      await this.activateIfNeeded(page);
-      this.selectedTargetId = page.pageId;
-      return page;
-    }
 
-    const existingPage = (await this.activePageIfPresent()) ?? (await this.context.pages())[0];
-    if (existingPage) {
-      await this.activateIfNeeded(existingPage);
-      this.selectedTargetId = existingPage.pageId;
-      return existingPage;
-    }
+      const existingPage = (await this.activePageIfPresent()) ?? (await this.context.pages())[0];
+      if (existingPage) {
+        await this.activateIfNeeded(existingPage);
+        this.selectedTargetId = existingPage.pageId;
+        return existingPage;
+      }
 
-    if (options.createIfMissing) {
-      const page = await this.context.newPage();
-      await this.activateIfNeeded(page);
-      this.selectedTargetId = page.pageId;
-      return page;
-    }
+      if (options.createIfMissing) {
+        const page = await this.context.newPage();
+        await this.activateIfNeeded(page);
+        this.selectedTargetId = page.pageId;
+        return page;
+      }
 
-    throw new DriverError(
-      `No active page in session "${this.session}". Run browse open <url> --session ${this.session} or browse tab new <url> --session ${this.session}.`,
-      { code: "no_active_page" },
-    );
+      throw new DriverError(
+        `No active page in session "${this.session}". Run browse open <url> --session ${this.session} or browse tab new <url> --session ${this.session}.`,
+        { code: "no_active_page" },
+      );
+    } catch (error) {
+      if (isRpcClosedError(error)) {
+        const reason = error instanceof Error ? error.message : "Browser disconnected";
+        this.markDisconnected(reason);
+        throw new DriverError(
+          `The browser for session "${this.session}" disconnected (Chrome closed or the remote session ended). Run browse open <url> --session ${this.session} to start a new one.`,
+          { code: "browser_disconnected" },
+        );
+      }
+      throw error;
+    }
   }
 
   private async activePageIfPresent(): Promise<DriverPage | undefined> {
     try {
       return (await this.context?.activePage()) ?? undefined;
-    } catch {
+    } catch (error) {
+      if (isRpcClosedError(error)) throw error;
       return undefined;
     }
   }
@@ -331,6 +495,12 @@ export class DriverSessionManager {
   }
 
   private async ensureInitialized(): Promise<void> {
+    if (this.disconnectReason) {
+      throw new DriverError(
+        `The browser for session "${this.session}" disconnected (Chrome closed or the remote session ended). Run browse open <url> --session ${this.session} to start a new one.`,
+        { code: "browser_disconnected" },
+      );
+    }
     if (this.stagehand && this.context) return;
     if (this.initPromise) return this.initPromise;
 
@@ -345,8 +515,17 @@ export class DriverSessionManager {
       .then(() => {
         this.initFailure = null;
         this.consecutiveInitFailures = 0;
+        this.disconnectReason = undefined;
       })
       .catch(async (error: unknown) => {
+        if (isRpcClosedError(error)) {
+          const reason = error instanceof Error ? error.message : "Browser disconnected";
+          this.markDisconnected(reason);
+          throw new DriverError(
+            `The browser for session "${this.session}" disconnected (Chrome closed or the remote session ended). Run browse open <url> --session ${this.session} to start a new one.`,
+            { code: "browser_disconnected" },
+          );
+        }
         this.consecutiveInitFailures += 1;
         const failure = await this.markRepeatedInitFailure(error);
         this.initFailure = {
@@ -431,6 +610,18 @@ async function safeTitle(page: DriverPage): Promise<string> {
   try {
     return await page.title();
   } catch {
+    return "";
+  }
+}
+
+async function safeTitleWithRpcDetection(
+  page: DriverPage,
+  onRpcClosed: (e: Error) => void,
+): Promise<string> {
+  try {
+    return await page.title();
+  } catch (error) {
+    if (isRpcClosedError(error)) onRpcClosed(error as Error);
     return "";
   }
 }
