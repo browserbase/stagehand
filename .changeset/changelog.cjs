@@ -2,7 +2,7 @@
 // external contributor PR credit the original contributor, not github-actions.
 const base = require("@changesets/changelog-github").default;
 
-const OWNED_RE = /<!-- external-contributor-pr:owned source-pr=(\d+) /;
+const OWNED_RE = /<!-- external-contributor-pr:owned source-pr=(\d+) /g;
 const OVERRIDE_RE = /^\s*(?:pr|pull|pull\s+request|commit|author|user):/im;
 const MIRROR_AUTHOR = "github-actions[bot]";
 
@@ -21,7 +21,9 @@ async function creditMirroredContributor(changeset, repo) {
   if (!changeset.commit || OVERRIDE_RE.test(changeset.summary)) return changeset;
   const pulls = await github(`/repos/${repo}/commits/${changeset.commit}/pulls`);
   const mirror = pulls.find((pull) => pull.merged_at && pull.user?.login === MIRROR_AUTHOR);
-  const source = mirror?.body?.match(OWNED_RE)?.[1];
+  // The mirror body quotes the external PR description before the trusted
+  // marker, so take the last marker (same as syncOwnedPr).
+  const source = [...(mirror?.body?.matchAll(OWNED_RE) ?? [])].at(-1)?.[1];
   if (!source) return changeset;
   const original = await github(`/repos/${repo}/pulls/${source}`);
   const overrides = `pr: #${source}\ncommit: ${changeset.commit}\nauthor: @${original.user.login}\n`;
@@ -35,6 +37,7 @@ module.exports = {
     try {
       credited = await creditMirroredContributor(changeset, options.repo);
     } catch (error) {
+      // oxlint-disable-next-line no-console -- changesets surfaces this warning in release logs.
       console.warn(`Could not credit mirrored contributor for ${changeset.id}: ${error.message}`);
     }
     return base.getReleaseLine(credited, type, options);
