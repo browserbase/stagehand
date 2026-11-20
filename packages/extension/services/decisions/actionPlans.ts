@@ -10,6 +10,8 @@ import {
 } from "./tree.js";
 import { choiceAnswer, decide, type DecisionModelConfig, type JsonValue } from "./client.js";
 import type { ElementFacts } from "./actionFacts.js";
+import { actionContext, type StructuralEvidence } from "./actionContext.js";
+import { normalizeHeading } from "./nativeHeading.js";
 
 export type ActionSnapshot = {
   formattedTree: string;
@@ -31,6 +33,9 @@ export type ActionPlanOptions = {
   includeDestination?: boolean;
   variables?: Variables;
   threshold?: number;
+};
+type ActionEvidenceOptions = Pick<ActionPlanOptions, "compact" | "includeDestination"> & {
+  context?: StructuralEvidence;
 };
 
 export function actionNodes(snapshot: ActionSnapshot): OutlineNode[] {
@@ -119,23 +124,43 @@ export function candidates(
     );
   });
   const scores = scoreCandidates(nodes, eligible, instruction);
-  const selected = eligible
-    .toSorted((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || a.index - b.index)
-    .slice(0, limit)
-    .sort((a, b) => a.index - b.index);
-  return { nodes, eligible, selected };
+  const context = kind === "pointer" ? actionContext(snapshot, nodes, instruction) : undefined;
+  const structural = new Set<string>();
+  if (context) {
+    for (const node of eligible) {
+      const evidence = context(node);
+      if (evidence && (!("inSection" in evidence) || evidence.inSection)) structural.add(node.id);
+    }
+  }
+  const ranked = eligible.toSorted(
+    (a, b) =>
+      Number(structural.has(b.id)) - Number(structural.has(a.id)) ||
+      (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) ||
+      a.index - b.index,
+  );
+  const selected = ranked.slice(0, limit).sort((a, b) => a.index - b.index);
+  return { nodes, eligible, selected, context };
 }
 
 export function evidence(
   snapshot: ActionSnapshot,
   nodes: OutlineNode[],
   node: OutlineNode,
-  compact: boolean,
-  includeDestination = true,
+  { compact = true, includeDestination = true, context }: ActionEvidenceOptions = {},
 ): Record<string, JsonValue> {
   const full = describeCandidate(nodes, node);
-  if (!compact) return full;
-  const fact = snapshot.facts[node.id]!;
+  const title = context && "title_link" in context ? context : undefined;
+  if (context && "inSection" in context) {
+    if (context.inSection) full.under_heading = context.section;
+    else if (
+      typeof full.under_heading === "string" &&
+      normalizeHeading(full.under_heading) === normalizeHeading(context.section)
+    ) {
+      full.under_heading = `Outside ${context.section}`;
+    }
+  }
+  const fact = snapshot.facts[node.id];
+  if (!compact || !fact) return title ? { ...full, ...title } : full;
   return {
     role: node.role,
     name: node.name || fact.name || fact.text,
@@ -145,6 +170,7 @@ export function evidence(
     ...(full.occurrence ? { occurrence: full.occurrence } : {}),
     ...(includeDestination && fact.href ? { destination: fact.href.slice(0, 240) } : {}),
     ...(fact.checked !== undefined ? { checked: fact.checked } : {}),
+    ...title,
   };
 }
 
@@ -164,7 +190,11 @@ export function buildPlans(
       nodeId: node.id,
       method: "click",
       arguments: [],
-      evidence: evidence(snapshot, pointer.nodes, node, compact, includeDestination),
+      evidence: evidence(snapshot, pointer.nodes, node, {
+        compact,
+        includeDestination,
+        context: pointer.context?.(node),
+      }),
     });
   for (const value of values)
     for (const node of input.selected)
@@ -173,7 +203,7 @@ export function buildPlans(
         nodeId: node.id,
         method: "fill",
         arguments: [value],
-        evidence: evidence(snapshot, input.nodes, node, compact, includeDestination),
+        evidence: evidence(snapshot, input.nodes, node, { compact, includeDestination }),
       });
   return plans;
 }

@@ -15,6 +15,7 @@ import {
   type ObservationCandidate,
   type ObservationSnapshot,
 } from "./observeCandidates.js";
+import { parseObservationSection, resolveObservationSection } from "./observeSection.js";
 
 export type ObservationOutcome =
   | { kind: "done"; actions: Action[] }
@@ -116,7 +117,8 @@ export async function selectObservation(
   variables?: Variables,
   classified?: ObservationIntent,
 ): Promise<ObservationOutcome> {
-  const { candidates, unresolved } = observationView(snapshot);
+  const view = observationView(snapshot);
+  const { candidates, unresolved } = view;
   const fallback = (reason: string): ObservationOutcome => ({ kind: "fallback", reason });
   if (instruction !== undefined && !instruction.trim()) return fallback("empty_instruction");
   if (unresolved.length) return fallback(`unrepresented_candidates:${unresolved.length}`);
@@ -129,14 +131,15 @@ export async function selectObservation(
             ? "fill"
             : "click"
         : operation;
-    const values = instruction ? fillValueCandidates(instruction, variables) : [];
+    const values =
+      method === "fill" && instruction ? fillValueCandidates(instruction, variables) : [];
     return {
       selector: candidate.selector,
       description: candidate.node.name
         ? `${candidate.node.role}: ${candidate.node.name}`
         : candidate.node.role,
       method,
-      arguments: method === "fill" && values.length === 1 ? values : [],
+      arguments: values.length === 1 ? values : [],
     };
   };
   if (!instruction) {
@@ -145,6 +148,14 @@ export async function selectObservation(
       kind: "done",
       actions: candidates.filter(isInteractive).map((c) => toAction(c, "default")),
     };
+  }
+  const section = parseObservationSection(instruction);
+  if (section) {
+    const links = resolveObservationSection(snapshot, section, view);
+    if (!links) return fallback("unproven_section_scope");
+    if (links.length > MAX_SELECTION_CANDIDATES)
+      return fallback(`candidate_budget:${links.length}`);
+    return { kind: "done", actions: links.map((link) => toAction(link, "click")) };
   }
   if (!candidates.length) return fallback("candidate_budget:0");
   const intent = classified ?? (await classifyObservation(config, instruction, variables));

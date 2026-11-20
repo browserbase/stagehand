@@ -5,6 +5,7 @@ import type { Progress } from "../../understudy/progress.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import { trimTrailingTextNode } from "../../utils.js";
 import { actionNodes, choosePlan, evidence } from "./actionPlans.js";
+import { actionContext } from "./actionContext.js";
 import { readFacts } from "./actionFacts.js";
 import { checkSelectedTarget } from "./actionTarget.js";
 import { redactor, substituteVariables } from "./args.js";
@@ -63,9 +64,14 @@ export async function runDecisionsAct(
     });
     if (!selected.plan) return { kind: "fallback", reason: "action_plan_abstained" };
     const plan = selected.plan;
-    const target = actionNodes(view).find((node) => node.id === plan.nodeId);
-    const xpath = trimTrailingTextNode(view.xpathMap[plan.nodeId]);
-    if (!target || !xpath) return { kind: "fallback", reason: "action_plan_missing_xpath" };
+    const nodes = actionNodes(view);
+    const target = nodes.find((node) => node.id === plan.nodeId);
+    const targetPath = view.xpathMap[plan.nodeId];
+    const xpath = trimTrailingTextNode(targetPath);
+    if (!target || !targetPath || !xpath)
+      return { kind: "fallback", reason: "action_plan_missing_xpath" };
+    const structural =
+      plan.method === "click" ? actionContext(view, nodes, deps.instruction)?.(target) : undefined;
     const selector = `xpath=${xpath}`;
     const guard = await checkSelectedTarget(
       deps.page,
@@ -77,7 +83,7 @@ export async function runDecisionsAct(
     if (guard.verdict !== "ok")
       return { kind: "fallback", reason: `action_plan_target_changed:${guard.verdict}` };
     const current = await deps.progress.run("revalidating action evidence", () =>
-      deps.page.evaluate(readFacts, { [plan.nodeId]: view.xpathMap[plan.nodeId]! }),
+      deps.page.evaluate(readFacts, { [plan.nodeId]: targetPath }),
     );
     if (
       !current[plan.nodeId] ||
@@ -95,11 +101,31 @@ export async function runDecisionsAct(
     };
     const refreshedNodes = actionNodes(refreshedView);
     const refreshedTarget = refreshedNodes.find((node) => node.id === plan.nodeId);
+    if (structural) {
+      const headingPaths: Record<string, string> = {};
+      for (const { id, role } of refreshedNodes) {
+        const path = refreshedView.xpathMap[id];
+        if (role === "heading" && path) headingPaths[id] = path;
+      }
+      if (Object.keys(headingPaths).length) {
+        const headingFacts = await deps.progress.run("revalidating action headings", () =>
+          deps.page.evaluate(readFacts, headingPaths),
+        );
+        for (const id of Object.keys(headingPaths)) delete refreshedView.facts[id];
+        Object.assign(refreshedView.facts, headingFacts);
+      }
+    }
+    const refreshedContext =
+      refreshedTarget && plan.method === "click"
+        ? actionContext(refreshedView, refreshedNodes, deps.instruction)?.(refreshedTarget)
+        : undefined;
     if (
       !refreshedTarget ||
-      refreshed.combinedXpathMap[plan.nodeId] !== view.xpathMap[plan.nodeId] ||
-      JSON.stringify(evidence(refreshedView, refreshedNodes, refreshedTarget, true)) !==
-        JSON.stringify(plan.evidence)
+      refreshedView.xpathMap[plan.nodeId] !== targetPath ||
+      JSON.stringify(structural) !== JSON.stringify(refreshedContext) ||
+      JSON.stringify(
+        evidence(refreshedView, refreshedNodes, refreshedTarget, { context: refreshedContext }),
+      ) !== JSON.stringify(plan.evidence)
     )
       return { kind: "fallback", reason: "action_plan_evidence_changed" };
     deps.progress.throwIfStopped();

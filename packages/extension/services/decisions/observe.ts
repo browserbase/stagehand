@@ -17,6 +17,11 @@ import {
   selectObservation,
   type ObservationOutcome,
 } from "./observeSelection.js";
+import {
+  parseObservationSection,
+  resolveObservationSection,
+  sectionEvidenceIds,
+} from "./observeSection.js";
 import { redactor } from "./args.js";
 
 type ObserveDeps = {
@@ -33,13 +38,16 @@ export async function runDecisionsObserve(
   deps: ObserveDeps,
 ): Promise<ObservationOutcome & { inferenceTimeMs: number }> {
   let inferenceTimeMs = 0;
+  const section = parseObservationSection(deps.instruction);
   const snapshot = async (captured?: HybridSnapshot): Promise<ObservationSnapshot> => {
     const snap = captured ?? (await deps.page.captureSnapshot(deps.snapshotOptions, deps.progress));
     // Only outline nodes and editable side-channel nodes can enter observationView.
     // Reading the entire DOM map is costly on pages with thousands of hidden nodes.
+    const nodes = parseOutline(snap.combinedTree);
     const ids = new Set([
-      ...parseOutline(snap.combinedTree).map((node) => node.id),
+      ...nodes.map((node) => node.id),
       ...(snap.combinedEditableIds ?? []),
+      ...(section ? sectionEvidenceIds(nodes, snap.combinedXpathMap, section) : []),
     ]);
     const pathsFor = (map: Record<string, string>) =>
       Object.fromEntries([...ids].flatMap((id) => (map[id] ? [[id, map[id]!]] : [])));
@@ -85,11 +93,12 @@ export async function runDecisionsObserve(
         ? AbortSignal.any([config.signal, deps.progress.signal])
         : deps.progress.signal,
     };
-    // Instruction-only intent can run while the browser captures the candidate evidence.
+    // Explicit section requests can resolve from the snapshot without model intent.
+    // Other requests overlap intent classification with capture.
     const [captured, intent] = await deps.progress.run("preparing observation decisions", () =>
       settleAll([
         deps.page.captureSnapshot(deps.snapshotOptions, deps.progress),
-        deps.instruction?.trim()
+        !section && deps.instruction?.trim()
           ? classifyObservation(decisionConfig, deps.instruction, deps.variables)
           : Promise.resolve(undefined),
       ] as const),
@@ -109,12 +118,23 @@ export async function runDecisionsObserve(
     deps.progress.throwIfStopped();
     if (outcome.kind === "done") {
       const after = await snapshot();
-      // Checking the whole candidate universe also detects added matches and invalidated empty results.
-      if (
-        observationSignature(observationView(before)) !==
-        observationSignature(observationView(after))
-      )
+      const beforeView = observationView(before);
+      const afterView = observationView(after);
+      if (section) {
+        // Resolve the complete scoped set again so unrelated DOM updates do not invalidate it.
+        const previous = resolveObservationSection(before, section, beforeView);
+        const current = resolveObservationSection(after, section, afterView);
+        if (
+          !previous ||
+          !current ||
+          observationSignature({ ...beforeView, candidates: previous }) !==
+            observationSignature({ ...afterView, candidates: current })
+        )
+          return { kind: "fallback", reason: "observation_evidence_changed", inferenceTimeMs };
+      } else if (observationSignature(beforeView) !== observationSignature(afterView)) {
+        // Checking the whole candidate universe also detects added matches and invalidated empty results.
         return { kind: "fallback", reason: "observation_evidence_changed", inferenceTimeMs };
+      }
     }
     return { ...outcome, inferenceTimeMs };
   } catch (error) {
