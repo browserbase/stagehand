@@ -1,5 +1,6 @@
 import { requestBrowserbase } from "./clients/browserbaseClient.js";
 import {
+  STAGEHAND_HOST_CDP_RELAY_URL,
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
   StagehandNotifications,
@@ -13,6 +14,7 @@ import { injectContentScriptIntoOpenTabs } from "./service-worker-lifecycle/cont
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
+import { hostRelayWebSocketFactory } from "./understudy/hostRelayTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
@@ -54,7 +56,10 @@ export function startStagehandServiceWorker(
             );
           }
           return await BrowserContext.create(cdpUrl, {
-            websocketFactory: browserWebSocketFactory,
+            websocketFactory:
+              cdpUrl === STAGEHAND_HOST_CDP_RELAY_URL
+                ? hostRelayWebSocketFactory
+                : browserWebSocketFactory,
             logger,
             blankPageUrl: chrome.runtime.getURL("blank.html"),
             fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),

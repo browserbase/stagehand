@@ -652,7 +652,35 @@ if err != nil {
 </Tabs>
 
 - Headers are sent with HTTP discovery and the client's WebSocket connection. They are only forwarded to the same host and port, without switching from a secure connection to an insecure one.
-- Headers are never passed to the extension. Its connection must work without them, using a signed URL or [a separate CDP URL](#a-separate-cdp-url-for-the-extension).
+- Headers are never passed to the extension. Use a signed URL, [a separate CDP URL](#a-separate-cdp-url-for-the-extension), or the TypeScript host relay below.
+
+#### A CDP relay for a brokered session (TypeScript)
+
+Use `relayExtensionCdp: true` when a trusted network broker adds authentication to outbound CDP connections. The SDK opens the extension's CDP connection through the same host route. The extension receives CDP frames, but it does not receive the upstream URL or headers. Install the matching Stagehand extension before you attach.
+
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+// The trusted broker supplies a URL with no credential in it.
+const browser = await localBrowser.connect({
+  cdpUrl: process.env.BROKER_CDP_URL!,
+  preloadedExtension: true,
+  relayExtensionCdp: true,
+});
+
+try {
+  const stagehand = await Stagehand.create({ browser });
+  const page = await browser.context.activePage();
+  await page.goto("https://example.com");
+  console.log(await page.title());
+} finally {
+  await browser.disconnect();
+}
+```
+
+The broker must allow both host CDP connections and apply its rules to both. The relay does not prove that an agent started a CDP command. If untrusted code can use the same broker URL, it can also send CDP commands to that URL. Keep the broker's access rules outside the untrusted process. If the Browserbase session must stay active after `browser.disconnect()`, create it with `keepAlive: true`.
+
+For a direct TypeScript `browserbase.connect()` call, you can supply `signingKey` when the session's CDP URL has no signing key in it. The SDK sends it as a bearer header. Keep this option in a trusted process; use the brokered route above when the SDK runs in an untrusted process.
 
 #### A separate CDP URL for the extension
 

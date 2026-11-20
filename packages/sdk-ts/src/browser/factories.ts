@@ -1,4 +1,5 @@
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
+import { STAGEHAND_HOST_CDP_RELAY_URL } from "@browserbasehq/stagehand-protocol/schema-registry";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseFetchOptionsSchema,
@@ -56,6 +57,8 @@ type BrowserFactoryDependencies = {
 
 type BrowserConnectionSource = {
   cdpUrl: string;
+  signingKey?: string;
+  relayExtensionCdp?: true;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -127,6 +130,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
         const parsed = LocalBrowserConnectOptionsSchema.parse(options);
         const source: BrowserConnectionSource = {
           cdpUrl: parsed.cdpUrl,
+          ...(parsed.relayExtensionCdp ? { relayExtensionCdp: true } : {}),
           keepAlive: true,
         };
         return await withStagehandInitDeadline(async (signal) =>
@@ -135,7 +139,9 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             origin: "connected",
             source,
             connectCdp,
-            extension: { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
+            extension: parsed.preloadedExtension
+              ? { preloadedExtension: true }
+              : { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
             headers: parsed.headers,
             workerInitMetadata: { browserCdpUrl: parsed.extensionCdpUrl },
@@ -166,6 +172,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           }
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
+            signingKey: session.signingKey,
             keepAlive: sessionOptions.keepAlive ?? false,
             close: session.close,
           };
@@ -197,6 +204,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           const session = await abortable(client.connectSession!(options.sessionId), signal);
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
+            signingKey: options.signingKey ?? session.signingKey,
             keepAlive: true,
             close: session.close,
           };
@@ -274,16 +282,32 @@ async function connectBrowser(options: {
   const ownsSource = options.origin === "launched" && !options.source.keepAlive;
   let cdpClient: CDPClient | undefined;
   try {
+    const signedUrl =
+      options.provider === "browserbase" &&
+      new URL(options.source.cdpUrl).searchParams.has("signingKey");
+    const bearerKey = signedUrl ? undefined : options.source.signingKey;
+    const relayExtensionCdp = Boolean(bearerKey || options.source.relayExtensionCdp);
+    const workerInitMetadata = relayExtensionCdp
+      ? { ...options.workerInitMetadata, browserCdpUrl: STAGEHAND_HOST_CDP_RELAY_URL }
+      : options.workerInitMetadata;
     const connectionPromise = options.connectCdp({
       cdpUrl: options.source.cdpUrl,
-      ...(options.headers === undefined ? {} : { headers: options.headers }),
+      ...(options.headers === undefined && !bearerKey
+        ? {}
+        : {
+            headers: {
+              ...options.headers,
+              ...(bearerKey ? { Authorization: `Bearer ${bearerKey}` } : {}),
+            },
+          }),
+      ...(relayExtensionCdp ? { relayExtensionCdp: true } : {}),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
       // Only a local browser Stagehand launched without keepAlive is shut down when this
       // client disappears; Browserbase applies its own keepAlive policy.
       clientLifecycle: {
         closeBrowserOnDisconnect: options.provider === "local" && ownsSource,
-        extensionCdpUrl: options.workerInitMetadata.browserCdpUrl,
+        extensionCdpUrl: workerInitMetadata.browserCdpUrl,
       },
       signal: options.signal,
     });
@@ -350,7 +374,7 @@ async function connectBrowser(options: {
       cdpUrl: options.provider === "local" ? options.source.cdpUrl : undefined,
       attachment: {
         cdpClient: connectedClient,
-        workerInitMetadata: options.workerInitMetadata,
+        workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,

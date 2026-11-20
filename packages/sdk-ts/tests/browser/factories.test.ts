@@ -28,6 +28,78 @@ function deferred<T>() {
 }
 
 describe("Stagehand browser factories", () => {
+  it("routes a brokered connection through the host and uses the installed extension", async () => {
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { localBrowser } = createBrowserFactoriesForTest({ connectCdp });
+    const browser = await localBrowser.connect({
+      cdpUrl: "wss://broker.example/session",
+      preloadedExtension: true,
+      relayExtensionCdp: true,
+    });
+
+    expect(connectCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cdpUrl: "wss://broker.example/session",
+        preloadedExtension: true,
+        relayExtensionCdp: true,
+        clientLifecycle: expect.objectContaining({
+          extensionCdpUrl: "stagehand-host-cdp-relay",
+          closeBrowserOnDisconnect: false,
+        }),
+      }),
+    );
+    expect(connectCdp.mock.calls[0]?.[0]).not.toHaveProperty("headers");
+    expect(claimStagehandBrowser(browser).workerInitMetadata.browserCdpUrl).toBe(
+      "stagehand-host-cdp-relay",
+    );
+    await browser.disconnect();
+  });
+
+  it("uses the returned signing key for an existing Browserbase session", async () => {
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({
+      connectCdp,
+      createBrowserbaseSessionClient: () => ({
+        createSession: vi.fn(),
+        connectSession: async () => ({
+          sessionId: "session_123",
+          cdpUrl: "wss://connect.browserbase.com/session_123",
+          signingKey: "test-key",
+          close: async () => {},
+        }),
+      }),
+    });
+    const browser = await browserbase.connect({ apiKey: "bb_key", sessionId: "session_123" });
+
+    expect(connectCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: { Authorization: "Bearer test-key" },
+        relayExtensionCdp: true,
+      }),
+    );
+    await browser.disconnect();
+  });
+
+  it("keeps signed Browserbase URLs on the direct extension path", async () => {
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({
+      connectCdp,
+      createBrowserbaseSessionClient: () => ({
+        createSession: async () => ({
+          sessionId: "session_123",
+          cdpUrl: "wss://connect.browserbase.com/session_123?signingKey=url-key",
+          signingKey: "returned-key",
+          close: async () => {},
+        }),
+      }),
+    });
+    const browser = await browserbase.launch({ apiKey: "bb_key" });
+
+    expect(connectCdp.mock.calls[0]?.[0].headers).toBeUndefined();
+    expect(connectCdp.mock.calls[0]?.[0].relayExtensionCdp).toBeUndefined();
+    await browser.disconnect();
+  });
+
   describe.each<Record<string, string> | undefined>([
     undefined,
     {},
