@@ -53,6 +53,15 @@ function initFailureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The cached failure as `status()` reports it: its message, plus its code when it has one. */
+function initFailureStatus(error: unknown): Pick<DriverStatus, "initError" | "initErrorCode"> {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return {
+    initError: initFailureMessage(error),
+    ...(typeof code === "string" && code.length > 0 ? { initErrorCode: code } : {}),
+  };
+}
+
 export function isChromeNotFoundError(error: unknown): boolean {
   const code = (error as { code?: unknown } | null | undefined)?.code;
   if (typeof code === "string" && CHROME_NOT_FOUND_ERROR_CODES.has(code)) {
@@ -166,7 +175,7 @@ export class DriverSessionManager {
     if (!this.stagehand || !this.context) {
       return {
         browserConnected: false,
-        ...(this.initFailure ? { initError: initFailureMessage(this.initFailure.error) } : {}),
+        ...(this.initFailure ? initFailureStatus(this.initFailure.error) : {}),
         initialized: false,
         mode: this.target.kind,
         pages: [],

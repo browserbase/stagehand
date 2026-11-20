@@ -145,8 +145,7 @@ function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
  * stable result code. Browserbase SDK errors carry an HTTP `status`.
  */
 export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
-  const status = (error as { status?: unknown } | null | undefined)?.status;
-  const httpStatus = typeof status === "number" ? status : undefined;
+  const httpStatus = httpStatusOf(error);
   if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
@@ -173,6 +172,21 @@ export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassifi
   };
 }
 
+/**
+ * HTTP status of the error or of a cause beneath it. Stagehand's Browserbase
+ * factory wraps the SDK's `AuthenticationError` in a plain `Error` ("Failed to
+ * upload the Stagehand extension..."), so the 401 only shows up on `cause`.
+ */
+function httpStatusOf(error: unknown): number | undefined {
+  let current = error;
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    const { status, cause } = current as { status?: unknown; cause?: unknown };
+    if (typeof status === "number") return status;
+    current = cause;
+  }
+  return undefined;
+}
+
 function remoteDriverError(error: unknown): DriverError {
   const { code, httpStatus, message } = classifyRemoteInitError(error);
   return new DriverError(message, { code, httpStatus });
@@ -182,6 +196,7 @@ export function driverInitHints(): DriverInitHints {
   return {
     chromeNotFound:
       "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set), attach to a running browser with --cdp <port>, or set BROWSERBASE_API_KEY to use a remote browser.",
+    remoteAuthFailure: "check BROWSERBASE_API_KEY",
     repeatedInitFailure:
       " (failing repeatedly — fix BROWSERBASE_API_KEY, use --local, or run browse doctor)",
   };

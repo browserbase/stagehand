@@ -58,6 +58,7 @@ export function driverInitHints(): DriverInitHints {
   return {
     chromeNotFound:
       "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set) or attach to a running browser with --cdp <port>.",
+    remoteAuthFailure: "check your remote browser credentials",
     repeatedInitFailure: " (failing repeatedly — check your browser setup or run browse doctor)",
   };
 }

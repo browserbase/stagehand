@@ -1256,6 +1256,41 @@ describe("driver foundation", () => {
     }
   });
 
+  it("records the typed code of a cached launch failure in status", async () => {
+    const launch = vi.fn().mockRejectedValue(
+      Object.assign(new Error("No Chrome installations found."), {
+        code: "ERR_LAUNCHER_NOT_INSTALLED",
+      }),
+    );
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create: vi.fn() },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
+      const manager = new MockedDriverSessionManager("launch-failure-code", {
+        headless: true,
+        kind: "managed-local",
+      });
+
+      await expect(manager.open("https://example.com")).rejects.toThrow(
+        "No Chrome or Chromium found",
+      );
+
+      const status = await manager.status();
+      expect(status.initErrorCode).toBe("no_chrome_found");
+      expect(status.initError).toContain("No Chrome or Chromium found");
+      expect(launch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
   it("closes a connected browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { close: closeBrowser, context: {}, origin: "connected" };
