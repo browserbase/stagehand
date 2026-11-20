@@ -101,10 +101,7 @@ describe("localExtensionDir replaces incompatible extensions", () => {
       // since they were loaded from different paths. The important thing is that
       // the SDK connected to a compatible one.
       const verifyClient = new CDPClient(
-        await openCDPWebSocket(
-          await resolveBrowserWebSocketUrl(chrome.cdpUrl, { signal }),
-          signal,
-        ),
+        await openCDPWebSocket(await resolveBrowserWebSocketUrl(chrome.cdpUrl, { signal }), signal),
         chrome.cdpUrl,
       );
       cleanups.push(async () => verifyClient.close());
@@ -139,8 +136,7 @@ async function forkExtensionWithProtocolVersion(
   await cp(sourceDir, dir, { recursive: true });
   const workerPath = path.join(dir, "service-worker.js");
   const source = await readFile(workerPath, "utf8");
-  const markerAssignment =
-    /(__stagehand_runtime\s*=\s*\{\s*protocolVersion:\s*)("[^"]*"|[\w$.]+)/g;
+  const markerAssignment = /(__stagehand_runtime\s*=\s*\{\s*protocolVersion:\s*)("[^"]*"|[\w$.]+)/g;
   const matches = [...source.matchAll(markerAssignment)];
   expect(matches, "expected exactly one __stagehand_runtime marker assignment").toHaveLength(1);
   await writeFile(

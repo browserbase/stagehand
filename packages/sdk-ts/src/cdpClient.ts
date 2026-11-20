@@ -441,8 +441,7 @@ export class CDPClient {
                 ? replacementError.message
                 : String(replacementError);
             enhancedError.message =
-              error.message +
-              ` Automatic extension replacement failed: ${replacementMessage}.`;
+              error.message + ` Automatic extension replacement failed: ${replacementMessage}.`;
             (enhancedError as { replacementError?: unknown }).replacementError = replacementError;
             throw enhancedError;
           }

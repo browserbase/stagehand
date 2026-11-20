@@ -465,8 +465,7 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
     // Check if this error includes a replacement failure. This can happen when:
     // - Remote browser: can't access the local extension path
     // - Local browser: Chrome rejected Extensions.loadUnpacked for other reasons
-    const hasReplacementError =
-      "replacementError" in error && error.replacementError !== undefined;
+    const hasReplacementError = "replacementError" in error && error.replacementError !== undefined;
     if (hasReplacementError) {
       return new DriverError(
         `Incompatible Stagehand extension and automatic replacement failed. ` +
