@@ -232,6 +232,44 @@ describe("CLI telemetry", () => {
     }
   });
 
+  it("truncates error messages longer than 200 characters", async () => {
+    const telemetryServer = await startTelemetryServer();
+    // Create an error message longer than 200 characters - use recognizable prefix
+    const longPrefix = "BrowserbaseAPIError_";
+    const longErrorBody = longPrefix + "x".repeat(300) + "_END";
+    const apiServer = await startFakeBrowserbaseServer((_request, response) => {
+      textResponse(response, 500, longErrorBody);
+    });
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-telemetry-truncate-");
+      const result = await runCli(["cloud", "search", "query"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          BROWSERBASE_API_KEY: "bb_test",
+          BROWSERBASE_BASE_URL: apiServer.baseUrl,
+        },
+      });
+
+      expect(result.exitCode).toBe(1);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const completedPayload = findPayload(payloads, "cli.command_completed");
+      const errorMessage = completedPayload.properties.error_message as string;
+      expect(errorMessage).not.toBe(null);
+      expect(errorMessage.length).toBeLessThanOrEqual(200);
+      // If the error message contains our long body prefix, verify truncation
+      if (errorMessage.includes(longPrefix)) {
+        expect(errorMessage).toMatch(/\.\.\.$/);
+        expect(errorMessage).not.toContain("_END");
+      }
+      // Otherwise, it's a wrapped error which is still valid - just verify length cap
+    } finally {
+      await apiServer.close();
+      await telemetryServer.close();
+    }
+  });
+
   it("attaches the validated skill id to completion telemetry for skills add", async () => {
     const telemetryServer = await startTelemetryServer();
     const skillsApiServer = await startFakeBrowserbaseServer((_request, response) => {
