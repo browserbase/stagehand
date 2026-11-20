@@ -55,7 +55,7 @@ function createLocator(selector = "button") {
     }
     return {};
   });
-  const frame = { frameId: "root", session: { send } } as unknown as Frame;
+  const frame = { frameId: "root", session: { send }, inputModifiers: () => 0 } as unknown as Frame;
   const locator = new Locator(frame, selector);
   const resolveNode = vi
     .spyOn(locator, "resolveNode")
@@ -307,11 +307,11 @@ describe("locator action deadlines", () => {
     await vi.advanceTimersByTimeAsync(0);
     const events = send.mock.calls.filter(([name]) => name === "Input.dispatchMouseEvent");
     expect(events.map(([, params]) => params)).toEqual([
-      { type: "mouseMoved", x: 5, y: 5, button: "none" },
-      { type: "mousePressed", x: 5, y: 5, button: "right", clickCount: 1 },
-      { type: "mouseReleased", x: 5, y: 5, button: "right", clickCount: 1 },
-      { type: "mousePressed", x: 5, y: 5, button: "right", clickCount: 2 },
-      { type: "mouseReleased", x: 5, y: 5, button: "right", clickCount: 2 },
+      { type: "mouseMoved", x: 5, y: 5, button: "none", modifiers: 0 },
+      { type: "mousePressed", x: 5, y: 5, button: "right", clickCount: 1, modifiers: 0 },
+      { type: "mouseReleased", x: 5, y: 5, button: "right", clickCount: 1, modifiers: 0 },
+      { type: "mousePressed", x: 5, y: 5, button: "right", clickCount: 2, modifiers: 0 },
+      { type: "mouseReleased", x: 5, y: 5, button: "right", clickCount: 2, modifiers: 0 },
     ]);
     gate.resolve({});
     await pending;

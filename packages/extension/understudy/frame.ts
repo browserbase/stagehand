@@ -40,6 +40,7 @@ export class Frame implements FrameManager {
     public pageId: string,
     readonly remoteBrowser: boolean,
     public readonly logger: StagehandLogger,
+    readonly inputModifiers: () => number = () => 0,
   ) {
     this.sessionId = this.session.id ?? null;
   }
