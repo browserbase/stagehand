@@ -495,3 +495,21 @@ export function readElementInnerText(this: Element): string {
     return "";
   }
 }
+
+export function readElementPaddingSize(this: Element): { width: number; height: number } {
+  const style = getComputedStyle(this);
+  const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  const width = parseFloat(style.width);
+  const height = parseFloat(style.height);
+  return {
+    width: Number.isFinite(width)
+      ? width + (style.boxSizing === "border-box" ? -borderX : paddingX)
+      : (this as HTMLElement).offsetWidth - borderX,
+    height: Number.isFinite(height)
+      ? height + (style.boxSizing === "border-box" ? -borderY : paddingY)
+      : (this as HTMLElement).offsetHeight - borderY,
+  };
+}

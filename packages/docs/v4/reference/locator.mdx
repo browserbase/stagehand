@@ -54,6 +54,18 @@ await locator.click();
   <ParamField path="options.clickCount" type="number" optional>
     The number of clicks to dispatch.
   </ParamField>
+
+  <ParamField path="options.position" type="LocatorClickPosition" optional>
+    The point to click, in CSS pixels from the top-left corner of the element's padding box. Defaults to the element's center.
+
+    <ParamField path="options.position.x" type="number">
+      The horizontal offset in CSS pixels.
+    </ParamField>
+
+    <ParamField path="options.position.y" type="number">
+      The vertical offset in CSS pixels.
+    </ParamField>
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
@@ -551,6 +563,18 @@ await locator.click()
 
 <ParamField path="click_count" type="int | None" optional>
   The number of clicks to dispatch.
+</ParamField>
+
+<ParamField path="position" type="LocatorClickPosition | Mapping[str, float] | None" optional>
+  The point to click, in CSS pixels from the top-left corner of the element's padding box. Defaults to the element's center.
+
+  <ParamField path="position.x" type="float">
+    The horizontal offset in CSS pixels.
+  </ParamField>
+
+  <ParamField path="position.y" type="float">
+    The vertical offset in CSS pixels.
+  </ParamField>
 </ParamField>
 
 <ParamField path="timeout" type="float | None" optional>

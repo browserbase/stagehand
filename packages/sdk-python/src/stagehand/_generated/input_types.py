@@ -515,6 +515,11 @@ class LocatorCentroidResult(TypedDict):
     y: float
 
 
+class LocatorClickPosition(TypedDict):
+    x: float
+    y: float
+
+
 class LocatorClickResult(TypedDict):
     clicked: Literal[True]
 
@@ -655,6 +660,7 @@ class LocatorClickOptions(TypedDict):
     timeout: NotRequired[float]
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
+    position: NotRequired[LocatorClickPosition]
 
 
 class LocatorClickParams(TypedDict):

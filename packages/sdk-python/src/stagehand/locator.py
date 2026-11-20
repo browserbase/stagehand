@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Literal, Self
 
 from ._generated.input_types import RgbaColor
@@ -8,6 +8,7 @@ from ._generated.models import (
     LocatorCentroidResult,
     LocatorClickOptions,
     LocatorClickParams,
+    LocatorClickPosition,
     LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
@@ -77,6 +78,7 @@ class Locator:
         *,
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         click_count: int | None = None,
+        position: LocatorClickPosition | Mapping[str, float] | None = None,
         timeout: float | None = None,
     ) -> None:
         values = self._params(timeout)
@@ -85,6 +87,7 @@ class Locator:
             for name, value in (
                 ("button", button),
                 ("click_count", click_count),
+                ("position", position),
                 ("timeout", timeout),
             )
             if value is not None
