@@ -141,18 +141,53 @@ function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
 }
 
 /**
+ * Extract an HTTP status from an error or its cause chain (depth ≤5).
+ */
+function extractHttpStatus(error: unknown, depth = 0): number | undefined {
+  if (depth > 5 || !error || typeof error !== "object") return undefined;
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === "number") return status;
+  const cause = (error as { cause?: unknown }).cause;
+  return cause ? extractHttpStatus(cause, depth + 1) : undefined;
+}
+
+/**
+ * Extract the first message from an error chain (depth ≤5), truncated to maxLen.
+ */
+function extractUpstreamMessage(error: unknown, maxLen = 120, depth = 0): string | undefined {
+  if (depth > 5 || !error) return undefined;
+  if (error instanceof Error && error.message) {
+    const msg = error.message.trim();
+    return msg.length > maxLen ? msg.slice(0, maxLen) + "…" : msg;
+  }
+  if (typeof error === "object") {
+    const cause = (error as { cause?: unknown }).cause;
+    return cause ? extractUpstreamMessage(cause, maxLen, depth + 1) : undefined;
+  }
+  return undefined;
+}
+
+/**
  * Map a failed remote `stagehand.init()` to an actionable message and a
  * stable result code. Browserbase SDK errors carry an HTTP `status`.
  */
 export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
-  const status = (error as { status?: unknown } | null | undefined)?.status;
-  const httpStatus = typeof status === "number" ? status : undefined;
+  const httpStatus = extractHttpStatus(error);
   if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
       httpStatus,
       message:
         "Browserbase rejected your BROWSERBASE_API_KEY (401 Unauthorized). A set key makes browse default to remote mode. Check the key at https://browserbase.com/settings, run without one using --local (browse open <url> --local), or diagnose with browse doctor.",
+    };
+  }
+
+  if (httpStatus === StatusCodes.PAYMENT_REQUIRED) {
+    return {
+      code: "remote_payment_required",
+      httpStatus,
+      message:
+        "Browserbase plan limit or payment required (402). Check your plan at https://browserbase.com/settings/billing, or run with --local to use a local browser.",
     };
   }
 
@@ -165,11 +200,22 @@ export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassifi
     };
   }
 
+  if (httpStatus === StatusCodes.TOO_MANY_REQUESTS) {
+    return {
+      code: "remote_rate_limited",
+      httpStatus,
+      message:
+        "Browserbase concurrency or rate limit reached (429). Retry later, lower parallel sessions, or run with --local to use a local browser.",
+    };
+  }
+
+  const upstreamMsg = extractUpstreamMessage(error);
   return {
     code: "remote_session_create_failed",
     ...(httpStatus !== undefined ? { httpStatus } : {}),
-    message:
-      "Failed to start a remote (Browserbase) session. Run browse doctor to diagnose remote connectivity.",
+    message: upstreamMsg
+      ? `Failed to start a remote (Browserbase) session: ${upstreamMsg}`
+      : "Failed to start a remote (Browserbase) session.",
   };
 }
 

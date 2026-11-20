@@ -44,11 +44,21 @@ export async function remoteBrowserbaseIdentity(): Promise<BrowserbaseIdentity> 
   return {};
 }
 
+function extractHttpStatus(error: unknown, depth = 0): number | undefined {
+  if (depth > 5 || !error || typeof error !== "object") return undefined;
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === "number") return status;
+  const cause = (error as { cause?: unknown }).cause;
+  return cause ? extractHttpStatus(cause, depth + 1) : undefined;
+}
+
 export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
   // Remote targets cannot be selected in a local-only build, so this is only
   // reachable if a remote error somehow surfaces anyway; preserve it as-is.
+  const httpStatus = extractHttpStatus(error);
   return {
     code: "remote_session_create_failed",
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
     message: error instanceof Error ? error.message : String(error),
   };
 }
