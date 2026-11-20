@@ -1,7 +1,11 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import { runAntigravityAgent } from "../../framework/antigravityRunner.js";
+import {
+  assertAntigravityResultContract,
+  prepareAntigravityToolAdapter,
+  runAntigravityAgent,
+} from "../../framework/antigravityRunner.js";
 import { getBenchHarness } from "../../framework/benchHarness.js";
 import type { DeepagentsProcessSpawner } from "../../framework/deepagentsRunner.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
@@ -129,5 +133,33 @@ describe("Antigravity runner", () => {
     });
     expect(result._success).toBe(false);
     expect(result.harnessStatus).toBe("max_turns");
+  });
+
+  it("fails fast on the structured_output contract instead of ignoring it", async () => {
+    const env = { EVAL_RESULT_CONTRACT: "structured_output" };
+    expect(() => assertAntigravityResultContract(env)).toThrow(
+      /antigravity supports only the EVAL_RESULT marker contract/,
+    );
+    expect(() => assertAntigravityResultContract({})).not.toThrow();
+    const capture: { args?: string[] } = {};
+    await expect(
+      runAntigravityAgent({
+        plan,
+        model,
+        logger: new EvalLogger(false),
+        spawn: eventSpawner([], capture),
+        env,
+      }),
+    ).rejects.toThrow(/marker contract/);
+    expect(capture.args).toBeUndefined();
+  });
+
+  it("checks the contract before the tool adapter starts a browser", async () => {
+    await expect(
+      prepareAntigravityToolAdapter(
+        { environment: "LOCAL", plan, logger: new EvalLogger(false) },
+        { EVAL_RESULT_CONTRACT: "structured_output" },
+      ),
+    ).rejects.toThrow(/marker contract/);
   });
 });

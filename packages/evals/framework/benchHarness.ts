@@ -25,6 +25,7 @@ import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
 import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
 import {
+  prepareAntigravityToolAdapter,
   runAntigravityAgent,
   ANTIGRAVITY_DEFAULT_MODELS,
   ANTIGRAVITY_TOOL_SURFACES,
@@ -382,7 +383,7 @@ export const antigravityHarness = defineExternalHarness({
   harness: "antigravity",
   supportedToolSurfaces: ANTIGRAVITY_TOOL_SURFACES,
   defaultModels: ANTIGRAVITY_DEFAULT_MODELS,
-  prepareToolAdapter: prepareDeepagentsToolAdapter,
+  prepareToolAdapter: (input) => prepareAntigravityToolAdapter(input),
   runAgent: runAntigravityAgent,
 });
 

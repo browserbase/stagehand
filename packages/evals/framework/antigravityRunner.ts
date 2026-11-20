@@ -20,11 +20,20 @@ import {
 } from "@browserbasehq/stagehand-integrations-antigravity";
 import type { AvailableModel } from "stagehand-v3";
 import type { ToolSurface } from "../core/contracts/tool.js";
+import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import type { PreparedDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
+import {
+  prepareDeepagentsToolAdapter,
+  type DeepagentsToolAdapterInput,
+  type PreparedDeepagentsToolAdapter,
+} from "./deepagentsToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { deepagentsAdapter } from "./harnesses/deepagentsAdapter.js";
-import { runExternalHarnessTask, type ExternalHarnessUsage } from "./harnesses/externalRunner.js";
+import {
+  readResultContract,
+  runExternalHarnessTask,
+  type ExternalHarnessUsage,
+} from "./harnesses/externalRunner.js";
 import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
@@ -45,6 +54,25 @@ export interface AntigravityRunnerInput {
   signal?: AbortSignal;
   spawn?: AntigravityProcessSpawner;
   verifier?: ExternalHarnessVerifierConfig;
+  env?: NodeJS.ProcessEnv;
+}
+
+/** The runner has no structured output mode, so a shared JSON override fails fast. */
+export function assertAntigravityResultContract(env: NodeJS.ProcessEnv = process.env): void {
+  if (readResultContract("marker", env) !== "marker") {
+    throw new EvalsError(
+      "antigravity supports only the EVAL_RESULT marker contract; unset EVAL_RESULT_CONTRACT.",
+    );
+  }
+}
+
+/** The Deep Agents MCP mount, after the contract check so no browser session starts first. */
+export async function prepareAntigravityToolAdapter(
+  input: DeepagentsToolAdapterInput,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<PreparedDeepagentsToolAdapter> {
+  assertAntigravityResultContract(env);
+  return prepareDeepagentsToolAdapter(input);
 }
 
 export async function runAntigravityAgent({
@@ -55,7 +83,9 @@ export async function runAntigravityAgent({
   signal,
   spawn,
   verifier,
+  env = process.env,
 }: AntigravityRunnerInput): Promise<TaskResult> {
+  assertAntigravityResultContract(env);
   const maxToolSteps = resolveStepBudget({
     harnessEnvKey: "EVAL_ANTIGRAVITY_MAX_STEPS",
     dataset: plan.dataset,

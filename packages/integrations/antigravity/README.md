@@ -35,7 +35,8 @@ Behavior:
   reports input as prompt + cached (cached is a subset) and `candidates +
   thoughts` as output.
 - The agent answers with the `EVAL_RESULT:` line; the runner has no structured
-  output mode.
+  output mode, so `EVAL_RESULT_CONTRACT=structured_output` fails the run before a
+  browser session starts.
 
 ## Run
 
