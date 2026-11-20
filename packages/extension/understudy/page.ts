@@ -21,6 +21,7 @@ import {
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LoadState,
+  LocatorDescriptor,
   LocalBrowserLaunchOptions,
   PageEventName,
   PageCDPEvent,
@@ -2021,6 +2022,99 @@ export class Page {
         deltaY,
       } as Protocol.Input.DispatchMouseEventRequest),
     );
+  }
+
+  async frameDragPoint(
+    descriptor: LocatorDescriptor,
+    functionSource: string,
+    options: { position?: { x: number; y: number }; force: boolean },
+    progress: Progress,
+  ): Promise<{ x: number; y: number } | null> {
+    const deep = this.deepLocator(descriptor.selector);
+    const locator = await (descriptor.nth === undefined ? deep : deep.nth(descriptor.nth)).real(
+      progress,
+    );
+    const { objectId } = await locator.resolveNode(progress);
+    let { frameId } = locator.frame;
+    const callPoint = async (
+      owner: CDPSessionLike,
+      id: string,
+      fn: string,
+      argument: object,
+    ): Promise<{ x: number; y: number } | null> => {
+      try {
+        const { result, exceptionDetails } = await progress.run("reading drag geometry", () =>
+          owner.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+            objectId: id,
+            functionDeclaration: fn,
+            arguments: [{ value: argument }],
+            returnByValue: true,
+          }),
+        );
+        if (exceptionDetails) {
+          const detail = exceptionDetails.exception?.description?.split("\n")[0];
+          throw new Error(detail ?? "Could not evaluate the frame drag point");
+        }
+        return result.value ?? null;
+      } finally {
+        await progress.cleanup(() => owner.send("Runtime.releaseObject", { objectId: id }));
+      }
+    };
+    let point = await callPoint(
+      locator.frame.session,
+      objectId,
+      `function(options) { return (${functionSource})(this, options); }`,
+      options,
+    );
+    while (point && frameId !== this.mainFrameId()) {
+      const parentId = this.registry.getParent(frameId);
+      if (!parentId) return null;
+      const session = this.getSessionForFrame(parentId);
+      const { backendNodeId } = await progress.run("finding the frame owner", () =>
+        session.send<Protocol.DOM.GetFrameOwnerResponse>("DOM.getFrameOwner", { frameId }),
+      );
+      const { object } = await progress.run(
+        "resolving the frame owner",
+        () => session.send<Protocol.DOM.ResolveNodeResponse>("DOM.resolveNode", { backendNodeId }),
+        async ({ object }) => {
+          if (object.objectId)
+            await session.send("Runtime.releaseObject", { objectId: object.objectId });
+        },
+      );
+      if (!object.objectId) return null;
+      point = await callPoint(
+        session,
+        object.objectId,
+        `function({ point, force }) {
+        for (let element = this; element; element = element.assignedSlot ??
+          element.parentElement ?? element.getRootNode().host) {
+          const style = getComputedStyle(element);
+          const matrix = style.transform === "none" ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(style.transform);
+          if (!matrix.is2D || matrix.b !== 0 || matrix.c !== 0 || matrix.a <= 0 || matrix.d <= 0 ||
+              style.rotate !== "none" || style.perspective !== "none" ||
+              style.scale.split(" ").some(value => parseFloat(value) <= 0)) {
+            throw new Error("locator.dragTo: iframe transforms must preserve axis direction");
+          }
+        }
+        const rect = this.getBoundingClientRect();
+        if (!this.offsetWidth || !this.offsetHeight) return null;
+        const style = getComputedStyle(this);
+        const x = rect.left + (this.clientLeft + parseFloat(style.paddingLeft) + point.x)
+          * (rect.width / this.offsetWidth);
+        const y = rect.top + (this.clientTop + parseFloat(style.paddingTop) + point.y)
+          * (rect.height / this.offsetHeight);
+        return (${functionSource})(this, { viewportPoint: { x, y }, force });
+      }`,
+        { point, force: options.force },
+      );
+      frameId = parentId;
+    }
+    return point;
+  }
+
+  async dispatchMouseEvent(event: Protocol.Input.DispatchMouseEventRequest): Promise<void> {
+    if (event.type === "mouseMoved") await this.updateCursor(event.x, event.y);
+    await this.mainSession.send("Input.dispatchMouseEvent", event);
   }
 
   /**

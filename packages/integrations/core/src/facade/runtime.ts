@@ -47,8 +47,26 @@ type QueryStep =
 type RoleStep = Extract<QueryStep, { kind: "role" }>;
 
 type LocatorTimeoutOptions = { timeout?: number };
+type MousePoint = { x: number; y: number };
+type MouseButton = "left" | "middle" | "right";
+type MouseInput = MousePoint & {
+  buttons: number;
+} & (
+    | { type: "mouseMoved"; button: MouseButton | "none" }
+    | { type: "mousePressed" | "mouseReleased"; button: MouseButton; clickCount: number }
+    | { type: "mouseWheel"; deltaX: number; deltaY: number }
+  );
+type MouseClickOptions = { button?: MouseButton; clickCount?: number };
+type DragOptions = {
+  sourcePosition?: MousePoint;
+  targetPosition?: MousePoint;
+  timeout?: number;
+  force?: boolean;
+  trial?: boolean;
+};
 
 type RawLocator = {
+  readonly descriptor?: { pageId: string; selector: string; nth?: number };
   click(options?: {
     button?: "left" | "right" | "middle";
     clickCount?: number;
@@ -138,6 +156,12 @@ type RawContext = {
 type BatchStagehandRuntime = {
   page: RawPage;
   context: RawContext;
+  dispatchMouseEvent?: (pageId: string, event: MouseInput) => Promise<void>;
+  frameDragPoint?(
+    descriptor: NonNullable<RawLocator["descriptor"]>,
+    functionSource: string,
+    options: { position?: MousePoint; force: boolean; timeout: number },
+  ): Promise<MousePoint | null>;
   evaluateWithShadowRoots?<Result>(pageId: string, functionSource: string): Promise<Result>;
 };
 
@@ -193,7 +217,7 @@ export async function createPlaywrightCompatRuntime(
     error?: { name: string; message: string; stack?: string };
   };
 
-  const locatorTimeoutOptions = (deadline: number, method: string): LocatorTimeoutOptions => {
+  const locatorTimeoutOptions = (deadline: number, method: string): { timeout: number } => {
     if (deadline === Infinity) return { timeout: 0 };
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error(`${method}: timed out`);
@@ -362,6 +386,86 @@ export async function createPlaywrightCompatRuntime(
       },
     });
 
+  function elementDragPoint(
+    element: Element,
+    options: { position?: MousePoint; viewportPoint?: MousePoint; force?: boolean },
+    closedRoots: ShadowRoot[] = [],
+  ): MousePoint | null {
+    if (!element.isConnected) return null;
+    const rect = element.getBoundingClientRect();
+    const left = Math.max(0, rect.left);
+    const top = Math.max(0, rect.top);
+    const right = Math.min(innerWidth, rect.right);
+    const bottom = Math.min(innerHeight, rect.bottom);
+    const { x, y } =
+      options.viewportPoint ??
+      (options.position
+        ? {
+            x: rect.left + element.clientLeft + options.position.x,
+            y: rect.top + element.clientTop + options.position.y,
+          }
+        : { x: (left + right) / 2, y: (top + bottom) / 2 });
+    if (options.viewportPoint && (x < 0 || x >= innerWidth || y < 0 || y >= innerHeight)) {
+      // Centering an iframe taller than the viewport can leave the target out of view.
+      for (
+        let ancestor = element.parentNode;
+        ancestor && !(ancestor instanceof Document);
+        ancestor = ancestor instanceof ShadowRoot ? ancestor.host : ancestor.parentNode
+      ) {
+        if (!(ancestor instanceof Element)) continue;
+        const style = getComputedStyle(ancestor);
+        const bounds = ancestor.getBoundingClientRect();
+        const dx =
+          /^(auto|scroll|hidden|overlay)$/.test(style.overflowX) &&
+          (x < bounds.left || x >= bounds.right)
+            ? x - (bounds.left + bounds.width / 2)
+            : 0;
+        const dy =
+          /^(auto|scroll|hidden|overlay)$/.test(style.overflowY) &&
+          (y < bounds.top || y >= bounds.bottom)
+            ? y - (bounds.top + bounds.height / 2)
+            : 0;
+        if (!dx && !dy) continue;
+        const { scrollLeft, scrollTop } = ancestor;
+        ancestor.scrollBy({ left: dx, top: dy, behavior: "instant" });
+        if (ancestor.scrollLeft !== scrollLeft || ancestor.scrollTop !== scrollTop) return null;
+      }
+      window.scrollBy({
+        left: x < 0 || x >= innerWidth ? x - innerWidth / 2 : 0,
+        top: y < 0 || y >= innerHeight ? y - innerHeight / 2 : 0,
+        behavior: "instant",
+      });
+      return null;
+    }
+    if (left >= right || top >= bottom || x < left || x >= right || y < top || y >= bottom) {
+      element.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+      return null;
+    }
+    if (!options.force) {
+      if (getComputedStyle(element).visibility !== "visible") return null;
+      const roots = new Map(closedRoots.map((root) => [root.host, root]));
+      for (
+        let root = element.getRootNode();
+        root instanceof ShadowRoot;
+        root = root.host.getRootNode()
+      ) {
+        roots.set(root.host, root);
+      }
+      let hit = document.elementFromPoint(x, y);
+      while (hit) {
+        if (element.contains(hit)) break;
+        const root = hit.shadowRoot ?? roots.get(hit);
+        const inner: Element | null | undefined = root?.elementFromPoint(x, y);
+        hit = inner === hit ? null : (inner ?? null);
+      }
+      if (!hit) {
+        element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+        return null;
+      }
+    }
+    return { x, y };
+  }
+
   // This function is serialized independently by Stagehand page.evaluate, so
   // every query helper must remain nested inside it rather than closing over
   // the callback-batch scope.
@@ -383,6 +487,7 @@ export async function createPlaywrightCompatRuntime(
         | "isEnabled"
         | "getAttribute"
         | "boundingBox"
+        | "dragPoint"
         | "focus"
         | "blur"
         | "selectText"
@@ -400,6 +505,8 @@ export async function createPlaywrightCompatRuntime(
       functionSource?: string;
       argument?: unknown;
       strict?: boolean;
+      position?: MousePoint;
+      force?: boolean;
     },
     closedRoots: ShadowRoot[] = [],
   ): Promise<QueryResult> {
@@ -954,6 +1061,10 @@ export async function createPlaywrightCompatRuntime(
         value: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
       };
     }
+    if (input.operation === "dragPoint") {
+      const getDragPoint = (0, eval)(`(${input.functionSource})`) as typeof elementDragPoint;
+      return { count: elements.length, value: getDragPoint(first, input, closedRoots) };
+    }
     if (input.operation === "focus") {
       (first as HTMLElement).focus();
       return { count: elements.length };
@@ -1123,8 +1234,170 @@ export async function createPlaywrightCompatRuntime(
     return btoa(binary);
   };
 
+  const createMouse = (page: RawPage) => {
+    const pageId = page.pageId;
+    const dispatchMouseEvent = stagehand.dispatchMouseEvent;
+    const dispatch =
+      dispatchMouseEvent && pageId
+        ? (event: MouseInput) => dispatchMouseEvent.call(stagehand, pageId, event)
+        : undefined;
+    const masks = { left: 1, right: 2, middle: 4 };
+    const pressed = new Set<MouseButton>();
+    let point: MousePoint = { x: 0, y: 0 };
+    const buttons = () => [...pressed].reduce((mask, button) => mask | masks[button], 0);
+
+    const move = async (x: number, y: number, { steps = 1 }: { steps?: number } = {}) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y))
+        throw new RangeError("mouse.move: coordinates must be finite");
+      if (!Number.isSafeInteger(steps) || steps < 1)
+        throw new RangeError("mouse.move: steps must be a positive integer");
+      const from = point;
+      for (let step = 1; step <= steps; step++) {
+        const fraction = step / steps;
+        point =
+          step === steps
+            ? { x, y }
+            : {
+                x: from.x + (x - from.x) * fraction,
+                y: from.y + (y - from.y) * fraction,
+              };
+        if (dispatch) {
+          await dispatch({
+            type: "mouseMoved",
+            ...point,
+            button: [...pressed].at(-1) ?? "none",
+            buttons: buttons(),
+          });
+        } else {
+          await page.hover(point.x, point.y);
+        }
+      }
+    };
+
+    const down = async ({ button = "left", clickCount = 1 }: MouseClickOptions = {}) => {
+      if (!Object.hasOwn(masks, button)) throw new RangeError("mouse.down: invalid button");
+      pressed.add(button);
+      await dispatch?.({ type: "mousePressed", ...point, button, buttons: buttons(), clickCount });
+    };
+
+    const up = async ({ button = "left", clickCount = 1 }: MouseClickOptions = {}) => {
+      if (!Object.hasOwn(masks, button)) throw new RangeError("mouse.up: invalid button");
+      if (dispatch) {
+        await dispatch({
+          type: "mouseReleased",
+          ...point,
+          button,
+          buttons: buttons() & ~masks[button],
+          clickCount,
+        });
+        pressed.delete(button);
+      } else if (pressed.delete(button)) {
+        await page.click(point.x, point.y, { button, clickCount });
+      }
+    };
+
+    const requireButtonUp = (method: string, button: MouseButton): void => {
+      if (pressed.has(button))
+        throw new Error(`${method}: the ${button} mouse button is already down`);
+    };
+
+    const withButton = async (
+      button: MouseButton,
+      clickCount: number,
+      action?: () => Promise<void>,
+    ): Promise<void> => {
+      const options = { button, clickCount };
+      try {
+        await down(options);
+        await action?.();
+        await up(options);
+      } catch (error) {
+        await up(options).catch(() => undefined);
+        throw error;
+      }
+    };
+
+    const mouse = {
+      click: async (x: number, y: number, options?: MouseClickOptions) => {
+        if (!dispatch) {
+          await page.click(x, y, options);
+          point = { x, y };
+          return;
+        }
+        const { button = "left", clickCount = 1 } = options ?? {};
+        if (!Number.isSafeInteger(clickCount) || clickCount < 1)
+          throw new RangeError("mouse.click: clickCount must be a positive integer");
+        if (!Object.hasOwn(masks, button)) throw new RangeError("mouse.click: invalid button");
+        requireButtonUp("mouse.click", button);
+        await move(x, y);
+        for (let click = 1; click <= clickCount; click++) {
+          await withButton(button, click);
+        }
+      },
+      move,
+      wheel: (deltaX: number, deltaY: number) =>
+        dispatch
+          ? dispatch({ type: "mouseWheel", ...point, buttons: buttons(), deltaX, deltaY })
+          : page.scroll(point.x, point.y, deltaX, deltaY),
+      down,
+      up,
+      requireButtonUp,
+      withButton,
+    };
+
+    let pending = Promise.resolve();
+    const run = <T>(
+      action: (input: typeof mouse) => Promise<T>,
+      admission?: { deadline: number; method: string },
+    ): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let admissionError: Error | undefined;
+      const result = pending.then(() => {
+        clearTimeout(timer);
+        if (admissionError) throw admissionError;
+        if (admission) locatorTimeoutOptions(admission.deadline, admission.method);
+        return action(mouse);
+      });
+      pending = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      if (!admission) return result;
+      const remaining = admission.deadline - Date.now();
+      if (remaining > 2_147_483_647) return result;
+      return Promise.race([
+        result,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => {
+              admissionError = new Error(`${admission.method}: timed out waiting for mouse input`);
+              reject(admissionError);
+            },
+            Math.max(0, remaining),
+          );
+        }),
+      ]);
+    };
+    const queued =
+      <Args extends unknown[]>(action: (...args: Args) => Promise<void>) =>
+      (...args: Args) =>
+        run(() => action(...args));
+    return {
+      supportsDrag: dispatch !== undefined,
+      run,
+      actions: {
+        click: queued(mouse.click),
+        move: queued(mouse.move),
+        wheel: queued(mouse.wheel),
+        down: queued(mouse.down),
+        up: queued(mouse.up),
+      },
+    };
+  };
+
   type PageState = {
     rawPage: RawPage;
+    mouse: ReturnType<typeof createMouse>;
     execute: (
       plan: QueryStep[],
       operation: Parameters<typeof executeQueryInPage>[0]["operation"],
@@ -1168,11 +1441,124 @@ export async function createPlaywrightCompatRuntime(
     );
   };
 
+  type DragEndpoint = {
+    state: PageState;
+    resolve(
+      method: string,
+      position: MousePoint | undefined,
+      force: boolean,
+      deadline: number,
+    ): Promise<MousePoint | null>;
+  };
+  const dragPointSource = elementDragPoint.toString();
+  const dragEndpoints = new WeakMap<object, DragEndpoint>();
+  const dragLocatorProxy = <T extends object>(surface: string, locator: T): T => {
+    const proxy = guard(surface, locator);
+    dragEndpoints.set(proxy, dragEndpoints.get(locator)!);
+    return proxy;
+  };
+
+  const waitForDragPoint = async (
+    locator: DragEndpoint,
+    endpoint: "source" | "target",
+    position: MousePoint | undefined,
+    force: boolean,
+    deadline: number,
+  ): Promise<MousePoint> => {
+    let previous: MousePoint | null = null;
+    while (Date.now() < deadline) {
+      const point = await locator.resolve(`locator.dragTo ${endpoint}`, position, force, deadline);
+      if (Date.now() >= deadline) break;
+      if (point && (force || (point.x === previous?.x && point.y === previous.y))) return point;
+      previous = point ?? null;
+      await locator.state.rawPage.waitForTimeout(Math.max(1, Math.min(32, deadline - Date.now())));
+    }
+    throw new Error(
+      `locator.dragTo: timed out waiting for the ${endpoint} to receive pointer events`,
+    );
+  };
+
+  const dragLocators = async (
+    sourceLocator: object,
+    targetLocator: unknown,
+    options: DragOptions,
+  ) => {
+    record("calls", "locator.dragTo");
+    const source = dragEndpoints.get(sourceLocator)!;
+    const target =
+      typeof targetLocator === "object" && targetLocator && dragEndpoints.get(targetLocator);
+    if (!target || target.state !== source.state)
+      throw new Error("locator.dragTo: source and target must be locators on the same page");
+    const timeout = options.timeout ?? 10_000;
+    if (!Number.isFinite(timeout) || timeout < 0)
+      throw new RangeError("locator.dragTo: timeout must be a finite, non-negative number");
+    for (const position of [options.sourcePosition, options.targetPosition]) {
+      if (position && (!Number.isFinite(position.x) || !Number.isFinite(position.y)))
+        throw new RangeError("locator.dragTo: position coordinates must be finite");
+    }
+    if (!options.trial && !source.state.mouse.supportsDrag)
+      throw new Error(
+        "locator.dragTo requires a Stagehand browser extension with callback mouse support",
+      );
+    const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
+    const force = options.force ?? false;
+    await source.state.mouse.run(
+      async (mouse) => {
+        if (!options.trial) mouse.requireButtonUp("locator.dragTo", "left");
+        const from = await waitForDragPoint(
+          source,
+          "source",
+          options.sourcePosition,
+          force,
+          deadline,
+        );
+        if (options.trial) {
+          await waitForDragPoint(target, "target", options.targetPosition, force, deadline);
+          return;
+        }
+        await mouse.move(from.x, from.y);
+        locatorTimeoutOptions(deadline, "locator.dragTo");
+        await mouse.withButton("left", 1, async () => {
+          // Start the gesture before scrolling the target can move the source out of view.
+          locatorTimeoutOptions(deadline, "locator.dragTo");
+          await mouse.move(from.x + (from.x >= 8 ? -8 : 8), from.y);
+          const to = await waitForDragPoint(
+            target,
+            "target",
+            options.targetPosition,
+            force,
+            deadline,
+          );
+          await mouse.move(to.x, to.y, { steps: 2 });
+          // Chromium may start HTML drag handling on the first move and deliver dragover on the next.
+          locatorTimeoutOptions(deadline, "locator.dragTo");
+          await mouse.move(to.x, to.y);
+        });
+        await source.state.refreshUrl();
+      },
+      { deadline, method: "locator.dragTo" },
+    );
+  };
+
   class CompatLocator {
     constructor(
       readonly plan: QueryStep[],
       private readonly state: PageState,
-    ) {}
+    ) {
+      dragEndpoints.set(this, {
+        state,
+        resolve: async (method, position, force) => {
+          const result = await state.execute(this.plan, "dragPoint", {
+            functionSource: dragPointSource,
+            position,
+            force,
+            strict: true,
+          });
+          if (result.count > 1) throw await this.strictModeViolation(method, result.count);
+          return (result.value as MousePoint | null | undefined) ?? null;
+        },
+      });
+    }
 
     private derived(step: QueryStep): CompatLocator {
       return locatorProxy(new CompatLocator([...this.plan, step], this.state));
@@ -1509,6 +1895,10 @@ export async function createPlaywrightCompatRuntime(
       await this.singleValue("scrollIntoView");
     }
 
+    async dragTo(target: unknown, options: DragOptions = {}): Promise<void> {
+      return dragLocators(this, target, options);
+    }
+
     private async withTaggedTarget(
       method: string,
       action: (locator: RawLocator, options: LocatorTimeoutOptions) => Promise<void>,
@@ -1768,7 +2158,8 @@ export async function createPlaywrightCompatRuntime(
     }
   }
 
-  const locatorProxy = (locator: CompatLocator): CompatLocator => guard("locator", locator);
+  const locatorProxy = (locator: CompatLocator): CompatLocator =>
+    dragLocatorProxy("locator", locator);
 
   // ---------------------------------------------------------------------------
   // page.frameLocator(): locators scoped to an <iframe>'s document.
@@ -1985,7 +2376,46 @@ export async function createPlaywrightCompatRuntime(
       readonly queries: FrameQuery[],
       private readonly state: PageState,
       readonly nthIndex?: number,
-    ) {}
+    ) {
+      dragEndpoints.set(this, {
+        state,
+        resolve: async (method, position, force, deadline) => {
+          if (!stagehand.frameDragPoint)
+            throw new Error(
+              "Frame drag requires a Stagehand browser extension with frame drag support",
+            );
+          const retryDetached = (error: unknown): null => {
+            const message = error instanceof Error ? error.message : String(error);
+            if (
+              /(?:could not find an element|unable to obtain a content frame|detached|execution context|cannot find context|no frame with given id)/iu.test(
+                message,
+              )
+            )
+              return null;
+            throw error;
+          };
+          const resolution = await this.resolve(locatorTimeoutOptions(deadline, method)).catch(
+            retryDetached,
+          );
+          if (!resolution) return null;
+          const { raw, count, candidates } = resolution;
+          if (count > 1) throw new Error(strictModeMessage(method, count, candidates));
+          if (count === 0) return null;
+          if (!raw.descriptor) throw new Error("Cannot resolve the frame drag endpoint");
+          return stagehand
+            .frameDragPoint(raw.descriptor, dragPointSource, {
+              position,
+              force,
+              timeout: locatorTimeoutOptions(deadline, method).timeout,
+            })
+            .catch(retryDetached);
+        },
+      });
+    }
+
+    async dragTo(target: unknown, options: DragOptions = {}): Promise<void> {
+      return dragLocators(this, target, options);
+    }
 
     private derived(queries: FrameQuery[], nthIndex = this.nthIndex): CompatFrameScopedLocator {
       return frameScopedProxy(
@@ -2520,7 +2950,7 @@ export async function createPlaywrightCompatRuntime(
   const frameLocatorProxy = (locator: CompatFrameLocator): CompatFrameLocator =>
     guard("frameLocator", locator);
   const frameScopedProxy = (locator: CompatFrameScopedLocator): CompatFrameScopedLocator =>
-    guard("frameLocator.locator", locator);
+    dragLocatorProxy("frameLocator.locator", locator);
 
   const handleMetadata = new WeakMap<
     object,
@@ -2686,6 +3116,7 @@ export async function createPlaywrightCompatRuntime(
     const accessibilityFallbacks = new Map<string, { at: number; plan: QueryStep[] | null }>();
     const state: PageState = {
       rawPage: page,
+      mouse: createMouse(page),
       cachedUrl: await page.url(),
       viewport: await page.evaluate("({ width: innerWidth, height: innerHeight })"),
       closed: false,
@@ -3117,6 +3548,16 @@ export async function createPlaywrightCompatRuntime(
         );
         return Object.keys(options).length > 0 ? located.filter(options) : located;
       },
+      dragAndDrop: (
+        source: string,
+        target: string,
+        { strict = false, ...options }: DragOptions & { strict?: boolean } = {},
+      ) => {
+        record("calls", "page.dragAndDrop");
+        const from = pageObject.locator(source);
+        const to = pageObject.locator(target);
+        return strict ? from.dragTo(to, options) : from.first().dragTo(to.first(), options);
+      },
       getByText: (value: unknown, options?: { exact?: boolean }) => {
         record("calls", "page.getByText");
         return root().getByText(value, options);
@@ -3469,28 +3910,7 @@ export async function createPlaywrightCompatRuntime(
         insertText: (text: string) => page.type(text),
         press: (key: string, options?: { delay?: number }) => page.keyPress(key, options),
       },
-      mouse: (() => {
-        let x = 0;
-        let y = 0;
-        let down = false;
-        return {
-          click: (nextX: number, nextY: number, options?: Record<string, unknown>) =>
-            page.click(nextX, nextY, options),
-          move: async (nextX: number, nextY: number) => {
-            x = nextX;
-            y = nextY;
-            await page.hover(x, y);
-          },
-          wheel: (deltaX: number, deltaY: number) => page.scroll(x, y, deltaX, deltaY),
-          down: async () => {
-            down = true;
-          },
-          up: async () => {
-            if (down) await page.click(x, y);
-            down = false;
-          },
-        };
-      })(),
+      mouse: state.mouse.actions,
     };
     const pageProxy = guard("page", pageObject);
     pageStateMetadata.set(pageProxy, state);
