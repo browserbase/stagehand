@@ -450,9 +450,50 @@ export const PageLocatorSchema = z
   })
   .meta({ id: "PageLocator" });
 
+export const CssLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("css"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "CssLocatorSelector" });
+
+export const XPathLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("xpath"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "XPathLocatorSelector" });
+
+export const TextLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("text"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "TextLocatorSelector" });
+
+/**
+ * Preserve existing string interpretation, including iframe hops and deep XPath.
+ * This is an explicit selector variant, not an unstructured string on the wire.
+ */
+export const LegacyLocatorSelectorSchema = z
+  .strictObject({
+    type: z.literal("legacy"),
+    value: z.string().min(1),
+  })
+  .meta({ id: "LegacyLocatorSelector" });
+
+export const LocatorSelectorSchema = z
+  .discriminatedUnion("type", [
+    CssLocatorSelectorSchema,
+    XPathLocatorSelectorSchema,
+    TextLocatorSelectorSchema,
+    LegacyLocatorSelectorSchema,
+  ])
+  .meta({ id: "LocatorSelector" });
+
 export const LocatorSchema = z
   .strictObject({
-    selector: z.string().min(1),
+    selector: LocatorSelectorSchema,
     nth: z.number().int().nonnegative().optional(),
   })
   .meta({ id: "Locator" });
@@ -987,9 +1028,9 @@ export const ActOptionsSchema = z
         description:
           "Locators for elements and subtrees that should be excluded from action planning",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     cache: CachingSchema.optional().meta({
@@ -1049,9 +1090,9 @@ export const ExtractOptionsSchema = z
       .meta({
         description: "Locators for elements and subtrees that should be excluded from extraction",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     screenshot: z.boolean().optional().meta({
@@ -1108,9 +1149,9 @@ export const ObserveOptionsSchema = z
       .meta({
         description: "Locators for elements and subtrees that should be excluded from observation",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     cache: CachingSchema.optional().meta({

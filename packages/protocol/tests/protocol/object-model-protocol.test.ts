@@ -116,8 +116,8 @@ describe("Stagehand object-model protocol", () => {
         pageId: "target-1",
         instruction: "Click the submit button",
         options: {
-          locator: { selector: "main", nth: 0 },
-          ignoreLocators: [{ selector: "nav" }],
+          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
           model: {
             modelName: "anthropic/claude-sonnet-4-6",
             apiKey: "test-key",
@@ -126,8 +126,8 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toMatchObject({
       options: {
-        locator: { selector: "main", nth: 0 },
-        ignoreLocators: [{ selector: "nav" }],
+        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -188,8 +188,8 @@ describe("Stagehand object-model protocol", () => {
         additionalProperties: false,
       },
       options: {
-        locator: { selector: "main", nth: 0 },
-        ignoreLocators: [{ selector: "nav" }],
+        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -205,8 +205,8 @@ describe("Stagehand object-model protocol", () => {
         properties: { heading: { type: "string" } },
       },
       options: {
-        locator: { selector: "main", nth: 0 },
-        ignoreLocators: [{ selector: "nav" }],
+        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -236,8 +236,8 @@ describe("Stagehand object-model protocol", () => {
         pageId: "target-1",
         instruction: "Find the submit button",
         options: {
-          locator: { selector: "main", nth: 0 },
-          ignoreLocators: [{ selector: "nav" }],
+          locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+          ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -250,8 +250,8 @@ describe("Stagehand object-model protocol", () => {
       pageId: "target-1",
       instruction: "Find the submit button",
       options: {
-        locator: { selector: "main", nth: 0 },
-        ignoreLocators: [{ selector: "nav" }],
+        locator: { selector: { type: "legacy" as const, value: "main" }, nth: 0 },
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" } }],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -424,19 +424,19 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.locatorTextContent.params.parse({
         pageId: "target-1",
-        selector: "h1",
+        selector: { type: "legacy" as const, value: "h1" },
         nth: 2,
       }),
     ).toStrictEqual({
       pageId: "target-1",
-      selector: "h1",
+      selector: { type: "legacy" as const, value: "h1" },
       nth: 2,
     });
 
     expect(() =>
       StagehandMethods.locatorTextContent.params.parse({
         pageId: "target-1",
-        selector: "h1",
+        selector: { type: "legacy" as const, value: "h1" },
         nth: -1,
       }),
     ).toThrow();
@@ -657,7 +657,7 @@ describe("Stagehand object-model protocol", () => {
 function locatorDescriptor() {
   return {
     pageId: "target-1",
-    selector: "button",
+    selector: { type: "legacy" as const, value: "button" },
     nth: 1,
   };
 }

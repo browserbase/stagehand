@@ -236,6 +236,20 @@ export async function resolveObjectIdForCss(
   return resolveObjectId(session, expression, frameId, progress);
 }
 
+export async function resolveObjectIdForText(
+  session: CDPSessionLike,
+  text: string,
+  frameId?: string,
+  index = 0,
+  progress?: Progress,
+): Promise<string | null> {
+  const expression = buildLocatorInvocation("resolveTextSelector", [
+    JSON.stringify(text),
+    JSON.stringify(index),
+  ]);
+  return resolveObjectId(session, expression, frameId, progress);
+}
+
 async function resolveObjectId(
   session: CDPSessionLike,
   expression: string,

@@ -1,3 +1,4 @@
+import { normalizeLocatorSelector, type LocatorInput } from "./locatorSelector.js";
 import { browserPlatform, type BrowserApiPlatform } from "./platform.js";
 import type {
   LoadState,
@@ -459,10 +460,10 @@ export class Page {
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
   }
 
-  locator(selector: string): Locator {
+  locator(selector: LocatorInput): Locator {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
-      selector,
+      selector: normalizeLocatorSelector(selector),
     });
   }
 }

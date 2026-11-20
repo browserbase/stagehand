@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, Self
+from typing import Literal, Self, cast
 
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
@@ -27,6 +27,7 @@ from ._generated.models import (
     LocatorScrollToResult,
     LocatorSelectOptionParams,
     LocatorSelectOptionResult,
+    LocatorSelector,
     LocatorSendClickEventOptions,
     LocatorSendClickEventParams,
     LocatorSendClickEventResult,
@@ -38,6 +39,7 @@ from ._generated.models import (
     LocatorTypeResult,
     MouseButton,
 )
+from .client_types import LocatorInput
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
@@ -48,11 +50,16 @@ class Locator:
         rpc_client: RPCClient,
         *,
         page_id: str,
-        selector: str,
+        selector: LocatorInput,
         nth: int | None = None,
     ) -> None:
         self._rpc_client = rpc_client
-        self._descriptor = LocatorDescriptor(page_id=page_id, selector=selector)
+        self._descriptor = LocatorDescriptor(
+            page_id=page_id,
+            selector=LocatorSelector.model_validate(
+                {"type": "legacy", "value": selector} if isinstance(selector, str) else selector
+            ),
+        )
         if nth is not None:
             self._descriptor.nth = nth
 
@@ -62,7 +69,7 @@ class Locator:
 
     @property
     def selector(self) -> str:
-        return self._descriptor.selector
+        return self._descriptor.selector.root.value
 
     @property
     def nth_index(self) -> int | None:
@@ -281,7 +288,8 @@ class Locator:
         )
 
     def _params(self, timeout: float | None) -> dict[str, object]:
-        values: dict[str, object] = {"page_id": self.page_id, "selector": self.selector}
+        selector = self._descriptor.selector
+        values: dict[str, object] = {"page_id": self.page_id, "selector": selector}
         if self.nth_index is not None:
             values["nth"] = self.nth_index
         if timeout is not None:
@@ -295,6 +303,6 @@ class Locator:
         return type(self)(
             self._rpc_client,
             page_id=self.page_id,
-            selector=self.selector,
+            selector=cast(LocatorInput, self._descriptor.selector.model_dump(mode="json")),
             nth=index,
         )

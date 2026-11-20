@@ -14,6 +14,7 @@ from . import client_models as _client_models
 from ._generated import models as _models
 from ._generated.input_types import Action as ActionInput
 from ._generated.input_types import Locator as ProtocolLocator
+from ._generated.input_types import LocatorSelector as LocatorSelectorInput
 from ._generated.input_types import ModelConfig, TelemetryConfig, Variables
 from ._generated.models import (
     Action,
@@ -79,9 +80,10 @@ _UNAVAILABLE_MESSAGE = (
 def _serialize_locator(locator: Locator, page_id: str, method: str) -> ProtocolLocator:
     if locator.page_id != page_id:
         raise TypeError(f"{method}() locator must belong to the target page")
+    selector = cast(LocatorSelectorInput, locator.descriptor.selector.model_dump(mode="json"))
     if locator.nth_index is not None:
-        return ProtocolLocator(selector=locator.selector, nth=locator.nth_index)
-    return ProtocolLocator(selector=locator.selector)
+        return ProtocolLocator(selector=selector, nth=locator.nth_index)
+    return ProtocolLocator(selector=selector)
 
 
 def _serialize_locators(

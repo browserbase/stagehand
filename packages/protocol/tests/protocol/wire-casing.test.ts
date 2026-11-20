@@ -238,7 +238,7 @@ describe("JSON-RPC wire casing", () => {
     const schema = StagehandMethods.locatorSendClickEvent.params;
     const apiValue = {
       pageId: "page_1",
-      selector: "button",
+      selector: { type: "legacy" as const, value: "button" },
       nth: 0,
       options: {
         cancelable: true,
@@ -247,7 +247,7 @@ describe("JSON-RPC wire casing", () => {
     };
     const wireValue = {
       page_id: "page_1",
-      selector: "button",
+      selector: { type: "legacy" as const, value: "button" },
       nth: 0,
       options: {
         cancelable: true,
@@ -288,7 +288,7 @@ describe("JSON-RPC wire casing", () => {
       pageId: "page_1",
       instruction: "Find the email field",
       options: {
-        ignoreLocators: [{ selector: "nav", nth: 0 }],
+        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 0 }],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -301,7 +301,7 @@ describe("JSON-RPC wire casing", () => {
       page_id: "page_1",
       instruction: "Find the email field",
       options: {
-        ignore_locators: [{ selector: "nav", nth: 0 }],
+        ignore_locators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 0 }],
         variables: {
           accountEmail: {
             value: "user@example.com",

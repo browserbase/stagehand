@@ -138,3 +138,39 @@ describe("locator resolution contexts", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("structured selector dispatch", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    { type: "css" as const, value: '[data-label="a >> b"]' },
+    { type: "xpath" as const, value: './/button[@title="text=Pay"]' },
+    { type: "text" as const, value: 'text="Pay" >> now' },
+  ])("resolves explicit $type selectors without legacy interpretation", async (selector) => {
+    const frame = { session: { send: vi.fn() } } as unknown as Frame;
+    const parseLegacy = vi.spyOn(FrameLocator.prototype, "resolveFrame");
+    const delegate = new DeepLocatorDelegate({} as Page, frame, selector).nth(2);
+    const locator = await delegate.real();
+
+    expect(locator.frame).toBe(frame);
+    expect(locator.selectorQuery).toEqual({ kind: selector.type, value: selector.value });
+    expect(locator.nthIndex).toBe(2);
+    expect(parseLegacy).not.toHaveBeenCalled();
+  });
+
+  it("retains iframe hops and prefix parsing for legacy selectors", async () => {
+    const root = { session: { send: vi.fn() } } as unknown as Frame;
+    const child = { session: { send: vi.fn() } } as unknown as Frame;
+    const resolveFrame = vi.spyOn(FrameLocator.prototype, "resolveFrame").mockResolvedValue(child);
+    const delegate = new DeepLocatorDelegate({} as Page, root, {
+      type: "legacy",
+      value: 'iframe#checkout >> text="Pay"',
+    });
+
+    const locator = await delegate.real();
+
+    expect(resolveFrame).toHaveBeenCalledOnce();
+    expect(locator.frame).toBe(child);
+    expect(locator.selectorQuery).toEqual({ kind: "text", value: "Pay" });
+  });
+});

@@ -149,17 +149,46 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: "#blank-page-button",
+          selector: { type: "legacy" as const, value: "#blank-page-button" },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: "#blank-page-button",
+          selector: { type: "legacy" as const, value: "#blank-page-button" },
         }),
       ).resolves.toBe("Clicked");
     } finally {
       await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  });
+
+  it("resolves explicit selectors without parsing their values as legacy expressions", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {});
+    try {
+      await client.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `(() => {
+          const button = document.createElement("button");
+          button.id = "typed-target";
+          button.setAttribute("data-label", "a >> b");
+          button.textContent = 'text="Pay" >> now';
+          document.body.appendChild(button);
+        })()`,
+      });
+
+      for (const selector of [
+        { type: "css", value: '[data-label="a >> b"]' },
+        { type: "xpath", value: './/button[@id="typed-target"]' },
+        { type: "text", value: 'text="Pay" >> now' },
+      ] as const) {
+        await expect(
+          client.send(StagehandMethods.locatorTextContent, { pageId: page.pageId, selector }),
+        ).resolves.toBe('text="Pay" >> now');
+      }
+    } finally {
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
   });
 
@@ -175,7 +204,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: "#locator-message",
+          selector: { type: "legacy" as const, value: "#locator-message" },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -196,13 +225,13 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: "#data-button",
+          selector: { type: "legacy" as const, value: "#data-button" },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: "#data-button",
+          selector: { type: "legacy" as const, value: "#data-button" },
         }),
       ).resolves.toBe("Clicked");
 
@@ -218,7 +247,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: "#data-shadow-text",
+          selector: { type: "legacy" as const, value: "#data-shadow-text" },
         }),
       ).resolves.toBe("Open shadow");
       await expect(
@@ -244,7 +273,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: "#locator-message",
+          selector: { type: "legacy" as const, value: "#locator-message" },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -318,21 +347,21 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: "#locator-message",
+        selector: { type: "legacy" as const, value: "#locator-message" },
       }),
     ).resolves.toBe(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: "#locator-message",
+        selector: { type: "legacy" as const, value: "#locator-message" },
       }),
     ).resolves.toBe("locator text");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: "#locator-input",
+        selector: { type: "legacy" as const, value: "#locator-input" },
         value: "user@example.com",
       }),
     ).resolves.toStrictEqual({
@@ -342,7 +371,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorClick, {
         pageId: page.pageId,
-        selector: "#locator-button",
+        selector: { type: "legacy" as const, value: "#locator-button" },
       }),
     ).resolves.toStrictEqual({
       clicked: true,
@@ -351,69 +380,69 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: "#locator-output",
+        selector: { type: "legacy" as const, value: "#locator-output" },
       }),
     ).resolves.toBe("clicked:user@example.com");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: "#locator-date",
+        selector: { type: "legacy" as const, value: "#locator-date" },
         value: "2026-07-21",
       }),
     ).resolves.toStrictEqual({ filled: true });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorInputValue, {
         pageId: page.pageId,
-        selector: "#locator-date",
+        selector: { type: "legacy" as const, value: "#locator-date" },
       }),
     ).resolves.toBe("2026-07-21");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: "#closed-message",
+        selector: { type: "legacy" as const, value: "#closed-message" },
       }),
     ).resolves.toBe(true);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: "xpath=//div[@id='closed-host']//p[1]",
+        selector: { type: "legacy" as const, value: "xpath=//div[@id='closed-host']//p[1]" },
       }),
     ).resolves.toBe("closed root text");
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: "#shadow-frame >> #frame-closed-message",
+        selector: { type: "legacy" as const, value: "#shadow-frame >> #frame-closed-message" },
       }),
     ).resolves.toBe("closed root iframe text");
 
     await activeRpcClient.send(StagehandMethods.locatorFill, {
       pageId: page.pageId,
-      selector: "#closed-input",
+      selector: { type: "legacy" as const, value: "#closed-input" },
       value: "inside closed root",
     });
     await activeRpcClient.send(StagehandMethods.locatorClick, {
       pageId: page.pageId,
-      selector: "#closed-button",
+      selector: { type: "legacy" as const, value: "#closed-button" },
     });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: "#closed-output",
+        selector: { type: "legacy" as const, value: "#closed-output" },
       }),
     ).resolves.toBe("clicked:inside closed root");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorCount, {
         pageId: page.pageId,
-        selector: ".mixed-shadow",
+        selector: { type: "legacy" as const, value: ".mixed-shadow" },
       }),
     ).resolves.toBe(3);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: ".mixed-shadow",
+        selector: { type: "legacy" as const, value: ".mixed-shadow" },
         nth: 1,
       }),
     ).resolves.toBe("closed");
