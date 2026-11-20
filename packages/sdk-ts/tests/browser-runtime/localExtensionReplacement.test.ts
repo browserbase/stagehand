@@ -30,50 +30,70 @@ describe("localExtensionDir replaces incompatible extensions", () => {
     while (cleanups.length > 0) await cleanups.pop()?.();
   });
 
-  it("replaces an incompatible extension and connects successfully", async () => {
-    const signal = AbortSignal.timeout(60_000);
+  it.each([
+    {
+      name: "older minor version",
+      version: (() => {
+        // Create an older version: 3.1.1 -> 3.0.0 (previous minor)
+        const [major, minor] = STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);
+        return minor === 0 ? `${major - 1}.9.0` : `${major}.${minor - 1}.0`;
+      })(),
+    },
+    {
+      name: "future major version",
+      version: `${Number(STAGEHAND_PROTOCOL_VERSION.split(".")[0]) + 1}.0.0`,
+    },
+  ])(
+    "replaces an $name extension and connects successfully",
+    async ({ version: incompatibleVersion }) => {
+      const signal = AbortSignal.timeout(60_000);
 
-    // Create a mutated extension with an incompatible (future major) protocol version.
-    const nextMajor = `${Number(STAGEHAND_PROTOCOL_VERSION.split(".")[0]) + 1}.0.0`;
-    const incompatibleDir = await forkExtensionWithProtocolVersion(
-      currentExtensionDir,
-      nextMajor,
-    );
-    cleanups.push(() => rm(incompatibleDir, { recursive: true, force: true }));
+      // Create a mutated extension with an incompatible protocol version.
+      const incompatibleDir = await forkExtensionWithProtocolVersion(
+        currentExtensionDir,
+        incompatibleVersion,
+      );
+      cleanups.push(() => rm(incompatibleDir, { recursive: true, force: true }));
 
-    // Launch Chrome and preinstall the incompatible extension using raw CDP (bypass validation).
-    const chrome = await launchLocalBrowser({ headless: true }, signal);
-    cleanups.push(() => chrome.close());
+      // Launch Chrome and preinstall the incompatible extension using raw CDP (bypass validation).
+      const chrome = await launchLocalBrowser({ headless: true }, signal);
+      cleanups.push(() => chrome.close());
 
-    // Load the incompatible extension directly via CDP without validation.
-    const wsUrl = await resolveBrowserWebSocketUrl(chrome.cdpUrl, { signal });
-    const seedClient = new CDPClient(await openCDPWebSocket(wsUrl, signal), wsUrl);
-    cleanups.push(async () => seedClient.close());
-    const incompatibleExtensionId = await loadUnpackedExtension(seedClient, incompatibleDir, signal);
-    seedClient.close();
+      // Load the incompatible extension directly via CDP without validation.
+      const wsUrl = await resolveBrowserWebSocketUrl(chrome.cdpUrl, { signal });
+      const seedClient = new CDPClient(await openCDPWebSocket(wsUrl, signal), wsUrl);
+      cleanups.push(async () => seedClient.close());
+      const incompatibleExtensionId = await loadUnpackedExtension(
+        seedClient,
+        incompatibleDir,
+        signal,
+      );
+      seedClient.close();
 
-    // Now connect using localExtensionDir (the current extension).
-    // This should detect the incompatibility and replace the extension.
-    const { localBrowser } = createBrowserFactoriesForTest({
-      connectCdp: (options) =>
-        CDPClient.connect({ ...options, localExtensionDir: currentExtensionDir }),
-    });
+      // Now connect using localExtensionDir (the current extension).
+      // This should detect the incompatibility and replace the extension.
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: (options) =>
+          CDPClient.connect({ ...options, localExtensionDir: currentExtensionDir }),
+      });
 
-    const browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
-    cleanups.push(() => browser.close());
+      const browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
+      cleanups.push(() => browser.close());
 
-    // Verify the connection succeeded and we can use Stagehand.
-    const stagehand = await Stagehand.create({ browser });
-    cleanups.push(() => stagehand.close());
+      // Verify the connection succeeded and we can use Stagehand.
+      const stagehand = await Stagehand.create({ browser });
+      cleanups.push(() => stagehand.close());
 
-    const page = await stagehand.browser.context.newPage();
-    await page.goto("data:text/html,<title>Replaced extension</title>");
-    expect(await page.title()).toBe("Replaced extension");
+      const page = await stagehand.browser.context.newPage();
+      await page.goto("data:text/html,<title>Replaced extension</title>");
+      expect(await page.title()).toBe("Replaced extension");
 
-    // The key assertion is that connect succeeded despite the incompatible extension.
-    // The extension ID may have changed when it was replaced.
-    expect(incompatibleExtensionId).toBeDefined();
-  }, 90_000);
+      // The key assertion is that connect succeeded despite the incompatible extension.
+      // The extension ID may have changed when it was replaced.
+      expect(incompatibleExtensionId).toBeDefined();
+    },
+    90_000,
+  );
 });
 
 async function forkExtensionWithProtocolVersion(

@@ -401,6 +401,8 @@ export class CDPClient {
       // runtime requirement), replace it with the bundled extension and retry on incompatibility.
       // We only auto-replace when using the default requirement because a custom runtimeRequirement
       // indicates the caller explicitly needs a specific version that may not be in the bundle.
+      // Note: This auto-replace only works for local browsers. For remote browsers (e.g., Browserbase
+      // via --cdp), loadUnpackedExtension will fail because the local path isn't accessible remotely.
       try {
         await attachAndVerifyExtension(client, extensionId, options);
       } catch (error) {
@@ -423,8 +425,26 @@ export class CDPClient {
             client.attachedServiceWorker = undefined;
           }
           // Load the bundled extension, replacing the old one (same path = replace).
-          extensionId = await loadUnpackedExtension(client, options.localExtensionDir, signal);
-          await attachAndVerifyExtension(client, extensionId, options);
+          // If this fails (e.g., remote browser can't access local path), re-throw
+          // the original incompatibility error with context about the failed replacement.
+          try {
+            extensionId = await loadUnpackedExtension(client, options.localExtensionDir, signal);
+            await attachAndVerifyExtension(client, extensionId, options);
+          } catch (replacementError) {
+            // Wrap the original incompatibility error with replacement failure info.
+            // This allows callers to check for replacement failure via error.cause.
+            const enhancedError = new StagehandRuntimeIncompatibleError(error.compatibility);
+            const replacementMessage =
+              replacementError instanceof Error
+                ? replacementError.message
+                : String(replacementError);
+            enhancedError.message =
+              error.message +
+              ` Automatic extension replacement failed: ${replacementMessage}. ` +
+              `For remote browsers, the extension must be installed at session creation time.`;
+            (enhancedError as { replacementError?: unknown }).replacementError = replacementError;
+            throw enhancedError;
+          }
         } else {
           throw error;
         }
