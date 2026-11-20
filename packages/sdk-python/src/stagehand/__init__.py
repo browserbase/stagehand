@@ -82,6 +82,7 @@ from .file_upload import FileInput, FilePayload
 from .locator import Locator
 from .page import (
     CDPSubscription,
+    ConsoleListener,
     Page,
     PageEventListener,
     ResponseListener,
@@ -151,6 +152,7 @@ __all__ = [
     "Page",
     "PageCDPEvent",
     "PageDragAndDropRoutePoint",
+    "ConsoleListener",
     "PageEventListener",
     "ResponseListener",
     "ToolsAddedListener",
