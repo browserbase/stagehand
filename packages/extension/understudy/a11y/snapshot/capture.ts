@@ -178,7 +178,10 @@ export async function tryScopedSnapshot(
   };
 
   try {
-    const [target] = await resolveLocatorChain(page, page.mainFrame(), selector, progress);
+    // Scope can fall back to the full tree, so don't spend the caller's deadline on readiness.
+    const [target] = await resolveLocatorChain(page, page.mainFrame(), selector, progress, {
+      readinessRetries: "none",
+    });
     if (!target) {
       logScopeFallback();
       return null;
@@ -428,7 +431,14 @@ export async function resolveIgnoredNodes(
   for (const locator of ignoreLocators ?? []) {
     progress?.throwIfStopped();
     try {
-      const targets = await resolveLocatorChain(page, page.mainFrame(), locator.selector, progress);
+      // Unresolved exclusions are skipped, so don't spend the caller's deadline on readiness.
+      const targets = await resolveLocatorChain(
+        page,
+        page.mainFrame(),
+        locator.selector,
+        progress,
+        { readinessRetries: "none" },
+      );
       for (const { frame, backendNodeId } of targets) {
         const nodes = ignoredNodesByFrame.get(frame.frameId) ?? new Set<number>();
         nodes.add(backendNodeId);

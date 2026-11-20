@@ -4,7 +4,7 @@ import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 
 /** Best-effort readiness budget for frame transitions, not an overall operation timeout. */
 const FRAME_LOCATOR_READY_TIMEOUT_MS = 1_200;
@@ -81,6 +81,7 @@ export async function resolveContentFrame(
   parentFrame: Frame,
   iframeBackendNodeId: number,
   progress?: Progress,
+  readiness: ReadinessOptions = {},
 ): Promise<Frame> {
   const parentSession = parentFrame.session;
   // Find direct child frames under the parent by consulting the Page's registry
@@ -111,7 +112,7 @@ export async function resolveContentFrame(
     }
     if (owner.backendNodeId === iframeBackendNodeId) {
       // Readiness failures must propagate after the matching child is identified.
-      await ensureChildFrameReady(page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress);
+      await ensureChildFrameReady(page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress, readiness);
       return page.frameForId(fid);
     }
   }
@@ -246,12 +247,16 @@ async function ensureChildFrameReady(
   childFrameId: string,
   budgetMs: number,
   progress?: Progress,
+  { readinessRetries = "until-deadline" }: ReadinessOptions = {},
 ): Promise<void> {
   progress?.throwIfStopped();
   const deadline = Date.now() + Math.max(0, budgetMs);
   let lastError: unknown;
+  // With retries disabled, the frame budget bounds the wait even when the
+  // caller has a longer deadline, so callers that can fall back still do.
+  const retryUntilCallerDeadline = !!progress && readinessRetries === "until-deadline";
 
-  while (progress || Date.now() < deadline) {
+  while (retryUntilCallerDeadline || Date.now() < deadline) {
     progress?.throwIfStopped();
     const session = page.getSessionForFrame(childFrameId);
     const remaining = progress?.remainingMs() ?? deadline - Date.now();

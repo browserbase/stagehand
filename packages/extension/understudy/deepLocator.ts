@@ -1,4 +1,4 @@
-import { ChainTargetLocator, resolveLocatorChain } from "./locatorChain.js";
+import { ChainTargetLocator, describeLocatorChain, resolveLocatorChain } from "./locatorChain.js";
 import { Locator } from "./locator.js";
 import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
@@ -16,7 +16,11 @@ export class DeepLocatorDelegate {
 
   async real(progress?: Progress): Promise<Locator> {
     const [first] = await this.chainTargets(progress);
-    if (!first) throw new Error("Could not find an element for the locator chain");
+    if (!first) {
+      throw new Error(
+        `Could not find an element for the locator chain: ${describeLocatorChain(this.selector)}`,
+      );
+    }
     return first;
   }
 

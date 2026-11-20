@@ -334,7 +334,9 @@ describe("snapshot Unicode repair", () => {
         ["child", new Set([30])],
       ]),
     );
-    expect(resolveLocatorChain).toHaveBeenCalledWith(page, root, selector, undefined);
+    expect(resolveLocatorChain).toHaveBeenCalledWith(page, root, selector, undefined, {
+      readinessRetries: "none",
+    });
   });
 });
 

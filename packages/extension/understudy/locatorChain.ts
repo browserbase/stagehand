@@ -5,18 +5,34 @@ import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { resolveContentFrame } from "./frameLocator.js";
 import { FrameSelectorResolver, type ResolvedNode } from "./selectorResolver.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 
 export type ChainTarget = { frame: Frame; backendNodeId: number };
+
+/** Human-readable chain for error messages, e.g. `css=.card >> nth=1 >> text=Pay`. */
+export function describeLocatorChain(chain: LocatorChain): string {
+  return chain.steps
+    .map((step) => {
+      const query = `${step.type === "frame" ? "frame " : ""}${step.selector.type}=${step.selector.value}`;
+      return step.nth === undefined ? query : `${query} >> nth=${step.nth}`;
+    })
+    .join(" >> ");
+}
 type ChainNode = ChainTarget & { objectId: string; isFrame: boolean };
 
-/** Evaluate once per operation; remote handles never escape the query plan. */
+/**
+ * Evaluate once per operation; remote handles never escape the query plan.
+ * Callers that can fall back (snapshot scope, exclusions) pass
+ * `readinessRetries: "none"` so an unready frame fails fast instead of
+ * consuming the caller's whole deadline.
+ */
 export async function resolveLocatorChain(
   page: Page,
   root: Frame,
   chain: LocatorChain,
   progress?: Progress,
+  readiness: ReadinessOptions = {},
 ): Promise<ChainTarget[]> {
   const owned: Array<{ frame: Frame; objectId: string }> = [];
   const track = (frame: Frame, node: { objectId: string }) => {
@@ -39,7 +55,7 @@ export async function resolveLocatorChain(
     scope?: ChainNode,
   ): Promise<ChainNode[]> => {
     if (!scope) {
-      const resolver = new FrameSelectorResolver(frame);
+      const resolver = new FrameSelectorResolver(frame, readiness);
       const nodes = await resolver.resolveAll(
         { kind: selector.type, value: selector.value },
         {},
@@ -108,6 +124,7 @@ export async function resolveLocatorChain(
               match.frame,
               match.backendNodeId,
               progress,
+              readiness,
             );
             next.push(...(await query(child, step.selector)));
           } else {
