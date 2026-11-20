@@ -96,6 +96,24 @@ describe("extension build", () => {
     expect(() => vm.runInContext("let i = 0; let r = 1; let a; let o;", page)).not.toThrow();
   });
 
+  it("leaves the first copy in place when the content script runs again", async () => {
+    const contentScript = await readFile(
+      path.join(stagehandExtensionDistDir, "content-script.js"),
+      "utf8",
+    );
+    const world = vm.createContext({ chrome: { dom: { openOrClosedShadowRoot: () => null } } });
+    const globals =
+      "[__stagehandExtensionWorld, __stagehandLocatorScripts, __stagehandLocatorWorld]";
+
+    vm.runInContext(contentScript, world);
+    const first = vm.runInContext(globals, world) as unknown[];
+    expect(() => vm.runInContext(contentScript, world)).not.toThrow();
+    const second = vm.runInContext(globals, world) as unknown[];
+
+    expect(first.every((value) => typeof value === "object" && value !== null)).toBe(true);
+    second.forEach((value, index) => expect(value).toBe(first[index]));
+  });
+
   it("has a loadable MV3 extension artifact", async () => {
     const manifest = ManifestSchema.parse(
       JSON.parse(await readFile(path.join(stagehandExtensionDistDir, "manifest.json"), "utf8")),
@@ -159,6 +177,9 @@ describe("extension build", () => {
     expect(serviceWorker).toContain("__stagehandReceiveFromHost");
     expect(serviceWorker).toContain("offscreen/service-worker-heartbeat.html");
     expect(serviceWorker).toContain("OFFSCREEN_DOCUMENT");
+    expect(serviceWorker).toMatch(
+      /typeof chrome<(["'`])u\1&&\(installServiceWorkerHeartbeat\(\),injectContentScriptIntoOpenTabs\(chrome\),startStagehandServiceWorker\(\)\);?\s*$/u,
+    );
     expect(contentScript).toContain("__stagehandExtensionWorld");
     expect(contentScript).toContain("stagehand.v4");
     expect(contentScript).toContain("installCursorOverlay");

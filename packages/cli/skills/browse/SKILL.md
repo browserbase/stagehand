@@ -234,7 +234,6 @@ browse cloud contexts create --name github
 browse cloud contexts add github <context-id>
 browse cloud contexts list
 browse cloud contexts get <context-id|name>
-browse cloud contexts update <context-id|name>
 browse cloud contexts delete <context-id|name>
 browse cloud extensions upload --stagehand
 browse cloud extensions upload ./extension.zip
@@ -244,7 +243,10 @@ browse cloud fetch https://example.com
 browse cloud search "browser automation"
 browse cloud search "browserbase docs" --provider parallel --mode fast
 browse cloud search "browser automation research" --provider parallel --mode advanced
-browse cloud search "browserbase docs" --provider exa
+browse cloud search "browserbase docs" --provider exa --mode deep
+browse cloud search "AI news" --include-domains techcrunch.com,wired.com --excerpts
+browse cloud search "climate research" --start-published-date 2026-01-01 --max-age-hours 24
+browse cloud search "local events" --user-location US --objective "Find tech meetups"
 ```
 
 For remote sessions with context persistence:
@@ -268,7 +270,27 @@ Use `--verified` when the task needs Browserbase Verified browser mode. To drive
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
 
-Search accepts `--provider parallel|exa` and `--mode fast|advanced`. Provider and mode selection requires the Search API upgrade and is unavailable until that upgrade is deployed. Parallel supports both modes; omit `--mode` with Exa. Leave either flag unset to let the API choose the default provider or the provider choose its default tier. `fast` favors lower latency and cost; `advanced` favors deeper results.
+### Search Options
+
+When `--provider` is omitted, the API picks a provider that supports your params (auto-routing). Set `--provider` explicitly to enforce provider-specific limits locally (domain count, country codes, etc.).
+
+| Flag                                     | Description                                                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--provider parallel\|exa`               | Search provider. Omit to let the API pick. Set explicitly for provider-specific validation.                                                                       |
+| `--mode fast\|advanced\|deep-lite\|deep` | Search mode. Parallel: fast, advanced. Exa: fast, deep-lite, deep. Requires `--provider`, or infers exa for deep modes.                                           |
+| `--num-results <1-25>`                   | Number of results (default 10).                                                                                                                                   |
+| `--include-domains <domains>`            | Comma-separated domains to include (hostname, path prefix, or `*.example.com`). With `--provider parallel`: max 200, mutually exclusive with `--exclude-domains`. |
+| `--exclude-domains <domains>`            | Comma-separated domains to exclude. Same format as `--include-domains`.                                                                                           |
+| `--start-published-date <date>`          | YYYY-MM-DD or RFC 3339 date-time (e.g. `2026-01-01`). Only results published after this date.                                                                     |
+| `--end-published-date <date>`            | YYYY-MM-DD or RFC 3339 date-time. Only results published before this date. Exa-only (auto-routes when `--provider` is omitted).                                   |
+| `--category <type>`                      | Focus on content category: company, publication, news, personal site, financial report, people. Exa-only (auto-routes when `--provider` is omitted).              |
+| `--user-location <code>`                 | Two-letter country code (e.g. `US`, `GB`) to localize ranking. With `--provider parallel`: limited to supported countries.                                        |
+| `--moderation`                           | Filter unsafe content. Exa-only (auto-routes when `--provider` is omitted).                                                                                       |
+| `--objective <text>`                     | Natural-language task intent (up to 4096 code points) to add context to the query.                                                                                |
+| `--max-age-hours <1-720>`                | Refetch cached pages older than this many hours.                                                                                                                  |
+| `--excerpts`                             | Return the most relevant passages from each result.                                                                                                               |
+
+The response includes `provider` and `mode` fields showing which provider/mode served the request. When `--excerpts` is set, each result includes an `excerpts` array with relevant passages.
 
 ## Browserbase Functions
 

@@ -30,7 +30,7 @@ export class LifecycleWatcher {
   readonly waitUntil: LoadState;
   readonly timeout: number;
   readonly startTime: number;
-  readonly navigationCommandId: number;
+  readonly navigationCommandId: number | undefined;
   currentLoaderId: string | undefined;
   idleStartTime: number;
 
@@ -52,6 +52,7 @@ export class LifecycleWatcher {
 
   /**
    * Create a watcher; callers should subsequently invoke {@link wait}.
+   * Without a `navigationCommandId` it waits on the current document instead of a new navigation.
    */
   constructor(params: {
     page: Page;
@@ -59,7 +60,7 @@ export class LifecycleWatcher {
     networkManager: NetworkManager;
     waitUntil: LoadState;
     timeout: number;
-    navigationCommandId: number;
+    navigationCommandId?: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
@@ -82,6 +83,16 @@ export class LifecycleWatcher {
       };
     });
 
+    if (this.navigationCommandId === undefined) {
+      const loaderId = this.page.registry.frames.get(this.page.mainFrameId())?.lastSeen?.loaderId;
+      this.setExpectedLoaderId(loaderId);
+      // Count requests the current document already has in flight. Without a known loader the
+      // idle filter falls back to matching by frame, which would also count requests left over
+      // from earlier documents, so only count requests that start from now on.
+      if (loaderId) this.idleStartTime = 0;
+      this.resolveNavigationStart(false);
+    }
+
     this.installSessionListeners();
   }
 
@@ -103,16 +114,12 @@ export class LifecycleWatcher {
       if (sameDocument) return;
 
       if (this.waitUntil === "domcontentloaded") {
-        await this.awaitWithAbort(
-          this.page.waitForMainLoadState("domcontentloaded", this.timeRemaining(deadline)),
-        );
+        await this.waitForMainLoadState("domcontentloaded", deadline);
         return;
       }
 
       while (true) {
-        await this.awaitWithAbort(
-          this.page.waitForMainLoadState("load", this.timeRemaining(deadline)),
-        );
+        await this.waitForMainLoadState("load", deadline);
 
         if (this.waitUntil !== "networkidle") break;
 
@@ -165,7 +172,7 @@ export class LifecycleWatcher {
 
       const loaderId = evt.frame.loaderId;
       if (!loaderId) return;
-      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+      if (this.isSuperseded()) {
         this.triggerAbort(new Error("Navigation was superseded by a new request"));
         return;
       }
@@ -199,7 +206,7 @@ export class LifecycleWatcher {
 
     const onNavigatedWithinDocument = (evt: Protocol.Page.NavigatedWithinDocumentEvent) => {
       if (evt?.frameId !== this.page.mainFrameId()) return;
-      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+      if (this.isSuperseded()) {
         this.triggerAbort(new Error("Navigation was superseded by a new request"));
         return;
       }
@@ -241,6 +248,20 @@ export class LifecycleWatcher {
     }
   }
 
+  /** Wait for a main-frame load state, reporting timeouts against the caller's full budget. */
+  async waitForMainLoadState(state: LoadState, deadline: number): Promise<void> {
+    try {
+      await this.awaitWithAbort(
+        this.page.waitForMainLoadState(state, this.timeRemaining(deadline)),
+      );
+    } catch (error) {
+      if (error instanceof TimeoutError && !this.abortError) {
+        throw new TimeoutError(state, this.timeout);
+      }
+      throw error;
+    }
+  }
+
   /** Compute remaining time until the shared deadline elapses. */
   timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
@@ -258,6 +279,14 @@ export class LifecycleWatcher {
       if (this.abortError) throw this.abortError;
       throw error;
     }
+  }
+
+  /** Only a watcher that belongs to a navigation command can be superseded by a newer one. */
+  isSuperseded(): boolean {
+    return (
+      this.navigationCommandId !== undefined &&
+      !this.page.isCurrentNavigationCommand(this.navigationCommandId)
+    );
   }
 
   /** Mark the watcher as aborted and reject any pending waiters. */
@@ -318,7 +347,8 @@ export class LifecycleWatcher {
     return (info: NetworkRequestInfo) => {
       if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
 
-      if (loaderId && info.loaderId) {
+      // Loaderless requests, such as Web Worker scripts, never finish on the page session.
+      if (loaderId) {
         return info.loaderId === loaderId;
       }
 
