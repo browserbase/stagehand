@@ -49,7 +49,6 @@ const capabilities = [
 
 const sharedCDPCommands = [
   "Extensions.loadUnpacked",
-  "Extensions.uninstall",
   "Target.getTargets",
   "Target.attachToTarget",
   "Target.createTarget",

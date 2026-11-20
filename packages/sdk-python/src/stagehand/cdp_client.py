@@ -48,6 +48,10 @@ _SERVICE_WORKER_BUILD_EXPRESSION = """(async () => {
   } catch {}
   return { running: globalThis.__stagehand_build_id ?? null, onDisk };
 })()"""
+# About 1.5 s at the poll interval, while a just-attached worker context starts.
+_SERVICE_WORKER_BUILD_READ_RETRIES = 15
+# Well beyond a slow worker start; connect then reaches the readiness wait and its own error.
+_SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS = 10
 
 
 def _callback_batch_expression(
@@ -232,6 +236,8 @@ class ServiceWorkerInfo:
 
 _UNSTAMPED_BUILD_ID = "__STAGEHAND_EXTENSION_BUILD_ID__"
 
+_StaleServiceWorkerReplacement = Literal["not owned", "reloaded", "reload failed"]
+
 
 @dataclass(frozen=True)
 class _ServiceWorkerBuild:
@@ -364,29 +370,27 @@ class CDPClient:
             if build.stale and installed_path is not None and local_extension_dir is not None:
                 # Reconnecting after an SDK upgrade rewrote its own directory: the worker is ours.
                 directory = local_extension_dir()
-                if os.path.realpath(installed_path) == os.path.realpath(directory):
+                if _same_directory(installed_path, directory):
                     loaded_from = directory
+            replacement: _StaleServiceWorkerReplacement = "not owned"
             if build.stale and loaded_from is not None:
-                await client.send_command("Extensions.uninstall", {"id": resolved_extension_id})
                 try:
                     resolved_extension_id = await client._load_unpacked_extension(loaded_from)
-                except Exception as error:
-                    raise RuntimeError(
-                        f"Stagehand uninstalled the extension {resolved_extension_id} to replace "
-                        "a service worker from another build and could not load it again from "
-                        f"{loaded_from}."
-                    ) from error
-                worker, session_id = await client._attach_service_worker(
-                    resolved_extension_id,
-                    service_worker_url_includes or "service-worker.js",
-                    exclude_target_id=worker.target_id,
-                )
-                build = await client._read_service_worker_build(session_id)
+                    replacement = "reloaded"
+                except CDPConnectionClosedError:
+                    raise
+                except Exception:
+                    replacement = "reload failed"
+                if replacement == "reloaded":
+                    worker, session_id = await client._attach_service_worker(
+                        resolved_extension_id,
+                        service_worker_url_includes or "service-worker.js",
+                        exclude_target_id=worker.target_id,
+                    )
+                    build = await client._read_service_worker_build(session_id)
             if build.stale:
                 _LOGGER.warning(
-                    _stale_service_worker_message(
-                        resolved_extension_id, build, reloaded=loaded_from is not None
-                    )
+                    _stale_service_worker_message(resolved_extension_id, build, replacement)
                 )
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
@@ -703,7 +707,16 @@ class CDPClient:
 
     async def _read_service_worker_build(self, session_id: str) -> _ServiceWorkerBuild:
         """Wait for the runtime marker so a starting worker is not read as unidentified."""
+        try:
+            async with asyncio.timeout(_SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS):
+                return await self._poll_service_worker_build(session_id)
+        except TimeoutError:
+            return _ServiceWorkerBuild(running=None, on_disk=None)
+
+    async def _poll_service_worker_build(self, session_id: str) -> _ServiceWorkerBuild:
+        failures = 0
         while True:
+            value: object = None
             try:
                 evaluated = await self.send_command(
                     "Runtime.evaluate",
@@ -714,16 +727,17 @@ class CDPClient:
                     },
                     session_id=session_id,
                 )
+                result = evaluated.get("result")
+                if not isinstance(evaluated.get("exceptionDetails"), Mapping) and isinstance(
+                    result, Mapping
+                ):
+                    value = result.get("value")
             except CDPConnectionClosedError:
                 raise
             except Exception:
-                return _ServiceWorkerBuild(running=None, on_disk=None)
-            value: object = None
-            result = evaluated.get("result")
-            if not isinstance(evaluated.get("exceptionDetails"), Mapping) and isinstance(
-                result, Mapping
-            ):
-                value = result.get("value")
+                failures += 1
+                if failures > _SERVICE_WORKER_BUILD_READ_RETRIES:
+                    return _ServiceWorkerBuild(running=None, on_disk=None)
             if isinstance(value, Mapping):
                 running, on_disk = value.get("running"), value.get("onDisk")
                 if isinstance(running, str | None) and isinstance(on_disk, str | None):
@@ -998,25 +1012,36 @@ def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, 
     return cast(dict[str, object], value)
 
 
+def _same_directory(first: str, second: str) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
 def _stale_service_worker_message(
-    extension_id: str, build: _ServiceWorkerBuild, *, reloaded: bool
+    extension_id: str, build: _ServiceWorkerBuild, replacement: _StaleServiceWorkerReplacement
 ) -> str:
     running = (
         "a service worker without a build identity"
         if build.running is None
         else f"service worker build {build.running}"
     )
-    if reloaded:
+    if replacement == "reloaded":
         return (
             f"The Stagehand extension {extension_id} still runs {running} "
             f"after it was reloaded from a directory that holds build {build.on_disk}, "
             "so Stagehand continues with the running worker."
         )
+    reason = (
+        "Stagehand could not load this extension again from its directory to replace the worker"
+        if replacement == "reload failed"
+        else "Stagehand did not load this extension from its own directory"
+    )
     return (
         f"The Stagehand extension {extension_id} runs {running}, but its "
         f"directory holds build {build.on_disk}: the browser profile kept the worker of "
-        "another build. Stagehand did not load this extension from its own directory, so it "
-        "continues with the running worker."
+        f"another build. {reason}, so it continues with the running worker."
     )
 
 

@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, stat, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
@@ -745,7 +748,11 @@ describe("service worker build check", () => {
     reloadError?: { code: number; message: string },
   ) {
     const originalWebSocket = globalThis.WebSocket;
-    const commands: Array<{ method: string; params?: Record<string, unknown> }> = [];
+    const commands: Array<{
+      method: string;
+      params?: Record<string, unknown>;
+      sessionId?: string;
+    }> = [];
     let outcome: { client: CDPClient | undefined; error: Error | undefined };
     try {
       const socket = new FakeWebSocket();
@@ -763,8 +770,12 @@ describe("service worker build check", () => {
         };
         const reloading =
           command.method === "Extensions.loadUnpacked" &&
-          commands.some(({ method }) => method === "Extensions.uninstall");
-        commands.push({ method: command.method, params: command.params });
+          commands.some(({ params }) => String(params?.expression).includes("build-id.txt"));
+        commands.push({
+          method: command.method,
+          params: command.params,
+          sessionId: command.sessionId,
+        });
         if (reloading && reloadError) {
           queueMicrotask(() => {
             socket.dispatchEvent(
@@ -826,6 +837,17 @@ describe("service worker build check", () => {
     return { ...outcome, commands };
   }
 
+  function reloads(commands: Array<{ method: string; params?: Record<string, unknown> }>) {
+    const firstRead = commands.findIndex(({ params }) =>
+      String(params?.expression).includes("build-id.txt"),
+    );
+    return commands
+      .slice(firstRead === -1 ? commands.length : firstRead)
+      .flatMap(({ method, params }) =>
+        method === "Extensions.loadUnpacked" ? [params?.path] : [],
+      );
+  }
+
   it.each([{ extensionDir: "/bundle" }, { localExtensionDir: "/bundle" }])(
     "replaces a worker from another build after loading %j",
     async (source) => {
@@ -840,15 +862,9 @@ describe("service worker build check", () => {
       expect(methods.filter((method) => method.startsWith("Extensions."))).toEqual([
         ...("localExtensionDir" in source ? ["Extensions.getExtensions"] : []),
         "Extensions.loadUnpacked",
-        "Extensions.uninstall",
         "Extensions.loadUnpacked",
       ]);
-      expect(commands.find(({ method }) => method === "Extensions.uninstall")?.params).toEqual({
-        id: "stagehand-extension",
-      });
-      expect(
-        commands.filter(({ method }) => method === "Extensions.loadUnpacked").at(-1)?.params,
-      ).toEqual({ path: "/bundle" });
+      expect(reloads(commands)).toEqual(["/bundle"]);
     },
   );
 
@@ -859,7 +875,7 @@ describe("service worker build check", () => {
     );
 
     expect(client?.serviceWorker.targetId).toBe("old-worker");
-    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+    expect(reloads(commands)).toEqual([]);
   });
 
   it("does not compare a directory without a build identity", async () => {
@@ -869,7 +885,7 @@ describe("service worker build check", () => {
     );
 
     expect(client?.serviceWorker.targetId).toBe("old-worker");
-    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+    expect(reloads(commands)).toEqual([]);
   });
 
   it("does not compare an empty build identity", async () => {
@@ -879,31 +895,82 @@ describe("service worker build check", () => {
     );
 
     expect(client?.serviceWorker.targetId).toBe("old-worker");
-    expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
+    expect(reloads(commands)).toEqual([]);
   });
 
-  it.each([{ running: null }, { running: "a".repeat(64) }])(
-    "replaces a worker from another build when the extension is installed from its own directory: %j",
-    async ({ running }) => {
-      const { client, error, commands } = await connectWith(
-        { localExtensionDir: "/bundle/" },
-        {
-          "old-worker": { running, onDisk: "b".repeat(64) },
-          "new-worker": { running: "b".repeat(64), onDisk: "b".repeat(64) },
-        },
-        [extension({ id: "stagehand-extension", path: "/bundle" })],
-      );
+  async function withBundle(run: (bundle: string, root: string) => Promise<void>) {
+    const root = await mkdtemp(path.join(tmpdir(), "stagehand-bundle-"));
+    try {
+      const bundle = path.join(root, "Bundle");
+      await mkdir(bundle);
+      await run(bundle, root);
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  }
 
-      expect(error).toBeUndefined();
-      expect(client?.serviceWorker.targetId).toBe("new-worker");
-      expect(
-        commands.map(({ method }) => method).filter((method) => method.startsWith("Extensions.")),
-      ).toEqual(["Extensions.getExtensions", "Extensions.uninstall", "Extensions.loadUnpacked"]);
-      expect(commands.find(({ method }) => method === "Extensions.loadUnpacked")?.params).toEqual({
-        path: "/bundle/",
+  async function connectInstalledFrom(installedPath: string, localExtensionDir: string) {
+    return await connectWith(
+      { localExtensionDir },
+      {
+        "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) },
+        "new-worker": { running: "b".repeat(64), onDisk: "b".repeat(64) },
+      },
+      [extension({ id: "stagehand-extension", path: installedPath })],
+    );
+  }
+
+  it.each([
+    ["the same path", (bundle: string) => bundle],
+    ["a trailing slash", (bundle: string) => `${bundle}/`],
+    ["a symlink", (_: string, root: string) => path.join(root, "link")],
+  ])(
+    "replaces a worker from another build when the extension is installed from its own directory given as %s",
+    async (_, localDir) => {
+      await withBundle(async (bundle, root) => {
+        await symlink(bundle, path.join(root, "link"));
+        const { client, error, commands } = await connectInstalledFrom(
+          bundle,
+          localDir(bundle, root),
+        );
+
+        expect(error).toBeUndefined();
+        expect(client?.serviceWorker.targetId).toBe("new-worker");
+        expect(
+          commands.map(({ method }) => method).filter((method) => method.startsWith("Extensions.")),
+        ).toEqual(["Extensions.getExtensions", "Extensions.loadUnpacked"]);
+        expect(reloads(commands)).toEqual([localDir(bundle, root)]);
       });
     },
   );
+
+  it("treats a directory given in another letter case as its own on a case-insensitive filesystem", async (context) => {
+    await withBundle(async (bundle) => {
+      const upper = path.join(path.dirname(bundle), "BUNDLE");
+      const caseInsensitive = await stat(upper).then(
+        () => true,
+        () => false,
+      );
+      if (!caseInsensitive) context.skip();
+      const { client, error } = await connectInstalledFrom(bundle, upper);
+
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("new-worker");
+    });
+  });
+
+  it("does not treat a path it cannot read as its own directory", async () => {
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    try {
+      const { client, commands } = await connectInstalledFrom("/missing/bundle", "/missing/bundle");
+
+      expect(client?.serviceWorker.targetId).toBe("old-worker");
+      expect(reloads(commands)).toEqual([]);
+      expect(emitWarning).toHaveBeenCalledOnce();
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
 
   it.each([
     { localExtensionDir: "/bundle" },
@@ -924,8 +991,8 @@ describe("service worker build check", () => {
       expect(emitWarning.mock.calls[0][0]).toContain(
         `runs service worker build ${"a".repeat(64)}, but its directory holds build ${"b".repeat(64)}: the browser profile kept the worker of another build`,
       );
-      expect(commands.map(({ method }) => method)).not.toContain("Extensions.uninstall");
       expect(commands.map(({ method }) => method)).not.toContain("Extensions.loadUnpacked");
+      expect(reloads(commands)).toEqual([]);
     } finally {
       emitWarning.mockRestore();
     }
@@ -963,29 +1030,34 @@ describe("service worker build check", () => {
         `The Stagehand extension stagehand-extension still runs service worker build ${"a".repeat(64)} after it was reloaded from a directory that holds build ${"b".repeat(64)}, so Stagehand continues with the running worker.`,
         { code: "STAGEHAND_STALE_SERVICE_WORKER" },
       ]);
-      expect(commands.filter(({ method }) => method === "Extensions.uninstall")).toHaveLength(1);
+      expect(reloads(commands)).toEqual(["/bundle"]);
     } finally {
       emitWarning.mockRestore();
     }
   });
 
-  it("reports an extension it uninstalled and could not load again", async () => {
-    const { error, commands } = await connectWith(
-      { extensionDir: "/bundle" },
-      { "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) } },
-      [],
-      { code: -32000, message: "Manifest file is missing or unreadable" },
-    );
+  it("warns and continues when loading the extension again fails", async () => {
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    try {
+      const { client, error, commands } = await connectWith(
+        { extensionDir: "/bundle" },
+        { "old-worker": { running: "a".repeat(64), onDisk: "b".repeat(64) } },
+        [],
+        { code: -32000, message: "Manifest file is missing or unreadable" },
+      );
 
-    expect(error?.message).toBe(
-      "Stagehand uninstalled the extension stagehand-extension to replace a service worker from another build and could not load it again from /bundle.",
-    );
-    expect((error?.cause as Error | undefined)?.message).toContain(
-      "Manifest file is missing or unreadable",
-    );
-    expect(
-      commands.map(({ method }) => method).filter((method) => method.startsWith("Extensions.")),
-    ).toEqual(["Extensions.loadUnpacked", "Extensions.uninstall", "Extensions.loadUnpacked"]);
+      expect(error).toBeUndefined();
+      expect(client?.serviceWorker.targetId).toBe("old-worker");
+      expect(emitWarning.mock.calls).toEqual([
+        [
+          `The Stagehand extension stagehand-extension runs service worker build ${"a".repeat(64)}, but its directory holds build ${"b".repeat(64)}: the browser profile kept the worker of another build. Stagehand could not load this extension again from its directory to replace the worker, so it continues with the running worker.`,
+          { code: "STAGEHAND_STALE_SERVICE_WORKER" },
+        ],
+      ]);
+      expect(reloads(commands)).toEqual(["/bundle"]);
+    } finally {
+      emitWarning.mockRestore();
+    }
   });
 
   it("waits for the runtime marker before reading the build", async () => {
@@ -1010,14 +1082,46 @@ describe("service worker build check", () => {
     );
   });
 
-  it("does not compare when the build cannot be read", async () => {
+  it("retries a build read that throws while the worker context starts", async () => {
+    const delayFn = vi.fn(async () => {});
+    const sendCommand = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Cannot find default execution context"))
+      .mockResolvedValueOnce({ result: { value: { running: "a", onDisk: "b" } } });
+
+    await expect(
+      readServiceWorkerBuild({ sendCommand }, "worker-session", {
+        delayFn,
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ running: "a", onDisk: "b" });
+    expect(delayFn).toHaveBeenCalledOnce();
+  });
+
+  it("does not compare when the build read keeps throwing", async () => {
+    const delayFn = vi.fn(async () => {});
     const sendCommand = vi.fn().mockRejectedValue(new Error("Execution context was destroyed"));
 
     await expect(
       readServiceWorkerBuild({ sendCommand }, "worker-session", {
+        delayFn,
         signal: new AbortController().signal,
       }),
     ).resolves.toEqual({ running: null, onDisk: null });
+    expect(sendCommand).toHaveBeenCalledTimes(16);
+    expect(delayFn).toHaveBeenCalledTimes(15);
+  });
+
+  it("stops reading the build when the connection closes", async () => {
+    const sendCommand = vi.fn().mockRejectedValue(new CDPConnectionClosedError());
+
+    await expect(
+      readServiceWorkerBuild({ sendCommand }, "worker-session", {
+        delayFn: async () => {},
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBeInstanceOf(CDPConnectionClosedError);
+    expect(sendCommand).toHaveBeenCalledOnce();
   });
 
   it.each([

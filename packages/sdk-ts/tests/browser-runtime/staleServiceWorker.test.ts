@@ -24,6 +24,7 @@ it("replaces the worker a profile kept from another build at the same path", asy
     expect(await connect(extensionDir, userDataDir, sendCommand)).toEqual({
       firstRead: { running: buildA, onDisk: buildA },
       uninstalls: 0,
+      loads: 1,
       running: buildA,
     });
 
@@ -38,7 +39,8 @@ it("replaces the worker a profile kept from another build at the same path", asy
 
     expect(await connect(extensionDir, userDataDir, sendCommand)).toEqual({
       firstRead: { running: buildA, onDisk: buildB },
-      uninstalls: 1,
+      uninstalls: 0,
+      loads: 2,
       running: buildB,
     });
   } finally {
@@ -75,6 +77,7 @@ async function connect(
     return {
       firstRead: buildReads.map(({ result }) => result.value).find((value) => value !== null),
       uninstalls: calls.filter(([method]) => method === "Extensions.uninstall").length,
+      loads: calls.filter(([method]) => method === "Extensions.loadUnpacked").length,
       running: evaluated.result.value,
     };
   } finally {

@@ -1,6 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { realpath } from "node:fs/promises";
-import path from "node:path";
+import { stat } from "node:fs/promises";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -429,25 +428,25 @@ export class CDPClient {
         // Reconnecting after an SDK upgrade rewrote its own directory: the worker is ours.
         loadedFrom = options.localExtensionDir;
       }
+      let replacement: StaleServiceWorkerReplacement = "not owned";
       if (isStaleServiceWorker(build) && loadedFrom !== undefined) {
-        await client.sendCommand("Extensions.uninstall", { id: extensionId }, undefined, signal);
         try {
           extensionId = await loadUnpackedExtension(client, loadedFrom, signal);
+          replacement = "reloaded";
         } catch (error) {
           throwIfAborted(signal);
-          throw new Error(
-            `Stagehand uninstalled the extension ${extensionId} to replace a service worker from another build and could not load it again from ${loadedFrom}.`,
-            { cause: error },
-          );
+          if (error instanceof CDPConnectionClosedError) throw error;
+          replacement = "reload failed";
         }
-        ({ serviceWorker, attached } = await attachServiceWorker(serviceWorker.targetId));
-        build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+        if (replacement === "reloaded") {
+          ({ serviceWorker, attached } = await attachServiceWorker(serviceWorker.targetId));
+          build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+        }
       }
       if (isStaleServiceWorker(build)) {
-        process.emitWarning(
-          staleServiceWorkerMessage(extensionId, build, loadedFrom !== undefined),
-          { code: "STAGEHAND_STALE_SERVICE_WORKER" },
-        );
+        process.emitWarning(staleServiceWorkerMessage(extensionId, build, replacement), {
+          code: "STAGEHAND_STALE_SERVICE_WORKER",
+        });
       }
 
       client.sessionId = attached.sessionId;
@@ -868,8 +867,15 @@ async function discoverOrLoadExtension(
 }
 
 async function sameDirectory(first: string, second: string): Promise<boolean> {
-  const canonical = (directory: string) => realpath(directory).catch(() => path.resolve(directory));
-  return (await canonical(first)) === (await canonical(second));
+  try {
+    const [a, b] = await Promise.all([
+      stat(first, { bigint: true }),
+      stat(second, { bigint: true }),
+    ]);
+    return a.dev === b.dev && a.ino === b.ino;
+  } catch {
+    return false;
+  }
 }
 
 async function getInstalledStagehandExtension(
@@ -933,6 +939,9 @@ const ServiceWorkerBuildSchema = z.object({
   onDisk: z.string().nullable(),
 });
 
+// About 1.5 s at the default poll interval, while a just-attached worker context starts.
+const SERVICE_WORKER_BUILD_READ_RETRIES = 15;
+
 /** @internal Waits for the runtime marker so a starting worker is not read as unidentified. */
 export async function readServiceWorkerBuild(
   cdp: CDPCommandSender,
@@ -945,11 +954,12 @@ export async function readServiceWorkerBuild(
 ): Promise<ServiceWorkerBuild> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
+  let failures = 0;
   while (true) {
     throwIfAborted(options.signal);
-    let evaluated: RuntimeEvaluateResult;
+    let value: unknown = null;
     try {
-      evaluated = await cdp.sendCommand<RuntimeEvaluateResult>(
+      const evaluated = await cdp.sendCommand<RuntimeEvaluateResult>(
         "Runtime.evaluate",
         {
           expression: `(async () => {
@@ -969,12 +979,12 @@ export async function readServiceWorkerBuild(
         sessionId,
         options.signal,
       );
+      value = evaluated.exceptionDetails ? null : evaluated.result?.value;
     } catch (error) {
       throwIfAborted(options.signal);
       if (error instanceof CDPConnectionClosedError) throw error;
-      return { running: null, onDisk: null };
+      if (++failures > SERVICE_WORKER_BUILD_READ_RETRIES) return { running: null, onDisk: null };
     }
-    const value = evaluated.exceptionDetails ? null : evaluated.result?.value;
     if (value !== null && value !== undefined) {
       const parsed = ServiceWorkerBuildSchema.safeParse(value);
       return parsed.success ? parsed.data : { running: null, onDisk: null };
@@ -993,19 +1003,28 @@ export function isStaleServiceWorker(build: ServiceWorkerBuild): boolean {
   return build.onDisk !== null && build.running !== build.onDisk;
 }
 
+type StaleServiceWorkerReplacement = "not owned" | "reloaded" | "reload failed";
+
 function staleServiceWorkerMessage(
   extensionId: string,
   build: ServiceWorkerBuild,
-  reloaded: boolean,
+  replacement: StaleServiceWorkerReplacement,
 ): string {
   const running =
     build.running === null
       ? "a service worker without a build identity"
       : `service worker build ${build.running}`;
-  return reloaded
-    ? `The Stagehand extension ${extensionId} still runs ${running} after it was reloaded from a directory that holds build ${build.onDisk}, so Stagehand continues with the running worker.`
-    : `The Stagehand extension ${extensionId} runs ${running}, but its directory holds build ${build.onDisk}: the browser profile kept the worker of another build. ` +
-        `Stagehand did not load this extension from its own directory, so it continues with the running worker.`;
+  if (replacement === "reloaded") {
+    return `The Stagehand extension ${extensionId} still runs ${running} after it was reloaded from a directory that holds build ${build.onDisk}, so Stagehand continues with the running worker.`;
+  }
+  const reason =
+    replacement === "reload failed"
+      ? "Stagehand could not load this extension again from its directory to replace the worker"
+      : "Stagehand did not load this extension from its own directory";
+  return (
+    `The Stagehand extension ${extensionId} runs ${running}, but its directory holds build ${build.onDisk}: the browser profile kept the worker of another build. ` +
+    `${reason}, so it continues with the running worker.`
+  );
 }
 
 export async function waitForServiceWorker(
