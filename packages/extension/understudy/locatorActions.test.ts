@@ -3,8 +3,14 @@ import { TimeoutError } from "../errors.js";
 import { createStagehandRuntime } from "../runtime.js";
 import {
   assignFilePayloadsToInputElement,
+  codeInputGroup,
+  codeInputPosition,
+  deepActiveElement,
   fillElementValue,
+  focusedCodeInputAfterInput,
   prepareElementForTyping,
+  readElementInputValue,
+  restoreInputValue,
 } from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
@@ -618,6 +624,114 @@ describe("locator action deadlines", () => {
     expect(send.mock.calls.some(([method]) => method.startsWith("Input."))).toBe(false);
     gate.resolve({});
     await vi.advanceTimersByTimeAsync(0);
+  });
+
+  function createCodeInputLocator(focusAfterEachChar: number[], startPosition = 0) {
+    const fixture = createFillLocator();
+    const focused = [...focusAfterEachChar];
+    const respond = fixture.send.getMockImplementation()!;
+    fixture.send.mockImplementation((method, params) => {
+      const { functionDeclaration: declaration, objectId } = (params ?? {}) as {
+        functionDeclaration?: string;
+        objectId?: string;
+      };
+      if (declaration === codeInputGroup.toString())
+        return Promise.resolve({
+          result: { type: "object", objectId: objectId === "active" ? "group-2" : "group" },
+        });
+      if (declaration === codeInputPosition.toString())
+        return Promise.resolve({ result: { value: objectId === "group-2" ? 2 : startPosition } });
+      if (declaration === focusedCodeInputAfterInput.toString())
+        return Promise.resolve({ result: { value: focused.shift() ?? -1 } });
+      if (declaration === readElementInputValue.toString())
+        return Promise.resolve({ result: { value: "" } });
+      if (declaration === restoreInputValue.toString()) return Promise.resolve({ result: {} });
+      if (declaration === deepActiveElement.toString())
+        return Promise.resolve({ result: { type: "object", objectId: "active" } });
+      return respond(method, params);
+    });
+    return fixture;
+  }
+
+  const insertedChunks = (send: ReturnType<typeof createCodeInputLocator>["send"]) =>
+    send.mock.calls.filter(([name]) => name === "Input.insertText").map(([, params]) => params);
+  const restoredValue = (send: ReturnType<typeof createCodeInputLocator>["send"]) =>
+    send.mock.calls.some(
+      ([, params]) =>
+        (params as { functionDeclaration?: string } | undefined)?.functionDeclaration ===
+        restoreInputValue.toString(),
+    );
+
+  it.each([
+    ["fill", [1, 2, 3], ["1", "2", "3", "4"]],
+    ["type", [1, 2, 3], ["1", "2", "3", "4"]],
+    ["fill", [1, 1], ["1", "2"]],
+    ["fill", [1, -1], ["1", "2"]],
+    ["fill", [1, 0], ["1", "2"]],
+  ] as const)("%s follows focus %j across code inputs", async (method, focus, chunks) => {
+    const { locator, send } = createCodeInputLocator([...focus]);
+    const progress = createProgress();
+    await (method === "fill"
+      ? locator.fill("1234", progress)
+      : locator.type("1234", undefined, progress));
+    expect(insertedChunks(send)).toEqual(chunks.map((text) => ({ text })));
+    expect(restoredValue(send)).toBe(false);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "group" });
+    expect(send.mock.calls.filter(([name]) => name === "Runtime.releaseObject")).toHaveLength(
+      method === "fill" ? 3 : 2,
+    );
+  });
+
+  it("restores the value and inserts the whole text when focus does not move", async () => {
+    const { locator, send } = createCodeInputLocator([0]);
+    await locator.fill("25", createProgress());
+    expect(insertedChunks(send)).toEqual([{ text: "2" }, { text: "25" }]);
+    expect(send).toHaveBeenCalledWith(
+      "Runtime.callFunctionOn",
+      expect.objectContaining({
+        objectId: "node-2",
+        functionDeclaration: restoreInputValue.toString(),
+        arguments: [{ value: "" }],
+      }),
+    );
+  });
+
+  it("inserts the whole text when the element is not found in its group", async () => {
+    const { locator, send } = createCodeInputLocator([1, 2, 3], -1);
+    await locator.fill("1234", createProgress());
+    expect(insertedChunks(send)).toEqual([{ text: "1234" }]);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "group" });
+  });
+
+  it("finds the group again when the page replaces it", async () => {
+    const { locator, send } = createCodeInputLocator([1, -2, 3]);
+    await locator.fill("1234", createProgress());
+    expect(insertedChunks(send)).toEqual(["1", "2", "3", "4"].map((text) => ({ text })));
+    for (const objectId of ["group", "group-2", "active"])
+      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId });
+  });
+
+  it("bounds waiting for code input focus & stops inserting", async () => {
+    const { locator, send } = createCodeInputLocator([1, 2, 3]);
+    const gate = deferred();
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) =>
+      (params as { functionDeclaration?: string } | undefined)?.functionDeclaration ===
+      focusedCodeInputAfterInput.toString()
+        ? gate.promise
+        : respond(method, params),
+    );
+    const pending = locator.fill("1234", createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    gate.resolve({ result: { value: 1 } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([name]) => name === "Input.insertText")).toEqual([
+      ["Input.insertText", { text: "1" }],
+    ]);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node-2" });
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "group" });
   });
 
   it.each([undefined, 0, 100])("includes highlight duration in timeout %s", async (timeout) => {
