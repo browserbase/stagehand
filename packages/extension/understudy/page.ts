@@ -40,6 +40,7 @@ import type {
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
+import { TimeoutError } from "../errors.js";
 import { NetworkManager } from "./networkManager.js";
 import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
@@ -1753,10 +1754,19 @@ export class Page {
 
   /**
    * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures.
+   * Mirrors Playwright's API signatures. `networkidle` uses the same quiet-window
+   * check as `goto(url, { waitUntil: "networkidle" })`.
    */
-  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeout ?? 15000);
+  async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
+    if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
+
+    await new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil: state,
+      timeout,
+    }).wait();
   }
 
   /**
@@ -2797,7 +2807,7 @@ export class Page {
         done = true;
         clearPollTimer();
         off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        reject(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
       }, timeout);
     });
   }

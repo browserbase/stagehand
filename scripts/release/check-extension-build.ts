@@ -1,4 +1,5 @@
 import { unzipSync } from "fflate";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -11,6 +12,7 @@ import {
 } from "../../packages/extension/buildFingerprint.ts";
 
 const WHEEL_EXTENSION_PREFIX = "stagehand/_extension/";
+const WHEEL_BUILD_INFO = "stagehand/_extension_build.json";
 
 export type PackagedExtensions = {
   typescriptDist?: string;
@@ -28,9 +30,10 @@ export async function checkExtensionBuild(
     );
   }
   const extensionRoot = path.join(repositoryRoot, "packages/extension");
-  const info = JSON.parse(
-    await readFile(path.join(extensionRoot, "artifacts", EXTENSION_BUILD_INFO_FILE), "utf8"),
-  ) as ExtensionBuildInfo;
+  const buildInfo = await readFile(
+    path.join(extensionRoot, "artifacts", EXTENSION_BUILD_INFO_FILE),
+  );
+  const info = JSON.parse(buildInfo.toString("utf8")) as ExtensionBuildInfo;
   const extensionVersion = await packageVersion(extensionRoot);
   const protocolVersion = await packageVersion(path.join(repositoryRoot, "packages/protocol"));
 
@@ -53,8 +56,13 @@ export async function checkExtensionBuild(
   }
 
   const copies = new Map<string, () => Promise<Map<string, Uint8Array>>>();
+  const embedded = new Map<string, () => Promise<Uint8Array | undefined>>();
   if (packaged.typescriptDist !== undefined) {
     const dist = packaged.typescriptDist;
+    const embeddedFile = path.join(dist, "assets", EXTENSION_BUILD_INFO_FILE);
+    embedded.set(embeddedFile, async () =>
+      existsSync(embeddedFile) ? readFile(embeddedFile) : undefined,
+    );
     copies.set(path.join(dist, "assets/stagehand-extension.zip"), async () =>
       unzipFiles(await readFile(path.join(dist, "assets/stagehand-extension.zip"))),
     );
@@ -67,6 +75,9 @@ export async function checkExtensionBuild(
     copies.set(`${wheel}:${WHEEL_EXTENSION_PREFIX}`, async () =>
       unzipFiles(await readFile(wheel), WHEEL_EXTENSION_PREFIX),
     );
+    embedded.set(`${wheel}:${WHEEL_BUILD_INFO}`, async () =>
+      unzipFiles(await readFile(wheel)).get(WHEEL_BUILD_INFO),
+    );
   }
   if (copies.size === 0) throw new Error("Pass --typescript and/or --wheel to check");
 
@@ -77,8 +88,18 @@ export async function checkExtensionBuild(
       errors.push(`${label} has fingerprint ${fingerprint}, expected ${expected}`);
     }
   }
+  for (const [label, read] of embedded) {
+    const contents = await read();
+    if (contents === undefined) {
+      errors.push(`${label} is missing`);
+    } else if (!buildInfo.equals(contents)) {
+      errors.push(
+        `${label} differs from the release ${EXTENSION_BUILD_INFO_FILE}: packaged ${JSON.stringify(Buffer.from(contents).toString("utf8"))}, release ${JSON.stringify(buildInfo.toString("utf8"))}`,
+      );
+    }
+  }
   if (errors.length > 0) throw new Error(`Packaged extension mismatch:\n- ${errors.join("\n- ")}`);
-  return { info, checked: [...copies.keys()] };
+  return { info, checked: [...copies.keys(), ...embedded.keys()] };
 }
 
 export async function readBuildFingerprint(repositoryRoot: string): Promise<string> {

@@ -1,5 +1,23 @@
 # browse
 
+## 0.12.0
+
+### Minor Changes
+
+- [#3482](https://github.com/browserbase/stagehand/pull/3482) [`8901460`](https://github.com/browserbase/stagehand/commit/8901460d69e2aef8eb639daa0b2dda3fe2e47a8f) Thanks [@suyashguptasg](https://github.com/suyashguptasg)! - Add `--size regular|large|xlarge` to `browse cloud sessions create` to select the browser size.
+
+- [#3499](https://github.com/browserbase/stagehand/pull/3499) [`a5a19ea`](https://github.com/browserbase/stagehand/commit/a5a19ea322db73d235055c659520e0bc9ed2d497) Thanks [@shrey150](https://github.com/shrey150)! - Remove deprecated `browse cloud contexts update`; context uploads are no longer supported.
+
+### Patch Changes
+
+- [#3450](https://github.com/browserbase/stagehand/pull/3450) [`c118e9c`](https://github.com/browserbase/stagehand/commit/c118e9c27064febc7fa2d1bfa21e48e88517a941) Thanks [@shrey150](https://github.com/shrey150)! - Add `browse discord` command to open the Stagehand Discord in your system browser
+
+- [#3473](https://github.com/browserbase/stagehand/pull/3473) [`0f9a64c`](https://github.com/browserbase/stagehand/commit/0f9a64c141d929b0595b4d909d89fb02e37c1ca4) Thanks [@github-actions](https://github.com/apps/github-actions)! - fix the CLI printing replacement characters when a daemon reply splits a multi-byte character across socket chunks
+
+- [#3451](https://github.com/browserbase/stagehand/pull/3451) [`902e91b`](https://github.com/browserbase/stagehand/commit/902e91b57176005711d324b8b545b0afa8919866) Thanks [@shrey150](https://github.com/shrey150)! - Add Discord and GitHub links to root help footer and support hints on unexpected errors
+
+- [#3481](https://github.com/browserbase/stagehand/pull/3481) [`ebf15c8`](https://github.com/browserbase/stagehand/commit/ebf15c84ee89a011515dc67605a76f4233988a2c) Thanks [@shrey150](https://github.com/shrey150)! - Add search filtering options and migrate cloud commands to the Browserbase SDK.
+
 ## 0.11.4
 
 ### Patch Changes
