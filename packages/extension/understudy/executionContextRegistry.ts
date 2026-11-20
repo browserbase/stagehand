@@ -20,10 +20,12 @@ export type LocatorWorld = {
 
 const STAGEHAND_FALLBACK_WORLD_NAME = "__stagehand_locator_fallback__";
 
+// A world left in an open tab by an unloaded copy of the extension keeps chrome.dom but loses chrome.runtime.id.
 export const STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION = `
   globalThis.__stagehandExtensionWorld?.name === "stagehand" &&
   globalThis.__stagehandExtensionWorld?.version === "stagehand.v4" &&
-  typeof globalThis.chrome?.dom?.openOrClosedShadowRoot === "function"
+  typeof globalThis.chrome?.dom?.openOrClosedShadowRoot === "function" &&
+  typeof globalThis.chrome?.runtime?.id === "string"
 `;
 
 export class ExecutionContextRegistry {
@@ -470,31 +472,35 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     contextId: ExecId,
     progress?: Progress,
-  ): Promise<{ ready: boolean; marker: boolean; domApi: string }> {
+  ): Promise<{ ready: boolean; marker: boolean; domApi: string; runtimeId: string }> {
     try {
       const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression: `({
           ready: Boolean(${STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION}),
           marker: globalThis.__stagehandExtensionWorld?.version === "stagehand.v4",
           domApi: typeof globalThis.chrome?.dom?.openOrClosedShadowRoot,
+          runtimeId: typeof globalThis.chrome?.runtime?.id,
         })`,
         contextId,
         returnByValue: true,
         awaitPromise: true,
       });
-      if (response.exceptionDetails) return { ready: false, marker: false, domApi: "exception" };
+      if (response.exceptionDetails) {
+        return { ready: false, marker: false, domApi: "exception", runtimeId: "exception" };
+      }
       const value = response.result.value as
-        | { ready?: unknown; marker?: unknown; domApi?: unknown }
+        | { ready?: unknown; marker?: unknown; domApi?: unknown; runtimeId?: unknown }
         | undefined;
       return {
         ready: value?.ready === true,
         marker: value?.marker === true,
         domApi: typeof value?.domApi === "string" ? value.domApi : "unknown",
+        runtimeId: typeof value?.runtimeId === "string" ? value.runtimeId : "unknown",
       };
     } catch (error) {
       progress?.throwIfStopped();
       if (progress && isCdpClosedError(error)) throw error;
-      return { ready: false, marker: false, domApi: "unavailable" };
+      return { ready: false, marker: false, domApi: "unavailable", runtimeId: "unavailable" };
     }
   }
 }

@@ -41,6 +41,7 @@ export const integrationTestGroups = {
     "actIframeAttachment",
     "coordinateClick",
     "iframeLocatorReadiness",
+    "iframeNetworkCapture",
     "nestedDiv",
   ],
   "local/input": ["clipboard", "keyboard"],
@@ -57,7 +58,13 @@ export const integrationTestGroups = {
     "locatorInputMethods",
     "locatorSelectOption",
   ],
-  "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
+  "local/page-navigation": [
+    "pageAddInitScript",
+    "pageExtraHttpHeaders",
+    "pageGotoResponse",
+    "pageOnConsole",
+    "pageOnResponse",
+  ],
   "local/page-interactions": [
     "clickCount",
     "pageDragAndDrop",
@@ -67,7 +74,12 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForFunction", "waitForSelector", "waitForTimeout"],
+  "local/waits-timeouts": [
+    "waitForFunction",
+    "waitForLoadState",
+    "waitForSelector",
+    "waitForTimeout",
+  ],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 

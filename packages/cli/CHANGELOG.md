@@ -1,5 +1,43 @@
 # browse
 
+## 0.12.0
+
+### Minor Changes
+
+- [#3482](https://github.com/browserbase/stagehand/pull/3482) [`8901460`](https://github.com/browserbase/stagehand/commit/8901460d69e2aef8eb639daa0b2dda3fe2e47a8f) Thanks [@suyashguptasg](https://github.com/suyashguptasg)! - Add `--size regular|large|xlarge` to `browse cloud sessions create` to select the browser size.
+
+- [#3499](https://github.com/browserbase/stagehand/pull/3499) [`a5a19ea`](https://github.com/browserbase/stagehand/commit/a5a19ea322db73d235055c659520e0bc9ed2d497) Thanks [@shrey150](https://github.com/shrey150)! - Remove deprecated `browse cloud contexts update`; context uploads are no longer supported.
+
+### Patch Changes
+
+- [#3450](https://github.com/browserbase/stagehand/pull/3450) [`c118e9c`](https://github.com/browserbase/stagehand/commit/c118e9c27064febc7fa2d1bfa21e48e88517a941) Thanks [@shrey150](https://github.com/shrey150)! - Add `browse discord` command to open the Stagehand Discord in your system browser
+
+- [#3473](https://github.com/browserbase/stagehand/pull/3473) [`0f9a64c`](https://github.com/browserbase/stagehand/commit/0f9a64c141d929b0595b4d909d89fb02e37c1ca4) Thanks [@github-actions](https://github.com/apps/github-actions)! - fix the CLI printing replacement characters when a daemon reply splits a multi-byte character across socket chunks
+
+- [#3451](https://github.com/browserbase/stagehand/pull/3451) [`902e91b`](https://github.com/browserbase/stagehand/commit/902e91b57176005711d324b8b545b0afa8919866) Thanks [@shrey150](https://github.com/shrey150)! - Add Discord and GitHub links to root help footer and support hints on unexpected errors
+
+- [#3481](https://github.com/browserbase/stagehand/pull/3481) [`ebf15c8`](https://github.com/browserbase/stagehand/commit/ebf15c84ee89a011515dc67605a76f4233988a2c) Thanks [@shrey150](https://github.com/shrey150)! - Add search filtering options and migrate cloud commands to the Browserbase SDK.
+
+## 0.11.4
+
+### Patch Changes
+
+- [#3426](https://github.com/browserbase/stagehand/pull/3426) [`f93e6d1`](https://github.com/browserbase/stagehand/commit/f93e6d1612d5ff0e7122794e72fd689336e0fdab) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Report an error when an active browser session disconnects during command startup instead of automatically starting a replacement.
+
+- [#3379](https://github.com/browserbase/stagehand/pull/3379) [`73fdba0`](https://github.com/browserbase/stagehand/commit/73fdba0fe6adcd9d032c81bd5e7d83b890a5a1ef) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove unused deepmerge dependency
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3289](https://github.com/browserbase/stagehand/pull/3289) [`aa67fee`](https://github.com/browserbase/stagehand/commit/aa67fee03ef7b899f9f505350e6410d207496450) Thanks [@shrey150](https://github.com/shrey150)! - Add `--stagehand` flag to `browse cloud extensions upload`.
+
+- [#3439](https://github.com/browserbase/stagehand/pull/3439) [`2fe947c`](https://github.com/browserbase/stagehand/commit/2fe947c01c828279a5df0234f0100f9750bc3b9e) Thanks [@github-actions](https://github.com/apps/github-actions)! - Make `browse doctor` fail and show the cause when the session's last browser start failed
+
+- [#3400](https://github.com/browserbase/stagehand/pull/3400) [`ce298c6`](https://github.com/browserbase/stagehand/commit/ce298c60bd7e617e38d67db8db7d34de9d37cd18) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add token validation to internal local Functions runtime requests
+
+- [#3408](https://github.com/browserbase/stagehand/pull/3408) [`6a56cbb`](https://github.com/browserbase/stagehand/commit/6a56cbb9ddb8b3e4e7339f6370a379977c3ebbab) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix Windows package-manager command launching for Functions and templates, and terminate child processes when skill installation times out.
+
+- [#3391](https://github.com/browserbase/stagehand/pull/3391) [`3fbda6b`](https://github.com/browserbase/stagehand/commit/3fbda6b67d45f140e8338ed5afc6b0c84d3ced44) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Validate daemon directory locations before connecting to a session.
+
 ## 0.11.3
 
 ### Patch Changes

@@ -3,6 +3,7 @@
   "globalDependencies": [
     "package.json",
     "packages/*/package.json",
+    "packages/shared/*/package.json",
     "tsconfig.json",
     "pnpm-workspace.yaml",
     "turbo.json",
@@ -17,14 +18,14 @@
       "outputs": ["stagehand.v4.json"]
     },
     "@browserbasehq/stagehand-extension#build": {
-      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "!dist/**",
-        "!artifacts/stagehand-extension.zip"
+        "!artifacts/stagehand-extension.zip",
+        "!artifacts/extension-build.json"
       ],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "outputs": ["dist/**", "artifacts/stagehand-extension.zip", "artifacts/extension-build.json"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-extension#build"],
@@ -129,10 +130,20 @@
     "//#lint": {},
     "//#typecheck": {
       "dependsOn": ["@browserbasehq/stagehand#typecheck"],
-      "inputs": ["tsconfig.tooling.json", "rules/**/*.ts", "scripts/release/**/*.ts"]
+      "inputs": [
+        "tsconfig.tooling.json",
+        "rules/**/*.ts",
+        "scripts/release/**/*.ts",
+        "packages/extension/buildFingerprint.ts"
+      ]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
-      "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
+      ]
     },
     "@browserbasehq/stagehand-protocol#typecheck": {},
     "@browserbasehq/stagehand#typecheck": {
@@ -318,10 +329,12 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
@@ -332,15 +345,27 @@
         "src/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/node_modules/**"
       ]
     },
     "//#test:unit": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts", "vitest.config.ts"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "vitest.config.ts",
+        "$TURBO_ROOT$/packages/extension/**",
+        "$TURBO_ROOT$/packages/shared/browser-api/**",
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
+        "!$TURBO_ROOT$/packages/extension/artifacts/**"
+      ]
     },
     "@browserbasehq/stagehand-integrations#test:browser": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
@@ -392,9 +417,9 @@
         "json-rpc/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/node_modules/**"
       ]
     },
     "@browserbasehq/stagehand-docs#test:unit": {
@@ -407,10 +432,11 @@
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/**/dist/**",
+        "!$TURBO_ROOT$/packages/**/.turbo/**",
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "!$TURBO_ROOT$/packages/**/node_modules/**",
+        "$TURBO_ROOT$/packages/shared/browser-api/src/**"
       ]
     },
     "@browserbasehq/stagehand-integrations-claude-cua-sdk#build": {
@@ -451,6 +477,13 @@
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
+    },
+    "@browserbasehq/stagehand-browser-api#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@browserbasehq/stagehand-browser-api#typecheck": {
+      "dependsOn": ["^typecheck"]
     }
   }
 }

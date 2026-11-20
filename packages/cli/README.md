@@ -228,6 +228,7 @@ browse cloud projects usage <project-id>
 browse cloud sessions list                       # --limit, --status, --json
 browse cloud sessions get <session-id>
 browse cloud sessions create                     # --proxies, --verified, --region, --solve-captchas…
+browse cloud sessions create --size large        # regular (default), large, xlarge
 browse cloud sessions update <session-id> --status REQUEST_RELEASE
 browse cloud sessions debug <session-id>         # live debugger URLs
 browse cloud sessions logs <session-id>
@@ -237,7 +238,6 @@ browse cloud sessions uploads create <session-id> ./file.pdf
 # Contexts
 browse cloud contexts create
 browse cloud contexts get <context-id>
-browse cloud contexts update <context-id>        # refresh the upload URL
 browse cloud contexts delete <context-id>
 
 # Extensions
@@ -334,6 +334,7 @@ Release checks reject the local override.
 
 - [browse.sh](https://browse.sh) — open web skills catalog
 - [Browserbase docs](https://docs.browserbase.com)
+- [Discord](https://discord.gg/stagehand) — join the Stagehand community
 - [GitHub](https://github.com/browserbase/stagehand/tree/main/packages/cli) · [Issues](https://github.com/browserbase/stagehand/issues)
 
 ## License

@@ -45,6 +45,7 @@
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "dotenv": "catalog:",
+    "fflate": "catalog:",
     "openai": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
