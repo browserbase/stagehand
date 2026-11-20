@@ -508,6 +508,49 @@ describe("local browser launch lifecycle", () => {
     expect(runTaskkill).toHaveBeenCalledWith(123, false);
   });
 
+  it("skips the non-forced Windows taskkill for headless Chrome", async () => {
+    const child = new FakeChromeProcess();
+    const runTaskkill = vi.fn(async (_pid: number, force: boolean) => {
+      if (force) queueMicrotask(() => child.exited());
+    });
+    const { launch } = fakeLauncher({
+      platform: "win32",
+      runTaskkill,
+      spawnChrome: () => {
+        queueMicrotask(() => child.spawned());
+        return child as unknown as ChildProcess;
+      },
+    });
+    const browser = await launch({ executablePath: "/path/to/chrome", headless: true });
+
+    await browser.close();
+
+    expect(runTaskkill).toHaveBeenCalledOnce();
+    expect(runTaskkill).toHaveBeenCalledWith(123, true);
+  });
+
+  it("ignores a racing Windows taskkill failure once Chrome has exited", async () => {
+    const child = new FakeChromeProcess();
+    const runTaskkill = vi.fn(async (_pid: number, force: boolean) => {
+      expect(force).toBe(true);
+      queueMicrotask(() => child.exited());
+      throw Object.assign(new Error("taskkill exited with code 255"), { code: 255 });
+    });
+    const { launch } = fakeLauncher({
+      platform: "win32",
+      runTaskkill,
+      spawnChrome: () => {
+        queueMicrotask(() => child.spawned());
+        return child as unknown as ChildProcess;
+      },
+    });
+    const browser = await launch({ executablePath: "/path/to/chrome", headless: true });
+
+    await expect(browser.close()).resolves.toBeUndefined();
+    expect(runTaskkill).toHaveBeenCalledOnce();
+    expect(runTaskkill).toHaveBeenCalledWith(123, true);
+  });
+
   it("surfaces both process termination and profile cleanup failures", async () => {
     const processError = Object.assign(new Error("termination failed"), { code: "EPERM" });
     const profileError = new Error("profile cleanup failed");
