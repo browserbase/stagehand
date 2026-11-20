@@ -5,6 +5,7 @@ import {
   PROVIDER_CONCURRENCY_ENV,
   ProviderConcurrency,
   Semaphore,
+  PROVIDER_RETRY_DELAY_MS,
   THROTTLE_WINDOW_MS,
   classifyResultThrottle,
   classifyThrottle,
@@ -391,14 +392,18 @@ describe("runGatedRow", () => {
       });
     const onThrottle = vi.fn();
     const onStart = vi.fn();
+    const sleep = vi.fn(async () => {});
     const result = await runGatedRow({
       scheduler,
       modelName: "openai/gpt-5.4-mini",
       execute,
       onThrottle,
       onStart,
+      sleep,
     });
     expect(execute.mock.calls.map(([attempt]) => attempt)).toEqual([1, 2]);
+    // The retry backs off instead of hitting the provider right after the 429.
+    expect(sleep).toHaveBeenCalledWith(PROVIDER_RETRY_DELAY_MS, undefined);
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onThrottle.mock.calls[0][0]).toMatchObject({ semaphore: "openai", widthAfter: 2 });
     expect(result).toMatchObject({
@@ -415,7 +420,12 @@ describe("runGatedRow", () => {
   it("gives up after the single retry and keeps the second failure", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8, widths: { openai: 4 } });
     const execute = vi.fn(async (): Promise<TaskResult> => throttledRow);
-    const result = await runGatedRow({ scheduler, modelName: "openai/gpt-5.4-mini", execute });
+    const result = await runGatedRow({
+      scheduler,
+      modelName: "openai/gpt-5.4-mini",
+      execute,
+      sleep: async () => {},
+    });
     expect(execute).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({
       _success: false,

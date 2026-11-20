@@ -217,6 +217,27 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
+  it("prefers the bench tool surface over the core one for bench rows", async () => {
+    const plan = (options: Record<string, unknown>) =>
+      withEnvOverrides({ EVAL_MAX_K: "1", EVAL_WEBVOYAGER_LIMIT: "1" }, async () =>
+        generateBenchTestcases([makeSuiteTask("agent/webvoyager")], {
+          modelOverride: "anthropic/claude-sonnet-4-20250514",
+          datasetFilter: "webvoyager",
+          harness: "claude_code",
+          ...options,
+        }),
+      );
+    // A mixed run carries core.tool for its core rows; bench rows ignore it
+    // when the harness has its own default.
+    const [mixed] = await plan({
+      coreToolSurface: "browse_cli",
+      benchToolSurface: "stagehand_facade",
+    });
+    expect(mixed.metadata.toolSurface).toBe("stagehand_facade");
+    const [coreOnly] = await plan({ coreToolSurface: "browse_cli" });
+    expect(coreOnly.metadata.toolSurface).toBe("browse_cli");
+  });
+
   it("keeps codex as a harness-level matrix with facade metadata", async () => {
     const testcases = await withEnvOverrides(
       {

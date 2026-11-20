@@ -228,6 +228,50 @@ describe("runner progress events carry row identity", () => {
     log.mockRestore();
   });
 
+  it("drops lines a finished row logs late, and closes the log when the row throws", async () => {
+    const events: RunProgressEvent[] = [];
+    const { run, task } = await startRun(events);
+    const { executeBenchTask } = await import("../../framework/benchRunner.js");
+    const { RowLogWriter } = await import("../../framework/rowLog.js");
+    const close = vi.spyOn(RowLogWriter.prototype, "close");
+    let lateLogged!: () => void;
+    const late = new Promise<void>((resolve) => (lateLogged = resolve));
+    vi.mocked(executeBenchTask)
+      .mockImplementationOnce(async () => {
+        new EvalLogger(false).log({ category: "codex", message: "in time", level: 1 });
+        // A timer the row leaves behind still runs in its row context.
+        setTimeout(() => {
+          new EvalLogger(false).log({ category: "codex", message: "too late", level: 1 });
+          lateLogged();
+        }, 5);
+        return { _success: true };
+      })
+      .mockImplementationOnce(async () => {
+        new EvalLogger(false).log({ category: "codex", message: "before throwing", level: 1 });
+        throw new Error("boom");
+      });
+    await task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
+    await late;
+    await expect(
+      task(input("bbbbbbbb00000000bbbbbbbb00000000", "b.com"), { trialIndex: 0 }),
+    ).rejects.toThrow("boom");
+    vi.mocked(executeBenchTask).mockReset();
+    vi.mocked(executeBenchTask).mockImplementation(
+      async () => benchResults.shift() ?? { _success: true },
+    );
+    releaseEval?.();
+    await run;
+
+    const messages = events.filter((e) => e.type === "log").map((e) => e.log?.message);
+    expect(messages).toContain("in time");
+    expect(messages).not.toContain("too late");
+    const done = events.find((e) => e.type === "passed" && e.case?.domain === "a.com");
+    expect(fs.readFileSync(done!.logPath!, "utf8")).not.toContain("too late");
+    // Both rows closed their files, including the one that threw.
+    expect(close).toHaveBeenCalledTimes(2);
+    close.mockRestore();
+  });
+
   it("emits started only once the provider slot is acquired", async () => {
     const saved = process.env.EVAL_PROVIDER_CONCURRENCY;
     process.env.EVAL_PROVIDER_CONCURRENCY = "openai=1";

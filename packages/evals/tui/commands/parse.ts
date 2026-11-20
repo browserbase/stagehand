@@ -94,6 +94,12 @@ export interface ResolvedRunOptions {
   model?: string;
   useApi: boolean;
   coreToolSurface?: string;
+  /**
+   * `--tool`, else `harnesses.<h>.tool`: the tool surface for bench rows.
+   * runCommand prefers it over `coreToolSurface` only when the run has bench
+   * tasks, so a harness default never leaks into core-tier runs.
+   */
+  benchToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
   datasetFilter?: string;
@@ -497,9 +503,12 @@ export function resolveRunOptions(
     environment,
     model: model ?? undefined,
     useApi: Boolean(useApi),
-    // harnesses.<h>.tool is the per-harness --tool default; core.tool stays
-    // the fallback so core-tier runs keep their own setting.
-    coreToolSurface: flags.tool ?? harnessConfig?.tool?.trim() ?? core.tool,
+    // harnesses.<h>.tool is the per-harness --tool default for bench rows;
+    // core-tier runs keep core.tool (runCommand picks by the tasks' tier).
+    coreToolSurface: flags.tool ?? core.tool,
+    ...((flags.tool ?? harnessConfig?.tool?.trim()) && {
+      benchToolSurface: flags.tool ?? harnessConfig?.tool?.trim(),
+    }),
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
     datasetFilter,
