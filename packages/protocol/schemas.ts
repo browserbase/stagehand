@@ -1028,9 +1028,9 @@ export const ActOptionsSchema = z
         description:
           "Locators for elements and subtrees that should be excluded from action planning",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     cache: CachingSchema.optional().meta({
@@ -1090,9 +1090,9 @@ export const ExtractOptionsSchema = z
       .meta({
         description: "Locators for elements and subtrees that should be excluded from extraction",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     screenshot: z.boolean().optional().meta({
@@ -1149,9 +1149,9 @@ export const ObserveOptionsSchema = z
       .meta({
         description: "Locators for elements and subtrees that should be excluded from observation",
         example: [
-          { selector: "nav" },
-          { selector: ".cookie-banner" },
-          { selector: "#sidebar-ads" },
+          { selector: { type: "css", value: "nav" } },
+          { selector: { type: "css", value: ".cookie-banner" } },
+          { selector: { type: "css", value: "#sidebar-ads" } },
         ],
       }),
     cache: CachingSchema.optional().meta({

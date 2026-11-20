@@ -53,13 +53,13 @@ class ActOptions(WireModel):
     ignore_locators: Annotated[
         Optional[list[Locator]],
         Field(
-            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+            examples=[[{"selector": {"type": "css", "value": "nav"}}, {"selector": {"type": "css", "value": ".cookie-banner"}}, {"selector": {"type": "css", "value": "#sidebar-ads"}}]]
         ),
     ] = None
     """
     Locators for elements and subtrees that should be excluded from action planning
 
-    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    Example: [{'selector': {'type': 'css', 'value': 'nav'}}, {'selector': {'type': 'css', 'value': '.cookie-banner'}}, {'selector': {'type': 'css', 'value': '#sidebar-ads'}}]
     """
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""
@@ -649,13 +649,13 @@ class ExtractOptions(WireModel):
     ignore_locators: Annotated[
         Optional[list[Locator]],
         Field(
-            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+            examples=[[{"selector": {"type": "css", "value": "nav"}}, {"selector": {"type": "css", "value": ".cookie-banner"}}, {"selector": {"type": "css", "value": "#sidebar-ads"}}]]
         ),
     ] = None
     """
     Locators for elements and subtrees that should be excluded from extraction
 
-    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    Example: [{'selector': {'type': 'css', 'value': 'nav'}}, {'selector': {'type': 'css', 'value': '.cookie-banner'}}, {'selector': {'type': 'css', 'value': '#sidebar-ads'}}]
     """
     screenshot: Annotated[Optional[StrictBool], Field(examples=[False])] = None
     """
@@ -1504,13 +1504,13 @@ class ObserveOptions(WireModel):
     ignore_locators: Annotated[
         Optional[list[Locator]],
         Field(
-            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+            examples=[[{"selector": {"type": "css", "value": "nav"}}, {"selector": {"type": "css", "value": ".cookie-banner"}}, {"selector": {"type": "css", "value": "#sidebar-ads"}}]]
         ),
     ] = None
     """
     Locators for elements and subtrees that should be excluded from observation
 
-    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    Example: [{'selector': {'type': 'css', 'value': 'nav'}}, {'selector': {'type': 'css', 'value': '.cookie-banner'}}, {'selector': {'type': 'css', 'value': '#sidebar-ads'}}]
     """
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""

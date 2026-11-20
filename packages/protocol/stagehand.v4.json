@@ -1559,13 +1559,22 @@
           "description": "Locators for elements and subtrees that should be excluded from action planning",
           "example": [
             {
-              "selector": "nav"
+              "selector": {
+                "type": "css",
+                "value": "nav"
+              }
             },
             {
-              "selector": ".cookie-banner"
+              "selector": {
+                "type": "css",
+                "value": ".cookie-banner"
+              }
             },
             {
-              "selector": "#sidebar-ads"
+              "selector": {
+                "type": "css",
+                "value": "#sidebar-ads"
+              }
             }
           ],
           "type": "array",
@@ -1916,13 +1925,22 @@
           "description": "Locators for elements and subtrees that should be excluded from observation",
           "example": [
             {
-              "selector": "nav"
+              "selector": {
+                "type": "css",
+                "value": "nav"
+              }
             },
             {
-              "selector": ".cookie-banner"
+              "selector": {
+                "type": "css",
+                "value": ".cookie-banner"
+              }
             },
             {
-              "selector": "#sidebar-ads"
+              "selector": {
+                "type": "css",
+                "value": "#sidebar-ads"
+              }
             }
           ],
           "type": "array",
@@ -2036,13 +2054,22 @@
           "description": "Locators for elements and subtrees that should be excluded from extraction",
           "example": [
             {
-              "selector": "nav"
+              "selector": {
+                "type": "css",
+                "value": "nav"
+              }
             },
             {
-              "selector": ".cookie-banner"
+              "selector": {
+                "type": "css",
+                "value": ".cookie-banner"
+              }
             },
             {
-              "selector": "#sidebar-ads"
+              "selector": {
+                "type": "css",
+                "value": "#sidebar-ads"
+              }
             }
           ],
           "type": "array",
