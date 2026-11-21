@@ -5,6 +5,7 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import { createCallbackBatchController, type CallbackBatchFunction } from "../callbackBatch.js";
 import type { HandlerContext, RPCRouter } from "../rpcRouter.js";
+import type { Progress } from "../understudy/progress.js";
 
 const traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
 const zeroMetadata = {
@@ -243,6 +244,148 @@ describe("callback batch runner", () => {
       "Stagehand callback batch has completed",
     );
     expect(requests.map((request) => request.method)).toEqual(["context.active_page"]);
+  });
+
+  it("releases held mouse buttons when a callback times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const dispatchMouseEvent = vi.fn(async () => {});
+      const router = {
+        handle: vi.fn(async () => ({ pageId: "page-1" })),
+        runtime: { dispatchMouseEvent },
+      } as unknown as RPCRouter;
+      const pending = runCallbackBatch(
+        router,
+        async (batch) => {
+          await batch.dispatchMouseEvent("page-1", {
+            type: "mousePressed",
+            x: 20,
+            y: 30,
+            button: "left",
+            buttons: 1,
+            clickCount: 1,
+          });
+          await batch.dispatchMouseEvent("page-1", {
+            type: "mousePressed",
+            x: 20,
+            y: 30,
+            button: "right",
+            buttons: 3,
+            clickCount: 1,
+          });
+          await batch.dispatchMouseEvent("page-1", {
+            type: "mouseMoved",
+            x: 70,
+            y: 80,
+            button: "right",
+            buttons: 3,
+          });
+          await new Promise(() => {});
+        },
+        null,
+        { timeout: 100 },
+      );
+      const rejected = expect(pending).rejects.toThrow("timed out after 100ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(dispatchMouseEvent).toHaveBeenCalledTimes(5);
+      expect(dispatchMouseEvent).toHaveBeenNthCalledWith(4, "page-1", {
+        type: "mouseReleased",
+        x: 70,
+        y: 80,
+        button: "right",
+        buttons: 1,
+        clickCount: 1,
+      });
+      expect(dispatchMouseEvent).toHaveBeenLastCalledWith("page-1", {
+        type: "mouseReleased",
+        x: 70,
+        y: 80,
+        button: "left",
+        buttons: 0,
+        clickCount: 1,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases input on another page while a mouse dispatch is in flight", async () => {
+    vi.useFakeTimers();
+    try {
+      const inFlight = Promise.withResolvers<void>();
+      const dispatchMouseEvent = vi.fn(async (pageId, event) => {
+        if (pageId === "page-2" && event.type === "mousePressed") await inFlight.promise;
+      });
+      const router = {
+        handle: vi.fn(async () => ({ pageId: "page-1" })),
+        runtime: { dispatchMouseEvent },
+      } as unknown as RPCRouter;
+      const pending = runCallbackBatch(
+        router,
+        async (batch) => {
+          const press = {
+            type: "mousePressed",
+            x: 20,
+            y: 30,
+            button: "left",
+            buttons: 1,
+            clickCount: 1,
+          } as const;
+          await batch.dispatchMouseEvent("page-1", press);
+          await batch.dispatchMouseEvent("page-2", press);
+        },
+        null,
+        { timeout: 100 },
+      );
+      const rejected = expect(pending).rejects.toThrow("timed out after 100ms");
+      await vi.advanceTimersByTimeAsync(100);
+      expect(dispatchMouseEvent).toHaveBeenNthCalledWith(
+        3,
+        "page-1",
+        expect.objectContaining({ type: "mouseReleased", buttons: 0 }),
+      );
+      inFlight.resolve();
+      await rejected;
+      expect(dispatchMouseEvent).toHaveBeenLastCalledWith(
+        "page-2",
+        expect.objectContaining({ type: "mouseReleased", buttons: 0 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels frame geometry work when the enclosing callback times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const frameDragPoint = vi.fn(async (_descriptor, _source, _options, progress: Progress) => {
+        await progress.delay(1_000);
+        return { x: 10, y: 20 };
+      });
+      const router = {
+        handle: vi.fn(async () => ({ pageId: "page-1" })),
+        runtime: { resolveUnderstudyPage: () => ({ frameDragPoint }) },
+      } as unknown as RPCRouter;
+      const pending = runCallbackBatch(
+        router,
+        (batch) =>
+          batch.frameDragPoint({ pageId: "page-1", selector: "#frame >> #target" }, "", {
+            force: false,
+            timeout: 0,
+          }),
+        null,
+        { timeout: 100 },
+      );
+      const rejected = expect(pending).rejects.toThrow("timed out after 100ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(frameDragPoint).toHaveBeenCalledOnce();
+      expect(frameDragPoint.mock.calls[0]?.[3].signal.aborted).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("enforces the callback timeout in the worker", async () => {

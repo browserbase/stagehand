@@ -23,6 +23,10 @@ facade_tools()  # tools/list entries to register with an agent framework
 facade_instructions()  # the agent instructions for the system prompt
 ```
 
+Drag and drop in `run` code uses `locator.dragTo(target)` or
+`page.dragAndDrop(source, target)`. It requires a Stagehand SDK with the updated
+browser extension that supports callback mouse input.
+
 - `run` code runs inside an async function with Playwright-shaped `page`,
   `context` and `browser`. An error it throws is raised as
   `StagehandFacadeExecutionError` (with the JavaScript `name` and `stack`).

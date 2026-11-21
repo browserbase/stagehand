@@ -35,6 +35,19 @@ PAGE_URL = "data:text/html," + quote(
     "<output id=count>0</output>"
 )
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+DRAG_PAGE_URL = "data:text/html," + quote(
+    "<!doctype html><style>"
+    "div { display: inline-block; width: 100px; height: 100px }"
+    "#target { margin-left: 100px }"
+    "</style><div id=source draggable=true>Source</div><div id=target>Target</div>"
+    "<script>"
+    "const source = document.querySelector('#source');"
+    "const target = document.querySelector('#target');"
+    "source.ondragstart = event => event.dataTransfer.setData('text/plain', 'moved');"
+    "target.ondragover = event => event.preventDefault();"
+    "target.ondrop = event => { target.textContent = event.dataTransfer.getData('text/plain'); };"
+    "</script>"
+)
 
 
 @pytest.fixture
@@ -100,6 +113,22 @@ async def test_tools_drive_a_local_chrome(stagehand: Stagehand, tmp_path: Path) 
     with pytest.raises(StagehandFacadeInputError) as error:
         await tools.snapshot()
     assert str(error.value) == contract_error("FACADE_BROWSER_CLOSED_ERROR")
+
+
+@pytest.mark.parametrize(
+    "drag",
+    [
+        "await page.locator('#source').dragTo(page.locator('#target'));",
+        "await page.dragAndDrop('#source, #target', '#target');",
+    ],
+)
+async def test_run_drags_between_locators(stagehand: Stagehand, drag: str) -> None:
+    tools = StagehandFacadeTools(stagehand)
+    await tools.run(code=f"await page.goto({DRAG_PAGE_URL!r});")
+
+    result = await tools.run(code=drag + "return await page.locator('#target').textContent();")
+
+    assert result == "moved"
 
 
 def mutating_page(mutate_ms: int | None) -> str:
