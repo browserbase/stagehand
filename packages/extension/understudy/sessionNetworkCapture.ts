@@ -7,6 +7,7 @@ type SessionNetworkEvents = {
   "Network.loadingFailed": Protocol.Network.LoadingFailedEvent;
   "Network.requestServedFromCache": Protocol.Network.RequestServedFromCacheEvent;
   "Network.responseReceived": Protocol.Network.ResponseReceivedEvent;
+  "Network.responseReceivedExtraInfo": Protocol.Network.ResponseReceivedExtraInfoEvent;
   "Page.frameStoppedLoading": Protocol.Page.FrameStoppedLoadingEvent;
   "Page.frameNavigated": Protocol.Page.FrameNavigatedEvent;
 };
@@ -38,6 +39,7 @@ export class SessionNetworkCapture {
       this.listen("Network.loadingFailed");
       this.listen("Network.requestServedFromCache");
       this.listen("Network.responseReceived");
+      this.listen("Network.responseReceivedExtraInfo");
       this.listen("Page.frameStoppedLoading");
       this.listen("Page.frameNavigated");
     } catch (error) {
