@@ -106,7 +106,7 @@ describe("Locator.fill()", () => {
     expect(error).toBeInstanceOf(Error);
     if (error instanceof Error) {
       expect(error.message).toContain("Error Filling Element");
-      expect(error.message).toContain("selector: #date");
+      expect(error.message).toContain("selector: css=#date");
       expect(error.message).toContain("boom");
     }
   });

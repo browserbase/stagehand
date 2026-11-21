@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimeoutError } from "../errors.js";
 import { StagehandLogger } from "../logger.js";
 import { CdpConnection, type CDPSessionLike } from "./cdp.js";
-import * as deepLocator from "./deepLocator.js";
+import * as deepLocator from "./selectorTarget.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { Page } from "./page.js";
 import { Progress } from "./progress.js";

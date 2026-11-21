@@ -1,3 +1,8 @@
+import {
+  normalizeLocatorSelector,
+  withLocatorIndex,
+  type LocatorInput,
+} from "./locatorSelector.js";
 import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
@@ -22,10 +27,23 @@ export type LocatorSendClickEventOptions = NonNullable<LocatorSendClickEventPara
 export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
 
 export class Locator {
+  readonly descriptor: LocatorDescriptor;
+
   constructor(
     readonly rpcClient: StagehandCommandClient,
-    readonly descriptor: LocatorDescriptor,
-  ) {}
+    descriptor: LocatorDescriptor,
+  ) {
+    this.descriptor = LocatorDescriptorSchema.parse(descriptor);
+  }
+
+  locator(selector: LocatorInput): Locator {
+    return new Locator(this.rpcClient, {
+      pageId: this.descriptor.pageId,
+      selector: {
+        steps: [...this.descriptor.selector.steps, ...normalizeLocatorSelector(selector).steps],
+      },
+    });
+  }
 
   async click(options?: LocatorClickOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorClick, {
@@ -162,15 +180,9 @@ export class Locator {
   }
 
   nth(index: number): Locator {
-    const parsedDescriptor = LocatorDescriptorSchema.safeParse({
-      ...this.descriptor,
-      nth: index,
+    return new Locator(this.rpcClient, {
+      pageId: this.descriptor.pageId,
+      selector: withLocatorIndex(this.descriptor.selector, index),
     });
-
-    if (!parsedDescriptor.success) {
-      throw parsedDescriptor.error;
-    }
-
-    return new Locator(this.rpcClient, parsedDescriptor.data);
   }
 }

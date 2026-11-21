@@ -1560,20 +1560,41 @@
           "example": [
             {
               "selector": {
-                "type": "css",
-                "value": "nav"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "nav"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": ".cookie-banner"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": ".cookie-banner"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": "#sidebar-ads"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "#sidebar-ads"
+                    }
+                  }
+                ]
               }
             }
           ],
@@ -1628,7 +1649,45 @@
       "type": "object",
       "properties": {
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
+          "$ref": "#/$defs/LocatorChain"
+        }
+      },
+      "required": ["selector"],
+      "additionalProperties": false
+    },
+    "LocatorChain": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocatorStep"
+          }
+        }
+      },
+      "required": ["steps"],
+      "additionalProperties": false
+    },
+    "LocatorStep": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocatorQueryStep"
+        },
+        {
+          "$ref": "#/$defs/LocatorFrameStep"
+        }
+      ]
+    },
+    "LocatorQueryStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "query"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
         },
         "nth": {
           "type": "integer",
@@ -1636,10 +1695,10 @@
           "maximum": 9007199254740991
         }
       },
-      "required": ["selector"],
+      "required": ["type", "selector"],
       "additionalProperties": false
     },
-    "LocatorSelector": {
+    "LocatorQuerySelector": {
       "oneOf": [
         {
           "$ref": "#/$defs/CssLocatorSelector"
@@ -1649,9 +1708,6 @@
         },
         {
           "$ref": "#/$defs/TextLocatorSelector"
-        },
-        {
-          "$ref": "#/$defs/LegacyLocatorSelector"
         }
       ]
     },
@@ -1700,19 +1756,23 @@
       "required": ["type", "value"],
       "additionalProperties": false
     },
-    "LegacyLocatorSelector": {
+    "LocatorFrameStep": {
       "type": "object",
       "properties": {
         "type": {
           "type": "string",
-          "const": "legacy"
+          "const": "frame"
         },
-        "value": {
-          "type": "string",
-          "minLength": 1
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
-      "required": ["type", "value"],
+      "required": ["type", "selector"],
       "additionalProperties": false
     },
     "ActResult": {
@@ -1926,20 +1986,41 @@
           "example": [
             {
               "selector": {
-                "type": "css",
-                "value": "nav"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "nav"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": ".cookie-banner"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": ".cookie-banner"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": "#sidebar-ads"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "#sidebar-ads"
+                    }
+                  }
+                ]
               }
             }
           ],
@@ -2055,20 +2136,41 @@
           "example": [
             {
               "selector": {
-                "type": "css",
-                "value": "nav"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "nav"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": ".cookie-banner"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": ".cookie-banner"
+                    }
+                  }
+                ]
               }
             },
             {
               "selector": {
-                "type": "css",
-                "value": "#sidebar-ads"
+                "steps": [
+                  {
+                    "type": "query",
+                    "selector": {
+                      "type": "css",
+                      "value": "#sidebar-ads"
+                    }
+                  }
+                ]
               }
             }
           ],
@@ -4001,12 +4103,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         }
       },
       "required": ["page_id", "selector"],
@@ -4635,12 +4732,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorClickOptions"
@@ -4686,12 +4778,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
@@ -4732,12 +4819,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
@@ -4787,12 +4869,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
@@ -4835,12 +4912,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorHighlightOptions"
@@ -4908,12 +4980,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorSendClickEventOptions"
@@ -4963,12 +5030,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorTypeOptions"
@@ -5013,12 +5075,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"
@@ -5053,12 +5110,7 @@
           "type": "string"
         },
         "selector": {
-          "$ref": "#/$defs/LocatorSelector"
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
+          "$ref": "#/$defs/LocatorChain"
         },
         "options": {
           "$ref": "#/$defs/LocatorOptions"

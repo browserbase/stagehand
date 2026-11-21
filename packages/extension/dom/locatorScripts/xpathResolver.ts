@@ -6,6 +6,7 @@ type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
+  scope?: Document | Element;
 };
 
 type ShadowContext = {
@@ -19,6 +20,28 @@ const normalizeXPath = (selector: string): string => {
   return raw.replace(/^xpath=/i, "").trim();
 };
 
+/**
+ * `understudy/selectorResolver.ts` matches this prefix to surface the error
+ * instead of "not found". Keep the two in sync; don't import across them, as
+ * that would split this module into a chunk the content script can't load.
+ */
+const INVALID_XPATH_ERROR_PREFIX = "Invalid XPath ";
+
+/**
+ * Check syntax with the native XPath parser before choosing an engine. The
+ * composed resolver drops what it can't parse (`//button[@id=` → `//button`),
+ * so letting malformed XPath reach it could target the wrong element.
+ */
+function assertValidXPath(xp: string, doc: Document = document): void {
+  try {
+    doc.createExpression(xp);
+  } catch (error) {
+    throw new Error(
+      `${INVALID_XPATH_ERROR_PREFIX}"${xp}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 export function resolveXPathFirst(rawXp: string, options?: XPathResolveOptions): Element | null {
   return resolveXPathAtIndex(rawXp, 0, options);
 }
@@ -31,6 +54,44 @@ export function resolveXPathAtIndex(
   if (!Number.isFinite(index) || index < 0) return null;
   const xp = normalizeXPath(rawXp);
   if (!xp) return null;
+
+  const scope = options?.scope;
+  assertValidXPath(xp, scope instanceof Element ? scope.ownerDocument : document);
+  if (scope instanceof Element) {
+    // XPath must stay inside the selected subtree, including expressions using
+    // absolute paths or ancestor axes.
+    const relative = xp.startsWith("/") ? `.${xp}` : xp;
+    if (options?.pierceShadow !== false && documentHasShadowRoot()) {
+      const composed = resolveXPathComposedMatches(
+        relative.replace(/^\.\//, "/"),
+        getOpenOrClosedShadowRoot,
+        scope,
+      );
+      return composed[Math.floor(index)] ?? null;
+    }
+    let snapshot: XPathResult;
+    try {
+      snapshot = scope.ownerDocument.evaluate(
+        relative,
+        scope,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null,
+      );
+    } catch (error) {
+      // Syntax is validated above; this catches valid expressions that don't
+      // select elements (e.g. `count(//button)`). Never fall back to the composed resolver.
+      throw new Error(
+        `${INVALID_XPATH_ERROR_PREFIX}"${xp}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const matches: Element[] = [];
+    for (let i = 0; i < snapshot.snapshotLength; i++) {
+      const node = snapshot.snapshotItem(i);
+      if (node instanceof Element && node !== scope && scope.contains(node)) matches.push(node);
+    }
+    return matches[Math.floor(index)] ?? null;
+  }
 
   const targetIndex = Math.floor(index);
   const pierceShadow = options?.pierceShadow !== false;
@@ -57,6 +118,7 @@ export function resolveXPathAtIndex(
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
   const xp = normalizeXPath(rawXp);
   if (!xp) return 0;
+  assertValidXPath(xp);
 
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;
@@ -80,6 +142,7 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
 export function resolveXPathComposedMatches(
   rawXp: string,
   getShadowRoot?: ShadowRootGetter | null,
+  scope: TraversalRoot = document,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -89,7 +152,7 @@ export function resolveXPathComposedMatches(
 
   const shadowRootGetter = getShadowRoot ?? null;
 
-  let current: TraversalRoot[] = [document];
+  let current: TraversalRoot[] = [scope];
 
   for (const step of steps) {
     const next: Element[] = [];

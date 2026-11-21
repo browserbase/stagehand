@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planDeepXPathTarget } from "../understudy/deepLocator.js";
+import { planDeepXPathTarget } from "../understudy/selectorTarget.js";
 
 describe("planDeepXPathTarget", () => {
   it("keeps a trailing iframe as the parent-frame selector (no hop)", () => {

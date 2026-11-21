@@ -238,8 +238,12 @@ describe("JSON-RPC wire casing", () => {
     const schema = StagehandMethods.locatorSendClickEvent.params;
     const apiValue = {
       pageId: "page_1",
-      selector: { type: "legacy" as const, value: "button" },
-      nth: 0,
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "button" }, nth: 0 },
+        ],
+      },
+
       options: {
         cancelable: true,
         composed: true,
@@ -247,8 +251,12 @@ describe("JSON-RPC wire casing", () => {
     };
     const wireValue = {
       page_id: "page_1",
-      selector: { type: "legacy" as const, value: "button" },
-      nth: 0,
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "button" }, nth: 0 },
+        ],
+      },
+
       options: {
         cancelable: true,
         composed: true,
@@ -288,7 +296,19 @@ describe("JSON-RPC wire casing", () => {
       pageId: "page_1",
       instruction: "Find the email field",
       options: {
-        ignoreLocators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 0 }],
+        ignoreLocators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 0,
+                },
+              ],
+            },
+          },
+        ],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -301,7 +321,19 @@ describe("JSON-RPC wire casing", () => {
       page_id: "page_1",
       instruction: "Find the email field",
       options: {
-        ignore_locators: [{ selector: { type: "legacy" as const, value: "nav" }, nth: 0 }],
+        ignore_locators: [
+          {
+            selector: {
+              steps: [
+                {
+                  type: "query" as const,
+                  selector: { type: "css" as const, value: "nav" },
+                  nth: 0,
+                },
+              ],
+            },
+          },
+        ],
         variables: {
           accountEmail: {
             value: "user@example.com",

@@ -6,12 +6,6 @@ import type {
   A11yOptions,
   AccessibilityTreeResult,
 } from "../../../types/private/snapshot.js";
-import {
-  releaseSnapshotObject,
-  resolveObjectIdForCss,
-  resolveObjectIdForText,
-  resolveObjectIdForXPath,
-} from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
 /**
@@ -56,29 +50,9 @@ export async function a11yForFrame(
 
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
-    const locator = opts.focusLocator;
-    if (!locator) return nodes;
-    const selector = locator.selector;
-    const sel = selector.type === "legacy" ? selector.value.trim() : selector.value;
-    if (!sel) return nodes;
-    let objectId: string | null = null;
+    const be = opts.focusBackendNodeId;
+    if (be === undefined) return nodes;
     try {
-      const looksLikeXPath =
-        selector.type === "xpath" ||
-        (selector.type === "legacy" && (/^xpath=/i.test(sel) || sel.startsWith("/")));
-      const nth = locator.nth ?? 0;
-      objectId =
-        selector.type === "text"
-          ? await resolveObjectIdForText(session, sel, frameId, nth, progress)
-          : looksLikeXPath
-            ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
-            : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
-      if (!objectId) return nodes;
-      const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
-      );
-      const be = desc.node?.backendNodeId;
-      if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
       if (!target) return nodes;
       scopeApplied = true;
@@ -99,8 +73,6 @@ export async function a11yForFrame(
     } catch {
       progress?.throwIfStopped();
       return nodes;
-    } finally {
-      await releaseSnapshotObject(session, objectId ?? undefined, progress);
     }
   })();
 

@@ -4,7 +4,7 @@ import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 
 /** Best-effort readiness budget for frame transitions, not an overall operation timeout. */
 const FRAME_LOCATOR_READY_TIMEOUT_MS = 1_200;
@@ -59,39 +59,7 @@ export class FrameLocator {
       );
       const iframeBackendNodeId = desc.node.backendNodeId;
 
-      // Find direct child frames under the parent by consulting the Page's registry
-      const childIds = await listDirectChildFrameIdsFromRegistry(
-        this.page,
-        parentFrame.frameId,
-        1000,
-        progress,
-      );
-
-      for (const fid of childIds) {
-        let owner: {
-          backendNodeId: Protocol.DOM.BackendNodeId;
-          nodeId?: Protocol.DOM.NodeId;
-        };
-        try {
-          owner = await runLocatorStep(progress, "finding frame owner", () =>
-            parentSession.send<{
-              backendNodeId: Protocol.DOM.BackendNodeId;
-              nodeId?: Protocol.DOM.NodeId;
-            }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
-          );
-        } catch (error) {
-          progress?.throwIfStopped();
-          if (progress && isCdpClosedError(error)) throw error;
-          // ignore and try next
-          continue;
-        }
-        if (owner.backendNodeId === iframeBackendNodeId) {
-          // Readiness failures must propagate after the matching child is identified.
-          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress);
-          return this.page.frameForId(fid);
-        }
-      }
-      throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
+      return await resolveContentFrame(this.page, parentFrame, iframeBackendNodeId, progress);
     } finally {
       const release = () =>
         parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
@@ -105,6 +73,52 @@ export class FrameLocator {
   locator(selector: string): LocatorDelegate {
     return new LocatorDelegate(this, selector);
   }
+}
+
+/** Resolve a concrete iframe owner, including cross-process frame adoption. */
+export async function resolveContentFrame(
+  page: Page,
+  parentFrame: Frame,
+  iframeBackendNodeId: number,
+  progress?: Progress,
+  readiness: ReadinessOptions = {},
+): Promise<Frame> {
+  const parentSession = parentFrame.session;
+  // Find direct child frames under the parent by consulting the Page's registry
+  const childIds = await listDirectChildFrameIdsFromRegistry(
+    page,
+    parentFrame.frameId,
+    1000,
+    progress,
+  );
+
+  for (const fid of childIds) {
+    let owner: {
+      backendNodeId: Protocol.DOM.BackendNodeId;
+      nodeId?: Protocol.DOM.NodeId;
+    };
+    try {
+      owner = await runLocatorStep(progress, "finding frame owner", () =>
+        parentSession.send<{
+          backendNodeId: Protocol.DOM.BackendNodeId;
+          nodeId?: Protocol.DOM.NodeId;
+        }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
+      );
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
+      // ignore and try next
+      continue;
+    }
+    if (owner.backendNodeId === iframeBackendNodeId) {
+      // Readiness failures must propagate after the matching child is identified.
+      await ensureChildFrameReady(page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress, readiness);
+      return page.frameForId(fid);
+    }
+  }
+  throw new Error(
+    `Unable to obtain a content frame for iframe backend node: ${iframeBackendNodeId}`,
+  );
 }
 
 /** A small delegating wrapper that resolves the frame lazily per call. */
@@ -233,12 +247,16 @@ async function ensureChildFrameReady(
   childFrameId: string,
   budgetMs: number,
   progress?: Progress,
+  { readinessRetries = "until-deadline" }: ReadinessOptions = {},
 ): Promise<void> {
   progress?.throwIfStopped();
   const deadline = Date.now() + Math.max(0, budgetMs);
   let lastError: unknown;
+  // With retries disabled, the frame budget bounds the wait even when the
+  // caller has a longer deadline, so callers that can fall back still do.
+  const retryUntilCallerDeadline = !!progress && readinessRetries === "until-deadline";
 
-  while (progress || Date.now() < deadline) {
+  while (retryUntilCallerDeadline || Date.now() < deadline) {
     progress?.throwIfStopped();
     const session = page.getSessionForFrame(childFrameId);
     const remaining = progress?.remainingMs() ?? deadline - Date.now();

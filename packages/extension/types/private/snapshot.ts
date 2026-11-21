@@ -74,26 +74,6 @@ export type ResolvedLocation = {
   absoluteXPath: string;
 };
 
-export type ResolvedFocusFrame = {
-  targetFrameId: string;
-  tailXPath: string;
-  absPrefix: string;
-};
-
-export type ResolvedCssFocus = {
-  targetFrameId: string;
-  tailSelector: string;
-  absPrefix: string;
-};
-
-export type Axis = "child" | "desc";
-
-export type Step = {
-  axis: Axis;
-  raw: string;
-  name: string;
-};
-
 export type A11yNode = {
   role: string;
   name?: string;
@@ -110,7 +90,7 @@ export type A11yNode = {
 };
 
 export type A11yOptions = {
-  focusLocator?: Locator;
+  focusBackendNodeId?: number;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;

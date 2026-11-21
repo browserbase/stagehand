@@ -1,3 +1,5 @@
+import { Page } from "@browserbasehq/stagehand-browser-api/page";
+import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-browser-api/clientLocatorOptions";
 import { createServer, type Server } from "node:http";
 import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -44,6 +46,7 @@ describe("Stagehand service worker RPC client smoke", () => {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         logLevel: "debug",
+        model: { source: "client" },
         browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? chrome.cdpUrl,
       },
       signal,
@@ -149,13 +152,27 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#blank-page-button" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#blank-page-button" },
+              },
+            ],
+          },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#blank-page-button" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#blank-page-button" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("Clicked");
     } finally {
@@ -184,13 +201,319 @@ describe("Stagehand service worker RPC client smoke", () => {
         { type: "text", value: 'text="Pay" >> now' },
       ] as const) {
         await expect(
-          client.send(StagehandMethods.locatorTextContent, { pageId: page.pageId, selector }),
+          client.send(StagehandMethods.locatorTextContent, {
+            pageId: page.pageId,
+            selector: { steps: [{ type: "query", selector }] },
+          }),
         ).resolves.toBe('text="Pay" >> now');
       }
     } finally {
       await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
   });
+
+  it("resolves scoped chains, intermediate indices, and overlapping roots", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const query = (type: "css" | "xpath" | "text", value: string, nth?: number) => ({
+      type: "query" as const,
+      selector: { type, value },
+      ...(nth === undefined ? {} : { nth }),
+    });
+    try {
+      for (const step of [
+        query("text", "Pay"),
+        query("xpath", ".//button"),
+        query("xpath", "//button"),
+        query("css", "button"),
+      ]) {
+        await expect(
+          client.send(StagehandMethods.locatorTextContent, {
+            pageId: page.pageId,
+            selector: { steps: [query("css", ".card", 1), step] },
+          }),
+        ).resolves.toBe("Pay second");
+      }
+      // The page has a shadow root, so scoped XPath takes the composed resolver.
+      // The second card's button is a grandchild: descendant paths (`//`, `.//`)
+      // must reach it above, and child paths (`/`, `./`) must not.
+      for (const [value, expected] of [
+        ["/button", 0],
+        ["./button", 0],
+        ["button", 0],
+        ["./div/button", 1],
+        ["/div//button", 1],
+      ] as const) {
+        await expect(
+          client.send(StagehandMethods.locatorCount, {
+            pageId: page.pageId,
+            selector: { steps: [query("css", ".card", 1), query("xpath", value)] },
+          }),
+          value,
+        ).resolves.toBe(expected);
+      }
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card, .nested"), query("css", "button")] },
+        }),
+      ).resolves.toBe(2);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card", 10), query("css", "button")] },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card"), query("css", "button", 1)] },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", "#chain-shadow"), query("text", "Shadow pay")] },
+        }),
+      ).resolves.toBe("Shadow pay");
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", "#chain-shadow"), query("xpath", ".//button")] },
+        }),
+      ).resolves.toBe("Shadow pay");
+      await client.send(StagehandMethods.locatorSendClickEvent, {
+        pageId: page.pageId,
+        selector: { steps: [query("css", ".card", 1), query("text", "Pay")] },
+      });
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: { steps: [query("css", ".card", 1), query("css", "button")] },
+        }),
+      ).resolves.toBe("Paid second");
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: {
+            steps: [
+              query("css", ".card"),
+              { type: "frame", selector: { type: "css", value: "button" } },
+            ],
+          },
+        }),
+      ).rejects.toThrow(/frame step requires/i);
+      await expect(
+        client.send(StagehandMethods.locatorCount, {
+          pageId: page.pageId,
+          selector: { steps: [{ type: "frame", selector: { type: "css", value: "button" } }] },
+        }),
+      ).rejects.toThrow(/preceding iframe/i);
+    } finally {
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
+
+  // The composed resolver (used on pages with shadow roots, and as the native
+  // engine's fallback) drops what it can't parse: `//button[@id=` would become
+  // `//button` and match a real button. Malformed XPath must error instead.
+  it.each([
+    { fixture: "chain-leaf", shadow: false, first: "Nested pay" },
+    { fixture: "chains", shadow: true, first: "Pay outside" },
+  ])(
+    "rejects malformed XPath instead of widening the match (shadow root: $shadow)",
+    async ({ fixture, first }) => {
+      const client = requireRpcClient(rpcClient);
+      const page = await client.send(StagehandMethods.contextNewPage, {
+        url: requireFixtureServer(fixtureServer).url + fixture,
+      });
+      const xpath = (value: string) => ({
+        type: "query" as const,
+        selector: { type: "xpath" as const, value },
+      });
+      const body = { type: "query" as const, selector: { type: "css" as const, value: "body" } };
+      const unscoped = (value: string) => ({
+        pageId: page.pageId,
+        selector: { steps: [xpath(value)] },
+      });
+      const scoped = (value: string) => ({
+        pageId: page.pageId,
+        selector: { steps: [body, xpath(value)] },
+      });
+      try {
+        for (const descriptor of [unscoped, scoped]) {
+          await expect(
+            client.send(StagehandMethods.locatorTextContent, descriptor("//button")),
+          ).resolves.toBe(first);
+          for (const value of ["//button[", "//button[@id="]) {
+            await expect(
+              client.send(StagehandMethods.locatorTextContent, descriptor(value)),
+            ).rejects.toThrow(`Invalid XPath "${value}"`);
+            await expect(
+              client.send(StagehandMethods.locatorCount, descriptor(value)),
+            ).rejects.toThrow(`Invalid XPath "${value}"`);
+          }
+        }
+      } finally {
+        await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+      }
+    },
+    30_000,
+  );
+
+  it("enters same-origin and cross-origin frames and masks every chain match", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const frames = {
+      type: "query" as const,
+      selector: { type: "css" as const, value: ".chain-frame" },
+    };
+    try {
+      for (const type of ["query", "frame"] as const) {
+        await expect(
+          client.send(StagehandMethods.locatorCount, {
+            pageId: page.pageId,
+            selector: { steps: [frames, { type, selector: { type: "text", value: "Pay frame" } }] },
+          }),
+        ).resolves.toBe(2);
+      }
+      await expect(
+        client.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: {
+            steps: [
+              { ...frames, nth: 1 },
+              { type: "frame", selector: { type: "css", value: "iframe" } },
+              { type: "frame", selector: { type: "text", value: "Nested pay" } },
+            ],
+          },
+        }),
+      ).resolves.toBe("Nested pay");
+      const sdkPage = new Page(client, page);
+      const screenshot = await sdkPage.screenshot({
+        mask: [sdkPage.locator(".chain-frame").locator(".mask-target")],
+        maskColor: "#ff00ff",
+      });
+      const pixels = await client.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `(async () => {
+          const img = new Image();
+          img.src = "data:image/png;base64," + ${JSON.stringify(Buffer.from(screenshot).toString("base64"))};
+          await img.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0);
+          return [...document.querySelectorAll(".chain-frame")].map(frame => {
+            const rect = frame.getBoundingClientRect();
+            const x = (rect.left + frame.clientLeft + 70) * img.width / innerWidth;
+            const y = (rect.top + frame.clientTop + 40) * img.height / innerHeight;
+            return [...ctx.getImageData(x, y, 1, 1).data];
+          });
+        })()`,
+      });
+      expect(pixels.value).toEqual([
+        [255, 0, 255, 255],
+        [255, 0, 255, 255],
+      ]);
+    } finally {
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
+
+  it("uses chain scopes and exclusions in the snapshot sent to inference", async () => {
+    const client = requireRpcClient(rpcClient);
+    const page = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const prompts: string[] = [];
+    const stop = client.onRequest(StagehandMethods.llmGenerate, async (input) => {
+      prompts.push(JSON.stringify(input.messages));
+      return {
+        role: "assistant" as const,
+        content: { type: "text" as const, text: '{"elements":[]}' },
+        outputFormat: "json_schema" as const,
+        structuredContent: { elements: [] },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      };
+    });
+    const sdkPage = new Page(client, page);
+    const card = sdkPage.locator(".card").nth(1);
+    try {
+      await client.send(StagehandMethods.stagehandObserve, {
+        pageId: page.pageId,
+        instruction: "List available actions",
+        options: serializeClientLocatorOptions("observe", page.pageId, {
+          locator: card,
+          ignoreLocators: [card.locator({ type: "text", value: "Pay second" })],
+        }),
+      });
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain("Keep second");
+      expect(prompts[0]).not.toContain("Pay second");
+      expect(prompts[0]).not.toContain("Pay first");
+      expect(prompts[0]).not.toContain("Pay outside");
+      prompts.length = 0;
+      await client.send(StagehandMethods.stagehandObserve, {
+        pageId: page.pageId,
+        instruction: "List available actions",
+        options: serializeClientLocatorOptions("observe", page.pageId, {
+          locator: sdkPage.locator(".chain-frame").nth(1).locator(".mask-target"),
+        }),
+      });
+      expect(prompts[0]).toContain("Pay frame");
+      expect(prompts[0]).not.toContain("Pay outside");
+    } finally {
+      stop();
+      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  }, 30_000);
+
+  it("supports SDK chaining and normalizes existing selector strings at the boundary", async () => {
+    const client = requireRpcClient(rpcClient);
+    const ref = await client.send(StagehandMethods.contextNewPage, {
+      url: requireFixtureServer(fixtureServer).url + "chains",
+    });
+    const page = new Page(client, ref);
+    try {
+      const cards = page.locator(".card").nth(1);
+      const pay = cards.locator({ type: "text", value: "Pay" });
+      expect(await pay.count()).toBe(1);
+      expect(await pay.textContent()).toBe("Pay second");
+      expect(await page.locator(".card").locator("button").nth(1).textContent()).toBe("Pay second");
+      // Legacy >> requires an iframe; ordinary chaining scopes within elements.
+      await expect(page.locator("css=.card >> button").count()).rejects.toThrow(
+        /frame step requires/i,
+      );
+      for (const selector of [
+        '.chain-frame >> text="Pay frame"',
+        "xpath=/html/body/iframe[2]/html/body/button",
+        "//iframe[2]//button",
+      ]) {
+        expect(await page.locator(selector).textContent()).toBe("Pay frame");
+      }
+      expect(
+        await page.locator(".chain-frame").locator({ type: "text", value: "Pay frame" }).count(),
+      ).toBe(2);
+      expect(
+        await page.locator("//iframe[2]").locator("iframe >> text=Nested pay").textContent(),
+      ).toBe("Nested pay");
+      expect(
+        await page
+          .locator("#chain-shadow")
+          .locator({ type: "xpath", value: ".//button" })
+          .textContent(),
+      ).toBe("Shadow pay");
+      await pay.click();
+      expect(await cards.locator("button").textContent()).toBe("Paid second");
+      expect(await page.locator("text=Pay first").textContent()).toBe("Pay first");
+    } finally {
+      await page.close();
+    }
+  }, 30_000);
 
   it("returns a newly created URL page with locators ready", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
@@ -204,7 +527,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#locator-message" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#locator-message" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -225,13 +555,21 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorClick, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-button" },
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "#data-button" } },
+            ],
+          },
         }),
       ).resolves.toStrictEqual({ clicked: true });
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-button" },
+          selector: {
+            steps: [
+              { type: "query" as const, selector: { type: "css" as const, value: "#data-button" } },
+            ],
+          },
         }),
       ).resolves.toBe("Clicked");
 
@@ -247,7 +585,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#data-shadow-text" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#data-shadow-text" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("Open shadow");
       await expect(
@@ -273,7 +618,14 @@ describe("Stagehand service worker RPC client smoke", () => {
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
-          selector: { type: "legacy" as const, value: "#locator-message" },
+          selector: {
+            steps: [
+              {
+                type: "query" as const,
+                selector: { type: "css" as const, value: "#locator-message" },
+              },
+            ],
+          },
         }),
       ).resolves.toBe("locator text");
     } finally {
@@ -347,21 +699,39 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("locator text");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-input" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-input" } },
+          ],
+        },
         value: "user@example.com",
       }),
     ).resolves.toStrictEqual({
@@ -371,7 +741,14 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorClick, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-button" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-button" },
+            },
+          ],
+        },
       }),
     ).resolves.toStrictEqual({
       clicked: true,
@@ -380,70 +757,134 @@ describe("Stagehand service worker RPC client smoke", () => {
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-output" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#locator-output" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("clicked:user@example.com");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-date" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-date" } },
+          ],
+        },
         value: "2026-07-21",
       }),
     ).resolves.toStrictEqual({ filled: true });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorInputValue, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#locator-date" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#locator-date" } },
+          ],
+        },
       }),
     ).resolves.toBe("2026-07-21");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#closed-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#closed-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe(true);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "xpath=//div[@id='closed-host']//p[1]" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "xpath" as const, value: "//div[@id='closed-host']//p[1]" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed root text");
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#shadow-frame >> #frame-closed-message" },
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: "#shadow-frame" },
+              nth: 0,
+            },
+            {
+              type: "frame" as const,
+              selector: { type: "css" as const, value: "#frame-closed-message" },
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed root iframe text");
 
     await activeRpcClient.send(StagehandMethods.locatorFill, {
       pageId: page.pageId,
-      selector: { type: "legacy" as const, value: "#closed-input" },
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "#closed-input" } },
+        ],
+      },
       value: "inside closed root",
     });
     await activeRpcClient.send(StagehandMethods.locatorClick, {
       pageId: page.pageId,
-      selector: { type: "legacy" as const, value: "#closed-button" },
+      selector: {
+        steps: [
+          { type: "query" as const, selector: { type: "css" as const, value: "#closed-button" } },
+        ],
+      },
     });
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: "#closed-output" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: "#closed-output" } },
+          ],
+        },
       }),
     ).resolves.toBe("clicked:inside closed root");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorCount, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: ".mixed-shadow" },
+        selector: {
+          steps: [
+            { type: "query" as const, selector: { type: "css" as const, value: ".mixed-shadow" } },
+          ],
+        },
       }),
     ).resolves.toBe(3);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
-        selector: { type: "legacy" as const, value: ".mixed-shadow" },
-        nth: 1,
+        selector: {
+          steps: [
+            {
+              type: "query" as const,
+              selector: { type: "css" as const, value: ".mixed-shadow" },
+              nth: 1,
+            },
+          ],
+        },
       }),
     ).resolves.toBe("closed");
 
@@ -617,6 +1058,35 @@ function requireFixtureServer(value: FixtureServer | undefined): FixtureServer {
 
 async function startFixtureServer(): Promise<FixtureServer> {
   const server = createServer((request, response) => {
+    if (request.url === "/chain-leaf") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end("<button>Nested pay</button>");
+      return;
+    }
+    if (request.url === "/chain-frame") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(
+        '<button class="mask-target" style="position:absolute;left:20px;top:20px;width:100px;height:40px">Pay frame</button><iframe src="/chain-leaf" style="position:absolute;top:80px;width:120px;height:40px"></iframe>',
+      );
+      return;
+    }
+    if (request.url === "/chains") {
+      response.writeHead(200, { "content-type": "text/html" });
+      const crossOrigin = `http://localhost:${request.headers.host!.split(":").at(-1)}/chain-frame`;
+      response.end(`<!doctype html><html><body>
+        <button>Pay outside</button>
+        <section class="card" aria-label="First card"><button>Pay first</button></section>
+        <section class="card" aria-label="Second card"><div class="nested">
+          <button onclick="this.textContent='Paid second'">Pay second</button><p>Keep second</p>
+        </div></section>
+        <div id="chain-shadow"></div>
+        <iframe class="chain-frame" src="/chain-frame" style="width:180px;height:150px"></iframe>
+        <iframe class="chain-frame" src="${crossOrigin}" style="width:180px;height:150px"></iframe>
+        <script>document.querySelector("#chain-shadow").attachShadow({mode:"closed"}).innerHTML = "<button>Shadow pay</button>"</script>
+      </body></html>`);
+      return;
+    }
+
     if (request.url === "/frame") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(`<!doctype html>
