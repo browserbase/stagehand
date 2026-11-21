@@ -9,6 +9,7 @@ import { z } from "zod/v4";
 import extensionPackageJson from "../package.json" with { type: "json" };
 import protocolPackageJson from "../../protocol/package.json" with { type: "json" };
 import { fingerprintFiles, readDirectoryFiles } from "../buildFingerprint.ts";
+import { STAGEHAND_EXTENSION_BUILD_ID } from "../version.ts";
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
 const stagehandExtensionArchive = fileURLToPath(
@@ -220,6 +221,22 @@ describe("extension build", () => {
     }
     expect(sha256(archiveBytes)).toBe(sha256(zipSync(deterministicEntries, { level: 9 })));
   }, 30_000);
+
+  it("stamps the build identity, the unstamped build's fingerprint, into the worker", async () => {
+    const files = await readDirectoryFiles(stagehandExtensionDistDir);
+    const buildId = new TextDecoder().decode(files.get("build-id.txt")).trim();
+    const serviceWorker = new TextDecoder().decode(files.get("service-worker.js"));
+
+    expect(buildId).toMatch(/^[0-9a-f]{64}$/u);
+    expect(serviceWorker).toContain(buildId);
+    expect(serviceWorker).not.toContain(STAGEHAND_EXTENSION_BUILD_ID);
+    files.delete("build-id.txt");
+    files.set(
+      "service-worker.js",
+      new TextEncoder().encode(serviceWorker.replaceAll(buildId, STAGEHAND_EXTENSION_BUILD_ID)),
+    );
+    expect(fingerprintFiles(files)).toBe(buildId);
+  });
 
   it("records the build's versions and fingerprint next to the ZIP", async () => {
     const buildInfo = JSON.parse(
