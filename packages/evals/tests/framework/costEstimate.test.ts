@@ -409,9 +409,13 @@ describe("model alias resolution", () => {
     ["gpt-5.4-mini", "openai/gpt-5.4-mini"],
     ["anthropic/claude-sonnet-4-6", "anthropic/claude-sonnet-4.6"],
     ["anthropic/claude-sonnet-4.6-20260101", "anthropic/claude-sonnet-4.6"],
+    ["anthropic/claude-sonnet-4-6-20260101", "anthropic/claude-sonnet-4.6"],
+    ["openai/gpt-5.4-mini-2026-03-17", "openai/gpt-5.4-mini"],
     ["xai/grok-4.5", "spacexai/grok-4.5"],
     ["grok-4.5", "spacexai/grok-4.5"],
     ["google/gemini-3-flash-preview", "google/gemini-3-flash"],
+    ["google/gemini-3-flash-preview-09-2025", "google/gemini-3-flash"],
+    ["google/gemini-3-flash-preview-04-17", "google/gemini-3-flash"],
   ])("resolves %s to %s", (model, expected) => {
     expect(resolveModelPrice(model, priceMap)?.key).toBe(expected);
   });
@@ -419,6 +423,8 @@ describe("model alias resolution", () => {
   it("never borrows a sibling model's price", () => {
     expect(resolveModelPrice("openai/gpt-5.4", priceMap)).toBeUndefined();
     expect(resolveModelPrice("anthropic/claude-sonnet-4", priceMap)).toBeUndefined();
+    expect(resolveModelPrice("anthropic/claude-sonnet-4-20250514", priceMap)).toBeUndefined();
+    expect(resolveModelPrice("openai/gpt-5.4-2026-03-05", priceMap)).toBeUndefined();
     expect(resolveModelPrice("fx/default", priceMap)).toBeUndefined();
   });
 
@@ -465,6 +471,28 @@ describe("shipped price map", () => {
       output_per_m: 50,
       cache_write_input_per_m: 12.5,
     });
+    // Leaderboard and default agent models, by the ids the harnesses send.
+    for (const [model, key] of [
+      ["anthropic/claude-sonnet-5-5", "anthropic/claude-sonnet-5.5"],
+      ["anthropic/claude-opus-5-5", "anthropic/claude-opus-5.5"],
+      ["anthropic/claude-fable-5-2", "anthropic/claude-fable-5.2"],
+      ["anthropic/claude-haiku-4-5", "anthropic/claude-haiku-4.5"],
+      ["anthropic/claude-haiku-4-5-20251001", "anthropic/claude-haiku-4.5"],
+      ["google/gemini-4-argon", "google/gemini-4-argon"],
+    ]) {
+      expect(resolveModelPrice(model, shipped)?.key, model).toBe(key);
+    }
+    // gpt-6 models bill a higher tier above 272K input tokens, like Astra.
+    for (const model of [
+      "openai/gpt-6-sol",
+      "openai/gpt-6.1-sol",
+      "openai/gpt-6.1-terra",
+      "openai/gpt-6.2-sol",
+      "openai/gpt-6.2-astra",
+    ]) {
+      expect(shipped.models[model]?.source, model).toBe("needs owner input");
+      expect(resolveModelPrice(model, shipped), model).toBeUndefined();
+    }
   });
 });
 
