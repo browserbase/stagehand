@@ -6,6 +6,25 @@ import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
+/**
+ * Matches the prefix thrown by `assertValidXPath` in
+ * `dom/locatorScripts/xpathResolver.ts`. Duplicated on purpose: importing page
+ * scripts here splits them into a chunk the content script can't load.
+ */
+const INVALID_XPATH_ERROR_PREFIX = "Invalid XPath ";
+
+/** A selector the page rejected as malformed. Surfaced instead of "not found". */
+class InvalidSelectorError extends Error {}
+
+function invalidSelectorError(
+  details: Protocol.Runtime.ExceptionDetails | undefined,
+): InvalidSelectorError | undefined {
+  const message = details?.exception?.description?.split("\n")[0]?.replace(/^Error: /, "");
+  return message?.startsWith(INVALID_XPATH_ERROR_PREFIX)
+    ? new InvalidSelectorError(message)
+    : undefined;
+}
+
 export type SelectorQuery =
   | { kind: "css"; value: string }
   | { kind: "text"; value: string }
@@ -244,6 +263,7 @@ export class FrameSelectorResolver {
       return Math.max(0, Math.floor(num));
     } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof InvalidSelectorError) throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
@@ -273,6 +293,8 @@ export class FrameSelectorResolver {
       );
 
       if (evalRes.exceptionDetails) {
+        const invalid = invalidSelectorError(evalRes.exceptionDetails);
+        if (invalid) throw invalid;
         return 0;
       }
 
@@ -284,6 +306,7 @@ export class FrameSelectorResolver {
       return Math.max(0, Math.floor(num));
     } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof InvalidSelectorError) throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
@@ -327,6 +350,8 @@ export class FrameSelectorResolver {
       );
 
       if (evalRes.exceptionDetails) {
+        const invalid = invalidSelectorError(evalRes.exceptionDetails);
+        if (invalid) throw invalid;
         return 0;
       }
 
@@ -336,6 +361,7 @@ export class FrameSelectorResolver {
       return Math.max(0, Math.floor(num));
     } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof InvalidSelectorError) throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
@@ -370,6 +396,8 @@ export class FrameSelectorResolver {
           await progress.cleanup(() => release(discardedId));
         }
         progress?.throwIfStopped();
+        const invalid = invalidSelectorError(evalRes.exceptionDetails);
+        if (invalid) throw invalid;
         return null;
       }
       const resolved = await this.resolveFromObjectId(objectId, progress);
@@ -378,6 +406,7 @@ export class FrameSelectorResolver {
     } catch (error) {
       if (progress && objectId) await progress.cleanup(() => release(objectId!));
       progress?.throwIfStopped();
+      if (error instanceof InvalidSelectorError) throw error;
       if (progress && isCdpClosedError(error)) throw error;
       return null;
     }

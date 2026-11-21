@@ -20,6 +20,28 @@ const normalizeXPath = (selector: string): string => {
   return raw.replace(/^xpath=/i, "").trim();
 };
 
+/**
+ * `understudy/selectorResolver.ts` matches this prefix to surface the error
+ * instead of "not found". Keep the two in sync; don't import across them, as
+ * that would split this module into a chunk the content script can't load.
+ */
+const INVALID_XPATH_ERROR_PREFIX = "Invalid XPath ";
+
+/**
+ * Check syntax with the native XPath parser before choosing an engine. The
+ * composed resolver drops what it can't parse (`//button[@id=` → `//button`),
+ * so letting malformed XPath reach it could target the wrong element.
+ */
+function assertValidXPath(xp: string, doc: Document = document): void {
+  try {
+    doc.createExpression(xp);
+  } catch (error) {
+    throw new Error(
+      `${INVALID_XPATH_ERROR_PREFIX}"${xp}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 export function resolveXPathFirst(rawXp: string, options?: XPathResolveOptions): Element | null {
   return resolveXPathAtIndex(rawXp, 0, options);
 }
@@ -34,6 +56,7 @@ export function resolveXPathAtIndex(
   if (!xp) return null;
 
   const scope = options?.scope;
+  assertValidXPath(xp, scope instanceof Element ? scope.ownerDocument : document);
   if (scope instanceof Element) {
     // XPath must stay inside the selected subtree, including expressions using
     // absolute paths or ancestor axes.
@@ -56,10 +79,10 @@ export function resolveXPathAtIndex(
         null,
       );
     } catch (error) {
-      // Don't fall back to the composed resolver: it drops what it can't parse
-      // (e.g. `//button[@id=` becomes `//button`) and would match the wrong element.
+      // Syntax is validated above; this catches valid expressions that don't
+      // select elements (e.g. `count(//button)`). Never fall back to the composed resolver.
       throw new Error(
-        `Invalid XPath "${xp}": ${error instanceof Error ? error.message : String(error)}`,
+        `${INVALID_XPATH_ERROR_PREFIX}"${xp}": ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     const matches: Element[] = [];
@@ -95,6 +118,7 @@ export function resolveXPathAtIndex(
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
   const xp = normalizeXPath(rawXp);
   if (!xp) return 0;
+  assertValidXPath(xp);
 
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;

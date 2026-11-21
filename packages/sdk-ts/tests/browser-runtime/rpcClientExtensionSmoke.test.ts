@@ -316,35 +316,52 @@ describe("Stagehand service worker RPC client smoke", () => {
     }
   }, 30_000);
 
-  it("rejects malformed scoped XPath instead of widening the match", async () => {
-    const client = requireRpcClient(rpcClient);
-    // No shadow roots on this page, so scoped XPath uses the native engine.
-    const page = await client.send(StagehandMethods.contextNewPage, {
-      url: requireFixtureServer(fixtureServer).url + "chain-leaf",
-    });
-    const scoped = (value: string) => ({
-      pageId: page.pageId,
-      selector: {
-        steps: [
-          { type: "query" as const, selector: { type: "css" as const, value: "body" } },
-          { type: "query" as const, selector: { type: "xpath" as const, value } },
-        ],
-      },
-    });
-    try {
-      await expect(
-        client.send(StagehandMethods.locatorTextContent, scoped("//button")),
-      ).resolves.toBe("Nested pay");
-      // A lenient fallback would read `//button[@id=` as `//button` and match "Nested pay".
-      for (const value of ["//button[", "//button[@id="]) {
-        await expect(
-          client.send(StagehandMethods.locatorTextContent, scoped(value)),
-        ).rejects.toThrow(`Invalid XPath "${value}"`);
+  // The composed resolver (used on pages with shadow roots, and as the native
+  // engine's fallback) drops what it can't parse: `//button[@id=` would become
+  // `//button` and match a real button. Malformed XPath must error instead.
+  it.each([
+    { fixture: "chain-leaf", shadow: false, first: "Nested pay" },
+    { fixture: "chains", shadow: true, first: "Pay outside" },
+  ])(
+    "rejects malformed XPath instead of widening the match (shadow root: $shadow)",
+    async ({ fixture, first }) => {
+      const client = requireRpcClient(rpcClient);
+      const page = await client.send(StagehandMethods.contextNewPage, {
+        url: requireFixtureServer(fixtureServer).url + fixture,
+      });
+      const xpath = (value: string) => ({
+        type: "query" as const,
+        selector: { type: "xpath" as const, value },
+      });
+      const body = { type: "query" as const, selector: { type: "css" as const, value: "body" } };
+      const unscoped = (value: string) => ({
+        pageId: page.pageId,
+        selector: { steps: [xpath(value)] },
+      });
+      const scoped = (value: string) => ({
+        pageId: page.pageId,
+        selector: { steps: [body, xpath(value)] },
+      });
+      try {
+        for (const descriptor of [unscoped, scoped]) {
+          await expect(
+            client.send(StagehandMethods.locatorTextContent, descriptor("//button")),
+          ).resolves.toBe(first);
+          for (const value of ["//button[", "//button[@id="]) {
+            await expect(
+              client.send(StagehandMethods.locatorTextContent, descriptor(value)),
+            ).rejects.toThrow(`Invalid XPath "${value}"`);
+            await expect(
+              client.send(StagehandMethods.locatorCount, descriptor(value)),
+            ).rejects.toThrow(`Invalid XPath "${value}"`);
+          }
+        }
+      } finally {
+        await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
       }
-    } finally {
-      await client.send(StagehandMethods.pageClose, { pageId: page.pageId });
-    }
-  }, 30_000);
+    },
+    30_000,
+  );
 
   it("enters same-origin and cross-origin frames and masks every chain match", async () => {
     const client = requireRpcClient(rpcClient);
