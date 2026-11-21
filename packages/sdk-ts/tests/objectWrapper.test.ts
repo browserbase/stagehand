@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -2167,6 +2167,12 @@ describe("Stagehand TS object wrapper", () => {
     await writeFile(filePath, "hello");
     await writeFile(historicalPath, "old");
     await utimes(historicalPath, new Date(0), new Date(-1_000));
+    // libuv cannot represent pre-epoch mtimes on Windows: utimes wraps them into a
+    // positive value, so only POSIX reports the negative mtime back. Derive the
+    // expected lastModified from what the filesystem actually reports.
+    const historicalMtimeMs = (await stat(historicalPath)).mtimeMs;
+    const historicalLastModified =
+      historicalMtimeMs < 0 ? {} : { lastModified: Math.trunc(historicalMtimeMs) };
     try {
       const client = new FakeProtocolClient();
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
@@ -2223,7 +2229,7 @@ describe("Stagehand TS object wrapper", () => {
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
           selector: "#upload",
-          files: [{ name: "historical.txt", data: "b2xk" }],
+          files: [{ name: "historical.txt", data: "b2xk", ...historicalLastModified }],
         }),
       );
 
