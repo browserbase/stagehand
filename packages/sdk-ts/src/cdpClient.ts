@@ -1,4 +1,6 @@
 import { appendFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import path from "node:path";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -378,14 +380,17 @@ export class CDPClient {
 
     try {
       let extensionId: string;
+      let loadedFrom: string | undefined;
+      let installedPath: string | undefined;
       if (options.localExtensionDir) {
-        extensionId = await resolveExtension(client, {
+        ({ extensionId, loadedFrom, installedPath } = await discoverOrLoadExtension(client, {
           loadIfNotFound: true,
           extensionDir: options.localExtensionDir,
           signal,
-        });
+        }));
       } else if (options.extensionDir) {
         extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
+        loadedFrom = options.extensionDir;
       } else if (options.extensionId) {
         extensionId = options.extensionId;
       } else if (options.preloadedExtension) {
@@ -396,7 +401,79 @@ export class CDPClient {
         );
       }
 
-      // Attach to the extension and verify runtime compatibility.
+      // Stale service worker detection: when reconnecting to a browser that may have
+      // kept an old service worker from a previous SDK version, detect and reload.
+      const attachServiceWorker = async (excludeTargetId?: string) => {
+        const serviceWorker = await waitForServiceWorker(client, {
+          extensionId,
+          urlIncludes: options.serviceWorkerUrlIncludes,
+          excludeTargetId,
+          signal,
+        });
+        const attached = await client.sendCommand<{ sessionId: string }>(
+          "Target.attachToTarget",
+          {
+            targetId: serviceWorker.targetId,
+            flatten: true,
+          },
+          undefined,
+          signal,
+        );
+        return { serviceWorker, attached };
+      };
+      let { serviceWorker, attached } = await attachServiceWorker();
+      let build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+      if (
+        isStaleServiceWorker(build) &&
+        installedPath !== undefined &&
+        options.localExtensionDir &&
+        (await sameDirectory(installedPath, options.localExtensionDir))
+      ) {
+        // Reconnecting after an SDK upgrade rewrote its own directory: the worker is ours.
+        loadedFrom = options.localExtensionDir;
+      }
+      let replacement: StaleServiceWorkerReplacement = "not owned";
+      if (isStaleServiceWorker(build) && loadedFrom !== undefined) {
+        try {
+          extensionId = await loadUnpackedExtension(client, loadedFrom, signal);
+          replacement = "reloaded";
+        } catch (error) {
+          throwIfAborted(signal);
+          if (error instanceof CDPConnectionClosedError) throw error;
+          replacement = "reload failed";
+        }
+        if (replacement === "reloaded") {
+          ({ serviceWorker, attached } = await attachServiceWorker(serviceWorker.targetId));
+          build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+        }
+      }
+      if (isStaleServiceWorker(build)) {
+        process.emitWarning(staleServiceWorkerMessage(extensionId, build, replacement), {
+          code: "STAGEHAND_STALE_SERVICE_WORKER",
+        });
+      }
+
+      // Set up the attached session for RPC.
+      client.sessionId = attached.sessionId;
+      client.attachedServiceWorker = {
+        targetId: serviceWorker.targetId,
+        title: serviceWorker.title,
+        url: serviceWorker.url,
+        extensionId,
+      };
+
+      await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
+        throwIfAborted(signal);
+        return undefined;
+      });
+      await client.sendCommand(
+        "Runtime.addBinding",
+        { name: STAGEHAND_SEND_TO_HOST_BINDING },
+        attached.sessionId,
+        signal,
+      );
+
+      // Verify runtime compatibility.
       // When connecting to a browser with an old extension (localExtensionDir case with default
       // runtime requirement), replace it with the bundled extension and retry on incompatibility.
       // We only auto-replace when using the default requirement because a custom runtimeRequirement
@@ -404,7 +481,11 @@ export class CDPClient {
       // Note: This auto-replace only works for local browsers. For remote browsers (e.g., Browserbase
       // via --cdp), loadUnpackedExtension will fail because the local path isn't accessible remotely.
       try {
-        await attachAndVerifyExtension(client, extensionId, options);
+        await waitForRuntimeReady(client, attached.sessionId, {
+          runtimeRequirement: options.runtimeRequirement,
+          allowFallbackInstall: options.allowFallbackInstall,
+          signal,
+        });
       } catch (error) {
         if (
           options.localExtensionDir &&
@@ -855,9 +936,20 @@ export async function resolveExtension(
     extensionDir?: string;
   },
 ): Promise<string> {
-  let id: string | undefined;
+  return (await discoverOrLoadExtension(cdp, options)).extensionId;
+}
+
+async function discoverOrLoadExtension(
+  cdp: CDPCommandSender,
+  options: {
+    signal: AbortSignal;
+    loadIfNotFound: boolean;
+    extensionDir?: string;
+  },
+): Promise<{ extensionId: string; loadedFrom?: string; installedPath?: string }> {
+  let installed: { id: string; path: string } | undefined;
   try {
-    id = await getInstalledStagehandExtensionId(cdp, options);
+    installed = await getInstalledStagehandExtension(cdp, options);
   } catch (error) {
     if (
       !options.loadIfNotFound ||
@@ -867,12 +959,15 @@ export async function resolveExtension(
     }
   }
   throwIfAborted(options.signal);
-  if (id !== undefined) return id;
+  if (installed !== undefined) return { extensionId: installed.id, installedPath: installed.path };
   if (options.loadIfNotFound) {
     if (!options.extensionDir) {
       throw new Error("extensionDir is required to load the Stagehand extension");
     }
-    return await loadUnpackedExtension(cdp, options.extensionDir, options.signal);
+    return {
+      extensionId: await loadUnpackedExtension(cdp, options.extensionDir, options.signal),
+      loadedFrom: options.extensionDir,
+    };
   }
   throw new Error(
     "Stagehand extension is not installed in the connected browser. " +
@@ -880,10 +975,30 @@ export async function resolveExtension(
   );
 }
 
-async function getInstalledStagehandExtensionId(
+async function sameDirectory(first: string, second: string): Promise<boolean> {
+  try {
+    const [a, b] = await Promise.all([
+      stat(first, { bigint: true }),
+      stat(second, { bigint: true }),
+    ]);
+    return a.dev === b.dev && a.ino === b.ino;
+  } catch {
+    // A browser on another machine reports a path that may not exist here.
+    return normalizeDirectory(first) === normalizeDirectory(second);
+  }
+}
+
+function normalizeDirectory(directory: string): string {
+  const normalized = path.normalize(directory);
+  return normalized !== path.parse(normalized).root && normalized.endsWith(path.sep)
+    ? normalized.slice(0, -1)
+    : normalized;
+}
+
+async function getInstalledStagehandExtension(
   cdp: CDPCommandSender,
   options: { signal: AbortSignal },
-): Promise<string | undefined> {
+): Promise<{ id: string; path: string } | undefined> {
   throwIfAborted(options.signal);
   const response = await cdp.sendCommand<unknown>(
     "Extensions.getExtensions",
@@ -896,7 +1011,7 @@ async function getInstalledStagehandExtensionId(
   );
   const enabled = installed.filter((extension) => extension.enabled);
 
-  if (enabled.length === 1) return enabled[0].id;
+  if (enabled.length === 1) return enabled[0];
   if (enabled.length > 1) {
     const ids = enabled
       .map((extension) => extension.id)
@@ -934,11 +1049,107 @@ function parseRuntimeReadiness(value: unknown): z.output<typeof RuntimeReadiness
   return parsed.success ? parsed.data : { marker: null, hasReceiver: false };
 }
 
+export type ServiceWorkerBuild = { running: string | null; onDisk: string | null };
+
+const ServiceWorkerBuildSchema = z.object({
+  running: z.string().nullable(),
+  onDisk: z.string().nullable(),
+});
+
+// About 1.5 s at the default poll interval, while a just-attached worker context starts.
+const SERVICE_WORKER_BUILD_READ_RETRIES = 15;
+
+/** @internal Waits for the runtime marker so a starting worker is not read as unidentified. */
+export async function readServiceWorkerBuild(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: {
+    pollIntervalMs?: number;
+    delayFn?: (ms: number) => Promise<void>;
+    signal: AbortSignal;
+  },
+): Promise<ServiceWorkerBuild> {
+  const pollIntervalMs = options.pollIntervalMs ?? 100;
+  const delayFn = options.delayFn ?? delay;
+  let failures = 0;
+  while (true) {
+    throwIfAborted(options.signal);
+    let value: unknown = null;
+    try {
+      const evaluated = await cdp.sendCommand<RuntimeEvaluateResult>(
+        "Runtime.evaluate",
+        {
+          expression: `(async () => {
+  if (globalThis.__stagehand_runtime === undefined) return null;
+  let onDisk = null;
+  try {
+    const response = await fetch(chrome.runtime.getURL("build-id.txt"), {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok) onDisk = (await response.text()).trim();
+  } catch {}
+  return { running: globalThis.__stagehand_build_id ?? null, onDisk };
+})()`,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+        sessionId,
+        options.signal,
+      );
+      value = evaluated.exceptionDetails ? null : evaluated.result?.value;
+    } catch (error) {
+      throwIfAborted(options.signal);
+      if (error instanceof CDPConnectionClosedError) throw error;
+      if (++failures > SERVICE_WORKER_BUILD_READ_RETRIES) return { running: null, onDisk: null };
+    }
+    if (value !== null && value !== undefined) {
+      const parsed = ServiceWorkerBuildSchema.safeParse(value);
+      return parsed.success ? parsed.data : { running: null, onDisk: null };
+    }
+    await abortable(delayFn(pollIntervalMs), options.signal);
+  }
+}
+
+const UNSTAMPED_BUILD_ID = "__STAGEHAND_EXTENSION_BUILD_ID__";
+
+/** @internal A directory without a build identity predates this check and is not compared. */
+export function isStaleServiceWorker(build: ServiceWorkerBuild): boolean {
+  if ([build.running, build.onDisk].some((id) => id === "" || id === UNSTAMPED_BUILD_ID)) {
+    return false;
+  }
+  return build.onDisk !== null && build.running !== build.onDisk;
+}
+
+type StaleServiceWorkerReplacement = "not owned" | "reloaded" | "reload failed";
+
+function staleServiceWorkerMessage(
+  extensionId: string,
+  build: ServiceWorkerBuild,
+  replacement: StaleServiceWorkerReplacement,
+): string {
+  const running =
+    build.running === null
+      ? "a service worker without a build identity"
+      : `service worker build ${build.running}`;
+  if (replacement === "reloaded") {
+    return `The Stagehand extension ${extensionId} still runs ${running} after it was reloaded from a directory that holds build ${build.onDisk}, so Stagehand continues with the running worker.`;
+  }
+  const reason =
+    replacement === "reload failed"
+      ? "Stagehand could not load this extension again from its directory to replace the worker"
+      : "Stagehand did not load this extension from its own directory";
+  return (
+    `The Stagehand extension ${extensionId} runs ${running}, but its directory holds build ${build.onDisk}: the browser profile kept the worker of another build. ` +
+    `${reason}, so it continues with the running worker.`
+  );
+}
+
 export async function waitForServiceWorker(
   cdp: CDPCommandSender,
   options: {
     extensionId: string;
     urlIncludes?: string;
+    excludeTargetId?: string;
     activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
@@ -964,6 +1175,7 @@ export async function waitForServiceWorker(
       const serviceWorker = targets.targetInfos.find(
         (target) =>
           target.type === "service_worker" &&
+          target.targetId !== options.excludeTargetId &&
           target.url.startsWith("chrome-extension://") &&
           target.url.startsWith(`chrome-extension://${options.extensionId}/`) &&
           target.url.includes(workerUrlIncludes),

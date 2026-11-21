@@ -1,5 +1,6 @@
 import { Command } from "@oclif/core";
 
+import { DriverError } from "./lib/driver/errors.js";
 import { CommandFailure } from "./lib/errors.js";
 import { setCliVersion } from "./lib/identity.js";
 import { DISCORD_INVITE_URL, GITHUB_ISSUES_URL } from "./lib/support-links.js";
@@ -28,6 +29,17 @@ export abstract class BrowseCommand extends Command {
       recordCommandError("runtime", "COMMAND_FAILURE", err.telemetry);
       process.stderr.write(`${err.message}\n`);
       this.exit(err.exitCode);
+    }
+
+    if (err instanceof DriverError) {
+      recordCommandError("runtime", "DRIVER_ERROR", {
+        resultCode: err.code,
+        httpStatus: err.httpStatus,
+      });
+      process.stderr.write(`${SUPPORT_HINT}\n`);
+      process.stderr.write(`    DriverError: ${err.message}\n`);
+      process.stderr.write(`    Code: ${err.code}\n`);
+      this.exit(1);
     }
 
     // For unexpected runtime errors (not oclif validation/usage errors),

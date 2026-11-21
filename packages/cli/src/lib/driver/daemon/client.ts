@@ -143,6 +143,8 @@ export function assertCompatibleTarget(
   if (targetsCompatible(status.target, target)) return;
   fail(
     `Session "${session}" is already running in ${status.mode} mode. Run browse stop --session ${session} before changing modes.`,
+    1,
+    { resultCode: "session_mode_conflict" },
   );
 }
 

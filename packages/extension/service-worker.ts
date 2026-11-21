@@ -16,13 +16,18 @@ import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
-import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
+import {
+  EXTENSION_BUILD_ID_GLOBAL,
+  STAGEHAND_EXTENSION_BUILD_ID,
+  STAGEHAND_RUNTIME_VERSION,
+} from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
 import { ClientLifecycle } from "./clientLifecycle.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehandClientLifecycle?: (input: unknown) => Promise<void>;
   __stagehand_runtime?: RuntimeDescriptor;
+  [EXTENSION_BUILD_ID_GLOBAL]?: string;
   __stagehandReceiveFromHost?: (
     raw: unknown,
     runtimeAttachments?: CallbackBatchRuntimeAttachments,
@@ -142,6 +147,8 @@ export function startStagehandServiceWorker(
     // Only a successful attach may serve a new client's reverse requests.
     if (action === "attach") rpcClient?.acceptClient();
   };
+  // Kept out of the runtime descriptor: released SDKs parse that descriptor strictly.
+  scope[EXTENSION_BUILD_ID_GLOBAL] = STAGEHAND_EXTENSION_BUILD_ID;
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {
