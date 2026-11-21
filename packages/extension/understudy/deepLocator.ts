@@ -3,52 +3,19 @@ import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
-import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
+import {
+  IFRAME_STEP_RE,
+  buildXPathFromSteps,
+  parseXPathToSteps,
+} from "./a11y/snapshot/focusSelectors.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
-
-type Axis = "child" | "desc";
-type Step = { axis: Axis; raw: string; name: string };
+import type { Step } from "../types/private/snapshot.js";
 
 export type ResolvedLocatorTarget = {
   frame: Frame;
   selector: string;
 };
-
-/** Parse XPath into steps preserving '/' vs '//' and the raw token (with [n]) */
-function parseXPath(path: string): Step[] {
-  const s = path.trim();
-  let i = 0;
-  const steps: Step[] = [];
-  while (i < s.length) {
-    let axis: Axis = "child";
-    if (s.startsWith("//", i)) {
-      axis = "desc";
-      i += 2;
-    } else if (s[i] === "/") {
-      axis = "child";
-      i += 1;
-    }
-
-    const start = i;
-    while (i < s.length && s[i] !== "/") i++;
-    const raw = s.slice(start, i).trim();
-    if (!raw) continue;
-
-    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
-    steps.push({ axis, raw, name });
-  }
-  return steps;
-}
-
-function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
-  let out = "";
-  for (const st of steps) {
-    out += st.axis === "desc" ? "//" : "/";
-    out += st.raw; // keep predicates intact
-  }
-  return out || "/";
-}
 
 /** Build a Locator scoped to the correct frame for a deep XPath crossing iframes. */
 export async function deepLocatorThroughIframes(
@@ -236,7 +203,7 @@ export function planDeepXPathTarget(xpathOrSelector: string): {
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
   if (!path.startsWith("/")) path = "/" + path;
 
-  const steps = parseXPath(path);
+  const steps = parseXPathToSteps(path);
   const frameHopSelectors: string[] = [];
   let buf: Step[] = [];
 
