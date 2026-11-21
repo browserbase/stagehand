@@ -1890,7 +1890,7 @@ export class Page {
 
     if (exceptionDetails) {
       const msg =
-        exceptionDetails.text || exceptionDetails.exception?.description || "Evaluation failed";
+        exceptionDetails.exception?.description || exceptionDetails.text || "Evaluation failed";
       throw new Error(msg);
     }
 

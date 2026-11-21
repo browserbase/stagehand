@@ -1,7 +1,28 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import { z } from "zod";
 
+import { DriverError } from "../errors.js";
 import type { DriverCommandHandlers } from "./types.js";
+
+/**
+ * Detect CDP transport-level errors that should not be wrapped as eval_exception.
+ *
+ * These errors indicate a transport failure (connection closed, target destroyed)
+ * rather than a JavaScript exception thrown by user code. Preserving them allows
+ * callers and telemetry to distinguish transport failures from evaluation errors.
+ *
+ * Known patterns:
+ * - "CDP connection closed: ..." - WebSocket close/error events
+ * - "No Page found for target closed before CDP ..." - target destroyed before response
+ */
+function isRpcTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message;
+  return (
+    message.startsWith("CDP connection closed:") ||
+    message.startsWith("No Page found for target closed before CDP ")
+  );
+}
 
 const GetWhatSchema = z.enum([
   "box",
@@ -62,6 +83,12 @@ export const pageInfoHandlers: DriverCommandHandlers = {
   async eval(manager, params) {
     const { expression } = z.object({ expression: z.string().min(1) }).parse(params);
     const page = await manager.activePage();
-    return { result: await page.evaluate(expression) };
+    try {
+      return { result: await page.evaluate(expression) };
+    } catch (error) {
+      if (isRpcTransportError(error)) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      throw new DriverError(message, { cause: error, code: "eval_exception" });
+    }
   },
 };

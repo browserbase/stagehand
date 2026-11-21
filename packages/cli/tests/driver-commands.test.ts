@@ -11,12 +11,14 @@ import { keyboardHandlers } from "../src/lib/driver/commands/keyboard.js";
 import { mouseHandlers } from "../src/lib/driver/commands/mouse.js";
 import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
 import { networkHandlers } from "../src/lib/driver/commands/network.js";
+import { pageInfoHandlers } from "../src/lib/driver/commands/page-info.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
 import { runtimeHandlers } from "../src/lib/driver/commands/runtime.js";
 import { tabHandlers } from "../src/lib/driver/commands/tabs.js";
 import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
+import { DriverError } from "../src/lib/driver/errors.js";
 import { hasExplicitDriverTarget, resolveDriverSession } from "../src/lib/driver/command-cli.js";
 import { runDriverCommand } from "../src/lib/driver/runtime.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
@@ -828,6 +830,66 @@ describe("driver commands", () => {
     const result = await runCli(["tab", "switch", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
+  });
+
+  it("wraps eval exceptions in DriverError with eval_exception code", async () => {
+    const page = {
+      evaluate: vi.fn().mockRejectedValue(new Error("Error: boom\n    at <anonymous>:1:7")),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    const result = pageInfoHandlers.eval!(manager, { expression: "throw new Error('boom')" });
+    await expect(result).rejects.toThrow(DriverError);
+    await expect(result).rejects.toMatchObject({
+      code: "eval_exception",
+      message: "Error: boom\n    at <anonymous>:1:7",
+    });
+  });
+
+  it("rethrows CDP connection closed errors from eval without wrapping", async () => {
+    const closedError = new Error("CDP connection closed: socket-close");
+    const page = { evaluate: vi.fn().mockRejectedValue(closedError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(closedError);
+  });
+
+  it("rethrows target-closed errors from eval without wrapping", async () => {
+    const closedError = new Error(
+      "No Page found for target closed before CDP response (sessionId=test, targetId=target)",
+    );
+    const page = { evaluate: vi.fn().mockRejectedValue(closedError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(closedError);
+  });
+
+  it("rethrows CDP connection errors from socket errors without wrapping", async () => {
+    const socketError = new Error("CDP connection closed: socket-error connection reset");
+    const page = { evaluate: vi.fn().mockRejectedValue(socketError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(socketError);
+  });
+
+  it("rethrows target-closed errors from CDP send without wrapping", async () => {
+    const sendError = new Error(
+      "No Page found for target closed before CDP send (sessionId=abc, targetId=xyz)",
+    );
+    const page = { evaluate: vi.fn().mockRejectedValue(sendError) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof pageInfoHandlers)["eval"]>>[0];
+
+    await expect(pageInfoHandlers.eval!(manager, { expression: "1" })).rejects.toBe(sendError);
   });
 });
 
