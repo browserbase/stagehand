@@ -89,7 +89,15 @@ describe("named contexts (end to end through the CLI)", () => {
 
       // 3. sessions create --context-id <name> sends the resolved id.
       const session = await runCli(
-        ["cloud", "sessions", "create", "--context-id", "github", "--persist"],
+        [
+          "cloud",
+          "sessions",
+          "create",
+          "--no-stagehand-extension",
+          "--context-id",
+          "github",
+          "--persist",
+        ],
         { env },
       );
       expect(session.exitCode).toBe(0);
