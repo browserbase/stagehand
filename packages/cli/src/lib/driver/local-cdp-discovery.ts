@@ -3,6 +3,8 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import { DriverError } from "./errors.js";
+
 export interface LocalCdpDiscovery {
   source: string;
   wsUrl: string;
@@ -222,8 +224,9 @@ export async function resolveWsTargetFromPort(
   if (jsonVersionUrl) return jsonVersionUrl;
   const fallback = buildDevToolsWsUrl(port, "/devtools/browser");
   if (await verifyCdpWebSocket(fallback)) return fallback;
-  throw new Error(
+  throw new DriverError(
     `Unable to resolve CDP endpoint from port ${port}. Is Chrome running with remote debugging?`,
+    { code: "cdp_unreachable" },
   );
 }
 

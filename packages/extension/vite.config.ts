@@ -4,6 +4,7 @@ import { zipSync, type Zippable } from "fflate";
 import { defineConfig, type Plugin } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
+import { EXTENSION_BUILD_ID_FILE, STAGEHAND_EXTENSION_BUILD_ID } from "./version.ts";
 import protocolPackageJson from "../protocol/package.json" with { type: "json" };
 import {
   EXTENSION_BUILD_INFO_FILE,
@@ -69,6 +70,7 @@ function buildExtensionArtifacts(): Plugin {
         path.join(outDir, "offscreen/service-worker-heartbeat.html"),
       );
 
+      await stampBuildId(outDir);
       await validateExtension(outDir);
       const archive = zipSync(await readExtensionFiles(outDir), { level: 9 });
       await mkdir(artifactsDir, { recursive: true });
@@ -91,6 +93,26 @@ function buildExtensionArtifacts(): Plugin {
       );
     },
   };
+}
+
+// The unstamped build's fingerprint: the shipped fingerprint hashes the stamped files themselves.
+async function stampBuildId(directory: string): Promise<void> {
+  const files = await readDirectoryFiles(directory);
+  const buildId = fingerprintFiles(files);
+  let stamped = false;
+  for (const [relativePath, contents] of files) {
+    if (!relativePath.endsWith(".js")) continue;
+    const source = Buffer.from(contents).toString("utf8");
+    if (!source.includes(STAGEHAND_EXTENSION_BUILD_ID)) continue;
+    await writeFile(
+      path.join(directory, relativePath),
+      source.replaceAll(STAGEHAND_EXTENSION_BUILD_ID, buildId),
+    );
+    stamped = true;
+  }
+  if (!stamped)
+    throw new Error("The extension build does not contain the build identity placeholder");
+  await writeFile(path.join(directory, EXTENSION_BUILD_ID_FILE), `${buildId}\n`);
 }
 
 function chromeManifestVersion(version: string): string {
