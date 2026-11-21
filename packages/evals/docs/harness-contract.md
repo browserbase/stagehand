@@ -22,13 +22,20 @@ mean equal work:
 
 | Harness                                 | Counted unit          |
 | --------------------------------------- | --------------------- |
-| Codex, Cursor, DeepAgents               | Tool calls            |
+| Codex, Cursor, DeepAgents, Antigravity  | Tool calls            |
 | Eve                                     | Successful tool calls |
 | Mastra                                  | Model steps           |
 | fx                                      | Agent steps           |
 | Claude Code, Pi, Claude CUA, Gemini CUA | Turns                 |
 
 These are execution limits, not comparable measures of model efficiency.
+
+Antigravity is the one facade harness with a builtin tool left on. Its runtime saves any
+tool output over about 4 KB to a file under the run's temporary app-data `brain`
+directory and shows the model only the path, so `view_file` stays enabled. A pre-tool
+hook allows any path that resolves inside that `brain` directory (saved outputs, plus the
+MCP tool schemas the runtime writes there) and denies every other path. `view_file` reads
+are not counted against the budget.
 
 ## Session and result records
 

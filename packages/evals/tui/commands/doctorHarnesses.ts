@@ -554,24 +554,43 @@ async function buildHarnessRow(
             fix: "pnpm install",
           };
       break;
-    case "deepagents": {
-      const uv = env.STAGEHAND_DEEPAGENTS_UV?.trim() || "uv";
+    case "deepagents":
+    case "antigravity": {
+      // Both spawn a Python runner through the Deep Agents session driver's uv.
+      const override = env.STAGEHAND_DEEPAGENTS_UV?.trim();
+      const uv = override || "uv";
       const found = path.isAbsolute(uv) ? (isExecutable(uv) ? uv : undefined) : which(uv);
       binary = found
         ? { status: "ok", label: "uv" }
-        : {
-            status: "fail",
-            label: "uv missing",
-            detail: "uv is not on PATH (or STAGEHAND_DEEPAGENTS_UV points nowhere).",
-            fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
-          };
-      extra = {
-        status: "unknown",
-        label: "python env",
-        detail:
-          "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
-        fix: "uv sync --all-packages --locked",
-      };
+        : override
+          ? {
+              status: "fail",
+              label: "uv override invalid",
+              detail: `STAGEHAND_DEEPAGENTS_UV=${override} is not an executable uv.`,
+              fix: "point STAGEHAND_DEEPAGENTS_UV at a uv binary, or unset it to use uv from PATH",
+            }
+          : {
+              status: "fail",
+              label: "uv missing",
+              detail: "uv is not on PATH.",
+              fix: "curl -LsSf https://astral.sh/uv/install.sh | sh",
+            };
+      extra =
+        harness === "deepagents"
+          ? {
+              status: "unknown",
+              label: "python env",
+              detail:
+                "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
+              fix: "uv sync --all-packages --locked",
+            }
+          : {
+              status: "unknown",
+              label: "python env",
+              detail:
+                "the Antigravity runner is its own uv project; run `uv sync --locked --check` in it to confirm the env is synced.",
+              fix: "uv sync --locked --project packages/integrations/antigravity/runner",
+            };
       break;
     }
     default:
