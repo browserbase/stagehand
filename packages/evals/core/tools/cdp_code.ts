@@ -126,16 +126,20 @@ function keyEventPayload(key: string): {
   };
 }
 
-async function resolveWebSocketEndpoint(input: {
+export async function resolveWebSocketEndpoint(input: {
   kind: "ws" | "http";
   url: string;
+  headers?: Record<string, string>;
 }): Promise<string> {
   if (input.kind === "ws") {
     return input.url;
   }
 
   const baseUrl = input.url.replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/json/version`);
+  const response = await fetch(
+    `${baseUrl}/json/version`,
+    input.headers ? { headers: input.headers } : undefined,
+  );
   if (!response.ok) {
     throw new Error(
       `Failed to resolve CDP websocket URL from ${baseUrl}: ${response.status} ${response.statusText}`,
