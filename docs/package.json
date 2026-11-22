@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mintlify": "^4.2.47",
+    "mintlify": "^4.2.211",
     "tsx": "^4.19.2",
     "zod": "^3.25.0"
   },

@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
-    "sharp": "^0.33.5"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/papaparse": "^5.3.16",
