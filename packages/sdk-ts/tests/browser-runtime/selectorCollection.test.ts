@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page } from "@browserbasehq/stagehand-browser-api/page";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
@@ -6,6 +7,10 @@ import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
 import type { StagehandBrowser } from "../../src/browser/index.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { Stagehand } from "../../src/stagehand.js";
+import { FrameSelectorResolver } from "../../../extension/understudy/selectorResolver.js";
+import { executionContexts } from "../../../extension/understudy/executionContextRegistry.js";
+import type { CDPSessionLike } from "../../../extension/understudy/cdp.js";
+import type { Frame } from "../../../extension/understudy/frame.js";
 
 const extensionDir = fileURLToPath(new URL("../../../extension/dist", import.meta.url));
 
@@ -14,14 +19,17 @@ describe("page-side selector collection", () => {
   let browser: StagehandBrowser | undefined;
   let stagehand: Stagehand | undefined;
   let page: Page;
+  let cdp: CDPClient;
 
   // The extension's blank page loads the real registry and chrome.dom API into
   // its main world, so these checks exercise closed roots without a DOM mock.
   beforeAll(async () => {
     chrome = await launchLocalBrowser({ headless: true }, AbortSignal.timeout(60_000));
     const { localBrowser } = createBrowserFactoriesForTest({
-      connectCdp: async (options) =>
-        CDPClient.connect({ ...options, localExtensionDir: extensionDir }),
+      connectCdp: async (options) => {
+        cdp = await CDPClient.connect({ ...options, localExtensionDir: extensionDir });
+        return cdp;
+      },
     });
     browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
     stagehand = await Stagehand.create({ browser, logging: { level: "off" } });
@@ -132,6 +140,28 @@ describe("page-side selector collection", () => {
       ids(query('css', 'div > button')),
     ];`),
     ).toEqual([["light-host"], ["light-host"], ["open-deep"]]);
+  });
+
+  it("returns counts, selected ranges and complete lists for each engine", async () => {
+    expect(
+      await evaluate(`return [
+      {kind: 'css', value: 'button'}, {kind: 'text', value: 'Save'}, {kind: 'xpath', value: '//button'},
+    ].map(query => ({
+      count: scripts.resolveQuery(query, {mode: 'count'}),
+      first: ids(scripts.resolveQuery(query, {mode: 'range', start: 0, end: 1})),
+      range: ids(scripts.resolveQuery(query, {mode: 'range', start: 2, end: 4})),
+      missing: ids(scripts.resolveQuery(query, {mode: 'range', start: 7, end: 8})),
+      all: ids(scripts.resolveQuery(query, {mode: 'all'})),
+    }));`),
+    ).toEqual(
+      [rootOrder, rootOrder, composedOrder].map((order) => ({
+        count: 7,
+        first: order.slice(0, 1),
+        range: order.slice(2, 4),
+        missing: [],
+        all: order,
+      })),
+    );
   });
 
   it("includes an element scope's own open or closed root and excludes the scope", async () => {
@@ -269,5 +299,88 @@ describe("page-side selector collection", () => {
       matches: Array.from({ length: 3 }, () => ["other", "other-shadow"]),
       hop: ["other-shadow"],
     });
+  });
+
+  it("releases getProperties handles together while a separately selected action target survives", async () => {
+    const { sessionId } = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+      targetId: page.pageId,
+      flatten: true,
+    });
+    const session: CDPSessionLike = {
+      id: sessionId,
+      send: (method, params) => cdp.sendCommand(method, { ...params }, sessionId),
+      on: () => {},
+      off: () => {},
+      close: async () => {},
+    };
+    const { frameTree } = await session.send<{ frameTree: { frame: { id: string } } }>(
+      "Page.getFrameTree",
+    );
+    const { executionContextId } = await session.send<{ executionContextId: number }>(
+      "Page.createIsolatedWorld",
+      { frameId: frameTree.frame.id, worldName: "selector-lifetime-test" },
+    );
+    try {
+      const source = await readFile(
+        new URL("../../../extension/dist/content-script.js", import.meta.url),
+        "utf8",
+      );
+      const installed = await session.send<{ exceptionDetails?: unknown }>("Runtime.evaluate", {
+        expression: source,
+        contextId: executionContextId,
+      });
+      expect(installed.exceptionDetails).toBeUndefined();
+      executionContexts.registerExtensionWorld(session, frameTree.frame.id, executionContextId);
+      const resolver = new FrameSelectorResolver({ session, frameId: frameTree.frame.id } as Frame);
+      const query = { kind: "css", value: "#light-a, #light-b" } as const;
+      const selected = await resolver.resolveAtIndex(query, 1);
+      expect(selected).not.toBeNull();
+      const batch = await resolver.resolveAll(query);
+      const readId = async (objectId: string) => {
+        const response = await session.send<{
+          exceptionDetails?: unknown;
+          result: { value?: unknown };
+        }>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { return this.id; }",
+          returnByValue: true,
+        });
+        expect(response.exceptionDetails).toBeUndefined();
+        return response.result.value;
+      };
+      try {
+        expect(await Promise.all(batch.nodes.map((node) => readId(node.objectId)))).toEqual([
+          "light-a",
+          "light-b",
+        ]);
+        await batch.release();
+        for (const node of batch.nodes) {
+          await expect(readId(node.objectId)).rejects.toThrow(/object|context/i);
+        }
+        expect(await readId(selected!.objectId)).toBe("light-b");
+        const range = await resolver.resolveAll(query, { start: 1, limit: 1 });
+        try {
+          expect(await Promise.all(range.nodes.map((node) => readId(node.objectId)))).toEqual([
+            "light-b",
+          ]);
+          expect(await resolver.count(query)).toBe(2);
+        } finally {
+          await range.release();
+        }
+      } finally {
+        await batch.release();
+        if (selected) await session.send("Runtime.releaseObject", { objectId: selected.objectId });
+      }
+    } finally {
+      executionContexts.unregisterExtensionContext(session, executionContextId);
+      await cdp.sendCommand("Target.detachFromTarget", { sessionId });
+    }
+  });
+
+  it("uses batched masks through the SDK and leaves later locator actions usable", async () => {
+    const screenshot = await page.screenshot({ mask: [page.locator("button")], timeout: 5_000 });
+    expect([...screenshot.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(await page.locator("button").count()).toBe(7);
+    expect(await page.locator("button").nth(5).textContent()).toBe("Save");
   });
 });
