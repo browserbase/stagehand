@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page } from "@browserbasehq/stagehand-browser-api/page";
 import type {
@@ -11,6 +12,15 @@ import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
 import type { StagehandBrowser } from "../../src/browser/index.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { Stagehand } from "../../src/stagehand.js";
+import { FrameElementChainResolver } from "../../../extension/understudy/elementChainResolver.js";
+import { executionContexts } from "../../../extension/understudy/executionContextRegistry.js";
+import type { Frame } from "../../../extension/understudy/frame.js";
+import type { CDPSessionLike } from "../../../extension/understudy/cdp.js";
+
+type RemoteObject = { objectId?: string; value?: unknown };
+type EvaluationResponse = { result: RemoteObject; exceptionDetails?: unknown };
+type DescriptionResponse = { node: { backendNodeId: number; attributes?: string[] } };
+type PropertiesResponse = { result: Array<{ value?: RemoteObject }> };
 
 const extensionDir = fileURLToPath(new URL("../../../extension/dist", import.meta.url));
 const css = (value: string): LocatorQueryStep => ({
@@ -32,12 +42,15 @@ describe("element chain resolution in the browser", () => {
   let browser: StagehandBrowser | undefined;
   let stagehand: Stagehand | undefined;
   let page: Page;
+  let cdp: CDPClient;
 
   beforeAll(async () => {
     chrome = await launchLocalBrowser({ headless: true }, AbortSignal.timeout(60_000));
     const { localBrowser } = createBrowserFactoriesForTest({
-      connectCdp: async (options) =>
-        CDPClient.connect({ ...options, localExtensionDir: extensionDir }),
+      connectCdp: async (options) => {
+        cdp = await CDPClient.connect({ ...options, localExtensionDir: extensionDir });
+        return cdp;
+      },
     });
     browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
     stagehand = await Stagehand.create({ browser, logging: { level: "off" } });
@@ -279,5 +292,206 @@ describe("element chain resolution in the browser", () => {
     });`),
     ).toEqual(unsupported.map(() => "Frame entry is not supported by the element chain resolver"));
     expect(await resolve(css(".card, iframe"), nth(0), css("button"))).toEqual(["a", "a-deep"]);
+  });
+
+  async function attachResolver() {
+    const { sessionId } = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+      targetId: page.pageId,
+      flatten: true,
+    });
+    const calls: Array<{ method: string; params?: object; result?: unknown }> = [];
+    const inspect = <T>(method: string, params?: object) =>
+      cdp.sendCommand<T>(method, { ...params }, sessionId);
+    const session: CDPSessionLike = {
+      id: sessionId,
+      send: async <T>(method: string, params?: object): Promise<T> => {
+        const call: (typeof calls)[number] = { method, params };
+        calls.push(call);
+        const result = await inspect<T>(method, params);
+        call.result = result;
+        return result;
+      },
+      on() {},
+      off() {},
+      async close() {},
+    };
+    let contextId: number | undefined;
+    const close = async () => {
+      if (contextId !== undefined) executionContexts.unregisterExtensionContext(session, contextId);
+      await cdp.sendCommand("Target.detachFromTarget", { sessionId });
+    };
+    try {
+      const { frameTree } = await inspect<{ frameTree: { frame: { id: string } } }>(
+        "Page.getFrameTree",
+      );
+      const created = await inspect<{ executionContextId: number }>("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: "element-chain-test",
+      });
+      contextId = created.executionContextId;
+      const source = await readFile(
+        new URL("../../../extension/dist/content-script.js", import.meta.url),
+        "utf8",
+      );
+      const installed = await inspect<EvaluationResponse>("Runtime.evaluate", {
+        expression: source,
+        contextId,
+      });
+      expect(installed.exceptionDetails).toBeUndefined();
+      executionContexts.registerExtensionWorld(session, frameTree.frame.id, contextId);
+      const resolver = new FrameElementChainResolver({
+        session,
+        frameId: frameTree.frame.id,
+      } as Frame);
+      return { resolver, calls, inspect, session, contextId, close };
+    } catch (error) {
+      await close();
+      throw error;
+    }
+  }
+
+  it.each([css("button"), text("Save"), xpath(".//button")])(
+    "exports only requested $selector.kind targets at 500 and 1,000 matches",
+    async (query) => {
+      const { resolver, calls, close } = await attachResolver();
+      const chain: LocatorChain = { steps: [css(".card"), query] };
+      try {
+        for (const size of [500, 1000]) {
+          await page.evaluate(`document.body.innerHTML = Array.from({length: ${size}}, (_, i) =>
+            '<section class="card"><button id="match-' + i + '">Save</button></section>').join('')`);
+          calls.length = 0;
+          expect(await resolver.resolve(chain, { mode: "count" })).toEqual({
+            mode: "count",
+            count: size,
+          });
+          expect(calls.map((call) => call.method)).toEqual([
+            "Runtime.evaluate",
+            "Runtime.releaseObjectGroup",
+          ]);
+          expect(calls[0].params).toMatchObject({ returnByValue: true });
+          for (const index of [0, size - 1]) {
+            calls.length = 0;
+            const result = await resolver.resolve(chain, { mode: "selected", index });
+            expect(result.mode).toBe("selected");
+            if (result.mode === "count") throw new Error("expected targets");
+            expect(result.targets).toHaveLength(1);
+            expect(calls.map((call) => call.method)).toEqual([
+              "Runtime.evaluate",
+              "DOM.describeNode",
+              "Runtime.releaseObjectGroup",
+            ]);
+            const { node } = calls[1].result as DescriptionResponse;
+            expect(node.attributes).toContain(`match-${index}`);
+            expect(result.targets[0].backendNodeId).toBe(node.backendNodeId);
+          }
+          calls.length = 0;
+          const all = await resolver.resolve(chain, { mode: "all" });
+          if (all.mode === "count") throw new Error("expected targets");
+          expect(all.targets).toHaveLength(size);
+          const descriptions = calls.filter((call) => call.method === "DOM.describeNode");
+          expect(descriptions).toHaveLength(size);
+          expect(all.targets.map((target) => target.backendNodeId)).toEqual(
+            descriptions.map((call) => (call.result as DescriptionResponse).node.backendNodeId),
+          );
+          expect(
+            descriptions.map((call) => (call.result as DescriptionResponse).node.attributes?.[1]),
+          ).toEqual(Array.from({ length: size }, (_, i) => `match-${i}`));
+          expect(
+            calls.filter((call) => call.method !== "DOM.describeNode").map((call) => call.method),
+          ).toEqual(["Runtime.evaluate", "Runtime.getProperties", "Runtime.releaseObjectGroup"]);
+        }
+      } finally {
+        await close();
+      }
+    },
+    30_000,
+  );
+
+  it("releases arrays and element handles while returned identities still resolve to the exact target", async () => {
+    const { resolver, calls, inspect, contextId, close } = await attachResolver();
+    try {
+      const chain: LocatorChain = { steps: [css(".card"), css("button")] };
+      const all = await resolver.resolve(chain, { mode: "all" });
+      const selected = await resolver.resolve(chain, { mode: "selected", index: 2 });
+      if (all.mode === "count" || selected.mode === "count") throw new Error("expected targets");
+      expect(all.targets.map((target) => target.backendNodeId)).toContain(
+        selected.targets[0].backendNodeId,
+      );
+      const groups = calls
+        .filter((call) => call.method === "Runtime.evaluate")
+        .map((call) => (call.params as { objectGroup: string }).objectGroup);
+      expect(new Set(groups).size).toBe(2);
+      const arraysAndNodes = calls.flatMap((call) => {
+        if (call.method === "Runtime.evaluate")
+          return [(call.result as EvaluationResponse).result.objectId!];
+        if (call.method === "Runtime.getProperties")
+          return (call.result as PropertiesResponse).result.flatMap((property) =>
+            property.value?.objectId ? [property.value.objectId] : [],
+          );
+        return [];
+      });
+      for (const objectId of arraysAndNodes) {
+        await expect(inspect("Runtime.getProperties", { objectId })).rejects.toThrow(
+          /object|context/i,
+        );
+      }
+      const { object } = await inspect<{ object: RemoteObject }>("DOM.resolveNode", {
+        backendNodeId: selected.targets[0].backendNodeId,
+        executionContextId: contextId,
+      });
+      try {
+        const live = await inspect<EvaluationResponse>("Runtime.callFunctionOn", {
+          objectId: object.objectId,
+          functionDeclaration:
+            "function() { this.setAttribute('data-selected', 'yes'); return this.id; }",
+          returnByValue: true,
+        });
+        expect(live.exceptionDetails).toBeUndefined();
+        expect(live.result.value).toBe("b");
+        // Subsequent resolution and cleanup must not release the consumer's handle.
+        await resolver.resolve(chain, { mode: "all" });
+        const retained = await inspect<EvaluationResponse>("Runtime.callFunctionOn", {
+          objectId: object.objectId,
+          functionDeclaration: "function() { return this.getAttribute('data-selected'); }",
+          returnByValue: true,
+        });
+        expect(retained.result.value).toBe("yes");
+      } finally {
+        await inspect("Runtime.releaseObject", { objectId: object.objectId });
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  it("returns empty results in every mode and preserves page-side failures", async () => {
+    const { resolver, calls, close } = await attachResolver();
+    try {
+      const missing: LocatorChain = { steps: [css(".missing"), css("button")] };
+      expect(await resolver.resolve(missing, { mode: "count" })).toEqual({
+        mode: "count",
+        count: 0,
+      });
+      expect(await resolver.resolve(missing, { mode: "selected", index: 0 })).toEqual({
+        mode: "selected",
+        targets: [],
+      });
+      expect(await resolver.resolve(missing, { mode: "all" })).toEqual({
+        mode: "all",
+        targets: [],
+      });
+      expect(
+        await resolver.resolve({ steps: [css("button")] }, { mode: "selected", index: 9 }),
+      ).toEqual({ mode: "selected", targets: [] });
+      expect(calls.some((call) => call.method === "DOM.describeNode")).toBe(false);
+      await expect(
+        resolver.resolve(
+          { steps: [css(".card"), { type: "frame", selector: { kind: "css", value: "button" } }] },
+          { mode: "count" },
+        ),
+      ).rejects.toThrow("Frame entry is not supported");
+    } finally {
+      await close();
+    }
   });
 });

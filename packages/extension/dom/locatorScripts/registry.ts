@@ -5,12 +5,13 @@ import { resolveCssSelector, resolveTextSelector, resolveXPathMainWorld } from "
 import { createSelectorWait } from "./waitForSelector.js";
 import { queryAll } from "./queryAll.js";
 import { resolveQuery } from "./resolveQuery.js";
-import { resolveElementChain } from "./resolveElementChain.js";
+import { resolveElementChain, resolveElementChainResult } from "./resolveElementChain.js";
 
 export const locatorScripts = Object.freeze({
   queryAll,
   resolveQuery,
   resolveElementChain,
+  resolveElementChainResult,
   countCssMatchesPrimary,
   countTextMatches,
   countXPathMatchesMainWorld,

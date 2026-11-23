@@ -1,6 +1,27 @@
 import type { LocatorChain } from "@browserbasehq/stagehand-protocol/types";
 import { queryAll } from "./queryAll.js";
 
+export type ElementChainResolution =
+  | { mode: "count" }
+  | { mode: "selected"; index: number }
+  | { mode: "all" };
+
+/** Apply final-result selection only after every intermediate step is complete. */
+export function resolveElementChainResult(
+  chain: LocatorChain,
+  resolution: ElementChainResolution,
+): number | Element | Element[] | null {
+  const matches = resolveElementChain(chain);
+  switch (resolution.mode) {
+    case "count":
+      return matches.length;
+    case "selected":
+      return matches[resolution.index] ?? null;
+    case "all":
+      return matches;
+  }
+}
+
 /**
  * Resolve a validated chain within one execution context. Intermediate matches
  * remain DOM objects: queryAll deduplicates by identity in prior-scope order,
