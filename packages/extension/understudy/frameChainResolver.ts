@@ -12,7 +12,7 @@ import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { Page } from "./page.js";
 import { Progress, runWithProgress } from "./progress.js";
 
-type ChainWorld = { session: CDPSessionLike; frameId: string; objectId: string };
+type ChainWorld = { session: CDPSessionLike; frameId: string; objectId: string; loaderId?: string };
 type Match = FrameChainMatch & { world: ChainWorld };
 
 /** Internal cross-frame orchestration; public locator wiring is a separate change. */
@@ -79,30 +79,27 @@ class FrameChainOperation {
       if (step.type === "frame" && matches.some((match) => !match.isFrame)) {
         throw new Error("Explicit frame hop requires an iframe or frame element");
       }
-      const scopes: Match[] = [];
-      for (const match of matches) {
-        if (!match.isFrame) {
-          scopes.push(match);
-          continue;
-        }
-        const [target] = await this.targets(match.world, [match.id]);
-        const frameId = await this.progress.run("entering chain iframe", () =>
-          findContentFrameId(
-            this.page,
-            match.world,
-            target.backendNodeId,
-            this.progress,
-            Number.isFinite(this.progress.remainingMs()) ? Infinity : 1000,
-          ),
+      const scopes = [...matches];
+      // Only iframe hosts need intermediate backend IDs. Export them in one
+      // batch per document, retaining their positions among ordinary scopes.
+      for (const [world, entries] of groupByWorld(matches)) {
+        const frames = entries.filter(({ match }) => match.isFrame);
+        if (!frames.length) continue;
+        const targets = await this.targets(
+          world,
+          frames.map(({ match }) => match.id),
         );
-        if (!frameId)
-          throw new Error(
-            `Unable to obtain a content frame for backend node: ${target.backendNodeId}`,
-          );
-        scopes.push({ world: await this.world(frameId), id: 0, isFrame: false });
+        for (const [index, entry] of frames.entries()) {
+          scopes[entry.index] = {
+            world: await this.childWorld(entry.match, targets[index].backendNodeId),
+            id: 0,
+            isFrame: false,
+          };
+        }
       }
       matches = await this.query(step.selector, scopes);
     }
+    this.assertWorlds();
     if (resolution.mode === "count") return { mode: "count", count: matches.length };
     if (resolution.mode === "selected") {
       matches = matches[resolution.index] ? [matches[resolution.index]] : [];
@@ -117,7 +114,50 @@ class FrameChainOperation {
         targets[index] = resolved[i];
       });
     }
+    this.assertWorlds();
     return { mode: resolution.mode, targets };
+  }
+
+  private async childWorld(match: Match, backendNodeId: number): Promise<ChainWorld> {
+    const deadline = Number.isFinite(this.progress.remainingMs())
+      ? Infinity
+      : performance.now() + 1000;
+    while (true) {
+      this.assertWorld(match.world);
+      const frameId = await this.progress.run("entering chain iframe", () =>
+        findContentFrameId(this.page, match.world, backendNodeId, this.progress, 0),
+      );
+      this.assertWorld(match.world);
+      if (frameId) return this.world(frameId);
+      // A registered sibling is not evidence that this host's frame has been
+      // discovered. Retry discovery, but stop immediately for a detached host.
+      await this.call(match.world, "function(id) { this.elements([id]); }", [match.id], true);
+      if (this.readinessOptions.readinessRetries === "none" || performance.now() >= deadline) {
+        throw new Error(`Unable to obtain a content frame for backend node: ${backendNodeId}`);
+      }
+      await this.progress.delay(50);
+    }
+  }
+
+  private assertAttached(frameId: string) {
+    const frame = this.page.registry.frames.get(frameId);
+    if (!frame) throw new Error(`Chain frame detached: ${frameId}`);
+    return frame;
+  }
+
+  private assertWorld(world: ChainWorld) {
+    this.progress.throwIfStopped();
+    const frame = this.assertAttached(world.frameId);
+    if (
+      this.page.getSessionForFrame(world.frameId) !== world.session ||
+      frame.lastSeen?.loaderId !== world.loaderId
+    ) {
+      throw new Error(`Chain frame changed during resolution: ${world.frameId}`);
+    }
+  }
+
+  private assertWorlds() {
+    for (const world of this.worlds.values()) this.assertWorld(world);
   }
 
   private async query(selector: LocatorQuerySelector, scopes: Match[]): Promise<Match[]> {
@@ -149,11 +189,15 @@ class FrameChainOperation {
 
   private async world(frameId: string): Promise<ChainWorld> {
     const cached = this.worlds.get(frameId);
-    if (cached) return cached;
+    if (cached) {
+      this.assertWorld(cached);
+      return cached;
+    }
     // Recheck ownership between attempts: an OOPIF may be adopted while its
     // isolated world is being installed. Deadline-less calls get one attempt.
     while (true) {
       this.progress.throwIfStopped();
+      this.assertAttached(frameId);
       const session = this.page.getSessionForFrame(frameId);
       let contextId: number;
       try {
@@ -164,6 +208,7 @@ class FrameChainOperation {
         ));
       } catch (error) {
         this.progress.throwIfStopped();
+        this.assertAttached(frameId);
         if (
           (isCdpClosedError(error) &&
             (error.message.startsWith("CDP connection closed:") ||
@@ -172,9 +217,20 @@ class FrameChainOperation {
           !Number.isFinite(this.progress.remainingMs())
         )
           throw error;
+        await this.progress.delay(50);
         continue;
       }
-      if (session !== this.page.getSessionForFrame(frameId)) continue;
+      if (session !== this.page.getSessionForFrame(frameId)) {
+        if (
+          this.readinessOptions.readinessRetries === "none" ||
+          !Number.isFinite(this.progress.remainingMs())
+        ) {
+          throw new Error(`Chain frame changed during readiness: ${frameId}`);
+        }
+        await this.progress.delay(50);
+        continue;
+      }
+      const loaderId = this.assertAttached(frameId).lastSeen?.loaderId;
       const response = await this.send<Protocol.Runtime.EvaluateResponse>(
         session,
         "Runtime.evaluate",
@@ -186,7 +242,8 @@ class FrameChainOperation {
       );
       throwException(response.exceptionDetails);
       if (!response.result.objectId) throw new Error("Missing frame chain scope handle");
-      const world = { session, frameId, objectId: response.result.objectId };
+      const world = { session, frameId, objectId: response.result.objectId, loaderId };
+      this.assertWorld(world);
       this.worlds.set(frameId, world);
       return world;
     }
@@ -198,6 +255,7 @@ class FrameChainOperation {
     args: unknown[],
     returnByValue = false,
   ) {
+    this.assertWorld(world);
     const response = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
       world.session,
       "Runtime.callFunctionOn",
@@ -209,6 +267,7 @@ class FrameChainOperation {
         returnByValue,
       },
     );
+    this.assertWorld(world);
     throwException(response.exceptionDetails);
     return response.result;
   }

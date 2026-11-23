@@ -31,6 +31,9 @@ export function createFrameChainScope() {
       return selected.map((id) => {
         const node = nodes[id];
         if (!(node instanceof Element)) throw new Error("Chain target is not an element");
+        if (/^(iframe|frame)$/i.test(node.localName) && !node.isConnected) {
+          throw new Error("Chain iframe detached before entry");
+        }
         return node;
       });
     },

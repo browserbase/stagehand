@@ -3,8 +3,10 @@
 import { trace } from "@opentelemetry/api";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocatorChain, LocatorQueryStep } from "@browserbasehq/stagehand-protocol/types";
+import type { ElementChainResolution } from "../../../extension/dom/locatorScripts/resolveElementChain.js";
+import type { CDPSessionLike } from "../../../extension/understudy/cdp.js";
 import { StagehandLogger } from "../../../extension/logger.js";
 import { browserWebSocketFactory } from "../../../extension/understudy/browserWebSocketTransport.js";
 import { BrowserContext } from "../../../extension/understudy/context.js";
@@ -94,6 +96,8 @@ describe("iframe chain resolution in Chrome", () => {
     }
   });
 
+  afterEach(() => vi.restoreAllMocks());
+
   beforeEach(async () => {
     await page.goto(fixture.url);
     resolver = new FrameChainResolver(page);
@@ -115,10 +119,17 @@ describe("iframe chain resolution in Chrome", () => {
     );
   }
 
-  async function resolve(steps: LocatorChain["steps"], mode: "all" | "count" = "all") {
+  async function resolve(
+    steps: LocatorChain["steps"],
+    mode: "all" | "count" | ElementChainResolution = "all",
+  ) {
     const progress = new Progress("test frame chain", 10_000);
     try {
-      return await resolver.resolve({ steps }, { mode }, progress);
+      return await resolver.resolve(
+        { steps },
+        typeof mode === "string" ? { mode } : mode,
+        progress,
+      );
     } finally {
       progress.dispose();
     }
@@ -263,6 +274,266 @@ describe("iframe chain resolution in Chrome", () => {
           ),
         ),
       ).toEqual(["no", "yes"]);
+    },
+  );
+  async function mixedScopes() {
+    await page.evaluate(() => {
+      document.body.innerHTML = '<section class="scope"><button id="a">Save</button></section>';
+    });
+    await addFrame("/child", true);
+    await page.evaluate(() => {
+      document.querySelector("iframe")!.className = "scope";
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<section class="scope"><button id="b">Save</button></section>',
+      );
+    });
+  }
+
+  it("preserves mixed-document scope order in all, count, first & nth modes", async () => {
+    await mixedScopes();
+    const steps: LocatorChain["steps"] = [css(".scope"), css("button")];
+    const all = await targets(steps);
+    expect(await ids(all)).toEqual(["a", "save", "open-save", "closed-save", "b"]);
+    expect(await resolve(steps, "count")).toEqual({ mode: "count", count: 5 });
+    for (const index of [0, 1, 4, 5]) {
+      const selected = await resolve(steps, { mode: "selected", index });
+      expect(selected).toEqual({ mode: "selected", targets: all.slice(index, index + 1) });
+    }
+    expect(await ids(await targets([...steps, { type: "nth", index: 4 }]))).toEqual(["b"]);
+    expect(
+      await ids(await targets([css(".scope"), { type: "nth", index: 1 }, css("#save")])),
+    ).toEqual(["save"]);
+    expect(await targets([css(".scope"), { type: "nth", index: 9 }, css("button")])).toEqual([]);
+  });
+
+  it("deduplicates overlapping scopes by document identity before selecting positions", async () => {
+    await mixedScopes();
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<section class="scope"><div class="scope"><button id="same">Save</button><button id="same">Save</button></div></section>',
+      );
+    });
+    const steps: LocatorChain["steps"] = [css(".scope, body"), css("button")];
+    const all = await targets(steps);
+    // body comes first, so its ordinary descendants precede the child document.
+    expect(await ids(all)).toEqual(["a", "b", "same", "same", "save", "open-save", "closed-save"]);
+    expect(all[2].backendNodeId).not.toBe(all[3].backendNodeId);
+    expect(await ids(await targets([...steps, { type: "nth", index: 4 }]))).toEqual(["save"]);
+  });
+
+  function recordTraffic() {
+    const calls: {
+      session: CDPSessionLike;
+      method: string;
+      params?: Record<string, unknown>;
+      result?: unknown;
+    }[] = [];
+    const spies = [...page.sessions.values()].map((session) => {
+      const send = session.send.bind(session);
+      return vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+        const call: (typeof calls)[number] = {
+          session,
+          method,
+          params: params as Record<string, unknown>,
+        };
+        calls.push(call);
+        const result = await send(method, params);
+        call.result = result;
+        return result;
+      });
+    });
+    return { calls, stop: () => spies.forEach((spy) => spy.mockRestore()) };
+  }
+
+  it.each([query("css", "button"), query("text", "Save"), query("xpath", ".//button")])(
+    "batches $selector.kind scopes at 500 & 1,000 matches per document",
+    async (selector) => {
+      await mixedScopes();
+      const [childTarget] = await targets([css("iframe"), css("#save")]);
+      const child = page.frameForId(childTarget.frameId);
+      for (const size of [500, 1000]) {
+        await page.evaluate((size) => {
+          for (const [side, section] of Array.from(
+            document.querySelectorAll("section"),
+          ).entries()) {
+            section.innerHTML = Array.from(
+              { length: size / 2 },
+              (_, i) =>
+                '<div class="card"><button id="main-' +
+                ((side * size) / 2 + i) +
+                '">Save</button></div>',
+            ).join("");
+          }
+        }, size);
+        await child.evaluate((size) => {
+          document.body.innerHTML = Array.from(
+            { length: size },
+            (_, i) => '<div class="card"><button id="child-' + i + '">Save</button></div>',
+          ).join("");
+        }, size);
+        const steps: LocatorChain["steps"] = [css(".card, iframe"), selector];
+        for (const mode of [
+          { mode: "count" },
+          { mode: "selected", index: 0 },
+          { mode: "selected", index: 2 * size - 1 },
+          { mode: "all" },
+        ] satisfies ElementChainResolution[]) {
+          const traffic = recordTraffic();
+          let result;
+          try {
+            result = await resolve(steps, mode);
+          } finally {
+            traffic.stop();
+          }
+          const queries = traffic.calls.filter((call) =>
+            String(call.params?.functionDeclaration).includes("this.query("),
+          );
+          expect(queries).toHaveLength(3); // initial main query, main scopes, child document
+          // One describe enters the iframe; only requested final targets add describes.
+          expect(traffic.calls.filter((call) => call.method === "DOM.describeNode")).toHaveLength(
+            1 + (mode.mode === "count" ? 0 : mode.mode === "all" ? 2 * size : 1),
+          );
+          if (result.mode === "count") expect(result.count).toBe(2 * size);
+          else if (mode.mode === "selected")
+            expect(await ids(result.targets)).toEqual([
+              mode.index === 0 ? "main-0" : "main-" + (size - 1),
+            ]);
+          else
+            expect(await ids(result.targets)).toEqual([
+              ...Array.from({ length: size / 2 }, (_, i) => "main-" + i),
+              ...Array.from({ length: size }, (_, i) => "child-" + i),
+              ...Array.from({ length: size / 2 }, (_, i) => "main-" + (size / 2 + i)),
+            ]);
+        }
+      }
+    },
+    30_000,
+  );
+
+  it("releases temporary objects in every session while consumer handles stay usable", async () => {
+    await mixedScopes();
+    const steps: LocatorChain["steps"] = [css(".scope"), css("button")];
+    const traffic = recordTraffic();
+    let matches: ElementChainTarget[];
+    try {
+      matches = await targets(steps);
+    } finally {
+      traffic.stop();
+    }
+    const sessions = new Set(matches.map((target) => target.session));
+    expect(sessions.size).toBe(2);
+    for (const session of sessions) {
+      expect(
+        traffic.calls.filter(
+          (call) => call.session === session && call.method === "Runtime.releaseObjectGroup",
+        ),
+      ).toHaveLength(1);
+    }
+    for (const call of traffic.calls) {
+      const response = call.result as { result?: { objectId?: string } } | undefined;
+      if (!call.params?.objectGroup || !response?.result?.objectId) continue;
+      await expect(
+        call.session.send("Runtime.callFunctionOn", {
+          objectId: response.result.objectId,
+          functionDeclaration: "function() { return true; }",
+        }),
+      ).rejects.toThrow();
+    }
+    const target = matches[1];
+    const { object } = await target.session.send<{ object: { objectId: string } }>(
+      "DOM.resolveNode",
+      { backendNodeId: target.backendNodeId },
+    );
+    try {
+      await resolve(steps, "count");
+      const result = await target.session.send<{ result: { value: string } }>(
+        "Runtime.callFunctionOn",
+        {
+          objectId: object.objectId,
+          functionDeclaration: "function() { return this.id; }",
+          returnByValue: true,
+        },
+      );
+      expect(result.result.value).toBe("save");
+    } finally {
+      await target.session.send("Runtime.releaseObject", { objectId: object.objectId });
+    }
+  });
+
+  it("rejects an iframe removed after matching but before entry", async () => {
+    await addFrame();
+    const send = page.mainSession.send.bind(page.mainSession);
+    let removed = false;
+    vi.spyOn(page.mainSession, "send").mockImplementation(async (method, params) => {
+      const result = await send(method, params);
+      if (
+        !removed &&
+        method === "Runtime.callFunctionOn" &&
+        String((params as { functionDeclaration?: string }).functionDeclaration).includes(
+          "this.query(",
+        )
+      ) {
+        removed = true;
+        await page.evaluate(() => document.querySelector("iframe")!.remove());
+      }
+      return result;
+    });
+    await expect(targets([css("iframe"), css("button")])).rejects.toThrow(
+      "Chain iframe detached before entry",
+    );
+  });
+
+  it.each(["detach", "navigate"])(
+    "rejects %s during a child query & cleans both sessions",
+    async (change) => {
+      await addFrame("/child", true);
+      const [target] = await targets([css("iframe"), css("#save")]);
+      const send = target.session.send.bind(target.session);
+      let changed = false;
+      const releases: string[] = [];
+      const parentSend = page.mainSession.send.bind(page.mainSession);
+      vi.spyOn(page.mainSession, "send").mockImplementation(async (method, params) => {
+        if (method === "Runtime.releaseObjectGroup") releases.push("main");
+        return parentSend(method, params);
+      });
+      vi.spyOn(target.session, "send").mockImplementation(async (method, params) => {
+        if (method === "Runtime.releaseObjectGroup") releases.push("child");
+        const result = await send(method, params);
+        if (
+          !changed &&
+          method === "Runtime.callFunctionOn" &&
+          String((params as { functionDeclaration?: string }).functionDeclaration).includes(
+            "this.query(",
+          )
+        ) {
+          changed = true;
+          if (change === "detach") {
+            await page.evaluate(() => document.querySelector("iframe")!.remove());
+            await expect.poll(() => page.registry.frames.has(target.frameId)).toBe(false);
+          } else {
+            const oldLoader = page.registry.frames.get(target.frameId)?.lastSeen?.loaderId;
+            await page.evaluate(
+              (url) =>
+                new Promise<void>((resolve) => {
+                  const iframe = document.querySelector("iframe")!;
+                  iframe.onload = () => resolve();
+                  iframe.src = url;
+                }),
+              new URL("/child", fixture.url).href,
+            );
+            await expect
+              .poll(() => page.registry.frames.get(target.frameId)?.lastSeen?.loaderId)
+              .not.toBe(oldLoader);
+          }
+        }
+        return result;
+      });
+      await expect(targets([css("iframe"), css("#save")])).rejects.toThrow(
+        /Chain frame (detached|changed)/,
+      );
+      expect(releases).toEqual(expect.arrayContaining(["main", "child"]));
     },
   );
 });
