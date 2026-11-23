@@ -1,0 +1,41 @@
+import type { LocatorChain } from "@browserbasehq/stagehand-protocol/types";
+import { queryAll } from "./queryAll.js";
+
+/**
+ * Resolve a validated chain within one execution context. Intermediate matches
+ * remain DOM objects: queryAll deduplicates by identity in prior-scope order,
+ * before each positional step runs. Callers own exporting the final targets.
+ */
+export function resolveElementChain(
+  chain: LocatorChain,
+  scopes: readonly (Document | Element)[] = [document],
+): Element[] {
+  // Frame transitions require the cross-frame resolver; never interpret an
+  // explicit hop as an ordinary element query, even after an empty prefix.
+  if (chain.steps.some((step) => step.type === "frame")) {
+    throw new Error("Frame entry is not supported by the element chain resolver");
+  }
+
+  let current: readonly (Document | Element)[] = scopes;
+  let matches: Element[] = [];
+  for (const step of chain.steps) {
+    if (step.type === "nth") {
+      const selected = matches[step.index];
+      matches = selected ? [selected] : [];
+    } else if (step.type === "query") {
+      if (
+        current.some(
+          (scope) => scope instanceof Element && /^(iframe|frame)$/i.test(scope.localName),
+        )
+      ) {
+        throw new Error("Frame entry is not supported by the element chain resolver");
+      }
+      // Legacy document XPath can return non-element nodes. They cannot become
+      // element scopes or chain targets; leave the legacy collector unchanged.
+      matches = queryAll(step.selector, current).filter((node) => node instanceof Element);
+    }
+    current = matches;
+    if (!matches.length) break;
+  }
+  return matches;
+}
