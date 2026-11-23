@@ -60,7 +60,7 @@ class FakeBrowserbaseAPI:
         self.delete_errors: list[Exception | None] = []
         self.upload_calls: list[bytes] = []
         self.create_calls: list[
-            tuple[BrowserbaseSessionCreateParams, Mapping[str, Any] | None, str | None]
+            tuple[BrowserbaseSessionCreateParams, Mapping[str, Any], str | None]
         ] = []
         self.retrieve_calls: list[str] = []
         self.release_calls: list[str] = []
@@ -82,7 +82,7 @@ class FakeBrowserbaseAPI:
         self,
         options: BrowserbaseSessionCreateParams,
         *,
-        user_metadata: Mapping[str, Any] | None,
+        user_metadata: Mapping[str, Any],
         extension_id: str | None,
     ) -> tuple[str, str]:
         self.create_calls.append((options, user_metadata, extension_id))
@@ -292,32 +292,11 @@ async def test_built_in_extension_skips_the_upload_and_cleanup(
     await session.close()
 
     assert fake_api.upload_calls == []
-    created_options, metadata, extension_id = fake_api.create_calls[-1]
+    created_options, _, extension_id = fake_api.create_calls[-1]
     assert created_options is options
-    assert metadata is None
     assert extension_id == options.extension_id
     assert fake_api.delete_calls == []
     assert fake_api.release_calls == ["session-id"]
-
-
-async def test_built_in_extension_sends_only_the_caller_metadata(
-    fake_api: FakeBrowserbaseAPI,
-) -> None:
-    options = BrowserbaseSessionCreateParams(stagehand=True, user_metadata={"tenant": "acme"})
-    await _BrowserbaseSessionClient(fake_api).create_session(options)
-
-    _, metadata, _ = fake_api.create_calls[-1]
-    assert metadata == {"tenant": "acme"}
-
-
-def test_session_create_kwargs_omits_user_metadata_when_none() -> None:
-    kwargs = _session_create_kwargs(
-        BrowserbaseSessionCreateParams(user_metadata={"ignored": "options"}),
-        user_metadata=None,
-        extension_id=None,
-    )
-
-    assert "user_metadata" not in kwargs
 
 
 async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowserbaseAPI) -> None:

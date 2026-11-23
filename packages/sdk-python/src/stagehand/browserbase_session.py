@@ -36,7 +36,7 @@ def _is_bad_request(error: Exception) -> bool:
 def _session_create_kwargs(
     options: BrowserbaseSessionCreateParams,
     *,
-    user_metadata: Mapping[str, Any] | None,
+    user_metadata: Mapping[str, Any],
     extension_id: str | None,
 ) -> dict[str, Any]:
     values: dict[str, Any] = options.model_dump(
@@ -68,9 +68,7 @@ def _session_create_kwargs(
                     if source_key in screen:
                         screen[target_key] = screen.pop(source_key)
 
-    kwargs: dict[str, Any] = dict(values)
-    if user_metadata is not None:
-        kwargs["user_metadata"] = dict(user_metadata)
+    kwargs: dict[str, Any] = {**values, "user_metadata": dict(user_metadata)}
     if extension_id is not None:
         kwargs["extension_id"] = extension_id
     if options.timeout is not None:
@@ -102,7 +100,7 @@ class _BrowserbaseAPI(Protocol):
         self,
         options: BrowserbaseSessionCreateParams,
         *,
-        user_metadata: Mapping[str, Any] | None,
+        user_metadata: Mapping[str, Any],
         extension_id: str | None,
     ) -> tuple[str, str]: ...
 
@@ -156,7 +154,7 @@ class _OfficialBrowserbaseAPI:
         self,
         options: BrowserbaseSessionCreateParams,
         *,
-        user_metadata: Mapping[str, Any] | None,
+        user_metadata: Mapping[str, Any],
         extension_id: str | None,
     ) -> tuple[str, str]:
         kwargs = _session_create_kwargs(
@@ -259,11 +257,10 @@ class _BrowserbaseSessionClient:
                 raise RuntimeError("Browserbase extension upload returned an empty extension ID")
 
         extension_id = owned_extension_id or options.extension_id
-        user_metadata = (
-            options.user_metadata
-            if options.stagehand
-            else {**(options.user_metadata or {}), **STAGEHAND_SESSION_METADATA}
-        )
+        user_metadata = {
+            **(options.user_metadata or {}),
+            **STAGEHAND_SESSION_METADATA,
+        }
         try:
             raw_session_id, raw_cdp_url = await self._api.create_session(
                 options,

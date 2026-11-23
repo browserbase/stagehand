@@ -1101,7 +1101,6 @@ async def test_browserbase_launch_with_stagehand_skips_the_extension_upload(
     assert body["stagehand"]["protocolVersion"] == STAGEHAND_PROTOCOL_VERSION
     assert body["stagehand"]["clientInfo"]["name"] == "stagehand-sdk-python"
     assert "extensionId" not in body
-    assert "userMetadata" not in body
 
 
 async def test_browserbase_launch_hints_at_removing_stagehand_on_a_bad_request(

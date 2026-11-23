@@ -825,7 +825,6 @@ describe("Stagehand browser factories", () => {
       clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
     });
     expect(body).not.toHaveProperty("extensionId");
-    expect(body).not.toHaveProperty("userMetadata");
     await invalidateStagehandBrowser(browser);
   });
 

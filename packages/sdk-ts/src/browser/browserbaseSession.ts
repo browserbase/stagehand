@@ -111,9 +111,11 @@ export function createBrowserbaseSessionClient(
         session = await browserbase.createSession({
           ...params,
           ...(extension === undefined ? {} : { extensionId: extension.extensionId }),
-          ...(builtInExtension === undefined
-            ? { userMetadata: { ...params.userMetadata, ...STAGEHAND_SESSION_METADATA } }
-            : { stagehand: builtInExtension }),
+          ...(builtInExtension === undefined ? {} : { stagehand: builtInExtension }),
+          userMetadata: {
+            ...params.userMetadata,
+            ...STAGEHAND_SESSION_METADATA,
+          },
         });
       } catch (error) {
         await extension?.cleanup().catch(() => undefined);
