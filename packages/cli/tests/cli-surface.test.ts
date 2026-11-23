@@ -39,6 +39,7 @@ const functionsCommandsWithExamples = [
   ["functions", "dev"],
   ["functions", "publish"],
   ["functions", "invoke"],
+  ["functions", "delete"],
 ];
 
 const templatesCommandsWithExamples = [

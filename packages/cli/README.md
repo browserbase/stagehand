@@ -268,6 +268,7 @@ browse functions dev index.ts              # local development server (--port, -
 browse functions publish index.ts          # package and upload (--dry-run to preview)
 browse functions invoke <function-id> --params '{"url":"https://example.com"}'
 browse functions invoke --check-status <invocation-id>
+browse functions delete <function-id>
 ```
 
 ## Templates
