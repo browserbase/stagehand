@@ -292,11 +292,31 @@ async def test_built_in_extension_skips_the_upload_and_cleanup(
     await session.close()
 
     assert fake_api.upload_calls == []
-    created_options, _, extension_id = fake_api.create_calls[-1]
+    created_options, metadata, extension_id = fake_api.create_calls[-1]
     assert created_options is options
+    assert metadata == {
+        "stagehand": "true",
+        "stagehand_sdk_language": "python",
+        "stagehand_sdk_version": STAGEHAND_SDK_VERSION,
+    }
     assert extension_id == options.extension_id
     assert fake_api.delete_calls == []
     assert fake_api.release_calls == ["session-id"]
+
+
+async def test_built_in_extension_keeps_caller_metadata_next_to_the_sdk_tags(
+    fake_api: FakeBrowserbaseAPI,
+) -> None:
+    options = BrowserbaseSessionCreateParams(stagehand=True, user_metadata={"tenant": "acme"})
+    await _BrowserbaseSessionClient(fake_api).create_session(options)
+
+    _, metadata, _ = fake_api.create_calls[-1]
+    assert metadata == {
+        "tenant": "acme",
+        "stagehand": "true",
+        "stagehand_sdk_language": "python",
+        "stagehand_sdk_version": STAGEHAND_SDK_VERSION,
+    }
 
 
 async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowserbaseAPI) -> None:

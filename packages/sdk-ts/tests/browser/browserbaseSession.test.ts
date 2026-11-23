@@ -314,6 +314,35 @@ describe("Browserbase session creation", () => {
     },
   );
 
+  it("keeps the caller's metadata next to the SDK tags when stagehand is true", async () => {
+    const createSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase: fakeBrowserbaseApiClient({ createSession }),
+        readExtensionFingerprint: async () => FINGERPRINT,
+      },
+    );
+
+    await client.createSession({ stagehand: true, userMetadata: { suite: "unit" } });
+
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMetadata: {
+          suite: "unit",
+          stagehand: "true",
+          stagehand_sdk_language: "typescript",
+          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
+        },
+      }),
+    );
+  });
+
   it("omits an unreadable extension fingerprint from the built-in extension request", async () => {
     const createSession = vi.fn(async () => ({
       id: "session_123",
