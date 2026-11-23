@@ -1,8 +1,10 @@
-export type CssSelectorQuery = { kind: "css"; value: string };
-export type XPathSelectorQuery = { kind: "xpath"; value: string };
+import type { LocatorQuerySelector } from "@browserbasehq/stagehand-protocol/types";
+
+export type CssSelectorQuery = Extract<LocatorQuerySelector, { kind: "css" }>;
+export type XPathSelectorQuery = Extract<LocatorQuerySelector, { kind: "xpath" }>;
 /** The existing text= substring engine, not the future getByText contract. */
-export type LegacyTextSelectorQuery = { kind: "text"; value: string };
-export type SelectorQuery = CssSelectorQuery | XPathSelectorQuery | LegacyTextSelectorQuery;
+export type LegacyTextSelectorQuery = Extract<LocatorQuerySelector, { kind: "text" }>;
+export type SelectorQuery = LocatorQuerySelector;
 
 export type LegacySelectorPlan = {
   frameHopSelectors: string[];
