@@ -89,6 +89,129 @@ describe("element chain result ownership", () => {
     };
   }
 
+  it.each([
+    { name: "omitted progress", timeout: undefined, retries: undefined, attempts: 1 },
+    { name: "unlimited progress", timeout: 0, retries: undefined, attempts: 1 },
+    { name: "explicit single attempt", timeout: 2500, retries: "none" as const, attempts: 1 },
+    { name: "finite caller deadline", timeout: 2500, retries: undefined, attempts: 3 },
+  ])(
+    "bounds real unavailable-world readiness with $name",
+    async ({ timeout, retries, attempts }) => {
+      const { frame, session, send, ready, liveGroups } = setup();
+      ready.mockRestore();
+      // Exercise the actual retry loop on a non-fallback page with no extension world.
+      executionContexts.register(session, "frame", 1);
+      const probe = vi.spyOn(executionContexts, "waitForExtensionWorld");
+      send.mockImplementation(async (method) =>
+        method === "Runtime.evaluate" ? { result: { value: "https:" } } : {},
+      );
+      const resolver = new FrameElementChainResolver(frame, { readinessRetries: retries });
+      let failure: unknown;
+      const pending = resolver
+        .resolve(chain, { mode: "count" }, timeout === undefined ? undefined : progress(timeout))
+        .catch((error) => {
+          failure = error;
+        });
+      await vi.advanceTimersByTimeAsync(attempts === 1 ? 1100 : 2500);
+      expect(failure).toBeInstanceOf(attempts === 1 ? Error : TimeoutError);
+      if (attempts === 1) expect((failure as Error).message).toContain("extension world not ready");
+      expect(probe).toHaveBeenCalledTimes(attempts);
+      await pending;
+      expect(liveGroups.size).toBe(0);
+      expect(send.mock.calls.some(([method]) => method === "Page.createIsolatedWorld")).toBe(false);
+      expect(
+        send.mock.calls.some(
+          ([method, params]) => method === "Runtime.evaluate" && "objectGroup" in (params ?? {}),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  function setupDescriptions() {
+    const state = setup();
+    const gates = Array.from({ length: 9 }, deferred);
+    let active = 0;
+    let peak = 0;
+    const started: number[] = [];
+    state.send.mockImplementation(async (method, params) => {
+      if (method === "Runtime.getProperties")
+        return {
+          result: gates
+            .map((_, index) => ({
+              name: String(index),
+              value: { objectId: String(index) },
+            }))
+            .reverse(),
+        };
+      if (method !== "DOM.describeNode") return state.respond(method, params);
+      const index = Number((params as { objectId: string }).objectId);
+      started.push(index);
+      active++;
+      peak = Math.max(peak, active);
+      try {
+        return await gates[index].promise;
+      } finally {
+        active--;
+      }
+    });
+    return { ...state, gates, started, peak: () => peak };
+  }
+
+  it("describes at most four targets concurrently & preserves order when replies arrive out of order", async () => {
+    const { resolver, session, gates, started, peak, liveGroups } = setupDescriptions();
+    const pending = resolver.resolve(chain, { mode: "all" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toEqual([0, 1, 2, 3]);
+    for (const index of [3, 4, 2, 5, 1, 6, 0, 7]) {
+      gates[index].resolve({ node: { backendNodeId: index + 100 } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(liveGroups.size).toBe(1);
+    }
+    gates[8].resolve({ node: { backendNodeId: 108 } });
+    await expect(pending).resolves.toEqual({
+      mode: "all",
+      targets: gates.map((_, index) => ({
+        session,
+        frameId: "frame",
+        backendNodeId: index + 100,
+      })),
+    });
+    expect(started).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(peak()).toBe(4);
+    expect(liveGroups.size).toBe(0);
+  });
+
+  it.each(["failure", "timeout", "cancellation"] as const)(
+    "stops the description pool on %s without waiting for stalled requests",
+    async (outcome) => {
+      const { resolver, gates, started, liveGroups } = setupDescriptions();
+      const context = progress(outcome === "timeout" ? 100 : 0);
+      const controller = new AbortController();
+      if (outcome === "cancellation")
+        vi.spyOn(context, "signal", "get").mockReturnValue(controller.signal);
+      const reason = new Error("stop descriptions");
+      const rejected = expect(resolver.resolve(chain, { mode: "all" }, context)).rejects;
+      const assertion =
+        outcome === "timeout" ? rejected.toThrow(TimeoutError) : rejected.toBe(reason);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(started).toEqual([0, 1, 2, 3]);
+      if (outcome === "failure") gates[1].reject(reason);
+      else if (outcome === "cancellation") controller.abort(reason);
+      else await vi.advanceTimersByTimeAsync(100);
+      await assertion;
+      expect(liveGroups.size).toBe(0);
+      // Responses from the other in-flight commands cannot restart scheduling,
+      // publish a partial result, or cause an unhandled rejection.
+      gates[0].resolve({ node: { backendNodeId: 100 } });
+      gates[1].resolve({ node: { backendNodeId: 101 } });
+      gates[2].reject(new Error("late session closure"));
+      gates[3].resolve({ node: { backendNodeId: 103 } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(started).toEqual([0, 1, 2, 3]);
+      expect(liveGroups.size).toBe(0);
+    },
+  );
+
   it("materializes ordered targets before releasing their handles", async () => {
     const { resolver, session, send, liveGroups } = setup();
     await expect(resolver.resolve(chain, { mode: "all" })).resolves.toEqual({
@@ -127,7 +250,7 @@ describe("element chain result ownership", () => {
     expect(ready).toHaveBeenCalledWith(expect.anything(), "frame", 1000, context, {});
     gate.resolve({ node: { backendNodeId: 11 } });
     await vi.advanceTimersByTimeAsync(0);
-    expect(send.mock.calls.filter(([method]) => method === "DOM.describeNode")).toHaveLength(1);
+    expect(send.mock.calls.filter(([method]) => method === "DOM.describeNode")).toHaveLength(2);
     expect(liveGroups.size).toBe(0);
   });
 

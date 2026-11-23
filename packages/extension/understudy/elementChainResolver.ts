@@ -8,6 +8,8 @@ import type { Frame } from "./frame.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import { Progress, runWithProgress } from "./progress.js";
 
+const TARGET_DESCRIPTION_CONCURRENCY = 4;
+
 /** Exact identity in the session that performed resolution, with no owned remote handle. */
 export type ElementChainTarget = {
   session: CDPSessionLike;
@@ -53,14 +55,13 @@ export class FrameElementChainResolver {
     // cleanup for this operation must stay on the captured session/context.
     const session = this.frame.session;
     const frameId = this.frame.frameId;
+    // The readiness timeout bounds one attempt, not the retry loop. An
+    // unlimited operation still needs a finite attempt when no world is ready.
+    const readinessOptions = Number.isFinite(progress.remainingMs())
+      ? this.readinessOptions
+      : { ...this.readinessOptions, readinessRetries: "none" as const };
     const { contextId } = await progress.run("waiting for chain locator world", () =>
-      executionContexts.waitForLocatorWorld(
-        session,
-        frameId,
-        1000,
-        progress,
-        this.readinessOptions,
-      ),
+      executionContexts.waitForLocatorWorld(session, frameId, 1000, progress, readinessOptions),
     );
     const objectGroup = `stagehand-chain-${contextId}-${crypto.randomUUID()}`;
     const release = () =>
@@ -124,11 +125,40 @@ export class FrameElementChainResolver {
       const targets: ElementChainTarget[] = [];
       // Only final requested targets need backend IDs. All-target mode still
       // has one describe per target; count and selected never describe prefixes.
-      for (const id of objectIds) {
-        const { node } = await step("materializing chain target", () =>
-          session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId: id }),
+      let nextIndex = 0;
+      let stopped = false;
+      const describeTargets = async () => {
+        try {
+          while (!stopped && nextIndex < objectIds.length) {
+            progress.throwIfStopped();
+            const index = nextIndex++;
+            const { node } = await session.send<Protocol.DOM.DescribeNodeResponse>(
+              "DOM.describeNode",
+              { objectId: objectIds[index] },
+            );
+            progress.throwIfStopped();
+            if (stopped) return;
+            // Completion order must not change first/nth or all-target order.
+            targets[index] = { session, frameId, backendNodeId: node.backendNodeId };
+          }
+        } catch (error) {
+          stopped = true;
+          throw error;
+        }
+      };
+      try {
+        // One progress step owns the pool's wait. A failure or timeout stops
+        // scheduling immediately without waiting on other stalled requests.
+        await step("materializing chain targets", () =>
+          Promise.all(
+            Array.from(
+              { length: Math.min(TARGET_DESCRIPTION_CONCURRENCY, objectIds.length) },
+              describeTargets,
+            ),
+          ),
         );
-        targets.push({ session, frameId, backendNodeId: node.backendNodeId });
+      } finally {
+        stopped = true;
       }
       return { mode: resolution.mode, targets };
     } finally {
