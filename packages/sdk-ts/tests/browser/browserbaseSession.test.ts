@@ -297,22 +297,49 @@ describe("Browserbase session creation", () => {
       await session.close?.();
 
       expect(provisionExtension).not.toHaveBeenCalled();
-      expect(createSession).toHaveBeenCalledWith({
-        ...params,
-        stagehand: {
-          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
-          extensionFingerprint: FINGERPRINT,
+      expect(createSession.mock.calls[0]).toStrictEqual([
+        {
+          ...params,
+          stagehand: {
+            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+            clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+            extensionFingerprint: FINGERPRINT,
+          },
         },
-        userMetadata: {
-          stagehand: "true",
-          stagehand_sdk_language: "typescript",
-          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
-        },
-      });
+      ]);
       expect(releaseSession).toHaveBeenCalledWith("session_123");
     },
   );
+
+  it("sends only the caller's metadata when stagehand is true", async () => {
+    const createSession = vi.fn(
+      async (_params: Parameters<BrowserbaseApiClient["createSession"]>[0]) => ({
+        id: "session_123",
+        connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      }),
+    );
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase: fakeBrowserbaseApiClient({ createSession }),
+        provisionExtension: vi.fn(),
+        readExtensionFingerprint: async () => FINGERPRINT,
+      },
+    );
+
+    await client.createSession({ stagehand: true, userMetadata: { suite: "unit" } });
+
+    expect(createSession.mock.calls[0]?.[0]).toStrictEqual({
+      userMetadata: { suite: "unit" },
+      stagehand: {
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+        extensionFingerprint: FINGERPRINT,
+      },
+    });
+  });
 
   it("omits an unreadable extension fingerprint from the built-in extension request", async () => {
     const createSession = vi.fn(async () => ({
