@@ -13,6 +13,23 @@ otherwise it is included once in the task prompt. Harness stock prompts remain
 in place. A caller-supplied Codex client and remote Eve use the task-prefix path.
 The Cursor SDK's replacement system-prompt option is intentionally unused.
 
+Mastra ships no system prompt, so the adapter's instructions are the whole prompt and
+there is no stock prompt to keep. `mastraInstructions.ts` holds them. By default the
+agent gets general browsing guidance and a finish check, one follow-up sent the first
+time it stops on its own that asks it to re-read the task and either keep working or
+restate its answer. The check continues the same conversation, shares the step budget,
+and cannot turn a finished run into a failed one: if it errors, runs out of steps or
+adds no text, the first answer stands. For `anthropic/` models the adapter also asks
+Anthropic to cache the prompt, which Anthropic does only on request.
+
+| Variable                           | Effect                                   |
+| ---------------------------------- | ---------------------------------------- |
+| `EVAL_MASTRA_INSTRUCTIONS=minimal` | The earlier one-line prompt              |
+| `EVAL_MASTRA_FINISH_CHECK=0`       | No finish check                          |
+| `EVAL_MASTRA_PROMPT_CACHE=0`       | No cache request for `anthropic/` models |
+
+`harnessConfiguration` records all three settings.
+
 Budget precedence is the harness-specific environment variable, then
 `AGENT_EVAL_MAX_STEPS`, then the dataset default (HardBench: 100), then the
 historical harness default. Only positive safe integers are accepted.
