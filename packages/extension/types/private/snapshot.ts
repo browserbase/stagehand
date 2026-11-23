@@ -86,13 +86,10 @@ export type ResolvedCssFocus = {
   absPrefix: string;
 };
 
-export type Axis = "child" | "desc";
-
-export type Step = {
-  axis: Axis;
-  raw: string;
-  name: string;
-};
+export type {
+  LegacyXPathAxis as Axis,
+  LegacyXPathStep as Step,
+} from "../../understudy/selectorQuery.js";
 
 export type A11yNode = {
   role: string;

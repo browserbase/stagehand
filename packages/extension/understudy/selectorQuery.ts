@@ -84,9 +84,9 @@ export function planDeepXPathTarget(xpathOrSelector: string): LegacySelectorPlan
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
   if (!path.startsWith("/")) path = "/" + path;
 
-  const steps = parseXPath(path);
+  const steps = parseXPathToSteps(path);
   const frameHopSelectors: string[] = [];
-  let buf: Step[] = [];
+  let buf: LegacyXPathStep[] = [];
 
   for (let i = 0; i < steps.length; i++) {
     const st = steps[i]!;
@@ -104,15 +104,16 @@ export function planDeepXPathTarget(xpathOrSelector: string): LegacySelectorPlan
   };
 }
 
-type Axis = "child" | "desc";
-type Step = { axis: Axis; raw: string; name: string };
+export type LegacyXPathAxis = "child" | "desc";
+export type LegacyXPathStep = { axis: LegacyXPathAxis; raw: string; name: string };
 
-function parseXPath(path: string): Step[] {
+/** Tokenize generated paths; deliberately preserve legacy handling of slash literals. */
+export function parseXPathToSteps(path: string): LegacyXPathStep[] {
   const s = path.trim();
   let i = 0;
-  const steps: Step[] = [];
+  const steps: LegacyXPathStep[] = [];
   while (i < s.length) {
-    let axis: Axis = "child";
+    let axis: LegacyXPathAxis = "child";
     if (s.startsWith("//", i)) {
       axis = "desc";
       i += 2;
@@ -132,7 +133,8 @@ function parseXPath(path: string): Step[] {
   return steps;
 }
 
-function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
+/** Rebuild a generated path, preserving each nonempty step and its axis. */
+export function buildXPathFromSteps(steps: ReadonlyArray<LegacyXPathStep>): string {
   let out = "";
   for (const st of steps) {
     out += st.axis === "desc" ? "//" : "/";
