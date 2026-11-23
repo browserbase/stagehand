@@ -579,6 +579,9 @@ describe("RPCClient", () => {
       StagehandMethods.stagehandAct.name,
       StagehandMethods.stagehandExtract.name,
       StagehandMethods.stagehandObserve.name,
+      StagehandMethods.stagehandExperimentalDecisionsAct.name,
+      StagehandMethods.stagehandExperimentalDecisionsObserve.name,
+      StagehandMethods.stagehandExperimentalDecisionsExtract.name,
       StagehandMethods.contextNewPage.name,
       StagehandMethods.contextAddInitScript.name,
       StagehandMethods.contextSetExtraHTTPHeaders.name,
@@ -608,6 +611,15 @@ describe("RPCClient", () => {
     {
       name: "an Act operation timeout",
       method: StagehandMethods.stagehandAct,
+      params: {
+        pageId: "page-1",
+        instruction: "click the button",
+        options: { timeout: 30_000 },
+      },
+    },
+    {
+      name: "an experimental decisions Act operation timeout",
+      method: StagehandMethods.stagehandExperimentalDecisionsAct,
       params: {
         pageId: "page-1",
         instruction: "click the button",
