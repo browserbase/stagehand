@@ -248,9 +248,8 @@ describe("iframe chain resolution in Chrome", () => {
       expect(target.session).not.toBe(page.mainSession);
       expect(page.getSessionForFrame(target.frameId)).toBe(target.session);
       expect(await ids([target])).toEqual(["save"]);
-      // Exercise the existing action machinery with the captured identity, even
-      // after the page makes the original selector ambiguous.
       const frame = page.frameForId(target.frameId);
+      // Make selector re-resolution pick the wrong button.
       await frame.evaluate(() => {
         const duplicate = document.createElement("button");
         duplicate.id = "save";

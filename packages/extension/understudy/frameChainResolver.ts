@@ -15,7 +15,6 @@ import { Progress, runWithProgress } from "./progress.js";
 type ChainWorld = { session: CDPSessionLike; frameId: string; objectId: string; loaderId?: string };
 type Match = FrameChainMatch & { world: ChainWorld };
 
-/** Internal cross-frame orchestration; public locator wiring is a separate change. */
 export class FrameChainResolver {
   constructor(
     readonly page: Page,
@@ -80,8 +79,7 @@ class FrameChainOperation {
         throw new Error("Explicit frame hop requires an iframe or frame element");
       }
       const scopes = [...matches];
-      // Only iframe hosts need intermediate backend IDs. Export them in one
-      // batch per document, retaining their positions among ordinary scopes.
+      // Only iframe hosts need backend IDs before final selection.
       for (const [world, entries] of groupByWorld(matches)) {
         const frames = entries.filter(({ match }) => match.isFrame);
         if (!frames.length) continue;
