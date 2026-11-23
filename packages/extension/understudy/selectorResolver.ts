@@ -4,11 +4,9 @@ import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { parseLegacySelector, type SelectorQuery } from "./selectorQuery.js";
 
-export type SelectorQuery =
-  | { kind: "css"; value: string }
-  | { kind: "text"; value: string }
-  | { kind: "xpath"; value: string };
+export type { SelectorQuery } from "./selectorQuery.js";
 
 export interface ResolvedNode {
   objectId: Protocol.Runtime.RemoteObjectId;
@@ -26,39 +24,7 @@ export class FrameSelectorResolver {
   ) {}
 
   public static parseSelector(raw: string): SelectorQuery {
-    const trimmed = raw.trim();
-
-    const isText = /^text=/i.test(trimmed);
-    const looksLikeXPath =
-      /^xpath=/i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("(");
-    const isCssPrefixed = /^css=/i.test(trimmed);
-
-    if (isText) {
-      let value = trimmed.replace(/^text=/i, "").trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      return { kind: "text", value };
-    }
-
-    if (looksLikeXPath) {
-      const value = trimmed.replace(/^xpath=/i, "");
-      return { kind: "xpath", value };
-    }
-
-    let selector = isCssPrefixed ? trimmed.replace(/^css=/i, "") : trimmed;
-    if (selector.includes(">>")) {
-      selector = selector
-        .split(">>")
-        .map((piece) => piece.trim())
-        .filter(Boolean)
-        .join(" ");
-    }
-
-    return { kind: "css", value: selector };
+    return parseLegacySelector(raw);
   }
 
   public async resolveFirst(

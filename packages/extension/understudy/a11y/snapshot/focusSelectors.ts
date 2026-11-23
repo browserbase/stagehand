@@ -12,6 +12,7 @@ import type {
   Step,
 } from "../../../types/private/snapshot.js";
 import { prefixXPath } from "./xpathUtils.js";
+import { IFRAME_STEP_RE } from "../../selectorQuery.js";
 
 /**
  * Parse a cross-frame XPath into discrete steps. Each step tracks whether it
@@ -51,7 +52,7 @@ export function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
   return out || "/";
 }
 
-export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
+export { IFRAME_STEP_RE } from "../../selectorQuery.js";
 
 /**
  * Given a cross-frame XPath, walk iframe steps to resolve:
