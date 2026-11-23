@@ -151,13 +151,18 @@ const BrowserbaseClientOptionsSchema: z.ZodType<
     .optional(),
 });
 
-type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
+export type BrowserbaseSessionCreateOptions = Omit<Browserbase.SessionCreateParams, "stagehand"> & {
+  /** Load the Stagehand extension Browserbase ships instead of uploading the bundled one. */
+  stagehand?: boolean;
+};
+
+type BrowserbaseLaunchOptionsInput = BrowserbaseSessionCreateOptions & {
   apiKey: string;
   baseUrl?: string;
   clientOptions?: BrowserbaseClientOptions;
 };
 
-type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
+type BrowserbaseLaunchOptionsOutput = BrowserbaseSessionCreateOptions & {
   apiKey: string;
   baseUrl: string;
   clientOptions?: BrowserbaseClientOptions;
@@ -172,6 +177,7 @@ export const BrowserbaseLaunchOptionsSchema = z
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     clientOptions: BrowserbaseClientOptionsSchema.optional(),
+    stagehand: z.boolean().optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })

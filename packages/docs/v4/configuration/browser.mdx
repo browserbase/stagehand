@@ -472,15 +472,43 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session.
+By default, when `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session.
 </Note>
+
+### Built-in Stagehand extension
+
+Pass `stagehand: true` (TypeScript) or `stagehand=True` (Python) to `browserbase.launch()` to start the session with the Stagehand extension Browserbase provides. Stagehand then skips the upload and has nothing to delete on close. Without the option, launch works as described above.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  stagehand: true,
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    stagehand=True,
+)
+```
+</Tab>
+</Tabs>
+
+The built-in extension may not be available for every project or region yet. If Browserbase refuses the session, launch fails with "Failed to create a Browserbase session" followed by a hint to remove the option; remove it to upload the bundled extension instead.
+
+With the option set, an `extensionId` you pass is loaded as your own extension next to the built-in one. Don't pass the ID of an uploaded Stagehand extension together with it: a session with two Stagehand extensions fails to connect.
 
 ### Alternative: Browserbase SDK
 
 If you prefer to manage sessions directly, [export the Stagehand extension](#exporting-the-stagehand-extension) and upload it to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
 
 <Note>
-The extension ID used to create the session is the uploaded-extension resource ID returned by the Browserbase Extensions API. `browserbase.launch()` handles this upload and session configuration automatically.
+The extension ID used to create the session is the uploaded-extension resource ID returned by the Browserbase Extensions API. `browserbase.launch()` handles this upload and session configuration automatically unless you [use the built-in extension](#built-in-stagehand-extension).
 </Note>
 
 <Tabs>
@@ -1103,7 +1131,7 @@ func main() {
 
 ### Upload to Browserbase
 
-Upload `stagehand-extension.zip` using the Browserbase Extensions API or the [CLI deployment workflow](/v4/best-practices/deployments). Include the returned extension ID when creating the session, as shown in [Alternative: Browserbase SDK](#alternative-browserbase-sdk). `browserbase.launch()` handles the upload automatically when you omit an extension ID.
+Upload `stagehand-extension.zip` using the Browserbase Extensions API or the [CLI deployment workflow](/v4/best-practices/deployments). Include the returned extension ID when creating the session, as shown in [Alternative: Browserbase SDK](#alternative-browserbase-sdk). `browserbase.launch()` handles the upload automatically when you omit an extension ID and don't [use the built-in extension](#built-in-stagehand-extension).
 
 ### Load unpacked in Chrome
 

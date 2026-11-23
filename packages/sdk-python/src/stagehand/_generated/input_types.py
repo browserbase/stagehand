@@ -1052,6 +1052,7 @@ class BrowserbaseSessionCreateParams(TypedDict):
     keep_alive: NotRequired[bool]
     proxies: NotRequired[bool | list[ProxyConfig]]
     region: NotRequired[BrowserbaseRegion]
+    stagehand: NotRequired[bool]
     timeout: NotRequired[float]
     user_metadata: NotRequired[dict[str, Any]]
 

@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
-from ._sdk_identity import STAGEHAND_SESSION_METADATA
-from .extension_assets import build_extension_archive
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from ._sdk_identity import STAGEHAND_SDK_CLIENT_INFO, STAGEHAND_SESSION_METADATA
+from .extension_assets import _extension_fingerprint, build_extension_archive
 
 if TYPE_CHECKING:
     from browserbase import AsyncBrowserbase
@@ -16,8 +17,20 @@ if TYPE_CHECKING:
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
 
 
+_BUILT_IN_EXTENSION_HINT = (
+    "If Browserbase's built-in Stagehand extension is not available for this project or region "
+    "yet, remove `stagehand=True` to upload the bundled one."
+)
+
+
 class BrowserbaseSessionError(RuntimeError):
     pass
+
+
+def _is_bad_request(error: Exception) -> bool:
+    from browserbase import APIStatusError
+
+    return isinstance(error, APIStatusError) and error.status_code == 400
 
 
 def _session_create_kwargs(
@@ -29,7 +42,7 @@ def _session_create_kwargs(
     values: dict[str, Any] = options.model_dump(
         by_alias=False,
         exclude_none=True,
-        exclude={"extension_id", "user_metadata", "timeout"},
+        exclude={"extension_id", "stagehand", "user_metadata", "timeout"},
     )
     browser_settings = values.get("browser_settings")
     if isinstance(browser_settings, dict):
@@ -60,7 +73,22 @@ def _session_create_kwargs(
         kwargs["extension_id"] = extension_id
     if options.timeout is not None:
         kwargs["api_timeout"] = options.timeout
+    if options.stagehand:
+        # The browserbase package has no `stagehand` argument yet; pass it directly once it does.
+        kwargs["extra_body"] = {"stagehand": _stagehand_session_params()}
     return kwargs
+
+
+def _stagehand_session_params() -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+        "clientInfo": STAGEHAND_SDK_CLIENT_INFO.model_dump(),
+    }
+    try:
+        params["extensionFingerprint"] = _extension_fingerprint()
+    except Exception:
+        pass
+    return params
 
 
 class _BrowserbaseAPI(Protocol):
@@ -216,7 +244,7 @@ class _BrowserbaseSessionClient:
             caller_extension_id = options.browser_settings.extension_id
 
         owned_extension_id: str | None = None
-        if caller_extension_id is None:
+        if caller_extension_id is None and not options.stagehand:
             archive = await asyncio.to_thread(build_extension_archive)
             try:
                 uploaded_extension_id = await self._api.upload_extension(archive)
@@ -242,7 +270,10 @@ class _BrowserbaseSessionClient:
         except BaseException as error:
             await self._delete_extension_best_effort(owned_extension_id)
             if isinstance(error, Exception):
-                raise BrowserbaseSessionError("Failed to create a Browserbase session") from None
+                message = "Failed to create a Browserbase session"
+                if options.stagehand and _is_bad_request(error):
+                    message += f". {_BUILT_IN_EXTENSION_HINT}"
+                raise BrowserbaseSessionError(message) from None
             raise
 
         session_id = raw_session_id.strip()

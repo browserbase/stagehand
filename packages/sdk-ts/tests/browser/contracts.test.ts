@@ -59,8 +59,9 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions" | "stagehand">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
+    expectTypeOf<BrowserbaseLaunchOptions["stagehand"]>().toEqualTypeOf<boolean | undefined>();
     expectTypeOf<BrowserbaseLaunchOptions["clientOptions"]>().toEqualTypeOf<
       BrowserbaseClientOptions | undefined
     >();
@@ -116,6 +117,12 @@ describe("browser API contracts", () => {
       baseUrl: "https://api.browserbase.com",
       browserSettings: { extensionId: "user-extension" },
     });
+    expect(
+      BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", stagehand: true }),
+    ).toStrictEqual({ apiKey: "bb_key", baseUrl: "https://api.browserbase.com", stagehand: true });
+    for (const stagehand of ["true", 1, { protocolVersion: "3.1.1" }]) {
+      expect(() => BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", stagehand })).toThrow();
+    }
     expect(() =>
       BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", type: "browserbase" }),
     ).toThrow();

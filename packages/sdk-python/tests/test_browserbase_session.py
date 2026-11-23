@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 import pytest
+from browserbase import APIStatusError
 
 from stagehand import browserbase_session
 from stagehand._generated.models import (
@@ -31,12 +32,16 @@ from stagehand._generated.models import (
     Os,
     ProxyConfig,
 )
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from stagehand._sdk_identity import STAGEHAND_SDK_VERSION
 from stagehand.browserbase_session import (
     BrowserbaseSessionError,
     _BrowserbaseSessionClient,
     _session_create_kwargs,
 )
 from stagehand.extension_assets import build_extension_archive
+
+FINGERPRINT = "a" * 64
 
 
 class FakeBrowserbaseAPI:
@@ -209,6 +214,91 @@ def test_session_create_kwargs_omits_absent_optional_fields() -> None:
     assert kwargs["user_metadata"] == {"stagehand": "true"}
 
 
+def test_session_create_kwargs_sends_the_built_in_extension_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(browserbase_session, "_extension_fingerprint", lambda: FINGERPRINT)
+
+    kwargs = _session_create_kwargs(
+        BrowserbaseSessionCreateParams(stagehand=True),
+        user_metadata={},
+        extension_id="caller-extension",
+    )
+
+    assert "stagehand" not in kwargs
+    assert kwargs["extension_id"] == "caller-extension"
+    assert kwargs["extra_body"] == {
+        "stagehand": {
+            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+            "clientInfo": {"name": "stagehand-sdk-python", "version": STAGEHAND_SDK_VERSION},
+            "extensionFingerprint": FINGERPRINT,
+        }
+    }
+
+
+def test_session_create_kwargs_omits_an_unreadable_extension_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unreadable() -> str:
+        raise OSError("missing build file")
+
+    monkeypatch.setattr(browserbase_session, "_extension_fingerprint", unreadable)
+
+    kwargs = _session_create_kwargs(
+        BrowserbaseSessionCreateParams(stagehand=True),
+        user_metadata={},
+        extension_id=None,
+    )
+
+    assert kwargs["extra_body"] == {
+        "stagehand": {
+            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+            "clientInfo": {"name": "stagehand-sdk-python", "version": STAGEHAND_SDK_VERSION},
+        }
+    }
+
+
+@pytest.mark.parametrize("stagehand", [None, False])
+def test_session_create_kwargs_sends_no_stagehand_key_without_opt_in(
+    stagehand: bool | None,
+) -> None:
+    kwargs = _session_create_kwargs(
+        BrowserbaseSessionCreateParams(stagehand=stagehand),
+        user_metadata={},
+        extension_id="uploaded-extension",
+    )
+
+    assert "stagehand" not in kwargs
+    assert "extra_body" not in kwargs
+    assert kwargs["extension_id"] == "uploaded-extension"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        BrowserbaseSessionCreateParams(stagehand=True),
+        BrowserbaseSessionCreateParams(stagehand=True, extension_id="caller-extension"),
+        BrowserbaseSessionCreateParams(
+            stagehand=True,
+            browser_settings=BrowserbaseBrowserSettings(extension_id="caller-extension"),
+        ),
+    ],
+)
+async def test_built_in_extension_skips_the_upload_and_cleanup(
+    fake_api: FakeBrowserbaseAPI,
+    options: BrowserbaseSessionCreateParams,
+) -> None:
+    session = await _BrowserbaseSessionClient(fake_api).create_session(options)
+    await session.close()
+
+    assert fake_api.upload_calls == []
+    created_options, _, extension_id = fake_api.create_calls[-1]
+    assert created_options is options
+    assert extension_id == options.extension_id
+    assert fake_api.delete_calls == []
+    assert fake_api.release_calls == ["session-id"]
+
+
 async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowserbaseAPI) -> None:
     options = BrowserbaseSessionCreateParams(
         user_metadata={
@@ -253,18 +343,58 @@ async def test_caller_extension_is_never_uploaded_or_deleted(
     assert fake_api.release_calls == ["session-id"]
 
 
+@pytest.mark.parametrize("stagehand", [None, False])
 async def test_create_failure_deletes_owned_extension_best_effort(
     fake_api: FakeBrowserbaseAPI,
+    stagehand: bool | None,
 ) -> None:
-    fake_api.create_error = OSError("secret API failure")
+    fake_api.create_error = _api_status_error(400)
     fake_api.delete_errors = [OSError("cleanup failed")]
     with pytest.raises(
         BrowserbaseSessionError,
         match="^Failed to create a Browserbase session$",
     ) as raised:
-        await _BrowserbaseSessionClient(fake_api).create_session(BrowserbaseSessionCreateParams())
+        await _BrowserbaseSessionClient(fake_api).create_session(
+            BrowserbaseSessionCreateParams(stagehand=stagehand)
+        )
     assert raised.value.__cause__ is None
     assert fake_api.delete_calls == ["uploaded-extension"]
+
+
+def _api_status_error(status: int) -> APIStatusError:
+    request = httpx.Request("POST", "https://api.browserbase.com/v1/sessions")
+    response = httpx.Response(status, json={"message": "rejected for secret"}, request=request)
+    return APIStatusError("rejected for secret", response=response, body=None)
+
+
+@pytest.mark.parametrize(
+    ("error", "hinted"),
+    [
+        (_api_status_error(400), True),
+        (_api_status_error(401), False),
+        (OSError("connection reset for secret"), False),
+    ],
+)
+async def test_create_failure_with_stagehand_hints_only_on_a_bad_request(
+    fake_api: FakeBrowserbaseAPI,
+    error: Exception,
+    hinted: bool,
+) -> None:
+    fake_api.create_error = error
+    with pytest.raises(BrowserbaseSessionError) as raised:
+        await _BrowserbaseSessionClient(fake_api).create_session(
+            BrowserbaseSessionCreateParams(stagehand=True)
+        )
+    assert str(raised.value) == (
+        "Failed to create a Browserbase session. If Browserbase's built-in Stagehand extension "
+        "is not available for this project or region yet, remove `stagehand=True` to upload the "
+        "bundled one."
+        if hinted
+        else "Failed to create a Browserbase session"
+    )
+    assert raised.value.__cause__ is None
+    assert fake_api.upload_calls == []
+    assert fake_api.delete_calls == []
 
 
 async def test_create_cancellation_deletes_owned_extension(
