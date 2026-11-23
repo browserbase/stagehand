@@ -278,7 +278,6 @@ describe("Stagehand browser factories", () => {
         });
         const browser = await localBrowser.connect({ cdpUrl: "ws://browser.example" });
         claimStagehandBrowser(browser);
-        // e.g. stagehand.close() waiting on an in-flight act().
         attachStagehandBrowserContext(browser, {} as BrowserContext, () => new Promise(() => {}));
 
         const disconnecting = browser.disconnect();
@@ -387,7 +386,6 @@ describe("Stagehand browser factories", () => {
 
       (client as { closed: boolean }).closed = true;
 
-      // Lost, not closed: close() still runs, and does nothing for a local browser.
       expect(browser.connected).toBe(false);
       expect(browser.closed).toBe(false);
       await expect(browser.close()).resolves.toBeUndefined();

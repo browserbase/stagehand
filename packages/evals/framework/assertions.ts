@@ -1,9 +1,3 @@
-/**
- * Assertion helpers for core tier (deterministic) tasks.
- *
- * All assertions throw an AssertionError on failure, which the
- * framework catches and converts to a failed task result.
- */
 import { deepStrictEqual } from "node:assert";
 import type { AssertHelpers } from "./types.js";
 

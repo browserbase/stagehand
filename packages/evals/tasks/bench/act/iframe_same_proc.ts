@@ -8,15 +8,10 @@ export default defineBenchTask(
 
       await stagehand.act("type 'stagehand' into the 'your name' field");
 
-      // overly specific prompting is okay here. we are just trying to evaluate whether
-      // we are properly traversing iframes
       await stagehand.act(
         "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
       );
 
-      // v3 used page.frameLocator("iframe") for these assertions; v4 has no
-      // frameLocator, so the same checks are re-expressed in-page via the
-      // same-origin iframe's contentDocument.
       const { nameValue, colorValue } = await page.evaluate(() => {
         const doc = document.querySelector("iframe")?.contentDocument;
         if (!doc) throw new Error("could not access iframe contentDocument");

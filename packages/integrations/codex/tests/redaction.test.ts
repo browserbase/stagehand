@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { safeJson, stringifyError } from "../src/index.js";
 
-// Codex's safeJson/stringifyError redact and drop binary payloads, unlike the plain
-// shared helpers in @browserbasehq/stagehand-integrations/harness. These tests fail
-// if codex is deduplicated onto the shared versions.
 const secretKey = "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789";
 const secretUrl = "https://example.test/v1?apiKey=super-secret-value&mode=x";
 

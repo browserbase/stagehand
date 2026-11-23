@@ -102,8 +102,6 @@ function getDomainPatterns(
 ): string[] {
   if (policy === null) return [];
 
-  // Passing undefined usually means the caller accidentally omitted the policy
-  // argument or passed through an unset variable. Clearing must be explicit.
   if (policy === undefined) {
     throw new TypeError("Domain policy must be an object or null");
   }
@@ -111,8 +109,6 @@ function getDomainPatterns(
   const patterns = policy[key];
   if (patterns === undefined) return [];
 
-  // Empty arrays intentionally clear that side of the policy, but malformed
-  // runtime values should fail fast rather than silently disabling enforcement.
   if (!Array.isArray(patterns)) {
     throw new TypeError(`${key} must be an array of strings`);
   }
@@ -187,11 +183,6 @@ export function getDomainPolicyDecision(
   return { action: "continue" };
 }
 
-/**
- * Compile a normalized policy into browser-wide DNR session rules without installing them.
- * IDs are deterministic within this rule set; the installer must own their namespace.
- * Chrome rule limits and regex support must be checked by the installer before activation.
- */
 export function toDomainPolicyDnrRules(
   policy: NormalizedDomainPolicy | null,
 ): chrome.declarativeNetRequest.Rule[] {
@@ -245,12 +236,7 @@ export function toDomainPolicyDnrRules(
 }
 
 function domainRuleDnrRegex(rule: DomainRule): string {
-  // Normalization restricts rules to ASCII domain labels, so only dots need escaping.
   const hostname = rule.hostname.replace(/\./g, "\\.");
-  // Match the existing hostname suffix check, including empty labels accepted by URL().
-  // Exclude credentials, ports and path/query delimiters from the subdomain prefix.
   const subdomain = rule.type === "wildcard" ? "[^/?#@:]*\\." : "";
-  // Match the destination host, allowing credentials, trailing dots and a port.
-  // The final boundary prevents matching a host prefix or a domain in the path/query.
   return `^https?://([^/?#@]*@)?${subdomain}${hostname}\\.*(:[0-9]+)?(/|$)`;
 }

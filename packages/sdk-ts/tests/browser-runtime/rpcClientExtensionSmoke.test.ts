@@ -503,7 +503,6 @@ async function createFullGraphSmokeExtension(): Promise<string> {
       }),
     ),
   );
-  // The worker below is rebuilt from source, so it is not the build this identity names.
   await rm(path.join(extensionDir, "build-id.txt"), { force: true });
 
   const extensionEntryPath = fileURLToPath(

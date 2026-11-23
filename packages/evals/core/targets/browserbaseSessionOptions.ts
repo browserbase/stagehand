@@ -33,13 +33,6 @@ export function evalBooleanEnv(raw: string | undefined, fallback: boolean): bool
   throw new EvalsError(`Expected a boolean env value, got "${raw}".`);
 }
 
-/**
- * Session settings shared by every Browserbase path the evals own — the
- * Stagehand facade (via STAGEHAND_* env) and the runner-provided CDP target
- * (playwright_mcp, chrome_devtools_mcp, playwright_code). Parity with the
- * native Stagehand agent path: proxied + verified sessions, explicit timeout.
- * EVAL_BROWSERBASE_PROXIES / _VERIFIED=0 to disable.
- */
 export function evalBrowserbaseSessionOptions(env: NodeJS.ProcessEnv = process.env): {
   timeoutSeconds: number;
   proxies: boolean;

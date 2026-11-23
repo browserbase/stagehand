@@ -26,7 +26,6 @@ async function fixture(initialUrl = "https://example.com/start") {
     waitForLoadState: vi.fn(async (_state: string, _timeout?: number) => undefined),
   };
   const rawContext = { pages: vi.fn(async () => [rawPage]) };
-  // Exercise the same self-contained serialization boundary as callback batches.
   const create = new Function(
     `return (${createPlaywrightCompatRuntime.toString()})`,
   )() as typeof createPlaywrightCompatRuntime;

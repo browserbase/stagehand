@@ -1,5 +1,3 @@
-"""Run with STAGEHAND_BROWSER_TESTS=1 after building packages/extension."""
-
 import asyncio
 import json
 import os
@@ -92,8 +90,6 @@ async def test_intentional_disconnect_preserves_owned_browser(tmp_path: Path) ->
 
 
 async def _intentional_disconnect_preserves_owned_browser(tmp_path: Path) -> None:
-    # A named profile: the reconnected handle closes Chrome but cannot remove the
-    # original launch's temporary profile, so pytest's tmp_path owns it.
     browser = await local_browser.launch(headless=True, user_data_dir=str(tmp_path / "chrome"))
     try:
         await Stagehand.create(browser=browser, logging={"level": "off"})
@@ -101,7 +97,6 @@ async def _intentional_disconnect_preserves_owned_browser(tmp_path: Path) -> Non
         with pytest.raises(RuntimeError, match=r"connect\(\) again to close it"):
             await browser.close()
         assert browser.cdp_url is not None
-        # The new handle owns closing it: Browser.close over its own connection.
         connected = await local_browser.connect(cdp_url=browser.cdp_url)
         try:
             fresh = await Stagehand.create(browser=connected, logging={"level": "off"})

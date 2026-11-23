@@ -17,7 +17,6 @@ describe("createMetricsCollector", () => {
     const m = createMetricsCollector();
     const stop = m.startTimer("op");
 
-    // Burn a tiny amount of time
     await new Promise((r) => setTimeout(r, 5));
     const duration = stop();
 
@@ -59,7 +58,6 @@ describe("createMetricsCollector", () => {
 
     it("computes percentiles", () => {
       const m = createMetricsCollector();
-      // Record 1..100
       for (let i = 1; i <= 100; i++) {
         m.record("p", i);
       }

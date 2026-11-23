@@ -333,7 +333,6 @@ export async function startFunctionsDevServer(
   }
 
   const config = resolveFunctionsApiConfig(options);
-  // Only the spawned runtime receives this prefix; the public invoke URL stays unchanged.
   const runtimeToken = randomBytes(32).toString("hex");
   const runtimeApi = `${options.host}:${options.port}/${runtimeToken}`;
   const bridge = new InvocationBridge();
@@ -479,7 +478,6 @@ async function routeRequest(
   const method = request.method || "GET";
   const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
   const path = url.pathname;
-  // Authenticate runtime routes before accepting a poll or completing an invocation.
   const runtimePath = path.startsWith(`/${runtimeToken}/`)
     ? path.slice(runtimeToken.length + 1)
     : "";
@@ -551,7 +549,6 @@ async function routeRequest(
     const accepted = bridge.triggerInvocation(
       functionName,
       params,
-      // Match production, which always sends secrets.
       { session, secrets: {} },
       corsHeaders,
       response,

@@ -34,7 +34,6 @@ function readState(
   return name === "disabled" && value === undefined ? false : undefined;
 }
 
-/** Document-wide AX matches; the chain resolver must enforce DOM scope and order. */
 export async function queryNativeRoles(
   session: CDPSessionLike,
   contextId: Protocol.Runtime.ExecutionContextId,
@@ -79,7 +78,6 @@ export async function queryNativeRoles(
             objectGroup,
           });
         } catch (error) {
-          // A late command can allocate handles even if it ultimately rejects.
           if (finishing) void release();
           throw error;
         }

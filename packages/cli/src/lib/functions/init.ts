@@ -130,7 +130,6 @@ export async function initFunctionsProject({
     [...install, "@browserbasehq/sdk-functions", "@browserbasehq/stagehand"],
     projectRoot,
   );
-  // Match Stagehand's version of zod in order to pass type checks.
   const zodVersion = readStagehandZodVersion(projectRoot);
   runPackageManager(
     packageManager,

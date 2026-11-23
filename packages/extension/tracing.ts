@@ -78,7 +78,6 @@ export function createStagehandTracingRuntime(
     tracer,
     forceFlush: () => (shutdownPromise ? Promise.resolve() : provider.forceFlush()),
     shutdown: () => {
-      // Telemetry delivery is best effort and must not fail Stagehand shutdown.
       shutdownPromise ??= provider.shutdown().catch(() => undefined);
       return shutdownPromise;
     },
@@ -119,7 +118,6 @@ export function createStagehandTracing(
         await previousRuntime?.shutdown();
         activeTelemetry = undefined;
         activeClientInfo = undefined;
-        // Without an explicit telemetry sink, tracing stays inert: no OTLP export.
         if (!telemetry) return;
 
         const registerGlobals = options.registerGlobals !== false && !globalsRegistered;

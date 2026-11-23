@@ -19,7 +19,6 @@ describe.each<Record<string, string> | undefined>([
     });
     server.on("upgrade", (request, socket) => {
       handshakeRequests.push(request.headers);
-      // Stop before extension discovery; the real WebSocket handshake reached the server.
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

@@ -1,12 +1,3 @@
-/**
- * Eval runs via the evals CLI from source or dist/esm.
- *
- * Prereqs: source mode uses tsx loader; dist mode requires compiled CLI output.
- * Args: [target] [options...] (passed to evals run) | --cli <path> [target] [options...] | --list (prints JSON matrix).
- * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, NODE_V8_COVERAGE, NODE_OPTIONS;
- *      writes JUnit to ctrf/evals/<target>.xml and CTRF to ctrf/evals/<target>.json.
- * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:evals -- act -t 3 -c 10
- */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";

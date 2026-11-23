@@ -1,9 +1,3 @@
-/**
- * piAdapter — converts pi AgentSession events into a verifier `Trajectory`.
- *
- * Assistant message_end events provide reasoning/tool calls/final text;
- * tool_execution_start/end events provide arguments, results, errors, and images.
- */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {

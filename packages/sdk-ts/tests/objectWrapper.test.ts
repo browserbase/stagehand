@@ -220,7 +220,6 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
 
     await stagehand.experimentalBatch(async () => {
-      // Regression probe: this text does not make the callback a native function.
       return "[native code]";
     });
 

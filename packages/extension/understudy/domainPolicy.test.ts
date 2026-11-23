@@ -6,9 +6,6 @@ import {
   toDomainPolicyDnrRules,
 } from "./domainPolicy.js";
 
-// Evaluate the compiler's regex/priority subset against Chrome-style serialized URLs.
-// This checks policy semantics; Chrome's RE2 validation and actual enforcement belong
-// in the installer and browser integration tests.
 function compiledDecision(rules: chrome.declarativeNetRequest.Rule[], url: string) {
   const serializedUrl = new URL(url).href;
   const matchingRules = rules

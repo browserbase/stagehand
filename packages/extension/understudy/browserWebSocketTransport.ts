@@ -1,6 +1,5 @@
 import type { CdpWebSocketCloseEvent, CdpWebSocketFactory, CdpWebSocketTransport } from "./cdp.js";
 
-/** Adapts the browser-native WebSocket API to the text transport consumed by CDP. */
 class BrowserWebSocketTransport implements CdpWebSocketTransport {
   messageHandlers = new Set<(data: string) => void>();
   errorHandlers = new Set<(error: Error) => void>();

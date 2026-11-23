@@ -60,15 +60,10 @@ export const BROWSER_TOOLSET_MEMBERS: ReadonlySet<string> = new Set<string>([
   ...BROWSER_TOOLSET_OPTIONAL_MEMBERS,
 ]);
 
-/**
- * `javascript_exec` is on by default: the eval browser is isolated and
- * credential-free, and the agent benefits from reading computed state directly.
- */
 export const DEFAULT_BROWSER_TOOLSET_CONFIGS: BrowserToolsetConfigs = {
   javascript_exec: { enabled: true },
 };
 
-/** Text sent for the remaining members of a turn after one of them failed. */
 export const BROWSER_TOOLSET_BATCH_HALT_TEXT =
   "Not executed: an earlier action in this turn failed.";
 
@@ -93,7 +88,6 @@ export function buildBrowserToolsetDeclaration(
   };
 }
 
-/** Whether a member is enabled under the effective configs. */
 export function isBrowserMemberEnabled(
   member: string,
   configOverrides?: BrowserToolsetConfigs,
@@ -115,7 +109,6 @@ function effectiveMemberConfig(
   };
 }
 
-/** Content blocks a member may return inside its tool_result. */
 export type CuaToolResultBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } }

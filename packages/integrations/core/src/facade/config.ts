@@ -20,9 +20,7 @@ export type StagehandFacadeConfig = {
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
     | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions };
   stagehand: StagehandClientCreateConfig;
-  /** STAGEHAND_FACADE_QUIET_WAIT: see StagehandFacadeToolsOptions.quietWait. */
   quietWait: boolean;
-  /** STAGEHAND_FACADE_ARTIFACT_ROOT: see StagehandFacadeToolsOptions.artifactRoot. */
   artifactRoot?: string;
 };
 
@@ -55,8 +53,6 @@ export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): Stag
           ),
         }
       : undefined;
-  // A host that launches many facades at once uploads the Stagehand extension
-  // once and hands every facade the id; otherwise each session uploads its own.
   const extensionId = nonEmpty(env.STAGEHAND_BROWSERBASE_EXTENSION_ID);
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
@@ -106,12 +102,7 @@ export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): Stag
               apiKey: browserbaseApiKey!,
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
               timeout: browserbaseOptions!.timeout,
-              // The facade owns shutdown explicitly, including sessions whose
-              // client transport has already closed.
               keepAlive: true,
-              // Bot-wall parity with Stagehand's native agent path, which runs
-              // proxied + verified sessions; unproxied facade sessions were
-              // blocked (Akamai/PerimeterX) on sites the native path reached.
               ...(browserbaseOptions!.proxies !== undefined
                 ? { proxies: browserbaseOptions!.proxies }
                 : {}),
