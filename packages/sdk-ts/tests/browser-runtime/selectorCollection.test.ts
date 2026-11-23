@@ -301,14 +301,23 @@ describe("page-side selector collection", () => {
     });
   });
 
-  it("releases getProperties handles together while a separately selected action target survives", async () => {
+  async function attachResolver(target = page) {
     const { sessionId } = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
-      targetId: page.pageId,
+      targetId: target.pageId,
       flatten: true,
     });
+    const calls: Array<{ method: string; params?: object; result?: unknown }> = [];
+    const inspect = <T>(method: string, params?: object) =>
+      cdp.sendCommand<T>(method, { ...params }, sessionId);
     const session: CDPSessionLike = {
       id: sessionId,
-      send: (method, params) => cdp.sendCommand(method, { ...params }, sessionId),
+      send: async <T>(method: string, params?: object): Promise<T> => {
+        const call: (typeof calls)[number] = { method, params };
+        calls.push(call);
+        const result = await inspect<T>(method, params);
+        call.result = result;
+        return result;
+      },
       on: () => {},
       off: () => {},
       close: async () => {},
@@ -332,22 +341,63 @@ describe("page-side selector collection", () => {
       expect(installed.exceptionDetails).toBeUndefined();
       executionContexts.registerExtensionWorld(session, frameTree.frame.id, executionContextId);
       const resolver = new FrameSelectorResolver({ session, frameId: frameTree.frame.id } as Frame);
+      // Readiness and fixture setup are outside the measured resolution traffic.
+      calls.length = 0;
+      return {
+        resolver,
+        session,
+        calls,
+        inspect,
+        readIds: async (objectIds: string[]) => {
+          // Verification bypasses the recorder; all resolver/cleanup commands use session.send.
+          const response = await inspect<{
+            result: { value: string[] };
+            exceptionDetails?: unknown;
+          }>("Runtime.callFunctionOn", {
+            executionContextId,
+            functionDeclaration: "function(...nodes) { return nodes.map(node => node.id); }",
+            arguments: objectIds.map((objectId) => ({ objectId })),
+            returnByValue: true,
+          });
+          expect(response.exceptionDetails).toBeUndefined();
+          return response.result.value;
+        },
+        close: async () => {
+          executionContexts.unregisterExtensionContext(session, executionContextId);
+          await cdp.sendCommand("Target.detachFromTarget", { sessionId });
+        },
+      };
+    } catch (error) {
+      executionContexts.unregisterExtensionContext(session, executionContextId);
+      await cdp.sendCommand("Target.detachFromTarget", { sessionId });
+      throw error;
+    }
+  }
+
+  it("releases a batch's array and nodes without releasing another batch or an action target", async () => {
+    const { resolver, session, calls, inspect, readIds, close } = await attachResolver();
+    try {
       const query = { kind: "css", value: "#light-a, #light-b" } as const;
       const selected = await resolver.resolveAtIndex(query, 1);
       expect(selected).not.toBeNull();
       const batch = await resolver.resolveAll(query);
-      const readId = async (objectId: string) => {
-        const response = await session.send<{
-          exceptionDetails?: unknown;
-          result: { value?: unknown };
-        }>("Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: "function() { return this.id; }",
-          returnByValue: true,
-        });
-        expect(response.exceptionDetails).toBeUndefined();
-        return response.result.value;
-      };
+      const collection = calls.find(
+        (call) =>
+          call.method === "Runtime.evaluate" &&
+          (call.params as { objectGroup?: string }).objectGroup,
+      );
+      expect(collection).toBeDefined();
+      const batchArray = (collection!.result as { result: { objectId: string } }).result.objectId;
+      const other = await resolver.resolveAll(query);
+      const groups = calls
+        .filter(
+          (call) =>
+            call.method === "Runtime.evaluate" &&
+            (call.params as { objectGroup?: string }).objectGroup,
+        )
+        .map((call) => (call.params as { objectGroup: string }).objectGroup);
+      expect(new Set(groups).size).toBe(2);
+      const readId = async (objectId: string) => (await readIds([objectId]))[0];
       try {
         expect(await Promise.all(batch.nodes.map((node) => readId(node.objectId)))).toEqual([
           "light-a",
@@ -357,6 +407,13 @@ describe("page-side selector collection", () => {
         for (const node of batch.nodes) {
           await expect(readId(node.objectId)).rejects.toThrow(/object|context/i);
         }
+        await expect(inspect("Runtime.getProperties", { objectId: batchArray })).rejects.toThrow(
+          /object|context/i,
+        );
+        expect(await readIds(other.nodes.map((node) => node.objectId))).toEqual([
+          "light-a",
+          "light-b",
+        ]);
         expect(await readId(selected!.objectId)).toBe("light-b");
         const range = await resolver.resolveAll(query, { start: 1, limit: 1 });
         try {
@@ -369,11 +426,11 @@ describe("page-side selector collection", () => {
         }
       } finally {
         await batch.release();
+        await other.release();
         if (selected) await session.send("Runtime.releaseObject", { objectId: selected.objectId });
       }
     } finally {
-      executionContexts.unregisterExtensionContext(session, executionContextId);
-      await cdp.sendCommand("Target.detachFromTarget", { sessionId });
+      await close();
     }
   });
 
@@ -382,5 +439,130 @@ describe("page-side selector collection", () => {
     expect([...screenshot.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
     expect(await page.locator("button").count()).toBe(7);
     expect(await page.locator("button").nth(5).textContent()).toBe("Save");
+  });
+
+  it.each([
+    { kind: "css", value: "button" },
+    { kind: "text", value: "Save" },
+    { kind: "xpath", value: "//button" },
+  ] as const)(
+    "bounds $kind resolution and cleanup calls at 500 and 1,000 matches",
+    async (query) => {
+      const { resolver, session, calls, readIds, close } = await attachResolver();
+      const traffic: Array<Record<string, string[]>> = [];
+      try {
+        for (const size of [500, 1000]) {
+          await page.evaluate(`document.body.innerHTML = Array.from({length: ${size}}, (_, i) =>
+          '<button id="match-' + i + '">Save</button>').join('')`);
+          const methods = () => calls.map((call) => call.method);
+          const measured: Record<string, string[]> = {};
+
+          calls.length = 0;
+          expect(await resolver.count(query)).toBe(size);
+          expect(methods()).toEqual(["Runtime.evaluate"]);
+          expect(calls[0].params).toMatchObject({ returnByValue: true });
+          expect(calls[0].result).toMatchObject({ result: { type: "number", value: size } });
+          measured.count = methods();
+
+          for (const index of [0, size - 1]) {
+            calls.length = 0;
+            const selected =
+              index === 0
+                ? await resolver.resolveFirst(query)
+                : await resolver.resolveAtIndex(query, index);
+            expect(selected).not.toBeNull();
+            try {
+              expect(await readIds([selected!.objectId])).toEqual([`match-${index}`]);
+              // Only one node is materialized, even when selecting the last match.
+              expect(methods()).toEqual(["Runtime.evaluate", "DOM.requestNode"]);
+              expect(calls[0].result).toMatchObject({
+                result: { subtype: "node", objectId: selected!.objectId },
+              });
+              expect(calls[1].params).toEqual({ objectId: selected!.objectId });
+            } finally {
+              if (selected)
+                await session.send("Runtime.releaseObject", { objectId: selected.objectId });
+            }
+            expect(methods()).toEqual([
+              "Runtime.evaluate",
+              "DOM.requestNode",
+              "Runtime.releaseObject",
+            ]);
+            measured[index === 0 ? "first" : "nth"] = methods();
+          }
+
+          for (const mode of ["all", "range"] as const) {
+            calls.length = 0;
+            const options = mode === "all" ? {} : { start: size - 2, limit: 2 };
+            const batch = await resolver.resolveAll(query, options);
+            try {
+              const expectedIds = Array.from(
+                { length: mode === "all" ? size : 2 },
+                (_, i) => `match-${mode === "all" ? i : size - 2 + i}`,
+              );
+              expect(await readIds(batch.nodes.map((node) => node.objectId))).toEqual(expectedIds);
+              expect(methods()).toEqual(["Runtime.evaluate", "Runtime.getProperties"]);
+              const properties = calls[1].result as {
+                result: Array<{ name: string; value?: { objectId?: string } }>;
+              };
+              const exported = properties.result.filter((property) => /^\d+$/.test(property.name));
+              expect(exported.map((property) => property.value?.objectId)).toEqual(
+                batch.nodes.map((node) => node.objectId),
+              );
+              expect(calls[1].params).toMatchObject({
+                objectId: (calls[0].result as { result: { objectId: string } }).result.objectId,
+                ownProperties: true,
+              });
+            } finally {
+              await batch.release();
+            }
+            expect(methods()).toEqual([
+              "Runtime.evaluate",
+              "Runtime.getProperties",
+              "Runtime.releaseObjectGroup",
+            ]);
+            const group = (calls[0].params as { objectGroup: string }).objectGroup;
+            expect(group).toEqual(expect.any(String));
+            expect(calls[2].params).toEqual({ objectGroup: group });
+            measured[mode] = methods();
+          }
+          traffic.push(measured);
+        }
+        expect(traffic[1]).toEqual(traffic[0]);
+        // This bounds protocol messages, not DOM work or response bytes. Reading
+        // geometry/backend IDs for every match still requires per-target work.
+      } finally {
+        await close();
+      }
+    },
+  );
+
+  it("releases a batch after navigation destroys its execution context", async () => {
+    const target = await browser!.context.newPage();
+    try {
+      await target.evaluate("document.body.innerHTML = '<button>Save</button>'");
+      const { resolver, calls, readIds, close } = await attachResolver(target);
+      try {
+        const batch = await resolver.resolveAll({ kind: "css", value: "button" });
+        expect(batch.nodes).toHaveLength(1);
+        const group = (calls[0].params as { objectGroup: string }).objectGroup;
+        try {
+          await target.goto("about:blank");
+          await expect(readIds(batch.nodes.map((node) => node.objectId))).rejects.toThrow(
+            /context|object/i,
+          );
+        } finally {
+          await batch.release();
+        }
+        expect(calls.at(-1)).toMatchObject({
+          method: "Runtime.releaseObjectGroup",
+          params: { objectGroup: group },
+        });
+      } finally {
+        await close();
+      }
+    } finally {
+      await target.close();
+    }
   });
 });

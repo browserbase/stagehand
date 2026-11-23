@@ -231,9 +231,25 @@ describe("locator resolution deadlines", () => {
     async (command) => {
       const { frame, send, respond } = createFrame("root");
       const gate = deferred();
-      send.mockImplementation((method, params) =>
-        method === command ? gate.promise : respond(method, params),
-      );
+      let objectGroup: string;
+      const liveGroups = new Set<string>();
+      send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.evaluate")
+          objectGroup = (params as { objectGroup: string }).objectGroup;
+        if (method === "Runtime.releaseObjectGroup") {
+          liveGroups.delete((params as { objectGroup: string }).objectGroup);
+          return {};
+        }
+        if (method === command) {
+          const value = await gate.promise;
+          // Model handles created after the first release has already completed.
+          // The Chrome lifetime test separately verifies real group inheritance.
+          liveGroups.add(objectGroup);
+          return value;
+        }
+        if (method === "Runtime.evaluate") liveGroups.add(objectGroup);
+        return respond(method, params);
+      });
       const pending = frame
         .locator("button")
         .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, createProgress());
@@ -243,7 +259,8 @@ describe("locator resolution deadlines", () => {
       const releases = () =>
         send.mock.calls.filter(([method]) => method === "Runtime.releaseObjectGroup");
       expect(releases()).toHaveLength(1);
-      const group = releases()[0][1];
+      expect(liveGroups.size).toBe(0);
+      const group = { objectGroup: objectGroup! };
       gate.resolve(
         command === "Runtime.evaluate"
           ? { result: { objectId: "late-array" } }
@@ -254,6 +271,7 @@ describe("locator resolution deadlines", () => {
         ["Runtime.releaseObjectGroup", group],
         ["Runtime.releaseObjectGroup", group],
       ]);
+      expect(liveGroups.size).toBe(0);
       expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
     },
   );
@@ -335,6 +353,56 @@ describe("locator resolution deadlines", () => {
     ).toHaveLength(1);
     expect(replacement.send).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { command: "Runtime.evaluate", failure: "exception", withProgress: false },
+    { command: "Runtime.getProperties", failure: "exception", withProgress: false },
+    { command: "Runtime.evaluate", failure: "exception", withProgress: true },
+    { command: "Runtime.getProperties", failure: "exception", withProgress: true },
+    { command: "Runtime.evaluate", failure: "closed", withProgress: true },
+    { command: "Runtime.getProperties", failure: "closed", withProgress: true },
+  ])(
+    "releases the owning group on $command $failure (progress=$withProgress)",
+    async ({ command, failure, withProgress }) => {
+      const { frame, send, respond } = createFrame("root");
+      const closed = new Error("CDP connection closed: socket-close");
+      let allocatedGroup: string | undefined;
+      const liveGroups = new Set<string>();
+      send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.evaluate") {
+          allocatedGroup = (params as { objectGroup: string }).objectGroup;
+          liveGroups.add(allocatedGroup);
+        }
+        if (method === "Runtime.releaseObjectGroup") {
+          // Check ownership, not just the number of release commands.
+          expect((params as { objectGroup: string }).objectGroup).toBe(allocatedGroup);
+          liveGroups.delete((params as { objectGroup: string }).objectGroup);
+          if (failure === "closed") throw closed;
+          return {};
+        }
+        if (method === command) {
+          if (failure === "closed") throw closed;
+          return {
+            result: command === "Runtime.evaluate" ? { objectId: "error" } : [],
+            exceptionDetails: { text: "evaluation failed", exception: { objectId: "error" } },
+          };
+        }
+        return respond(method, params);
+      });
+      const pending = frame
+        .locator("button")
+        .selectorResolver.resolveAll(
+          { kind: "css", value: "button" },
+          {},
+          withProgress ? createProgress(0) : undefined,
+        );
+      if (failure === "closed") await expect(pending).rejects.toBe(closed);
+      else await expect(pending).resolves.toMatchObject({ nodes: [] });
+      expect(allocatedGroup).toEqual(expect.any(String));
+      expect(liveGroups.size).toBe(0);
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    },
+  );
 
   it("removes the main-world listener & timer when its caller expires", async () => {
     const { session, events } = createFrame("root", false);
