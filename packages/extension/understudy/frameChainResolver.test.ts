@@ -237,6 +237,108 @@ describe("frame chain deadlines & ownership", () => {
     expect(state.main.live.size + state.replacement.live.size).toBe(0);
   });
 
+  it.each(["success", "failure"])(
+    "retries installation after an ownership swap with a late %s",
+    async (outcome) => {
+      const state = setup();
+      state.child.send.mockImplementation(async (method, params) => {
+        const result = await state.child.respond(method, params);
+        if (method === "Runtime.evaluate") {
+          state.adopt();
+          if (outcome === "failure") throw new Error("Cannot find context with specified id");
+        }
+        return result;
+      });
+      const pending = state.resolver.resolve(chain, { mode: "selected", index: 1 }, progress(500));
+      const assertion = expect(pending).resolves.toEqual({
+        mode: "selected",
+        targets: [{ session: state.replacement.value, frameId: "child", backendNodeId: 202 }],
+      });
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
+      expect(state.ready.mock.calls.some(([session]) => session === state.replacement.value)).toBe(
+        true,
+      );
+      expect(
+        state.child.send.mock.calls.some(([method]) => method === "Runtime.callFunctionOn"),
+      ).toBe(false);
+      for (const session of [state.main, state.child, state.replacement]) {
+        expect(session.live.size).toBe(0);
+        expect(
+          session.send.mock.calls.some(([method]) => method === "Runtime.releaseObjectGroup"),
+        ).toBe(true);
+      }
+    },
+  );
+
+  it.each([
+    { name: "omitted progress", timeout: undefined, retries: undefined },
+    { name: "unlimited progress", timeout: 0, retries: undefined },
+    { name: "disabled retries", timeout: 500, retries: "none" as const },
+  ])("does not retry installation with $name", async ({ timeout, retries }) => {
+    const state = setup();
+    state.child.send.mockImplementation(async (method, params) => {
+      const result = await state.child.respond(method, params);
+      if (method === "Runtime.evaluate") state.adopt();
+      return result;
+    });
+    const resolver = new FrameChainResolver(state.page, undefined, { readinessRetries: retries });
+    await expect(
+      resolver.resolve(
+        chain,
+        { mode: "count" },
+        timeout === undefined ? undefined : progress(timeout),
+      ),
+    ).rejects.toThrow("Chain frame changed");
+    expect(state.replacement.send).not.toHaveBeenCalled();
+    expect(state.main.live.size + state.child.live.size).toBe(0);
+  });
+
+  it.each(["unchanged owner", "connection closed", "detached frame"])(
+    "preserves installation failures with %s",
+    async (reason) => {
+      const state = setup();
+      const failure = new Error(
+        reason === "connection closed"
+          ? "CDP connection closed: disconnected"
+          : "installation failed",
+      );
+      state.child.send.mockImplementation(async (method, params) => {
+        const result = await state.child.respond(method, params);
+        if (method === "Runtime.evaluate") {
+          if (reason !== "unchanged owner") state.adopt();
+          if (reason === "detached frame") state.registry.onFrameDetached("child");
+          throw failure;
+        }
+        return result;
+      });
+      const pending = state.resolver.resolve(chain, { mode: "count" }, progress(500));
+      if (reason === "detached frame")
+        await expect(pending).rejects.toThrow("Chain frame detached");
+      else await expect(pending).rejects.toBe(failure);
+      expect(state.replacement.send).not.toHaveBeenCalled();
+      expect(state.main.live.size + state.child.live.size).toBe(0);
+    },
+  );
+
+  it("keeps the original deadline when retrying installation", async () => {
+    const state = setup();
+    state.child.send.mockImplementation(async (method, params) => {
+      const result = await state.child.respond(method, params);
+      if (method === "Runtime.evaluate") {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        state.adopt();
+      }
+      return result;
+    });
+    const pending = state.resolver.resolve(chain, { mode: "count" }, progress(100));
+    const assertion = expect(pending).rejects.toBeInstanceOf(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await assertion;
+    expect(state.replacement.send).not.toHaveBeenCalled();
+    expect(state.main.live.size + state.child.live.size).toBe(0);
+  });
+
   it("rejects an ownership change after collection & cleans the original sessions", async () => {
     const state = setup();
     state.child.send.mockImplementation(async (method, params) => {
@@ -244,7 +346,7 @@ describe("frame chain deadlines & ownership", () => {
       if (method === "Runtime.callFunctionOn") state.adopt();
       return result;
     });
-    await expect(state.resolver.resolve(chain, { mode: "count" })).rejects.toThrow(
+    await expect(state.resolver.resolve(chain, { mode: "count" }, progress(500))).rejects.toThrow(
       "Chain frame changed",
     );
     expect(state.main.live.size + state.child.live.size).toBe(0);

@@ -230,22 +230,40 @@ class FrameChainOperation {
         await this.progress.delay(50);
         continue;
       }
-      const loaderId = this.assertAttached(frameId).lastSeen?.loaderId;
-      const response = await this.send<Protocol.Runtime.EvaluateResponse>(
-        session,
-        "Runtime.evaluate",
-        {
-          expression: buildLocatorInvocation("createFrameChainScope", []),
-          contextId,
-          objectGroup: this.objectGroup,
-        },
-      );
-      throwException(response.exceptionDetails);
-      if (!response.result.objectId) throw new Error("Missing frame chain scope handle");
-      const world = { session, frameId, objectId: response.result.objectId, loaderId };
-      this.assertWorld(world);
-      this.worlds.set(frameId, world);
-      return world;
+      try {
+        const loaderId = this.assertAttached(frameId).lastSeen?.loaderId;
+        const response = await this.send<Protocol.Runtime.EvaluateResponse>(
+          session,
+          "Runtime.evaluate",
+          {
+            expression: buildLocatorInvocation("createFrameChainScope", []),
+            contextId,
+            objectGroup: this.objectGroup,
+          },
+        );
+        throwException(response.exceptionDetails);
+        if (!response.result.objectId) throw new Error("Missing frame chain scope handle");
+        const world = { session, frameId, objectId: response.result.objectId, loaderId };
+        this.assertWorld(world);
+        this.worlds.set(frameId, world);
+        return world;
+      } catch (error) {
+        this.progress.throwIfStopped();
+        this.assertAttached(frameId);
+        // Ownership can change after the readiness check or while evaluation
+        // is in flight. No matches have been collected in this world yet, so
+        // installation can restart on its new owner. Old handles remain owned
+        // by the operation; releasing the session's group here could also
+        // discard retained scopes from another frame sharing that session.
+        if (
+          session === this.page.getSessionForFrame(frameId) ||
+          (isCdpClosedError(error) && error.message.startsWith("CDP connection closed:")) ||
+          this.readinessOptions.readinessRetries === "none" ||
+          !Number.isFinite(this.progress.remainingMs())
+        )
+          throw error;
+        await this.progress.delay(50);
+      }
     }
   }
 
