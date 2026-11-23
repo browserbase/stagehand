@@ -499,9 +499,9 @@ browser = await browserbase.launch(
 </Tab>
 </Tabs>
 
-The built-in extension may not be available for every project or region yet. If Browserbase refuses the session, launch fails with "Failed to create a Browserbase session" followed by a hint to remove the option; remove it to upload the bundled extension instead.
+The built-in extension may not be available for every project or region yet. If Browserbase rejects the option, launch fails with "Failed to create a Browserbase session" followed by a hint to remove it. Other failures show the message without the hint. Without the option and without an `extensionId`, Stagehand uploads its bundled extension as described above.
 
-With the option set, an `extensionId` you pass is loaded as your own extension next to the built-in one. Don't pass the ID of an uploaded Stagehand extension together with it: a session with two Stagehand extensions fails to connect.
+With the option set, Browserbase loads an extension you pass through `extensionId` next to its built-in one. Don't pass the ID of an uploaded Stagehand extension together with it: Stagehand can't connect to a session that has two Stagehand extensions.
 
 ### Alternative: Browserbase SDK
 
