@@ -1,9 +1,11 @@
-import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import { LocatorRequestDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import { locatorSteps } from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
-  LocatorDescriptor,
+  LocatorChain,
+  LocatorRequestDescriptor,
   LocatorOptions,
   LocatorHighlightParams,
   LocatorScrollToParams,
@@ -24,7 +26,7 @@ export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
 export class Locator {
   constructor(
     readonly rpcClient: StagehandCommandClient,
-    readonly descriptor: LocatorDescriptor,
+    readonly descriptor: LocatorRequestDescriptor,
   ) {}
 
   async click(options?: LocatorClickOptions): Promise<void> {
@@ -162,15 +164,34 @@ export class Locator {
   }
 
   nth(index: number): Locator {
-    const parsedDescriptor = LocatorDescriptorSchema.safeParse({
-      ...this.descriptor,
-      nth: index,
-    });
+    const parsedDescriptor = LocatorRequestDescriptorSchema.safeParse(
+      "chain" in this.descriptor
+        ? {
+            pageId: this.descriptor.pageId,
+            chain: { steps: [...this.descriptor.chain.steps, { type: "nth", index }] },
+          }
+        : { ...this.descriptor, nth: index },
+    );
 
     if (!parsedDescriptor.success) {
       throw parsedDescriptor.error;
     }
 
     return new Locator(this.rpcClient, parsedDescriptor.data);
+  }
+
+  locator(selector: string): Locator {
+    const steps: LocatorChain["steps"] =
+      "chain" in this.descriptor
+        ? [...this.descriptor.chain.steps]
+        : locatorSteps(this.descriptor.selector);
+    if ("nth" in this.descriptor && this.descriptor.nth !== undefined) {
+      steps.push({ type: "nth", index: this.descriptor.nth });
+    }
+    steps.push(...locatorSteps(selector));
+    return new Locator(
+      this.rpcClient,
+      LocatorRequestDescriptorSchema.parse({ pageId: this.descriptor.pageId, chain: { steps } }),
+    );
   }
 }

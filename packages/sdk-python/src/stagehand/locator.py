@@ -5,7 +5,9 @@ from typing import Literal, Self
 
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
+    ChainLocatorDescriptor,
     LocatorCentroidResult,
+    LocatorChain,
     LocatorClickOptions,
     LocatorClickParams,
     LocatorClickResult,
@@ -38,6 +40,7 @@ from ._generated.models import (
     LocatorTypeResult,
     MouseButton,
 )
+from ._locator_selectors import locator_steps
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
@@ -53,6 +56,7 @@ class Locator:
     ) -> None:
         self._rpc_client = rpc_client
         self._descriptor = LocatorDescriptor(page_id=page_id, selector=selector)
+        self._chain: LocatorChain | None = None
         if nth is not None:
             self._descriptor.nth = nth
 
@@ -69,7 +73,11 @@ class Locator:
         return self._descriptor.nth
 
     @property
-    def descriptor(self) -> LocatorDescriptor:
+    def descriptor(self) -> LocatorDescriptor | ChainLocatorDescriptor:
+        if self._chain is not None:
+            return ChainLocatorDescriptor(
+                page_id=self.page_id, chain=self._chain.model_copy(deep=True)
+            )
         return self._descriptor
 
     async def click(
@@ -281,9 +289,9 @@ class Locator:
         )
 
     def _params(self, timeout: float | None) -> dict[str, object]:
-        values: dict[str, object] = {"page_id": self.page_id, "selector": self.selector}
-        if self.nth_index is not None:
-            values["nth"] = self.nth_index
+        values: dict[str, object] = self.descriptor.model_dump(
+            exclude_none=True, exclude_unset=True
+        )
         if timeout is not None:
             values["options"] = {"timeout": timeout}
         return values
@@ -292,9 +300,25 @@ class Locator:
         return self.nth(0)
 
     def nth(self, index: int) -> Self:
-        return type(self)(
+        child = type(self)(
             self._rpc_client,
             page_id=self.page_id,
             selector=self.selector,
             nth=index,
         )
+        if self._chain is not None:
+            child._chain = LocatorChain.model_validate({
+                "steps": [*self._chain.model_dump()["steps"], {"type": "nth", "index": index}]
+            })
+        return child
+
+    def locator(self, selector: str) -> Self:
+        child = type(self)(self._rpc_client, page_id=self.page_id, selector=selector)
+        if self._chain is not None:
+            steps = self._chain.model_dump()["steps"]
+        else:
+            steps = list(locator_steps(self.selector))
+            if self.nth_index is not None:
+                steps.append({"type": "nth", "index": self.nth_index})
+        child._chain = LocatorChain.model_validate({"steps": [*steps, *locator_steps(selector)]})
+        return child
