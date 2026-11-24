@@ -13,6 +13,7 @@ module cdp_frame_lifecycle {
     execId: ExecId,
     session: SessionId,
     frame: FrameId,
+    loaderGen: int,
     isDefault: bool,
   }
 
@@ -21,12 +22,14 @@ module cdp_frame_lifecycle {
     session: SessionId,
     frame: FrameId,
     execId: ExecId,
+    loaderGen: int,
     groupId: int,
   }
 
   type InFlightCmd = {
     op: OpId,
     session: SessionId,
+    loaderGen: int,
     groupId: int,
     cmdId: int,
   }
@@ -34,6 +37,9 @@ module cdp_frame_lifecycle {
   type RemoteHandle = {
     op: OpId,
     session: SessionId,
+    loaderGen: int,
+    replyDocGen: int,
+    isLate: bool,
     groupId: int,
     handleId: int,
   }
@@ -159,6 +165,7 @@ module cdp_frame_lifecycle {
     session: NONE,
     frame: NONE,
     execId: 0,
+    loaderGen: 0,
     groupId: 0,
   }
 
@@ -200,7 +207,7 @@ module cdp_frame_lifecycle {
       childrenOf' = renameChildrenMap(oldRoot, newRoot, childrenOf),
       ownerSession' = renameOwnerMap(oldRoot, newRoot, sessionId, ownerSession),
       framesBySession' = renameBySessionMap(oldRoot, newRoot, oldSess, sessionId, framesBySession),
-      loaderGen' = loaderGen.put(oldRoot, 0).put(newRoot, loaderGen.get(oldRoot)),
+      loaderGen' = loaderGen.put(newRoot, loaderGen.get(newRoot) + 1),
       execCtxs' = execCtxs,
       opState' = opState,
       inFlightCmds' = inFlightCmds,
@@ -218,24 +225,32 @@ module cdp_frame_lifecycle {
     }
   }
 
-  // Chrome may deliver a grandchild frameAttached before its parent, creating a shell
-  // parent node that is later wired beneath its own parent when that event arrives.
+  // Supports fresh child attach, shell-parent wiring, and reparenting an already-parented
+  // non-root frame to any non-descendant parent while keeping parent/child edges symmetric.
   action frameAttachedChild(fid: FrameId, pid: FrameId, sessionId: SessionId): bool = {
     val oldSess = ownerSession.get(fid)
+    val oldParent = parentOf.get(fid)
     all {
       fid.in(FRAME_IDS),
       pid.in(FRAME_IDS),
       sessionId.in(SESSION_IDS),
       fid != pid,
       fid != rootFrame,
-      not(fid.in(frames)) or (parentOf.get(fid) == NONE and not(pid.in(subtree(fid, childrenOf)))),
+      not(pid.in(subtree(fid, childrenOf))),
       frames' = frames.union(Set(fid, pid)),
       rootFrame' = rootFrame,
       parentOf' = parentOf.put(fid, pid),
-      childrenOf' = childrenOf.put(pid, childrenOf.get(pid).union(Set(fid))),
+      childrenOf' = FRAME_IDS.mapBy(f =>
+        if (f == pid) childrenOf.get(f).union(Set(fid))
+        else if (f == oldParent and oldParent != NONE) childrenOf.get(f).exclude(Set(fid))
+        else childrenOf.get(f)
+      ),
       ownerSession' = ownerSession.put(fid, sessionId),
       framesBySession' = updateFramesBySessionForOwner(fid, oldSess, sessionId, framesBySession),
-      loaderGen' = loaderGen,
+      loaderGen' = FRAME_IDS.mapBy(f =>
+        if ((f == fid or f == pid) and not(f.in(frames))) loaderGen.get(f) + 1
+        else loaderGen.get(f)
+      ),
       execCtxs' = execCtxs,
       opState' = opState,
       inFlightCmds' = inFlightCmds,
@@ -297,7 +312,7 @@ module cdp_frame_lifecycle {
       childrenOf' = renameChildrenMap(oldRoot, newRoot, childrenOf),
       ownerSession' = renameOwnerMap(oldRoot, newRoot, sess, ownerSession),
       framesBySession' = renameBySessionMap(oldRoot, newRoot, sess, sess, framesBySession),
-      loaderGen' = loaderGen.put(oldRoot, 0).put(newRoot, loaderGen.get(oldRoot) + 1),
+      loaderGen' = loaderGen.put(newRoot, loaderGen.get(newRoot) + 1),
       execCtxs' = execCtxs,
       opState' = opState,
       inFlightCmds' = inFlightCmds,
@@ -331,7 +346,7 @@ module cdp_frame_lifecycle {
       ),
       ownerSession' = FRAME_IDS.mapBy(f => if (f.in(sub)) NONE else ownerSession.get(f)),
       framesBySession' = SESSION_IDS.mapBy(s => framesBySession.get(s).exclude(sub)),
-      loaderGen' = FRAME_IDS.mapBy(f => if (f.in(sub)) 0 else loaderGen.get(f)),
+      loaderGen' = loaderGen,
       execCtxs' = execCtxs,
       opState' = opState,
       inFlightCmds' = inFlightCmds,
@@ -421,6 +436,7 @@ module cdp_frame_lifecycle {
       execId: execId,
       session: sessionId,
       frame: frameId,
+      loaderGen: loaderGen.get(frameId),
       isDefault: isDefault,
     })),
     frames' = frames,
@@ -496,19 +512,21 @@ module cdp_frame_lifecycle {
     },
   }
 
-  // Operations pin (session, frameId, execId, objectGroup) up front; commands and
-  // Runtime.releaseObjectGroup stay on the captured session even across OOPIF adoption.
+  // Operations pin (session, frameId, execId, loaderGen, objectGroup) up front; commands
+  // require matching document generation while releaseObjectGroup stays on the captured session.
   action opStart(opId: OpId, ctx: ExecContext): bool = all {
     opId.in(OP_IDS),
     opState.get(opId).status == OpIdle,
     ctx.in(execCtxs),
     ctx.frame.in(frames),
     ownerSession.get(ctx.frame) == ctx.session,
+    ctx.loaderGen == loaderGen.get(ctx.frame),
     opState' = opState.put(opId, {
       status: OpRunning,
       session: ctx.session,
       frame: ctx.frame,
       execId: ctx.execId,
+      loaderGen: ctx.loaderGen,
       groupId: nextGroupId,
     }),
     nextGroupId' = nextGroupId + 1,
@@ -538,10 +556,13 @@ module cdp_frame_lifecycle {
     all {
       opId.in(OP_IDS),
       op.status == OpRunning,
+      op.frame.in(frames),
+      loaderGen.get(op.frame) == op.loaderGen,
       inFlightCmds.filter(c => c.op == opId).size() < 2,
       inFlightCmds' = inFlightCmds.union(Set({
         op: opId,
         session: op.session,
+        loaderGen: op.loaderGen,
         groupId: op.groupId,
         cmdId: nextCmdId,
       })),
@@ -573,10 +594,16 @@ module cdp_frame_lifecycle {
     all {
       cmd.in(inFlightCmds),
       op.status == OpRunning,
+      op.frame.in(frames),
+      loaderGen.get(op.frame) == op.loaderGen,
+      cmd.loaderGen == op.loaderGen,
       inFlightCmds' = inFlightCmds.exclude(Set(cmd)),
       liveHandles' = liveHandles.union(Set({
         op: cmd.op,
         session: cmd.session,
+        loaderGen: cmd.loaderGen,
+        replyDocGen: loaderGen.get(op.frame),
+        isLate: false,
         groupId: cmd.groupId,
         handleId: nextHandleId,
       })),
@@ -642,6 +669,9 @@ module cdp_frame_lifecycle {
       liveHandles' = liveHandles.union(Set({
         op: cmd.op,
         session: cmd.session,
+        loaderGen: cmd.loaderGen,
+        replyDocGen: loaderGen.get(op.frame),
+        isLate: true,
         groupId: cmd.groupId,
         handleId: nextHandleId,
       })),
@@ -876,6 +906,22 @@ module cdp_frame_lifecycle {
     ),
   }
 
+  val noStaleDocumentReplies: bool = and {
+    frames.forall(f => loaderGen.get(f) > 0),
+    execCtxs.forall(c => c.loaderGen > 0 and c.loaderGen <= loaderGen.get(c.frame)),
+    OP_IDS.forall(opId =>
+      opState.get(opId).status != OpIdle implies (
+        opState.get(opId).loaderGen > 0 and
+        opState.get(opId).loaderGen <= loaderGen.get(opState.get(opId).frame)
+      )
+    ),
+    inFlightCmds.forall(c => c.loaderGen == opState.get(c.op).loaderGen),
+    liveHandles.forall(h =>
+      h.loaderGen == opState.get(h.op).loaderGen and
+      (not(h.isLate) implies h.replyDocGen == h.loaderGen)
+    ),
+  }
+
   val noLeakedHandlesWhenIdle: bool =
     OP_IDS.forall(opId =>
       opState.get(opId).status == OpIdle implies and {
@@ -889,6 +935,7 @@ module cdp_frame_lifecycle {
     parentChildSymmetric,
     sessionMapBijective,
     noCrossSessionHandleMix,
+    noStaleDocumentReplies,
     noLeakedHandlesWhenIdle,
   }
 }

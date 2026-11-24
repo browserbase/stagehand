@@ -46,6 +46,7 @@ module rpc_cancellation {
   var deadlineExpired: Set[ReqId]
   var abortedLocal: Set[ReqId]
   var cancelSent: Set[ReqId]
+  var cancelDropped: Set[ReqId]
   var settlementCount: ReqId -> int
   var settlementOutcome: ReqId -> SettlementOutcome
   var wireReq: Set[WireRequest]
@@ -65,6 +66,7 @@ module rpc_cancellation {
     deadlineExpired' = Set(),
     abortedLocal' = Set(),
     cancelSent' = Set(),
+    cancelDropped' = Set(),
     settlementCount' = REQ_IDS.mapBy(_ => 0),
     settlementOutcome' = REQ_IDS.mapBy(_ => Unallocated),
     wireReq' = Set(),
@@ -89,6 +91,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     settlementCount' = settlementCount,
     wireReq' = wireReq,
     wireResp' = wireResp,
@@ -118,6 +121,7 @@ module rpc_cancellation {
       callerPending' = callerPending,
       deadlineExpired' = deadlineExpired,
       abortedLocal' = abortedLocal,
+      cancelDropped' = cancelDropped,
       settlementCount' = settlementCount,
       settlementOutcome' = settlementOutcome,
       wireResp' = wireResp,
@@ -149,6 +153,7 @@ module rpc_cancellation {
       deadlineExpired' = deadlineExpired,
       abortedLocal' = abortedLocal,
       cancelSent' = cancelSent,
+      cancelDropped' = cancelDropped,
       wireReq' = wireReq,
       wireResp' = wireResp,
       wireCancel' = wireCancel,
@@ -173,6 +178,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     settlementCount' = settlementCount,
     settlementOutcome' = settlementOutcome,
     wireResp' = wireResp,
@@ -195,6 +201,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     settlementCount' = settlementCount,
     settlementOutcome' = settlementOutcome,
     wireReq' = wireReq,
@@ -226,6 +233,7 @@ module rpc_cancellation {
       deadlineExpired' = deadlineExpired,
       abortedLocal' = abortedLocal,
       cancelSent' = cancelSent,
+      cancelDropped' = cancelDropped,
       wireReq' = wireReq,
       wireCancel' = wireCancel,
       serverSeen' = serverSeen,
@@ -254,6 +262,7 @@ module rpc_cancellation {
       allocated' = allocated,
       dispatchInFlight' = dispatchInFlight,
       dispatched' = dispatched,
+      cancelDropped' = cancelDropped,
       wireReq' = wireReq,
       wireResp' = wireResp,
       serverSeen' = serverSeen,
@@ -282,6 +291,7 @@ module rpc_cancellation {
       dispatchInFlight' = dispatchInFlight,
       dispatched' = dispatched,
       deadlineExpired' = deadlineExpired,
+      cancelDropped' = cancelDropped,
       wireReq' = wireReq,
       wireResp' = wireResp,
       serverSeen' = serverSeen,
@@ -291,13 +301,38 @@ module rpc_cancellation {
     }
   }
 
+  // Delivering cancel signals the server's AbortController without removing the
+  // handler from serverActive so it can still emit a late or cancellation response.
   action deliverCancel(c: WireCancel): bool = all {
     transport != Closed,
     c.in(wireCancel),
     c.id.in(serverSeen),
     wireCancel' = wireCancel.exclude(Set(c)),
-    serverActive' = serverActive.exclude(Set(c.id)),
     serverCancelled' = serverCancelled.union(Set(c.id)),
+    transport' = transport,
+    allocated' = allocated,
+    callerPending' = callerPending,
+    dispatchInFlight' = dispatchInFlight,
+    dispatched' = dispatched,
+    deadlineExpired' = deadlineExpired,
+    abortedLocal' = abortedLocal,
+    cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
+    settlementCount' = settlementCount,
+    settlementOutcome' = settlementOutcome,
+    wireReq' = wireReq,
+    wireResp' = wireResp,
+    serverSeen' = serverSeen,
+    serverActive' = serverActive,
+    serverResponded' = serverResponded,
+  }
+
+  // Models RPCClient.notifyAbort swallowing a failed or dropped cancel notification.
+  action dropCancel(c: WireCancel): bool = all {
+    transport != Closed,
+    c.in(wireCancel),
+    wireCancel' = wireCancel.exclude(Set(c)),
+    cancelDropped' = cancelDropped.union(Set(c.id)),
     transport' = transport,
     allocated' = allocated,
     callerPending' = callerPending,
@@ -311,6 +346,8 @@ module rpc_cancellation {
     wireReq' = wireReq,
     wireResp' = wireResp,
     serverSeen' = serverSeen,
+    serverActive' = serverActive,
+    serverCancelled' = serverCancelled,
     serverResponded' = serverResponded,
   }
 
@@ -330,6 +367,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     wireReq' = wireReq,
     wireResp' = wireResp,
     wireCancel' = wireCancel,
@@ -349,6 +387,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     settlementCount' = settlementCount,
     settlementOutcome' = settlementOutcome,
     wireReq' = wireReq,
@@ -381,6 +420,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     serverSeen' = serverSeen,
     serverResponded' = serverResponded,
   }
@@ -395,6 +435,7 @@ module rpc_cancellation {
     deadlineExpired' = deadlineExpired,
     abortedLocal' = abortedLocal,
     cancelSent' = cancelSent,
+    cancelDropped' = cancelDropped,
     settlementCount' = settlementCount,
     settlementOutcome' = settlementOutcome,
     wireReq' = wireReq,
@@ -469,6 +510,13 @@ module rpc_cancellation {
         },
       }
     },
+    all {
+      wireCancel != Set(),
+      {
+        nondet c = wireCancel.oneOf()
+        dropCancel(c)
+      },
+    },
     releaseClient,
     acceptClient,
     closeWebSocket,
@@ -490,17 +538,32 @@ module rpc_cancellation {
     ),
   }
 
-  val cancelDeliveredOnDeadline: bool =
-    transport != Closed implies
-      deadlineExpired.forall(id =>
-        id.in(dispatched) implies (
-          id.in(cancelSent) and (
-            wireCancel.exists(c => c.id == id and c.reason == Timeout) or
-            id.in(serverCancelled) or
-            id.in(serverResponded)
-          )
+  val localAbortSettlementStable: bool =
+    abortedLocal.forall(id => and {
+      not(id.in(callerPending)),
+      settlementCount.get(id) == 1,
+      settlementOutcome.get(id) == (if (id.in(deadlineExpired)) RejectedTimeout else RejectedCancel),
+    })
+
+  val cancelNotificationAndServerCleanup: bool = and {
+    abortedLocal.forall(id =>
+      id.in(dispatched) implies (
+        id.in(cancelSent) and (
+          transport == Closed or
+          id.in(cancelDropped) or
+          wireCancel.exists(c =>
+            c.id == id and (not(id.in(deadlineExpired)) or c.reason == Timeout)
+          ) or
+          id.in(serverCancelled) or
+          id.in(serverResponded)
         )
       )
+    ),
+    serverCancelled.forall(id => and {
+      (transport == Closed or id.in(serverResponded)) implies not(id.in(serverActive)),
+      id.in(serverActive) implies (transport != Closed and id.in(serverSeen)),
+    }),
+  }
 
   val noDeadlock: bool = and {
     callerPending.forall(id =>
@@ -511,13 +574,16 @@ module rpc_cancellation {
         wireResp.exists(r => r.id == id)
       )
     ),
-    serverActive.forall(id => transport != Closed and id.in(serverSeen)),
+    serverActive.forall(id =>
+      transport != Closed and id.in(serverSeen) and not(id.in(serverResponded))
+    ),
   }
 
   val allInvariants: bool = and {
     noOrphanedPendingAfterClose,
     exactOnceSettlement,
-    cancelDeliveredOnDeadline,
+    localAbortSettlementStable,
+    cancelNotificationAndServerCleanup,
     noDeadlock,
   }
 }

@@ -253,7 +253,24 @@ describe("FrameRegistry Quint ITF trace replay (specs/cdp_frame_lifecycle.qnt)",
       for (const state of trace.states) {
         const idx = state["#meta"].index;
         const label = `${name}[state ${idx}: ${state.lastAction.kind}(${state.lastAction.frameId})]`;
+        const previousParent =
+          state.lastAction.kind === "frameAttached" && state.lastAction.parentId !== ""
+            ? registry.getParent(state.lastAction.frameId)
+            : null;
+        const isReparent = previousParent !== null && previousParent !== state.lastAction.parentId;
+
         applyAction(registry, state.lastAction, idx);
+
+        if (isReparent) {
+          const oldParentInfo = registry.frames.get(previousParent);
+          if (oldParentInfo?.children.has(state.lastAction.frameId)) {
+            expect(() => assertParentChildSymmetric(registry, label)).toThrow(
+              new RegExp(`child ${state.lastAction.frameId}\\.parentId === ${previousParent}`),
+            );
+            oldParentInfo.children.delete(state.lastAction.frameId);
+          }
+        }
+
         assertRegistryInvariants(registry, label);
         assertMatchesQuintState(registry, state, label);
       }
