@@ -104,6 +104,70 @@ describe("Every public TypeScript/Python field participates in the protocol pipe
 });
 
 describe("active SDK field coverage regressions", () => {
+  it.each(["typescript", "python"] as const)(
+    "recognizes %s descriptor forwarding without hiding unrelated missing fields",
+    (language) => {
+      const descriptor: JsonSchema = {
+        anyOf: [
+          { properties: { page_id: { type: "string" }, selector: { type: "string" } } },
+          {
+            properties: {
+              page_id: { type: "string" },
+              chain: { properties: { steps: { type: "array" } } },
+            },
+          },
+        ],
+      };
+      const protocol: ProtocolDocument = {
+        $defs: { LocatorRequestDescriptor: descriptor },
+        properties: {
+          methods: {
+            properties: {
+              "locator.count": {
+                properties: {
+                  params: { allOf: [descriptor, { properties: { added: { type: "string" } } }] },
+                  result: { type: "number" },
+                },
+              },
+            },
+          },
+        },
+      };
+      const source =
+        language === "typescript"
+          ? `class Locator { async count() {
+            return this.client.send(StagehandMethods.locatorCount, { ...this.descriptor });
+          } }`
+          : `class Locator:
+    async def count(self):
+        return await self._client.send("locator.count", LocatorParams.model_validate(self._params()), Result)
+`;
+      const calls = rpcCallsInModule(
+        language,
+        "locator",
+        parse(language, source).root(),
+        new Map([["locatorCount", "locator.count"]]),
+      );
+      expect(calls).toHaveLength(1);
+      const helpers = new Map<Language, Map<string, string>>([
+        ["python", new Map([["_params", "return self.descriptor.model_dump(exclude_none=True)"]])],
+      ]);
+      expect(missingRequestFields(protocol, calls, helpers)).toEqual([
+        `${language} locator.count: request field added`,
+      ]);
+      const incompleteSource = source.replace("...this.descriptor", 'selector: "button"');
+      const incompleteCalls = rpcCallsInModule(
+        language,
+        "locator",
+        parse(language, incompleteSource).root(),
+        new Map([["locatorCount", "locator.count"]]),
+      );
+      expect(missingRequestFields(protocol, incompleteCalls, new Map())).toContain(
+        `${language} locator.count: request field chain`,
+      );
+    },
+  );
+
   const protocol: ProtocolDocument = {
     $defs: {},
     properties: {
@@ -189,13 +253,17 @@ function missingRequestFields(
     const extendedText = `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`;
     const tokens = semanticTokens(extendedText);
     const descriptorFields = Object.keys(
-      schemaProperties(protocol, protocol.$defs.LocatorDescriptor ?? {}),
+      schemaProperties(protocol, protocol.$defs.LocatorRequestDescriptor ?? {}),
     );
+    const forwardsDescriptor =
+      call.wireMethod.startsWith("locator.") &&
+      (/\.\.\.this\.descriptor\b/u.test(scopeText) ||
+        /self\.descriptor\.model_dump\(/u.test(extendedText));
 
     for (const field of topLevelFields) {
       const normalized = snakeCase(field);
       const coveredByDescriptor =
-        /descriptor/u.test(scopeText) &&
+        forwardsDescriptor &&
         descriptorFields.some((descriptorField) => snakeCase(descriptorField) === normalized);
       if (!tokens.has(normalized) && !coveredByDescriptor) {
         missing.push(`${call.language} ${call.wireMethod}: request field ${field}`);
@@ -205,6 +273,7 @@ function missingRequestFields(
     for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
       const nestedFields = nestedFieldNames(protocol, fieldSchema);
       if (nestedFields.length === 0) continue;
+      if (forwardsDescriptor && descriptorFields.includes(field)) continue;
       if (directlyForwardsParameter(call.params, field, extendedText)) continue;
 
       // A rest spread forwards newly added fields automatically. Explicitly transformed

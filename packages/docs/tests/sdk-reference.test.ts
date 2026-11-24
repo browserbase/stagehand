@@ -160,6 +160,10 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
   ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
   ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
+  ...["act", "observe", "extract"].flatMap((method): Array<[string, string]> => [
+    [`stagehand.${method}:TypeScript:options.locator`, "Locator"],
+    [`stagehand.${method}:TypeScript:options.ignoreLocators`, "Locator[]"],
+  ]),
 ]);
 
 const SDK_OBJECTS = [
@@ -2667,16 +2671,9 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
-  return new Set([
-    "options.locator.selector",
-    "options.locator.nth",
-    "options.ignoreLocators.selector",
-    "options.ignoreLocators.nth",
-    "locator.selector",
-    "locator.nth",
-    "ignore_locators.selector",
-    "ignore_locators.nth",
-  ]).has(path);
+  return ["options.locator.", "options.ignoreLocators.", "locator.", "ignore_locators."].some(
+    (prefix) => path.startsWith(prefix),
+  );
 }
 
 function publicReferenceFieldType(
@@ -2806,7 +2803,14 @@ function resolvedProperties(
   protocol: ProtocolDocument,
 ): Record<string, JsonSchema> {
   if (schema.$ref) return resolvedProperties(resolveReference(schema.$ref, protocol), protocol);
-  return schema.properties ?? {};
+  const properties: Record<string, JsonSchema> = {};
+  for (const part of [...(schema.allOf ?? []), ...(schema.anyOf ?? []), ...(schema.oneOf ?? [])]) {
+    for (const [name, property] of Object.entries(resolvedProperties(part, protocol))) {
+      const previous = properties[name];
+      properties[name] = previous ? { anyOf: [previous, property] } : property;
+    }
+  }
+  return { ...properties, ...schema.properties };
 }
 
 function resolveReference(reference: string, protocol: ProtocolDocument): JsonSchema {
