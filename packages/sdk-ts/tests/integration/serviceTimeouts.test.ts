@@ -29,7 +29,7 @@ function modelResult(params: LLMGenerateParams): LLMGenerateResult {
     .find((line) => line.includes("Submit outside scope") && /\[\d+-\d+\]/.test(line));
   const elementId = target?.match(/\[(\d+-\d+)\]/)?.[1];
   const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
-  if (name !== "Metadata") expect(elementId).toMatch(/^\d+-\d+$/);
+  expect(elementId).toMatch(/^\d+-\d+$/);
   const action = {
     elementId: elementId!,
     description: "Submit outside scope",
@@ -45,9 +45,7 @@ function modelResult(params: LLMGenerateParams): LLMGenerateResult {
         ? { action, twoStep: false }
         : name === "Observation"
           ? { elements: [action] }
-          : name === "Extraction"
-            ? { label: "Submit outside scope" }
-            : { completed: true, progress: "Read label" },
+          : { label: "Submit outside scope" },
   };
 }
 
@@ -83,8 +81,12 @@ describe("service timeout budgets", () => {
     const page = await firstPage(stagehand);
     await page.goto(server.url, { waitUntil: "domcontentloaded" });
     await childRequested.ready;
-    const run = (method: "act" | "observe" | "extract", timeout: number) => {
-      const options = { page, timeout, locator: page.locator("iframe >> #target") };
+    const run = (
+      method: "act" | "observe" | "extract",
+      timeout: number,
+      selector = "iframe >> #target",
+    ) => {
+      const options = { page, timeout, locator: page.locator(selector) };
       if (method === "act") return stagehand!.act("Click Submit outside scope", options);
       if (method === "observe") return stagehand!.observe("Find Submit outside scope", options);
       return stagehand!.extract("Read the button label", z.object({ label: z.string() }), options);
@@ -111,14 +113,18 @@ describe("service timeout budgets", () => {
   it.each(["act", "observe", "extract"] as const)(
     "%s can fall back to the full page but cannot continue after its model deadline",
     async (method) => {
-      const { page, generate, run } = await fixture();
+      const { page, generate, child, run } = await fixture();
+      // A missing selector in a ready frame exercises full-page fallback without spending
+      // the inference budget waiting for the child document to load.
+      child.release();
+      await expect.poll(() => page.locator("iframe >> #target").count({ timeout: 5_000 })).toBe(1);
       const response = hold();
       generate.mockImplementation(async (params) => {
         const result = modelResult(params); // The out-of-scope button proves full-page fallback.
         await response.ready;
         return result;
       });
-      await expect(run(method, 4_000)).rejects.toMatchObject({
+      await expect(run(method, 4_000, "iframe >> #missing")).rejects.toMatchObject({
         name: "TimeoutError",
         message: expect.stringContaining(`${method}()`),
       });

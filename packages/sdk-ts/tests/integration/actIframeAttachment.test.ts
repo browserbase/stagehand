@@ -8,13 +8,58 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
-describe("iframe attachment after string act", () => {
+describe("iframe attachment and string act", () => {
   let stagehand: Stagehand | undefined;
   let fixture: FixtureServer | undefined;
 
   afterEach(async () => {
     await closeStagehand(stagehand);
     await fixture?.close();
+  });
+
+  it("waits for an in-flight child navigation before inferring the action", async () => {
+    fixture = await startFixtureServer({
+      "/": () => {
+        const childUrl = new URL("/child", fixture!.url);
+        childUrl.hostname = "localhost";
+        return `<iframe src="${childUrl.href}"></iframe>`;
+      },
+      "/child": async () => {
+        // The parent reaches DOMContentLoaded before the child returns its controls.
+        await new Promise((resolve) => setTimeout(resolve, 1_400));
+        return `<button onclick="this.textContent='Done'">Commit</button>`;
+      },
+    });
+    stagehand = await createStagehand({
+      model: {
+        generate: async ({ messages }) => {
+          const prompt = messages
+            .flatMap(({ content }) => content)
+            .map((part) => (part.type === "text" ? part.text : ""))
+            .join("\n");
+          const elementId = prompt.match(/\[([\d-]+)\] button: Commit/)?.[1];
+          expect(elementId).toBeDefined();
+          return {
+            role: "assistant",
+            content: { type: "text", text: "Click Commit" },
+            outputFormat: "json_schema",
+            structuredContent: {
+              action: {
+                elementId: elementId!,
+                method: "click",
+                arguments: [],
+                description: "Commit",
+              },
+              twoStep: false,
+            },
+          };
+        },
+      },
+    });
+    const page = await firstPage(stagehand);
+    await page.goto(fixture.url);
+    await stagehand.act("Click Commit", { page });
+    await expect(page.locator("iframe >> button").textContent()).resolves.toBe("Done");
   });
 
   it("keeps newly created cross-origin iframes visible to snapshots and actions", async () => {

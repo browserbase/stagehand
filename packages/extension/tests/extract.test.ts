@@ -10,76 +10,70 @@ import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 
 describe("extract inference", () => {
-  it("runs extraction and completion metadata through structured LLM calls", async () => {
-    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
-      const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
-
-      if (name === "Extraction") {
-        return {
-          role: "assistant" as const,
-          content: { type: "text" as const, text: "structured extraction" },
-          outputFormat: "json_schema" as const,
-          structuredContent: { heading: "Example Domain" },
-          usage: {
-            inputTokens: 10,
-            outputTokens: 4,
-            totalTokens: 14,
-            reasoningTokens: 1,
-            cachedInputTokens: 2,
-          },
-        };
-      }
-
-      return {
-        role: "assistant",
-        content: { type: "text", text: "complete" },
-        outputFormat: "json_schema",
-        structuredContent: { progress: "The heading was extracted", completed: true },
-        usage: {
-          inputTokens: 3,
-          outputTokens: 2,
-          totalTokens: 5,
-        },
-      };
+  it("limits precision guidance to schemas requesting numbers", async () => {
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult({ value: [] }),
+    );
+    await extract({
+      instruction: "Extract the labels",
+      domElements: "labels",
+      schema: z.object({ value: z.array(z.string()) }),
+      generate,
     });
+    expect(generate.mock.calls[0]![0].systemPrompt).not.toContain("prefer the precise value");
+    const numeric = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult({ value: 42.125 }),
+    );
+    await extract({
+      instruction: "Extract the reading",
+      domElements: "42.125",
+      schema: z.object({ value: z.number() }),
+      generate: numeric,
+    });
+    expect(numeric.mock.calls[0]![0].systemPrompt).toContain("prefer the precise value");
+  });
+  it("returns validated data and usage from one structured call", async () => {
+    const usage = {
+      inputTokens: 10,
+      outputTokens: 4,
+      totalTokens: 14,
+      reasoningTokens: 1,
+      cachedInputTokens: 2,
+    };
+    const generate = vi.fn(async (_params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+      ...structuredResult({ heading: "Example Domain", metadata: "Visible page label" }),
+      usage,
+    }));
 
     const result = await extract({
-      instruction: "Extract the page heading",
+      instruction: "Extract the page heading and metadata label",
       domElements: "[0-1] heading: Example Domain",
-      schema: z.object({ heading: z.string() }),
+      schema: z.object({ heading: z.string(), metadata: z.string() }),
       generate,
     });
 
-    expect(result).toMatchObject({
-      heading: "Example Domain",
-      metadata: {
-        progress: "The heading was extracted",
-        completed: true,
-      },
-      prompt_tokens: 13,
-      completion_tokens: 6,
-      reasoning_tokens: 1,
-      cached_input_tokens: 2,
+    expect(result).toEqual({
+      data: { heading: "Example Domain", metadata: "Visible page label" },
+      usage,
+      durationMs: expect.any(Number),
     });
-    expect(generate).toHaveBeenCalledTimes(2);
-    expect(generate.mock.calls[0]?.[0]).toMatchObject({
-      responseFormat: { type: "json_schema", name: "Extraction" },
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: expect.stringContaining("[0-1] heading: Example Domain"),
+    expect(generate).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        responseFormat: expect.objectContaining({ type: "json_schema", name: "Extraction" }),
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: expect.stringContaining("[0-1] heading: Example Domain"),
+            },
           },
-        },
-      ],
-    });
-    expect(generate.mock.calls[1]?.[0]).toMatchObject({
-      responseFormat: { type: "json_schema", name: "Metadata" },
-    });
+        ],
+      }),
+    );
   });
 
-  it("validates both structured LLM responses before returning data", async () => {
+  it("rejects data that does not match the requested schema", async () => {
     const generate = vi.fn(async (): Promise<LLMGenerateResult> => ({
       role: "assistant",
       content: { type: "text", text: "invalid" },
@@ -103,12 +97,8 @@ describe("extract inference", () => {
       data: "iVBORw0KGgo=",
       mimeType: "image/png",
     };
-    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-      structuredResult(
-        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
-          ? { heading: "Screenshot heading" }
-          : { progress: "The heading was extracted", completed: true },
-      ),
+    const generate = vi.fn(async (_params: LLMGenerateParams) =>
+      structuredResult({ heading: "Screenshot heading" }),
     );
 
     await extract({
@@ -135,15 +125,50 @@ describe("extract inference", () => {
         ],
       },
     ]);
-    expect(generate.mock.calls[1]?.[0].messages).toEqual([
-      expect.objectContaining({
-        content: expect.objectContaining({ type: "text" }),
-      }),
-    ]);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("extract service", () => {
+  it("returns schema-valid partial data without a completion call or verdict", async () => {
+    const clientLLMGenerate = vi.fn(async () =>
+      structuredResult({ products: [{ name: "Lens", stock: 0 }] }),
+    );
+    const onLog = vi.fn();
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the first two products with stock and optional warranty",
+        schema: z.json().parse(
+          z.toJSONSchema(
+            z.object({
+              products: z.array(
+                z.object({ name: z.string(), stock: z.number(), warranty: z.string().optional() }),
+              ),
+            }),
+          ),
+        ),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-1] heading: Lens\n[0-2] paragraph: Stock: 0",
+          combinedXpathMap: {},
+          combinedUrlMap: {},
+        }),
+        screenshot: async () => new Uint8Array(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: new StagehandLogger({ tracer: trace.getTracer("extract-service-test") }, onLog),
+    });
+
+    expect(result.data).toEqual({ products: [{ name: "Lens", stock: 0 }] });
+    expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
+    expect(onLog).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Extraction result returned" }),
+    );
+  });
+
   it("accepts recursive JSON Schemas sent by SDKs", () => {
     const schema = z.fromJSONSchema({
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -194,12 +219,8 @@ describe("extract service", () => {
     const screenshot = vi.fn(
       async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-      structuredResult(
-        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
-          ? { heading: "Screenshot heading" }
-          : { progress: "The heading was extracted", completed: true },
-      ),
+    const clientLLMGenerate = vi.fn(async (_params: LLMGenerateParams) =>
+      structuredResult({ heading: "Screenshot heading" }),
     );
 
     try {
@@ -240,37 +261,16 @@ describe("extract service", () => {
   });
 
   it("returns the standard data and metadata result shape", async () => {
-    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
-      const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
-      if (name === "Extraction") {
-        return {
-          role: "assistant",
-          content: { type: "text", text: "structured extraction" },
-          outputFormat: "json_schema",
-          structuredContent: { count: 1 },
-          usage: {
-            inputTokens: 1,
-            outputTokens: 1,
-            totalTokens: 2,
-            reasoningTokens: 2,
-            cachedInputTokens: 3,
-          },
-        };
-      }
-      return {
-        role: "assistant",
-        content: { type: "text", text: "metadata" },
-        outputFormat: "json_schema",
-        structuredContent: { progress: "Extracted the count", completed: true },
-        usage: {
-          inputTokens: 1,
-          outputTokens: 1,
-          totalTokens: 2,
-          reasoningTokens: 5,
-          cachedInputTokens: 7,
-        },
-      };
-    });
+    const generate = vi.fn(async (): Promise<LLMGenerateResult> => ({
+      ...structuredResult({ count: 1 }),
+      usage: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        reasoningTokens: 2,
+        cachedInputTokens: 3,
+      },
+    }));
 
     const result = await extractService.extract({
       params: {
@@ -296,10 +296,10 @@ describe("extract service", () => {
       metadata: {
         cache: { status: "DISABLED" },
         usage: {
-          inputTokens: 2,
-          outputTokens: 2,
-          reasoningTokens: 7,
-          cachedInputTokens: 10,
+          inputTokens: 10,
+          outputTokens: 4,
+          reasoningTokens: 2,
+          cachedInputTokens: 3,
           inferenceTimeMs: expect.any(Number),
         },
       },
@@ -398,16 +398,7 @@ describe("extract service", () => {
       };
       const get = vi.fn();
       const set = vi.fn();
-      const clientLLMGenerate = vi.fn(
-        async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
-          const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
-          return structuredResult(
-            name === "Extraction"
-              ? { count: 1 }
-              : { progress: "Extracted the count", completed: true },
-          );
-        },
-      );
+      const clientLLMGenerate = vi.fn(async () => structuredResult({ count: 1 }));
 
       const result = await extractService.extract({
         params: {
@@ -433,7 +424,7 @@ describe("extract service", () => {
         expectedSnapshotOptions,
         expect.any(Progress),
       );
-      expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
       expect(get).not.toHaveBeenCalled();
       expect(set).not.toHaveBeenCalled();
       expect(frame.getAccessibilityTree).not.toHaveBeenCalled();

@@ -48,6 +48,8 @@ export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
   includeScreenshot: boolean = false,
+  preferPreciseNumbers: boolean = false,
+  hasLinkEvidence: boolean = false,
 ): TextPrompt {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -66,6 +68,10 @@ Print the exact text from the DOM elements with all symbols, characters, and end
 Print null or an empty string if no new information is found.
   `.trim();
 
+  const numericInstructions = preferPreciseNumbers
+    ? "Respect any source or section specified by the user. Otherwise, when the page explicitly states both a precise value and an approximate summary of the same fact in the same units, prefer the precise value. Do not calculate a value or substitute a different fact."
+    : "";
+
   const toolInstructions = isUsingPrintExtractedDataTool
     ? `
 ONLY print the content using the print_extracted_data tool provided.
@@ -73,15 +79,17 @@ ONLY print the content using the print_extracted_data tool provided.
   `.trim()
     : "";
 
-  const additionalInstructions =
-    "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
-    "Do not attempt to extract links directly from the text unless absolutely necessary. ";
+  const additionalInstructions = hasLinkEvidence
+    ? "Use the supplied anchor attributes for a requested destination. Copy resolvedUrl for an absolute URL, or href for the authored attribute. Follow the user's conditions. Omit an optional field if no anchor supplies the requested value."
+    : "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
+      "Do not attempt to extract links directly from the text unless absolutely necessary. ";
 
   const userInstructions = buildUserInstructionsString(userProvidedInstructions);
 
-  const content = `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
-    additionalInstructions ? `\n\n${additionalInstructions}` : ""
-  }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
+  const content =
+    `${baseContent}${contentDetail}\n\n${instructions}${numericInstructions ? `\n${numericInstructions}` : ""}\n${toolInstructions}${
+      additionalInstructions ? `\n\n${additionalInstructions}` : ""
+    }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
 
   return {
     role: "system",
@@ -118,29 +126,6 @@ ONLY print the content using the print_extracted_data tool provided.`;
   return {
     role: "user",
     content: { type: "text", text: content },
-  };
-}
-
-const metadataSystemPrompt = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
-Analyze the extraction response and determine if the task is completed or if more information is needed.
-Strictly abide by the following criteria:
-1. Once the instruction has been satisfied by the current extraction response, ALWAYS set completion status to true and stop processing, regardless of remaining chunks.
-2. Only set completion status to false if BOTH of these conditions are true:
-   - The instruction has not been satisfied yet
-   - There are still chunks left to process (chunksTotal > chunksSeen)`;
-
-export function buildMetadataSystemPrompt(): TextPrompt {
-  return {
-    role: "system",
-    content: metadataSystemPrompt,
-  };
-}
-
-export function buildMetadataPrompt(instruction: string, extractionResponse: object): TextPrompt {
-  return {
-    role: "user",
-    content: `Instruction: ${instruction}
-Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
   };
 }
 
@@ -201,7 +186,7 @@ You will be given:
 1. a user defined instruction about what action to take
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
-Return the element that matches the instruction if it exists. If no element on the page matches the instruction, set \`action\` to null. Do not fabricate or guess an element — empty strings or placeholder values for elementId/description/method are not acceptable.`;
+Return the element that matches the instruction if it exists. If no element on the page matches the instruction, set \`action\` to null. An informational question without a requested browser interaction also requires null. Do not invent an intermediate interaction, such as opening an assistant or search field, to answer a question the user did not ask you to enter into the page. Requests phrased as questions, such as "Can you click Submit?", still request an interaction. Do not fabricate or guess an element — empty strings or placeholder values for elementId/description/method are not acceptable.`;
   const content = actSystemPrompt.replace(/\s+/g, " ");
 
   return {
@@ -268,13 +253,22 @@ export function buildStepTwoPrompt(
   previousAction: string,
   supportedActions: string[],
   variables?: Variables,
+  checkPreviousAction = false,
 ): string {
   // Base instruction
   let instruction = `
   The original user action was: ${originalUserAction}.
-  You have just taken the following action which completed step 1 of 2: ${previousAction}.
+  ${
+    checkPreviousAction
+      ? `The SDK executed this interaction: ${previousAction}.
+  Match the method and target of that executed interaction to the original instruction using the page evidence. A request for the interaction itself is complete once that interaction was delivered to the requested target, even if the page looks unchanged. A request for a particular result still needs that result.
+  If it fulfilled the entire instruction, return null and set previousActionCompletedRequest to true.
+  Otherwise set previousActionCompletedRequest to false and identify the remaining action, or return null if it is unavailable.
+  Never repeat an interaction the user requested only once.`
+      : `You have just taken the following action which completed step 1 of 2: ${previousAction}.
   
-  Now, you must find the most relevant element to perform an action on in order to complete step 2 of 2. 
+  Now, you must find the most relevant element to perform an action on in order to complete step 2 of 2. `
+  }
   
   General Instructions: 
   Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.

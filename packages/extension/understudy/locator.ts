@@ -212,13 +212,7 @@ export class Locator {
           if (progress && isCdpClosedError(error)) throw error;
         }),
       );
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.contentPoint(objectId, progress);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
       const release = () =>
@@ -361,13 +355,7 @@ export class Locator {
         }),
       );
 
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.contentPoint(objectId, progress);
 
       await runLocatorStep(progress, "dispatching mouse events", () =>
         session.send<never>("Input.dispatchMouseEvent", {
@@ -411,13 +399,7 @@ export class Locator {
       );
 
       // Get geometry using objectId
-      const box = await runLocatorStep(progress, "reading element geometry", () =>
-        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-          objectId,
-        }),
-      );
-      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      const { cx, cy } = await this.contentPoint(objectId, progress);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -964,6 +946,14 @@ export class Locator {
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
     return batch;
+  }
+
+  async contentPoint(objectId: string, progress?: Progress): Promise<{ cx: number; cy: number }> {
+    const box = await runLocatorStep(progress, "reading element geometry", () =>
+      this.frame.session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", { objectId }),
+    );
+    if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
+    return this.centerFromBoxContent(box.model.content);
   }
 
   /** Compute a center point from a BoxModel content quad */

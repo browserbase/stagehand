@@ -74,6 +74,12 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
+  "local/decisions": [
+    "decisionActionFacts",
+    "experimentalDecisionsFill",
+    "experimentalDecisionsHeadings",
+    "experimentalDecisionsPointer",
+  ],
   "local/waits-timeouts": [
     "waitForFunction",
     "waitForLoadState",

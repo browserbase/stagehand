@@ -11,25 +11,12 @@ import {
   buildActSystemPrompt,
   buildExtractSystemPrompt,
   buildExtractUserPrompt,
-  buildMetadataPrompt,
-  buildMetadataSystemPrompt,
   buildObserveSystemPrompt,
   buildObserveUserMessage,
 } from "./prompt.js";
 import { SupportedUnderstudyAction } from "./types/private/handlers.js";
 
 type GenerateLlm = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
-
-const ExtractMetadataSchema = z.object({
-  progress: z
-    .string()
-    .describe("progress of what has been extracted so far, as concise as possible"),
-  completed: z
-    .boolean()
-    .describe(
-      "true if the goal is now accomplished. Use this conservatively, only when sure that the goal has been completed.",
-    ),
-});
 
 const ObservationSchema = z
   .object({
@@ -84,6 +71,14 @@ const ActInferenceSchema = z
   })
   .strict();
 
+const ActFollowupSchema = ActInferenceSchema.pick({ action: true }).extend({
+  previousActionCompletedRequest: z
+    .boolean()
+    .describe(
+      "True only when the executed interaction satisfied every explicit part of the user's request. An opened control does not establish a requested selection. An absent target or uncertain result is incomplete.",
+    ),
+});
+
 function promptText(prompt: { content: unknown }): string {
   if (typeof prompt.content !== "string") {
     throw new TypeError("Structured LLM prompts must contain text");
@@ -124,51 +119,52 @@ async function generateStructured<Schema extends z.ZodType>(
   };
 }
 
+function includesNumericSchema(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(includesNumericSchema);
+  const schema = value as Record<string, unknown>;
+  if (schema.type === "number" || schema.type === "integer") return true;
+  if (
+    Array.isArray(schema.type) &&
+    schema.type.some((type) => type === "number" || type === "integer")
+  )
+    return true;
+  return Object.values(schema).some(includesNumericSchema);
+}
+
 export async function extract<T extends z.ZodObject>(params: {
   instruction: string;
   domElements: string;
+  linkEvidence?: string;
   schema: T;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
-}): Promise<
-  z.infer<T> & {
-    metadata: z.infer<typeof ExtractMetadataSchema>;
-    prompt_tokens: number;
-    completion_tokens: number;
-    reasoning_tokens: number;
-    cached_input_tokens: number;
-    inference_time_ms: number;
-  }
-> {
+}) {
   const { instruction, domElements, schema, generate, userProvidedInstructions, screenshot } =
     params;
-  const extraction = await generateStructured(
+  return generateStructured(
     generate,
     "Extraction",
     schema,
-    promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
-    buildExtractUserPrompt(instruction, domElements, false, screenshot),
+    promptText(
+      buildExtractSystemPrompt(
+        false,
+        userProvidedInstructions,
+        Boolean(screenshot),
+        includesNumericSchema(z.toJSONSchema(schema)),
+        Boolean(params.linkEvidence),
+      ),
+    ),
+    buildExtractUserPrompt(
+      instruction,
+      params.linkEvidence
+        ? `${domElements}\nMatching anchor attributes: ${params.linkEvidence}`
+        : domElements,
+      false,
+      screenshot,
+    ),
   );
-  const metadata = await generateStructured(
-    generate,
-    "Metadata",
-    ExtractMetadataSchema,
-    promptText(buildMetadataSystemPrompt()),
-    promptText(buildMetadataPrompt(instruction, extraction.data)),
-  );
-
-  return {
-    ...extraction.data,
-    metadata: metadata.data,
-    prompt_tokens: (extraction.usage?.inputTokens ?? 0) + (metadata.usage?.inputTokens ?? 0),
-    completion_tokens: (extraction.usage?.outputTokens ?? 0) + (metadata.usage?.outputTokens ?? 0),
-    reasoning_tokens:
-      (extraction.usage?.reasoningTokens ?? 0) + (metadata.usage?.reasoningTokens ?? 0),
-    cached_input_tokens:
-      (extraction.usage?.cachedInputTokens ?? 0) + (metadata.usage?.cachedInputTokens ?? 0),
-    inference_time_ms: extraction.durationMs + metadata.durationMs,
-  };
 }
 
 export async function observe(params: {
@@ -217,9 +213,11 @@ export async function act(params: {
   domElements: string;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
+  checkPreviousAction?: boolean;
 }): Promise<{
   element: z.output<typeof ActInferenceSchema>["action"];
   twoStep: boolean;
+  previousActionCompletedRequest: boolean;
   prompt_tokens: number;
   completion_tokens: number;
   reasoning_tokens: number;
@@ -230,14 +228,16 @@ export async function act(params: {
   const result = await generateStructured(
     generate,
     "Act",
-    ActInferenceSchema,
+    params.checkPreviousAction ? ActFollowupSchema : ActInferenceSchema,
     promptText(buildActSystemPrompt(userProvidedInstructions)),
     promptText(buildObserveUserMessage(instruction, domElements)),
   );
 
   return {
     element: result.data.action,
-    twoStep: result.data.twoStep,
+    twoStep: "twoStep" in result.data && result.data.twoStep,
+    previousActionCompletedRequest:
+      "previousActionCompletedRequest" in result.data && result.data.previousActionCompletedRequest,
     prompt_tokens: result.usage?.inputTokens ?? 0,
     completion_tokens: result.usage?.outputTokens ?? 0,
     reasoning_tokens: result.usage?.reasoningTokens ?? 0,

@@ -8,42 +8,24 @@ import type {
   StagehandResultUsage,
   Variables,
 } from "@browserbasehq/stagehand-protocol/types";
-import { TimeoutError } from "../errors.js";
-import {
-  performUnderstudyMethod,
-  waitForDomNetworkQuiet,
-} from "../handlers/handlerUtils/actHandlerUtils.js";
-import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
-import * as inference from "../inference.js";
+import { waitForDomNetworkQuiet } from "../handlers/handlerUtils/actHandlerUtils.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
-import type { EncodedId } from "../types/private/internal.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
-import { trimTrailingTextNode } from "../utils.js";
+import { takeDeterministicAction, type ActContext } from "./act/execution.js";
+import { getActionFromLLM, type ActInferenceResponse } from "./act/inference.js";
 import * as cacheService from "./cacheService.js";
-import * as llmService from "./llmService.js";
+import { requestsMenuOpening } from "./decisions/clickOwner.js";
+import { runDecisionsAct } from "./decisions/act.js";
+import type { DecisionsConfig } from "./decisions/config.js";
+import { withDecisionUsage } from "./decisions/usage.js";
+import { substituteVariables } from "./decisions/args.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
-
-type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
-type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
-
-type ActContext = {
-  page: Page;
-  model: ModelConfig | ClientModelReference | undefined;
-  clientLLMGenerate: ClientLlmRequest;
-  logger: StagehandLogger;
-  systemPrompt: string;
-  selfHeal: boolean;
-  domSettleTimeoutMs?: number;
-  progress: Progress;
-  gateway?: GatewayContext;
-  recordUsage: (response: ActInferenceResponse) => void;
-};
 
 type ActServiceOptions = {
   params: StagehandActParams;
@@ -56,6 +38,7 @@ type ActServiceOptions = {
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  decisions?: DecisionsConfig;
   progress?: Progress;
 };
 
@@ -78,11 +61,18 @@ async function actWithProgress(
     domSettleTimeoutMs,
     cache,
     gateway,
+    decisions,
   }: ActServiceOptions,
   progress: Progress,
 ): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
+  const decisionUsage = zeroStagehandResultUsage();
+  decisions = withDecisionUsage(decisions, progress.signal, logger, decisionUsage);
   const variables = options?.variables;
+  const snapshotOptions = {
+    focusLocator: options?.locator,
+    ignoreLocators: options?.ignoreLocators,
+  };
   let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
     operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
@@ -97,6 +87,8 @@ async function actWithProgress(
     domSettleTimeoutMs,
     progress,
     gateway,
+    decisions,
+    snapshotOptions: decisions ? { ...snapshotOptions, singleLineNames: true } : snapshotOptions,
     recordUsage,
   };
 
@@ -113,11 +105,18 @@ async function actWithProgress(
   }
 
   const instruction = actInstruction;
-  const snapshotOptions = {
-    focusLocator: options?.locator,
-    ignoreLocators: options?.ignoreLocators,
-  };
-  await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
+  let noCache = false;
+  // Match only a complete instruction. A qualifier or conditional can still require an action.
+  if (
+    decisions &&
+    !systemPrompt &&
+    /^(?:please\s+)?(?:do nothing|take no action|leave the page (?:alone|unchanged)|(?:do not|don['’]t) click anything)[.!]?$/iu.test(
+      instruction.trim(),
+    )
+  ) {
+    return noActionResult(instruction, operationUsage);
+  }
+  await waitForDomNetworkQuiet(page, logger, domSettleTimeoutMs, progress);
   progress.throwIfStopped();
 
   return await cacheService.withCache<ActResult>({
@@ -125,35 +124,69 @@ async function actWithProgress(
     page,
     data: cacheService.buildActCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    // A cached action sequence does not carry the menu identity for readback.
+    bypass:
+      cacheService.shouldBypassCacheForLocatorScope(options) ||
+      Boolean(decisions && requestsMenuOpening(substituteVariables(instruction, variables))),
     context: cache,
     logger,
     progress,
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
+      const llmUsage = { ...result.metadata.usage };
+      result.metadata.usage = aggregateUsage(result.metadata.usage, decisionUsage);
       // Act can run several inferences (planning, self-heal), so report the
       // aggregate — without it the server has no basis to compute the token
       // savings a future hit avoided.
-      const { usage } = result.metadata;
       return {
         result,
         cacheValue:
-          result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
+          !noCache && result.data.success && result.data.actions.length > 0
+            ? result.data.actions
+            : undefined,
         llmUsage: {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          llmDurationMs: usage.inferenceTimeMs,
+          inputTokens: llmUsage.inputTokens,
+          outputTokens: llmUsage.outputTokens,
+          llmDurationMs: llmUsage.inferenceTimeMs,
         },
       };
     },
   });
 
   async function runActPipeline(): Promise<ActResult> {
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
-      snapshotOptions,
-      progress,
-    );
+    if (decisions) {
+      const started = performance.now();
+      const outcome = await runDecisionsAct(decisions, {
+        page,
+        logger,
+        instruction,
+        variables,
+        snapshotOptions,
+        progress,
+        takeAction: (action, expectedElementId) =>
+          takeDeterministicAction({
+            action,
+            variables,
+            expectedElementId,
+            context: { ...context, selfHeal: false },
+          }),
+      });
+      decisionUsage.inferenceTimeMs += Math.round(performance.now() - started);
+      if (outcome.kind === "done") {
+        noCache = outcome.noCache === true;
+        return actResult(outcome.result, operationUsage);
+      }
+      logger.info("Decisions act fell back to the LLM pipeline", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+      if (!model && !gateway)
+        throw new Error(
+          "Decisions act needs a configured LLM model or Browserbase gateway for fallback",
+        );
+    }
+    const snapshot = await page.captureSnapshot(context.snapshotOptions, progress);
 
     const actPrompt = buildActPrompt(
       instruction,
@@ -164,8 +197,8 @@ async function actWithProgress(
     progress.throwIfStopped();
     const firstInference = await getActionFromLLM({
       instruction: actPrompt,
-      domElements: combinedTree,
-      xpathMap: combinedXpathMap,
+      domElements: snapshot.combinedTree,
+      snapshot,
       context,
     });
 
@@ -173,15 +206,7 @@ async function actWithProgress(
       logger.info("No actionable element returned by the LLM", {
         category: "action",
       });
-      return actResult(
-        {
-          success: false,
-          message: "Failed to perform act: No action found",
-          actionDescription: instruction,
-          actions: [],
-        },
-        operationUsage,
-      );
+      return noActionResult(instruction, operationUsage);
     }
 
     progress.throwIfStopped();
@@ -189,21 +214,22 @@ async function actWithProgress(
       action: firstInference.action,
       variables,
       context,
+      expectedElementId: firstInference.expectedElementId,
+      expectedDestinationElementId: firstInference.expectedDestinationElementId,
     });
 
-    if (!firstInference.response.twoStep) {
+    if (!firstInference.response.twoStep || (decisions && !firstResult.success)) {
       return actResult(firstResult, operationUsage);
     }
 
     progress.throwIfStopped();
-    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
-      snapshotOptions,
-      progress,
-    );
-    const changedTree = diffCombinedTrees(combinedTree, nextTree);
+    const nextSnapshot = await page.captureSnapshot(context.snapshotOptions, progress);
+    const changedTree = diffCombinedTrees(snapshot.combinedTree, nextSnapshot.combinedTree);
     const secondInstruction = buildStepTwoPrompt(
       instruction,
-      describeAction(firstInference.action),
+      decisions && firstInference.response.element
+        ? `${describeAction(firstInference.action)}; executed at [${firstInference.response.element.elementId}] (${firstInference.action.selector})`
+        : describeAction(firstInference.action),
       Object.values(SupportedUnderstudyAction).filter(
         (
           action,
@@ -213,17 +239,34 @@ async function actWithProgress(
         > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
       ),
       variables,
+      Boolean(decisions),
     );
 
     progress.throwIfStopped();
     const secondInference = await getActionFromLLM({
       instruction: secondInstruction,
-      domElements: changedTree.trim() ? changedTree : nextTree,
-      xpathMap: nextXpathMap,
+      domElements: changedTree.trim() ? changedTree : nextSnapshot.combinedTree,
+      snapshot: nextSnapshot,
+      checkPreviousAction: Boolean(decisions),
       context,
     });
 
     if (!secondInference.action) {
+      if (
+        decisions &&
+        (secondInference.response.element ||
+          !secondInference.response.previousActionCompletedRequest)
+      ) {
+        return actResult(
+          {
+            ...firstResult,
+            success: false,
+            message: "The first action ran, but the second step had no matching target.",
+            actionDescription: instruction,
+          },
+          operationUsage,
+        );
+      }
       return actResult(firstResult, operationUsage);
     }
 
@@ -232,6 +275,8 @@ async function actWithProgress(
       action: secondInference.action,
       variables,
       context,
+      expectedElementId: secondInference.expectedElementId,
+      expectedDestinationElementId: secondInference.expectedDestinationElementId,
     });
 
     return actResult(
@@ -270,7 +315,13 @@ async function replayCachedActions(
       context: { ...context, selfHeal: false },
     });
     if (!result.success) {
-      throw new Error(result.message);
+      // Only a pre-input rejection on the first action is safe to re-infer.
+      if (!context.decisions || (!results.length && !result.actions.length))
+        throw new Error(result.message);
+      return actResult({
+        ...result,
+        actions: [...results.flatMap((entry) => entry.actions), ...result.actions],
+      });
     }
     results.push(result);
   }
@@ -281,266 +332,6 @@ async function replayCachedActions(
     actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
-}
-
-async function getActionFromLLM({
-  instruction,
-  domElements,
-  xpathMap,
-  context,
-}: {
-  instruction: string;
-  domElements: string;
-  xpathMap: Record<string, string>;
-  context: ActContext;
-}): Promise<{ action?: Action; response: ActInferenceResponse }> {
-  const response = await context.progress.run("waiting for act inference", () =>
-    inference.act({
-      instruction,
-      domElements,
-      generate: (input) => {
-        context.progress.throwIfStopped();
-        return llmService.generate(
-          context.model,
-          input,
-          context.clientLLMGenerate,
-          context.gateway,
-        );
-      },
-      userProvidedInstructions: context.systemPrompt,
-    }),
-  );
-  context.recordUsage(response);
-
-  context.logger.info("Act inference completed", {
-    category: "action",
-    promptTokens: response.prompt_tokens,
-    completionTokens: response.completion_tokens,
-    reasoningTokens: response.reasoning_tokens,
-    cachedInputTokens: response.cached_input_tokens,
-    inferenceTimeMs: response.inference_time_ms,
-  });
-
-  const action = response.element
-    ? normalizeActInferenceElement(response.element, xpathMap, context.logger)
-    : undefined;
-  return action ? { action, response } : { response };
-}
-
-async function takeDeterministicAction({
-  action,
-  variables,
-  context,
-}: {
-  action: Action;
-  variables?: Variables;
-  context: ActContext;
-}): Promise<ActResultData> {
-  context.progress.throwIfStopped();
-  const method = action.method?.trim();
-  if (!method || method === "not-supported") {
-    context.logger.error("Action has no supported method", {
-      category: "action",
-      action: JSON.stringify(action),
-    });
-    return {
-      success: false,
-      message: `Unable to perform action: The method '${method ?? ""}' is not supported in Action. Please use a supported Playwright locator method.`,
-      actionDescription: action.description || `Action (${method ?? "unknown"})`,
-      actions: [],
-    };
-  }
-
-  const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-  // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
-  const resolvedArgs =
-    method === SupportedUnderstudyAction.DRAG_AND_DROP
-      ? placeholderArgs
-      : (substituteVariablesInArguments(action.arguments, variables) ?? []);
-
-  try {
-    context.progress.throwIfStopped();
-    await performUnderstudyMethod(
-      context.page,
-      context.page.mainFrame(),
-      method,
-      action.selector,
-      resolvedArgs,
-      context.logger,
-      context.progress,
-      context.domSettleTimeoutMs,
-    );
-    return successfulActionResult(action, method, action.selector, placeholderArgs);
-  } catch (error) {
-    context.progress.throwIfStopped();
-    if (error instanceof TimeoutError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (!context.selfHeal) {
-      return {
-        success: false,
-        message: `Failed to perform act: ${message}`,
-        actionDescription: action.description || `action (${method})`,
-        actions: [],
-      };
-    }
-
-    context.logger.debug("Error performing action; reprocessing the page and trying again", {
-      category: "action",
-      error: message,
-      action: JSON.stringify(action),
-    });
-    return await selfHealAction({
-      action,
-      method,
-      resolvedArgs,
-      placeholderArgs,
-      context,
-    });
-  }
-}
-
-async function selfHealAction({
-  action,
-  method,
-  resolvedArgs,
-  placeholderArgs,
-  context,
-}: {
-  action: Action;
-  method: string;
-  resolvedArgs: string[];
-  placeholderArgs: string[];
-  context: ActContext;
-}): Promise<ActResultData> {
-  const actionInstruction = action.description
-    ? action.description.toLowerCase().startsWith(method.toLowerCase())
-      ? action.description
-      : `${method} ${action.description}`
-    : method;
-
-  try {
-    context.progress.throwIfStopped();
-    const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot(
-      {},
-      context.progress,
-    );
-    const inferenceResult = await getActionFromLLM({
-      instruction: buildActPrompt(actionInstruction, Object.values(SupportedUnderstudyAction), {}),
-      domElements: combinedTree,
-      xpathMap: combinedXpathMap,
-      context,
-    });
-
-    if (!inferenceResult.response.element) {
-      return {
-        success: false,
-        message: "Failed to self-heal act: No observe results found for action",
-        actionDescription: actionInstruction,
-        actions: [],
-      };
-    }
-
-    const selector = inferenceResult.action?.selector ?? action.selector;
-    context.progress.throwIfStopped();
-    await performUnderstudyMethod(
-      context.page,
-      context.page.mainFrame(),
-      method,
-      selector,
-      resolvedArgs,
-      context.logger,
-      context.progress,
-      context.domSettleTimeoutMs,
-    );
-    return successfulActionResult(action, method, selector, placeholderArgs);
-  } catch (error) {
-    context.progress.throwIfStopped();
-    if (error instanceof TimeoutError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      message: `Failed to perform act after self-heal: ${message}`,
-      actionDescription: action.description || `action (${method})`,
-      actions: [],
-    };
-  }
-}
-
-function normalizeActInferenceElement(
-  element: ActInferenceElement,
-  xpathMap: Record<string, string>,
-  logger: StagehandLogger,
-): Action | undefined {
-  const xpath = trimTrailingTextNode(xpathMap[element.elementId as EncodedId]);
-  if (!xpath) return undefined;
-
-  let args = element.arguments;
-  if (element.method === SupportedUnderstudyAction.DRAG_AND_DROP && args.length > 0) {
-    const targetElementId = args[0];
-    if (!targetElementId || !/^\d+-\d+$/.test(targetElementId)) {
-      logger.error("Drag-and-drop target element has an invalid ID format", {
-        category: "action",
-        targetElementId: targetElementId ?? "",
-        sourceElementId: element.elementId,
-      });
-      return undefined;
-    }
-
-    const targetXpath = trimTrailingTextNode(xpathMap[targetElementId as EncodedId]);
-    if (!targetXpath) {
-      logger.debug("Drag-and-drop target element lookup failed", {
-        category: "action",
-        targetElementId,
-        sourceElementId: element.elementId,
-      });
-      return undefined;
-    }
-    args = [`xpath=${targetXpath}`, ...args.slice(1)];
-  }
-
-  return {
-    selector: `xpath=${xpath}`,
-    description: element.description,
-    method: element.method,
-    arguments: args,
-  };
-}
-
-function substituteVariablesInArguments(
-  args: string[] | undefined,
-  variables?: Variables,
-): string[] | undefined {
-  if (!variables || !Array.isArray(args)) return args;
-
-  return args.map((arg) => {
-    let output = arg;
-    for (const [key, value] of Object.entries(variables)) {
-      output = output.split(`%${key}%`).join(resolveVariableValue(value));
-    }
-    return output;
-  });
-}
-
-function successfulActionResult(
-  action: Action,
-  method: string,
-  selector: string,
-  arguments_: string[],
-): ActResultData {
-  return {
-    success: true,
-    message: `Action [${method}] performed successfully on selector: ${selector}`,
-    actionDescription: action.description || `action (${method})`,
-    actions: [
-      {
-        selector,
-        description: action.description || `action (${method})`,
-        method,
-        arguments: arguments_,
-      },
-    ],
-  };
 }
 
 function usageFromInference(response: ActInferenceResponse): StagehandResultUsage {
@@ -564,6 +355,18 @@ function aggregateUsage(
     cachedInputTokens: current.cachedInputTokens + next.cachedInputTokens,
     inferenceTimeMs: current.inferenceTimeMs + next.inferenceTimeMs,
   };
+}
+
+function noActionResult(instruction: string, usage: StagehandResultUsage): ActResult {
+  return actResult(
+    {
+      success: false,
+      message: "Failed to perform act: No action found",
+      actionDescription: instruction,
+      actions: [],
+    },
+    usage,
+  );
 }
 
 function actResult(

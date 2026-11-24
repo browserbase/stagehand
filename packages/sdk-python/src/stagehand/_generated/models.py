@@ -16,6 +16,7 @@ from pydantic import (
     StrictStr,
 )
 from stagehand._validation import (
+    ExperimentalDecisionsConfigValidation,
     PageScreenshotOptionsValidation,
     StagehandInitParamsValidation,
     TelemetryConfigValidation,
@@ -608,6 +609,28 @@ class EmptyParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+
+
+class ExperimentalDecisionsConfig(ExperimentalDecisionsConfigValidation):
+    """Experimental decision models for act(), observe() and extract(), with automatic LLM fallback. Defaults to Perplexity Decider v1.3."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+    provider: Optional[Provider] = None
+    """Decision-model provider: Perplexity Decider (default), TypeSafe Jev, or Cloudflare Clef"""
+    api_key: Annotated[StrictStr, Field(min_length=1)]
+    model: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    api_url: Annotated[
+        Optional[WireUrl],
+        Field(pattern="^https:\\/\\/[^/\\\\\\s?#]+(?:\\/[^\\\\\\s?#]*)?$"),
+    ] = None
+    account_id: Annotated[Optional[StrictStr], Field(pattern="^[A-Za-z0-9_-]{1,64}$")] = (
+        None
+    )
+    """Cloudflare account ID; required unless apiUrl supplies the account-scoped base URL"""
 
 
 class ExternalProxyConfig(WireModel):
@@ -2174,6 +2197,16 @@ class Polling(RootModel[StrictFloat]):
     root: Annotated[StrictFloat, Field(gt=0.0, le=2147483647.0)]
 
 
+class Provider(StrEnum):
+    """
+    Decision-model provider: Perplexity Decider (default), TypeSafe Jev, or Cloudflare Clef
+    """
+
+    typesafe = "typesafe"
+    cloudflare = "cloudflare"
+    perplexity = "perplexity"
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -2351,6 +2384,7 @@ class StagehandInitParams(StagehandInitParamsValidation):
     ] = None
     cache: Optional[Caching] = None
     """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires client Browserbase transport and a browser sessionId. Can be overridden per request via options.cache."""
+    experimental_decisions: Optional[ExperimentalDecisionsConfig] = None
 
 
 class StagehandInitResult(WireModel):
