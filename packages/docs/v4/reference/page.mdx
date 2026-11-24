@@ -951,6 +951,36 @@ const locator = page.locator("button[type=submit]");
   The operation result.
 </ResponseField>
 
+## getByText()
+
+Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
+
+```typescript
+await page.getByText("Save", { exact: true }).click();
+```
+
+`getByText()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="string">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="options" type="GetByTextOptions" optional>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-text matching. Defaults to `false`, for case-insensitive substring matching.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
+</ResponseField>
+
 </Tab>
 
 <Tab title="Python">
@@ -1846,6 +1876,34 @@ locator = page.locator("button[type=submit]")
 
 <ResponseField name="result" type="Locator">
   The operation result.
+</ResponseField>
+
+## get_by_text()
+
+Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
+
+```python
+await page.get_by_text("Save", exact=True).click()
+```
+
+`get_by_text()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="str">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-text matching. Defaults to `False`, for case-insensitive substring matching.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
 </ResponseField>
 
 </Tab>

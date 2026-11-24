@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import TypedDict, assert_type, cast
 
@@ -37,6 +38,53 @@ def test_legacy_selector_normalization(fixture: SelectorFixture) -> None:
 
 def query(value: str) -> LocatorQueryStep:
     return {"type": "query", "selector": {"kind": "css", "value": value}}
+
+
+async def test_text_queries_on_pages_and_positioned_locators() -> None:
+    recording = RecordingRPCClient({"locator.click": {"clicked": True}, "locator.count": 2})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="p"))
+
+    def text(value: str, exact: bool = False) -> LocatorQueryStep:
+        return {"type": "query", "selector": {"kind": "textMatch", "value": value, "exact": exact}}
+
+    root = assert_type(page.get_by_text("Save >> now", exact=True), Locator)
+    assert root.descriptor.model_dump() == {
+        "page_id": "p",
+        "chain": {"steps": [text("Save >> now", True)]},
+    }
+    cards = page.locator(".card").nth(1)
+    scoped = cards.get_by_text("").nth(2).locator("span").get_by_text("label")
+    assert scoped.descriptor.model_dump() == {
+        "page_id": "p",
+        "chain": {
+            "steps": [
+                query(".card"),
+                {"type": "nth", "index": 1},
+                text(""),
+                {"type": "nth", "index": 2},
+                query("span"),
+                text("label"),
+            ]
+        },
+    }
+    assert cards.descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "p",
+        "selector": ".card",
+        "nth": 1,
+    }
+    assert recording.calls == []
+    await root.click(timeout=0)
+    assert recording.calls[-1][1].model_dump(exclude_unset=True) == {
+        **root.descriptor.model_dump(),
+        "options": {"timeout": 0},
+    }
+    assert await scoped.count() == 2
+    for invalid in (re.compile("Save"), {"text": "Save"}, None, 42):
+        for get_by_text in (page.get_by_text, cards.get_by_text):
+            with pytest.raises(TypeError, match="string matcher"):
+                get_by_text(cast(str, invalid))
+    with pytest.raises(TypeError, match="boolean"):
+        root.get_by_text("Save", exact=cast(bool, "true"))
 
 
 def test_chaining_is_lazy_and_preserves_branches_and_positions() -> None:

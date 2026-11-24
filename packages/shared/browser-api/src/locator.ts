@@ -1,10 +1,11 @@
 import { LocatorRequestDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
-import { locatorSteps } from "@browserbasehq/stagehand-protocol/locatorSelectors";
+import { locatorSteps, textQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
   LocatorChain,
+  GetByTextOptions,
   LocatorRequestDescriptor,
   LocatorOptions,
   LocatorHighlightParams,
@@ -16,7 +17,7 @@ import type {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
-export type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
+export type { LocatorOptions, GetByTextOptions } from "@browserbasehq/stagehand-protocol/types";
 
 export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
 export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
@@ -181,6 +182,14 @@ export class Locator {
   }
 
   locator(selector: string): Locator {
+    return this.appendSteps(locatorSteps(selector));
+  }
+
+  getByText(text: string, options?: GetByTextOptions): Locator {
+    return this.appendSteps([textQueryStep(text, options)]);
+  }
+
+  private appendSteps(next: LocatorChain["steps"]): Locator {
     const steps: LocatorChain["steps"] =
       "chain" in this.descriptor
         ? [...this.descriptor.chain.steps]
@@ -188,7 +197,7 @@ export class Locator {
     if ("nth" in this.descriptor && this.descriptor.nth !== undefined) {
       steps.push({ type: "nth", index: this.descriptor.nth });
     }
-    steps.push(...locatorSteps(selector));
+    steps.push(...next);
     return new Locator(
       this.rpcClient,
       LocatorRequestDescriptorSchema.parse({ pageId: this.descriptor.pageId, chain: { steps } }),

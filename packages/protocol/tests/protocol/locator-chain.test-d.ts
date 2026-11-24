@@ -12,6 +12,7 @@ expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
   | { kind: "css"; value: string }
   | { kind: "xpath"; value: string }
   | { kind: "text"; value: string }
+  | { kind: "textMatch"; value: string; exact?: boolean }
 >();
 expectTypeOf<LocatorQueryStep>().toEqualTypeOf<{
   type: "query";

@@ -2,6 +2,7 @@ import type { SelectorQuery } from "../../understudy/selectorQuery.js";
 import { countCssMatchesPrimary, countTextMatches, countXPathMatchesMainWorld } from "./counts.js";
 import { collectCssMatches, collectTextMatches } from "./selectors.js";
 import { collectXPathMatches } from "./xpathResolver.js";
+import { collectNormalizedTextMatches } from "./textQuery.js";
 
 export type SelectorResolution =
   | { mode: "count" }
@@ -19,6 +20,8 @@ export function resolveQuery(
         return countCssMatchesPrimary(query.value);
       case "text":
         return countTextMatches(query.value).count;
+      case "textMatch":
+        return collectNormalizedTextMatches(query.value, query).length;
       case "xpath":
         return countXPathMatchesMainWorld(query.value);
     }
@@ -34,6 +37,9 @@ export function resolveQuery(
       break;
     case "text":
       matches = collectTextMatches(query.value);
+      break;
+    case "textMatch":
+      matches = collectNormalizedTextMatches(query.value, query);
       break;
     case "xpath":
       matches = collectXPathMatches(query.value, { pierceShadow: true }, end);

@@ -777,3 +777,6 @@ class Page:
 
     def locator(self, selector: str) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)
+
+    def get_by_text(self, text: str, *, exact: bool = False) -> Locator:
+        return Locator._from_text(self._rpc_client, self.page_id, text, exact)

@@ -163,6 +163,8 @@ export class FrameSelectorResolver {
         return this.countCss(query.value, progress);
       case "text":
         return this.countText(query.value, progress);
+      case "textMatch":
+        return this.countQuery(query, progress);
       case "xpath":
         return this.countXPath(query.value, progress);
     }

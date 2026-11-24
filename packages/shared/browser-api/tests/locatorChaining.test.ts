@@ -27,6 +27,46 @@ function fixture() {
 }
 
 describe("public locator chaining", () => {
+  it("constructs typed text queries on pages & positioned locators", async () => {
+    const { page, send } = fixture();
+    const text = (value: string, exact = false) => ({
+      type: "query",
+      selector: { kind: "textMatch", value, exact },
+    });
+    const root = page.getByText("Save >> now", { exact: true });
+    expectTypeOf(root).toEqualTypeOf<Locator>();
+    expect(root.descriptor).toEqual({ pageId: "p", chain: { steps: [text("Save >> now", true)] } });
+    const cards = page.locator(".card").nth(1);
+    const scoped = cards.getByText("").nth(2).locator("span").getByText("label");
+    expect(scoped.descriptor).toEqual({
+      pageId: "p",
+      chain: {
+        steps: [
+          query(".card"),
+          { type: "nth", index: 1 },
+          text(""),
+          { type: "nth", index: 2 },
+          query("span"),
+          text("label"),
+        ],
+      },
+    });
+    expect(cards.descriptor).toEqual({ pageId: "p", selector: ".card", nth: 1 });
+    expect(send).not.toHaveBeenCalled();
+    await root.click({ timeout: 0 });
+    expect(send).toHaveBeenLastCalledWith(StagehandMethods.locatorClick, {
+      ...root.descriptor,
+      options: { timeout: 0 },
+    });
+    expect(await scoped.count()).toBe(2);
+    for (const invalid of [/Save/, { text: "Save" }, null, 42]) {
+      expect(() => page.getByText(invalid as never)).toThrow();
+      expect(() => cards.getByText(invalid as never)).toThrow();
+    }
+    expect(() => page.getByText("Save", { exact: "true" } as never)).toThrow();
+    expect(() => cards.getByText("Save", { unexpected: true } as never)).toThrow();
+  });
+
   it.each(fixtures)("normalizes $selector with the legacy routing rules", ({ selector, steps }) => {
     expect(
       locatorSteps(selector).map((step) => {

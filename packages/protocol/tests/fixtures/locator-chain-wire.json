@@ -1,6 +1,29 @@
 {
   "valid": [
     {
+      "name": "empty normalized text",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "textMatch", "value": "" } }] }
+    },
+    {
+      "name": "exact Unicode text with literal delimiters",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": { "kind": "textMatch", "value": " 保存 >> Sa​ve­ ", "exact": true }
+          }
+        ]
+      }
+    },
+    {
+      "name": "substring text",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": "Save", "exact": false } }
+        ]
+      }
+    },
+    {
       "name": "single CSS query",
       "chain": { "steps": [{ "type": "query", "selector": { "kind": "css", "value": "button" } }] }
     },
@@ -83,6 +106,22 @@
     }
   ],
   "invalid": [
+    {
+      "name": "non-string text matcher",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": { "pattern": "Save" } } }
+        ]
+      }
+    },
+    {
+      "name": "non-boolean text exact option",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": "Save", "exact": "true" } }
+        ]
+      }
+    },
     { "name": "null", "chain": null },
     { "name": "missing steps", "chain": {} },
     { "name": "empty steps", "chain": { "steps": [] } },

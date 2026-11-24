@@ -7,8 +7,10 @@ import { queryAll } from "./queryAll.js";
 import { resolveQuery } from "./resolveQuery.js";
 import { resolveElementChain, resolveElementChainResult } from "./resolveElementChain.js";
 import { createFrameChainScope } from "./createFrameChainScope.js";
+import { collectNormalizedTextMatches } from "./textQuery.js";
 
 export const locatorScripts = Object.freeze({
+  collectNormalizedTextMatches,
   queryAll,
   resolveQuery,
   resolveElementChain,

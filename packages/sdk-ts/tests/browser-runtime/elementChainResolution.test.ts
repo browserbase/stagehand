@@ -97,6 +97,274 @@ describe("element chain resolution in the browser", () => {
     expect(await resolve(css(".card"), css("button"))).toEqual(["a", "a-deep", "b"]);
   });
 
+  describe("normalized text queries", () => {
+    it("exposes text queries through Page & Locator", async () => {
+      expect(await page.getByText("save").count()).toBe(4);
+      expect(await page.getByText("Save", { exact: true }).count()).toBe(3);
+      expect(await page.locator("button").getByText("Save", { exact: true }).count()).toBe(3);
+      expect(await page.locator("#cards, .card, #cards button").getByText("save").count()).toBe(3);
+      expect(await page.locator("#a").locator("button").count()).toBe(0);
+      const target = page.locator(".card").nth(1).getByText("Save", { exact: true });
+      await page.evaluate(
+        `document.getElementById('b').onclick = () => document.getElementById('b').textContent = 'Saved'`,
+      );
+      await target.click();
+      expect(await page.getByText("Saved", { exact: true }).first().textContent()).toBe("Saved");
+      await page.evaluate(`
+        document.getElementById('a-deep').innerHTML = 'Save <span>now</span>';
+        document.getElementById('outside').innerHTML = '<span>Elsewhere</span><strong>Elsewhere</strong>';
+      `);
+      const savedText = page.getByText("Save now");
+      expect(await savedText.locator("span").count()).toBe(1);
+      expect(await savedText.locator("span").textContent()).toBe("now");
+      expect(await savedText.locator("strong").count()).toBe(0);
+    });
+
+    it.each([
+      { separator: "\n", text: "Save Now", expected: ["body"] },
+      { separator: "", text: "SaveNow", expected: ["body"] },
+      { separator: "", text: "Save Now", expected: [] },
+    ])(
+      "combines block text using only DOM whitespace: $text / $separator",
+      async ({ separator, text, expected }) => {
+        expect(
+          await evaluate(`
+        document.body.innerHTML = ${JSON.stringify(`<h1>Save</h1>${separator}<p>Now</p>`)};
+        return scripts.collectNormalizedTextMatches(${JSON.stringify(text)}, {exact: true}).map(element => element.localName);
+      `),
+        ).toEqual(expected);
+      },
+    );
+
+    it.each([
+      {
+        name: "invisible characters in query & DOM text",
+        html: '<button id="hit">Sa\u200bve\u00ad now</button>',
+        text: "Sa\u00adve\u200b now",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "empty exact excludes skipped content",
+        html: '<div id="hit"><script>Save</script><style>/* Save */</style><template><button>Save</button></template><noscript>Save</noscript></div>',
+        text: "\u200b\u00ad",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "whitespace & case",
+        html: '<button id="hit"> Save\n\t NOW&nbsp; </button>',
+        text: " save now ",
+        exact: false,
+        expected: ["hit"],
+      },
+      {
+        name: "exact normalized text",
+        html: '<button id="hit"> Save\nnow </button><button>save now</button>',
+        text: " Save  now ",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "inline descendants",
+        html: '<button id="hit">Sa<span>ve</span> <b>now</b></button>',
+        text: "Save now",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "smallest matching descendants",
+        html: '<section>Save<div><span id="hit">Save</span></div></section>',
+        text: "Save",
+        exact: false,
+        expected: ["hit"],
+      },
+      {
+        name: "equal parent & child",
+        html: '<button><span id="hit">Save</span></button>',
+        text: "Save",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "whole aggregate for exact",
+        html: "<button>Save <span>now</span></button>",
+        text: "Save",
+        exact: true,
+        expected: [],
+      },
+      {
+        name: "input button values",
+        html: '<input id="button" type="button" value="Save"><input id="submit" type="submit" value="Save"><input id="reset" type="reset" value="Save"><input type="text" value="Save">',
+        text: "Save",
+        exact: true,
+        expected: ["button", "submit", "reset"],
+      },
+      {
+        name: "skipped content",
+        html: '<script>Save</script><style>/* Save */</style><template><button>Save</button></template><noscript>Save</noscript><button id="hit">Save</button>',
+        text: "Save",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "hidden text & Unicode",
+        html: '<span id="hit" hidden>CAFÉ 東京</span>',
+        text: "café 東京",
+        exact: false,
+        expected: ["hit"],
+      },
+      {
+        name: "empty substring",
+        html: '<div><i id="empty"></i><span id="word">word</span></div><p id="blank"> \n </p>',
+        text: "",
+        exact: false,
+        expected: ["empty", "word", "blank"],
+      },
+      {
+        name: "empty exact",
+        html: '<div><i id="empty"></i><span>word</span></div><p id="blank"> \n </p>',
+        text: " \t",
+        exact: true,
+        expected: ["empty", "blank"],
+      },
+      {
+        name: "distinct identical matches",
+        html: '<button id="a">Save</button><button id="b">Save</button>',
+        text: "Save",
+        exact: true,
+        expected: ["a", "b"],
+      },
+    ])("$name", async ({ html, text, exact, expected }) => {
+      expect(
+        await evaluate(`
+        document.body.innerHTML = ${JSON.stringify(html)};
+        return ids(scripts.collectNormalizedTextMatches(${JSON.stringify(text)}, {exact: ${exact}}));
+      `),
+      ).toEqual(expected);
+    });
+
+    it.each(["open", "closed"])(
+      "searches %s roots without duplicating slotted text",
+      async (mode) => {
+        expect(
+          await evaluate(`
+        document.body.innerHTML = '<my-widget id="host"><span id="light">Save</span></my-widget>';
+        const host = document.getElementById('host');
+        const root = host.attachShadow({mode: ${JSON.stringify(mode)}});
+        root.innerHTML = '<slot></slot><my-nested></my-nested>';
+        root.querySelector('my-nested').attachShadow({mode: ${JSON.stringify(mode)}}).innerHTML = '<button id="shadow">Save</button>';
+        return {
+          matches: ids(scripts.collectNormalizedTextMatches('Save', {exact: true})),
+          scoped: ids(scripts.collectNormalizedTextMatches('Save', {exact: true}, host)),
+          doubled: ids(scripts.collectNormalizedTextMatches('SaveSaveSave', {exact: true})),
+          aggregate: ids(scripts.collectNormalizedTextMatches('SaveSave', {exact: true})),
+        };
+      `),
+        ).toEqual({
+          matches: ["light", "shadow"],
+          scoped: ["light", "shadow"],
+          doubled: [],
+          aggregate: ["host"],
+        });
+      },
+    );
+
+    it.each(["open", "closed"])(
+      "keeps DOM text order & assigned slot fallback in %s roots",
+      async (mode) => {
+        expect(
+          await evaluate(`
+        document.body.innerHTML = '<my-widget id="host">World</my-widget>';
+        const host = document.getElementById('host');
+        const root = host.attachShadow({mode: ${JSON.stringify(mode)}});
+        root.innerHTML = '<span>Hello </span><slot id="slot"></slot>';
+        const query = text => ids(scripts.collectNormalizedTextMatches(text, {exact: true}));
+        const lightFirst = query('WorldHello');
+        const renderedOrder = query('Hello World');
+        const slot = root.querySelector('slot');
+        slot.textContent = 'Fallback';
+        return {lightFirst, renderedOrder, assigned: slot.assignedNodes().length,
+          aggregate: query('WorldHello Fallback'), fallback: query('Fallback')};
+      `),
+        ).toEqual({
+          lightFirst: ["host"],
+          renderedOrder: [],
+          assigned: 1,
+          aggregate: ["host"],
+          fallback: ["slot"],
+        });
+      },
+    );
+
+    it.each(["open", "closed"])("applies parent selection to %s shadow text", async (mode) => {
+      expect(
+        await evaluate(`
+        document.body.innerHTML = '<my-widget id="host"></my-widget>';
+        const host = document.getElementById('host');
+        const root = host.attachShadow({mode: ${JSON.stringify(mode)}});
+        const query = (text, exact = true) => ids(scripts.collectNormalizedTextMatches(text, {exact}, host));
+        root.textContent = 'Save';
+        const direct = query('Save');
+        const substring = query('sav', false);
+        root.innerHTML = 'Sa<span>ve</span>';
+        const combined = query('Save');
+        root.innerHTML = '<span id="child">Save</span>';
+        const child = query('Save');
+        root.textContent = '';
+        const emptyExact = query('');
+        const emptySubstring = query('', false);
+        root.innerHTML = '<span id="empty"></span>';
+        const emptyChild = query('');
+        return {direct, substring, combined, child, emptyExact, emptySubstring, emptyChild};
+      `),
+      ).toEqual({
+        direct: [],
+        substring: [],
+        combined: [],
+        child: ["child"],
+        emptyExact: [],
+        emptySubstring: [],
+        emptyChild: ["empty"],
+      });
+    });
+
+    it("includes the scope, excludes head, refreshes text & preserves legacy matching", async () => {
+      expect(
+        await evaluate(`
+        document.body.innerHTML = '<section id="scope"><button id="hit">Save   now</button></section><button id="outside">Save now</button>';
+        const scope = document.getElementById('scope');
+        const query = () => ids(scripts.collectNormalizedTextMatches('Save now', {}, scope));
+        const before = query();
+        const self = ids(scripts.collectNormalizedTextMatches('Save now', {}, document.getElementById('hit')));
+        const legacyText = ids(scripts.queryAll({kind: 'text', value: ' Save now '}, [scope]));
+        document.getElementById('hit').textContent = 'Changed';
+        const after = query();
+        const title = document.createElement('title');
+        title.textContent = 'Head only';
+        document.head.append(title);
+        const head = ids(scripts.collectNormalizedTextMatches('Head only'));
+        title.remove();
+        return { before, self, legacyText, after, head };
+      `),
+      ).toEqual({ before: ["hit"], self: ["hit"], legacyText: [], after: [], head: [] });
+    });
+
+    it("does not search iframe documents", async () => {
+      expect(
+        await evaluate(`
+        document.body.innerHTML = '<iframe></iframe>';
+        const frame = document.querySelector('iframe');
+        frame.contentDocument.body.innerHTML = '<button id="child">Frame only</button>';
+        return {
+          outer: ids(scripts.collectNormalizedTextMatches('Frame only')),
+          inner: ids(scripts.collectNormalizedTextMatches('Frame only', {}, frame.contentDocument)),
+        };
+      `),
+      ).toEqual({ outer: [], inner: ["child"] });
+    });
+  });
+
   it("deduplicates overlapping scopes before applying an index", async () => {
     expect(await resolve(css("#cards, .card, #inner"), css("button"))).toEqual([
       "a",

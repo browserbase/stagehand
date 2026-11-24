@@ -13,6 +13,7 @@ export {
 export {
   Locator,
   type LocatorOptions,
+  type GetByTextOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,

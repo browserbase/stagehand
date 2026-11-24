@@ -457,12 +457,17 @@ export const LocatorSchema = z
   })
   .meta({ id: "Locator" });
 
+export const GetByTextOptionsSchema = z
+  .strictObject({ exact: z.boolean().optional() })
+  .meta({ id: "GetByTextOptions" });
+
 export const LocatorQuerySelectorSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
     z.strictObject({ kind: z.literal("xpath"), value: z.string().min(1) }),
-    // The existing text= engine, not the future getByText contract.
+    // Preserve the legacy text= engine separately from getByText matching.
     z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
+    GetByTextOptionsSchema.extend({ kind: z.literal("textMatch"), value: z.string() }),
   ])
   .meta({ id: "LocatorQuerySelector" });
 

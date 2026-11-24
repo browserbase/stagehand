@@ -23,7 +23,7 @@ import { Progress } from "../../../extension/understudy/progress.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { startFixtureServer, type FixtureServer } from "../integration/_support.js";
 
-const query = (kind: "css" | "xpath" | "text", value: string): LocatorQueryStep => ({
+const query = (kind: "css" | "xpath" | "text" | "textMatch", value: string): LocatorQueryStep => ({
   type: "query",
   selector: { kind, value },
 });
@@ -455,7 +455,12 @@ describe("iframe chain resolution in Chrome", () => {
     return { calls, stop: () => spies.forEach((spy) => spy.mockRestore()) };
   }
 
-  it.each([query("css", "button"), query("text", "Save"), query("xpath", ".//button")])(
+  it.each([
+    query("css", "button"),
+    query("text", "Save"),
+    query("xpath", ".//button"),
+    query("textMatch", "Save"),
+  ])(
     "batches $selector.kind scopes at 500 & 1,000 matches per document",
     async (selector) => {
       await mixedScopes();
