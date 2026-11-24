@@ -156,7 +156,7 @@ This returns the accessibility tree representation of the page without LLM proce
 You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
 ```typescript
 const result = await stagehand.extract("extract the repository name", {
-  model: "anthropic/claude-sonnet-4-5",
+  model: "anthropic/claude-sonnet-4-6",
   timeout: 30000,
   selector: "//header" // Focus on specific area
 });
