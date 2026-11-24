@@ -1105,6 +1105,7 @@ class PageOnParams(TypedDict):
     page_id: str
     subscription_id: str
     event: PageSubscriptionEventName
+    include_tool_ids: NotRequired[bool]
 
 
 PageTitleResult: TypeAlias = str
@@ -1417,6 +1418,7 @@ class PageWebMCPInvokeToolParams(TypedDict):
     page_id: str
     frame_id: str
     tool_name: str
+    tool_id: NotRequired[str]
     input: NotRequired[dict[str, WebMCPJsonValue]]
 
 
@@ -1441,6 +1443,7 @@ class PageWebMCPInvocationResultParams(TypedDict):
 
 
 class WebMCPToolDescriptor(TypedDict):
+    tool_id: NotRequired[str]
     name: str
     description: str
     input_schema: NotRequired[dict[str, WebMCPJsonValue]]
@@ -1463,6 +1466,7 @@ class PageWebMCPToolsResult(TypedDict):
 
 
 class WebMCPToolIdentity(TypedDict):
+    tool_id: NotRequired[str]
     frame_id: str
     name: str
 
@@ -1494,3 +1498,4 @@ class WebMCPToolsOptions(TypedDict):
 class PageWebMCPToolsParams(TypedDict):
     page_id: str
     options: NotRequired[WebMCPToolsOptions]
+    include_tool_ids: NotRequired[bool]

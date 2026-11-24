@@ -435,7 +435,7 @@ await subscription.unsubscribe();
 <ParamField path="listener" type="ToolsAddedListener">
   A callback with the signature `(tools: WebMCPTool[]) => unknown`. Each call receives
   an array of added tools. Each tool exposes `name`, `description`, `frameId`, optional
-  `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
+  `toolId`, `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
   [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
   Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -445,8 +445,9 @@ await subscription.unsubscribe();
   [CDPSubscription](#cdpsubscription) for cleanup behavior.
 </ResponseField>
 
-Tools are identified by `frameId` and `name`. A tool is also reported when its descriptor
-changes; an identical descriptor is not reported again.
+Chrome supplies a new `toolId` for each registration, including when a page reuses a name.
+On older Chrome versions, Stagehand identifies tools by `frameId` and `name`. Stagehand
+reports descriptor changes and suppresses duplicate events.
 
 ## onToolsRemoved()
 
@@ -469,8 +470,8 @@ await subscription.unsubscribe();
 
 <ParamField path="listener" type="ToolsRemovedListener">
   A callback with the signature `(tools: WebMCPToolIdentity[]) => unknown`. Each call
-  receives an array of removed tool identities containing `name` and `frameId`, both
-  strings. These identities have no `invoke()` method. Async callbacks may overlap
+  receives an array of removed tool identities containing `name`, `frameId`, and an optional
+  `toolId`. These identities have no `invoke()` method. Async callbacks may overlap
   and are not awaited by later page calls.
 </ParamField>
 
@@ -1361,8 +1362,8 @@ await subscription.unsubscribe()
 
 <ParamField path="listener" type="ToolsAddedListener">
   A sync or async callback that receives a `list[WebMCPTool]` of added tools. Each tool
-  exposes `name`, `description`, `frame_id`, optional `input_schema`, `annotations`, and
-  `backend_node_id`, and an `invoke()` method. See the
+  exposes `name`, `description`, `frame_id`, optional `tool_id`, `input_schema`, `annotations`,
+  and `backend_node_id`, and an `invoke()` method. See the
   [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
   Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -1373,8 +1374,9 @@ await subscription.unsubscribe()
   failed cleanup can be retried.
 </ResponseField>
 
-Tools are identified by `frame_id` and `name`. A tool is also reported when its descriptor
-changes; an identical descriptor is not reported again.
+Chrome supplies a new `tool_id` for each registration, including when a page reuses a name.
+On older Chrome versions, Stagehand identifies tools by `frame_id` and `name`. Stagehand
+reports descriptor changes and suppresses duplicate events.
 
 ## on_tools_removed()
 
@@ -1397,8 +1399,8 @@ await subscription.unsubscribe()
 
 <ParamField path="listener" type="ToolsRemovedListener">
   A sync or async callback that receives a `list[WebMCPToolIdentity]` of removed tool
-  identities containing `name` and `frame_id`, both strings. These identities have no
-  `invoke()` method. Async callbacks may overlap and are not awaited by later page calls.
+  identities containing `name`, `frame_id`, and an optional `tool_id`. These identities have
+  no `invoke()` method. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
 
 <ResponseField name="result" type="CDPSubscription">

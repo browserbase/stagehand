@@ -326,6 +326,7 @@ export class Page {
         pageId: this.pageId,
         subscriptionId,
         event,
+        ...(event === "toolsadded" || event === "toolsremoved" ? { includeToolIds: true } : {}),
       });
       return subscription;
     } catch (error) {
@@ -433,6 +434,7 @@ export class Page {
   async tools(options?: WebMCPToolsOptions): Promise<WebMCPTool[]> {
     const result = await this.rpcClient.send(StagehandMethods.pageWebMCPTools, {
       pageId: this.pageId,
+      includeToolIds: true,
       ...(options ? { options } : {}),
     });
     return result.tools.map(
