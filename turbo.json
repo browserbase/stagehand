@@ -322,7 +322,8 @@
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/**/node_modules/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**"
+        "$TURBO_ROOT$/packages/sdk-ts/tests/helpers/**",
+        "$TURBO_ROOT$/specs/traces/**"
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
