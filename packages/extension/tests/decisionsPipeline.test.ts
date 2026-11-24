@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Action, ActResultData } from "@browserbasehq/stagehand-protocol/types";
@@ -841,6 +842,54 @@ describe("decisions act pipeline", () => {
     ]);
   });
 
+  it("stops watching frames for choices once the wait is over", async () => {
+    const before = "[0-1] combobox: State";
+    const after = ["[0-1] combobox: State", "  [0-2] listbox", "    [0-4] option: Alaska"].join(
+      "\n",
+    );
+    const prefer = (question: { criteria?: Record<string, unknown> }) =>
+      question.criteria ? choice("0-4" in question.criteria ? "0-4" : "0-1") : noul(0.95);
+    stubDecisions({
+      family: choice("fill"),
+      after_typing: choice("pick_suggestion"),
+      strict: prefer,
+      best: prefer,
+    });
+    const xpaths = { "0-1": "/html/body/input", "0-4": "/html/body/ul/li" };
+    const harness = deps(before, xpaths, {
+      instruction: "type 'Ala' into the State box and pick the suggestion 'Alaska'",
+    });
+    harness.captureSnapshot
+      .mockResolvedValueOnce({ combinedTree: before, combinedXpathMap: xpaths, combinedUrlMap: {} })
+      .mockResolvedValue({ combinedTree: after, combinedXpathMap: xpaths, combinedUrlMap: {} });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValueOnce({
+      inputValue: async () => "Ala",
+    } as never);
+    const frames: Array<() => void> = [];
+    let cap = (): void => {};
+    const evaluate = vi.fn(async (expression: string) => {
+      const waiting = runInNewContext(expression, {
+        document: { querySelectorAll: () => [] },
+        innerHeight: 600,
+        requestAnimationFrame: (callback: () => void) => frames.push(callback),
+        setTimeout: (callback: () => void) => {
+          cap = callback;
+        },
+      }) as Promise<boolean>;
+      for (let frame = 0; frame < 3; frame++) frames.shift()!();
+      cap();
+      await waiting;
+      frames.shift()!();
+    });
+    (harness.value.page as unknown as { mainFrame: () => unknown }).mainFrame = () => ({
+      evaluate,
+    });
+
+    expect((await runDecisionsAct(config, harness.value)).kind).toBe("done");
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(frames).toHaveLength(0);
+  });
+
   it("drags with two independent picks", async () => {
     const tree = [
       "[0-1] div",
@@ -1045,7 +1094,7 @@ describe("decisions act pipeline target readiness", () => {
   const never = new Promise<void>(() => {});
 
   /** The in-page guard's verdicts, in the order it is called. */
-  function locator(verdicts: string[], backendNodeId = 7) {
+  function locator(verdicts: string[], backendNodeId = 7, value = "") {
     let calls = 0;
     return {
       backendNodeId: async () => backendNodeId,
@@ -1060,7 +1109,7 @@ describe("decisions act pipeline target readiness", () => {
               : {},
         },
       }),
-      inputValue: async () => "",
+      inputValue: async () => value,
     } as never;
   }
 
@@ -1210,6 +1259,68 @@ describe("decisions act pipeline target readiness", () => {
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("does not fill a field that was replaced while the text to type was being extracted", async () => {
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    let resolutions = 0;
+    vi.mocked(resolveLocatorWithHops).mockImplementation(async () =>
+      locator(["ok"], ++resolutions === 1 ? 5 : 99, "linear algebra"),
+    );
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(
+      FORM,
+      { "0-5": "/html/body/form/input" },
+      {
+        instruction: "search for linear algebra in the username box",
+        extractText: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return "linear algebra";
+        },
+        settled,
+      },
+    );
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    expect((await running).kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(d.takeAction).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "fill", arguments: ["linear algebra"] }),
+    );
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("fills early once the extracted text arrives when the field is still the one picked", async () => {
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"], 5, "linear algebra"));
+    const d = deps(
+      FORM,
+      { "0-5": "/html/body/form/input" },
+      {
+        instruction: "search for linear algebra in the username box",
+        extractText: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return "linear algebra";
+        },
+        settled: never,
+      },
+    );
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(d.captureSnapshot).toHaveBeenCalledTimes(1);
     vi.mocked(resolveLocatorWithHops).mockReset();
     vi.mocked(resolveLocatorWithHops).mockImplementation(
       async () => ({ inputValue: async () => "business" }) as never,
