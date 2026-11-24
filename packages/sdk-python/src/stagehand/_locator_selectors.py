@@ -8,6 +8,14 @@ from ._generated.input_types import (
 )
 
 
+def text_query_step(text: str, exact: bool = False) -> LocatorQueryStep:
+    if not isinstance(text, str):
+        raise TypeError("Text queries require a string matcher")
+    if not isinstance(exact, bool):
+        raise TypeError("exact must be a boolean")
+    return {"type": "query", "selector": {"kind": "textMatch", "value": text, "exact": exact}}
+
+
 def _query(raw: str) -> LocatorQuerySelector:
     value = raw.strip()
     if value.lower().startswith("text="):

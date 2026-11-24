@@ -1,4 +1,18 @@
-import type { LocatorChain, LocatorQuerySelector } from "./types.js";
+import { GetByTextOptionsSchema, LocatorQuerySelectorSchema } from "./schemas.js";
+import type {
+  GetByTextOptions,
+  LocatorChain,
+  LocatorQuerySelector,
+  LocatorQueryStep,
+} from "./types.js";
+
+export function textQueryStep(value: string, options: GetByTextOptions = {}): LocatorQueryStep {
+  const { exact = false } = GetByTextOptionsSchema.parse(options);
+  return {
+    type: "query",
+    selector: LocatorQuerySelectorSchema.parse({ kind: "textMatch", value, exact }),
+  };
+}
 
 export function locatorSteps(selector: string): LocatorChain["steps"] {
   const trimmed = selector.trim();
@@ -19,7 +33,7 @@ export function locatorSteps(selector: string): LocatorChain["steps"] {
 
 export type CssSelectorQuery = Extract<LocatorQuerySelector, { kind: "css" }>;
 export type XPathSelectorQuery = Extract<LocatorQuerySelector, { kind: "xpath" }>;
-/** The existing text= substring engine, not the future getByText contract. */
+/** The legacy text= substring engine, separate from getByText matching. */
 export type LegacyTextSelectorQuery = Extract<LocatorQuerySelector, { kind: "text" }>;
 export type SelectorQuery = LocatorQuerySelector;
 

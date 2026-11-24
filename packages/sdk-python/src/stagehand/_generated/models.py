@@ -1379,10 +1379,20 @@ class LocatorQuerySelector3(WireModel):
     value: Annotated[StrictStr, Field(min_length=1)]
 
 
+class LocatorQuerySelector4(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    exact: Optional[StrictBool] = None
+    kind: Literal["textMatch"]
+    value: StrictStr
+
+
 class LocatorQuerySelector(
-    RootModel[Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3]]
+    RootModel[Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4]]
 ):
-    root: Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3]
+    root: Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4]
 
 
 class LocatorQueryStep(WireModel):

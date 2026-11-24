@@ -1,6 +1,7 @@
 import type { SelectorQuery } from "../../understudy/selectorQuery.js";
 import { collectCssMatches, collectTextMatches } from "./selectors.js";
 import { collectXPathMatches } from "./xpathResolver.js";
+import { collectNormalizedTextMatches } from "./textQuery.js";
 
 /** Collect within one execution context, in scope order, deduplicated by DOM identity. */
 export function queryAll(
@@ -31,6 +32,8 @@ function collectInScope(
       return collectCssMatches(query.value, scope);
     case "text":
       return collectTextMatches(query.value, scope);
+    case "textMatch":
+      return collectNormalizedTextMatches(query.value, query, scope);
     case "xpath":
       return collectXPathMatches(query.value, { scope, pierceShadow: true, shadowPresence });
   }

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, Self
 
+from ._generated.input_types import LocatorStep as LocatorStepInput
 from ._generated.input_types import RgbaColor
 from ._generated.models import (
     ChainLocatorDescriptor,
@@ -40,7 +41,7 @@ from ._generated.models import (
     LocatorTypeResult,
     MouseButton,
 )
-from ._locator_selectors import locator_steps
+from ._locator_selectors import locator_steps, text_query_step
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
@@ -313,6 +314,18 @@ class Locator:
         return child
 
     def locator(self, selector: str) -> Self:
+        return self._append_steps(locator_steps(selector), selector)
+
+    def get_by_text(self, text: str, *, exact: bool = False) -> Self:
+        return self._append_steps([text_query_step(text, exact)], self.selector)
+
+    @classmethod
+    def _from_text(cls, rpc_client: RPCClient, page_id: str, text: str, exact: bool) -> Self:
+        child = cls(rpc_client, page_id=page_id, selector="*")
+        child._chain = LocatorChain.model_validate({"steps": [text_query_step(text, exact)]})
+        return child
+
+    def _append_steps(self, next_steps: Sequence[LocatorStepInput], selector: str) -> Self:
         child = type(self)(self._rpc_client, page_id=self.page_id, selector=selector)
         if self._chain is not None:
             steps = self._chain.model_dump()["steps"]
@@ -320,5 +333,5 @@ class Locator:
             steps = list(locator_steps(self.selector))
             if self.nth_index is not None:
                 steps.append({"type": "nth", "index": self.nth_index})
-        child._chain = LocatorChain.model_validate({"steps": [*steps, *locator_steps(selector)]})
+        child._chain = LocatorChain.model_validate({"steps": [*steps, *next_steps]})
         return child

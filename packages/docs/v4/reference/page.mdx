@@ -950,6 +950,32 @@ const locator = page.locator("button[type=submit]");
   The operation result.
 </ResponseField>
 
+## getByText()
+
+Find the smallest elements matching text in the current document, including open & closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()` & `nth()`.
+
+```typescript
+await page.getByText("Save", { exact: true }).click();
+```
+
+Whitespace is trimmed & collapsed in both the query & DOM text, including exact matches. Text across inline descendants is combined; button, submit & reset inputs use their values. Script, style, head, template & noscript content is excluded. Matching does not require visibility & does not enter iframe documents automatically.
+
+An empty substring matches the smallest elements; an exact empty string matches the smallest elements whose normalized text is empty. Existing `locator("text=...")` behavior is unchanged.
+
+<ParamField path="text" type="string">
+  Text to match. Regular expressions & matcher objects are not supported.
+</ParamField>
+
+<ParamField path="options" type="GetByTextOptions" optional>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-text matching. Defaults to `false`, for case-insensitive substring matching.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
+</ResponseField>
+
 </Tab>
 
 <Tab title="Python">
@@ -1844,6 +1870,30 @@ locator = page.locator("button[type=submit]")
 
 <ResponseField name="result" type="Locator">
   The operation result.
+</ResponseField>
+
+## get_by_text()
+
+Find the smallest elements matching text in the current document, including open & closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()` & `nth()`.
+
+```python
+await page.get_by_text("Save", exact=True).click()
+```
+
+Whitespace is trimmed & collapsed in both the query & DOM text, including exact matches. Text across inline descendants is combined; button, submit & reset inputs use their values. Script, style, head, template & noscript content is excluded. Matching does not require visibility & does not enter iframe documents automatically.
+
+An empty substring matches the smallest elements; an exact empty string matches the smallest elements whose normalized text is empty. Existing `locator("text=...")` behavior is unchanged.
+
+<ParamField path="text" type="str">
+  Text to match. Regular expressions & matcher objects are not supported.
+</ParamField>
+
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-text matching. Defaults to `False`, for case-insensitive substring matching.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
 </ResponseField>
 
 </Tab>

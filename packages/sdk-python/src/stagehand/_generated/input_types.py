@@ -594,7 +594,13 @@ class LocatorQuerySelector3(TypedDict):
     value: str
 
 
-LocatorQuerySelector: TypeAlias = LocatorQuerySelector1 | LocatorQuerySelector2 | LocatorQuerySelector3
+class LocatorQuerySelector4(TypedDict):
+    exact: NotRequired[bool]
+    kind: Literal["textMatch"]
+    value: str
+
+
+LocatorQuerySelector: TypeAlias = LocatorQuerySelector1 | LocatorQuerySelector2 | LocatorQuerySelector3 | LocatorQuerySelector4
 
 
 class LocatorFrameStep(TypedDict):

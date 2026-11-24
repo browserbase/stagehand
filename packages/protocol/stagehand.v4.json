@@ -1730,6 +1730,23 @@
           },
           "required": ["kind", "value"],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "exact": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "textMatch"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
         }
       ]
     },

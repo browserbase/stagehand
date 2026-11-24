@@ -98,6 +98,18 @@ describe("element chain resolution in the browser", () => {
   });
 
   describe("normalized text queries", () => {
+    it("exposes text queries through Page & Locator", async () => {
+      expect(await page.getByText("save").count()).toBe(4);
+      expect(await page.getByText("Save", { exact: true }).count()).toBe(3);
+      const target = page.locator(".card").nth(1).getByText("Save", { exact: true });
+      await page.evaluate(
+        `document.getElementById('b').onclick = () => document.getElementById('b').textContent = 'Saved'`,
+      );
+      await target.click();
+      expect(await page.getByText("Saved", { exact: true }).first().textContent()).toBe("Saved");
+      expect(await page.getByText("Save now").locator("span").count()).toBe(0);
+    });
+
     // Behavior reference: Playwright docs at 09dab5d70932724a848540549f33ff6f9b817e1b.
     // These fixtures specify Stagehand's string-only contract, including empty-string ties.
     it.each([

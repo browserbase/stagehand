@@ -28,7 +28,8 @@ import {
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
-import { Locator } from "./locator.js";
+import { Locator, type GetByTextOptions } from "./locator.js";
+import { textQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
@@ -463,6 +464,13 @@ export class Page {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
       selector,
+    });
+  }
+
+  getByText(text: string, options?: GetByTextOptions): Locator {
+    return new Locator(this.rpcClient, {
+      pageId: this.pageId,
+      chain: { steps: [textQueryStep(text, options)] },
     });
   }
 }
