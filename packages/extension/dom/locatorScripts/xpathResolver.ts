@@ -7,6 +7,7 @@ type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
   scope?: Document | Element;
+  shadowPresence?: Map<Document, boolean>;
 };
 
 type ShadowContext = {
@@ -45,7 +46,7 @@ export function collectXPathMatches(
   const scope = options?.scope ?? document;
   const pierceShadow = options?.pierceShadow !== false;
   const ownerDocument = scope instanceof Document ? scope : scope.ownerDocument;
-  const shadowCtx = pierceShadow ? getShadowContext(ownerDocument) : null;
+  const shadowCtx = pierceShadow ? getShadowContext(ownerDocument, options?.shadowPresence) : null;
 
   // Element queries stay relative to their scope. Document queries retain the
   // generated-path shadow-hop route below, whose // semantics are different.
@@ -86,7 +87,7 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
   if (!xp) return 0;
 
   const pierceShadow = options?.pierceShadow !== false;
-  const shadowCtx = pierceShadow ? getShadowContext(scope) : null;
+  const shadowCtx = pierceShadow ? getShadowContext(scope, options?.shadowPresence) : null;
 
   if (!pierceShadow) {
     return resolveNativeCountWithError(xp, scope).count;
@@ -205,8 +206,10 @@ function matchesTag(element: Element, step: XPathStep): boolean {
   return element.localName === step.tag;
 }
 
-function getShadowContext(scope: Document): ShadowContext {
-  return { getShadowRoot: getOpenOrClosedShadowRoot, hasShadow: documentHasShadowRoot(scope) };
+function getShadowContext(scope: Document, presence?: Map<Document, boolean>): ShadowContext {
+  const hasShadow = presence?.get(scope) ?? documentHasShadowRoot(scope);
+  presence?.set(scope, hasShadow);
+  return { getShadowRoot: getOpenOrClosedShadowRoot, hasShadow };
 }
 
 function composedChildren(node: TraversalRoot, getShadowRoot: ShadowRootGetter | null): Element[] {

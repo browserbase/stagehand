@@ -6,11 +6,12 @@ import { collectXPathMatches } from "./xpathResolver.js";
 export function queryAll(
   query: SelectorQuery,
   scopes: readonly (Document | Element)[] = [document],
+  shadowPresence = new Map<Document, boolean>(),
 ): Element[] {
   const seen = new Set<Element>();
   const results: Element[] = [];
   for (const scope of scopes) {
-    const matches = collectInScope(query, scope);
+    const matches = collectInScope(query, scope, shadowPresence);
     for (const element of matches) {
       if (seen.has(element)) continue;
       seen.add(element);
@@ -20,13 +21,17 @@ export function queryAll(
   return results;
 }
 
-function collectInScope(query: SelectorQuery, scope: Document | Element): Element[] {
+function collectInScope(
+  query: SelectorQuery,
+  scope: Document | Element,
+  shadowPresence: Map<Document, boolean>,
+): Element[] {
   switch (query.kind) {
     case "css":
       return collectCssMatches(query.value, scope);
     case "text":
       return collectTextMatches(query.value, scope);
     case "xpath":
-      return collectXPathMatches(query.value, { scope, pierceShadow: true });
+      return collectXPathMatches(query.value, { scope, pierceShadow: true, shadowPresence });
   }
 }
