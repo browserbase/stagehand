@@ -28,6 +28,12 @@ export const STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION = `
   typeof globalThis.chrome?.runtime?.id === "string"
 `;
 
+class FallbackClearedError extends Error {
+  constructor(frameId: FrameId) {
+    super(`Execution contexts cleared while installing locator fallback for frame ${frameId}`);
+  }
+}
+
 export class ExecutionContextRegistry {
   readonly byFrame = new WeakMap<CDPSessionLike, Map<FrameId, ExecId>>();
   readonly byExec = new WeakMap<CDPSessionLike, Map<ExecId, FrameId>>();
@@ -38,6 +44,11 @@ export class ExecutionContextRegistry {
   readonly fallbackByExec = new WeakMap<CDPSessionLike, Map<ExecId, FrameId>>();
   readonly fallbackCreation = new WeakMap<CDPSessionLike, Map<FrameId, Promise<ExecId>>>();
   readonly fallbackInstallerSource = new WeakMap<CDPSessionLike, string>();
+  private readonly clearEpoch = new WeakMap<CDPSessionLike, number>();
+  private readonly inFlightChecks = new WeakMap<
+    CDPSessionLike,
+    Set<{ contextId: ExecId; invalidated: boolean }>
+  >();
 
   setFallbackInstallerSource(session: CDPSessionLike, source: string): void {
     this.fallbackInstallerSource.set(session, source);
@@ -59,7 +70,13 @@ export class ExecutionContextRegistry {
         this.registerExtensionCandidate(session, aux.frameId as FrameId, evt.context.id);
       }
     };
-    const onDestroyed = (evt: Protocol.Runtime.ExecutionContextDestroyedEvent): void => {
+    const onDestroyed = (evt: { executionContextId: ExecId }): void => {
+      const checks = this.inFlightChecks.get(session);
+      if (checks) {
+        for (const check of checks) {
+          if (check.contextId === evt.executionContextId) check.invalidated = true;
+        }
+      }
       const rev = this.byExec.get(session);
       const fwd = this.byFrame.get(session);
       const frameId = rev?.get(evt.executionContextId);
@@ -71,6 +88,11 @@ export class ExecutionContextRegistry {
       this.unregisterFallbackContext(session, evt.executionContextId);
     };
     const onCleared = (): void => {
+      this.clearEpoch.set(session, this.getClearEpoch(session) + 1);
+      const checks = this.inFlightChecks.get(session);
+      if (checks) {
+        for (const check of checks) check.invalidated = true;
+      }
       this.byFrame.delete(session);
       this.byExec.delete(session);
       this.extensionByFrame.delete(session);
@@ -78,7 +100,6 @@ export class ExecutionContextRegistry {
       this.extensionCandidates.delete(session);
       this.fallbackByFrame.delete(session);
       this.fallbackByExec.delete(session);
-      this.fallbackCreation.delete(session);
     };
 
     session.on("Runtime.executionContextCreated", onCreated);
@@ -159,14 +180,20 @@ export class ExecutionContextRegistry {
 
     while (now() <= deadline) {
       progress?.throwIfStopped();
-      const candidates = this.extensionCandidates.get(session)?.get(frameId);
-      for (const contextId of candidates ?? []) {
+      const candidates = [...(this.extensionCandidates.get(session)?.get(frameId) ?? [])];
+      for (const contextId of candidates) {
+        if (!this.extensionCandidates.get(session)?.get(frameId)?.has(contextId)) continue;
+        const startEpoch = this.getClearEpoch(session);
         checkedContextIds.add(contextId);
         const diagnostic = await runLocatorStep(progress, "inspecting locator helpers", () =>
           this.inspectExtensionWorld(session, contextId, progress),
         );
         diagnostics.set(contextId, JSON.stringify(diagnostic));
-        if (diagnostic.ready) {
+        if (
+          diagnostic.ready &&
+          this.getClearEpoch(session) === startEpoch &&
+          this.extensionCandidates.get(session)?.get(frameId)?.has(contextId)
+        ) {
           this.registerExtensionWorld(session, frameId, contextId);
           return contextId;
         }
@@ -247,18 +274,7 @@ export class ExecutionContextRegistry {
   }
 
   register(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
-    let fwd = this.byFrame.get(session);
-    if (!fwd) {
-      fwd = new Map<FrameId, ExecId>();
-      this.byFrame.set(session, fwd);
-    }
-    let rev = this.byExec.get(session);
-    if (!rev) {
-      rev = new Map<ExecId, FrameId>();
-      this.byExec.set(session, rev);
-    }
-    fwd.set(frameId, ctxId);
-    rev.set(ctxId, frameId);
+    this.setBijectiveMapping(this.byFrame, this.byExec, session, frameId, ctxId);
   }
 
   registerExtensionCandidate(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
@@ -276,33 +292,70 @@ export class ExecutionContextRegistry {
   }
 
   registerExtensionWorld(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
-    let fwd = this.extensionByFrame.get(session);
-    if (!fwd) {
-      fwd = new Map<FrameId, ExecId>();
-      this.extensionByFrame.set(session, fwd);
-    }
-    let rev = this.extensionByExec.get(session);
-    if (!rev) {
-      rev = new Map<ExecId, FrameId>();
-      this.extensionByExec.set(session, rev);
-    }
-    fwd.set(frameId, ctxId);
-    rev.set(ctxId, frameId);
+    this.setBijectiveMapping(this.extensionByFrame, this.extensionByExec, session, frameId, ctxId);
   }
 
   registerFallbackWorld(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
-    let forward = this.fallbackByFrame.get(session);
+    this.setBijectiveMapping(this.fallbackByFrame, this.fallbackByExec, session, frameId, ctxId);
+  }
+
+  private setBijectiveMapping(
+    forwardBySession: WeakMap<CDPSessionLike, Map<FrameId, ExecId>>,
+    reverseBySession: WeakMap<CDPSessionLike, Map<ExecId, FrameId>>,
+    session: CDPSessionLike,
+    frameId: FrameId,
+    ctxId: ExecId,
+  ): void {
+    let forward = forwardBySession.get(session);
     if (!forward) {
       forward = new Map<FrameId, ExecId>();
-      this.fallbackByFrame.set(session, forward);
+      forwardBySession.set(session, forward);
     }
-    let reverse = this.fallbackByExec.get(session);
+    let reverse = reverseBySession.get(session);
     if (!reverse) {
       reverse = new Map<ExecId, FrameId>();
-      this.fallbackByExec.set(session, reverse);
+      reverseBySession.set(session, reverse);
+    }
+    const previousExecId = forward.get(frameId);
+    if (previousExecId !== undefined && previousExecId !== ctxId) {
+      reverse.delete(previousExecId);
+    }
+    const previousFrameId = reverse.get(ctxId);
+    if (
+      previousFrameId !== undefined &&
+      previousFrameId !== frameId &&
+      forward.get(previousFrameId) === ctxId
+    ) {
+      forward.delete(previousFrameId);
     }
     forward.set(frameId, ctxId);
     reverse.set(ctxId, frameId);
+  }
+
+  private getClearEpoch(session: CDPSessionLike): number {
+    return this.clearEpoch.get(session) ?? 0;
+  }
+
+  private trackInFlightCheck(
+    session: CDPSessionLike,
+    contextId: ExecId,
+  ): { token: { contextId: ExecId; invalidated: boolean }; release: () => void } {
+    const token = { contextId, invalidated: false };
+    let checks = this.inFlightChecks.get(session);
+    if (!checks) {
+      checks = new Set();
+      this.inFlightChecks.set(session, checks);
+    }
+    checks.add(token);
+    return {
+      token,
+      release: () => {
+        checks.delete(token);
+        if (checks.size === 0 && this.inFlightChecks.get(session) === checks) {
+          this.inFlightChecks.delete(session);
+        }
+      },
+    };
   }
 
   unregisterExtensionContext(session: CDPSessionLike, ctxId: ExecId): void {
@@ -382,25 +435,52 @@ export class ExecutionContextRegistry {
   }
 
   private async createFallbackWorld(session: CDPSessionLike, frameId: FrameId): Promise<ExecId> {
-    const cached = this.getFallbackWorld(session, frameId);
-    if (cached) return cached;
+    const callerEpoch = this.getClearEpoch(session);
 
-    let pendingByFrame = this.fallbackCreation.get(session);
-    if (!pendingByFrame) {
-      pendingByFrame = new Map<FrameId, Promise<ExecId>>();
-      this.fallbackCreation.set(session, pendingByFrame);
+    while (true) {
+      const cached = this.getFallbackWorld(session, frameId);
+      if (cached) return cached;
+
+      let pendingByFrame = this.fallbackCreation.get(session);
+      if (!pendingByFrame) {
+        pendingByFrame = new Map<FrameId, Promise<ExecId>>();
+        this.fallbackCreation.set(session, pendingByFrame);
+      }
+      const existing = pendingByFrame.get(frameId);
+      if (existing) {
+        try {
+          const execId = await existing;
+          if (this.getClearEpoch(session) === callerEpoch) return execId;
+        } catch (error) {
+          if (
+            this.getClearEpoch(session) !== callerEpoch ||
+            !(error instanceof FallbackClearedError)
+          ) {
+            throw error;
+          }
+        }
+        continue;
+      }
+
+      if (this.getClearEpoch(session) !== callerEpoch) {
+        throw new FallbackClearedError(frameId);
+      }
+
+      const pending = this.installFallbackWorld(session, frameId, callerEpoch).finally(() => {
+        if (pendingByFrame.get(frameId) === pending) {
+          pendingByFrame.delete(frameId);
+        }
+      });
+      pendingByFrame.set(frameId, pending);
+      return pending;
     }
-    const existing = pendingByFrame.get(frameId);
-    if (existing) return existing;
-
-    const pending = this.installFallbackWorld(session, frameId).finally(() => {
-      pendingByFrame?.delete(frameId);
-    });
-    pendingByFrame.set(frameId, pending);
-    return pending;
   }
 
-  private async installFallbackWorld(session: CDPSessionLike, frameId: FrameId): Promise<ExecId> {
+  private async installFallbackWorld(
+    session: CDPSessionLike,
+    frameId: FrameId,
+    startEpoch: number,
+  ): Promise<ExecId> {
     const source = this.fallbackInstallerSource.get(session);
     if (!source) {
       throw new Error(`Stagehand locator fallback source is unavailable for frame ${frameId}`);
@@ -413,26 +493,52 @@ export class ExecutionContextRegistry {
         grantUniveralAccess: false,
       },
     );
-    const installed = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-      expression: `${source}\n;void 0;`,
-      contextId: executionContextId,
-      returnByValue: true,
-      awaitPromise: true,
-    });
-    if (installed.exceptionDetails) {
-      throw new Error(
-        installed.exceptionDetails.text ??
-          `Failed to install Stagehand locator fallback for frame ${frameId}`,
-      );
+    if (this.getClearEpoch(session) !== startEpoch) {
+      throw new FallbackClearedError(frameId);
     }
-    const diagnostic = await this.inspectLocatorWorld(session, executionContextId);
-    if (!diagnostic.ready || diagnostic.kind !== "cdp-fallback" || diagnostic.closedShadowRoots) {
-      throw new Error(
-        `Stagehand locator fallback failed health check for frame ${frameId}: ${JSON.stringify(diagnostic)}`,
-      );
+
+    const { token, release } = this.trackInFlightCheck(session, executionContextId);
+    try {
+      let installed: Protocol.Runtime.EvaluateResponse;
+      try {
+        installed = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression: `${source}\n;void 0;`,
+          contextId: executionContextId,
+          returnByValue: true,
+          awaitPromise: true,
+        });
+      } catch (error) {
+        if (
+          !isCdpClosedError(error) &&
+          (token.invalidated || this.getClearEpoch(session) !== startEpoch)
+        ) {
+          throw new FallbackClearedError(frameId);
+        }
+        throw error;
+      }
+      if (token.invalidated || this.getClearEpoch(session) !== startEpoch) {
+        throw new FallbackClearedError(frameId);
+      }
+      if (installed.exceptionDetails) {
+        throw new Error(
+          installed.exceptionDetails.text ??
+            `Failed to install Stagehand locator fallback for frame ${frameId}`,
+        );
+      }
+      const diagnostic = await this.inspectLocatorWorld(session, executionContextId);
+      if (token.invalidated || this.getClearEpoch(session) !== startEpoch) {
+        throw new FallbackClearedError(frameId);
+      }
+      if (!diagnostic.ready || diagnostic.kind !== "cdp-fallback" || diagnostic.closedShadowRoots) {
+        throw new Error(
+          `Stagehand locator fallback failed health check for frame ${frameId}: ${JSON.stringify(diagnostic)}`,
+        );
+      }
+      this.registerFallbackWorld(session, frameId, executionContextId);
+      return executionContextId;
+    } finally {
+      release();
     }
-    this.registerFallbackWorld(session, frameId, executionContextId);
-    return executionContextId;
   }
 
   private async inspectLocatorWorld(
@@ -473,6 +579,7 @@ export class ExecutionContextRegistry {
     contextId: ExecId,
     progress?: Progress,
   ): Promise<{ ready: boolean; marker: boolean; domApi: string; runtimeId: string }> {
+    const { token, release } = this.trackInFlightCheck(session, contextId);
     try {
       const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression: `({
@@ -485,6 +592,9 @@ export class ExecutionContextRegistry {
         returnByValue: true,
         awaitPromise: true,
       });
+      if (token.invalidated) {
+        return { ready: false, marker: false, domApi: "unavailable", runtimeId: "unavailable" };
+      }
       if (response.exceptionDetails) {
         return { ready: false, marker: false, domApi: "exception", runtimeId: "exception" };
       }
@@ -501,6 +611,8 @@ export class ExecutionContextRegistry {
       progress?.throwIfStopped();
       if (progress && isCdpClosedError(error)) throw error;
       return { ready: false, marker: false, domApi: "unavailable", runtimeId: "unavailable" };
+    } finally {
+      release();
     }
   }
 }
