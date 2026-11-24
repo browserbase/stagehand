@@ -189,7 +189,7 @@ export async function readToolDecision(
   const names = Object.keys(propertiesOf(tool));
   let input: ToolInput | undefined;
   if (names.length === 0) {
-    input = {};
+    if (requiredOf(tool).length === 0) input = {};
   } else if (asked.withArguments.includes(tool)) {
     input = readArguments(response, tool, asked.spanIds, (name) => argumentKey(tool, name), entry);
   } else {
@@ -210,7 +210,7 @@ export async function readToolDecision(
 }
 
 function argumentKey(tool: WebMCPToolDescriptor, name: string): string {
-  return `tool_arg:${tool.name}:${name}`;
+  return `tool_arg:${tool.name.replace(/[%:]/g, (char) => encodeURIComponent(char))}:${name}`;
 }
 
 function words(text: string): string[] {
@@ -352,9 +352,11 @@ function readArguments(
       if (property.type === "string") {
         input[name] = span;
       } else {
-        const number = /-?\d+(?:\.\d+)?/.exec(span.replaceAll(",", ""));
-        if (!number || (property.type === "integer" && number[0].includes("."))) return undefined;
-        input[name] = Number(number[0]);
+        const numbers = span.replaceAll(",", "").match(/-?\d+(?:\.\d+)?/g);
+        if (numbers?.length !== 1) return undefined;
+        const number = numbers[0]!;
+        if (property.type === "integer" && number.includes(".")) return undefined;
+        input[name] = Number(number);
       }
     }
   }

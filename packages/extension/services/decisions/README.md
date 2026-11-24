@@ -58,8 +58,9 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 The page's tools are listed while `act()` waits for the DOM to settle, and the tool questions ride
 in the intent request that every act already makes, so a page without tools adds no question and a
 page with tools adds no round trip. Alongside "which tool" (with a "none" option) a guard asks
-whether the instruction names a control: "click the Add to cart button" always takes the element
-path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with "none" ≤ 0.2.
+whether the instruction names a control: when the decision model says it does (≥ 0.5), "click the
+Add to cart button" takes the element path, even when `add_to_cart` exists. A tool is used only at
+≥ 0.8 with "none" ≤ 0.2.
 
 Arguments are picked by the decision model as spans of the instruction (enums and booleans as choices) and accepted
 only when every parameter, stated or not, is ≥ 0.8. The argument questions of the two tools whose

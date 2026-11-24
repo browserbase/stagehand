@@ -50,6 +50,7 @@ export async function invokeTool(
       status: "Error" as const,
       output: undefined,
       errorText: error instanceof Error ? error.message : String(error),
+      exception: undefined,
     }));
   trace.push({
     node: "tool_invoke",
@@ -62,11 +63,12 @@ export async function invokeTool(
   // The tool may echo what it was given; the message goes to the caller and
   // the logs, so resolved %variable% values are put back behind their names.
   const redact = redactor(variables) ?? ((text: string) => text);
+  const thrown = response.exception?.description;
   const detail = success
     ? response.output === undefined
       ? ""
       : `: ${redact(JSON.stringify(response.output)).slice(0, RESULT_MESSAGE_CHARS)}`
-    : `: ${redact(response.errorText ?? response.status)}`;
+    : `: ${redact(response.errorText ?? (typeof thrown === "string" ? thrown : response.status)).slice(0, RESULT_MESSAGE_CHARS)}`;
   return {
     success,
     message: `${success ? "Invoked" : "Failed to invoke"} WebMCP tool ${tool.name}${detail}`,
