@@ -501,15 +501,12 @@ class Page:
         )
         self._event_subscriptions.add(subscription)
         try:
-            await self._rpc_client.send(
-                "page.on",
-                PageOnParams.model_validate({
-                    "page_id": self.page_id,
-                    "subscription_id": subscription_id,
-                    "event": event,
-                }),
-                PageVoidResult,
+            params = PageOnParams(
+                page_id=self.page_id, subscription_id=subscription_id, event=event
             )
+            if event in ("toolsadded", "toolsremoved"):
+                params.include_tool_ids = True
+            await self._rpc_client.send("page.on", params, PageVoidResult)
         except BaseException:
             remove_notification_listener()
             try:
@@ -742,7 +739,7 @@ class Page:
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
-        params = PageWebMCPToolsParams(page_id=self.page_id)
+        params = PageWebMCPToolsParams(page_id=self.page_id, include_tool_ids=True)
         if timeout is not None:
             params.options = WebMCPToolsOptions(timeout=timeout)
         result = await self._rpc_client.send(

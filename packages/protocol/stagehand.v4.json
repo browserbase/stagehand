@@ -3912,6 +3912,9 @@
         },
         "event": {
           "$ref": "#/$defs/PageSubscriptionEventName"
+        },
+        "include_tool_ids": {
+          "type": "boolean"
         }
       },
       "required": ["page_id", "subscription_id", "event"],
@@ -4449,6 +4452,9 @@
         },
         "options": {
           "$ref": "#/$defs/WebMCPToolsOptions"
+        },
+        "include_tool_ids": {
+          "type": "boolean"
         }
       },
       "required": ["page_id"],
@@ -4481,6 +4487,10 @@
     "WebMCPToolDescriptor": {
       "type": "object",
       "properties": {
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "name": {
           "type": "string",
           "minLength": 1
@@ -4573,6 +4583,10 @@
           "minLength": 1
         },
         "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_id": {
           "type": "string",
           "minLength": 1
         },
@@ -5803,6 +5817,10 @@
     "WebMCPToolIdentity": {
       "type": "object",
       "properties": {
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "frame_id": {
           "type": "string",
           "minLength": 1

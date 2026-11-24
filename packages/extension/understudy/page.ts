@@ -120,13 +120,16 @@ type WebMCPResponseSessionState = {
   pendingCommands: number;
 };
 
+// Older Chrome versions omit the registration ID from tool events.
+type CDPWebMCPTool<T extends { toolId: string }> = Omit<T, "toolId"> & { toolId?: string };
+
 type WebMCPToolSessionState = {
   targetId?: string;
   ready: Deferred<void>;
   tools: Map<string, WebMCPToolDescriptor>;
   pendingTools: Map<string, WebMCPToolDescriptor>;
-  added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
-  removed: (event: Protocol.WebMCP.ToolsRemovedEvent) => void;
+  added: (event: { tools: CDPWebMCPTool<Protocol.WebMCP.Tool>[] }) => void;
+  removed: (event: { tools: CDPWebMCPTool<Protocol.WebMCP.RemovedTool>[] }) => void;
   error?: Error;
   enableFailed?: boolean;
 };
@@ -158,8 +161,9 @@ function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotat
   };
 }
 
-function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
+function webMCPTool(tool: CDPWebMCPTool<Protocol.WebMCP.Tool>): WebMCPToolDescriptor {
   return WebMCPToolDescriptorSchema.parse({
+    ...(tool.toolId === undefined ? {} : { toolId: tool.toolId }),
     name: tool.name,
     description: tool.description,
     ...(tool.inputSchema === undefined
@@ -169,6 +173,14 @@ function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
     frameId: tool.frameId,
     ...(tool.backendNodeId === undefined ? {} : { backendNodeId: tool.backendNodeId }),
   });
+}
+
+function webMCPToolKey(frameId: string, name: string): string {
+  return `${frameId}\u0000${name}`;
+}
+
+function webMCPToolIdentity({ toolId, frameId, name }: WebMCPToolDescriptor): WebMCPToolIdentity {
+  return { frameId, name, ...(toolId === undefined ? {} : { toolId }) };
 }
 
 function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPToolResponse {
@@ -802,7 +814,7 @@ export class Page {
     for (const [key, tool] of state.tools) {
       if (!matches(tool)) continue;
       state.tools.delete(key);
-      tools.push({ frameId: tool.frameId, name: tool.name });
+      tools.push(webMCPToolIdentity(tool));
     }
     if (tools.length) this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools });
   }
@@ -821,13 +833,20 @@ export class Page {
     state: WebMCPToolSessionState,
     tools: WebMCPToolDescriptor[],
   ): void {
+    const removed: WebMCPToolIdentity[] = [];
     const added: WebMCPToolDescriptor[] = [];
     for (const tool of tools) {
-      const key = `${tool.frameId}\u0000${tool.name}`;
-      if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
+      const key = webMCPToolKey(tool.frameId, tool.name);
+      const previous = state.tools.get(key);
+      if (JSON.stringify(previous) === JSON.stringify(tool)) continue;
+      if (previous && previous.toolId !== tool.toolId) {
+        removed.push(webMCPToolIdentity(previous));
+      }
       state.tools.set(key, tool);
       added.push(tool);
     }
+    if (removed.length)
+      this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools: removed });
     if (added.length) this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
   }
 
@@ -869,7 +888,7 @@ export class Page {
             if (this.ownsWebMCPFrame(session, tool.frameId)) {
               owned.push(tool);
             } else if (!this.registry.getOwnerSessionId(tool.frameId)) {
-              state.pendingTools.set(`${tool.frameId}\u0000${tool.name}`, tool);
+              state.pendingTools.set(webMCPToolKey(tool.frameId, tool.name), tool);
             }
           }
           this.publishWebMCPTools(session, state, owned);
@@ -881,9 +900,13 @@ export class Page {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
         const removed: WebMCPToolIdentity[] = [];
         for (const tool of event.tools) {
-          state.pendingTools.delete(`${tool.frameId}\u0000${tool.name}`);
-          if (state.tools.delete(`${tool.frameId}\u0000${tool.name}`)) {
-            removed.push({ frameId: tool.frameId, name: tool.name });
+          const key = webMCPToolKey(tool.frameId, tool.name);
+          const pending = state.pendingTools.get(key);
+          if (pending && pending.toolId === tool.toolId) state.pendingTools.delete(key);
+          const published = state.tools.get(key);
+          if (published && published.toolId === tool.toolId) {
+            state.tools.delete(key);
+            removed.push(webMCPToolIdentity(published));
           }
         }
         if (removed.length)
@@ -1011,9 +1034,10 @@ export class Page {
   public async invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolIdentity, "toolId">,
   ): Promise<WebMCPInvocationDescriptor> {
-    const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
+    const { toolId, ...invokeOptions } = options ?? {};
+    const { input } = WebMCPInvokeOptionsSchema.parse(invokeOptions);
     const session = this.webMCPSessionForFrame(frameId);
     await this.ensureWebMCPToolTracking(session);
     if (this.disposed || !this.ownsWebMCPFrame(session, frameId)) {
@@ -1021,6 +1045,7 @@ export class Page {
         `WebMCP session for frame "${frameId}" was disposed before invocation registration completed.`,
       );
     }
+    const selector = toolId === undefined ? { toolName } : { toolId };
     const responseState = this.ensureWebMCPResponseListener(session);
     responseState.pendingCommands += 1;
 
@@ -1028,9 +1053,9 @@ export class Page {
     try {
       response = await session.send<Protocol.WebMCP.InvokeToolResponse>("WebMCP.invokeTool", {
         frameId,
-        toolName,
+        ...selector,
         input,
-      });
+      } satisfies Protocol.WebMCP.InvokeToolRequest);
     } catch (error) {
       responseState.pendingCommands -= 1;
       this.removeWebMCPResponseListenerIfIdle(session);
