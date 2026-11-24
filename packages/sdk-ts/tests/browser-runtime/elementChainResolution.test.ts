@@ -110,8 +110,31 @@ describe("element chain resolution in the browser", () => {
       );
       await target.click();
       expect(await page.getByText("Saved", { exact: true }).first().textContent()).toBe("Saved");
-      expect(await page.getByText("Save now").locator("span").count()).toBe(0);
+      await page.evaluate(`
+        document.getElementById('a-deep').innerHTML = 'Save <span>now</span>';
+        document.getElementById('outside').innerHTML = '<span>Elsewhere</span><strong>Elsewhere</strong>';
+      `);
+      const savedText = page.getByText("Save now");
+      expect(await savedText.locator("span").count()).toBe(1);
+      expect(await savedText.locator("span").textContent()).toBe("now");
+      expect(await savedText.locator("strong").count()).toBe(0);
     });
+
+    it.each([
+      { separator: "\n", text: "Save Now", expected: ["body"] },
+      { separator: "", text: "SaveNow", expected: ["body"] },
+      { separator: "", text: "Save Now", expected: [] },
+    ])(
+      "combines block text using only DOM whitespace: $text / $separator",
+      async ({ separator, text, expected }) => {
+        expect(
+          await evaluate(`
+        document.body.innerHTML = ${JSON.stringify(`<h1>Save</h1>${separator}<p>Now</p>`)};
+        return scripts.collectNormalizedTextMatches(${JSON.stringify(text)}, {exact: true}).map(element => element.localName);
+      `),
+        ).toEqual(expected);
+      },
+    );
 
     it.each([
       {
@@ -243,6 +266,33 @@ describe("element chain resolution in the browser", () => {
           scoped: ["light", "shadow"],
           doubled: [],
           aggregate: ["host"],
+        });
+      },
+    );
+
+    it.each(["open", "closed"])(
+      "keeps DOM text order & assigned slot fallback in %s roots",
+      async (mode) => {
+        expect(
+          await evaluate(`
+        document.body.innerHTML = '<my-widget id="host">World</my-widget>';
+        const host = document.getElementById('host');
+        const root = host.attachShadow({mode: ${JSON.stringify(mode)}});
+        root.innerHTML = '<span>Hello </span><slot id="slot"></slot>';
+        const query = text => ids(scripts.collectNormalizedTextMatches(text, {exact: true}));
+        const lightFirst = query('WorldHello');
+        const renderedOrder = query('Hello World');
+        const slot = root.querySelector('slot');
+        slot.textContent = 'Fallback';
+        return {lightFirst, renderedOrder, assigned: slot.assignedNodes().length,
+          aggregate: query('WorldHello Fallback'), fallback: query('Fallback')};
+      `),
+        ).toEqual({
+          lightFirst: ["host"],
+          renderedOrder: [],
+          assigned: 1,
+          aggregate: ["host"],
+          fallback: ["slot"],
         });
       },
     );

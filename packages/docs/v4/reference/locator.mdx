@@ -538,9 +538,11 @@ Find the smallest elements matching text in the current matches themselves and t
 await locator.getByText("Save", { exact: true }).click();
 ```
 
-`getByText()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines text across inline descendants and uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+`getByText()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
 
-Matching descendants take precedence over their ancestors. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
 
 <ParamField path="text" type="string">
   Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
@@ -1038,9 +1040,11 @@ Find the smallest elements matching text in the current matches themselves and t
 await locator.get_by_text("Save", exact=True).click()
 ```
 
-`get_by_text()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines text across inline descendants and uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+`get_by_text()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
 
-Matching descendants take precedence over their ancestors. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
 
 <ParamField path="text" type="str">
   Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
