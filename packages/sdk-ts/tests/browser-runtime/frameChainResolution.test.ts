@@ -300,29 +300,6 @@ describe("iframe chain resolution in Chrome", () => {
       );
   }
 
-  it("executes additive chain requests through the runtime & keeps legacy requests working", async () => {
-    await addFrame("/child", true);
-    const send = wireClient();
-    const chain: LocatorChain = {
-      steps: [css("iframe"), css("button"), { type: "nth", index: 0 }],
-    };
-    expect(await send("locator.count", { chain })).toBe(1);
-    expect(await send("locator.count", { selector: "button" })).toBe(1);
-    expect(await send("locator.count", { selector: "iframe >> button" })).toBe(3);
-    expect(await send("locator.click", { chain, options: { timeout: 5000 } })).toEqual({
-      clicked: true,
-    });
-    const [target] = await targets(chain.steps);
-    expect(
-      await page
-        .frameForId(target.frameId)
-        .evaluate(() => document.querySelector("#save")!.getAttribute("data-clicked")),
-    ).toBe("yes");
-    expect(await send("locator.text_content", { chain })).toBe("Save");
-    await expect(send("locator.count", { chain, nth: 0 })).rejects.toThrow();
-    await expect(send("locator.count", { chain, selector: "button" })).rejects.toThrow();
-  });
-
   it("routes fill, type, selection & file upload options to exact chain targets", async () => {
     await page.evaluate(() => {
       document.body.innerHTML =

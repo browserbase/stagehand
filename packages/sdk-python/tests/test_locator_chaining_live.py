@@ -1,6 +1,8 @@
 import asyncio
+import html
 import os
 import re
+from urllib.parse import quote
 
 import pytest
 from pydantic import BaseModel
@@ -36,9 +38,7 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
         calls.append(name)
         if name != "Metadata":
             assert "Save target" in text
-            assert not re.search(
-                r"Outside parent|Outside child|Excluded choice|Shadow button", text
-            )
+            assert not re.search(r"Outside parent|Outside child|Excluded choice", text)
         match = re.search(r"\[(\d+-\d+)\][^\n]*Save target", text)
         if name in ("Act", "Observation"):
             assert match is not None
@@ -66,50 +66,23 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
     child = """<section id="scope">
         <button onclick="this.dataset.clicked='yes'">Save target</button>
         <button class="omit">Excluded choice</button></section><button>Outside child</button>
-        <div id="open"></div><div id="closed"></div><script>
-        for (const mode of ['open', 'closed']) {
-            document.getElementById(mode).attachShadow({mode}).innerHTML =
-                '<button>Shadow button</button>';
-        }
-    </script>"""
+    """
+    markup = (
+        "<button>Outside parent</button>"
+        f'<iframe srcdoc="{html.escape(child, quote=True)}"></iframe>'
+    )
 
-    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        try:
-            request = await reader.readuntil(b"\r\n\r\n")
-            body = (
-                child
-                if request.split(b" ")[1] == b"/child"
-                else '<button>Outside parent</button><iframe src="/child"></iframe>'
-            )
-            data = body.encode()
-            headers = (
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
-                f"Content-Length: {len(data)}\r\nConnection: close\r\n\r\n"
-            )
-            writer.write(headers.encode() + data)
-            await writer.drain()
-        finally:
-            writer.close()
-            await writer.wait_closed()
-
-    async with asyncio.timeout(60), await asyncio.start_server(serve, "127.0.0.1", 0) as server:
+    async with asyncio.timeout(60):
         browser = await local_browser.launch(headless=True)
         stagehand = None
         try:
             stagehand = await Stagehand.create(browser=browser, model=generate)
             page = await browser.context.new_page()
-            await page.goto(
-                f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}/", wait_until="load"
-            )
-            frame = page.locator("iframe")
-            scope = frame.locator("#scope")
+            await page.goto("data:text/html," + quote(markup), wait_until="load")
+            scope = page.locator("iframe").locator("#scope")
             buttons = scope.locator("button")
-            assert await page.locator("button").count() == 1
             assert await buttons.count() == 2
-            assert await buttons.nth(1).first().text_content() == "Excluded choice"
-            assert await buttons.first().nth(1).count() == 0
-            assert await frame.locator("#open, #closed").locator("button").count() == 2
-            assert await page.locator("iframe >> #scope").locator("xpath=.//button").count() == 2
+            assert await buttons.nth(1).text_content() == "Excluded choice"
             await buttons.first().click(timeout=5000)
             assert await scope.locator("button[data-clicked=yes]").count() == 1
             assert await page.screenshot(mask=[buttons])

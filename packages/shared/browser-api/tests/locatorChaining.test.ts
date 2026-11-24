@@ -58,9 +58,10 @@ describe("public locator chaining", () => {
     expect(() => buttons.locator(" ")).toThrow();
   });
 
-  it("preserves explicit frame hops in both the prefix & appended selector", () => {
-    const { page } = fixture();
-    expect(page.locator("iframe >> .card").nth(1).locator("iframe >> button").descriptor).toEqual({
+  it("preserves explicit hops, action options & scalar results in requests", async () => {
+    const { page, send } = fixture();
+    const locator = page.locator("iframe >> .card").nth(1).locator("iframe >> button");
+    expect(locator.descriptor).toEqual({
       pageId: "p",
       chain: {
         steps: [
@@ -72,11 +73,6 @@ describe("public locator chaining", () => {
         ],
       },
     });
-  });
-
-  it("sends chains, action options & scalar results through the existing methods", async () => {
-    const { page, send } = fixture();
-    const locator = page.locator("section").locator("button");
     const click = locator.click({ button: "right", timeout: 0 });
     expectTypeOf(click).toEqualTypeOf<Promise<void>>();
     await click;

@@ -108,6 +108,7 @@ describe("public locator chaining", () => {
   it("enters nested & cross-origin frames, preserves explicit hops & searches both shadow modes", async () => {
     const page = await firstPage(stagehand);
     expect(await page.locator("button").count()).toBe(4);
+    expect(await page.locator("#checkout >> #scope button").count()).toBe(2);
     expect(
       await page.locator("#checkout").locator("#scope").locator("xpath=.//button").count(),
     ).toBe(2);
