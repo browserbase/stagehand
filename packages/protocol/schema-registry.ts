@@ -185,7 +185,7 @@ export const StagehandMethods = {
     paramsWire: {
       opaqueKeys: ["inputSchema", "outputSchema", "input", "structuredContent", "schema"],
     },
-    resultWire: { opaqueKeys: ["structuredContent"] },
+    resultWire: { opaqueKeys: ["input", "structuredContent"] },
   },
   contextPages: {
     name: "context.pages",

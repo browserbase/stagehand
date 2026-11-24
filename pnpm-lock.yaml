@@ -340,6 +340,9 @@ catalogs:
     eve:
       specifier: 0.71.2
       version: 0.71.2
+    fast-check:
+      specifier: ^4.11.0
+      version: 4.11.0
     fflate:
       specifier: ^0.8.3
       version: 0.8.3
@@ -1394,6 +1397,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.11.0
       oxfmt:
         specifier: 'catalog:'
         version: 0.76.0
@@ -5799,6 +5805,10 @@ packages:
     engines: {node: '>= 10.17.0'}
     hasBin: true
 
+  fast-check@4.11.0:
+    resolution: {integrity: sha512-V4Uc238rhQOdQlc+Gz7JG6SGBtrWnWL8d/6RyiBeCMcNKMhF6DZ0KkAVHJSyNV5r4lA0PmIpZ6iRpTVoz4qjoA==}
+    engines: {node: '>=12.17.0'}
+
   fast-copy@4.3.1:
     resolution: {integrity: sha512-CRzQaTFOFUs6PuhsAq7lk9Zqr995soJBcFNZlfJS/5keTSl1awREV9dZW4xS2nX4pWbhIIR0xp4h+J8PQxCkvg==}
 
@@ -8268,6 +8278,9 @@ packages:
     engines: {node: '>=18'}
     deprecated: < 24.15.0 is no longer supported
     hasBin: true
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   qs@6.16.2:
     resolution: {integrity: sha512-VYdnB5S7/0IeXzBacUtwNAaM6d7Y/PgYnNC7bJCI6meqA/OgnsQbZMtVW8Dt2D1PHgbHGtYmhSoEIgvt7xZ2ZA==}
@@ -14752,6 +14765,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  fast-check@4.11.0:
+    dependencies:
+      pure-rand: 8.4.2
+
   fast-copy@4.3.1: {}
 
   fast-deep-equal@3.1.3: {}
@@ -17468,6 +17485,8 @@ snapshots:
       - supports-color
       - typescript
       - utf-8-validate
+
+  pure-rand@8.4.2: {}
 
   qs@6.16.2:
     dependencies:
