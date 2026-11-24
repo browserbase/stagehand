@@ -295,6 +295,7 @@ class NavigateBeforeAttachChildCommand implements fc.Command<FrameModel, FrameRe
     readonly parentIdx: number,
     readonly sessionId: SessionId,
     readonly urlSuffix: number,
+    readonly attachChildAfter: boolean = false,
   ) {}
 
   check(model: Readonly<FrameModel>): boolean {
@@ -304,19 +305,123 @@ class NavigateBeforeAttachChildCommand implements fc.Command<FrameModel, FrameRe
   run(model: FrameModel, registry: FrameRegistry): void {
     const parentId = model.knownFrames[this.parentIdx % model.knownFrames.length]!;
     const newChildId = `frame-${model.nextId++}`;
-    const frame = makeProtocolFrame(
-      newChildId,
-      parentId,
-      `https://example.test/child-${this.urlSuffix}`,
-      `loader-child-${this.urlSuffix}`,
-    );
+    const url = `https://example.test/child-${this.urlSuffix}`;
+    const loaderId = `loader-child-${this.urlSuffix}`;
+    const frame = makeProtocolFrame(newChildId, parentId, url, loaderId);
     registry.onFrameNavigated(frame, this.sessionId);
     syncModel(model, registry);
     assertFrameRegistryInvariants(registry, this.toString());
+
+    if (this.attachChildAfter) {
+      registry.onFrameAttached(newChildId, parentId, this.sessionId);
+      syncModel(model, registry);
+      assertFrameRegistryInvariants(registry, `${this.toString()} -> onFrameAttached`);
+      const info = registry.frames.get(newChildId);
+      expect(info?.lastSeen?.url).toBe(url);
+      expect(info?.lastSeen?.loaderId).toBe(loaderId);
+    }
   }
 
   toString(): string {
-    return `NavigateBeforeAttachChild(parentIdx=${this.parentIdx}, session=${this.sessionId}, url=${this.urlSuffix})`;
+    return `NavigateBeforeAttachChild(parentIdx=${this.parentIdx}, session=${this.sessionId}, url=${this.urlSuffix}, attachAfter=${this.attachChildAfter})`;
+  }
+}
+
+type ParentRegistrationMethod = "attach" | "navigate" | "seed";
+
+class NavigateBeforeParentRegisteredCommand implements fc.Command<FrameModel, FrameRegistry> {
+  constructor(
+    readonly anchorIdx: number,
+    readonly childSessionId: SessionId,
+    readonly parentSessionId: SessionId,
+    readonly urlSuffix: number,
+    readonly registrationMethod: ParentRegistrationMethod,
+    readonly attachChildAfter: boolean,
+  ) {}
+
+  check(model: Readonly<FrameModel>): boolean {
+    return model.knownFrames.length > 0;
+  }
+
+  run(model: FrameModel, registry: FrameRegistry): void {
+    const anchorId = model.knownFrames[this.anchorIdx % model.knownFrames.length]!;
+    const parentId = `frame-${model.nextId++}`;
+    const childId = `frame-${model.nextId++}`;
+    const childUrl = `https://example.test/out-of-order-${this.urlSuffix}`;
+    const childLoaderId = `loader-ooo-${this.urlSuffix}`;
+    const childFrame = makeProtocolFrame(childId, parentId, childUrl, childLoaderId);
+
+    registry.onFrameNavigated(childFrame, this.childSessionId);
+    expect(registry.frames.has(parentId)).toBe(false);
+    expect(registry.frames.has(childId)).toBe(false);
+    expect(registry.listAllFrames()).not.toContain(childId);
+    assertFrameRegistryInvariants(registry, `${this.toString()} [buffered]`);
+
+    switch (this.registrationMethod) {
+      case "attach": {
+        registry.onFrameAttached(parentId, anchorId, this.parentSessionId);
+        break;
+      }
+      case "navigate": {
+        const parentFrame = makeProtocolFrame(
+          parentId,
+          anchorId,
+          `https://example.test/parent-${this.urlSuffix}`,
+          `loader-parent-${this.urlSuffix}`,
+        );
+        registry.onFrameNavigated(parentFrame, this.parentSessionId);
+        break;
+      }
+      case "seed": {
+        const anchorParent = registry.getParent(anchorId) ?? undefined;
+        const tree: Protocol.Page.FrameTree = {
+          frame: makeProtocolFrame(
+            anchorId,
+            anchorParent,
+            `https://example.test/${anchorId}`,
+            `loader-seed-${this.urlSuffix}`,
+          ),
+          childFrames: [
+            {
+              frame: makeProtocolFrame(
+                parentId,
+                anchorId,
+                `https://example.test/parent-${this.urlSuffix}`,
+                `loader-seed-parent-${this.urlSuffix}`,
+              ),
+            },
+          ],
+        };
+        registry.seedFromFrameTree(this.parentSessionId, tree);
+        break;
+      }
+      default: {
+        const _exhaustive: never = this.registrationMethod;
+        throw new Error(`Unhandled registrationMethod: ${String(_exhaustive)}`);
+      }
+    }
+
+    syncModel(model, registry);
+    assertFrameRegistryInvariants(registry, `${this.toString()} [parent registered]`);
+    const replayed = registry.frames.get(childId);
+    expect(replayed).toBeDefined();
+    expect(replayed?.parentId).toBe(parentId);
+    expect(replayed?.lastSeen?.url).toBe(childUrl);
+    expect(replayed?.lastSeen?.loaderId).toBe(childLoaderId);
+
+    if (this.attachChildAfter) {
+      registry.onFrameAttached(childId, parentId, this.parentSessionId);
+      syncModel(model, registry);
+      assertFrameRegistryInvariants(registry, `${this.toString()} [child attached]`);
+      const afterAttach = registry.frames.get(childId);
+      expect(afterAttach?.parentId).toBe(parentId);
+      expect(afterAttach?.lastSeen?.url).toBe(childUrl);
+      expect(afterAttach?.lastSeen?.loaderId).toBe(childLoaderId);
+    }
+  }
+
+  toString(): string {
+    return `NavigateBeforeParentRegistered(anchorIdx=${this.anchorIdx}, method=${this.registrationMethod}, attachChildAfter=${this.attachChildAfter}, url=${this.urlSuffix})`;
   }
 }
 
@@ -461,8 +566,23 @@ describe("FrameRegistry stateful properties", () => {
           .tuple(sessionArb, fc.integer({ min: 0, max: 20 }))
           .map(([s, u]) => new NavigateRootSwapCommand(s, u)),
         fc
-          .tuple(idxArb, sessionArb, fc.integer({ min: 0, max: 20 }))
-          .map(([p, s, u]) => new NavigateBeforeAttachChildCommand(p, s, u)),
+          .tuple(idxArb, sessionArb, fc.integer({ min: 0, max: 20 }), fc.boolean())
+          .map(
+            ([p, s, u, attachAfter]) => new NavigateBeforeAttachChildCommand(p, s, u, attachAfter),
+          ),
+        fc
+          .tuple(
+            idxArb,
+            sessionArb,
+            sessionArb,
+            fc.integer({ min: 0, max: 20 }),
+            fc.constantFrom<ParentRegistrationMethod>("attach", "navigate", "seed"),
+            fc.boolean(),
+          )
+          .map(
+            ([a, cs, ps, u, method, attachAfter]) =>
+              new NavigateBeforeParentRegisteredCommand(a, cs, ps, u, method, attachAfter),
+          ),
         fc
           .tuple(idxArb, fc.constantFrom<"remove" | "swap">("remove", "swap"))
           .map(([f, r]) => new DetachNonRootFrameCommand(f, r)),
@@ -572,8 +692,23 @@ describe("FrameRegistry stateful properties", () => {
       [
         fc.tuple(idxArb, sessionArb).map(([p, s]) => new AttachFreshChildCommand(p, s)),
         fc
-          .tuple(idxArb, sessionArb, fc.integer({ min: 0, max: 20 }))
-          .map(([p, s, u]) => new NavigateBeforeAttachChildCommand(p, s, u)),
+          .tuple(idxArb, sessionArb, fc.integer({ min: 0, max: 20 }), fc.boolean())
+          .map(
+            ([p, s, u, attachAfter]) => new NavigateBeforeAttachChildCommand(p, s, u, attachAfter),
+          ),
+        fc
+          .tuple(
+            idxArb,
+            sessionArb,
+            sessionArb,
+            fc.integer({ min: 0, max: 20 }),
+            fc.constantFrom<ParentRegistrationMethod>("attach", "navigate", "seed"),
+            fc.boolean(),
+          )
+          .map(
+            ([a, cs, ps, u, method, attachAfter]) =>
+              new NavigateBeforeParentRegisteredCommand(a, cs, ps, u, method, attachAfter),
+          ),
       ],
       { maxCommands: 20 },
     );
@@ -592,6 +727,114 @@ describe("FrameRegistry stateful properties", () => {
         fc.modelRun(setup, commands);
       }),
       { seed: 20261127, numRuns: 100 },
+    );
+  });
+
+  it("replays multi-level buffered child navigations when ancestor registers and cleans up on detach", () => {
+    fc.assert(
+      fc.property(
+        sessionArb,
+        sessionArb,
+        fc.constantFrom<ParentRegistrationMethod>("attach", "navigate", "seed"),
+        fc.boolean(),
+        fc.constantFrom<"none" | "detach-child" | "detach-parent">(
+          "none",
+          "detach-child",
+          "detach-parent",
+        ),
+        (childSession, parentSession, method, attachChildAfter, detachMode) => {
+          const registry = new FrameRegistry("target-1", "frame-0");
+          const childUrl = "https://example.test/child-page";
+          const childLoader = "loader-child-1";
+          const grandUrl = "https://example.test/grand-page";
+          const grandLoader = "loader-grand-1";
+
+          registry.onFrameNavigated(
+            makeProtocolFrame("frame-grand", "frame-child", grandUrl, grandLoader),
+            childSession,
+          );
+          registry.onFrameNavigated(
+            makeProtocolFrame("frame-child", "frame-parent", childUrl, childLoader),
+            childSession,
+          );
+
+          expect(registry.listAllFrames()).toStrictEqual(["frame-0"]);
+          assertFrameRegistryInvariants(registry, "after buffering multi-level navigation");
+
+          switch (detachMode) {
+            case "detach-child":
+              registry.onFrameDetached("frame-child", "remove");
+              break;
+            case "detach-parent":
+              registry.onFrameDetached("frame-parent", "remove");
+              break;
+            case "none":
+              break;
+            default: {
+              const _exhaustive: never = detachMode;
+              throw new Error(`Unhandled detachMode: ${String(_exhaustive)}`);
+            }
+          }
+
+          switch (method) {
+            case "attach":
+              registry.onFrameAttached("frame-parent", "frame-0", parentSession);
+              break;
+            case "navigate":
+              registry.onFrameNavigated(
+                makeProtocolFrame(
+                  "frame-parent",
+                  "frame-0",
+                  "https://example.test/parent-page",
+                  "loader-parent-1",
+                ),
+                parentSession,
+              );
+              break;
+            case "seed":
+              registry.seedFromFrameTree(parentSession, {
+                frame: makeProtocolFrame("frame-0", undefined, "https://example.test/", "root"),
+                childFrames: [
+                  {
+                    frame: makeProtocolFrame(
+                      "frame-parent",
+                      "frame-0",
+                      "https://example.test/parent-page",
+                      "loader-parent-1",
+                    ),
+                  },
+                ],
+              });
+              break;
+            default: {
+              const _exhaustive: never = method;
+              throw new Error(`Unhandled method: ${String(_exhaustive)}`);
+            }
+          }
+
+          assertFrameRegistryInvariants(registry, `after parent ${method} (${detachMode})`);
+
+          if (detachMode === "none") {
+            expect(registry.frames.get("frame-child")?.parentId).toBe("frame-parent");
+            expect(registry.frames.get("frame-child")?.lastSeen?.url).toBe(childUrl);
+            expect(registry.frames.get("frame-child")?.lastSeen?.loaderId).toBe(childLoader);
+            expect(registry.frames.get("frame-grand")?.parentId).toBe("frame-child");
+            expect(registry.frames.get("frame-grand")?.lastSeen?.url).toBe(grandUrl);
+            expect(registry.frames.get("frame-grand")?.lastSeen?.loaderId).toBe(grandLoader);
+
+            if (attachChildAfter) {
+              registry.onFrameAttached("frame-child", "frame-parent", parentSession);
+              assertFrameRegistryInvariants(registry, "after subsequent child onFrameAttached");
+              expect(registry.frames.get("frame-child")?.lastSeen?.url).toBe(childUrl);
+              expect(registry.frames.get("frame-child")?.lastSeen?.loaderId).toBe(childLoader);
+            }
+          } else {
+            expect(registry.frames.has("frame-child")).toBe(false);
+            expect(registry.frames.has("frame-grand")).toBe(false);
+          }
+        },
+      ),
+      { seed: 20261136, numRuns: 60 },
     );
   });
 

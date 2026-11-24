@@ -26,6 +26,8 @@ class SimulatedCdpSession implements CDPSessionLike {
   closed = false;
   createWorldDelayMs = 0;
   evaluateDelayMs = 0;
+  installEvaluateDelayMs = 0;
+  rejectFallbackInstallOnClear = false;
 
   async send<R = unknown>(method: string, params?: object): Promise<R> {
     if (this.closed) {
@@ -73,11 +75,17 @@ class SimulatedCdpSession implements CDPSessionLike {
         expression?: string;
         contextId?: number;
       };
+      const startClearCount = this.clearCount;
       // Snapshot readiness before transport latency (models response already computed on renderer wire).
       const readyAtDispatch =
         typeof contextId === "number" && this.readyExtensionContexts.has(contextId);
-      if (this.evaluateDelayMs > 0) {
-        await new Promise<void>((resolve) => setTimeout(resolve, this.evaluateDelayMs));
+      const isFallbackInstall = expression.startsWith("install locator runtime");
+      const delayMs =
+        isFallbackInstall && this.installEvaluateDelayMs > 0
+          ? this.installEvaluateDelayMs
+          : this.evaluateDelayMs;
+      if (delayMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
       }
       if (this.closed) {
         throw new Error("CDP connection closed: simulated disconnect during evaluate");
@@ -88,7 +96,10 @@ class SimulatedCdpSession implements CDPSessionLike {
         return { result: { type: "string", value: protocol } } as R;
       }
 
-      if (expression.startsWith("install locator runtime")) {
+      if (isFallbackInstall) {
+        if (this.rejectFallbackInstallOnClear && this.clearCount !== startClearCount) {
+          throw new Error("-32000 Cannot find context with specified id");
+        }
         if (typeof contextId === "number") this.installedFallbacks.add(contextId);
         return { result: { type: "undefined" } } as R;
       }
@@ -695,6 +706,70 @@ describe("ExecutionContextRegistry stateful properties", () => {
         expect(vi.getTimerCount()).toBe(0);
       }),
       { seed: 20261134, numRuns: 50 },
+    );
+  });
+
+  it("retries cleanly for post-clear callers when Runtime.evaluate rejects during a Runtime.executionContextsCleared race", async () => {
+    const scenarioArb = fc.record({
+      installEvaluateDelayMs: fc.integer({ min: 15, max: 50 }),
+      clearAtMs: fc.integer({ min: 1, max: 10 }),
+    });
+
+    await fc.assert(
+      fc.asyncProperty(scenarioArb, async ({ installEvaluateDelayMs, clearAtMs }) => {
+        fc.pre(clearAtMs + EXTENSION_PROBE_SETTLE_MS < installEvaluateDelayMs);
+        const registry = new ExecutionContextRegistry();
+        const session = new SimulatedCdpSession();
+        session.frameProtocols.set("frame-0", "data:");
+        session.installEvaluateDelayMs = installEvaluateDelayMs;
+        session.rejectFallbackInstallOnClear = true;
+        registry.setFallbackInstallerSource(session, "install locator runtime");
+        registry.attachSession(session);
+        session.emitContextCreated(1, "frame-0", true, false);
+
+        const p1 = new Progress("caller-1", 200);
+        const w1 = registry
+          .waitForLocatorWorld(session, "frame-0", EXTENSION_PROBE_TIMEOUT_MS, p1, {
+            readinessRetries: "none",
+          })
+          .then((world) => ({ ok: true as const, world }))
+          .catch((error: unknown) => ({ ok: false as const, error }));
+
+        await vi.advanceTimersByTimeAsync(EXTENSION_PROBE_SETTLE_MS + clearAtMs);
+        session.emitContextsCleared();
+        session.emitContextCreated(2, "frame-0", true, false);
+
+        const p2 = new Progress("caller-2", 200);
+        const w2 = registry
+          .waitForLocatorWorld(session, "frame-0", EXTENSION_PROBE_TIMEOUT_MS, p2, {
+            readinessRetries: "none",
+          })
+          .then((world) => ({ ok: true as const, world }))
+          .catch((error: unknown) => ({ ok: false as const, error }));
+
+        await vi.advanceTimersByTimeAsync(300);
+        const [firstResult, secondResult] = await Promise.all([w1, w2]);
+        p1.dispose();
+        p2.dispose();
+
+        expect(firstResult.ok).toBe(false);
+        expect(secondResult.ok).toBe(true);
+        const registeredFallback = registry.getFallbackWorld(session, "frame-0");
+        expect(registeredFallback).not.toBeNull();
+        expect(session.staleFallbackExecIds.has(registeredFallback!)).toBe(false);
+        if (secondResult.ok) {
+          expect(secondResult.world).toStrictEqual({
+            contextId: registeredFallback,
+            kind: "cdp-fallback",
+            capabilities: { closedShadowRoots: false },
+          });
+        }
+        expect(session.createIsolatedWorldCalls.get("frame-0")).toBe(2);
+        expect(registry.fallbackCreation.get(session)?.size ?? 0).toBe(0);
+        assertRegistryInvariants(registry, session, "evaluate-rejected-on-clear-race");
+        expect(vi.getTimerCount()).toBe(0);
+      }),
+      { seed: 20261135, numRuns: 50 },
     );
   });
 });

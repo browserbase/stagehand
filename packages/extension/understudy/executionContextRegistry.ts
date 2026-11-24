@@ -499,12 +499,23 @@ export class ExecutionContextRegistry {
 
     const { token, release } = this.trackInFlightCheck(session, executionContextId);
     try {
-      const installed = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: `${source}\n;void 0;`,
-        contextId: executionContextId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      let installed: Protocol.Runtime.EvaluateResponse;
+      try {
+        installed = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression: `${source}\n;void 0;`,
+          contextId: executionContextId,
+          returnByValue: true,
+          awaitPromise: true,
+        });
+      } catch (error) {
+        if (
+          !isCdpClosedError(error) &&
+          (token.invalidated || this.getClearEpoch(session) !== startEpoch)
+        ) {
+          throw new FallbackClearedError(frameId);
+        }
+        throw error;
+      }
       if (token.invalidated || this.getClearEpoch(session) !== startEpoch) {
         throw new FallbackClearedError(frameId);
       }

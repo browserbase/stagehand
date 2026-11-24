@@ -22,6 +22,14 @@ import type { Protocol } from "devtools-protocol";
 type FrameId = string;
 type SessionId = string;
 
+type PendingNavigation = {
+  frame: Protocol.Page.Frame;
+  parentId: FrameId;
+  sessionId: SessionId;
+};
+
+const MAX_PENDING_NAVIGATIONS = 128;
+
 type FrameInfo = {
   /** Parent frame id, or null for root */
   parentId: FrameId | null;
@@ -68,6 +76,9 @@ export class FrameRegistry {
   /** sessionId → Set<frameId> (inverse map for diagnostics/fast membership checks) */
   framesBySession = new Map<SessionId, Set<FrameId>>();
 
+  private pendingNavigatedByFrame = new Map<FrameId, PendingNavigation>();
+  private pendingNavigatedByParent = new Map<FrameId, Set<FrameId>>();
+
   constructor(ownerTargetId: string, mainFrameId: FrameId) {
     this.ownerTargetId = ownerTargetId;
     this.rootFrameId = mainFrameId;
@@ -86,12 +97,16 @@ export class FrameRegistry {
     if (!parentId && frameId !== this.rootFrameId) {
       this.renameNodeId(this.rootFrameId, frameId);
       this.rootFrameId = frameId;
+      this.deletePendingNavigation(frameId);
       this.setOwnerSessionIdInternal(frameId, sessionId);
+      this.replayPendingNavigations(frameId);
       return;
     }
 
     this.ensureNode(frameId);
     if (parentId) this.ensureNode(parentId);
+    this.deletePendingNavigation(frameId);
+    if (parentId) this.deletePendingNavigation(parentId);
 
     const info = this.frames.get(frameId)!;
     const nextParent = parentId ?? null;
@@ -100,6 +115,8 @@ export class FrameRegistry {
       (frameId === this.rootFrameId || this.isDescendantOrSelf(nextParent, frameId))
     ) {
       this.setOwnerSessionIdInternal(frameId, sessionId);
+      this.replayPendingNavigations(nextParent);
+      this.replayPendingNavigations(frameId);
       return;
     }
 
@@ -113,6 +130,8 @@ export class FrameRegistry {
     }
 
     this.setOwnerSessionIdInternal(frameId, sessionId);
+    if (nextParent) this.replayPendingNavigations(nextParent);
+    this.replayPendingNavigations(frameId);
   }
 
   /**
@@ -128,39 +147,38 @@ export class FrameRegistry {
         this.rootFrameId = frame.id;
       }
       this.ensureNode(frame.id);
+      this.deletePendingNavigation(frame.id);
       const info = this.frames.get(frame.id)!;
       info.lastSeen = frame;
       this.setOwnerSessionIdInternal(frame.id, sessionId);
+      this.replayPendingNavigations(frame.id);
       return;
     }
 
     if (!this.frames.has(parentId)) {
       const existing = this.frames.get(frame.id);
-      if (!existing) return;
+      if (!existing) {
+        this.bufferPendingNavigation(frame, parentId, sessionId);
+        return;
+      }
       existing.lastSeen = frame;
       this.setOwnerSessionIdInternal(frame.id, sessionId);
       return;
     }
 
-    this.ensureNode(frame.id);
-    const info = this.frames.get(frame.id)!;
-    if (frame.id !== this.rootFrameId && !this.isDescendantOrSelf(parentId, frame.id)) {
-      if (info.parentId && info.parentId !== parentId) {
-        this.frames.get(info.parentId)?.children.delete(frame.id);
-      }
-      info.parentId = parentId;
-      this.frames.get(parentId)!.children.add(frame.id);
-    }
-    info.lastSeen = frame;
-    this.setOwnerSessionIdInternal(frame.id, sessionId);
+    this.deletePendingNavigation(frame.id);
+    this.attachNavigatedChild(frame, parentId, sessionId);
+    this.replayPendingNavigations(frame.id);
   }
 
   onNavigatedWithinDocument(frameId: FrameId, url: string, sessionId: SessionId): void {
     this.ensureNode(frameId);
+    this.deletePendingNavigation(frameId);
     const info = this.frames.get(frameId)!;
     const lastSeen = info.lastSeen ?? shellFrame(frameId);
     info.lastSeen = { ...lastSeen, url };
     this.setOwnerSessionIdInternal(frameId, sessionId);
+    this.replayPendingNavigations(frameId);
   }
 
   /**
@@ -181,6 +199,7 @@ export class FrameRegistry {
 
     // Remove nodes, fix parents and inverse maps
     for (const fid of toRemove) {
+      this.deletePendingSubtree(fid);
       const info = this.frames.get(fid);
       if (!info) continue;
 
@@ -225,8 +244,11 @@ export class FrameRegistry {
    * as owner for the subtree **if** an owner isn't already set.
    */
   seedFromFrameTree(sessionId: SessionId, frameTree: Protocol.Page.FrameTree): void {
+    const seededIds: FrameId[] = [];
     const walk = (tree: Protocol.Page.FrameTree, parent: FrameId | null) => {
       this.ensureNode(tree.frame.id);
+      this.deletePendingNavigation(tree.frame.id);
+      seededIds.push(tree.frame.id);
       const info = this.frames.get(tree.frame.id)!;
       const previousParent = info.parentId;
       const nextParent = parent ?? tree.frame.parentId ?? previousParent ?? null;
@@ -238,6 +260,8 @@ export class FrameRegistry {
       info.parentId = nextParent;
       if (nextParent) {
         this.ensureNode(nextParent);
+        this.deletePendingNavigation(nextParent);
+        seededIds.push(nextParent);
         this.frames.get(nextParent)!.children.add(tree.frame.id);
       }
       // last-seen frame
@@ -250,6 +274,9 @@ export class FrameRegistry {
       for (const c of tree.childFrames ?? []) walk(c, tree.frame.id);
     };
     walk(frameTree, null);
+    for (const fid of seededIds) {
+      this.replayPendingNavigations(fid);
+    }
   }
 
   /**
@@ -358,6 +385,100 @@ export class FrameRegistry {
       current = this.frames.get(current)?.parentId ?? null;
     }
     return false;
+  }
+
+  private attachNavigatedChild(
+    frame: Protocol.Page.Frame,
+    parentId: FrameId,
+    sessionId: SessionId,
+  ): void {
+    this.ensureNode(frame.id);
+    const info = this.frames.get(frame.id)!;
+    if (frame.id !== this.rootFrameId && !this.isDescendantOrSelf(parentId, frame.id)) {
+      if (info.parentId && info.parentId !== parentId) {
+        this.frames.get(info.parentId)?.children.delete(frame.id);
+      }
+      info.parentId = parentId;
+      this.frames.get(parentId)!.children.add(frame.id);
+    }
+    info.lastSeen = frame;
+    this.setOwnerSessionIdInternal(frame.id, sessionId);
+  }
+
+  private bufferPendingNavigation(
+    frame: Protocol.Page.Frame,
+    parentId: FrameId,
+    sessionId: SessionId,
+  ): void {
+    if (frame.id === parentId) return;
+    this.deletePendingNavigation(frame.id);
+    while (this.pendingNavigatedByFrame.size >= MAX_PENDING_NAVIGATIONS) {
+      const oldest = this.pendingNavigatedByFrame.keys().next().value;
+      if (oldest === undefined) break;
+      this.deletePendingNavigation(oldest);
+    }
+    this.pendingNavigatedByFrame.set(frame.id, { frame, parentId, sessionId });
+    let waiting = this.pendingNavigatedByParent.get(parentId);
+    if (!waiting) {
+      waiting = new Set<FrameId>();
+      this.pendingNavigatedByParent.set(parentId, waiting);
+    }
+    waiting.add(frame.id);
+  }
+
+  private deletePendingNavigation(frameId: FrameId): void {
+    const entry = this.pendingNavigatedByFrame.get(frameId);
+    if (!entry) return;
+    this.pendingNavigatedByFrame.delete(frameId);
+    const waiting = this.pendingNavigatedByParent.get(entry.parentId);
+    if (!waiting) return;
+    waiting.delete(frameId);
+    if (waiting.size === 0) {
+      this.pendingNavigatedByParent.delete(entry.parentId);
+    }
+  }
+
+  private deletePendingSubtree(rootId: FrameId): void {
+    const queue: FrameId[] = [rootId];
+    const seen = new Set<FrameId>();
+    while (queue.length > 0) {
+      const fid = queue.shift()!;
+      if (seen.has(fid)) continue;
+      seen.add(fid);
+      this.deletePendingNavigation(fid);
+      const waiting = this.pendingNavigatedByParent.get(fid);
+      if (!waiting) continue;
+      this.pendingNavigatedByParent.delete(fid);
+      for (const childId of waiting) {
+        if (this.pendingNavigatedByFrame.get(childId)?.parentId === fid) {
+          this.pendingNavigatedByFrame.delete(childId);
+        }
+        queue.push(childId);
+      }
+    }
+  }
+
+  private replayPendingNavigations(rootParentId: FrameId): void {
+    const queue: FrameId[] = [rootParentId];
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      if (!this.frames.has(parentId)) continue;
+      const waiting = this.pendingNavigatedByParent.get(parentId);
+      if (!waiting) continue;
+
+      const childIds = [...waiting];
+      this.pendingNavigatedByParent.delete(parentId);
+
+      for (const childId of childIds) {
+        const pending = this.pendingNavigatedByFrame.get(childId);
+        if (!pending || pending.parentId !== parentId) continue;
+        this.pendingNavigatedByFrame.delete(childId);
+        this.attachNavigatedChild(pending.frame, parentId, pending.sessionId);
+        if (this.pendingNavigatedByParent.has(childId)) {
+          queue.push(childId);
+        }
+      }
+    }
   }
 
   renameNodeId(oldId: FrameId, newId: FrameId): void {
