@@ -80,6 +80,7 @@ jobs:
               - 'packages/shared/browser-api/**'
               - 'packages/integrations/**'
               - 'rules/ast-grep/**'
+              - 'scripts/verify-domain-policy-z3.py'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -96,6 +97,7 @@ jobs:
               - 'packages/shared/browser-api/**'
               - 'pnpm-lock.yaml'
               - 'scripts/release/check-extension-build*'
+              - 'scripts/verify-domain-policy-z3.py'
               - '.github/**'
             deepagents-runner:
               - 'pyproject.toml'
@@ -237,6 +239,10 @@ jobs:
         working-directory: packages/sdk-python
       - run: uv run --locked ruff check .
         working-directory: packages/sdk-python
+      - name: Check Z3 domain policy verifier formatting and lint
+        run: |
+          uv run --project packages/sdk-python --locked ruff format --check --config packages/sdk-python/pyproject.toml scripts/verify-domain-policy-z3.py
+          uv run --project packages/sdk-python --locked ruff check --config packages/sdk-python/pyproject.toml scripts/verify-domain-policy-z3.py
       - run: uv run --locked ty check
         working-directory: packages/sdk-python
 
@@ -513,6 +519,9 @@ jobs:
       - name: Test Python cookbook checkpoints
         run: uv run --locked python -m unittest
         working-directory: packages/examples/cookbooks/paginated-catalog/python
+      - name: Verify domain policy with Z3
+        run: uv run --no-project --with z3-solver python scripts/verify-domain-policy-z3.py
+        working-directory: ${{ github.workspace }}
 
   deepagents-runner-checks:
     name: Deep Agents runner checks
