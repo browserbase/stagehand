@@ -6,7 +6,8 @@ describe("normalized text matcher", () => {
     ["  Save\n\t now\u00a0", "Save now"],
     ["\u2003東京\u202f café  ", "東京 café"],
     [" \r\n ", ""],
-    ["a\u200bb", "a\u200bb"],
+    ["a\u200bb\u00adc", "abc"],
+    ["\u200b \u00ad\n", ""],
   ])("normalizes %j", (text, expected) => {
     expect(normalizeQueryText(text)).toBe(expected);
   });
@@ -18,6 +19,8 @@ describe("normalized text matcher", () => {
     ["Save", "Save now", true, false],
     ["CAFÉ", "café 東京", false, true],
     ["東京", "東京", true, true],
+    ["Sa\u200bve", "Sa\u00adve", true, true],
+    ["sa\u00adve", "Sa\u200bve now", false, true],
     ["", "anything", false, true],
     [" \t", "anything", true, false],
     ["", " \n", true, true],

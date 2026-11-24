@@ -82,6 +82,11 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
             scope = page.locator("iframe").locator("#scope")
             buttons = scope.locator("button")
             assert await buttons.count() == 2
+            assert await page.get_by_text("Save target").count() == 0
+            assert await page.locator("iframe").get_by_text("Save target", exact=True).count() == 1
+            assert (
+                await buttons.get_by_text("Save target", exact=True).text_content() == "Save target"
+            )
             assert await buttons.nth(1).text_content() == "Excluded choice"
             await buttons.first().click(timeout=5000)
             assert await scope.locator("button[data-clicked=yes]").count() == 1

@@ -3,7 +3,10 @@ import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 const excludedTags = new Set(["head", "script", "style", "template", "noscript"]);
 
 export function normalizeQueryText(text: string): string {
-  return text.replace(/\s+/gu, " ").trim();
+  return text
+    .replace(/[\u200b\u00ad]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
 }
 
 export function createTextMatcher(text: string, exact = false): (candidate: string) => boolean {
@@ -74,8 +77,11 @@ export function collectNormalizedTextMatches(
     for (const child of content.children) {
       if (visit(child)) descendantMatches = true;
     }
-    const selfMatches = content.eligible && matches(content.normalized);
-    if (node !== scope && selfMatches && !descendantMatches) results.push(node as Element);
+    // A shadow root can suppress its host even when its text has no element wrapper.
+    const selfMatches =
+      (content.eligible || node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) &&
+      matches(content.normalized);
+    if (content.eligible && selfMatches && !descendantMatches) results.push(node as Element);
     return selfMatches || descendantMatches;
   };
   visit(scope);

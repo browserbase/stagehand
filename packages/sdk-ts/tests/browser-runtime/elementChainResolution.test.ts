@@ -101,6 +101,9 @@ describe("element chain resolution in the browser", () => {
     it("exposes text queries through Page & Locator", async () => {
       expect(await page.getByText("save").count()).toBe(4);
       expect(await page.getByText("Save", { exact: true }).count()).toBe(3);
+      expect(await page.locator("button").getByText("Save", { exact: true }).count()).toBe(3);
+      expect(await page.locator("#cards, .card, #cards button").getByText("save").count()).toBe(3);
+      expect(await page.locator("#a").locator("button").count()).toBe(0);
       const target = page.locator(".card").nth(1).getByText("Save", { exact: true });
       await page.evaluate(
         `document.getElementById('b').onclick = () => document.getElementById('b').textContent = 'Saved'`,
@@ -110,9 +113,21 @@ describe("element chain resolution in the browser", () => {
       expect(await page.getByText("Save now").locator("span").count()).toBe(0);
     });
 
-    // Behavior reference: Playwright docs at 09dab5d70932724a848540549f33ff6f9b817e1b.
-    // These fixtures specify Stagehand's string-only contract, including empty-string ties.
     it.each([
+      {
+        name: "invisible characters in query & DOM text",
+        html: '<button id="hit">Sa\u200bve\u00ad now</button>',
+        text: "Sa\u00adve\u200b now",
+        exact: true,
+        expected: ["hit"],
+      },
+      {
+        name: "empty exact excludes skipped content",
+        html: '<div id="hit"><script>Save</script><style>/* Save */</style><template><button>Save</button></template><noscript>Save</noscript></div>',
+        text: "\u200b\u00ad",
+        exact: true,
+        expected: ["hit"],
+      },
       {
         name: "whitespace & case",
         html: '<button id="hit"> Save\n\t NOW&nbsp; </button>',
@@ -232,7 +247,39 @@ describe("element chain resolution in the browser", () => {
       },
     );
 
-    it("excludes the scope & head, refreshes text & leaves legacy matching unchanged", async () => {
+    it.each(["open", "closed"])("applies parent selection to %s shadow text", async (mode) => {
+      expect(
+        await evaluate(`
+        document.body.innerHTML = '<my-widget id="host"></my-widget>';
+        const host = document.getElementById('host');
+        const root = host.attachShadow({mode: ${JSON.stringify(mode)}});
+        const query = (text, exact = true) => ids(scripts.collectNormalizedTextMatches(text, {exact}, host));
+        root.textContent = 'Save';
+        const direct = query('Save');
+        const substring = query('sav', false);
+        root.innerHTML = 'Sa<span>ve</span>';
+        const combined = query('Save');
+        root.innerHTML = '<span id="child">Save</span>';
+        const child = query('Save');
+        root.textContent = '';
+        const emptyExact = query('');
+        const emptySubstring = query('', false);
+        root.innerHTML = '<span id="empty"></span>';
+        const emptyChild = query('');
+        return {direct, substring, combined, child, emptyExact, emptySubstring, emptyChild};
+      `),
+      ).toEqual({
+        direct: [],
+        substring: [],
+        combined: [],
+        child: ["child"],
+        emptyExact: [],
+        emptySubstring: [],
+        emptyChild: ["empty"],
+      });
+    });
+
+    it("includes the scope, excludes head, refreshes text & preserves legacy matching", async () => {
       expect(
         await evaluate(`
         document.body.innerHTML = '<section id="scope"><button id="hit">Save   now</button></section><button id="outside">Save now</button>';
@@ -250,7 +297,7 @@ describe("element chain resolution in the browser", () => {
         title.remove();
         return { before, self, legacyText, after, head };
       `),
-      ).toEqual({ before: ["hit"], self: [], legacyText: [], after: [], head: [] });
+      ).toEqual({ before: ["hit"], self: ["hit"], legacyText: [], after: [], head: [] });
     });
 
     it("does not search iframe documents", async () => {
