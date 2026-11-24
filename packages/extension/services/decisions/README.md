@@ -25,10 +25,12 @@ deliberately not a field of the public create config. Evals build that variable 
 | No target      | the decision model, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets the decision model's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
 Steps that do not depend on each other overlap: the intent request needs no page, so it is asked
-while `act()` waits for the DOM to settle (a fixed 500 ms quiet window at minimum), and nothing
-reads or touches the page before that wait is over; `observe()` asks its intent while the snapshot
-is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start of
-`act()`, settle included).
+while `act()` waits for the DOM to settle (500 ms of network quiet, or `domSettleTimeoutMs` if that
+comes first). With `tools: true` the page's tool list is read during that wait; snapshots, actions
+and tool calls come after it. An act that reads the cache settles before the lookup, so only acts
+that skip it (no cache, caching off, a locator scope) overlap. `observe()` asks its intent while the
+snapshot is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start
+of `act()`, settle included).
 
 Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
 replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
