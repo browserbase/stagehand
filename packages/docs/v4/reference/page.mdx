@@ -954,6 +954,8 @@ const locator = page.locator("button[type=submit]");
 
 Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
 
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
+
 ```typescript
 await page.getByText("Save", { exact: true }).click();
 ```
@@ -1875,6 +1877,8 @@ locator = page.locator("button[type=submit]")
 ## get_by_text()
 
 Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
 
 ```python
 await page.get_by_text("Save", exact=True).click()
