@@ -42,6 +42,7 @@ export const integrationTestGroups = {
     "coordinateClick",
     "iframeLocatorReadiness",
     "iframeNetworkCapture",
+    "locatorChaining",
     "nestedDiv",
   ],
   "local/input": ["clipboard", "keyboard"],
