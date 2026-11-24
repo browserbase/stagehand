@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { buildDoctorReport, renderDoctorReport } from "../src/lib/driver/doctor.js";
 import { getLockPath, getPidPath, getSocketPath } from "../src/lib/driver/daemon/paths.js";
+import type { ConnectionTarget } from "../src/lib/driver/types.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const cleanupPaths: string[] = [];
@@ -243,48 +244,69 @@ describe("doctor command", () => {
 
 describe("doctor report builder", () => {
   it.each([
-    { name: "browser", target: { headless: true, kind: "managed-local" } },
-    { name: "browserbase", target: { kind: "remote" } },
-    { name: "cdp", target: { endpoint: "ws://127.0.0.1:9222/devtools/browser/x", kind: "cdp" } },
-    { name: "cdp", target: { kind: "auto-connect" } },
-  ] as const)("reports a failed $target.kind start in its $name row", async ({ name, target }) => {
-    const report = await buildDoctorReport(
-      {
-        flags: {},
-        session: "default",
-      },
-      {
-        env: { BROWSERBASE_API_KEY: "" },
-        getDriverStatus: async () => ({
-          browserConnected: false,
-          initError: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details",
-          initialized: false,
-          mode: target.kind,
-          pages: [],
-          pid: process.pid,
+    {
+      fix: "browse stop --session default --force, then retry",
+      name: "browser",
+      target: { headless: true, kind: "managed-local" },
+    },
+    {
+      fix: "browse stop --session default --force, then retry",
+      name: "browserbase",
+      target: { kind: "remote" },
+    },
+    {
+      fix: "start Chrome with --remote-debugging-port=9222",
+      name: "cdp",
+      target: { endpoint: "ws://127.0.0.1:9222/devtools/browser/x", kind: "cdp" },
+    },
+    {
+      fix: "start Chrome with --remote-debugging-port=9222",
+      name: "cdp",
+      target: { kind: "auto-connect" },
+    },
+  ] as const)(
+    "reports a failed $target.kind start in its $name row",
+    async ({ fix, name, target }) => {
+      const report = await buildDoctorReport(
+        {
+          flags: {},
           session: "default",
-          target,
-        }),
-        readPackageVersion: async () => "0.0.0-test",
-      },
-    );
+        },
+        {
+          env: { BROWSERBASE_API_KEY: "" },
+          getDriverStatus: async () => ({
+            browserConnected: false,
+            initError: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details",
+            initialized: false,
+            mode: target.kind,
+            pages: [],
+            pid: process.pid,
+            session: "default",
+            target,
+          }),
+          readPackageVersion: async () => "0.0.0-test",
+        },
+      );
 
-    expect(report.verdict).toBe("fail");
-    expect(report.next).toBeUndefined();
-    expect(
-      report.checks.filter((check) => ["browser", "browserbase", "cdp"].includes(check.name)),
-    ).toEqual([
-      {
-        details: { error: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details" },
-        message: "last start failed: connect ECONNREFUSED 127.0.0.1:9222",
-        name,
-        status: "fail",
-      },
-    ]);
-    expect(renderDoctorReport(report)).toContain(
-      `[fail] ${name.padEnd(7)} last start failed: connect ECONNREFUSED 127.0.0.1:9222`,
-    );
-  });
+      expect(report.verdict).toBe("fail");
+      expect(report.next).toBeUndefined();
+      expect(
+        report.checks.filter((check) => ["browser", "browserbase", "cdp"].includes(check.name)),
+      ).toEqual([
+        {
+          details: { error: "connect ECONNREFUSED 127.0.0.1:9222\nChrome stderr details" },
+          fix,
+          message: "last start failed: connect ECONNREFUSED 127.0.0.1:9222",
+          name,
+          status: "fail",
+        },
+      ]);
+      expect(renderDoctorReport(report)).toContain(
+        `[fail] ${name.padEnd(7)} last start failed: connect ECONNREFUSED 127.0.0.1:9222`,
+      );
+      expect(renderDoctorReport(report)).toContain(`Fix: ${fix}`);
+    },
+  );
 
   it("adds no component row for a running daemon without a failed start", async () => {
     const report = await buildDoctorReport(
@@ -314,6 +336,100 @@ describe("doctor report builder", () => {
       "daemon",
       "target",
     ]);
+  });
+
+  it("suggests checking the API key after a remote auth failure", async () => {
+    const report = await failedStartReport({
+      initError:
+        "Browserbase rejected your BROWSERBASE_API_KEY (401 Unauthorized). A set key makes browse default to remote mode.",
+      initErrorCode: "remote_auth_401",
+      target: { kind: "remote" },
+    });
+
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        details: expect.objectContaining({ code: "remote_auth_401" }),
+        fix: "check BROWSERBASE_API_KEY, then run browse stop --session default and retry",
+        name: "browserbase",
+        status: "fail",
+      }),
+    );
+    expect(renderDoctorReport(report)).toContain(
+      "\nStatus: fail\nFix: check BROWSERBASE_API_KEY, then run browse stop --session default and retry",
+    );
+  });
+
+  it("recognizes a remote auth failure from the message when the daemon sent no code", async () => {
+    const report = await failedStartReport({
+      initError: "403 Forbidden",
+      target: { kind: "remote", verified: true },
+    });
+
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        details: { error: "403 Forbidden" },
+        fix: "check BROWSERBASE_API_KEY, then run browse stop --session default and retry",
+        name: "browserbase",
+      }),
+    );
+  });
+
+  it("suggests installing Chrome when the local browser was not found", async () => {
+    const report = await failedStartReport({
+      initError: "No Chrome or Chromium found on this machine. Install one or attach with --cdp.",
+      initErrorCode: "no_chrome_found",
+      target: { headless: true, kind: "managed-local" },
+    });
+
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        fix: "install Chrome or Chromium, or set CHROME_PATH, then retry",
+        name: "browser",
+      }),
+    );
+  });
+
+  it("suggests remote debugging when a CDP connection was refused", async () => {
+    const refused = await failedStartReport({
+      initError: "Failed to open CDP WebSocket",
+      target: { endpoint: "ws://127.0.0.1:9222/devtools/browser/test", kind: "cdp" },
+    });
+    expect(refused.checks).toContainEqual(
+      expect.objectContaining({
+        fix: "start Chrome with --remote-debugging-port=9222",
+        name: "cdp",
+      }),
+    );
+
+    const undiscovered = await failedStartReport({
+      initError:
+        "No debuggable local browser found. Start Chrome with --remote-debugging-port=9222 or pass --cdp <url|port>.",
+      target: { kind: "auto-connect" },
+    });
+    expect(undiscovered.checks).toContainEqual(
+      expect.objectContaining({
+        fix: "start Chrome with --remote-debugging-port=9222",
+        name: "cdp",
+      }),
+    );
+  });
+
+  it("falls back to a force stop for other start failures, naming the session", async () => {
+    const report = await failedStartReport({
+      initError: "Failed to launch the browser process",
+      session: "research",
+      target: { headless: false, kind: "managed-local" },
+    });
+
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({
+        fix: "browse stop --session research --force, then retry",
+        name: "browser",
+      }),
+    );
+    expect(renderDoctorReport(report)).toContain(
+      "Fix: browse stop --session research --force, then retry",
+    );
   });
 
   it("keeps the default session out of status suggestions", async () => {
@@ -470,6 +586,34 @@ function listenSocket(server: net.Server, socketPath: string): Promise<void> {
     server.once("error", reject);
     server.listen(socketPath, resolve);
   });
+}
+
+/** A report for a running daemon whose last browser start failed. */
+function failedStartReport(input: {
+  initError: string;
+  initErrorCode?: string;
+  session?: string;
+  target: ConnectionTarget;
+}) {
+  const session = input.session ?? "default";
+  return buildDoctorReport(
+    { flags: {}, session },
+    {
+      env: { BROWSERBASE_API_KEY: "" },
+      getDriverStatus: async () => ({
+        browserConnected: false,
+        initError: input.initError,
+        ...(input.initErrorCode === undefined ? {} : { initErrorCode: input.initErrorCode }),
+        initialized: false,
+        mode: input.target.kind,
+        pages: [],
+        pid: process.pid,
+        session,
+        target: input.target,
+      }),
+      readPackageVersion: async () => "0.0.0-test",
+    },
+  );
 }
 
 function close(server: http.Server | net.Server): Promise<void> {
