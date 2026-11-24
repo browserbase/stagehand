@@ -5,7 +5,7 @@ import type {
   WebMCPToolResponse,
 } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
-import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./clientSchemas.js";
+import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./schemas.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 
 export class WebMCPTool {

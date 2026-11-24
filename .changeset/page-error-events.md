@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand-python": minor
 ---
 
-Add `page.on("pageerror")`, which delivers uncaught JavaScript exceptions from the page and its out-of-process iframes as raw `Runtime.exceptionThrown` events.
+Add `page.on("pageerror", listener)` to receive uncaught JavaScript exceptions and unhandled promise rejections from a page and its out-of-process iframes

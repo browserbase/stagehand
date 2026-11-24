@@ -457,6 +457,43 @@ export const LocatorSchema = z
   })
   .meta({ id: "Locator" });
 
+// Internal chain definitions only; not registered as executable RPC inputs yet.
+export const LocatorQuerySelectorSchema = z
+  .discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("xpath"), value: z.string().min(1) }),
+    // The existing text= engine, not the future getByText contract.
+    z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
+  ])
+  .meta({ id: "LocatorQuerySelector" });
+
+/** Search within prior matches, entering child documents for matched frames. */
+export const LocatorQueryStepSchema = z
+  .strictObject({ type: z.literal("query"), selector: LocatorQuerySelectorSchema })
+  .meta({ id: "LocatorQueryStep" });
+
+/** Explicit legacy frame hop: preceding matches must be iframe/frame elements. */
+export const LocatorFrameStepSchema = z
+  .strictObject({ type: z.literal("frame"), selector: LocatorQuerySelectorSchema })
+  .meta({ id: "LocatorFrameStep" });
+
+/** Select from the preceding step's ordered, deduplicated results. */
+export const LocatorNthStepSchema = z
+  .strictObject({ type: z.literal("nth"), index: z.number().int().nonnegative() })
+  .meta({ id: "LocatorNthStep" });
+
+export const LocatorStepSchema = z
+  .discriminatedUnion("type", [
+    LocatorQueryStepSchema,
+    LocatorFrameStepSchema,
+    LocatorNthStepSchema,
+  ])
+  .meta({ id: "LocatorStep" });
+
+export const LocatorChainSchema = z
+  .strictObject({ steps: z.tuple([LocatorQueryStepSchema]).rest(LocatorStepSchema) })
+  .meta({ id: "LocatorChain" });
+
 export const StagehandMetricsSchema = z
   .strictObject({
     actPromptTokens: z.number(),
@@ -1285,7 +1322,7 @@ export const ResponseFinishedResultSchema = z
 export const PageEventNameSchema = z.enum(["console", "pageerror"]).meta({ id: "PageEventName" });
 
 export const PageSubscriptionEventNameSchema = z
-  .enum(["console", "pageerror", "toolsadded", "toolsremoved"])
+  .enum(["console", "toolsadded", "toolsremoved", "response", "pageerror"])
   .meta({ id: "PageSubscriptionEventName" });
 
 export const PageCDPEventParamsSchema = z
@@ -1364,10 +1401,19 @@ export const PageToolsRemovedNotificationSchema = z
   })
   .meta({ id: "PageToolsRemovedNotification" });
 
+export const PageResponseNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("response"),
+    response: NavigationResponseDescriptorSchema,
+  })
+  .meta({ id: "PageResponseNotification" });
+
 export const PageEventNotificationSchema = z
   .discriminatedUnion("event", [
     PageToolsAddedNotificationSchema,
     PageToolsRemovedNotificationSchema,
+    PageResponseNotificationSchema,
   ])
   .meta({ id: "PageEventNotification" });
 

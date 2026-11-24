@@ -1,22 +1,28 @@
 import type { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
-import { type Progress, runLocatorStep } from "./progress.js";
+import { Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { parseLegacySelector, type SelectorQuery } from "./selectorQuery.js";
+import type { SelectorResolution } from "../dom/locatorScripts/resolveQuery.js";
 
-export type SelectorQuery =
-  | { kind: "css"; value: string }
-  | { kind: "text"; value: string }
-  | { kind: "xpath"; value: string };
+export type { SelectorQuery } from "./selectorQuery.js";
 
 export interface ResolvedNode {
   objectId: Protocol.Runtime.RemoteObjectId;
   nodeId: Protocol.DOM.NodeId | null;
 }
 
+/** The caller must release the batch after consuming its handles. */
+export interface ResolvedNodeBatch {
+  nodes: ResolvedNode[];
+  release(): Promise<void>;
+}
+
 export interface ResolveManyOptions {
   limit?: number;
+  start?: number;
 }
 
 export class FrameSelectorResolver {
@@ -26,39 +32,7 @@ export class FrameSelectorResolver {
   ) {}
 
   public static parseSelector(raw: string): SelectorQuery {
-    const trimmed = raw.trim();
-
-    const isText = /^text=/i.test(trimmed);
-    const looksLikeXPath =
-      /^xpath=/i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("(");
-    const isCssPrefixed = /^css=/i.test(trimmed);
-
-    if (isText) {
-      let value = trimmed.replace(/^text=/i, "").trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      return { kind: "text", value };
-    }
-
-    if (looksLikeXPath) {
-      const value = trimmed.replace(/^xpath=/i, "");
-      return { kind: "xpath", value };
-    }
-
-    let selector = isCssPrefixed ? trimmed.replace(/^css=/i, "") : trimmed;
-    if (selector.includes(">>")) {
-      selector = selector
-        .split(">>")
-        .map((piece) => piece.trim())
-        .filter(Boolean)
-        .join(" ");
-    }
-
-    return { kind: "css", value: selector };
+    return parseLegacySelector(raw);
   }
 
   public async resolveFirst(
@@ -70,21 +44,116 @@ export class FrameSelectorResolver {
 
   public async resolveAll(
     query: SelectorQuery,
-    { limit = Infinity }: ResolveManyOptions = {},
+    { limit = Infinity, start = 0 }: ResolveManyOptions = {},
     progress?: Progress,
-  ): Promise<ResolvedNode[]> {
+  ): Promise<ResolvedNodeBatch> {
     progress?.throwIfStopped();
-    if (limit <= 0) return [];
-    switch (query.kind) {
-      case "css":
-        return this.resolveCss(query.value, limit, progress);
-      case "text":
-        return this.resolveText(query.value, limit, progress);
-      case "xpath":
-        return this.resolveXPath(query.value, limit, progress);
-      default:
-        return [];
+    const empty = (): ResolvedNodeBatch => ({ nodes: [], release: async () => {} });
+    if (limit <= 0 || Number.isNaN(limit) || start < 0 || !Number.isInteger(start)) return empty();
+    const session = this.frame.session;
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+      progress,
+      this.readinessOptions,
+    );
+    const objectGroup = `stagehand-selector-${contextId}-${crypto.randomUUID()}`;
+    // Capture the actual session and context: navigation may change frame ownership.
+    const cleanup = progress ?? new Progress("selector cleanup", 0);
+    const releaseGroup = () =>
+      cleanup.cleanup(() => session.send("Runtime.releaseObjectGroup", { objectGroup }));
+    let released: Promise<void> | undefined;
+    const release = () => (released ??= releaseGroup());
+    const step = <T>(phase: string, work: () => Promise<T>) =>
+      runLocatorStep(
+        progress,
+        phase,
+        async () => {
+          try {
+            return await work();
+          } catch (error) {
+            // A rejected late command may also have allocated objects before failing.
+            if (released) void releaseGroup();
+            throw error;
+          }
+        },
+        releaseGroup,
+      );
+    let handedOff = false;
+    try {
+      const resolution: SelectorResolution =
+        limit === Infinity && start === 0
+          ? { mode: "all" }
+          : {
+              mode: "range",
+              start,
+              end: limit === Infinity ? Number.MAX_SAFE_INTEGER : start + Math.ceil(limit),
+            };
+      const expression = buildLocatorInvocation("resolveQuery", [
+        JSON.stringify(query),
+        JSON.stringify(resolution),
+      ]);
+      const evaluated = await step("collecting selector matches", () =>
+        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId,
+          objectGroup,
+          returnByValue: false,
+          awaitPromise: true,
+        }),
+      );
+      if (evaluated.exceptionDetails || !evaluated.result.objectId) return empty();
+      const properties = await step("exporting selector matches", () =>
+        session.send<Protocol.Runtime.GetPropertiesResponse>("Runtime.getProperties", {
+          objectId: evaluated.result.objectId!,
+          ownProperties: true,
+        }),
+      );
+      if (properties.exceptionDetails) return empty();
+      const nodes = properties.result
+        .filter((property) => /^(0|[1-9]\d*)$/.test(property.name) && property.value?.objectId)
+        .sort((a, b) => Number(a.name) - Number(b.name))
+        .map((property) => ({ objectId: property.value!.objectId!, nodeId: null }));
+      // Frontend node IDs are unnecessary for masks and snapshot exclusions.
+      // Those consumers read geometry/backend IDs while this group is alive.
+      progress?.throwIfStopped();
+      if (!nodes.length) return empty();
+      handedOff = true;
+      return { nodes, release };
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
+      return empty();
+    } finally {
+      if (!handedOff) {
+        await release();
+        progress?.throwIfStopped();
+      }
     }
+  }
+
+  public async resolveAtIndex(
+    query: SelectorQuery,
+    index: number,
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
+    progress?.throwIfStopped();
+    if (index < 0 || !Number.isInteger(index)) return null;
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
+      this.frame.frameId,
+      1000,
+      progress,
+      this.readinessOptions,
+    );
+    const expression = buildLocatorInvocation("resolveQuery", [
+      JSON.stringify(query),
+      JSON.stringify({ mode: "range", start: index, end: index + 1 }),
+    ]);
+    // Export only the selected element, outside any temporary group. Action
+    // callers already own and release this handle with Runtime.releaseObject.
+    return this.evaluateElement(`(${expression})[0] ?? null`, contextId, progress);
   }
 
   public async count(query: SelectorQuery, progress?: Progress): Promise<number> {
@@ -96,55 +165,22 @@ export class FrameSelectorResolver {
         return this.countText(query.value, progress);
       case "xpath":
         return this.countXPath(query.value, progress);
-      default:
-        return 0;
     }
   }
 
-  public async resolveAtIndex(
-    query: SelectorQuery,
-    index: number,
-    progress?: Progress,
-  ): Promise<ResolvedNode | null> {
-    progress?.throwIfStopped();
-    if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 }, progress);
-    const selected = results[index] ?? null;
-    if (progress) {
-      await this.releaseNodes(
-        results.filter((node) => node !== selected),
-        progress,
-      );
-      try {
-        progress.throwIfStopped();
-      } catch (error) {
-        if (selected) void this.releaseNodes([selected], progress);
-        throw error;
-      }
-    }
-    return selected;
+  async countCss(value: string, progress?: Progress): Promise<number> {
+    return this.countQuery({ kind: "css", value }, progress);
   }
 
-  async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveCssSelector", selector, limit, progress);
+  async countText(value: string, progress?: Progress): Promise<number> {
+    return this.countQuery({ kind: "text", value }, progress);
   }
 
-  async resolveText(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveTextSelector", value, limit, progress);
+  async countXPath(value: string, progress?: Progress): Promise<number> {
+    return this.countQuery({ kind: "xpath", value }, progress);
   }
 
-  async resolveXPath(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
-    return this.resolveElements("resolveXPathMainWorld", value, limit, progress);
-  }
-
-  private async resolveElements(
-    helper: "resolveCssSelector" | "resolveTextSelector" | "resolveXPathMainWorld",
-    value: string,
-    limit: number,
-    progress?: Progress,
-  ): Promise<ResolvedNode[]> {
-    progress?.throwIfStopped();
-    if (limit <= 0) return [];
+  private async countQuery(query: SelectorQuery, progress?: Progress): Promise<number> {
     const { contextId } = await executionContexts.waitForLocatorWorld(
       this.frame.session,
       this.frame.frameId,
@@ -152,137 +188,14 @@ export class FrameSelectorResolver {
       progress,
       this.readinessOptions,
     );
-    const results: ResolvedNode[] = [];
-    try {
-      for (let index = 0; index < limit; index += 1) {
-        const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
-        const resolved = await this.evaluateElement(expression, contextId, progress);
-        if (!resolved) break;
-        results.push(resolved);
-      }
-      progress?.throwIfStopped();
-      return results;
-    } catch (error) {
-      if (progress) await this.releaseNodes(results, progress);
-      progress?.throwIfStopped();
-      throw error;
-    }
-  }
-
-  private async releaseNodes(nodes: ResolvedNode[], progress: Progress): Promise<void> {
-    if (nodes.length)
-      await progress.cleanup(() =>
-        Promise.all(
-          nodes.map(({ objectId }) =>
-            this.frame.session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
-          ),
-        ),
-      );
-  }
-
-  async countCss(selector: string, progress?: Progress): Promise<number> {
-    const session = this.frame.session;
-    const { contextId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
+    return this.evaluateCount(
+      buildLocatorInvocation("resolveQuery", [
+        JSON.stringify(query),
+        JSON.stringify({ mode: "count" }),
+      ]),
+      contextId,
       progress,
-      this.readinessOptions,
     );
-
-    const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
-      JSON.stringify(selector),
-    ]);
-    return this.evaluateCount(primaryExpr, contextId, progress);
-  }
-
-  async countText(value: string, progress?: Progress): Promise<number> {
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-      progress,
-      this.readinessOptions,
-    );
-
-    const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
-
-    try {
-      const evalRes = await runLocatorStep(progress, "counting elements", () =>
-        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression: expr,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        }),
-      );
-
-      if (evalRes.exceptionDetails) {
-        const details = evalRes.exceptionDetails;
-        this.frame.logger.error("Count text evaluation failed", {
-          category: "locator",
-          frameId: String(this.frame.frameId),
-          selector: value,
-          exception:
-            details.text ??
-            String(details.exception?.description ?? details.exception?.value ?? ""),
-        });
-        return 0;
-      }
-
-      const data = (evalRes.result.value ?? {}) as {
-        count?: unknown;
-      };
-
-      const num = typeof data.count === "number" ? data.count : Number(data.count);
-      if (!Number.isFinite(num)) return 0;
-      return Math.max(0, Math.floor(num));
-    } catch (error) {
-      progress?.throwIfStopped();
-      if (progress && isCdpClosedError(error)) throw error;
-      return 0;
-    }
-  }
-
-  async countXPath(value: string, progress?: Progress): Promise<number> {
-    const session = this.frame.session;
-
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-      progress,
-      this.readinessOptions,
-    );
-
-    const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
-
-    try {
-      const evalRes = await runLocatorStep(progress, "counting elements", () =>
-        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression: expr,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        }),
-      );
-
-      if (evalRes.exceptionDetails) {
-        return 0;
-      }
-
-      const num =
-        typeof evalRes.result.value === "number"
-          ? evalRes.result.value
-          : Number(evalRes.result.value);
-      if (!Number.isFinite(num)) return 0;
-      return Math.max(0, Math.floor(num));
-    } catch (error) {
-      progress?.throwIfStopped();
-      if (progress && isCdpClosedError(error)) throw error;
-      return 0;
-    }
   }
 
   async resolveFromObjectId(
@@ -344,6 +257,7 @@ export class FrameSelectorResolver {
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
     let objectId: Protocol.Runtime.RemoteObjectId | undefined;
+    const cleanup = progress ?? new Progress("selector cleanup", 0);
     const release = (id: string) => session.send("Runtime.releaseObject", { objectId: id });
     try {
       const evalRes = await runLocatorStep(
@@ -360,10 +274,10 @@ export class FrameSelectorResolver {
       );
       objectId = evalRes.result.objectId;
       if (evalRes.exceptionDetails || !objectId) {
-        if (progress && objectId) {
+        if (objectId) {
           const discardedId = objectId;
           objectId = undefined;
-          await progress.cleanup(() => release(discardedId));
+          await cleanup.cleanup(() => release(discardedId));
         }
         progress?.throwIfStopped();
         return null;
@@ -372,7 +286,7 @@ export class FrameSelectorResolver {
       progress?.throwIfStopped();
       return resolved;
     } catch (error) {
-      if (progress && objectId) await progress.cleanup(() => release(objectId!));
+      if (objectId) await cleanup.cleanup(() => release(objectId!));
       progress?.throwIfStopped();
       if (progress && isCdpClosedError(error)) throw error;
       return null;

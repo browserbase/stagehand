@@ -895,6 +895,15 @@ class PageReloadParams(TypedDict):
     options: NotRequired[PageReloadOptions]
 
 
+class PageResponseNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["response"]
+    response: NavigationResponseDescriptor
+
+
 class PageScreenshotClip(TypedDict):
     x: float
     y: float
@@ -960,7 +969,7 @@ class PageSnapshotParams(TypedDict):
     options: NotRequired[PageSnapshotOptions]
 
 
-PageSubscriptionEventName: TypeAlias = Literal["console", "pageerror", "toolsadded", "toolsremoved"]
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved", "response", "pageerror"]
 
 
 class PageOnParams(TypedDict):
@@ -1329,7 +1338,7 @@ class PageToolsRemovedNotification(TypedDict):
     tools: list[WebMCPToolIdentity]
 
 
-PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification
+PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification | PageResponseNotification
 
 
 class WebMCPToolResponse(TypedDict):

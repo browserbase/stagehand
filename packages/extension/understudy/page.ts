@@ -40,6 +40,7 @@ import type {
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
+import { TimeoutError } from "../errors.js";
 import { NetworkManager } from "./networkManager.js";
 import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
@@ -261,7 +262,7 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(this);
     this.networkManager.trackSession(this.mainSession);
   }
 
@@ -483,7 +484,7 @@ export class Page {
       this.attachCDPEventSubscription(subscription, childSession);
     }
 
-    this.networkManager.trackSession(childSession, networkCapture);
+    this.networkManager.trackSession(childSession, networkCapture, childMainFrameId);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
 
@@ -607,6 +608,17 @@ export class Page {
     return this.subscribeWhenReady(
       undefined,
       () => this.attachCDPEventListener(pageEventName, listener),
+      signal,
+    );
+  }
+
+  public async subscribeResponse(
+    listener: (response: Response) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.networkManager.subscribeResponse(listener),
       signal,
     );
   }
@@ -1743,10 +1755,19 @@ export class Page {
 
   /**
    * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures.
+   * Mirrors Playwright's API signatures. `networkidle` uses the same quiet-window
+   * check as `goto(url, { waitUntil: "networkidle" })`.
    */
-  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeout ?? 15000);
+  async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
+    if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
+
+    await new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil: state,
+      timeout,
+    }).wait();
   }
 
   /**
@@ -2787,7 +2808,7 @@ export class Page {
         done = true;
         clearPollTimer();
         off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        reject(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
       }, timeout);
     });
   }

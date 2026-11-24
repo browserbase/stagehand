@@ -334,35 +334,21 @@ const title = await page.evaluate(() => document.title);
   The operation result.
 </ResponseField>
 
-## on()
+## onConsole()
 
-Subscribe to console messages or uncaught JavaScript exceptions from this page and its
-page-owned sessions, including out-of-process iframes. Stagehand delivers each event using the
-underlying CDP event envelope: `"console"` delivers `"Runtime.consoleAPICalled"`, and
-`"pageerror"` delivers `"Runtime.exceptionThrown"`.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```typescript
-const subscription = await page.on("console", (event) => {
+const subscription = await page.onConsole((event) => {
   console.log(event.method, event.params);
 });
 
 await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
-
-const errors = await page.on("pageerror", (event) => {
-  const details = event.params.exceptionDetails as { exception?: { description?: string } };
-  console.log(details.exception?.description);
-});
 ```
 
-<ParamField path="event" type="PageEventName">
-  The event name: `"console"` or `"pageerror"`. A `"pageerror"` listener receives uncaught
-  exceptions and unhandled promise rejections thrown after it subscribes; `params` holds the CDP
-  `timestamp` and `exceptionDetails`. Exceptions that an out-of-process iframe throws before
-  Stagehand adopts its session are not delivered.
-</ParamField>
-
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A callback that receives the event method, raw parameters, session ID, target ID,
   and page ID. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -376,6 +362,66 @@ const errors = await page.on("pageerror", (event) => {
 `unsubscribe(): Promise<void>` removes the listener locally and from the Stagehand runtime.
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
+
+## on()
+
+Subscribe to uncaught JavaScript exceptions from this page and its page-owned sessions,
+including out-of-process iframes. `page.on("pageerror", listener)` delivers each exception and
+unhandled promise rejection using the underlying `"Runtime.exceptionThrown"` event envelope.
+
+<Warning>
+  `page.on("console", listener)` is deprecated: use [`page.onConsole(listener)`](#onconsole)
+  instead. It remains available for backward compatibility, with the same callback payload,
+  behavior, and subscription handle.
+</Warning>
+
+```typescript
+const subscription = await page.on("pageerror", (event) => {
+  const details = event.params.exceptionDetails as { exception?: { description?: string } };
+  console.log(details.exception?.description);
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="event" type="PageEventName">
+  The event name: `"pageerror"`, or the deprecated `"console"`. A `"pageerror"` listener
+  receives uncaught exceptions and unhandled promise rejections thrown after it subscribes;
+  `params` holds the CDP `timestamp` and `exceptionDetails`. Exceptions that an out-of-process
+  iframe throws before Stagehand adopts its session are not delivered.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A callback that receives the event method, raw parameters, session ID, target ID, and page
+  ID; the same callback accepted by [`onConsole()`](#onconsole).
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
+
+## onResponse()
+
+Subscribe to future network responses from this page and its child frames. The callback
+receives a [Response](/v4/reference/response) when status and headers arrive. Body methods
+wait for completion automatically. Subscriptions remain active across navigation and do
+not replay earlier responses. Async callbacks may overlap.
+
+```typescript
+const subscription = await page.onResponse(async (response) => {
+  if (response.url().includes("/api/orders") && response.ok()) {
+    console.log(await response.json());
+  }
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A callback with the signature `(response: Response) => unknown`.
+</ParamField>
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops future callbacks. Responses
+  already delivered can still be read while their handles remain available.
+</ResponseField>
 
 ## onToolsAdded()
 
@@ -1225,35 +1271,21 @@ title = await page.evaluate("document.title", result_type=str)
   The operation result.
 </ResponseField>
 
-## on()
+## on_console()
 
-Subscribe to console messages or uncaught JavaScript exceptions from this page and its
-page-owned sessions, including out-of-process iframes. Stagehand delivers each event using the
-underlying CDP event envelope: `"console"` delivers `"Runtime.consoleAPICalled"`, and
-`"pageerror"` delivers `"Runtime.exceptionThrown"`.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```python
 async def handle_console(event: PageCDPEvent) -> None:
     print(event.method, event.params)
 
-subscription = await page.on("console", handle_console)
+subscription = await page.on_console(handle_console)
 await page.evaluate('console.log("ready")')
 await subscription.unsubscribe()
-
-def handle_page_error(event: PageCDPEvent) -> None:
-    print(event.params["exceptionDetails"])
-
-errors = await page.on("pageerror", handle_page_error)
 ```
 
-<ParamField path="event" type="PageEventName">
-  The event name: `"console"` or `"pageerror"`. A `"pageerror"` listener receives uncaught
-  exceptions and unhandled promise rejections thrown after it subscribes; `params` holds the CDP
-  `timestamp` and `exceptionDetails`. Exceptions that an out-of-process iframe throws before
-  Stagehand adopts its session are not delivered.
-</ParamField>
-
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A sync or async callback that receives the event method, raw parameters, session
   ID, target ID, and page ID. Async callbacks may overlap and are not awaited by
   later page calls.
@@ -1268,6 +1300,65 @@ errors = await page.on("pageerror", handle_page_error)
 `await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
+## on()
+
+Subscribe to uncaught JavaScript exceptions from this page and its page-owned sessions,
+including out-of-process iframes. `page.on("pageerror", listener)` delivers each exception and
+unhandled promise rejection using the underlying `"Runtime.exceptionThrown"` event envelope.
+
+<Warning>
+  `page.on("console", listener)` is deprecated: use [`page.on_console(listener)`](#on_console)
+  instead. It remains available for backward compatibility, with the same callback payload,
+  behavior, and subscription handle.
+</Warning>
+
+```python
+def handle_page_error(event: PageCDPEvent) -> None:
+    print(event.params["exceptionDetails"])
+
+subscription = await page.on("pageerror", handle_page_error)
+await subscription.unsubscribe()
+```
+
+<ParamField path="event" type="PageEventName">
+  The event name: `"pageerror"`, or the deprecated `"console"`. A `"pageerror"` listener
+  receives uncaught exceptions and unhandled promise rejections thrown after it subscribes;
+  `params` holds the CDP `timestamp` and `exceptionDetails`. Exceptions that an out-of-process
+  iframe throws before Stagehand adopts its session are not delivered.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A synchronous or asynchronous callback that receives the event method, raw parameters,
+  session ID, target ID, and page ID; the same callback accepted by
+  [`on_console()`](#on_console).
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
+
+## on_response()
+
+Subscribe to future response headers from this page and its child frames. The callback
+receives a [Response](/v4/reference/response); body methods await completion. Subscriptions
+remain active across navigation and do not replay previous responses.
+
+```python
+async def handle_response(response):
+    if "/api/orders" in response.url and response.ok:
+        print(await response.json())
+
+subscription = await page.on_response(handle_response)
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A synchronous or asynchronous callback accepting a `Response`.
+</ParamField>
+<ResponseField name="result" type="CDPSubscription">
+  A subscription whose `unsubscribe()` method stops future callbacks.
+</ResponseField>
 
 ## on_tools_added()
 

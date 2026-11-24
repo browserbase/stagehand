@@ -99,6 +99,12 @@ import type {
   LocatorIsCheckedResultSchema,
   LocatorIsVisibleResultSchema,
   LocatorSchema,
+  LocatorQuerySelectorSchema,
+  LocatorQueryStepSchema,
+  LocatorFrameStepSchema,
+  LocatorNthStepSchema,
+  LocatorStepSchema,
+  LocatorChainSchema,
   LocatorScrollToParamsSchema,
   LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
@@ -173,6 +179,7 @@ import type {
   PageEventNotificationSchema,
   PageToolsAddedNotificationSchema,
   PageToolsRemovedNotificationSchema,
+  PageResponseNotificationSchema,
   WebMCPToolIdentitySchema,
   PageLocatorSchema,
   PageNavigationResultSchema,
@@ -263,6 +270,12 @@ export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
 export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
+export type LocatorQuerySelector = z.infer<typeof LocatorQuerySelectorSchema>;
+export type LocatorQueryStep = z.infer<typeof LocatorQueryStepSchema>;
+export type LocatorFrameStep = z.infer<typeof LocatorFrameStepSchema>;
+export type LocatorNthStep = z.infer<typeof LocatorNthStepSchema>;
+export type LocatorStep = z.infer<typeof LocatorStepSchema>;
+export type LocatorChain = z.infer<typeof LocatorChainSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;
 export type StagehandMetrics = z.infer<typeof StagehandMetricsSchema>;
 export type CallbackBatchOptions = z.infer<typeof CallbackBatchOptionsSchema>;
@@ -328,6 +341,7 @@ export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageSubscriptionEventName = z.infer<typeof PageSubscriptionEventNameSchema>;
 export type PageEventNotification = z.infer<typeof PageEventNotificationSchema>;
 export type PageToolsAddedNotification = z.infer<typeof PageToolsAddedNotificationSchema>;
+export type PageResponseNotification = z.infer<typeof PageResponseNotificationSchema>;
 export type PageToolsRemovedNotification = z.infer<typeof PageToolsRemovedNotificationSchema>;
 export type WebMCPToolIdentity = z.infer<typeof WebMCPToolIdentitySchema>;
 export type PageCDPEventMethod = z.infer<typeof PageCDPEventMethodSchema>;

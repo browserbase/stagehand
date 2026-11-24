@@ -1854,6 +1854,19 @@ class PageReloadParams(WireModel):
     options: Optional[PageReloadOptions] = None
 
 
+class PageResponseNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["response"]
+    response: NavigationResponseDescriptor
+
+
 class PageScreenshotClip(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1968,9 +1981,10 @@ class PageSnapshotParams(WireModel):
 
 class PageSubscriptionEventName(StrEnum):
     console = "console"
-    pageerror = "pageerror"
     toolsadded = "toolsadded"
     toolsremoved = "toolsremoved"
+    response = "response"
+    pageerror = "pageerror"
 
 
 class PageTitleResult(RootModel[StrictStr]):
@@ -2004,9 +2018,9 @@ class PageToolsRemovedNotification(WireModel):
 
 
 class PageEventNotification(
-    RootModel[Union[PageToolsAddedNotification, PageToolsRemovedNotification]]
+    RootModel[Union[PageToolsAddedNotification, PageToolsRemovedNotification, PageResponseNotification]]
 ):
-    root: Union[PageToolsAddedNotification, PageToolsRemovedNotification]
+    root: Union[PageToolsAddedNotification, PageToolsRemovedNotification, PageResponseNotification]
 
 
 class PageTypeOptions(WireModel):

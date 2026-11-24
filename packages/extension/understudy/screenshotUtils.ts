@@ -426,7 +426,7 @@ async function resolveMaskRects(
   const resolved = await locator.resolveNodesForMask(progress);
   const rects: Array<ScreenshotClip & { rootToken?: string | null }> = [];
   try {
-    for (const { objectId } of resolved) {
+    for (const { objectId } of resolved.nodes) {
       progress.throwIfStopped();
       try {
         const rect = await resolveMaskRectForObject(session, objectId, maskToken);
@@ -438,12 +438,8 @@ async function resolveMaskRects(
     }
     return rects;
   } finally {
-    // Release every resolved handle, including elements skipped after expiry.
-    await Promise.all(
-      resolved.map(({ objectId }) =>
-        session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
-      ),
-    );
+    // Includes the result array and nodes skipped after expiry.
+    await resolved.release();
   }
 }
 

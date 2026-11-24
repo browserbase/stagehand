@@ -1,5 +1,6 @@
+/* oxlint-disable no-console -- Browser-side console calls are part of the behavior under test. */
 import { afterEach, describe, expect, it } from "vitest";
-import type { PageCDPEvent, Stagehand } from "../../src/index.js";
+import type { PageCDPEvent, Response, Stagehand } from "../../src/index.js";
 import {
   closeStagehand,
   createStagehand,
@@ -120,5 +121,72 @@ describe('page.on("pageerror")', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(events).toHaveLength(countAfterUnsubscribe);
     await control.unsubscribe();
+  }, 60_000);
+
+  it("keeps console, pageerror and response callbacks independent on one page", async () => {
+    fixture = await startFixtureServer({
+      "/": "<!doctype html><title>Page event coexistence</title>",
+      "/data": { headers: { "content-type": "application/json" }, body: '{"ok":true}' },
+    });
+    stagehand = await createStagehand();
+    const page = await firstPage(stagehand);
+    await page.goto(fixture.url, { waitUntil: "load" });
+
+    const consoleEvents: PageCDPEvent[] = [];
+    const legacyConsoleEvents: PageCDPEvent[] = [];
+    const pageErrors: PageCDPEvent[] = [];
+    const responses: Response[] = [];
+    const consoleSubscription = await page.onConsole((event) => consoleEvents.push(event));
+    const legacyConsoleSubscription = await page.on("console", (event) =>
+      legacyConsoleEvents.push(event),
+    );
+    const pageErrorSubscription = await page.on("pageerror", (event) => pageErrors.push(event));
+    const responseSubscription = await page.onResponse((response) => responses.push(response));
+    const logged = (text: string) =>
+      consoleEvents.some((event) => JSON.stringify(event.params).includes(text));
+    const dataResponses = () => responses.filter((response) => response.url().includes("/data"));
+
+    try {
+      await page.evaluate(() => {
+        console.log("coexist log");
+        setTimeout(() => {
+          throw new Error("coexist boom");
+        });
+        return fetch("/data").then((response) => response.text());
+      });
+      await expect
+        .poll(() => pageErrors.map(describeException).join("\n"), { timeout: 10_000 })
+        .toContain("coexist boom");
+      await expect.poll(() => logged("coexist log"), { timeout: 10_000 }).toBe(true);
+      await expect.poll(() => dataResponses().length, { timeout: 10_000 }).toBe(1);
+      expect(await dataResponses()[0]!.json()).toEqual({ ok: true });
+
+      expect(pageErrors).toHaveLength(1);
+      expect(pageErrors[0]!.method).toBe("Runtime.exceptionThrown");
+      expect(consoleEvents.every((event) => event.method === "Runtime.consoleAPICalled")).toBe(
+        true,
+      );
+      expect(consoleEvents.some((event) => describeException(event).includes("boom"))).toBe(false);
+      expect(legacyConsoleEvents).toEqual(consoleEvents);
+
+      // Removing the pageerror subscription leaves console and response delivery intact.
+      await pageErrorSubscription.unsubscribe();
+      await page.evaluate(() => {
+        setTimeout(() => {
+          throw new Error("unobserved boom");
+        });
+        setTimeout(() => console.log("after unobserved boom"), 50);
+        return fetch("/data?again").then((response) => response.text());
+      });
+      await expect.poll(() => logged("after unobserved boom"), { timeout: 10_000 }).toBe(true);
+      await expect.poll(() => dataResponses().length, { timeout: 10_000 }).toBe(2);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(pageErrors).toHaveLength(1);
+    } finally {
+      await consoleSubscription.unsubscribe();
+      await legacyConsoleSubscription.unsubscribe();
+      await pageErrorSubscription.unsubscribe();
+      await responseSubscription.unsubscribe();
+    }
   }, 60_000);
 });

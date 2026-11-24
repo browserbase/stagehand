@@ -23,7 +23,6 @@ const cloudCommandsWithExamples = [
   ["cloud", "contexts", "add"],
   ["cloud", "contexts", "list"],
   ["cloud", "contexts", "get"],
-  ["cloud", "contexts", "update"],
   ["cloud", "contexts", "delete"],
   ["cloud", "extensions", "upload"],
   ["cloud", "extensions", "get"],
@@ -62,6 +61,7 @@ describe("CLI surface", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("$ browse");
     expect(result.stdout).toContain("cloud");
+    expect(result.stdout).toContain("discord");
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
     expect(result.stdout).toContain("skills");
@@ -88,6 +88,24 @@ describe("CLI surface", () => {
     expect(result.stdout).not.toContain("Start here (for AI agents):");
   });
 
+  it("shows community footer on root help", async () => {
+    const helpResult = await runCli(["--help"]);
+    const bareResult = await runCli([]);
+
+    for (const result of [helpResult, bareResult]) {
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("COMMUNITY");
+      expect(result.stdout).toContain("Discord:");
+      expect(result.stdout).toContain("Report a bug:");
+    }
+  });
+
+  it("does not show community footer on subcommand help", async () => {
+    const result = await runCli(["open", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("COMMUNITY");
+  });
+
   it("prints cloud topic help", async () => {
     const result = await runCli(["cloud", "--help"]);
     expect(result.exitCode).toBe(0);
@@ -111,11 +129,13 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("EXAMPLES");
   });
 
-  it("shows --verified and hides --advanced-stealth for sessions create", async () => {
+  it("shows public settings and hides --advanced-stealth for sessions create", async () => {
     const result = await runCli(["cloud", "sessions", "create", "--help"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--verified");
+    expect(result.stdout).toContain("--size");
+    expect(result.stdout).toMatch(/"regular",\s+"large",\s+"xlarge"/);
     expect(result.stdout).not.toContain("--advanced-stealth");
   });
 
@@ -167,5 +187,11 @@ describe("CLI surface", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("DESCRIPTION");
     expect(result.stdout).toContain("EXAMPLES");
+  });
+
+  it("rejects removed contexts update command", async () => {
+    const result = await runCli(["cloud", "contexts", "update", "test-id"]);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatch(/command.+not found|unknown command/i);
   });
 });

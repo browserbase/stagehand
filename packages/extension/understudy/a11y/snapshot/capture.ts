@@ -547,16 +547,18 @@ async function resolveIgnoredNodesInFrame(
   const frame = new Frame(session, frameId, "", false, page.logger);
   // An unavailable ignore locator can be skipped; progress still enforces expiry.
   const resolver = new FrameSelectorResolver(frame, { readinessRetries: "none" });
-  const resolvedNodes =
-    nth === undefined
-      ? await resolver.resolveAll(query, {}, progress)
-      : [await resolver.resolveAtIndex(query, nth, progress)].filter(
-          (node): node is ResolvedNode => !!node,
-        );
-  if (!resolvedNodes.length) return [];
-
-  const backendNodeIds = await describeResolvedNodes(session, resolvedNodes, progress);
-  return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+  const batch = await resolver.resolveAll(
+    query,
+    nth === undefined ? {} : { start: nth, limit: 1 },
+    progress,
+  );
+  try {
+    const backendNodeIds = await describeResolvedNodes(session, batch.nodes, progress);
+    return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+  } finally {
+    await batch.release();
+    progress?.throwIfStopped();
+  }
 }
 
 async function describeResolvedNodes(
@@ -566,29 +568,14 @@ async function describeResolvedNodes(
 ): Promise<number[]> {
   const backendNodeIds = new Set<number>();
 
-  try {
-    for (const resolvedNode of resolvedNodes) {
-      const desc = await runLocatorStep(progress, "reading ignored snapshot nodes", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-          objectId: resolvedNode.objectId,
-        }),
-      );
-      const backendNodeId = desc.node.backendNodeId;
-      if (typeof backendNodeId === "number") {
-        backendNodeIds.add(backendNodeId);
-      }
-    }
-  } finally {
-    const release = () =>
-      Promise.all(
-        resolvedNodes.map((resolvedNode) =>
-          session
-            .send("Runtime.releaseObject", { objectId: resolvedNode.objectId })
-            .catch(() => {}),
-        ),
-      );
-    if (progress) await progress.cleanup(release);
-    else await release();
+  for (const resolvedNode of resolvedNodes) {
+    const desc = await runLocatorStep(progress, "reading ignored snapshot nodes", () =>
+      session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
+        objectId: resolvedNode.objectId,
+      }),
+    );
+    const backendNodeId = desc.node.backendNodeId;
+    if (typeof backendNodeId === "number") backendNodeIds.add(backendNodeId);
   }
 
   progress?.throwIfStopped();

@@ -1,7 +1,11 @@
+import vm from "node:vm";
 import type { Protocol } from "devtools-protocol";
 import { describe, expect, it } from "vitest";
 import type { CDPSessionLike } from "../understudy/cdp.js";
-import { ExecutionContextRegistry } from "../understudy/executionContextRegistry.js";
+import {
+  ExecutionContextRegistry,
+  STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION,
+} from "../understudy/executionContextRegistry.js";
 
 class FakeSession implements CDPSessionLike {
   readonly id = "session-a";
@@ -105,6 +109,34 @@ describe("ExecutionContextRegistry", () => {
     });
     expect(registry.getMainWorld(session, "frame-a")).toBe(1);
     expect(registry.getExtensionWorld(session, "frame-a")).toBe(7);
+  });
+
+  it("rejects a world left behind by an unloaded copy of the extension", async () => {
+    const world = (runtime: object) =>
+      vm.createContext({
+        __stagehandExtensionWorld: { name: "stagehand", version: "stagehand.v4" },
+        chrome: { dom: { openOrClosedShadowRoot: () => null }, runtime },
+      });
+
+    expect(
+      vm.runInContext(STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION, world({ id: "stagehand" })),
+    ).toBe(true);
+    expect(vm.runInContext(STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION, world({}))).toBe(false);
+
+    const leftover = world({});
+    const session = new FakeSession();
+    session.send = async <R>(_method: string, params?: object) =>
+      ({
+        result: { value: vm.runInContext((params as { expression: string }).expression, leftover) },
+      }) as R;
+    await expect(
+      new ExecutionContextRegistry().inspectExtensionWorld(session, 7),
+    ).resolves.toStrictEqual({
+      ready: false,
+      marker: true,
+      domApi: "function",
+      runtimeId: "undefined",
+    });
   });
 
   it("selects the main context on the packaged extension blank page", async () => {

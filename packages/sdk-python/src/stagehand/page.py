@@ -52,6 +52,7 @@ from ._generated.models import (
     PageRef,
     PageReloadOptions,
     PageReloadParams,
+    PageResponseNotification,
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
@@ -94,6 +95,8 @@ from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+ConsoleListener = PageEventListener
+ResponseListener = Callable[[Response], object | Awaitable[object]]
 ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
@@ -413,20 +416,45 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
-        """Subscribe to raw CDP events from this page and its page-owned (OOPIF) sessions.
+        """Subscribe to page events from this page and its page-owned (OOPIF) sessions.
 
-        ``"console"`` delivers ``Runtime.consoleAPICalled`` events. ``"pageerror"`` delivers
-        ``Runtime.exceptionThrown`` events for uncaught exceptions and unhandled promise
-        rejections; ``event.params["exceptionDetails"]`` holds the CDP exception details.
+        ``"pageerror"`` delivers raw ``Runtime.exceptionThrown`` events for uncaught exceptions
+        and unhandled promise rejections; ``event.params["exceptionDetails"]`` holds the CDP
+        exception details.
+
+        Deprecated for ``"console"``: use on_console(listener) instead.
         """
-        if event not in ("console", "pageerror"):
-            raise ValueError('page.on only supports "console" and "pageerror" events')
+        if event == "console":
+            return await self.on_console(listener)
+        if event == "pageerror":
+            return await self._subscribe_cdp_event(event, listener)
+        raise ValueError('page.on only supports "console" and "pageerror" events')
+
+    async def on_console(self, listener: ConsoleListener) -> CDPSubscription:
+        """Subscribe to console messages from this page and its page-owned sessions."""
+        return await self._subscribe_cdp_event("console", listener)
+
+    async def _subscribe_cdp_event(
+        self,
+        event: PageEventName,
+        listener: PageEventListener,
+    ) -> CDPSubscription:
         return await self._subscribe(
             event,
             "page.cdp_event",
             PageCDPEventNotification,
             lambda notification: listener(notification.event),
         )
+
+    async def on_response(self, listener: ResponseListener) -> CDPSubscription:
+        """Observe future response headers; body methods wait for completion."""
+
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            if isinstance(notification.root, PageResponseNotification):
+                return listener(Response(self._rpc_client, notification.root.response))
+            return None
+
+        return await self._subscribe("response", "page.event", PageEventNotification, deliver)
 
     async def on_tools_added(self, listener: ToolsAddedListener) -> CDPSubscription:
         def deliver(notification: PageEventNotification) -> object | Awaitable[object]:

@@ -247,7 +247,7 @@ async def test_page_pdf_preserves_omitted_and_empty_options(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("event", ["toolsadded", "toolsremoved", "unknown", ""])
+@pytest.mark.parametrize("event", ["response", "toolsadded", "toolsremoved", "unknown", ""])
 async def test_page_on_rejects_unsupported_events_before_subscribing(event: str) -> None:
     recording = RecordingRPCClient({})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -259,12 +259,17 @@ async def test_page_on_rejects_unsupported_events_before_subscribing(event: str)
 
 
 @pytest.mark.asyncio
-async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> None:
+@pytest.mark.parametrize("method", ["on", "on_console"])
+async def test_page_on_delivers_canonical_console_events_and_unsubscribes(method: str) -> None:
     recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     events = []
 
-    subscription = await page.on("console", events.append)
+    subscription = (
+        await page.on("console", events.append)
+        if method == "on"
+        else await page.on_console(events.append)
+    )
     _, on_params, _ = recording.calls[0]
     assert isinstance(on_params, PageOnParams)
     _, raw_listener = recording.notifications["page.cdp_event"]
@@ -366,6 +371,33 @@ async def test_page_on_pageerror_delivers_exception_events_and_unsubscribes() ->
 
 
 @pytest.mark.asyncio
+async def test_console_pageerror_and_response_subscriptions_request_their_own_events() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    subscriptions = [
+        await page.on_console(lambda _: None),
+        await page.on("console", lambda _: None),
+        await page.on("pageerror", lambda _: None),
+        await page.on_response(lambda _: None),
+    ]
+
+    on_params = [cast(PageOnParams, params) for _, params, _ in recording.calls]
+    assert [params.event.value for params in on_params] == [
+        "console",
+        "console",
+        "pageerror",
+        "response",
+    ]
+    assert len({params.subscription_id for params in on_params}) == 4
+    for subscription in subscriptions:
+        await subscription.unsubscribe()
+    assert [params for _, params, _ in recording.calls[4:]] == [
+        PageOffParams(subscription_id=params.subscription_id) for params in on_params
+    ]
+
+
+@pytest.mark.asyncio
 async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
     recording = RecordingRPCClient({
         "page.on": {"ok": True},
@@ -462,7 +494,7 @@ async def test_tools_removed_delivers_identities_without_wrappers() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed"])
+@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed", "on_response"])
 async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
     recording = RecordingRPCClient({
         "page.on": RuntimeError("registration failed"),
@@ -475,7 +507,9 @@ async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed"])
+@pytest.mark.parametrize(
+    "method", ["on", "on_console", "on_tools_added", "on_tools_removed", "on_response"]
+)
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 @pytest.mark.parametrize("failure_kind", ["cancellation", "timeout", "remote_error"])
 async def test_unsuccessful_registration_unsubscribes_remotely(
@@ -1059,3 +1093,44 @@ async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -
     with pytest.raises(ValidationError):
         await page.snapshot(timeout=timeout)
     assert not recording.calls
+
+
+@pytest.mark.asyncio
+async def test_on_response_delivers_response_objects_and_filters_subscription_ids() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": {"ok": True},
+        "response.body": {"body": "eyJvayI6dHJ1ZX0=", "base64_encoded": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[Response] = []
+    subscription = await page.on_response(received.append)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    assert params.event.value == "response"
+    _, raw_listener = recording.notifications["page.event"]
+    listener = cast(Callable[[PageEventNotification], Awaitable[None]], raw_listener)
+    payload = {
+        "event": "response",
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "response": {
+            "response_id": "response-1",
+            "url": "https://example.test/api",
+            "status": 200,
+            "status_text": "OK",
+            "headers": {},
+            "from_service_worker": False,
+        },
+    }
+    await listener(PageEventNotification.model_validate({**payload, "subscription_id": "other"}))
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert len(received) == 1
+    assert isinstance(received[0], Response)
+    assert received[0].status == 200
+    assert await received[0].json() == {"ok": True}
+    await subscription.unsubscribe()
+    assert "page.event" not in recording.notifications
