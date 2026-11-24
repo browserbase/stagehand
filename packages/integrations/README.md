@@ -19,6 +19,7 @@ else, never restated.
 | `fx/`          | fx configuration templates and skill (fx consumes the facade via its user-global MCP config), plus the fx harness adapter used by evals.                                                                                                            |
 | `mastra/`      | Mastra example over MCP/stdio via `runMastraSession`, plus the Mastra harness adapter (session library) used by evals (`--harness mastra`).                                                                                                         |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                                                                                        |
+| `pydantic-ai/` | Python Pydantic AI example with native tools from `stagehand-middleware`, plus the Pydantic AI harness adapter used by evals.                                                                                                                       |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                                                                                         |
 
 Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —

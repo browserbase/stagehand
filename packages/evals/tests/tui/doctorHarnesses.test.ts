@@ -94,6 +94,7 @@ describe("buildHarnessMatrix", () => {
       "pi",
       "eve",
       "deepagents",
+      "pydantic_ai",
       "claude_cua",
       "gemini_cua",
     ]);
@@ -101,6 +102,20 @@ describe("buildHarnessMatrix", () => {
     const cursor = await buildHarnessMatrix(options({ requested: ["cursor", "codex"] }));
     expect(cursor.harnesses.map((row) => row.harness)).toEqual(["codex"]);
     expect(cursor.skipped).toEqual(["cursor"]);
+  });
+
+  it("checks the uv executable configured for Pydantic AI", async () => {
+    const matrix = await buildHarnessMatrix(
+      options({
+        requested: ["pydantic_ai"],
+        env: { STAGEHAND_PYDANTIC_AI_UV: "custom-uv" },
+        which: (binary) => (binary === "custom-uv" ? "/custom/bin/uv" : undefined),
+      }),
+    );
+    expect(matrix.harnesses[0].binary).toMatchObject({ status: "ok", label: "uv" });
+    expect(matrix.harnesses[0].extra.fix).toBe(
+      "uv sync --project packages/integrations/pydantic-ai --locked",
+    );
   });
 
   it("reports missing keys and binaries with the exact fix, without network", async () => {
