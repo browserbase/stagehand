@@ -135,6 +135,7 @@ function harness(
         status: "Completed",
         output: { ok: true },
       }),
+      cancelWebMCPInvocation: async () => {},
     },
     ...overrides,
   };
@@ -321,6 +322,41 @@ describe("the decision model WebMCP tool act", () => {
     };
     const outcome = await runDecisionsAct(config, h.deps);
     expect(outcome).toMatchObject({ kind: "done", result: { success: false } });
+  });
+
+  it("cancels a tool call that timed out and says it may still have run", async () => {
+    const timedOut = async (): Promise<never> => {
+      throw new Error('Timed out waiting for WebMCP tool "clear_cart" after 30000ms.');
+    };
+    stubDecisions({ tool: "clear_cart" });
+    const h = harness("empty my cart");
+    const cancel = vi.fn(async (_invocationId: string) => {});
+    h.webmcp.page.cancelWebMCPInvocation = cancel;
+    h.webmcp.page.waitForWebMCPInvocationResult = timedOut;
+    const outcome = await runDecisionsAct(config, h.deps);
+    expect(cancel.mock.calls).toEqual([["inv-1"]]);
+    expect(outcome).toMatchObject({
+      kind: "done",
+      result: {
+        success: false,
+        message:
+          'Failed to invoke WebMCP tool clear_cart: Timed out waiting for WebMCP tool "clear_cart" after 30000ms. The tool may still have run.',
+      },
+    });
+
+    stubDecisions({ tool: "clear_cart" });
+    const refused = harness("empty my cart");
+    refused.webmcp.page.cancelWebMCPInvocation = async () => {
+      throw new Error("session closed");
+    };
+    refused.webmcp.page.waitForWebMCPInvocationResult = timedOut;
+    expect(await runDecisionsAct(config, refused.deps)).toEqual(outcome);
+
+    stubDecisions({ tool: "clear_cart" });
+    const answered = harness("empty my cart");
+    answered.webmcp.page.cancelWebMCPInvocation = cancel;
+    await runDecisionsAct(config, answered.deps);
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it("reports what the tool threw when the response carries only an exception", async () => {

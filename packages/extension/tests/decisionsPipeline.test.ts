@@ -294,7 +294,11 @@ describe("decisions act pipeline", () => {
       tools: Promise.resolve([
         { name: "add_to_cart", description: "Add the product to the cart", frameId: "main" },
       ]),
-      page: { invokeWebMCPTool, waitForWebMCPInvocationResult: vi.fn() },
+      page: {
+        invokeWebMCPTool,
+        waitForWebMCPInvocationResult: vi.fn(),
+        cancelWebMCPInvocation: vi.fn(),
+      },
     };
     const answers = {
       family: choice("click"),
