@@ -39,6 +39,7 @@ catalog:
   tsdown: 0.22.3
   vite: 8.1.7
   vitest: 4.1.12
+  fast-check: 4.11.0
   zod: 4.6.6
   devtools-protocol: ^0.0.1740066
   ai: ^7.0.155

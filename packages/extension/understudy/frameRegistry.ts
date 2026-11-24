@@ -83,27 +83,35 @@ export class FrameRegistry {
    * The provided `sessionId` is the selected **owner** for the new/attached frame.
    */
   onFrameAttached(frameId: FrameId, parentId: FrameId | null, sessionId: SessionId): void {
-    // Root swap (parentId === null for main frames).
     if (!parentId && frameId !== this.rootFrameId) {
       this.renameNodeId(this.rootFrameId, frameId);
       this.rootFrameId = frameId;
-      // ownership moves to this session as well
       this.setOwnerSessionIdInternal(frameId, sessionId);
       return;
     }
 
-    // Normal attach
     this.ensureNode(frameId);
     if (parentId) this.ensureNode(parentId);
 
     const info = this.frames.get(frameId)!;
-    info.parentId = parentId ?? null;
-
-    if (parentId) {
-      this.frames.get(parentId)!.children.add(frameId);
+    const nextParent = parentId ?? null;
+    if (
+      nextParent &&
+      (frameId === this.rootFrameId || this.isDescendantOrSelf(nextParent, frameId))
+    ) {
+      this.setOwnerSessionIdInternal(frameId, sessionId);
+      return;
     }
 
-    // Ownership: use the session selected by the event bridge.
+    if (info.parentId && info.parentId !== nextParent) {
+      this.frames.get(info.parentId)?.children.delete(frameId);
+    }
+    info.parentId = nextParent;
+
+    if (nextParent) {
+      this.frames.get(nextParent)!.children.add(frameId);
+    }
+
     this.setOwnerSessionIdInternal(frameId, sessionId);
   }
 
@@ -112,21 +120,39 @@ export class FrameRegistry {
    * session id. Handles root swap if the navigated frame is the new main (no parentId).
    */
   onFrameNavigated(frame: Protocol.Page.Frame, sessionId: SessionId): void {
-    this.ensureNode(frame.id);
-    const info = this.frames.get(frame.id)!;
-    info.lastSeen = frame;
+    const parentId = frame.parentId || null;
 
-    // Ownership follows the session that reported the navigation
-    this.setOwnerSessionIdInternal(frame.id, sessionId);
-
-    // If this frame has no parent, it might be the (new) main/root
-    if (!("parentId" in frame) || !frame.parentId) {
+    if (!parentId) {
       if (frame.id !== this.rootFrameId) {
-        // carry ordinal semantics by renaming the root id
         this.renameNodeId(this.rootFrameId, frame.id);
         this.rootFrameId = frame.id;
       }
+      this.ensureNode(frame.id);
+      const info = this.frames.get(frame.id)!;
+      info.lastSeen = frame;
+      this.setOwnerSessionIdInternal(frame.id, sessionId);
+      return;
     }
+
+    if (!this.frames.has(parentId)) {
+      const existing = this.frames.get(frame.id);
+      if (!existing) return;
+      existing.lastSeen = frame;
+      this.setOwnerSessionIdInternal(frame.id, sessionId);
+      return;
+    }
+
+    this.ensureNode(frame.id);
+    const info = this.frames.get(frame.id)!;
+    if (frame.id !== this.rootFrameId && !this.isDescendantOrSelf(parentId, frame.id)) {
+      if (info.parentId && info.parentId !== parentId) {
+        this.frames.get(info.parentId)?.children.delete(frame.id);
+      }
+      info.parentId = parentId;
+      this.frames.get(parentId)!.children.add(frame.id);
+    }
+    info.lastSeen = frame;
+    this.setOwnerSessionIdInternal(frame.id, sessionId);
   }
 
   onNavigatedWithinDocument(frameId: FrameId, url: string, sessionId: SessionId): void {
@@ -323,32 +349,73 @@ export class FrameRegistry {
     });
   }
 
+  private isDescendantOrSelf(candidateId: FrameId, ancestorId: FrameId): boolean {
+    let current: FrameId | null = candidateId;
+    const seen = new Set<FrameId>();
+    while (current !== null && !seen.has(current)) {
+      if (current === ancestorId) return true;
+      seen.add(current);
+      current = this.frames.get(current)?.parentId ?? null;
+    }
+    return false;
+  }
+
   renameNodeId(oldId: FrameId, newId: FrameId): void {
     if (oldId === newId) return;
     this.ensureNode(oldId);
 
     const info = this.frames.get(oldId)!;
+    const existingTarget = this.frames.get(newId);
 
-    // Move info under new id
+    if (existingTarget) {
+      if (existingTarget.parentId) {
+        this.frames.get(existingTarget.parentId)?.children.delete(newId);
+      }
+      if (existingTarget.ownerSessionId) {
+        const existingBag = this.framesBySession.get(existingTarget.ownerSessionId);
+        existingBag?.delete(newId);
+        if (existingBag && existingBag.size === 0) {
+          this.framesBySession.delete(existingTarget.ownerSessionId);
+        }
+      }
+    }
+
+    const nextParentId =
+      info.parentId === newId ? (existingTarget?.parentId ?? null) : info.parentId;
+    const movedChildren = new Set<FrameId>();
+    for (const childId of info.children) {
+      if (childId !== oldId && childId !== newId) {
+        movedChildren.add(childId);
+      }
+    }
+    if (existingTarget) {
+      for (const childId of existingTarget.children) {
+        if (childId !== oldId && childId !== newId) {
+          movedChildren.add(childId);
+        }
+      }
+    }
+
     this.frames.delete(oldId);
-    this.frames.set(newId, { ...info });
+    this.frames.set(newId, {
+      ...info,
+      parentId: nextParentId,
+      children: movedChildren,
+    });
 
-    // Fix parent’s children set
-    if (info.parentId) {
-      const p = this.frames.get(info.parentId);
+    if (nextParentId) {
+      const p = this.frames.get(nextParentId);
       if (p) {
         p.children.delete(oldId);
         p.children.add(newId);
       }
     }
 
-    // Fix children’s parent pointers
-    for (const c of info.children) {
+    for (const c of movedChildren) {
       const ci = this.frames.get(c);
       if (ci) ci.parentId = newId;
     }
 
-    // Fix inverse map (session -> frames)
     if (info.ownerSessionId) {
       const bag = this.framesBySession.get(info.ownerSessionId);
       if (bag) {
@@ -356,8 +423,6 @@ export class FrameRegistry {
         bag.add(newId);
       }
     }
-
-    // If root moved, keep the root id updated is handled by caller
   }
 
   setOwnerSessionIdInternal(frameId: FrameId, sessionId: SessionId): void {
