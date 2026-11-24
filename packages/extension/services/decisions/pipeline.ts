@@ -105,9 +105,9 @@ export type DecisionsConfig = DecisionModelConfig & {
   observe?: boolean;
   /**
    * Act as soon as the target is there instead of waiting out the DOM-settle
-   * heuristic: pick on an early snapshot, and go when the decision model finds the target,
-   * does not think the page is still loading, and the target is unchanged a
-   * moment later. The settle wait remains the upper bound. Default false.
+   * heuristic: pick on an early snapshot, and go when the decision model finds the target
+   * and it is in place and hittable a moment later. The settle wait bounds that
+   * early look; a covered pointer target is then held up to 1.5 s. Default false.
    */
   targetReadiness?: boolean;
   /**
@@ -136,7 +136,8 @@ export type DecisionsActDeps = {
   takeAction: (action: Action) => Promise<ActResultData>;
   /**
    * Resolves when the DOM has settled. The intent request needs no page, so
-   * it runs while this is pending; nothing reads or touches the page before it.
+   * it runs while this is pending; snapshots and actions wait for it unless
+   * `targetReadiness` lets the act go early.
    */
   settled?: Promise<void>;
   /** Present when `tools` is on and the act is not scoped to a locator. */
@@ -706,27 +707,32 @@ async function runFill(
   const extracting = value === undefined ? extractText(ctx) : undefined;
   if (value === undefined && !extracting) return fallback("fill_no_value");
 
-  const [{ snap, picked }, extracted] = await Promise.all([
-    pickWhenReady(
+  const pick = (candidate: Snapshot): Promise<TargetResult> =>
+    pickTarget(
       ctx,
-      (candidate) =>
-        pickTarget(
-          ctx,
-          "target",
-          candidate,
-          ["input", "broad"],
-          "Which field should the text be entered into?",
-          {
-            quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
-          },
-        ),
-      false,
-      "input",
-    ),
+      "target",
+      candidate,
+      ["input", "broad"],
+      "Which field should the text be entered into?",
+      {
+        quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
+      },
+    );
+  const [early, extracted] = await Promise.all([
+    pickWhenReady(ctx, pick, false, "input"),
     extracting,
   ]);
+  let { snap, picked } = early;
   value ??= extracted ?? undefined;
   if (value === undefined) return fallback("fill_value_not_extracted");
+  if (extracting && ctx.ready && picked.target) {
+    const guard = await staysPut(ctx.deps, snap, picked.target, false);
+    if (guard.verdict !== "ok") {
+      ctx.trace.push({ node: "not_ready", ms: 0, why: guard.verdict, after: "extract_text" });
+      ctx.ready = false;
+      ({ snap, picked } = await pickWhenReady(ctx, pick, false, "input"));
+    }
+  }
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = picked.target;
 
@@ -1024,7 +1030,7 @@ async function waitForChoices(
             .some((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; });
           let frames = 0, done = false;
           const finish = () => { if (!done) { done = true; resolve(true); } };
-          const tick = () => { if (++frames >= 2 && (!${expectChoices} || visible())) finish(); else requestAnimationFrame(tick); };
+          const tick = () => { if (done) return; if (++frames >= 2 && (!${expectChoices} || visible())) finish(); else requestAnimationFrame(tick); };
           requestAnimationFrame(tick);
           setTimeout(finish, cap);
         })`,

@@ -20,7 +20,7 @@ const RESULT_MESSAGE_CHARS = 2_000;
 export type ToolInput = Record<string, JsonValue>;
 
 export type DecisionsToolDeps = {
-  page: Pick<Page, "invokeWebMCPTool" | "waitForWebMCPInvocationResult">;
+  page: Pick<Page, "invokeWebMCPTool" | "waitForWebMCPInvocationResult" | "cancelWebMCPInvocation">;
   /**
    * The page's tools. A promise, so the listing overlaps whatever the caller
    * was already waiting for; empty on browsers without the WebMCP domain.
@@ -46,11 +46,16 @@ export async function invokeTool(
   // act, never a reason to go and click through the UI as well.
   const response = await deps.page
     .waitForWebMCPInvocationResult(invocation.invocationId, { timeout: RESULT_TIMEOUT_MS })
-    .catch((error: unknown) => ({
-      status: "Error" as const,
-      output: undefined,
-      errorText: error instanceof Error ? error.message : String(error),
-    }));
+    .catch((error: unknown) => {
+      void deps.page.cancelWebMCPInvocation(invocation.invocationId).catch(() => {});
+      const text = error instanceof Error ? error.message : String(error);
+      return {
+        status: "Error" as const,
+        output: undefined,
+        errorText: `${text}${text.endsWith(".") ? "" : "."} The tool may still have run.`,
+        exception: undefined,
+      };
+    });
   trace.push({
     node: "tool_invoke",
     ms: Math.round(performance.now() - started),
@@ -62,11 +67,12 @@ export async function invokeTool(
   // The tool may echo what it was given; the message goes to the caller and
   // the logs, so resolved %variable% values are put back behind their names.
   const redact = redactor(variables) ?? ((text: string) => text);
+  const thrown = response.exception?.description;
   const detail = success
     ? response.output === undefined
       ? ""
       : `: ${redact(JSON.stringify(response.output)).slice(0, RESULT_MESSAGE_CHARS)}`
-    : `: ${redact(response.errorText ?? response.status)}`;
+    : `: ${redact(response.errorText ?? (typeof thrown === "string" ? thrown : response.status)).slice(0, RESULT_MESSAGE_CHARS)}`;
   return {
     success,
     message: `${success ? "Invoked" : "Failed to invoke"} WebMCP tool ${tool.name}${detail}`,

@@ -12,6 +12,7 @@ import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 
 vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   performUnderstudyMethod: vi.fn(),
@@ -762,7 +763,107 @@ describe("act service", () => {
     expect(set).not.toHaveBeenCalled();
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { skipped: "caching is off for the instance", defaultCaching: false, options: undefined },
+    {
+      skipped: "a locator scope bypasses the cache",
+      defaultCaching: true,
+      options: { locator: { selector: "main", nth: 0 } },
+    },
+  ])(
+    "asks the decision model while the DOM settles when $skipped",
+    async ({ defaultCaching, options }) => {
+      expect(await settleOrder(defaultCaching, options)).toEqual(["intent", "settled"]);
+    },
+  );
+
+  it("settles before the cache lookup and the decision model when the cache is read", async () => {
+    expect(await settleOrder(true)).toEqual(["settled", "tree", "cache", "intent"]);
+  });
 });
+
+async function settleOrder(
+  defaultCaching: boolean,
+  options?: { locator: { selector: string; nth: number } },
+): Promise<string[]> {
+  const order: string[] = [];
+  waitForQuiet.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          order.push("settled");
+          resolve();
+        }, 0);
+      }),
+  );
+  const frame = {
+    frameId: "frame-1",
+    getAccessibilityTree: async () => {
+      order.push("tree");
+      return [];
+    },
+  };
+  const page = {
+    mainFrame: () => frame,
+    captureSnapshot: async () => snapshot("0-12", "/html/body/button"),
+    url: () => "https://example.com",
+    frames: () => [frame],
+  } as unknown as Page;
+  const get = async () => {
+    order.push("cache");
+    return { hit: false, cacheKey: "key" };
+  };
+  const set = async () => ({ written: true, cacheKey: "key" });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init: RequestInit) => {
+      order.push("intent");
+      const { questions } = JSON.parse(init.body as string) as {
+        questions: Record<string, { type?: string; criteria?: object | null }>;
+      };
+      const answer = { type: "choice", choice: "unsupported", confidence: 0.2, probabilities: {} };
+      return new Response(
+        JSON.stringify({
+          answers: Object.fromEntries(
+            Object.entries(questions).map(([key, question]) => [
+              key,
+              question.type === "noul"
+                ? { type: "noul", noul: 0 }
+                : realisticAnswer(question, answer),
+            ]),
+          ),
+          usage: { input_tokens: 1 },
+        }),
+      );
+    }),
+  );
+  try {
+    const result = await actService.act({
+      params: { pageId: "page-1", instruction: "Click submit", ...(options ? { options } : {}) },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate: async () =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+      logger: testLogger(),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching,
+      },
+      decisions: { apiKey: "test" },
+    });
+    expect(result.data.success).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  return order;
+}
 
 function actGeneration(
   action: Record<string, string | string[]> | null,

@@ -61,10 +61,13 @@ real services.
 | No target      | the decision model, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets the decision model's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
 Steps that do not depend on each other overlap: the intent request needs no page, so it is asked
-while `act()` waits for the DOM to settle (a fixed 500 ms quiet window at minimum), and nothing
-reads or touches the page before that wait is over; `observe()` asks its intent while the snapshot
-is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start of
-`act()`, settle included).
+while `act()` waits for the DOM to settle (500 ms of network quiet, or `domSettleTimeoutMs` if that
+comes first). With `tools: true` the page's tool list is read during that wait; snapshots, actions
+and tool calls come after it, except with `targetReadiness` (below), where the first snapshot is
+captured during the wait and a click, hover or fill can go ahead before it ends. An act that reads
+the cache settles before the lookup, so only acts that skip it (no cache, caching off, a locator
+scope) overlap. `observe()` asks its intent while the snapshot is captured. The per-act log reports
+`durationMs` (pipeline) and `totalMs` (from the start of `act()`, settle included).
 
 Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
 replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
@@ -92,7 +95,7 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 | `cacheCheck`      | `false`      | Before each cached action is replayed, one decision-model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                                                             |
 | `extract`         | `"off"`      | `"judge"`: the decision model's yes/no replaces extract()'s completion LLM call. `"pick"`: the decision model picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. **Both send page or extracted content to the decision provider.** |
 | `observe`         | `false`      | Resolve `observe()` through the decision model first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                                                                                                                                                                                                  |
-| `targetReadiness` | `false`      | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait remains the upper bound.                                                                                                                                                                                                                                                                                      |
+| `targetReadiness` | `false`      | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait bounds that early look, not the whole act: a pointer act whose target is covered or moving is then held up to 1.5 s more.                                                                                                                                                                                     |
 | `tools`           | `false`      | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request (see below). Sends tool names and descriptions to the decision provider, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                                           |
 | `retryNoEffect`   | `false`      | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                                                                       |
 | `focusFallback`   | `false`      | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                                            |
@@ -112,9 +115,13 @@ itself runs (a snapshot each round; the decision model is re-asked only when the
 that arrives late is acted on the moment it lands rather than at the end of the wait. Before going early, one in-page call on the picked element checks that the selector still
 resolves to that node, that it is connected and enabled, that it sits in the same place two
 animation frames later, and (for pointer actions) that a click at its centre would hit it rather
-than an overlay. The settle wait is where polling ends. Covers
-click / hover / double-click and fill; other families wait as before. Two-step widgets also stop
-settling: after the opening action they wait in the page for a visible option, capped at 400 ms.
+than an overlay. A fill that waited for its text from the argument-only LLM call repeats that check
+before typing, and keeps looking if the field changed meanwhile. The settle wait is where polling
+ends. Covers click / hover / double-click and fill; other families wait as before and discard that
+first snapshot. Two-step widgets, with this flag or without, wait in the page for a visible option
+after the opening action (capped at 400 ms) before the snapshot that looks for what appeared. After
+a fill that went early, the snapshot that looks for the suggestion still waits for the settle wait
+to finish: the fill goes early, the suggestion pick does not.
 
 The same guard also runs right before every pointer act once the settle wait is over: the network
 being quiet says nothing about what a click would hit, and a consent overlay that arrives after load
@@ -127,18 +134,21 @@ against 7 for network-quiet itself). Live it refused on exactly the pages readin
 up and bought no accuracy, so it was dropped: the objective is the least waiting at reasonable
 accuracy, and the target guard already carries the accuracy.
 
-Measured (1 trial, Browserbase): act 39/40, breadth 39/40 (unchanged or better); about 60% of
-acts go early; caller-side median 1001 → 694 ms on the act suite, and 1118 → 785 ms for the
-breadth acts that go early (1012 ms over all breadth acts). The guard refused 12 early acts:
-target not there yet (7), covered (3), selector resolving to another node (3).
+Measured (1 trial per suite, Browserbase, against the settle wait alone): act 39/40 → 39/40,
+breadth 37/40 → 38/40; 35 of 49 act-suite acts and 29 of 48 breadth acts went early. Caller-side
+median of the decision-model-only acts on the act suite: 1001 → 737 ms. The breadth median says
+little: it moved 889 → 1231 → 1379 ms across three same-day runs of near-identical code (1118 ms
+before). Guard refusals on act: target not found (19), no selector (8), covered (2), selector
+resolving to another node (1); on breadth: not found (5), another node (3).
 
 ## WebMCP tools (`tools: true`)
 
 The page's tools are listed while `act()` waits for the DOM to settle, and the tool questions ride
 in the intent request that every act already makes, so a page without tools adds no question and a
 page with tools adds no round trip. Alongside "which tool" (with a "none" option) a guard asks
-whether the instruction names a control: "click the Add to cart button" always takes the element
-path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with "none" ≤ 0.2.
+whether the instruction names a control: when the decision model says it does (≥ 0.5), "click the
+Add to cart button" takes the element path, even when `add_to_cart` exists. A tool is used only at
+≥ 0.8 with "none" ≤ 0.2.
 
 Arguments are picked by the decision model as spans of the instruction (enums and booleans as choices) and accepted
 only when every parameter, stated or not, is ≥ 0.8. The argument questions of the two tools whose
@@ -149,6 +159,10 @@ just that tool, with its input schema as the response format; when the schema al
 likely tool will need it, that call starts alongside the decision-model request. Any doubt means the ordinary
 act path continues from the intent it already has. Once a tool has been invoked the act is over,
 success or error: it never also clicks through the UI. Tool acts are not cached.
+
+Tool names, descriptions and input schemas are written by the page and reach the decision model,
+and the argument LLM, as written, so a page can word them to attract selection. Enable `tools` only
+for pages you trust.
 
 ```ts
 // TypeScript SDK; Chrome needs its WebMCP features on, which localBrowser.launch() does.
