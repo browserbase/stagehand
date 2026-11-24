@@ -375,13 +375,15 @@ async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tools_removed_delivers_identities_without_wrappers() -> None:
+@pytest.mark.parametrize("tool_id", [None, "search-id"], ids=["legacy", "registration-id"])
+async def test_tools_removed_delivers_identities_without_wrappers(tool_id: str | None) -> None:
     recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     received: list[WebMCPToolIdentity] = []
     subscription = await page.on_tools_removed(received.extend)
     params = recording.calls[0][1]
     assert isinstance(params, PageOnParams)
+    assert params.include_tool_ids is True
     listener = cast(
         Callable[[PageEventNotification], Awaitable[None]], recording.notifications["page.event"][1]
     )
@@ -393,6 +395,8 @@ async def test_tools_removed_delivers_identities_without_wrappers() -> None:
         "event": "toolsremoved",
         "tools": [{"name": "search", "frame_id": "child"}],
     }
+    if tool_id is not None:
+        payload["tools"][0]["tool_id"] = tool_id
     await listener(
         PageEventNotification.model_validate({
             **payload,
@@ -402,7 +406,7 @@ async def test_tools_removed_delivers_identities_without_wrappers() -> None:
     )
     assert received == []
     await listener(PageEventNotification.model_validate(payload))
-    assert received == [WebMCPToolIdentity(name="search", frame_id="child")]
+    assert received == [WebMCPToolIdentity(name="search", frame_id="child", tool_id=tool_id)]
     assert not hasattr(received[0], "invoke")
     await subscription.unsubscribe()
 
