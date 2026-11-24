@@ -102,9 +102,9 @@ function getDomainPatterns(
 ): string[] {
   if (policy === null) return [];
 
-  // Passing undefined usually means the caller accidentally omitted the policy
-  // argument or passed through an unset variable. Clearing must be explicit.
-  if (policy === undefined) {
+  // Clearing must be explicit with null; undefined and non-object values fail fast
+  // rather than silently disabling enforcement.
+  if (typeof policy !== "object" || Array.isArray(policy)) {
     throw new TypeError("Domain policy must be an object or null");
   }
 
@@ -171,7 +171,7 @@ export function getDomainPolicyDecision(
   if (!policy) return { action: "continue" };
 
   const hostname = hostnameFromHttpUrl(url);
-  if (!hostname) return { action: "continue" };
+  if (hostname === null) return { action: "continue" };
 
   if (matchesDomainRules(hostname, policy.blockedDomainRules)) {
     return { action: "block", reason: "blockedDomains" };
