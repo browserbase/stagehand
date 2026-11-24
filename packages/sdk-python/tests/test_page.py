@@ -329,6 +329,7 @@ async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
     subscription = await page.on_tools_added(added)
     params = recording.calls[0][1]
     assert isinstance(params, PageOnParams)
+    assert params.include_tool_ids is True
     model, raw_listener = recording.notifications["page.event"]
     assert model is PageEventNotification
     listener = cast(Callable[[PageEventNotification], Awaitable[None]], raw_listener)
@@ -340,6 +341,7 @@ async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
         "event": "toolsadded",
         "tools": [
             {
+                "tool_id": "search-id",
                 "name": "search",
                 "description": "Search",
                 "frame_id": "child",
@@ -359,11 +361,13 @@ async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
     await listener(PageEventNotification.model_validate(payload))
     assert len(received) == 1
     assert isinstance(received[0], WebMCPTool)
+    assert received[0].tool_id == "search-id"
     assert received[0].input_schema == {"properties": {"searchQuery": {"type": "string"}}}
     assert recording.calls[1][1] == PageWebMCPInvokeToolParams.model_validate({
         "page_id": "page-1",
         "frame_id": "child",
         "tool_name": "search",
+        "tool_id": "search-id",
         "input": {"searchQuery": "hello"},
     })
     await subscription.unsubscribe()
@@ -873,6 +877,7 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
     tools = await page.tools(timeout=250)
     tool = tools[0]
     assert isinstance(tool, WebMCPTool)
+    assert tool.tool_id is None
     assert tool.name == "search"
     assert tool.description == "Search this site"
     assert tool.input_schema == {
@@ -908,6 +913,7 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
             "page.webmcp_tools",
             PageWebMCPToolsParams(
                 page_id="page-1",
+                include_tool_ids=True,
                 options=WebMCPToolsOptions(timeout=250),
             ),
             PageWebMCPToolsResult,

@@ -1754,6 +1754,7 @@ class PageOnParams(WireModel):
     page_id: StrictStr
     subscription_id: Annotated[StrictStr, Field(min_length=1)]
     event: PageSubscriptionEventName
+    include_tool_ids: Optional[StrictBool] = None
 
 
 class PagePDFMargin(WireModel):
@@ -2148,6 +2149,7 @@ class PageWebMCPInvokeToolParams(WireModel):
     page_id: StrictStr
     frame_id: Annotated[StrictStr, Field(min_length=1)]
     tool_name: Annotated[StrictStr, Field(min_length=1)]
+    tool_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     input: Annotated[dict[StrictStr, WebMCPJsonValue], Field(validate_default=True)] = {
 
     }
@@ -2160,6 +2162,7 @@ class PageWebMCPToolsParams(WireModel):
     )
     page_id: StrictStr
     options: Optional[WebMCPToolsOptions] = None
+    include_tool_ids: Optional[StrictBool] = None
 
 
 class PageWebMCPToolsResult(WireModel):
@@ -2553,6 +2556,7 @@ class WebMCPToolDescriptor(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    tool_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     name: Annotated[StrictStr, Field(min_length=1)]
     description: StrictStr
     input_schema: Optional[dict[StrictStr, WebMCPJsonValue]] = None
@@ -2568,6 +2572,7 @@ class WebMCPToolIdentity(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    tool_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     frame_id: Annotated[StrictStr, Field(min_length=1)]
     name: Annotated[StrictStr, Field(min_length=1)]
 

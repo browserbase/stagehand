@@ -1358,6 +1358,7 @@ const WebMCPJsonValueSchema = z.json().meta({ id: "WebMCPJsonValue" });
 
 export const WebMCPToolDescriptorSchema = z
   .strictObject({
+    toolId: z.string().min(1).optional(),
     name: z.string().min(1),
     description: z.string(),
     inputSchema: z.record(z.string(), WebMCPJsonValueSchema).optional(),
@@ -1369,6 +1370,7 @@ export const WebMCPToolDescriptorSchema = z
 
 export const WebMCPToolIdentitySchema = z
   .strictObject({
+    toolId: z.string().min(1).optional(),
     frameId: z.string().min(1),
     name: z.string().min(1),
   })
@@ -1707,6 +1709,7 @@ export const PageIdParamsSchema = z
 export const PageOnParamsSchema = PageIdParamsSchema.extend({
   subscriptionId: z.string().min(1),
   event: PageSubscriptionEventNameSchema,
+  includeToolIds: z.boolean().optional(),
 }).meta({ id: "PageOnParams" });
 
 export const PageOffParamsSchema = z
@@ -1719,6 +1722,7 @@ export const PageWebMCPToolsParamsSchema = z
   .strictObject({
     ...PageIdParamsSchema.shape,
     options: WebMCPToolsOptionsSchema.optional(),
+    includeToolIds: z.boolean().optional(),
   })
   .meta({ id: "PageWebMCPToolsParams" });
 
@@ -1733,6 +1737,7 @@ export const PageWebMCPInvokeToolParamsSchema = z
     ...PageIdParamsSchema.shape,
     frameId: z.string().min(1),
     toolName: z.string().min(1),
+    toolId: z.string().min(1).optional(),
     ...WebMCPInvokeOptionsSchema.shape,
   })
   .meta({ id: "PageWebMCPInvokeToolParams" });

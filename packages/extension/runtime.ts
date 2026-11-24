@@ -184,7 +184,7 @@ export type UnderstudyRuntimePage = {
   invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolDescriptor, "toolId">,
   ): Promise<WebMCPInvocationDescriptor>;
   waitForWebMCPInvocationResult(
     invocationId: string,
@@ -828,8 +828,10 @@ export class StagehandRuntime {
   }
 
   async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
+    const tools = await this.resolvePage(params.pageId).listWebMCPTools(params.options);
     return {
-      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
+      // Older clients validate descriptors against a schema without toolId.
+      tools: params.includeToolIds ? tools : tools.map(({ toolId: _toolId, ...tool }) => tool),
     };
   }
 
@@ -838,6 +840,7 @@ export class StagehandRuntime {
   ): Promise<WebMCPInvocationDescriptor> {
     return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
       input: params.input,
+      ...(params.toolId === undefined ? {} : { toolId: params.toolId }),
     });
   }
 
@@ -917,7 +920,14 @@ export class StagehandRuntime {
         case "toolsremoved":
           subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
             if (!isActive() || event.event !== params.event) return;
-            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+            const notification = {
+              ...(params.includeToolIds ? event : structuredClone(event)),
+              subscriptionId: params.subscriptionId,
+            };
+            if (!params.includeToolIds) {
+              for (const tool of notification.tools) delete tool.toolId;
+            }
+            this.adapters.emitPageEvent(notification);
           }, subscription.controller.signal);
           break;
         default: {
