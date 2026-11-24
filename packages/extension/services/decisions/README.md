@@ -25,10 +25,12 @@ deliberately not a field of the public create config. Evals build that variable 
 | No target      | the decision model, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets the decision model's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
 Steps that do not depend on each other overlap: the intent request needs no page, so it is asked
-while `act()` waits for the DOM to settle (a fixed 500 ms quiet window at minimum), and nothing
-reads or touches the page before that wait is over; `observe()` asks its intent while the snapshot
-is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start of
-`act()`, settle included).
+while `act()` waits for the DOM to settle (500 ms of network quiet, or `domSettleTimeoutMs` if that
+comes first). With `tools: true` the page's tool list is read during that wait; snapshots, actions
+and tool calls come after it. An act that reads the cache settles before the lookup, so only acts
+that skip it (no cache, caching off, a locator scope) overlap. `observe()` asks its intent while the
+snapshot is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start
+of `act()`, settle included).
 
 Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
 replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
@@ -100,8 +102,9 @@ target not there yet (7), covered (3), selector resolving to another node (3).
 The page's tools are listed while `act()` waits for the DOM to settle, and the tool questions ride
 in the intent request that every act already makes, so a page without tools adds no question and a
 page with tools adds no round trip. Alongside "which tool" (with a "none" option) a guard asks
-whether the instruction names a control: "click the Add to cart button" always takes the element
-path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with "none" ≤ 0.2.
+whether the instruction names a control: when the decision model says it does (≥ 0.5), "click the
+Add to cart button" takes the element path, even when `add_to_cart` exists. A tool is used only at
+≥ 0.8 with "none" ≤ 0.2.
 
 Arguments are picked by the decision model as spans of the instruction (enums and booleans as choices) and accepted
 only when every parameter, stated or not, is ≥ 0.8. The argument questions of the two tools whose
@@ -112,6 +115,10 @@ just that tool, with its input schema as the response format; when the schema al
 likely tool will need it, that call starts alongside the decision-model request. Any doubt means the ordinary
 act path continues from the intent it already has. Once a tool has been invoked the act is over,
 success or error: it never also clicks through the UI. Tool acts are not cached.
+
+Tool names, descriptions and input schemas are written by the page and reach the decision model,
+and the argument LLM, as written, so a page can word them to attract selection. Enable `tools` only
+for pages you trust.
 
 ```ts
 // TypeScript SDK; Chrome needs its WebMCP features on, which localBrowser.launch() does.

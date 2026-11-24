@@ -177,9 +177,13 @@ async function actWithProgress(
   // performance.now(): tests script Date.now() for inference timing.
   const actStartedAt = performance.now();
   const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
-  // The cache lookup keys on the page's tree and URL, so when a cache is in
-  // play the page must have settled before it; only cache-less acts overlap.
-  const cacheLookup = cache !== undefined && options?.cache !== false;
+  // The cache lookup keys on the page's tree and URL, so the page must have
+  // settled before it; only acts that skip the lookup overlap.
+  const cacheBypass = cacheService.shouldBypassCacheForLocatorScope(options);
+  const cacheLookup =
+    cache !== undefined &&
+    !cacheBypass &&
+    (options?.cache ?? cache.defaultCaching ?? true) !== false;
   const overlapSettle = decisions !== undefined && decisions.enabled !== false && !cacheLookup;
   if (overlapSettle) settled.catch(() => {});
   else await settled;
@@ -203,7 +207,7 @@ async function actWithProgress(
     page,
     data: cacheService.buildActCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    bypass: cacheBypass,
     context: cache,
     logger,
     progress,

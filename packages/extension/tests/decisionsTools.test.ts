@@ -10,7 +10,7 @@ import { StagehandLogger } from "../logger.js";
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
 import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/pipeline.js";
 import type { DecisionsToolDeps } from "../services/decisions/toolAct.js";
-import { instructionSpans } from "../services/decisions/tools.js";
+import { instructionSpans, toolQuestions } from "../services/decisions/tools.js";
 
 const tools: WebMCPToolDescriptor[] = [
   {
@@ -135,6 +135,7 @@ function harness(
         status: "Completed",
         output: { ok: true },
       }),
+      cancelWebMCPInvocation: async () => {},
     },
     ...overrides,
   };
@@ -204,7 +205,7 @@ describe("the decision model WebMCP tool act", () => {
     expect(h.invoked[0]?.input).toEqual({ product_id: "p_102" });
   });
 
-  it("leaves requests that name a control to the element path", async () => {
+  it("skips the tool when the request names a control", async () => {
     stubDecisions({ tool: "add_to_cart", namesControl: 0.97 });
     const h = harness("click the Add to cart button");
     await runDecisionsAct(config, h.deps);
@@ -241,21 +242,21 @@ describe("the decision model WebMCP tool act", () => {
   });
 
   it("starts the argument LLM alongside the decision model when the likely tool takes a list or object", async () => {
-    let modelAnswered = false;
+    const order: string[] = [];
     stubDecisions({ tool: "search_flights" });
+    const decide = globalThis.fetch;
+    vi.stubGlobal("fetch", async (...request: Parameters<typeof fetch>) => {
+      const response = await decide(...request);
+      order.push("decision answered");
+      return response;
+    });
     const fillArguments = vi.fn(async () => {
-      expect(modelAnswered).toBe(false);
+      order.push("argument LLM started");
       return { legs: ["SFO-JFK"] };
     });
     const h = harness("search flights from SFO to JFK", { fillArguments });
-    const ensure = h.deps.ensureTimeRemaining;
-    // ensureTimeRemaining runs again right before the invocation, after the decision model answered.
-    let calls = 0;
-    h.deps.ensureTimeRemaining = () => {
-      if (++calls > 1) modelAnswered = true;
-      ensure();
-    };
     await runDecisionsAct(config, h.deps);
+    expect(order).toEqual(["argument LLM started", "decision answered"]);
     expect(fillArguments).toHaveBeenCalledTimes(1);
     expect(h.invoked[0]?.input).toEqual({ legs: ["SFO-JFK"] });
   });
@@ -281,10 +282,17 @@ describe("the decision model WebMCP tool act", () => {
   });
 
   it("never sends a variable's value to TypeSafe and resolves it only for the page", async () => {
-    const requests = stubDecisions({ tool: "add_to_cart", args: { product_id: ["%sku%", 0.96] } });
+    stubDecisions({ tool: "add_to_cart", args: { product_id: ["%sku%", 0.96] } });
     const h = harness("add product %sku% to my cart", {}, { sku: "secret-sku-9" });
     const outcome = await runDecisionsAct(config, h.deps);
-    expect(JSON.stringify(requests)).not.toContain("secret-sku-9");
+    const sent = vi
+      .mocked(fetch)
+      .mock.calls.map(([, init]) => JSON.parse(init?.body as string) as { state: unknown });
+    expect(sent[0]?.state).toEqual({
+      instruction: "add product %sku% to my cart",
+      variables: ["sku"],
+    });
+    expect(JSON.stringify(sent)).not.toContain("secret-sku-9");
     expect(h.invoked[0]?.input).toEqual({ product_id: "secret-sku-9" });
     expect(outcome.kind === "done" && outcome.result.actions[0]?.arguments?.[0]).toBe(
       '{"product_id":"%sku%"}',
@@ -329,6 +337,107 @@ describe("the decision model WebMCP tool act", () => {
     };
     const outcome = await runDecisionsAct(config, h.deps);
     expect(outcome).toMatchObject({ kind: "done", result: { success: false } });
+  });
+
+  it("cancels a tool call that timed out and says it may still have run", async () => {
+    const timedOut = async (): Promise<never> => {
+      throw new Error('Timed out waiting for WebMCP tool "clear_cart" after 30000ms.');
+    };
+    stubDecisions({ tool: "clear_cart" });
+    const h = harness("empty my cart");
+    const cancel = vi.fn(async (_invocationId: string) => {});
+    h.webmcp.page.cancelWebMCPInvocation = cancel;
+    h.webmcp.page.waitForWebMCPInvocationResult = timedOut;
+    const outcome = await runDecisionsAct(config, h.deps);
+    expect(cancel.mock.calls).toEqual([["inv-1"]]);
+    expect(outcome).toMatchObject({
+      kind: "done",
+      result: {
+        success: false,
+        message:
+          'Failed to invoke WebMCP tool clear_cart: Timed out waiting for WebMCP tool "clear_cart" after 30000ms. The tool may still have run.',
+      },
+    });
+
+    stubDecisions({ tool: "clear_cart" });
+    const refused = harness("empty my cart");
+    refused.webmcp.page.cancelWebMCPInvocation = async () => {
+      throw new Error("session closed");
+    };
+    refused.webmcp.page.waitForWebMCPInvocationResult = timedOut;
+    expect(await runDecisionsAct(config, refused.deps)).toEqual(outcome);
+
+    stubDecisions({ tool: "clear_cart" });
+    const answered = harness("empty my cart");
+    answered.webmcp.page.cancelWebMCPInvocation = cancel;
+    await runDecisionsAct(config, answered.deps);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports what the tool threw when the response carries only an exception", async () => {
+    stubDecisions({ tool: "clear_cart" });
+    const h = harness("empty my cart", {}, { pin: "4321-secret" });
+    h.webmcp.page.waitForWebMCPInvocationResult = async () => ({
+      invocationId: "inv-1",
+      status: "Error",
+      exception: { type: "object", description: "Error: cart is locked for 4321-secret" },
+    });
+    const outcome = await runDecisionsAct(config, h.deps);
+    expect(outcome).toMatchObject({
+      kind: "done",
+      result: {
+        success: false,
+        message: "Failed to invoke WebMCP tool clear_cart: Error: cart is locked for %pin%",
+      },
+    });
+  });
+
+  it("does not call a tool whose schema requires an argument it never declares", async () => {
+    const requests = stubDecisions({ tool: "lookup_order" });
+    const lookup: WebMCPToolDescriptor = {
+      name: "lookup_order",
+      description: "Look up an order",
+      frameId: "main",
+      inputSchema: { type: "object", required: ["query"] },
+    };
+    const h = harness("look up my order", { tools: Promise.resolve([lookup]) });
+    await runDecisionsAct(config, h.deps);
+    expect(requests).toHaveLength(1);
+    expect(h.invoked).toEqual([]);
+    expect(h.skipReason()).toBe("arguments_not_filled");
+  });
+
+  it("does not read a number out of a span that holds two", async () => {
+    stubDecisions({
+      tool: "add_to_cart",
+      args: { product_id: ["p_102", 0.97], quantity: ["between 10 and 20", 0.95] },
+    });
+    const h = harness("add between 10 and 20 of product p_102 to my cart");
+    await runDecisionsAct(config, h.deps);
+    expect(h.invoked).toEqual([]);
+    expect(h.skipReason()).toBe("arguments_not_filled");
+  });
+
+  it("keeps argument questions apart when tool and parameter names contain colons", () => {
+    const asked = toolQuestions("add item to cart", [
+      {
+        name: "cart",
+        description: "Cart",
+        frameId: "main",
+        inputSchema: { type: "object", properties: { "add:item": { type: "string" } } },
+      },
+      {
+        name: "cart:add",
+        description: "Cart",
+        frameId: "main",
+        inputSchema: { type: "object", properties: { item: { type: "string" } } },
+      },
+    ]);
+    expect(asked?.withArguments).toHaveLength(2);
+    expect(Object.keys(asked!.questions).filter((key) => key.startsWith("tool_arg:"))).toEqual([
+      "tool_arg:cart%3Aadd:item",
+      "tool_arg:cart:add:item",
+    ]);
   });
 
   it("adds no question when the page has no tools or no WebMCP support", async () => {
@@ -410,5 +519,25 @@ describe("toolArguments inference", () => {
     });
     expect(result.input).toEqual({ query: "mugs" });
     expect(result.prompt_tokens).toBe(5);
+  });
+
+  it("names declared variables in the data message, not the system prompt", async () => {
+    const generate = vi.fn(async (_request: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "" },
+      outputFormat: "json_schema",
+      structuredContent: { input_json: '{"query":"%wanted_item%"}' },
+      usage,
+    }));
+    const result = await toolArguments({
+      instruction: "search for %wanted_item%",
+      variableNames: ["wanted_item"],
+      generate,
+      tool: { name: "search", description: "Search" },
+    });
+    const request = generate.mock.calls[0]![0];
+    expect(request.systemPrompt).not.toContain("wanted_item");
+    expect(JSON.stringify(request.messages)).toContain("declared variables: %wanted_item%");
+    expect(result.input).toEqual({ query: "%wanted_item%" });
   });
 });
