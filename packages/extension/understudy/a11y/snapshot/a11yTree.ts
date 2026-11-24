@@ -101,19 +101,21 @@ export async function a11yForFrame(
       if (!target) return nodes;
       scopeApplied = true;
       const keep = new Set<string>([target.nodeId]);
+      const parents = new Map<string, string>();
       const queue: Protocol.Accessibility.AXNode[] = [target];
       while (queue.length) {
         const cur = queue.shift()!;
         for (const id of cur.childIds ?? []) {
           if (keep.has(id)) continue;
           keep.add(id);
+          parents.set(id, cur.nodeId);
           const child = nodes.find((n) => n.nodeId === id);
           if (child) queue.push(child);
         }
       }
       return nodes
         .filter((n) => keep.has(n.nodeId))
-        .map((n) => (n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n));
+        .map((n) => ({ ...n, parentId: parents.get(n.nodeId) }));
     } catch {
       progress?.throwIfStopped();
       return nodes;

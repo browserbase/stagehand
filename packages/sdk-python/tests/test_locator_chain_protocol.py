@@ -32,6 +32,28 @@ def test_invalid_chains_are_rejected(fixture: dict[str, object]) -> None:
         models.LocatorParams.model_validate({"page_id": "page-1", "chain": fixture["chain"]})
 
 
+@pytest.mark.parametrize(
+    "first",
+    [
+        {"type": "frame", "selector": {"kind": "css", "value": "button"}},
+        {"type": "nth", "index": 0},
+    ],
+)
+@pytest.mark.parametrize("parsed", [False, True])
+def test_tuple_chains_must_start_with_a_query(first: dict[str, object], parsed: bool) -> None:
+    step = models.LocatorStep.model_validate(first) if parsed else first
+    with pytest.raises(ValidationError, match="locator chains must start with a query"):
+        models.LocatorChain.model_validate({"steps": (step,)})
+
+
+@pytest.mark.parametrize("parsed", [False, True])
+def test_query_first_tuples_are_accepted(parsed: bool) -> None:
+    first = {"type": "query", "selector": {"kind": "css", "value": "button"}}
+    step = models.LocatorStep.model_validate(first) if parsed else first
+    chain = models.LocatorChain.model_validate({"steps": (step,)})
+    assert chain.model_dump() == {"steps": [first]}
+
+
 @pytest.mark.parametrize("extra", [{"selector": "button"}, {"nth": 0}, {"unexpected": True}])
 def test_chain_requests_cannot_mix_legacy_fields(extra: dict[str, object]) -> None:
     value = {"chain": FIXTURES["valid"][0]["chain"], **extra}
@@ -48,8 +70,12 @@ def test_legacy_construction_and_outputs_stay_compatible() -> None:
     assert descriptor.model_dump(exclude_unset=True) == expected
     legacy_constructor: type[BaseModel] = getattr(models, "LocatorParams")
     assert legacy_constructor(**expected).model_dump(exclude_unset=True) == expected
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as error:
         models.Action.model_validate({
+            "selector": "button",
             "chain": FIXTURES["valid"][0]["chain"],
             "description": "Save",
         })
+    assert [(item["type"], item["loc"]) for item in error.value.errors()] == [
+        ("extra_forbidden", ("chain",))
+    ]

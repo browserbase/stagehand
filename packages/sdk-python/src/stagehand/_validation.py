@@ -12,6 +12,7 @@ from pydantic import (
     ValidationError,
     ValidatorFunctionWrapHandler,
     WrapValidator,
+    field_validator,
     model_validator,
 )
 from typing_extensions import override
@@ -102,18 +103,12 @@ class WireModel(BaseModel):
 
 
 class LocatorChainValidation(WireModel):
-    @model_validator(mode="before")
+    @field_validator("steps", mode="after", check_fields=False)
     @classmethod
-    def require_leading_query(cls, value: object) -> object:
-        if isinstance(value, Mapping):
-            steps = value.get("steps")
-            if isinstance(steps, list) and steps:
-                first = steps[0]
-                if isinstance(first, BaseModel):
-                    first = first.model_dump()
-                if not isinstance(first, Mapping) or first.get("type") != "query":
-                    raise ValueError("locator chains must start with a query")
-        return value
+    def require_leading_query(cls, steps: list[BaseModel]) -> list[BaseModel]:
+        if steps and steps[0].model_dump().get("type") != "query":
+            raise ValueError("locator chains must start with a query")
+        return steps
 
 
 class PageScreenshotOptionsValidation(WireModel):

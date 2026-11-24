@@ -347,10 +347,15 @@ export async function applyMaskOverlays(
           ? await locator.all(progress)
           : ["real" in locator ? await locator.real(progress) : locator];
       for (const resolved of resolvedLocators) {
-        const frame = resolved.getFrame();
-        const rects = rectsByFrame.get(frame) ?? [];
-        rectsByFrame.set(frame, rects);
-        rects.push(...(await resolveMaskRects(resolved, token, progress)));
+        try {
+          progress.throwIfStopped();
+          const frame = resolved.getFrame();
+          const rects = rectsByFrame.get(frame) ?? [];
+          rectsByFrame.set(frame, rects);
+          rects.push(...(await resolveMaskRects(resolved, token, progress)));
+        } catch {
+          progress.throwIfStopped();
+        }
       }
     } catch {
       progress.throwIfStopped();
