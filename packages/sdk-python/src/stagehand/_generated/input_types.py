@@ -555,11 +555,16 @@ LocatorIsCheckedResult: TypeAlias = bool
 LocatorIsVisibleResult: TypeAlias = bool
 
 
+class LocatorNthStep(TypedDict):
+    type: Literal["nth"]
+    index: int
+
+
 class LocatorOptions(TypedDict):
     timeout: NotRequired[float]
 
 
-class LocatorFillParams(TypedDict):
+class LocatorFillParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -567,14 +572,42 @@ class LocatorFillParams(TypedDict):
     value: str
 
 
-class LocatorParams(TypedDict):
+class LocatorParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
 
 
-class LocatorScrollToParams(TypedDict):
+class LocatorQuerySelector1(TypedDict):
+    kind: Literal["css"]
+    value: str
+
+
+class LocatorQuerySelector2(TypedDict):
+    kind: Literal["xpath"]
+    value: str
+
+
+class LocatorQuerySelector3(TypedDict):
+    kind: Literal["text"]
+    value: str
+
+
+LocatorQuerySelector: TypeAlias = LocatorQuerySelector1 | LocatorQuerySelector2 | LocatorQuerySelector3
+
+
+class LocatorFrameStep(TypedDict):
+    type: Literal["frame"]
+    selector: LocatorQuerySelector
+
+
+class LocatorQueryStep(TypedDict):
+    type: Literal["query"]
+    selector: LocatorQuerySelector
+
+
+class LocatorScrollToParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -586,7 +619,7 @@ class LocatorScrollToResult(TypedDict):
     scrolled: Literal[True]
 
 
-class LocatorSelectOptionParams(TypedDict):
+class LocatorSelectOptionParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -605,7 +638,7 @@ class LocatorSendClickEventOptions(TypedDict):
     detail: NotRequired[float]
 
 
-class LocatorSendClickEventParams(TypedDict):
+class LocatorSendClickEventParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -616,7 +649,7 @@ class LocatorSendClickEventResult(TypedDict):
     clicked: Literal[True]
 
 
-class LocatorSetInputFilesParams(TypedDict):
+class LocatorSetInputFilesParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -628,6 +661,86 @@ class LocatorSetInputFilesResult(TypedDict):
     set: Literal[True]
 
 
+LocatorStep: TypeAlias = LocatorQueryStep | LocatorFrameStep | LocatorNthStep
+
+
+class LocatorChain(TypedDict):
+    steps: list[LocatorQueryStep | LocatorStep]
+
+
+class ChainLocator(TypedDict):
+    chain: LocatorChain
+
+
+class ChainLocatorDescriptor(TypedDict):
+    chain: LocatorChain
+    page_id: str
+
+
+class LocatorFillParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    value: str
+
+
+LocatorFillParams: TypeAlias = LocatorFillParams1 | LocatorFillParams2
+
+
+LocatorInput: TypeAlias = Locator | ChainLocator
+
+
+class LocatorParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+
+
+LocatorParams: TypeAlias = LocatorParams1 | LocatorParams2
+
+
+LocatorRequestDescriptor: TypeAlias = LocatorDescriptor | ChainLocatorDescriptor
+
+
+class LocatorScrollToParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    percent: float | str
+
+
+LocatorScrollToParams: TypeAlias = LocatorScrollToParams1 | LocatorScrollToParams2
+
+
+class LocatorSelectOptionParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    values: str | list[str]
+
+
+LocatorSelectOptionParams: TypeAlias = LocatorSelectOptionParams1 | LocatorSelectOptionParams2
+
+
+class LocatorSendClickEventParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorSendClickEventOptions]
+
+
+LocatorSendClickEventParams: TypeAlias = LocatorSendClickEventParams1 | LocatorSendClickEventParams2
+
+
+class LocatorSetInputFilesParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    files: list[InputFilePayload]
+
+
+LocatorSetInputFilesParams: TypeAlias = LocatorSetInputFilesParams1 | LocatorSetInputFilesParams2
+
+
 LocatorTextContentResult: TypeAlias = str
 
 
@@ -636,12 +749,22 @@ class LocatorTypeOptions(TypedDict):
     delay: NotRequired[float]
 
 
-class LocatorTypeParams(TypedDict):
+class LocatorTypeParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorTypeOptions]
     text: str
+
+
+class LocatorTypeParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorTypeOptions]
+    text: str
+
+
+LocatorTypeParams: TypeAlias = LocatorTypeParams1 | LocatorTypeParams2
 
 
 class LocatorTypeResult(TypedDict):
@@ -657,11 +780,20 @@ class LocatorClickOptions(TypedDict):
     click_count: NotRequired[int]
 
 
-class LocatorClickParams(TypedDict):
+class LocatorClickParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorClickOptions]
+
+
+class LocatorClickParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorClickOptions]
+
+
+LocatorClickParams: TypeAlias = LocatorClickParams1 | LocatorClickParams2
 
 
 class NavigationFinishedError(TypedDict):
@@ -710,8 +842,8 @@ class ModelConfig(TypedDict):
 class ExtractOptions(TypedDict):
     model: NotRequired[ModelConfig]
     timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
     screenshot: NotRequired[bool]
     cache: NotRequired[Caching]
 
@@ -913,7 +1045,7 @@ class PageScreenshotOptions(TypedDict):
     caret: NotRequired[Literal["hide", "initial"]]
     clip: NotRequired[PageScreenshotClip]
     full_page: NotRequired[bool]
-    mask: NotRequired[list[LocatorDescriptor]]
+    mask: NotRequired[list[LocatorRequestDescriptor]]
     mask_color: NotRequired[str]
     omit_background: NotRequired[bool]
     quality: NotRequired[int]
@@ -1099,11 +1231,20 @@ class LocatorHighlightOptions(TypedDict):
     content_color: NotRequired[RgbaColor]
 
 
-class LocatorHighlightParams(TypedDict):
+class LocatorHighlightParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorHighlightOptions]
+
+
+class LocatorHighlightParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorHighlightOptions]
+
+
+LocatorHighlightParams: TypeAlias = LocatorHighlightParams1 | LocatorHighlightParams2
 
 
 class SnapshotResult(TypedDict):
@@ -1234,8 +1375,8 @@ class ActOptions(TypedDict):
     model: NotRequired[ModelConfig]
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
     cache: NotRequired[Caching]
 
 
@@ -1243,8 +1384,8 @@ class ObserveOptions(TypedDict):
     model: NotRequired[ModelConfig]
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
     cache: NotRequired[Caching]
 
 

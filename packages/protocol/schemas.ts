@@ -457,7 +457,6 @@ export const LocatorSchema = z
   })
   .meta({ id: "Locator" });
 
-// Internal chain definitions only; not registered as executable RPC inputs yet.
 export const LocatorQuerySelectorSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
@@ -493,6 +492,13 @@ export const LocatorStepSchema = z
 export const LocatorChainSchema = z
   .strictObject({ steps: z.tuple([LocatorQueryStepSchema]).rest(LocatorStepSchema) })
   .meta({ id: "LocatorChain" });
+
+export const ChainLocatorSchema = z
+  .strictObject({ chain: LocatorChainSchema })
+  .meta({ id: "ChainLocator" });
+export const LocatorInputSchema = z
+  .union([LocatorSchema, ChainLocatorSchema])
+  .meta({ id: "LocatorInput" });
 
 export const StagehandMetricsSchema = z
   .strictObject({
@@ -1014,11 +1020,11 @@ export const ActOptionsSchema = z
       description: "Timeout in ms for the action",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Serializable element locator for the action target",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description:
@@ -1077,11 +1083,11 @@ export const ExtractOptionsSchema = z
       description: "Timeout in ms for the extraction",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Locator that scopes extraction to a specific element",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description: "Locators for elements and subtrees that should be excluded from extraction",
@@ -1136,11 +1142,11 @@ export const ObserveOptionsSchema = z
       description: "Timeout in ms for the observation",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Locator that scopes observation to a specific element",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description: "Locators for elements and subtrees that should be excluded from observation",
@@ -1464,6 +1470,13 @@ export const LocatorDescriptorSchema = z
     ...LocatorSchema.shape,
   })
   .meta({ id: "LocatorDescriptor" });
+
+const ChainLocatorDescriptorSchema = ChainLocatorSchema.extend({ pageId: z.string() }).meta({
+  id: "ChainLocatorDescriptor",
+});
+export const LocatorRequestDescriptorSchema = z
+  .union([LocatorDescriptorSchema, ChainLocatorDescriptorSchema])
+  .meta({ id: "LocatorRequestDescriptor" });
 
 /** One HTTP attempt; the caller owns retries and response interpretation. */
 export const BrowserbaseRequestParamsSchema = z
@@ -1856,7 +1869,7 @@ export const PageScreenshotOptionsSchema = z
     caret: z.enum(["hide", "initial"]).optional(),
     clip: PageScreenshotClipSchema.optional(),
     fullPage: z.boolean().optional(),
-    mask: z.array(LocatorDescriptorSchema).optional(),
+    mask: z.array(LocatorRequestDescriptorSchema).optional(),
     maskColor: z.string().optional(),
     omitBackground: z.boolean().optional(),
     quality: z.number().int().min(0).max(100).optional(),
@@ -1972,11 +1985,17 @@ export const LocatorOptionsSchema = z
   })
   .meta({ id: "LocatorOptions" });
 
-export const LocatorParamsSchema = LocatorDescriptorSchema.extend({
-  options: LocatorOptionsSchema.optional(),
-}).meta({ id: "LocatorParams" });
+function locatorRequest<Shape extends z.ZodRawShape>(shape: Shape) {
+  const fields = { options: LocatorOptionsSchema.optional(), ...shape };
+  return z.union([
+    LocatorDescriptorSchema.extend(fields),
+    ChainLocatorDescriptorSchema.extend(fields),
+  ]);
+}
 
-export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
+export const LocatorParamsSchema = locatorRequest({}).meta({ id: "LocatorParams" });
+
+export const LocatorClickParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     button: MouseButtonSchema.optional(),
     clickCount: z.number().int().positive().optional(),
@@ -1985,11 +2004,11 @@ export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorClickParams" });
 
-export const LocatorFillParamsSchema = LocatorParamsSchema.extend({
+export const LocatorFillParamsSchema = locatorRequest({
   value: z.string(),
 }).meta({ id: "LocatorFillParams" });
 
-export const LocatorScrollToParamsSchema = LocatorParamsSchema.extend({
+export const LocatorScrollToParamsSchema = locatorRequest({
   percent: z.union([z.number(), z.string()]),
 }).meta({ id: "LocatorScrollToParams" });
 
@@ -2002,7 +2021,7 @@ export const RgbaColorSchema = z
   })
   .meta({ id: "RgbaColor" });
 
-export const LocatorHighlightParamsSchema = LocatorParamsSchema.extend({
+export const LocatorHighlightParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     durationMs: z.number().int().nonnegative().optional(),
     borderColor: RgbaColorSchema.optional(),
@@ -2012,7 +2031,7 @@ export const LocatorHighlightParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorHighlightParams" });
 
-export const LocatorSendClickEventParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSendClickEventParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     bubbles: z.boolean().optional(),
     cancelable: z.boolean().optional(),
@@ -2023,7 +2042,7 @@ export const LocatorSendClickEventParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorSendClickEventParams" });
 
-export const LocatorTypeParamsSchema = LocatorParamsSchema.extend({
+export const LocatorTypeParamsSchema = locatorRequest({
   text: z.string(),
   options: LocatorOptionsSchema.extend({
     delay: z.number().nonnegative().optional(),
@@ -2032,7 +2051,7 @@ export const LocatorTypeParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorTypeParams" });
 
-export const LocatorSelectOptionParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSelectOptionParamsSchema = locatorRequest({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
@@ -2059,7 +2078,7 @@ export const InputFilePayloadSchema = z
   })
   .meta({ id: "InputFilePayload" });
 
-export const LocatorSetInputFilesParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSetInputFilesParamsSchema = locatorRequest({
   files: z.array(InputFilePayloadSchema),
 }).meta({ id: "LocatorSetInputFilesParams" });
 

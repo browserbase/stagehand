@@ -86,6 +86,9 @@ import type {
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
+  LocatorRequestDescriptorSchema,
+  LocatorInputSchema,
+  ChainLocatorSchema,
   LocatorOptionsSchema,
   LocatorParamsSchema,
   LocatorFillParamsSchema,
@@ -373,6 +376,9 @@ export type WebMCPInvocationDescriptor = z.infer<typeof WebMCPInvocationDescript
 export type WebMCPInvocationStatus = z.infer<typeof WebMCPInvocationStatusSchema>;
 export type WebMCPRemoteObject = z.infer<typeof WebMCPRemoteObjectSchema>;
 export type WebMCPToolResponse = z.infer<typeof WebMCPToolResponseSchema>;
+export type ChainLocator = z.infer<typeof ChainLocatorSchema>;
+export type LocatorInput = z.infer<typeof LocatorInputSchema>;
+export type LocatorRequestDescriptor = z.infer<typeof LocatorRequestDescriptorSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;

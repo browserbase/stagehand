@@ -936,7 +936,7 @@ await page.close();
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator for a CSS, XPath or `text=` selector on this page. Chain `.locator()` to search within elements or iframe documents; see the [locator reference](/v4/reference/locator).
 
 ```typescript
 const locator = page.locator("button[type=submit]");
@@ -1832,7 +1832,7 @@ await page.close()
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator for a CSS, XPath or `text=` selector on this page. Chain `.locator()` to search within elements or iframe documents; see the [locator reference](/v4/reference/locator).
 
 ```python
 locator = page.locator("button[type=submit]")

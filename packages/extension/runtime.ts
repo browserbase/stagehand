@@ -1,3 +1,4 @@
+import { ChainLocatorDelegate } from "./understudy/chainLocator.js";
 import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
@@ -35,7 +36,7 @@ import type {
   LocatorClickResult,
   LocatorCentroidResult,
   LocatorCountResult,
-  LocatorDescriptor,
+  LocatorRequestDescriptor,
   LocatorParams,
   LocatorFillParams,
   LocatorFillResult,
@@ -1186,7 +1187,9 @@ export class StagehandRuntime {
     return page;
   }
 
-  resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+  resolveLocator(params: LocatorRequestDescriptor): UnderstudyRuntimeLocator {
+    if ("chain" in params)
+      return new ChainLocatorDelegate(this.resolveUnderstudyPage(params.pageId), params.chain);
     const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
     return params.nth === undefined ? locator : locator.nth(params.nth);
   }

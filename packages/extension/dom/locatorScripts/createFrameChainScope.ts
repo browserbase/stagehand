@@ -9,12 +9,13 @@ export function createFrameChainScope() {
   const ids = new Map<Document | Element, number>([[document, 0]]);
   return {
     query(selector: LocatorQuerySelector, scopes: number[]): FrameChainMatch[][] {
+      const shadowPresence = new Map<Document, boolean>();
       // Keep each scope's results separate so the caller can interleave results
       // from other documents before deduplication and positional selection.
       return scopes.map((scopeId) => {
         const scope = nodes[scopeId];
         if (!scope) throw new Error("Unknown chain scope");
-        return queryAll(selector, [scope])
+        return queryAll(selector, [scope], shadowPresence)
           .filter((node) => node instanceof Element)
           .map((node) => {
             let id = ids.get(node);

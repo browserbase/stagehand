@@ -4,14 +4,16 @@ description: "Target elements and perform focused DOM interactions"
 icon: "crosshairs"
 ---
 
-Create a `Locator` from a page selector, then reuse it for element interactions and state queries. `first()` and `nth()` refine the local locator descriptor; the resulting descriptor is sent with later operations.
+Create a `Locator` from a page selector, then reuse it for element interactions & state queries. In TypeScript & Python, chain `.locator(selector)` to search within the previous matches. Creating a locator, chaining, `first()` & `nth()` return new locators without querying the browser or changing the original.
 
-Selectors pierce shadow DOM, including closed roots.
+Queries search open & closed shadow roots automatically. CSS relationships such as `>` are evaluated within each root; use chaining to query inside a matched shadow host.
 
-Selectors also cross iframe boundaries. Separate a frame from a target inside it with `>>`, and Stagehand resolves each hop in turn, so `page.locator("iframe#checkout >> button.submit")` reaches the button inside that iframe. Chain as many hops as the page nests. A deep XPath that steps through an iframe resolves the same way, as in `/html/body/iframe[2]//div`.
+An unchained `page.locator("button")` searches the current document & its shadow roots. To enter an iframe in TypeScript or Python, use `page.locator("iframe#checkout").locator("button.submit")`. The first locator selects the iframe element; the next query searches its document. Repeat this for nested frames. When a query matches several frames or containers, the next query searches within all of them.
+
+Existing `>>` selectors remain supported, including inside a chained call: `page.locator("iframe#checkout >> button.submit")` still reaches the button inside that iframe. Generated deep XPath paths such as `/html/body/iframe[2]//div` also retain their existing frame traversal. Chaining is the recommended syntax for new TypeScript & Python code.
 
 <Warning>
-**Closed roots require a navigated page.** Stagehand resolves elements inside iframes and shadow DOMs for you, so you rarely need to target nested documents manually. This relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs, so navigate to a `http:` or `https:` URL first when a target sits inside an iframe or a closed shadow root (see [locator limitations](/v4/reference/locator)).
+**Closed roots require a navigated page.** Access to closed shadow roots relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs. Navigate to an `http:` or `https:` URL first.
 </Warning>
 
 <Tabs>
@@ -490,6 +492,44 @@ await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
   Resolves after the files are attached.
 </ResponseField>
 
+## locator()
+
+Create a locator that searches descendants of the current matches, or the document of each matched iframe. Accepts CSS, XPath & `text=` selectors. Use `xpath=.//button` for a relative XPath query.
+
+```typescript
+const cards = page.locator(".card");
+await cards.nth(1).locator("button.save").click();
+const buttons = cards.locator("button");
+const count = await buttons.count();
+await buttons.nth(1).click();
+
+const checkout = page.locator("iframe#checkout").locator("form");
+await checkout.locator("button.submit").click({ timeout: 5000 });
+```
+
+Placing `.nth(1)` before `.locator("button")` selects the second container; placing it afterward selects the second button from the combined results. Actions use the first final match unless narrowed with `nth()`. `count()` counts the final matches.
+
+Chained locators also work as screenshot masks, AI scopes & exclusions. Masks & exclusions use every final match; an AI scope uses the first final match.
+
+```typescript
+await page.screenshot({ mask: [checkout.locator("input")] });
+await stagehand.observe("Find the submit button", {
+  page,
+  locator: checkout,
+  ignoreLocators: [checkout.locator(".promo")],
+});
+```
+
+The same scope & exclusion options work with `act()` & `extract()`. A chain scope that cannot be resolved fails instead of falling back to the full page.
+
+<ParamField path="selector" type="string">
+  The selector to search for within the current matches.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new locator retaining the preceding queries & positions.
+</ResponseField>
+
 ## first()
 
 Create a locator for the first matching element.
@@ -923,6 +963,45 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
 
 <ResponseField name="result" type="None">
   Resolves after the files are attached.
+</ResponseField>
+
+## locator()
+
+Create a locator that searches descendants of the current matches, or the document of each matched iframe. Accepts CSS, XPath & `text=` selectors. Use `xpath=.//button` for a relative XPath query.
+
+```python
+cards = page.locator(".card")
+await cards.nth(1).locator("button.save").click()
+buttons = cards.locator("button")
+count = await buttons.count()
+await buttons.nth(1).click()
+
+checkout = page.locator("iframe#checkout").locator("form")
+await checkout.locator("button.submit").click(timeout=5000)
+```
+
+Placing `.nth(1)` before `.locator("button")` selects the second container; placing it afterward selects the second button from the combined results. Actions use the first final match unless narrowed with `nth()`. `count()` counts the final matches.
+
+Chained locators also work as screenshot masks, AI scopes & exclusions. Masks & exclusions use every final match; an AI scope uses the first final match.
+
+```python
+await page.screenshot(mask=[checkout.locator("input")])
+await stagehand.observe(
+    "Find the submit button",
+    page=page,
+    locator=checkout,
+    ignore_locators=[checkout.locator(".promo")],
+)
+```
+
+The same scope & exclusion options work with `act()` & `extract()`. A chain scope that cannot be resolved fails instead of falling back to the full page.
+
+<ParamField path="selector" type="str">
+  The selector to search for within the current matches.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new locator retaining the preceding queries & positions.
 </ResponseField>
 
 ## first()
