@@ -65,7 +65,7 @@ def main() -> None:
             continue
         result = process_line(stripped)
         sys.stdout.write(json.dumps(result, separators=(",", ":")) + "\n")
-    sys.stdout.flush()
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":
