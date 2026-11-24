@@ -30,6 +30,8 @@ evals run b:webvoyager -l 10
 
 A `.env` in `packages/evals/` is loaded automatically. Provide whichever provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, …) and `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` you need.
 
+The rubric judge defaults to `google/gemini-3.5-flash`; set `EVAL_VERIFIER_MODEL` (or `evals config verifier set model …`) to change it. An `openrouter/<vendor>/<model>` id, for example `openrouter/google/gemini-3.5-flash`, sends the judge through OpenRouter with `OPENROUTER_API_KEY`, so a run needs no key from the judge's own vendor.
+
 ## TUI commands
 
 Inside the REPL (or as `evals <command>` from your shell):

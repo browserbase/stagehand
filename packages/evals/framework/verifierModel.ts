@@ -24,3 +24,26 @@ export function resolveVerifierModel(env: NodeJS.ProcessEnv = process.env): {
     ? { modelName: explicitModel, source: "env" }
     : { modelName: DEFAULT_VERIFIER_MODEL, source: "default" };
 }
+
+const OPENROUTER_PREFIX = "openrouter/";
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+/**
+ * An `openrouter/<vendor>/<model>` judge runs on the evaluator's OpenAI client
+ * pointed at OpenRouter's OpenAI-compatible API, so a run needs no key from the
+ * judge's own vendor. Returns undefined for every other model id.
+ */
+export function resolveOpenRouterVerifier(
+  modelName: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { modelName: string; modelClientOptions: { apiKey: string; baseURL: string } } | undefined {
+  if (!modelName.startsWith(OPENROUTER_PREFIX)) return undefined;
+  const apiKey = env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(`Verifier model is "${modelName}", but OPENROUTER_API_KEY is not set.`);
+  }
+  return {
+    modelName: `openai/${modelName.slice(OPENROUTER_PREFIX.length)}`,
+    modelClientOptions: { apiKey, baseURL: OPENROUTER_BASE_URL },
+  };
+}

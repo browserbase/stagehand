@@ -23,7 +23,11 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { getBenchHarness, listExecutableBenchHarnesses } from "../../framework/benchHarness.js";
 import { ProviderConcurrency, providerFromModel } from "../../framework/providerConcurrency.js";
-import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "../../framework/verifierModel.js";
+import {
+  DEFAULT_VERIFIER_MODEL,
+  OPENROUTER_BASE_URL,
+  resolveVerifierModel,
+} from "../../framework/verifierModel.js";
 import { getPackageRootDir } from "../../runtimePaths.js";
 import { getEvalsEnvReport, type EvalsEnvReport } from "../../evalsEnv.js";
 import type { ConfigFile } from "./config.js";
@@ -87,6 +91,7 @@ const PROVIDER_KEY_ENV: Record<string, string[]> = {
   openai: ["OPENAI_API_KEY"],
   anthropic: ["ANTHROPIC_API_KEY"],
   google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
 };
 
 export interface HarnessProbeOptions {
@@ -247,7 +252,12 @@ async function probeProvider(
               url: `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=${encodeURIComponent(apiKey)}`,
               headers: {},
             }
-          : undefined;
+          : provider === "openrouter"
+            ? {
+                url: `${OPENROUTER_BASE_URL}/key`,
+                headers: { Authorization: `Bearer ${apiKey}` },
+              }
+            : undefined;
   if (!request) return { ok: false, error: `no probe for provider "${provider}"` };
   try {
     const res = await fetchImpl(request.url, { headers: request.headers });
@@ -269,6 +279,18 @@ async function probeJudge(
 ): Promise<ProviderProbeResult & { retired?: boolean }> {
   const provider = providerFromModel(modelName);
   if (!provider) return { ok: false, error: "no provider" };
+  if (provider === "openrouter") {
+    // The model lookup is public, so it only says whether the model is served;
+    // the key is checked separately.
+    const slug = modelName.slice(provider.length + 1);
+    try {
+      const res = await fetchImpl(`${OPENROUTER_BASE_URL}/models/${slug}/endpoints`);
+      if (res.status === 404) return { ok: false, status: 404, retired: true };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+    return probeProvider(provider, apiKey, fetchImpl);
+  }
   const id = encodeURIComponent(modelName.slice(provider.length + 1));
   const request: { url: string; headers: Record<string, string> } | undefined =
     provider === "openai"
