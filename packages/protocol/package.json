@@ -27,6 +27,7 @@
   "devDependencies": {
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "oxfmt": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
