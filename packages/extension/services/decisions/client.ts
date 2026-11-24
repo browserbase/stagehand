@@ -160,9 +160,10 @@ function prepare(provider: DecisionProvider, questions: Record<string, DecisionQ
   const optionOf = new Map<string, Map<string, string>>();
   const prepared: Record<string, DecisionQuestion> = {};
   const flatten = (value: JsonValue): JsonValue => (provider.structuredText ? value : text(value));
+  const safe = (id: string): boolean => id !== "__proto__" && provider.safeId.test(id);
   let index = 0;
   for (const [key, question] of Object.entries(questions)) {
-    const wireKey = provider.safeId.test(key) ? key : `q${index}`;
+    const wireKey = safe(key) ? key : `q${index}`;
     index++;
     keyOf.set(wireKey, key);
     if (question.type === "noul") {
@@ -182,7 +183,7 @@ function prepare(provider: DecisionProvider, questions: Record<string, DecisionQ
     }
     const options = new Map<string, string>();
     const ids = Object.keys(question.criteria);
-    const aliasAll = ids.some((id) => !provider.safeId.test(id));
+    const aliasAll = ids.some((id) => !safe(id));
     const criteria: Record<string, JsonValue> = {};
     ids.forEach((id, position) => {
       const wireId = aliasAll ? `o${position}` : id;
@@ -237,7 +238,7 @@ function validate(
   const original = (wireId: unknown): string | undefined =>
     typeof wireId === "string" ? options?.get(wireId) : undefined;
   const choice = original(answer.choice) ?? bad("choice is not one of the options");
-  const probabilities: Record<string, number> = {};
+  const probabilities: Record<string, number> = Object.create(null);
   const listed =
     answer.probabilities && typeof answer.probabilities === "object"
       ? Object.entries(answer.probabilities as Record<string, unknown>)
@@ -262,7 +263,7 @@ function validate(
   return {
     type: "choice",
     choice,
-    probabilities,
+    probabilities: { ...probabilities },
     confidence: probability(answer.confidence) ?? probabilities[choice]!,
   };
 }
@@ -343,7 +344,11 @@ async function requestOnce(
     }
 
     if (RETRY_STATUSES.has(response.status) && attempt < MAX_ATTEMPTS) {
-      const retryAfter = Number(response.headers.get("retry-after"));
+      const header = response.headers.get("retry-after") ?? "";
+      const seconds = Number(header);
+      const retryAfter = Number.isFinite(seconds)
+        ? seconds
+        : (Date.parse(header) - Date.now()) / 1000;
       const wait =
         Number.isFinite(retryAfter) && retryAfter > 0
           ? Math.min(retryAfter * 1000, MAX_RETRY_AFTER_MS)

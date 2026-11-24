@@ -1548,7 +1548,10 @@ export const StagehandInitParamsSchema = z
           .string()
           .regex(/^[A-Za-z0-9_-]{1,64}$/)
           .optional()
-          .meta({ description: 'Cloudflare account id; required for provider "cloudflare"' }),
+          .meta({
+            description:
+              'Cloudflare account id; required for provider "cloudflare" unless apiUrl names the account',
+          }),
         enabled: z.boolean().optional(),
         retryNoEffect: z.boolean().optional(),
         focusFallback: z.boolean().optional(),
@@ -1563,6 +1566,13 @@ export const StagehandInitParamsSchema = z
         tools: z.boolean().optional(),
         targetReadiness: z.boolean().optional(),
       })
+      .refine(
+        (decisions) =>
+          decisions.provider !== "cloudflare" ||
+          decisions.accountId !== undefined ||
+          decisions.apiUrl !== undefined,
+        { message: 'provider "cloudflare" requires accountId or apiUrl', path: ["accountId"] },
+      )
       .optional()
       .meta({
         description:

@@ -627,7 +627,7 @@ class ExperimentalDecisions(WireModel):
     account_id: Annotated[Optional[StrictStr], Field(pattern="^[A-Za-z0-9_-]{1,64}$")] = (
         None
     )
-    """Cloudflare account id; required for provider "cloudflare\""""
+    """Cloudflare account id; required for provider "cloudflare" unless apiUrl names the account"""
     enabled: Optional[StrictBool] = None
     retry_no_effect: Optional[StrictBool] = None
     focus_fallback: Optional[StrictBool] = None
