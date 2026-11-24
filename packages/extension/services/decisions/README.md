@@ -72,6 +72,10 @@ likely tool will need it, that call starts alongside the decision-model request.
 act path continues from the intent it already has. Once a tool has been invoked the act is over,
 success or error: it never also clicks through the UI. Tool acts are not cached.
 
+Tool names, descriptions and input schemas are written by the page and reach the decision model,
+and the argument LLM, as written, so a page can word them to attract selection. Enable `tools` only
+for pages you trust.
+
 ```ts
 // TypeScript SDK; Chrome needs its WebMCP features on, which localBrowser.launch() does.
 process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify({ apiKey, tools: true });
