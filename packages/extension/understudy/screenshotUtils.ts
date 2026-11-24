@@ -1,3 +1,4 @@
+import { ChainLocatorDelegate } from "./chainLocator.js";
 import type { Progress } from "./progress.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
@@ -341,11 +342,16 @@ export async function applyMaskOverlays(
   for (const locator of locators) {
     try {
       progress.throwIfStopped();
-      const resolved = "real" in locator ? await locator.real(progress) : locator;
-      const frame = resolved.getFrame();
-      const rects = rectsByFrame.get(frame) ?? [];
-      rectsByFrame.set(frame, rects);
-      rects.push(...(await resolveMaskRects(resolved, token, progress)));
+      const resolvedLocators =
+        locator instanceof ChainLocatorDelegate
+          ? await locator.all(progress)
+          : ["real" in locator ? await locator.real(progress) : locator];
+      for (const resolved of resolvedLocators) {
+        const frame = resolved.getFrame();
+        const rects = rectsByFrame.get(frame) ?? [];
+        rectsByFrame.set(frame, rects);
+        rects.push(...(await resolveMaskRects(resolved, token, progress)));
+      }
     } catch {
       progress.throwIfStopped();
       // ignore individual locator failures

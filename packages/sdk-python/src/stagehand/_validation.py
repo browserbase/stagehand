@@ -101,6 +101,21 @@ class WireModel(BaseModel):
                 self.model_fields_set.add(name)
 
 
+class LocatorChainValidation(WireModel):
+    @model_validator(mode="before")
+    @classmethod
+    def require_leading_query(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            steps = value.get("steps")
+            if isinstance(steps, list) and steps:
+                first = steps[0]
+                if isinstance(first, BaseModel):
+                    first = first.model_dump()
+                if not isinstance(first, Mapping) or first.get("type") != "query":
+                    raise ValueError("locator chains must start with a query")
+        return value
+
+
 class PageScreenshotOptionsValidation(WireModel):
     @model_validator(mode="before")
     @classmethod

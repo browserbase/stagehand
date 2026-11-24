@@ -8,19 +8,26 @@ import {
   ExtractOptionsSchema,
   LocatorChainSchema,
   LocatorDescriptorSchema,
+  LocatorInputSchema,
+  LocatorRequestDescriptorSchema,
   LocatorSchema,
   ObserveOptionsSchema,
   PageScreenshotOptionsSchema,
 } from "../../schemas.js";
 import { invalidLocatorChains, validLocatorChains } from "../fixtures/locator-chains.js";
 
-describe("internal locator chain validation", () => {
+describe("locator chain validation", () => {
   it.each(validLocatorChains)("preserves $name", ({ chain }) => {
     expect(LocatorChainSchema.parse(chain)).toStrictEqual(chain);
   });
 
   it.each(invalidLocatorChains)("rejects $name", ({ chain }) => {
     expect(LocatorChainSchema.safeParse(chain).success).toBe(false);
+  });
+
+  it.each([NaN, Infinity])("rejects non-finite position %s", (index) => {
+    const steps = [...validLocatorChains[0]!.chain.steps, { type: "nth", index }];
+    expect(LocatorChainSchema.safeParse({ steps }).success).toBe(false);
   });
 });
 
@@ -44,16 +51,19 @@ describe("released locator wire compatibility", () => {
     method.name.startsWith("locator."),
   );
 
-  it.each(methods)("keeps $name on legacy descriptors", ({ name, params }) => {
+  it.each(methods)("accepts legacy & chain requests for $name", ({ name, params }) => {
     const schema = wireSchema(params);
     const required = { page_id: "page-1", ...requiredFields[name] };
     for (const locator of legacyLocators) {
       const input = { ...required, ...locator };
       expect(encodeWireValue(schema.parse(input))).toStrictEqual(input);
-      // A valid internal chain must not become an accepted executable request yet.
       expect(schema.safeParse({ ...input, chain }).success).toBe(false);
     }
-    expect(schema.safeParse({ ...required, chain }).success).toBe(false);
+    expect(encodeWireValue(schema.parse({ ...required, chain }))).toStrictEqual({
+      ...required,
+      chain,
+    });
+    expect(schema.safeParse({ ...required, chain, nth: 0 }).success).toBe(false);
   });
 
   it.each(legacyLocators)(
@@ -61,12 +71,19 @@ describe("released locator wire compatibility", () => {
     (locator) => {
       const descriptor = { pageId: "page-1", ...locator };
       expect(LocatorSchema.parse(locator)).toStrictEqual(locator);
+      expect(LocatorInputSchema.parse({ chain })).toStrictEqual({ chain });
+      expect(LocatorRequestDescriptorSchema.parse({ pageId: "page-1", chain })).toStrictEqual({
+        pageId: "page-1",
+        chain,
+      });
       expect(LocatorDescriptorSchema.parse(descriptor)).toStrictEqual(descriptor);
       for (const schema of [ActOptionsSchema, ObserveOptionsSchema, ExtractOptionsSchema]) {
         const options = { locator, ignoreLocators: [locator] };
         expect(schema.parse(options)).toStrictEqual(options);
-        expect(schema.safeParse({ locator: { chain } }).success).toBe(false);
-        expect(schema.safeParse({ ignoreLocators: [{ chain }] }).success).toBe(false);
+        expect(schema.parse({ locator: { chain } })).toStrictEqual({ locator: { chain } });
+        expect(schema.parse({ ignoreLocators: [{ chain }] })).toStrictEqual({
+          ignoreLocators: [{ chain }],
+        });
         expect(schema.safeParse({ locator: { ...locator, chain } }).success).toBe(false);
         expect(schema.safeParse({ ignoreLocators: [{ ...locator, chain }] }).success).toBe(false);
       }
@@ -75,7 +92,7 @@ describe("released locator wire compatibility", () => {
       });
       expect(
         PageScreenshotOptionsSchema.safeParse({ mask: [{ pageId: "page-1", chain }] }).success,
-      ).toBe(false);
+      ).toBe(true);
       expect(
         PageScreenshotOptionsSchema.safeParse({ mask: [{ ...descriptor, chain }] }).success,
       ).toBe(false);
@@ -94,7 +111,7 @@ describe("released locator wire compatibility", () => {
     expect(ActionSchema.safeParse({ description: "Save", chain }).success).toBe(false);
   });
 
-  it("does not advertise internal chain definitions in the generated protocol", () => {
+  it("advertises chain requests in the generated protocol", () => {
     const protocol = JSON.parse(
       readFileSync(new URL("../../stagehand.v4.json", import.meta.url), "utf8"),
     ) as {
@@ -108,7 +125,7 @@ describe("released locator wire compatibility", () => {
       "LocatorFrameStep",
       "LocatorNthStep",
     ]) {
-      expect(protocol.$defs).not.toHaveProperty(name);
+      expect(protocol.$defs).toHaveProperty(name);
     }
   });
 });

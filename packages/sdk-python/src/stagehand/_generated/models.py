@@ -16,6 +16,7 @@ from pydantic import (
     StrictStr,
 )
 from stagehand._validation import (
+    LocatorChainValidation,
     PageScreenshotOptionsValidation,
     StagehandInitParamsValidation,
     TelemetryConfigValidation,
@@ -48,10 +49,10 @@ class ActOptions(WireModel):
 
     Example: 30000
     """
-    locator: Optional[Locator] = None
+    locator: Optional[LocatorInput] = None
     """Serializable element locator for the action target"""
     ignore_locators: Annotated[
-        Optional[list[Locator]],
+        Optional[list[LocatorInput]],
         Field(
             examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
         ),
@@ -408,6 +409,23 @@ class CerebrasModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^cerebras\\/\\S+$")]
 
 
+class ChainLocator(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+
+
+class ChainLocatorDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+
+
 class ClearCookieOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -635,10 +653,10 @@ class ExtractOptions(WireModel):
 
     Example: 30000
     """
-    locator: Optional[Locator] = None
+    locator: Optional[LocatorInput] = None
     """Locator that scopes extraction to a specific element"""
     ignore_locators: Annotated[
-        Optional[list[Locator]],
+        Optional[list[LocatorInput]],
         Field(
             examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
         ),
@@ -1102,6 +1120,14 @@ class LocatorCentroidResult(WireModel):
     y: StrictFloat
 
 
+class LocatorChain(LocatorChainValidation):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    steps: Annotated[list[Union[LocatorQueryStep, LocatorStep]], Field(min_length=1)]
+
+
 class LocatorClickOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1113,7 +1139,7 @@ class LocatorClickOptions(WireModel):
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
 
-class LocatorClickParams(WireModel):
+class LocatorClickParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1122,6 +1148,20 @@ class LocatorClickParams(WireModel):
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorClickOptions] = None
+
+
+class LocatorClickParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorClickOptions] = None
+
+
+class LocatorClickParams(RootModel[Union[LocatorClickParams1, LocatorClickParams2]]):
+    root: Union[LocatorClickParams1, LocatorClickParams2]
 
 
 class LocatorClickResult(WireModel):
@@ -1146,7 +1186,7 @@ class LocatorDescriptor(WireModel):
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
 
 
-class LocatorFillParams(WireModel):
+class LocatorFillParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1158,12 +1198,36 @@ class LocatorFillParams(WireModel):
     value: StrictStr
 
 
+class LocatorFillParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorOptions] = None
+    value: StrictStr
+
+
+class LocatorFillParams(RootModel[Union[LocatorFillParams1, LocatorFillParams2]]):
+    root: Union[LocatorFillParams1, LocatorFillParams2]
+
+
 class LocatorFillResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
     filled: Literal[True]
+
+
+class LocatorFrameStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["frame"]
+    selector: LocatorQuerySelector
 
 
 class LocatorHighlightOptions(WireModel):
@@ -1178,7 +1242,7 @@ class LocatorHighlightOptions(WireModel):
     content_color: Optional[RgbaColor] = None
 
 
-class LocatorHighlightParams(WireModel):
+class LocatorHighlightParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1187,6 +1251,22 @@ class LocatorHighlightParams(WireModel):
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorHighlightOptions] = None
+
+
+class LocatorHighlightParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorHighlightOptions] = None
+
+
+class LocatorHighlightParams(
+    RootModel[Union[LocatorHighlightParams1, LocatorHighlightParams2]]
+):
+    root: Union[LocatorHighlightParams1, LocatorHighlightParams2]
 
 
 class LocatorHighlightResult(WireModel):
@@ -1213,6 +1293,10 @@ class LocatorInnerTextResult(RootModel[StrictStr]):
     root: StrictStr
 
 
+class LocatorInput(RootModel[Union[Locator, ChainLocator]]):
+    root: Union[Locator, ChainLocator]
+
+
 class LocatorInputValueResult(RootModel[StrictStr]):
     root: StrictStr
 
@@ -1225,6 +1309,15 @@ class LocatorIsVisibleResult(RootModel[StrictBool]):
     root: StrictBool
 
 
+class LocatorNthStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["nth"]
+    index: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+
+
 class LocatorOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1234,7 +1327,7 @@ class LocatorOptions(WireModel):
     """Milliseconds for the whole locator call. Zero disables the timeout."""
 
 
-class LocatorParams(WireModel):
+class LocatorParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1245,7 +1338,69 @@ class LocatorParams(WireModel):
     options: Optional[LocatorOptions] = None
 
 
-class LocatorScrollToParams(WireModel):
+class LocatorParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorOptions] = None
+
+
+class LocatorParams(RootModel[Union[LocatorParams1, LocatorParams2]]):
+    root: Union[LocatorParams1, LocatorParams2]
+
+
+class LocatorQuerySelector1(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["css"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
+class LocatorQuerySelector2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["xpath"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
+class LocatorQuerySelector3(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    kind: Literal["text"]
+    value: Annotated[StrictStr, Field(min_length=1)]
+
+
+class LocatorQuerySelector(
+    RootModel[Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3]]
+):
+    root: Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3]
+
+
+class LocatorQueryStep(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["query"]
+    selector: LocatorQuerySelector
+
+
+class LocatorRequestDescriptor(
+    RootModel[Union[LocatorDescriptor, ChainLocatorDescriptor]]
+):
+    root: Union[LocatorDescriptor, ChainLocatorDescriptor]
+
+
+class LocatorScrollToParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1257,6 +1412,23 @@ class LocatorScrollToParams(WireModel):
     percent: Union[StrictFloat, StrictStr]
 
 
+class LocatorScrollToParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorOptions] = None
+    percent: Union[StrictFloat, StrictStr]
+
+
+class LocatorScrollToParams(
+    RootModel[Union[LocatorScrollToParams1, LocatorScrollToParams2]]
+):
+    root: Union[LocatorScrollToParams1, LocatorScrollToParams2]
+
+
 class LocatorScrollToResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1265,7 +1437,7 @@ class LocatorScrollToResult(WireModel):
     scrolled: Literal[True]
 
 
-class LocatorSelectOptionParams(WireModel):
+class LocatorSelectOptionParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1275,6 +1447,23 @@ class LocatorSelectOptionParams(WireModel):
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
+
+
+class LocatorSelectOptionParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorOptions] = None
+    values: Union[StrictStr, list[StrictStr]]
+
+
+class LocatorSelectOptionParams(
+    RootModel[Union[LocatorSelectOptionParams1, LocatorSelectOptionParams2]]
+):
+    root: Union[LocatorSelectOptionParams1, LocatorSelectOptionParams2]
 
 
 class LocatorSelectOptionResult(RootModel[list[StrictStr]]):
@@ -1294,7 +1483,7 @@ class LocatorSendClickEventOptions(WireModel):
     detail: Optional[StrictFloat] = None
 
 
-class LocatorSendClickEventParams(WireModel):
+class LocatorSendClickEventParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1305,6 +1494,22 @@ class LocatorSendClickEventParams(WireModel):
     options: Optional[LocatorSendClickEventOptions] = None
 
 
+class LocatorSendClickEventParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorSendClickEventOptions] = None
+
+
+class LocatorSendClickEventParams(
+    RootModel[Union[LocatorSendClickEventParams1, LocatorSendClickEventParams2]]
+):
+    root: Union[LocatorSendClickEventParams1, LocatorSendClickEventParams2]
+
+
 class LocatorSendClickEventResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1313,7 +1518,7 @@ class LocatorSendClickEventResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorSetInputFilesParams(WireModel):
+class LocatorSetInputFilesParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1325,12 +1530,33 @@ class LocatorSetInputFilesParams(WireModel):
     files: list[InputFilePayload]
 
 
+class LocatorSetInputFilesParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorOptions] = None
+    files: list[InputFilePayload]
+
+
+class LocatorSetInputFilesParams(
+    RootModel[Union[LocatorSetInputFilesParams1, LocatorSetInputFilesParams2]]
+):
+    root: Union[LocatorSetInputFilesParams1, LocatorSetInputFilesParams2]
+
+
 class LocatorSetInputFilesResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
     set: Literal[True]
+
+
+class LocatorStep(RootModel[Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep]]):
+    root: Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep]
 
 
 class LocatorTextContentResult(RootModel[StrictStr]):
@@ -1347,7 +1573,7 @@ class LocatorTypeOptions(WireModel):
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
 
 
-class LocatorTypeParams(WireModel):
+class LocatorTypeParams1(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -1357,6 +1583,21 @@ class LocatorTypeParams(WireModel):
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorTypeOptions] = None
     text: StrictStr
+
+
+class LocatorTypeParams2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    chain: LocatorChain
+    page_id: StrictStr
+    options: Optional[LocatorTypeOptions] = None
+    text: StrictStr
+
+
+class LocatorTypeParams(RootModel[Union[LocatorTypeParams1, LocatorTypeParams2]]):
+    root: Union[LocatorTypeParams1, LocatorTypeParams2]
 
 
 class LocatorTypeResult(WireModel):
@@ -1481,10 +1722,10 @@ class ObserveOptions(WireModel):
 
     Example: 30000
     """
-    locator: Optional[Locator] = None
+    locator: Optional[LocatorInput] = None
     """Locator that scopes observation to a specific element"""
     ignore_locators: Annotated[
-        Optional[list[Locator]],
+        Optional[list[LocatorInput]],
         Field(
             examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
         ),
@@ -1881,7 +2122,7 @@ class PageScreenshotOptions(PageScreenshotOptionsValidation):
     caret: Optional[Caret] = None
     clip: Optional[PageScreenshotClip] = None
     full_page: Optional[StrictBool] = None
-    mask: Optional[list[LocatorDescriptor]] = None
+    mask: Optional[list[LocatorRequestDescriptor]] = None
     mask_color: Optional[StrictStr] = None
     omit_background: Optional[StrictBool] = None
     quality: Annotated[Optional[StrictInt], Field(ge=0, le=100)] = None

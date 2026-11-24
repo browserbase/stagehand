@@ -1,10 +1,16 @@
 /// <reference types="chrome" />
+import { RPCRouter } from "../../../extension/rpcRouter.js";
+import { createStagehandRuntime } from "../../../extension/runtime.js";
 
 import { trace } from "@opentelemetry/api";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LocatorChain, LocatorQueryStep } from "@browserbasehq/stagehand-protocol/types";
+import type {
+  LocatorChain,
+  LocatorQueryStep,
+  StagehandRpcRequest,
+} from "@browserbasehq/stagehand-protocol/types";
 import type { ElementChainResolution } from "../../../extension/dom/locatorScripts/resolveElementChain.js";
 import type { CDPSessionLike } from "../../../extension/understudy/cdp.js";
 import { StagehandLogger } from "../../../extension/logger.js";
@@ -12,7 +18,6 @@ import { browserWebSocketFactory } from "../../../extension/understudy/browserWe
 import { BrowserContext } from "../../../extension/understudy/context.js";
 import type { ElementChainTarget } from "../../../extension/understudy/elementChainResolver.js";
 import { FrameChainResolver } from "../../../extension/understudy/frameChainResolver.js";
-import { Locator } from "../../../extension/understudy/locator.js";
 import type { Page } from "../../../extension/understudy/page.js";
 import { Progress } from "../../../extension/understudy/progress.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
@@ -249,22 +254,26 @@ describe("iframe chain resolution in Chrome", () => {
       expect(page.getSessionForFrame(target.frameId)).toBe(target.session);
       expect(await ids([target])).toEqual(["save"]);
       const frame = page.frameForId(target.frameId);
-      // Make selector re-resolution pick the wrong button.
-      await frame.evaluate(() => {
-        const duplicate = document.createElement("button");
-        duplicate.id = "save";
-        duplicate.textContent = "Wrong button";
-        document.body.prepend(duplicate);
+      const send = target.session.send.bind(target.session);
+      let inserted = false;
+      vi.spyOn(target.session, "send").mockImplementation(async (method, params) => {
+        if (
+          !inserted &&
+          method === "DOM.resolveNode" &&
+          (params as { backendNodeId?: number }).backendNodeId === target.backendNodeId
+        ) {
+          inserted = true;
+          await frame.evaluate(() => {
+            const duplicate = document.createElement("button");
+            duplicate.id = "save";
+            duplicate.textContent = "Wrong button";
+            document.body.prepend(duplicate);
+          });
+        }
+        return send(method, params);
       });
-      const locator = new Locator(frame, "#save");
-      locator.resolveNode = async () => {
-        const { object } = await target.session.send<{ object: { objectId: string } }>(
-          "DOM.resolveNode",
-          { backendNodeId: target.backendNodeId },
-        );
-        return { objectId: object.objectId, nodeId: null };
-      };
-      await locator.click();
+      await wireClient()("locator.click", { chain: { steps } });
+      expect(inserted).toBe(true);
       expect(
         await frame.evaluate(() =>
           Array.from(
@@ -275,6 +284,129 @@ describe("iframe chain resolution in Chrome", () => {
       ).toEqual(["no", "yes"]);
     },
   );
+  function wireClient() {
+    const runtime = createStagehandRuntime();
+    runtime.registerPage(page);
+    const router = new RPCRouter(runtime);
+    return (method: string, params: Record<string, unknown>) =>
+      router.route(
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          method,
+          params: { page_id: page.pageId, ...params },
+        } as StagehandRpcRequest,
+        { logger: page.logger, telemetryScope: Symbol("chain-test") },
+      );
+  }
+
+  it("executes additive chain requests through the runtime & keeps legacy requests working", async () => {
+    await addFrame("/child", true);
+    const send = wireClient();
+    const chain: LocatorChain = {
+      steps: [css("iframe"), css("button"), { type: "nth", index: 0 }],
+    };
+    expect(await send("locator.count", { chain })).toBe(1);
+    expect(await send("locator.count", { selector: "button" })).toBe(1);
+    expect(await send("locator.count", { selector: "iframe >> button" })).toBe(3);
+    expect(await send("locator.click", { chain, options: { timeout: 5000 } })).toEqual({
+      clicked: true,
+    });
+    const [target] = await targets(chain.steps);
+    expect(
+      await page
+        .frameForId(target.frameId)
+        .evaluate(() => document.querySelector("#save")!.getAttribute("data-clicked")),
+    ).toBe("yes");
+    expect(await send("locator.text_content", { chain })).toBe("Save");
+    await expect(send("locator.count", { chain, nth: 0 })).rejects.toThrow();
+    await expect(send("locator.count", { chain, selector: "button" })).rejects.toThrow();
+  });
+
+  it("routes fill, type, selection & file upload options to exact chain targets", async () => {
+    await page.evaluate(() => {
+      document.body.innerHTML =
+        '<section><input id="text"><select><option value="a">A</option><option value="b">B</option></select><input type="file"></section>';
+    });
+    const send = wireClient();
+    const field = (selector: string) => ({ steps: [css("section"), css(selector)] });
+    await send("locator.fill", {
+      chain: field("#text"),
+      value: "hello",
+      options: { timeout: 5000 },
+    });
+    expect(await send("locator.input_value", { chain: field("#text") })).toBe("hello");
+    await send("locator.type", { chain: field("#text"), text: "!", options: { delay: 1 } });
+    expect(await send("locator.input_value", { chain: field("#text") })).toBe("hello!");
+    expect(await send("locator.select_option", { chain: field("select"), values: ["b"] })).toEqual([
+      "b",
+    ]);
+    await send("locator.set_input_files", {
+      chain: field("[type=file]"),
+      files: [{ name: "hello.txt", data: "aGVsbG8=" }],
+    });
+    expect(
+      await page.evaluate(
+        () => document.querySelector<HTMLInputElement>("[type=file]")!.files![0].name,
+      ),
+    ).toBe("hello.txt");
+  });
+
+  it("masks all chain targets in their owning documents & cleans the overlays", async () => {
+    await mixedScopes();
+    const [target] = await targets([css("iframe"), css("#save")]);
+    const child = page.frameForId(target.frameId);
+    const send = page.mainSession.send.bind(page.mainSession);
+    let masksAtCapture: number[] | undefined;
+    vi.spyOn(page.mainSession, "send").mockImplementation(async (method, params) => {
+      if (method === "Page.captureScreenshot") {
+        const count = () => document.querySelectorAll("[data-stagehand-mask]").length;
+        masksAtCapture = [await page.evaluate(count), await child.evaluate(count)];
+      }
+      return send(method, params);
+    });
+    const result = (await wireClient()("page.screenshot", {
+      options: {
+        mask: [{ page_id: page.pageId, chain: { steps: [css(".scope"), css("button")] } }],
+      },
+    })) as { data: string };
+    expect(result.data.length).toBeGreaterThan(0);
+    expect(masksAtCapture).toEqual([2, 3]);
+    expect(
+      await page.evaluate(() => document.querySelectorAll("[data-stagehand-mask]").length),
+    ).toBe(0);
+    expect(
+      await child.evaluate(() => document.querySelectorAll("[data-stagehand-mask]").length),
+    ).toBe(0);
+  });
+
+  it("scopes snapshots to the exact chain target & excludes all requested matches", async () => {
+    await addFrame("/child", true);
+    const operation = new Progress("chain snapshot", 10_000);
+    const chain: LocatorChain = { steps: [css("iframe"), css("section")] };
+    try {
+      const scoped = await page.captureSnapshot({ focusLocator: { chain } }, operation);
+      expect(scoped.combinedTree).toContain("Save");
+      expect(scoped.combinedTree).not.toContain("Outside");
+      expect(scoped.combinedTree).not.toContain("Shadow save");
+      expect(
+        Object.values(scoped.combinedXpathMap).some((path) => path.includes("/iframe[1]/html[1]")),
+      ).toBe(true);
+      const excluded = await page.captureSnapshot(
+        { ignoreLocators: [{ chain: { steps: [css("iframe"), css("button")] } }] },
+        operation,
+      );
+      expect(excluded.combinedTree).toContain("Outside");
+      expect(excluded.combinedTree).not.toContain("Save");
+      expect(excluded.combinedTree).not.toContain("Shadow save");
+      await expect(
+        page.captureSnapshot({ focusLocator: { chain: { steps: [css(".missing")] } } }, operation),
+      ).rejects.toThrow("scope did not match");
+    } finally {
+      operation.dispose();
+    }
+  });
+
   async function mixedScopes() {
     await page.evaluate(() => {
       document.body.innerHTML = '<section class="scope"><button id="a">Save</button></section>';

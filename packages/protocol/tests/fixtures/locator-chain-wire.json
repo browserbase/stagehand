@@ -1,0 +1,550 @@
+{
+  "valid": [
+    {
+      "name": "single CSS query",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "XPath with whitespace and predicates preserved",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "xpath",
+              "value": " .//button[normalize-space(.)='Save'] "
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "legacy text with Unicode and literal delimiters",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "text",
+              "value": "  \u4fdd\u5b58 >> / 'Save'  "
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "position before a descendant query",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 1
+          },
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "position after a descendant query",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated positions including zero",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 2
+          },
+          {
+            "type": "nth",
+            "index": 0
+          },
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "iframe element as the final target",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "iframe.checkout"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ordinary query following an iframe query",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "iframe.checkout"
+            }
+          },
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "explicit legacy frame hops with positions",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "iframe.checkout"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 0
+          },
+          {
+            "type": "frame",
+            "selector": {
+              "kind": "css",
+              "value": "iframe.payment"
+            }
+          },
+          {
+            "type": "frame",
+            "selector": {
+              "kind": "xpath",
+              "value": "//button"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 1
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "null",
+      "chain": null
+    },
+    {
+      "name": "missing steps",
+      "chain": {}
+    },
+    {
+      "name": "empty steps",
+      "chain": {
+        "steps": []
+      }
+    },
+    {
+      "name": "non-array steps",
+      "chain": {
+        "steps": {
+          "type": "query",
+          "selector": {
+            "kind": "css",
+            "value": ".card"
+          }
+        }
+      }
+    },
+    {
+      "name": "leading position",
+      "chain": {
+        "steps": [
+          {
+            "type": "nth",
+            "index": 0
+          },
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "leading frame hop",
+      "chain": {
+        "steps": [
+          {
+            "type": "frame",
+            "selector": {
+              "kind": "css",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown step",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "filter",
+            "hasText": "Save"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null step",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          null
+        ]
+      }
+    },
+    {
+      "name": "missing query selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing frame selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "iframe.checkout"
+            }
+          },
+          {
+            "type": "frame"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown engine",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "role",
+              "value": "button"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "string selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": "button"
+          }
+        ]
+      }
+    },
+    {
+      "name": "selector extra fields",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": "button",
+              "exact": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "step extra fields",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            },
+            "nth": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "outer position",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          }
+        ],
+        "nth": 1
+      }
+    },
+    {
+      "name": "outer selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          }
+        ],
+        "selector": "button"
+      }
+    },
+    {
+      "name": "empty css selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty xpath selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "xpath",
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty text selector",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "text",
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid position -1",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": -1
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid position 0.5",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid position 1",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid position true",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid position null",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth",
+            "index": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing position",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": {
+              "kind": "css",
+              "value": ".card"
+            }
+          },
+          {
+            "type": "nth"
+          }
+        ]
+      }
+    }
+  ]
+}
