@@ -32,6 +32,7 @@
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "fflate": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
