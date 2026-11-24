@@ -283,6 +283,44 @@ describe("decisions act pipeline", () => {
     );
   });
 
+  it("clicks a named control through the element path when a page tool would also match", async () => {
+    const tree = [
+      "[0-1] RootWebArea: Shop",
+      "  [0-2] button: Add to cart",
+      "  [0-3] button: Checkout",
+    ].join("\n");
+    const invokeWebMCPTool = vi.fn();
+    const webmcp = {
+      tools: Promise.resolve([
+        { name: "add_to_cart", description: "Add the product to the cart", frameId: "main" },
+      ]),
+      page: {
+        invokeWebMCPTool,
+        waitForWebMCPInvocationResult: vi.fn(),
+        cancelWebMCPInvocation: vi.fn(),
+      },
+    };
+    const answers = {
+      family: choice("click"),
+      strict: choice("0-2"),
+      best: best("0-2"),
+      tool_best: choice("add_to_cart"),
+      tool_strict: choice("add_to_cart"),
+    };
+    stubDecisions({ ...answers, tool_names_control: noul(0.97) });
+    const { value, takeAction } = deps(
+      tree,
+      { "0-2": "/html/body/button[1]", "0-3": "/html/body/button[2]" },
+      { instruction: "click the Add to cart button", webmcp },
+    );
+
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
+    expect(invokeWebMCPTool).not.toHaveBeenCalled();
+    expect(takeAction).toHaveBeenCalledWith(
+      expect.objectContaining({ selector: "xpath=/html/body/button[1]", method: "click" }),
+    );
+  });
+
   it("resolves whole-page scrolls to the main document without a target question", async () => {
     const tree = [
       "[0-1] RootWebArea: Demo",
