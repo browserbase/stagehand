@@ -27,6 +27,8 @@ describe("pi-sdk formal properties", () => {
       fc.constant(undefined),
       fc.constant(null),
       fc.double({ min: -1000, max: 1e6, noNaN: false, noDefaultInfinity: false }),
+      fc.double({ min: 1e307, max: Number.MAX_VALUE, noNaN: true, noDefaultInfinity: true }),
+      fc.constant(Number.MAX_VALUE),
       fc.integer({ min: -100, max: 100_000 }).map(String),
       fc.constant("NaN"),
       fc.constant("Infinity"),
@@ -68,6 +70,33 @@ describe("pi-sdk formal properties", () => {
     );
   });
 
+  it("extractPiTokenUsage clamps overflowing sums across multiple assistant events instead of producing Infinity", () => {
+    const maxEvent: PiEvent = {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        usage: {
+          input: Number.MAX_VALUE,
+          output: Number.MAX_VALUE,
+          cacheRead: Number.MAX_VALUE,
+          cacheWrite: Number.MAX_VALUE,
+          reasoning: Number.MAX_VALUE,
+          totalTokens: Number.MAX_VALUE,
+          cost: { total: Number.MAX_VALUE },
+        },
+      },
+    };
+    const usage = extractPiTokenUsage([maxEvent, maxEvent]);
+    expect(usage.reported).toBe(true);
+    expect(usage.inputTokens).toBe(Number.MAX_VALUE);
+    expect(usage.outputTokens).toBe(Number.MAX_VALUE);
+    expect(usage.cacheReadTokens).toBe(Number.MAX_VALUE);
+    expect(usage.cacheWriteTokens).toBe(Number.MAX_VALUE);
+    expect(usage.reasoningTokens).toBe(Number.MAX_VALUE);
+    expect(usage.totalTokens).toBe(Number.MAX_VALUE);
+    expect(usage.costUsd).toBe(Number.MAX_VALUE);
+  });
+
   it("compactPiEvent strictly enforces the session image byte budget and strips base64 from non-assistant messages", () => {
     fc.assert(
       fc.property(
@@ -107,6 +136,39 @@ describe("pi-sdk formal properties", () => {
       ),
       FC_OPTS,
     );
+  });
+
+  it("compactPiEvent omits oversize images exceeding MAX_PI_IMAGE_BYTES without retaining bytes", () => {
+    const initialBudget = MAX_PI_IMAGE_BYTES * 4;
+    const budget = { remainingBytes: initialBudget };
+    const oversizeBase64 = "A".repeat(Math.ceil((MAX_PI_IMAGE_BYTES + 3) / 3) * 4);
+    const oversizeBuffer = Buffer.alloc(MAX_PI_IMAGE_BYTES + 1, 7);
+
+    const compacted = compactPiEvent(
+      {
+        type: "tool_execution_end",
+        toolName: "screenshot",
+        result: {
+          content: [
+            { type: "image", data: oversizeBase64, mimeType: "image/png" },
+            { type: "image", bytes: oversizeBuffer, mimeType: "image/png" },
+          ],
+        },
+      },
+      budget,
+    );
+
+    const blocks = (compacted.result as { content: Array<Record<string, unknown>> }).content;
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) {
+      expect(block.type).toBe("text");
+      expect(typeof block.text).toBe("string");
+      expect(block.text).toContain("Screenshot omitted from retained evidence");
+      expect(block.text).toContain(`${MAX_PI_IMAGE_BYTES}-byte per-image`);
+      expect(block.bytes).toBeUndefined();
+      expect(block.data).toBeUndefined();
+    }
+    expect(budget.remainingBytes).toBe(initialBudget);
   });
 
   it("buildPiMcpToolName / isPiMcpToolName round-trip and mcpCallResultToPiToolResult is total", () => {

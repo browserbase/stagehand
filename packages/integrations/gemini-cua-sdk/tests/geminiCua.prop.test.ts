@@ -96,12 +96,69 @@ describe("gemini-cua-sdk formal properties", () => {
   });
 
   describe("GeminiCuaExecutor action dispatch safety", () => {
-    it("never emits NaN, Infinity, or out-of-viewport coordinates for scroll/click/drag/wait/key", async () => {
+    function assertViewportCoord(rawX: string, rawY: string): void {
+      const x = Number(rawX.trim());
+      const y = Number(rawY.trim());
+      expect(Number.isInteger(x)).toBe(true);
+      expect(Number.isInteger(y)).toBe(true);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThan(GEMINI_CUA_VIEWPORT.width);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThan(GEMINI_CUA_VIEWPORT.height);
+    }
+
+    function assertEmittedCallSafety(code: string): void {
+      for (const line of code.split("\n")) {
+        const clickMatch = /^await batchStagehand\.page\.click\(([^,]+),\s*([^,)]+)/.exec(line);
+        if (clickMatch) {
+          assertViewportCoord(clickMatch[1]!, clickMatch[2]!);
+          continue;
+        }
+        const hoverMatch = /^await batchStagehand\.page\.hover\(([^,]+),\s*([^)]+)\);$/.exec(line);
+        if (hoverMatch) {
+          assertViewportCoord(hoverMatch[1]!, hoverMatch[2]!);
+          continue;
+        }
+        const scrollMatch =
+          /^await batchStagehand\.page\.scroll\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\);$/.exec(
+            line,
+          );
+        if (scrollMatch) {
+          assertViewportCoord(scrollMatch[1]!, scrollMatch[2]!);
+          expect(Number.isFinite(Number(scrollMatch[3]!.trim()))).toBe(true);
+          expect(Number.isFinite(Number(scrollMatch[4]!.trim()))).toBe(true);
+          continue;
+        }
+        const dragMatch =
+          /^await batchStagehand\.page\.dragAndDrop\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),/.exec(
+            line,
+          );
+        if (dragMatch) {
+          assertViewportCoord(dragMatch[1]!, dragMatch[2]!);
+          assertViewportCoord(dragMatch[3]!, dragMatch[4]!);
+          continue;
+        }
+        const waitMatch = /^await page\.waitForTimeout\(([^)]+)\);$/.exec(line);
+        if (waitMatch) {
+          const ms = Number(waitMatch[1]!.trim());
+          expect(Number.isFinite(ms)).toBe(true);
+          expect(ms).toBeGreaterThanOrEqual(0);
+          continue;
+        }
+        if (line.startsWith("await batchStagehand.page.keyPress(")) {
+          expect(line).not.toContain("[native code]");
+          expect(line).not.toContain("function ");
+        }
+      }
+    }
+
+    it("never emits NaN, Infinity, or out-of-viewport coordinates for scroll/click/drag/hover/move/wait/key", async () => {
       const actionArb = fc.constantFrom(
         "click_at",
         "double_click",
         "right_click",
         "hover_at",
+        "move",
         "type_text_at",
         "key_combination",
         "hotkey",
@@ -165,22 +222,34 @@ describe("gemini-cua-sdk formal properties", () => {
           const res = await executor.execute(action, input as Record<string, unknown>);
           expect(typeof res.text).toBe("string");
           for (const code of calls) {
-            expect(code).not.toContain("NaN");
-            expect(code).not.toContain("Infinity");
-            expect(code).not.toContain("[native code]");
-            expect(code).not.toContain("function ");
+            assertEmittedCallSafety(code);
           }
         }),
         ASYNC_FC_OPTS,
       );
     });
 
-    it("always maps click_at coordinates strictly inside GEMINI_CUA_VIEWPORT", async () => {
+    it("always maps click, hover, move, scroll, and drag coordinates strictly inside GEMINI_CUA_VIEWPORT", async () => {
+      const coordArb = fc.double({ min: -1e6, max: 1e6, noNaN: true, noDefaultInfinity: true });
+
       await fc.assert(
         fc.asyncProperty(
-          fc.double({ min: -1e6, max: 1e6, noNaN: true, noDefaultInfinity: true }),
-          fc.double({ min: -1e6, max: 1e6, noNaN: true, noDefaultInfinity: true }),
-          async (x, y) => {
+          fc.constantFrom(
+            "click_at",
+            "double_click",
+            "right_click",
+            "hover_at",
+            "move",
+            "scroll_at",
+            "drag_and_drop",
+          ),
+          coordArb,
+          coordArb,
+          coordArb,
+          coordArb,
+          fc.constantFrom("up", "down", "left", "right"),
+          fc.double({ min: 0, max: 5000, noNaN: true, noDefaultInfinity: true }),
+          async (action, x, y, destination_x, destination_y, direction, magnitude) => {
             const calls: string[] = [];
             const executor = new GeminiCuaExecutor(
               {
@@ -191,16 +260,42 @@ describe("gemini-cua-sdk formal properties", () => {
               },
               logger,
             );
-            const res = await executor.execute("click_at", { x, y });
+            const input: Record<string, unknown> =
+              action === "drag_and_drop"
+                ? { x, y, destination_x, destination_y }
+                : action === "scroll_at"
+                  ? { x, y, direction, magnitude }
+                  : { x, y };
+            const res = await executor.execute(action, input);
             expect(res.isError).toBeUndefined();
-            const match = /page\.click\((\d+), (\d+)/.exec(calls[0] ?? "");
-            expect(match).not.toBeNull();
-            const px = Number(match![1]);
-            const py = Number(match![2]);
-            expect(px).toBeGreaterThanOrEqual(0);
-            expect(px).toBeLessThan(GEMINI_CUA_VIEWPORT.width);
-            expect(py).toBeGreaterThanOrEqual(0);
-            expect(py).toBeLessThan(GEMINI_CUA_VIEWPORT.height);
+            expect(calls).toHaveLength(1);
+            const code = calls[0]!;
+            if (action === "click_at" || action === "double_click" || action === "right_click") {
+              const m = /^await batchStagehand\.page\.click\(([^,]+),\s*([^,)]+)/.exec(code);
+              expect(m).not.toBeNull();
+              assertViewportCoord(m![1]!, m![2]!);
+            } else if (action === "hover_at" || action === "move") {
+              const m = /^await batchStagehand\.page\.hover\(([^,]+),\s*([^)]+)\);$/.exec(code);
+              expect(m).not.toBeNull();
+              assertViewportCoord(m![1]!, m![2]!);
+            } else if (action === "scroll_at") {
+              const m =
+                /^await batchStagehand\.page\.scroll\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\);$/.exec(
+                  code,
+                );
+              expect(m).not.toBeNull();
+              assertViewportCoord(m![1]!, m![2]!);
+              expect(Number.isFinite(Number(m![3]!.trim()))).toBe(true);
+              expect(Number.isFinite(Number(m![4]!.trim()))).toBe(true);
+            } else {
+              const m =
+                /^await batchStagehand\.page\.dragAndDrop\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),/.exec(
+                  code,
+                );
+              expect(m).not.toBeNull();
+              assertViewportCoord(m![1]!, m![2]!);
+              assertViewportCoord(m![3]!, m![4]!);
+            }
           },
         ),
         ASYNC_FC_OPTS,

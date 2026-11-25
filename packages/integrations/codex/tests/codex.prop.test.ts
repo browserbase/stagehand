@@ -157,4 +157,59 @@ describe("codex isolation and diagnostics formal properties", () => {
       await fs.rm(baseDir, { recursive: true, force: true });
     }
   });
+
+  it("saveCodexDiagnostic handles throwing Error.toString and throwing Proxy traps without throwing", async () => {
+    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-diag-unprintable-"));
+    try {
+      const throwingErrorCause = new Error("inner cause");
+      throwingErrorCause.toString = () => {
+        throw new Error("toString exploded");
+      };
+      const file1 = await saveCodexDiagnostic(
+        baseDir,
+        new Error("outer error", { cause: throwingErrorCause }),
+        3,
+      );
+      const parsed1 = JSON.parse(await fs.readFile(file1, "utf8")) as {
+        message: string;
+        cause?: string;
+        eventCount: number;
+      };
+      expect(parsed1.message).toBe("outer error");
+      expect(typeof parsed1.cause).toBe("string");
+      expect(parsed1.eventCount).toBe(3);
+
+      const throwingProxy = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error("proxy trap exploded");
+          },
+        },
+      );
+      const file2 = await saveCodexDiagnostic(baseDir, throwingProxy, 4);
+      const parsed2 = JSON.parse(await fs.readFile(file2, "utf8")) as {
+        message: string;
+        eventCount: number;
+      };
+      expect(parsed2.message).toBe("[unprintable diagnostic value]");
+      expect(parsed2.eventCount).toBe(4);
+
+      const file3 = await saveCodexDiagnostic(
+        baseDir,
+        new Error("wrapped proxy", { cause: throwingProxy }),
+        5,
+      );
+      const parsed3 = JSON.parse(await fs.readFile(file3, "utf8")) as {
+        message: string;
+        cause?: string;
+        eventCount: number;
+      };
+      expect(parsed3.message).toBe("wrapped proxy");
+      expect(parsed3.cause).toBe("[unprintable diagnostic value]");
+      expect(parsed3.eventCount).toBe(5);
+    } finally {
+      await fs.rm(baseDir, { recursive: true, force: true });
+    }
+  });
 });

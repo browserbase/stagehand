@@ -46,56 +46,71 @@ export interface ParsedListedPage {
   url: string;
 }
 
+const MAX_BALANCED_JSON_PARSE_ATTEMPTS = 256;
+const MAX_BALANCED_JSON_PARSED_CHARS = 1_000_000;
+
 function findBalancedJsonCandidate(text: string): string | null {
-  for (let startIdx = 0; startIdx < text.length; startIdx += 1) {
-    const first = text[startIdx];
-    if (first !== "{" && first !== "[") continue;
+  const stack: Array<{ start: number; close: "}" | "]" }> = [];
+  const intervals: Array<{ start: number; end: number }> = [];
+  let inString = false;
+  let escaping = false;
 
-    const stack: string[] = [];
-    let inString = false;
-    let escaping = false;
-    let mismatched = false;
-
-    for (let i = startIdx; i < text.length; i += 1) {
-      const char = text[i];
-      if (inString) {
-        if (escaping) {
-          escaping = false;
-        } else if (char === "\\") {
-          escaping = true;
-        } else if (char === '"') {
-          inString = false;
-        }
-        continue;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+      } else if (char === "\\") {
+        escaping = true;
+      } else if (char === '"') {
+        inString = false;
       }
-
-      if (char === '"') {
-        inString = true;
-        continue;
-      }
-
-      if (char === "{") {
-        stack.push("}");
-      } else if (char === "[") {
-        stack.push("]");
-      } else if (char === "}" || char === "]") {
-        if (stack.pop() !== char) {
-          mismatched = true;
-          break;
-        }
-        if (stack.length === 0) {
-          const candidate = text.slice(startIdx, i + 1);
-          try {
-            JSON.parse(candidate);
-            return candidate;
-          } catch {
-            break;
-          }
-        }
-      }
+      continue;
     }
 
-    if (mismatched) continue;
+    if (char === '"' && stack.length > 0) {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      stack.push({ start: i, close: "}" });
+    } else if (char === "[") {
+      stack.push({ start: i, close: "]" });
+    } else if (char === "}" || char === "]") {
+      const top = stack[stack.length - 1];
+      if (!top) continue;
+      if (top.close !== char) {
+        stack.length = 0;
+        continue;
+      }
+      stack.pop();
+      intervals.push({ start: top.start, end: i });
+    }
+  }
+
+  if (intervals.length === 0) return null;
+  intervals.sort((a, b) => a.start - b.start || b.end - a.end);
+
+  let parseAttempts = 0;
+  let parsedChars = 0;
+  for (const { start, end } of intervals) {
+    const length = end - start + 1;
+    if (
+      parseAttempts >= MAX_BALANCED_JSON_PARSE_ATTEMPTS ||
+      (parseAttempts > 0 && parsedChars + length > MAX_BALANCED_JSON_PARSED_CHARS)
+    ) {
+      break;
+    }
+    parseAttempts += 1;
+    parsedChars += length;
+    const candidate = text.slice(start, end + 1);
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      continue;
+    }
   }
 
   return null;

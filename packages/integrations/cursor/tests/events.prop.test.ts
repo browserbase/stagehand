@@ -121,14 +121,58 @@ describe("cursor event stream formal properties", () => {
           expect(view).toBeUndefined();
           return;
         }
-        if (view !== undefined) {
-          expect(typeof view.callId).toBe("string");
-          expect(typeof view.kind).toBe("string");
-          expect(typeof view.name).toBe("string");
-          expect(typeof view.args).toBe("object");
-          expect(view.args).not.toBeNull();
-          expect(Array.isArray(view.args)).toBe(false);
-          expect(typeof view.ok).toBe("boolean");
+        expect(view).toBeDefined();
+        expect(typeof view!.callId).toBe("string");
+        expect(typeof view!.kind).toBe("string");
+        expect(typeof view!.name).toBe("string");
+        expect(typeof view!.args).toBe("object");
+        expect(view!.args).not.toBeNull();
+        expect(Array.isArray(view!.args)).toBe(false);
+        expect(typeof view!.ok).toBe("boolean");
+
+        const toolCall = event.tool_call as Record<string, unknown>;
+        if ("mcpToolCall" in toolCall) {
+          expect(view!.kind).toBe("mcp");
+          const mcpCall = toolCall.mcpToolCall as { result: unknown };
+          const rawResult = mcpCall.result;
+          if (
+            rawResult &&
+            typeof rawResult === "object" &&
+            !Array.isArray(rawResult) &&
+            "success" in rawResult
+          ) {
+            const success = (rawResult as { success: { isError?: boolean; content: unknown[] } })
+              .success;
+            const expectedContent = success.content.map((block) => {
+              const rec = block as Record<string, unknown>;
+              if (rec.type !== undefined) return rec;
+              if (rec.text && typeof rec.text === "object") {
+                const { text, ...rest } = rec;
+                return { ...rest, ...(text as Record<string, unknown>), type: "text" };
+              }
+              if (rec.image && typeof rec.image === "object") {
+                const { image, ...rest } = rec;
+                return { ...rest, ...(image as Record<string, unknown>), type: "image" };
+              }
+              return rec;
+            });
+            expect(view!.result).toEqual({ ...success, content: expectedContent });
+            expect(view!.ok).toBe(success.isError !== true);
+          } else if (
+            rawResult &&
+            typeof rawResult === "object" &&
+            !Array.isArray(rawResult) &&
+            ("error" in rawResult || "rejected" in rawResult)
+          ) {
+            expect(view!.ok).toBe(false);
+            expect(view!.result).toBeUndefined();
+          } else {
+            expect(view!.ok).toBe(true);
+            expect(view!.result).toBeUndefined();
+          }
+        } else if ("function" in toolCall) {
+          expect(view!.kind).toBe("function");
+          expect(view!.ok).toBe(true);
         }
       }),
       FC_OPTS,

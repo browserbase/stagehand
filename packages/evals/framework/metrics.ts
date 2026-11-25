@@ -42,7 +42,10 @@ export function createMetricsCollector(): MetricsCollector {
       };
     }
 
-    const avg = sorted.reduce((mean, value, index) => mean + (value - mean) / (index + 1), 0);
+    const avg = sorted.reduce(
+      (mean, value, index) => mean * (index / (index + 1)) + value / (index + 1),
+      0,
+    );
 
     return {
       min: sorted[0],

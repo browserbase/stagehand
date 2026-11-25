@@ -307,16 +307,18 @@ export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
     if (message.role !== "assistant" || !isRecord(message.usage)) continue;
     const usage = message.usage;
     total.reported ||= [usage.input, usage.output].some(isTokenCount);
-    total.inputTokens += toNonNegativeFiniteNumber(usage.input);
-    total.outputTokens += toNonNegativeFiniteNumber(usage.output);
-    total.cacheReadTokens += toNonNegativeFiniteNumber(usage.cacheRead);
-    total.cacheWriteTokens += toNonNegativeFiniteNumber(usage.cacheWrite);
-    total.totalTokens += toNonNegativeFiniteNumber(usage.totalTokens);
+    total.inputTokens = addClampedNonNegative(total.inputTokens, usage.input);
+    total.outputTokens = addClampedNonNegative(total.outputTokens, usage.output);
+    total.cacheReadTokens = addClampedNonNegative(total.cacheReadTokens, usage.cacheRead);
+    total.cacheWriteTokens = addClampedNonNegative(total.cacheWriteTokens, usage.cacheWrite);
+    total.totalTokens = addClampedNonNegative(total.totalTokens, usage.totalTokens);
     if (usage.reasoning !== undefined) {
       sawReasoning = true;
-      reasoningTokens += toNonNegativeFiniteNumber(usage.reasoning);
+      reasoningTokens = addClampedNonNegative(reasoningTokens, usage.reasoning);
     }
-    if (isRecord(usage.cost)) total.costUsd += toNonNegativeFiniteNumber(usage.cost.total);
+    if (isRecord(usage.cost)) {
+      total.costUsd = addClampedNonNegative(total.costUsd, usage.cost.total);
+    }
   }
   return { ...total, ...(sawReasoning && { reasoningTokens }) };
 }
@@ -556,6 +558,11 @@ export function toFiniteNumber(value: unknown): number {
 function toNonNegativeFiniteNumber(value: unknown): number {
   const parsed = toFiniteNumber(value);
   return parsed > 0 ? parsed : 0;
+}
+
+function addClampedNonNegative(total: number, value: unknown): number {
+  const sum = total + toNonNegativeFiniteNumber(value);
+  return Number.isFinite(sum) ? sum : Number.MAX_VALUE;
 }
 
 function isTokenCount(value: unknown): boolean {

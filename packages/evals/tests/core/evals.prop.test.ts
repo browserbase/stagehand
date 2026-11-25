@@ -126,6 +126,22 @@ describe("evals formal properties", () => {
       );
     });
 
+    it("handles 40 KB malformed '[' runs in linear time without quadratic slowdown", () => {
+      const malformedBrackets = "[".repeat(40_000);
+      const start = performance.now();
+      expect(() => parseLooseJson(malformedBrackets)).toThrow(Error);
+      const elapsedMs = performance.now() - start;
+      expect(elapsedMs).toBeLessThan(250);
+
+      const trailingJsonStart = performance.now();
+      expect(parseLooseJson(`${malformedBrackets}{"ok":true}`)).toEqual({ ok: true });
+      expect(performance.now() - trailingJsonStart).toBeLessThan(250);
+
+      const nestedInvalidStart = performance.now();
+      expect(() => parseLooseJson(`${"[".repeat(20_000)}x${"]".repeat(20_000)}`)).toThrow(Error);
+      expect(performance.now() - nestedInvalidStart).toBeLessThan(250);
+    });
+
     it("extractMcpText and extractMcpImage tolerate arbitrary malformed content arrays", () => {
       const blockArb = fc.oneof(
         fc.record({ type: fc.constant("text" as const), text: fc.string() }),
@@ -360,12 +376,16 @@ describe("evals formal properties", () => {
 
   describe("metrics collector", () => {
     it("handles prototype keys safely and keeps summary stats ordered and finite", () => {
-      const finiteArb = fc.double({
-        min: -1e307,
-        max: 1e307,
-        noNaN: true,
-        noDefaultInfinity: true,
-      });
+      const finiteArb = fc.oneof(
+        fc.double({
+          min: -1e307,
+          max: 1e307,
+          noNaN: true,
+          noDefaultInfinity: true,
+        }),
+        fc.constant(Number.MAX_VALUE),
+        fc.constant(-Number.MAX_VALUE),
+      );
 
       fc.assert(
         fc.property(
@@ -430,6 +450,21 @@ describe("evals formal properties", () => {
         FC_OPTS,
       );
     });
+
+    it("avoids overflow when averaging opposite finite extremes [-Number.MAX_VALUE, Number.MAX_VALUE]", () => {
+      const collector = createMetricsCollector();
+      collector.record("extreme", -Number.MAX_VALUE);
+      collector.record("extreme", Number.MAX_VALUE);
+      collector.record("pos", Number.MAX_VALUE);
+      collector.record("pos", Number.MAX_VALUE);
+      collector.record("pos", Number.MAX_VALUE);
+
+      const summary = collector.getSummary();
+      expect(summary.extreme!.avg).toBe(0);
+      expect(summary.extreme!.min).toBe(-Number.MAX_VALUE);
+      expect(summary.extreme!.max).toBe(Number.MAX_VALUE);
+      expect(Number.isFinite(summary.pos!.avg)).toBe(true);
+    });
   });
 
   describe("runSummary aggregation", () => {
@@ -451,6 +486,9 @@ describe("evals formal properties", () => {
         criterionCount: fc.oneof(
           fc.constant(undefined),
           fc.integer({ min: 0, max: 20 }),
+          fc.constant(0.5),
+          fc.constant(2.5),
+          fc.constant(Number.MAX_SAFE_INTEGER + 1),
           fc.constant(Number.NaN),
           fc.constant(Number.POSITIVE_INFINITY),
           fc.constant(-5),
@@ -522,7 +560,7 @@ describe("evals formal properties", () => {
           expect(cellPassed).toBe(json.summary.passed);
 
           expect(json.verifier.attempted).toBe(json.verifier.graded + json.verifier.ungraded);
-          expect(Number.isFinite(json.verifier.totalCriteria)).toBe(true);
+          expect(Number.isSafeInteger(json.verifier.totalCriteria)).toBe(true);
           expect(json.verifier.totalCriteria).toBeGreaterThanOrEqual(0);
           expect(json.deadJudge).toBe(isDeadJudgeRun(json.verifier));
 
@@ -550,6 +588,27 @@ describe("evals formal properties", () => {
         }),
         FC_OPTS,
       );
+    });
+
+    it("rejects fractional and non-safe-integer criterionCount values as ungraded", () => {
+      const fractionalRows: SummaryRow[] = [
+        {
+          name: "frac",
+          input: { name: "frac", modelName: "openai/gpt-5.4-mini" } as SummaryRow["input"],
+          output: { _success: false, criterionCount: 0.5, verifierError: "bad count" },
+        },
+        {
+          name: "unsafe",
+          input: { name: "unsafe", modelName: "openai/gpt-5.4-mini" } as SummaryRow["input"],
+          output: { _success: true, criterionCount: Number.MAX_SAFE_INTEGER + 1 },
+        },
+      ];
+
+      const verifier = summarizeVerifier(fractionalRows);
+      expect(verifier.graded).toBe(0);
+      expect(verifier.ungraded).toBe(1);
+      expect(verifier.attempted).toBe(1);
+      expect(verifier.totalCriteria).toBe(0);
     });
   });
 

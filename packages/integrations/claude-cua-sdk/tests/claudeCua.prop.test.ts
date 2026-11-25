@@ -168,6 +168,69 @@ describe("claude-cua-sdk formal properties", () => {
       );
     });
 
+    function assertFiniteCuaNumericOperands(code: string): void {
+      for (const line of code.split("\n")) {
+        const clickMatch = /^await batchStagehand\.page\.click\(([^,]+),\s*([^,)]+)/.exec(line);
+        if (clickMatch) {
+          expect(Number.isFinite(Number(clickMatch[1]!.trim()))).toBe(true);
+          expect(Number.isFinite(Number(clickMatch[2]!.trim()))).toBe(true);
+          continue;
+        }
+        const hoverMatch = /^await batchStagehand\.page\.hover\(([^,]+),\s*([^)]+)\);$/.exec(line);
+        if (hoverMatch) {
+          expect(Number.isFinite(Number(hoverMatch[1]!.trim()))).toBe(true);
+          expect(Number.isFinite(Number(hoverMatch[2]!.trim()))).toBe(true);
+          continue;
+        }
+        const dragMatch =
+          /^await batchStagehand\.page\.dragAndDrop\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),/.exec(
+            line,
+          );
+        if (dragMatch) {
+          for (let i = 1; i <= 4; i += 1) {
+            expect(Number.isFinite(Number(dragMatch[i]!.trim()))).toBe(true);
+          }
+          continue;
+        }
+        const scrollMatch =
+          /^await batchStagehand\.page\.scroll\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\);$/.exec(
+            line,
+          );
+        if (scrollMatch) {
+          const xRaw = scrollMatch[1]!.trim();
+          const yRaw = scrollMatch[2]!.trim();
+          if (xRaw !== "Math.round(__vp.w / 2)") {
+            expect(Number.isFinite(Number(xRaw))).toBe(true);
+          }
+          if (yRaw !== "Math.round(__vp.h / 2)") {
+            expect(Number.isFinite(Number(yRaw))).toBe(true);
+          }
+          expect(Number.isFinite(Number(scrollMatch[3]!.trim()))).toBe(true);
+          expect(Number.isFinite(Number(scrollMatch[4]!.trim()))).toBe(true);
+          continue;
+        }
+        const waitMatch = /^await page\.waitForTimeout\(([^)]+)\);$/.exec(line);
+        if (waitMatch) {
+          const ms = Number(waitMatch[1]!.trim());
+          expect(Number.isFinite(ms)).toBe(true);
+          expect(ms).toBeGreaterThanOrEqual(0);
+          expect(ms).toBeLessThanOrEqual(30_000);
+          continue;
+        }
+        const zoomMatch =
+          /clip:\s*\{\s*x:\s*([^,]+),\s*y:\s*([^,]+),\s*width:\s*([^,]+),\s*height:\s*([^}]+)\}/.exec(
+            line,
+          );
+        if (zoomMatch) {
+          const [x, y, width, height] = zoomMatch.slice(1, 5).map((v) => Number(v.trim()));
+          expect(Number.isFinite(x) && x! >= 0).toBe(true);
+          expect(Number.isFinite(y) && y! >= 0).toBe(true);
+          expect(Number.isFinite(width) && width! > 0).toBe(true);
+          expect(Number.isFinite(height) && height! > 0).toBe(true);
+        }
+      }
+    }
+
     it("never throws unhandled exceptions for arbitrary member names and malformed inputs", async () => {
       const memberArb = fc.oneof(
         fc.constantFrom(
@@ -224,10 +287,68 @@ describe("claude-cua-sdk formal properties", () => {
           const result = await exec.execute(member, input, { toolUseId: "tu_fuzz" });
           expect(typeof result.content === "string" || Array.isArray(result.content)).toBe(true);
           for (const code of facade.calls) {
-            expect(code).not.toContain("NaN");
-            expect(code).not.toContain("Infinity");
+            assertFiniteCuaNumericOperands(code);
           }
         }),
+        ASYNC_FC_OPTS,
+      );
+    });
+
+    it("allows valid javascript_exec scripts containing NaN or Infinity while keeping numeric action operands finite", async () => {
+      const facade = makeFacade();
+      const exec = new StagehandCuaExecutor({ tools: facade.tools, logger });
+      const script = "return Number.isNaN(NaN) && !Number.isFinite(Infinity);";
+      const jsRes = await exec.execute("javascript_exec", { text: script }, { toolUseId: "tu_js" });
+      expect(jsRes.isError).toBeUndefined();
+      expect(facade.calls[0]).toContain(JSON.stringify(script));
+
+      const coordArb = fc.double({ min: -1e6, max: 1e6, noNaN: true, noDefaultInfinity: true });
+      await fc.assert(
+        fc.asyncProperty(
+          fc.constantFrom(
+            "left_click",
+            "hover",
+            "mouse_move",
+            "left_click_drag",
+            "scroll",
+            "zoom",
+            "wait",
+          ),
+          coordArb,
+          coordArb,
+          coordArb,
+          coordArb,
+          fc.double({ min: 0, max: 1000, noNaN: true, noDefaultInfinity: true }),
+          fc.double({ min: 1, max: 1000, noNaN: true, noDefaultInfinity: true }),
+          fc.double({ min: -10, max: 100, noNaN: true, noDefaultInfinity: true }),
+          async (member, x0, y0, x1, y1, origin, span, duration) => {
+            const actionFacade = makeFacade();
+            const actionExec = new StagehandCuaExecutor({ tools: actionFacade.tools, logger });
+            const input: Record<string, unknown> =
+              member === "left_click_drag"
+                ? {
+                    from: { type: "coordinate", x: x0, y: y0 },
+                    target: { type: "coordinate", x: x1, y: y1 },
+                  }
+                : member === "scroll"
+                  ? {
+                      target: { type: "coordinate", x: x0, y: y0 },
+                      scroll_direction: "down",
+                      scroll_amount: duration,
+                    }
+                  : member === "zoom"
+                    ? { region: [origin, origin, origin + span, origin + span] }
+                    : member === "wait"
+                      ? { duration }
+                      : { target: { type: "coordinate", x: x0, y: y0 } };
+            const res = await actionExec.execute(member, input, { toolUseId: "tu_op" });
+            expect(res.isError).toBeUndefined();
+            expect(actionFacade.calls.length).toBeGreaterThan(0);
+            for (const code of actionFacade.calls) {
+              assertFiniteCuaNumericOperands(code);
+            }
+          },
+        ),
         ASYNC_FC_OPTS,
       );
     });

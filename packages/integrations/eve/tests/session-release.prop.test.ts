@@ -133,6 +133,7 @@ describe("eve session release formal properties", () => {
           expect(clientOpts.baseURL.endsWith("/")).toBe(false);
 
           const encodedId = mocks.update.mock.calls[0]?.[0] as string;
+          expect(encodedId).toBe(encodeURIComponent(sessionId));
           expect(encodedId).not.toContain("/");
           expect(encodedId).not.toContain("?");
           expect(encodedId).not.toContain("#");

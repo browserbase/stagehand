@@ -5,14 +5,13 @@ import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harn
 
 function stringifyDiagnosticValue(value: unknown): string {
   if (typeof value === "string") return value;
-  if (value instanceof Error) return String(value);
   try {
     return String(value);
   } catch {
     try {
-      return JSON.stringify(value) ?? Object.prototype.toString.call(value);
+      return JSON.stringify(value) ?? "[unprintable diagnostic value]";
     } catch {
-      return Object.prototype.toString.call(value);
+      return "[unprintable diagnostic value]";
     }
   }
 }

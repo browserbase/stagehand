@@ -126,7 +126,7 @@ function readFacadeToolCalls(output: Record<string, unknown>): number | undefine
 function isGraded(output: Record<string, unknown>): boolean {
   return (
     typeof output.criterionCount === "number" &&
-    Number.isFinite(output.criterionCount) &&
+    Number.isSafeInteger(output.criterionCount) &&
     output.criterionCount >= 0
   );
 }
