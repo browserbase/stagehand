@@ -31,7 +31,7 @@ type ParsedArgs = {
 const DEFAULT_PROJECT = "stagehand-core-dev";
 const DEFAULT_TITLE = "Experiment Comparison";
 const PHASE_METRICS = ["startup_ms", "task_ms", "cleanup_ms"] as const;
-const MAX_EXPERIMENTS = 8; // practical layout limit
+const MAX_EXPERIMENTS = 8;
 const SIDE_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 function defaultOutputPath(): string {
@@ -84,13 +84,11 @@ function parseExperimentSpec(raw: string): ExperimentInput {
   if (!left || !right) {
     throw new Error(`Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`);
   }
-  // Heuristic: UUIDs, or ids that look like "all-abc123", start with "eval-", etc.
   const looksLikeId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ||
     /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(s);
   if (looksLikeId(right) && !looksLikeId(left)) return { label: left, experiment: right };
   if (looksLikeId(left) && !looksLikeId(right)) return { label: right, experiment: left };
-  // Default: treat left as id, right as label (common `id=label` form)
   return { label: right, experiment: left };
 }
 
@@ -207,9 +205,7 @@ function openInBrowser(filePath: string): void {
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });
     child.unref();
-  } catch {
-    // best-effort
-  }
+  } catch {}
 }
 
 function escapeHtml(value: string): string {
@@ -240,10 +236,6 @@ function formatSeconds(seconds: number): string {
 function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
-
-// ---------------------------------------------------------------------------
-// HTML rendering — N-way comparison, shadcn-inspired
-// ---------------------------------------------------------------------------
 
 function sideLetter(i: number): string {
   return SIDE_LETTERS[i] ?? `#${i + 1}`;
@@ -349,7 +341,6 @@ function buildTimerGrid(rows: ExperimentData[], keys: string[]): string {
   );
   if (timerKeys.length === 0) return "";
 
-  // Sort by spread (max - min across experiments)
   const ordered = [...timerKeys].sort((x, y) => {
     const xs = rows.map((r) => r.taskMetrics[x]?.mean ?? 0);
     const ys = rows.map((r) => r.taskMetrics[y]?.mean ?? 0);
@@ -382,7 +373,6 @@ function buildTimerGrid(rows: ExperimentData[], keys: string[]): string {
         })
         .join("");
 
-      // Best vs worst delta footer
       let footer = "";
       if (hasData && rows.length > 1) {
         const positives = values.filter((v) => v > 0);

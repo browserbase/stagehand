@@ -7,25 +7,13 @@ import {
 } from "../src/facade/runtime.js";
 
 type CompatPage = { waitForTimeout(ms: number): Promise<void> };
-/**
- * What the page reports on one poll of the quiet predicate: its state, a
- * navigation in progress (page.waitForFunction retries in the next document),
- * a predicate error (it rejects), or a wait that never settles.
- */
 type Probe = { readyState: string; quietMs: number } | "navigating" | "error" | "hang";
 type WaitOptions = { polling?: "raf" | number; timeout?: number };
 
 const isCleanup = (expression: unknown) =>
   typeof expression === "string" && expression.includes("observer.disconnect()");
-/** The document key a predicate or cleanup expression uses. */
 const keyOf = (expression: unknown) => /const key = "([^"]+)"/.exec(String(expression))?.[1];
 
-/**
- * A raw page whose page.waitForFunction polls `probe(now, key)` on the (fake)
- * clock the way the extension's does: every `polling` ms, through navigations,
- * until the predicate holds, it throws, or `timeout` passes. Its
- * waitForTimeout sleeps on the same clock.
- */
 async function fixture(
   options: PlaywrightCompatRuntimeOptions,
   probe: (now: number, key: string) => Probe,
@@ -65,7 +53,6 @@ async function fixture(
     waitForTimeout: vi.fn((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
   };
   const rawContext = { pages: vi.fn(async () => [rawPage]) };
-  // Exercise the same self-contained serialization boundary as callback batches.
   const create = new Function(
     `return (${createPlaywrightCompatRuntime.toString()})`,
   )() as typeof createPlaywrightCompatRuntime;
@@ -81,7 +68,6 @@ async function fixture(
   return { page: runtime.page as CompatPage, rawPage, runtime, waits, cleanups };
 }
 
-/** Runs page.waitForTimeout(ms) on the fake clock and reports when it resolved. */
 async function timedWait(page: CompatPage, ms: number, horizonMs = ms + 1_000) {
   const startedAt = Date.now();
   let resolvedAfter: number | undefined;
@@ -127,7 +113,6 @@ describe("facade page.waitForTimeout", () => {
   });
 
   it("returns once the page has been quiet for the window", async () => {
-    // The probe installs its observer on the first call; nothing mutates after.
     let installedAt: number | undefined;
     const { page, rawPage, runtime } = await fixture({ quietWait: true }, (now) => {
       installedAt ??= now;
@@ -137,7 +122,6 @@ describe("facade page.waitForTimeout", () => {
     expect(waited).toBeGreaterThanOrEqual(RUN_OPTIONS.quietWait.windowMs);
     expect(waited).toBeLessThan(RUN_OPTIONS.quietWait.windowMs + 2 * RUN_OPTIONS.quietWait.pollMs);
     expect(runtime.telemetry().calls["page.waitForTimeout"]).toBe(1);
-    // One in-page wait per call, polled every pollMs and capped at the requested time.
     expect(rawPage.waitForFunction).toHaveBeenCalledTimes(1);
     const [[expression, arg, waitOptions]] = rawPage.waitForFunction.mock.calls;
     expect(expression).toContain(`>= ${RUN_OPTIONS.quietWait.windowMs}`);
@@ -228,7 +212,6 @@ describe("facade page.waitForTimeout", () => {
   });
 
   it("recovers after a navigation and still returns early", async () => {
-    // Probe errors for the first 300 ms, then a fresh document installs its observer.
     let startedAt: number | undefined;
     let installedAt: number | undefined;
     const { page, runtime } = await fixture({ quietWait: true }, (now) => {
@@ -255,8 +238,6 @@ describe("facade page.waitForTimeout", () => {
   });
 
   it("measures each wait's quiet window from that wait, not an earlier one", async () => {
-    // A probe installs an observer per key; the page last mutated 500 ms into
-    // the second wait (the effect of an action taken before it).
     const installs = new Map<string, number>();
     let secondWaitAt: number | undefined;
     const { page, runtime, waits, cleanups } = await fixture({ quietWait: true }, (now, key) => {
@@ -277,7 +258,6 @@ describe("facade page.waitForTimeout", () => {
       500 + RUN_OPTIONS.quietWait.windowMs + 2 * RUN_OPTIONS.quietWait.pollMs,
     );
     expect(installs.size).toBe(2);
-    // Each wait removes its own observer once it ends.
     expect(cleanups().map(([expression]) => keyOf(expression))).toStrictEqual([...installs.keys()]);
     expect(waits().map(([expression]) => keyOf(expression))).toStrictEqual([...installs.keys()]);
     expect(runtime.telemetry().waits.earlyReturns).toBe(2);

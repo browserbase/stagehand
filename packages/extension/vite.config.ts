@@ -69,7 +69,6 @@ function buildExtensionArtifacts(): Plugin {
       }
     },
     async closeBundle() {
-      // Nothing was written; let the build error surface instead of a missing-file one.
       if (rejectedBundle) return;
       await mkdir(outDir, { recursive: true });
       const manifest = JSON.parse(
@@ -115,7 +114,6 @@ function buildExtensionArtifacts(): Plugin {
   };
 }
 
-// The unstamped build's fingerprint: the shipped fingerprint hashes the stamped files themselves.
 async function stampBuildId(directory: string): Promise<void> {
   const files = await readDirectoryFiles(directory);
   const buildId = fingerprintFiles(files);

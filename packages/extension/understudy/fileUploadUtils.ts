@@ -6,7 +6,6 @@ import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";
 
-/** Normalize in-memory file payloads for worker-safe page injection. */
 export async function normalizeInputFiles(
   files: SetInputFilesArgument,
 ): Promise<NormalizedFilePayload[]> {

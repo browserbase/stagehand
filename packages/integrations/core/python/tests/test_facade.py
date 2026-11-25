@@ -35,8 +35,6 @@ def test_bundle_content_matches_its_hash() -> None:
 
 
 def test_canonical_json_matches_the_typescript_canonicalization() -> None:
-    # Sorted keys at every level, no whitespace, non-ASCII unescaped, control
-    # characters escaped as JSON.stringify does.
     value = {"b": [1, {"d": "\u2014\n\u0001", "c": None}], "a": True}
     assert canonical_json(value) == '{"a":true,"b":[1,{"c":null,"d":"\u2014\\n\\u0001"}]}'
 
@@ -358,8 +356,6 @@ def test_run_options_default_off() -> None:
 
 
 class _RetryingStagehand:
-    """Fails the first run batch as if its page had gone, then answers; records inputs."""
-
     def __init__(self) -> None:
         page = _Page()
         self.inputs: list[object] = []

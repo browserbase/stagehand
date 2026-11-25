@@ -1,18 +1,3 @@
-/**
- * Welcome design e — "Dialogue".
- *
- * The agent introduces itself. Onboarding as a live chat: the agent narrates
- * a real WebVoyager task in the first person, the browser answers with what
- * it sees, tool calls show up as chips, and a judge stamps the result. We
- * replay the FAIL case on purpose — a judge with something to say is the
- * whole point of evals.
- *
- * Motion: bubbles slide in (eased) and warm from slate to their speaker's
- * color; a typing indicator bobs before the agent speaks; chips flash on
- * arrival; the judge lands with an overshoot and an amber glow. Speakers sit in
- * an 8-column gutter; bubbles are rounded panels indented 10.
- */
-
 import { c, stripAnsi, visibleLength } from "../format.js";
 import { animate, ease, fg, mixRgb, PALETTE } from "../fx.js";
 import {
@@ -28,11 +13,9 @@ import {
 } from "../wizardAnim.js";
 import { type ScriptStep, type ScriptedCase } from "./agentScript.js";
 
-// ─── Layout ─────────────────────────────────────────────────────────────
-
-const GUTTER = 8; // speaker column, right-aligned
-const INDENT = GUTTER + 2; // bubble left edge
-const MAX_INNER = 50; // bubble ≤ 64 cols; + stamp ≤ 72
+const GUTTER = 8;
+const INDENT = GUTTER + 2;
+const MAX_INNER = 50;
 const SPEAKER_PAUSE_MS = 320;
 const SLIDE_MS = 240;
 const TYPING_MS = 600;
@@ -46,26 +29,18 @@ const SPEAKER_COLOR: Record<Speaker, RGB> = {
   you: PALETTE.white,
 };
 
-/** How far each speaker slides in from (columns off its resting edge). */
 const SLIDE_FROM: Record<Speaker, number> = { agent: 6, browser: 8, judge: 10, you: 8 };
 
-/** The agent speaks from the left; the browser, the judge and you answer from the right. */
 const RIGHT_ALIGNED: Record<Speaker, boolean> = {
   agent: false,
   browser: true,
   judge: true,
   you: true,
 };
-/**
- * The right edge everything answers to: the section rule's (ruleHeader draws
- * it at wizardWidth()). Right-hand labels end on it, and so do chip clocks.
- */
 const edge = (): number => wizardWidth();
-/** Right-hand labels are left-aligned against their bubble, padded to the longest. */
 const RIGHT_LABEL_W = Math.max(...(["browser", "judge", "you"] as const).map((w) => w.length));
-const STAMP_W = 6; // "0:03.0"
+const STAMP_W = 6;
 
-/** Word-wrap plain text to `width` visible columns. */
 function wrap(text: string, width: number): string[] {
   const out: string[] = [];
   for (const para of text.split("\n")) {
@@ -94,28 +69,17 @@ function label(who: Speaker, tint: RGB): string {
   return `${fg(tint)}${who.padStart(GUTTER)}${c.reset}`;
 }
 
-/** Last speaker painted — labels are shown only when the speaker changes. */
 let lastSpeaker: Speaker | null = null;
 
 type BubbleOpts = {
-  /** Border + label color. Callers fade this from slate to the speaker color. */
   tint: RGB;
-  /** Paint the speaker label (false → keep the column, blank it). */
   showLabel?: boolean;
-  /** Extra columns to the right of the resting edge (during a slide). */
   shift?: number;
   stamp?: number;
-  /** Style for the text lines (e.g. c.dim for quotes). */
   style?: string;
-  /** Pre-rendered first content line (may carry its own colors). */
   firstLine?: string;
 };
 
-/**
- * A chat bubble: rounded panel under the gutter, speaker label on the first
- * content row, optional dim elapsed stamp to its right. Every row shifts by
- * the same amount so a sliding bubble is never jagged.
- */
 function bubble(who: Speaker, text: string, o: BubbleOpts): string[] {
   const style = o.style ?? "";
   const lines = wrap(text, MAX_INNER).map((l) => `${style}${l}${style ? c.reset : ""}`);
@@ -124,7 +88,6 @@ function bubble(who: Speaker, text: string, o: BubbleOpts): string[] {
   const shiftN = Math.max(0, Math.round(o.shift ?? 0));
 
   if (!RIGHT_ALIGNED[who]) {
-    // Left: gutter label, bubble, stamp trailing the first row.
     const rows = panel(lines, { indent: INDENT, padX: 1, width, border: fg(o.tint) });
     const shift = " ".repeat(shiftN);
     return rows.map((row, i) => {
@@ -138,10 +101,6 @@ function bubble(who: Speaker, text: string, o: BubbleOpts): string[] {
     });
   }
 
-  // Right: the label hangs off the bubble's right side and ends on the edge;
-  // the stamp sits in the left margin. A slide starts further LEFT (shift)
-  // and settles rightward — nothing ever crosses the edge, so an 80-col
-  // terminal never wraps a moving bubble.
   const rows = panel(lines, { indent: 0, padX: 1, width, border: fg(o.tint) });
   const bubbleW = visibleLength(rows[0]);
   const rest = edge() - bubbleW - 1 - RIGHT_LABEL_W;
@@ -162,10 +121,6 @@ function bubble(who: Speaker, text: string, o: BubbleOpts): string[] {
   });
 }
 
-/**
- * Inline tool call: `⚙ act      click "Reviews"` with the running clock ending
- * on the right edge. Long text wraps under itself; the clock stays on row one.
- */
 const CHIP_VERB_COLOR: Record<string, RGB> = {
   goto: PALETTE.slate,
   act: PALETTE.brand,
@@ -187,9 +142,6 @@ function chip(step: ScriptStep, clockMs: number, glow = 0): string[] {
   ];
 }
 
-// ─── Motion ─────────────────────────────────────────────────────────────
-
-/** Reading time for a bubble's text, so the pause after it scales with length. */
 function readMs(text: string): number {
   const words = stripAnsi(text)
     .split(/\s+/)
@@ -197,11 +149,6 @@ function readMs(text: string): number {
   return Math.min(1400, Math.max(300, words * READING_MS_PER_WORD * 0.5));
 }
 
-/**
- * Speak: (optionally) bob a typing indicator in the gutter, then slide the
- * bubble in from the right while its border warms from slate to the speaker
- * color. Off-TTY paints the resting bubble once.
- */
 async function speak(
   who: Speaker,
   text: string,
@@ -221,7 +168,6 @@ async function speak(
   lastSpeaker = who;
 
   if (o.typing && live) {
-    // Three dots bobbing with phase offsets; the clock keeps running.
     const from = o.clockFrom ?? o.stamp ?? 0;
     const to = o.stamp ?? from;
     await animate({
@@ -273,7 +219,6 @@ async function speak(
   if (!signal.cancelled) await sleep(readMs(text) + SPEAKER_PAUSE_MS, signal);
 }
 
-/** A tool chip that flashes teal → mint on arrival, then settles. */
 async function toolChip(step: ScriptStep, clockMs: number, signal: SkipSignal): Promise<void> {
   const block = new LiveBlock();
   await animate({
@@ -287,16 +232,13 @@ async function toolChip(step: ScriptStep, clockMs: number, signal: SkipSignal): 
   await sleep(step.kind === "extract" ? 420 : 200, signal);
 }
 
-/** The judge's stamp: lands with an overshoot, border glows, then settles. */
 async function stamp(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
   const pass = cs.verdict === "pass";
-  // The judge's box is always amber — the verdict word carries the outcome color.
   const tint = PALETTE.amber;
   const verdictColor = pass ? PALETTE.brand : PALETTE.rose;
   const head = pass ? "✓ PASS" : "✗ FAIL";
   const first = (glow: number): string =>
     `${c.bold}${fg(mixRgb(verdictColor, PALETTE.white, glow))}${head}${c.reset}  ${wrap(cs.reason, MAX_INNER - head.length - 2)[0] ?? ""}`;
-  // wrap() the whole line so the remainder flows onto following rows
   const text = `${head}  ${cs.reason}`;
   const block = new LiveBlock();
   const live = canAnimateInPlace() && !signal.cancelled;
@@ -336,8 +278,6 @@ async function stamp(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
   await sleep(SPEAKER_PAUSE_MS, signal);
 }
 
-// ─── Transcript ─────────────────────────────────────────────────────────
-
 async function transcript(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
   lastSpeaker = null;
   await speak("agent", "Here's how I got there.", signal, { typing: true });
@@ -345,7 +285,7 @@ async function transcript(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
 
   const steps = cs.steps;
   let clock = 0;
-  let chipsOpen = false; // a run of tool chips is on screen without a trailing blank line
+  let chipsOpen = false;
   const closeChips = (): void => {
     if (chipsOpen) {
       process.stdout.write("\n");
@@ -368,8 +308,6 @@ async function transcript(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
       case "extract": {
         await toolChip(step, clock, signal);
         chipsOpen = true;
-        // What the browser shows back: the next observe (with its URL), the
-        // page we landed on, or what was read off the page.
         const next = steps[i + 1];
         let seen: string | null = null;
         if (next?.kind === "observe") {
@@ -413,13 +351,6 @@ async function verdict(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
   );
 }
 
-// ─── Flow ───────────────────────────────────────────────────────────────
-
-/**
- * The agent walks through `cs` in its own words — transcript, tool chips,
- * browser replies, then the judge's verdict. Embedded by Arena after the
- * podium ("step inside the winning run"); honours the caller's skip signal.
- */
 export async function runInside(cs: ScriptedCase, signal: SkipSignal): Promise<void> {
   process.stdout.write("\n");
   ruleHeader("How the winner got there", { eyebrow: "inside the run" });

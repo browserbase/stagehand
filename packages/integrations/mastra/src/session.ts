@@ -76,14 +76,12 @@ export type MastraSessionConfig = {
   agentId?: string;
   agentName?: string;
   modelSettings?: Record<string, unknown>;
-  /** AI SDK provider options forwarded to every model call (e.g. OpenAI reasoning summaries). */
   providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
 };
 
 export type MastraTokenUsage = {
-  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
   reported?: boolean;
   inputTokens: number;
   outputTokens: number;
@@ -167,7 +165,6 @@ export function resolveMastraModel(
 ): string | NativeMastraModel {
   const normalized = normalizeMastraModel(model);
   if ((env.MASTRA_FORCE_GATEWAY ?? "").trim() === "1") return normalized;
-  // An explicit gateway prefix is part of the caller's model selection; leave it to the router.
   if (/^(?:vercel|gateway)\//.test(normalized)) return normalized;
   const bare = normalized;
   const slash = bare.indexOf("/");
@@ -198,7 +195,7 @@ export function resolveMastraModel(
         : normalized;
     }
     default:
-      return normalized; // Mastra model router (models.dev, provider-direct)
+      return normalized;
   }
 }
 
@@ -324,9 +321,7 @@ export async function runMastraSession(input: {
       if (!finalText && stream.text) {
         try {
           finalText = await stream.text;
-        } catch {
-          // The stream's explicit error is reported below when available.
-        }
+        } catch {}
       }
       if (stream.error && !stopReason) {
         stopReason = sanitizeErrorMessage(stringifyError(stream.error));
@@ -489,7 +484,6 @@ export function summarizeMastraEvent(event: MastraEvent): {
 
 const MAX_EVENT_DETAIL_CHARS = 2_000;
 
-/** Chunk types the trajectory adapter and transcript read verbatim. */
 const RETAINED_MASTRA_EVENT_TYPES = new Set([
   "tool-call",
   "tool-result",

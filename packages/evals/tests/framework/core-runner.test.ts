@@ -65,11 +65,7 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 beforeEach(() => {
   originalCi = process.env.CI;
   delete process.env.CI;
-  // Set a dummy API key so the runner sends logs and calls flush(),
-  // which this test asserts.
   process.env.BRAINTRUST_API_KEY = "test-key";
-  // With CI unset, trajectory persistence would default on and the runner's
-  // experiment-link write would leak a `.trajectories/` tree into cwd.
   originalPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
   process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
   tracedNames.length = 0;
@@ -92,7 +88,6 @@ afterEach(() => {
   } else {
     process.env.VERIFIER_PERSIST_TRAJECTORIES = originalPersist;
   }
-  // runEvals stamps these; don't leak them into other test files.
   delete process.env.EVAL_TRAJECTORY_GROUP;
   delete process.env.EVAL_EXPERIMENT_NAME;
   delete process.env.EVAL_MODEL_OVERRIDE;

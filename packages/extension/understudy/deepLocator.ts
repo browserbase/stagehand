@@ -18,7 +18,6 @@ export type ResolvedLocatorTarget = {
   selector: string;
 };
 
-/** Build a Locator scoped to the correct frame for a deep XPath crossing iframes. */
 export async function deepLocatorThroughIframes(
   page: Page,
   root: Frame,
@@ -35,10 +34,6 @@ export async function deepLocatorThroughIframes(
   return new Locator(target.frame, target.selector);
 }
 
-/**
- * Unified resolver that supports '>>' hop notation, deep XPath across iframes,
- * and plain single-frame selectors. Keeps hop logic in one shared place.
- */
 export async function resolveLocatorTarget(
   page: Page,
   root: Frame,
@@ -59,20 +54,11 @@ export async function resolveLocatorWithHops(
   return new Locator(target.frame, target.selector);
 }
 
-/**
- * DeepLocatorDelegate: a lightweight wrapper that looks like a Locator and
- * resolves to the correct frame/element on each call using hop/deep-XPath logic.
- *
- * Returned by `page.deepLocator()` for ergonomic, await-free chaining:
- *   page.deepLocator('iframe#ifrA >> #btn').click()
- */
 export class DeepLocatorDelegate {
   constructor(
     readonly page: Page,
     readonly root: Frame,
     readonly selector: string,
-    // -1 preserves every match for operations such as screenshot masking while
-    // ordinary single-element operations still resolve their first match.
     readonly nthIndex: number = -1,
   ) {}
 
@@ -81,7 +67,6 @@ export class DeepLocatorDelegate {
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
 
-  // Locator API delegates
   async click(options?: { button?: MouseButton; clickCount?: number }, progress?: Progress) {
     return (await this.real(progress)).click(options, progress);
   }
@@ -167,7 +152,6 @@ export class DeepLocatorDelegate {
   }
 }
 
-/** Factory to create a deep locator delegate from a Page + root frame. */
 export function deepLocatorFromPage(
   page: Page,
   root: Frame,
@@ -176,7 +160,6 @@ export function deepLocatorFromPage(
   return new DeepLocatorDelegate(page, root, selector);
 }
 
-/** Execute a routing plan without reinterpreting its frame-local selectors. */
 async function resolveSelectorPlan(
   page: Page,
   root: Frame,

@@ -972,7 +972,6 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
 
 
 def test_optional_page_arguments_are_keyword_only() -> None:
-    """Required arguments are positional; anything with a default must be keyword-only."""
     offenders: list[str] = []
 
     for name in dir(Page):

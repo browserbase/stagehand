@@ -11,7 +11,6 @@ describe("capForSpan", () => {
   });
 
   it("keeps a trailing slice of logs when the payload exceeds the cap", () => {
-    // ~4MB: 400 entries x ~10KB. Distinguishable so we can assert the tail survives.
     const logs = Array.from({ length: 400 }, (_, i) => `entry-${i}-${"x".repeat(10_000)}`);
     const capped = capForSpan({ _success: false, logs });
 
@@ -19,7 +18,6 @@ describe("capForSpan", () => {
     const kept = capped.logs as string[];
     expect(kept.length).toBeGreaterThan(0);
     expect(kept.length).toBeLessThan(logs.length);
-    // Tail-preserving: kept entries are a contiguous suffix of the input.
     expect(kept).toEqual(logs.slice(logs.length - kept.length));
     expect(capped._truncated).toMatch(/exceeded/);
   });

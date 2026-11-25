@@ -2,9 +2,6 @@ import { glob, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 
-// Alpha builds run in disposable checkouts. Their SDK version can
-// fall below a member's stable minimum. Pin those consumers to the development
-// version in that checkout, keeping the SDK's own metadata and dev tools intact.
 export async function pinPythonWorkspaceSdkVersion(repositoryRoot: string, version: string) {
   const root = parse(await readFile(path.join(repositoryRoot, "pyproject.toml"), "utf8"));
   const members = (root.tool as { uv?: { workspace?: { members?: unknown } } })?.uv?.workspace

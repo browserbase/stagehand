@@ -64,11 +64,6 @@ function unsupportedSessionOperation(): never {
   );
 }
 
-/**
- * The facade process and its browser are owned by the runner-side bridge, but
- * there is still no runner-driven CoreSession. This placeholder satisfies the
- * lifecycle contract while agents and evidence probes share the MCP browser.
- */
 class StagehandFacadeMountSession implements CoreSession {
   async listPages(): Promise<CorePageHandle[]> {
     return unsupportedSessionOperation();
@@ -113,8 +108,6 @@ export function buildStagehandFacadeEnv(
       STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: String(
         evalBrowserbaseSessionTimeoutSeconds(env.EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS),
       ),
-      // Parity with the native Stagehand agent path (proxied + verified
-      // sessions); default on, EVAL_BROWSERBASE_PROXIES / _VERIFIED=0 to disable.
       STAGEHAND_BROWSERBASE_PROXIES: evalBooleanEnv(env.EVAL_BROWSERBASE_PROXIES, true) ? "1" : "0",
       STAGEHAND_BROWSERBASE_VERIFIED: evalBooleanEnv(env.EVAL_BROWSERBASE_VERIFIED, true)
         ? "1"
@@ -135,7 +128,6 @@ export function buildStagehandFacadeServerSpec(environment: ToolStartInput["envi
   };
 }
 
-/** Same facade server, started with `--surface=legacy` so it advertises the pre-Playwright-idiom run contract. */
 export function buildStagehandFacadeLegacyServerSpec(environment: ToolStartInput["environment"]): {
   command: string;
   args: string[];
@@ -167,10 +159,6 @@ export class StagehandFacadeTool implements CoreTool {
         args: string[];
         env: Record<string, string>;
       };
-      /**
-       * Provides the run-shared Stagehand extension for Browserbase sessions
-       * (default: one upload per run). `false` makes every facade upload its own.
-       */
       sharedExtension?:
         | false
         | (() => Promise<{ extensionId: string; release: () => Promise<void> } | undefined>);
@@ -182,8 +170,6 @@ export class StagehandFacadeTool implements CoreTool {
   }
 
   protected promptInstructions(): string {
-    // Prompt-only variant: EXPLICIT_SNAPSHOT_ACTIONS=1 adds snapshot/screenshot
-    // routing guidance (the stdio server reads the same env for tool descriptions).
     return facadeAgentInstructions();
   }
 
@@ -200,8 +186,6 @@ export class StagehandFacadeTool implements CoreTool {
     const spec = this.options.serverSpec
       ? this.options.serverSpec(input.environment)
       : this.defaultServerSpec(input.environment);
-    // Share one extension upload across the run's facades. Best effort: when
-    // it fails the facade falls back to uploading for itself.
     let sharedExtension: { extensionId: string; release: () => Promise<void> } | undefined;
     if (input.environment === "BROWSERBASE" && this.options.sharedExtension !== false) {
       try {
@@ -235,9 +219,6 @@ export class StagehandFacadeTool implements CoreTool {
         message: `Started runner-owned ${this.id} bridge on 127.0.0.1:${bridge.port}.`,
       });
     }
-    // Launch the Browserbase browser now rather than on the agent's first call
-    // so the session id is known before the agent starts. Local browsers have
-    // nothing to report and keep their lazy launch.
     let browserSession: Record<string, unknown> = {};
     try {
       const info = input.environment === "BROWSERBASE" ? await bridge.sessionInfo() : undefined;
@@ -304,12 +285,6 @@ export class StagehandFacadeTool implements CoreTool {
   }
 }
 
-/**
- * The facade surface as it shipped before the Playwright-idiom prompt: same
- * server, same snapshot/screenshot tools, but the earlier run description and
- * agent instructions. Kept under its own id so trajectories from the two
- * prompts are never compared as one surface.
- */
 export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
   override readonly id: ToolSurface = "stagehand_facade_legacy";
 
@@ -322,12 +297,10 @@ export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
   }
 }
 
-/** Native Claude members execute on the same facade-owned browser. */
 export class AnthropicBrowserToolsetTool extends StagehandFacadeTool {
   override readonly id: ToolSurface = "anthropic_browser_toolset";
 }
 
-/** Native Gemini actions execute on the same facade-owned browser. */
 export class GoogleComputerUseTool extends StagehandFacadeTool {
   override readonly id: ToolSurface = "google_computer_use";
 }

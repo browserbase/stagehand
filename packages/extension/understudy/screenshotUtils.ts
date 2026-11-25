@@ -13,7 +13,6 @@ export type ScreenshotCleanup = () => Promise<void> | void;
 
 const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: AbortController }>();
 
-/** Serialize page mutations, or the browser-wide activation/capture critical section. */
 export async function withScreenshotLock<T>(
   owner: object,
   capture: () => Promise<T>,
@@ -24,7 +23,6 @@ export async function withScreenshotLock<T>(
     tail: Promise.resolve(),
     blocked: new AbortController(),
   };
-  // Keep late setup/cleanup isolated, but never make callers wait indefinitely for it.
   queue.blocked.signal.throwIfAborted();
   let started = false;
   const onAbort = () => {
@@ -54,13 +52,10 @@ export async function withScreenshotLock<T>(
     () => {},
     () => {},
   );
-  // A queued request can fail before the active capture finishes. Retain both
-  // promises so that failure cannot release the active capture's lock.
   const released = Promise.all([previous, settled]).then(() => {});
   queue.tail = released;
   screenshotQueues.set(owner, queue);
   try {
-    // The page's operation bounds its caller; nested locks await actual recovery.
     return await pending;
   } finally {
     progress.signal.removeEventListener("abort", onAbort);
@@ -70,7 +65,6 @@ export async function withScreenshotLock<T>(
   }
 }
 
-/** Bound a wait by an operation or queue recovery signal. */
 async function waitForScreenshot<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return await pending;
   return await new Promise<T>((resolve, reject) => {
@@ -185,16 +179,13 @@ export async function applyStyleToFrames(
               if (!doc) return;
               const nodes = doc.querySelectorAll(`[data-stagehand-style="${token}"]`);
               nodes.forEach((node) => node.remove());
-            } catch {
-              // ignore
-            }
+            } catch {}
           }, token)
           .catch(() => {}),
       ),
     );
   });
 
-  // Await issued mutations so restoration cannot run before late setup finishes.
   await Promise.all(
     frames.map((frame) =>
       frame
@@ -208,9 +199,7 @@ export async function applyStyleToFrames(
               style.textContent = css;
               const parent = doc.head || doc.documentElement || doc.body;
               parent?.appendChild(style);
-            } catch {
-              // ignore
-            }
+            } catch {}
           },
           { css: trimmed, token },
           progress,
@@ -262,9 +251,7 @@ export async function disableAnimations(
                   animation.cancel?.();
                 }
               }
-            } catch {
-              // ignore
-            }
+            } catch {}
           },
           undefined,
           progress,
@@ -330,9 +317,7 @@ export async function applyMaskOverlays(
                 }
                 root.removeAttribute("data-stagehand-mask-root");
               }
-            } catch {
-              // ignore
-            }
+            } catch {}
           }, token)
           .catch(() => {}),
       ),
@@ -359,7 +344,6 @@ export async function applyMaskOverlays(
       }
     } catch {
       progress.throwIfStopped();
-      // ignore individual locator failures
     }
   }
 
@@ -394,9 +378,7 @@ export async function applyMaskOverlays(
                       }
                       rootEl.style.position = "relative";
                     }
-                  } catch {
-                    // ignore
-                  }
+                  } catch {}
                 }
                 const el = doc.createElement("div");
                 el.setAttribute("data-stagehand-mask", token);
@@ -412,9 +394,7 @@ export async function applyMaskOverlays(
                 el.style.mixBlendMode = "normal";
                 (root as Element).appendChild(el);
               }
-            } catch {
-              // ignore
-            }
+            } catch {}
           },
           { rects, color, token },
           progress,
@@ -444,12 +424,10 @@ async function resolveMaskRects(
         if (rect) rects.push(rect);
       } catch {
         progress.throwIfStopped();
-        // ignore individual element failures
       }
     }
     return rects;
   } finally {
-    // Includes the result array and nodes skipped after expiry.
     await resolved.release();
   }
 }
@@ -511,8 +489,6 @@ export async function runScreenshotCleanups(cleanups: ScreenshotCleanup[]): Prom
       if (result && typeof (result as Promise<void>).then === "function") {
         await result;
       }
-    } catch {
-      // ignore cleanup errors
-    }
+    } catch {}
   }
 }

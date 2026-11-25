@@ -69,8 +69,6 @@ const ignored = [
 
 beforeAll(async () => {
   directory = await mkdtemp(path.join(tmpdir(), "stagehand-cli-lint-"));
-  // Use the production overrides and ignores, but syntax-only fixtures do not
-  // need a TypeScript project or the independent type-aware rule suite.
   await writeFile(
     path.join(directory, ".oxlintrc.json"),
     JSON.stringify({

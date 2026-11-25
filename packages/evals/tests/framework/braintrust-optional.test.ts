@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { hasBraintrustApiKey, tracedSpan } from "../../framework/braintrust.js";
 
-/**
- * Verify that braintrust.ts helpers and AISdkClientWrapped work without
- * BRAINTRUST_API_KEY. The runner-level tests live in a separate file
- * (braintrust-runner-nolog.test.ts) because they need to vi.mock the
- * braintrust module entirely.
- */
-
 describe("braintrust.ts helpers without BRAINTRUST_API_KEY", () => {
   const originalKey = process.env.BRAINTRUST_API_KEY;
 

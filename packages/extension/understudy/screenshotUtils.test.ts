@@ -318,7 +318,6 @@ describe("screenshot serialization", () => {
         first.release();
         await later;
       } else {
-        // Advance the clock without delivering the deadline timer.
         vi.spyOn(performance, "now").mockReturnValue(10);
         expect(queuedProgress.signal.aborted).toBe(false);
       }

@@ -87,7 +87,7 @@ describe("handleDoctor --json", () => {
     const entryDir = makeTempEntryDir();
     const { exit, report } = await runDoctorJson(entryDir);
     expect(exit).toBe(0);
-    expect(report.verdict).toBe("fail"); // zero provider keys
+    expect(report.verdict).toBe("fail");
   });
 
   it("emits the full schema (verdict, runtime, config, discovery, keys, reasons)", async () => {
@@ -166,7 +166,6 @@ describe("handleDoctor tracing block", () => {
     process.env.BROWSERBASE_PROJECT_ID = "pid";
     process.env.BRAINTRUST_API_KEY = "bt";
     process.env.EVAL_TRACE_TRANSPORT = "otel";
-    // Braintrust key present → sink exists → no tracing warning.
     let { report } = await runDoctorJson(entryDir);
     expect(report.reasons.some((r) => r.includes("no sink"))).toBe(false);
 
@@ -251,7 +250,6 @@ describe("handleDoctor --help", () => {
     spy.mockRestore();
     expect(exit).toBe(0);
     expect(text).toContain("evals doctor");
-    // --probe and --harness are public flags
     expect(text).toContain("--probe");
     expect(text).toContain("--harness");
   });

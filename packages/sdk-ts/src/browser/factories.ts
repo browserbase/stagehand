@@ -85,7 +85,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             launched = await abortable(launchPromise, signal);
           } catch (error) {
             if (signal.aborted && options.keepAlive !== true) {
-              // A launcher may finish after the deadline; close that late-owned browser.
               void launchPromise.then((lateBrowser) => lateBrowser.close()).catch(() => undefined);
             }
             throw error;
@@ -157,7 +156,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             session = await abortable(sessionPromise, signal);
           } catch (error) {
             if (signal.aborted && sessionOptions.keepAlive !== true) {
-              // A remote session may finish launching after the deadline; release it when owned.
               void sessionPromise
                 .then((lateSession) => lateSession.close?.())
                 .catch(() => undefined);
@@ -235,24 +233,20 @@ const factories = createBrowserFactories();
 export const localBrowser = factories.localBrowser;
 export const browserbase = factories.browserbase;
 
-/** @internal */
 export function createBrowserFactoriesForTest(
   dependencies: BrowserFactoryDependencies,
 ): ReturnType<typeof createBrowserFactories> {
   return createBrowserFactories(dependencies);
 }
 
-/** @internal */
 export function claimStagehandBrowser(browser: StagehandBrowser): ClaimedStagehandBrowser {
   return claimStagehandBrowserHandle<ClaimedStagehandBrowser>(browser);
 }
 
-/** @internal */
 export function releaseStagehandBrowser(browser: StagehandBrowser): void {
   releaseStagehandBrowserHandle(browser);
 }
 
-/** @internal */
 export function invalidateStagehandBrowser(browser: StagehandBrowser): Promise<void> {
   return invalidateStagehandBrowserHandle(browser);
 }
@@ -279,8 +273,6 @@ async function connectBrowser(options: {
       ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
-      // Only a local browser Stagehand launched without keepAlive is shut down when this
-      // client disappears; Browserbase applies its own keepAlive policy.
       clientLifecycle: {
         closeBrowserOnDisconnect: options.provider === "local" && ownsSource,
         extensionCdpUrl: options.workerInitMetadata.browserCdpUrl,
@@ -291,7 +283,6 @@ async function connectBrowser(options: {
       cdpClient = await abortable(connectionPromise, options.signal);
     } catch (error) {
       if (options.signal.aborted) {
-        // An injected connector may ignore AbortSignal and resolve after the factory rejects.
         void connectionPromise.then((lateClient) => lateClient.close()).catch(() => undefined);
       }
       throw error;
@@ -308,14 +299,12 @@ async function connectBrowser(options: {
       const errors: unknown[] = [];
       try {
         if (options.provider === "local") {
-          // Bounded so an unresponsive Chrome cannot keep a launched one from being terminated.
           const deadline = new AbortController();
           const timer = setTimeout(() => deadline.abort(), BROWSER_CLOSE_TIMEOUT_MS);
           try {
             await connectedClient.sendCommand("Browser.close", {}, undefined, deadline.signal);
           } catch (error) {
             if (deadline.signal.aborted) {
-              // A launched browser is terminated below; a connected one cannot be.
               if (options.origin === "connected") {
                 errors.push(
                   new Error(`Browser.close did not respond within ${BROWSER_CLOSE_TIMEOUT_MS} ms`),
@@ -328,8 +317,6 @@ async function connectBrowser(options: {
             clearTimeout(timer);
           }
         }
-        // A launched local browser is also terminated if Browser.close failed or left it
-        // running, and its profile removed unless preserved; a Browserbase session is released.
         if (options.provider === "browserbase" || options.origin === "launched") {
           try {
             await closeSource(options.source);
@@ -363,16 +350,11 @@ async function connectBrowser(options: {
         connectedClient.close();
       },
       connected: () => !connectedClient.closed,
-      // After an unexpected loss, a Browserbase session can still be released over its
-      // API; a local browser is left alone.
       closeWithoutConnection:
         options.provider === "browserbase" ? () => closeSource(options.source) : undefined,
     });
   } catch (error) {
     cdpClient?.close();
-    // No browser handle escaped this failed launch. A newly created remote
-    // session remains ours to release, even if successful handles stay alive
-    // after transport loss. Connecting to somebody else's session stays unowned.
     if (ownsSource || (options.provider === "browserbase" && options.origin === "launched")) {
       try {
         await closeSource(options.source);

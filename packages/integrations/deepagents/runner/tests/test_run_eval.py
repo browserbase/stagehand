@@ -490,8 +490,6 @@ def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
 async def test_flaky_teardown_after_completion_keeps_exit_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raising exit-stack close after the stream finished must stay exit 0
-    and must not emit an error event that overwrites the stop classification."""
     import run_eval as run_eval_module
 
     class FlakyExitStack:
@@ -555,7 +553,6 @@ def test_build_eval_model_requests_openai_reasoning_summaries(
     payload = model._get_request_payload([("human", "hi")])  # type: ignore[attr-defined]
     assert payload["model"] == "gpt-5.6-luna"
     assert payload["reasoning"] == {"summary": "detailed"}
-    # deepagents must still derive its harness profile key from the prebuilt model.
     _default_build_agent(_config("openai:gpt-5.6-luna", "detailed"), [])
 
 

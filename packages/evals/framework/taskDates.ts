@@ -1,11 +1,4 @@
 /**
- * Date helpers for bench tasks whose target site only accepts inputs inside a
- * rolling window. A hardcoded date in an instruction silently rots: it stays valid
- * for a while, then drifts out of range and the task becomes unsatisfiable —
- * failing as if the agent were at fault.
- */
-
-/**
  * First day of the previous month, formatted for an instruction ("Jun 1, 2026").
  * Always ≤ ~62 days ago and never in the future, which keeps
  * `agent/webmd_ovulation_calculator` inside WebMD's ~90-day accepted range (its

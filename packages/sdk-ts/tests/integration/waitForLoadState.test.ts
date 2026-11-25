@@ -8,11 +8,8 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
-// Longer than the 500ms networkidle quiet window, so a wait that ignores an
-// in-flight request would have resolved by then.
 const PAST_IDLE_WINDOW_MS = 1_000;
 
-/** Track a promise's settlement without leaving a rejection unhandled. */
 function track(promise: Promise<unknown>): { settled: boolean } {
   const state = { settled: false };
   promise.then(
@@ -25,7 +22,6 @@ function track(promise: Promise<unknown>): { settled: boolean } {
 describe("Page.waitForLoadState", () => {
   let stagehand: Stagehand;
   let fixture: FixtureServer;
-  // `/slow` holds its response until the current test releases it.
   let releaseSlow: () => void = () => {};
   let slowGate: Promise<void> = Promise.resolve();
 
@@ -93,7 +89,6 @@ describe("Page.waitForLoadState", () => {
     const page = await firstPage(stagehand);
     await page.goto(`${fixture.url}busy`, { waitUntil: "load" });
 
-    // `/slow` never responds in this test, so only the navigation can end the wait.
     const idle = page.waitForLoadState("networkidle", 10_000);
     const state = track(idle);
     await page.waitForTimeout(PAST_IDLE_WINDOW_MS);
@@ -117,7 +112,6 @@ describe("Page.waitForLoadState", () => {
         ? page.goto(`${fixture.url}busy?next`, { waitUntil: "load" })
         : page.reload({ waitUntil: "load" }));
 
-      // The new document's own `/slow` request must still hold the wait open.
       await page.waitForTimeout(PAST_IDLE_WINDOW_MS);
       expect(state.settled).toBe(false);
 

@@ -1000,19 +1000,13 @@ async function capturePlaywrightMcpEvidence(
   const evidence: ProbeEvidence = {};
   try {
     evidence.screenshot = await page.screenshot();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.url = page.url();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.ariaTree = (await page.represent?.())?.content;
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   return evidence;
 }
 
@@ -1026,7 +1020,6 @@ function buildPlaywrightMcpAgentPromptInstructions(): string {
   ].join("\n");
 }
 
-/** Launch spec for a playwright MCP server instance bound to this start input. */
 export function buildPlaywrightMcpLaunchSpec(input: ToolStartInput): {
   command: string;
   args: string[];
@@ -1101,11 +1094,6 @@ export class PlaywrightMcpTool implements CoreTool {
 
     return {
       session,
-      // The agent mount is the *spec* for a second server instance the agent
-      // harness spawns as the agent's own MCP client target. It requires a
-      // providedEndpoint so both instances attach to the same browser — under
-      // tool_launch_local the agent's copy would launch a separate isolated
-      // browser and the harness would observe the wrong one.
       ...(input.providedEndpoint && {
         agentMount: {
           via: "mcp" as const,

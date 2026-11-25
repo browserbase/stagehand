@@ -129,12 +129,8 @@ describe("claude code tool adapter resolution", () => {
         path.join(cwd, ".claude", "skills", "browse", "SKILL.md"),
         "utf8",
       );
-      // The installed skill is the real CLI skill (single source of truth)...
       expect(skill).toContain("name: browse");
       expect(skill).toContain("browse CLI");
-      // ...plus the install-time eval-harness addendum, inserted right after
-      // frontmatter so it precedes (and overrides) the CLI skill's
-      // conflicting cloud/functions/templates/skills-install examples.
       expect(skill).toContain("## Eval Harness Addendum");
       expect(skill).toContain("EVAL_RESULT");
       const addendumIndex = skill.indexOf("## Eval Harness Addendum");
@@ -195,7 +191,6 @@ describe("claude code tool adapter resolution", () => {
       "",
     ].join("\n");
     expect(result).toBe(`${expectedFrontmatter}ADDENDUM\n# Body\ntext\n`);
-    // The embedded `---` must not be mistaken for the closing delimiter.
     expect(result.indexOf("ADDENDUM")).toBeGreaterThan(result.indexOf("still frontmatter"));
   });
 

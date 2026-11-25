@@ -1,4 +1,3 @@
-/** Log level a raw SDK event should be recorded at. */
 export type HarnessEventLogLevel = 0 | 1 | 2;
 
 export interface HarnessEventClassification {
@@ -11,17 +10,12 @@ export interface HarnessEventClassification {
   hasContent?: boolean;
 }
 
-/**
- * Stream fragments — deltas, partial updates, chunks — that only accumulate
- * into a later completed event and never carry standalone content.
- */
 export function isStreamDeltaEventType(type: string): boolean {
   return (
     type === "stream_event" || /(?:^|[-_.:])(?:delta|update|updated|partial|chunk)$/iu.test(type)
   );
 }
 
-/** Lifecycle markers (`*-start`, `*.started`, `*_end`, ...) that bracket other events. */
 export function isLifecycleBoundaryEventType(type: string): boolean {
   return /(?:^|[-_.:])(?:start|started|begin|end|ended|stop|stopped)$/iu.test(type);
 }

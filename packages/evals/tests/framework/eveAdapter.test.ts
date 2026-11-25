@@ -149,7 +149,6 @@ describe("Eve trajectory adapter", () => {
       ["stagehand__snapshot", "Let's get a snapshot of the home page."],
       ["stagehand__run", "Let me close the cookie dialog."],
     ]);
-    // Tool-call narration is not a conclusion, so it never becomes the answer.
     expect(trajectory.finalAnswer).toBeUndefined();
   });
 

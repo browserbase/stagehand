@@ -276,8 +276,6 @@ function missingRequestFields(
       if (forwardsDescriptor && descriptorFields.includes(field)) continue;
       if (directlyForwardsParameter(call.params, field, extendedText)) continue;
 
-      // A rest spread forwards newly added fields automatically. Explicitly transformed
-      // fields remain visible beside the spread.
       if (/\.\.\.[A-Za-z_$][A-Za-z0-9_$]*\b/u.test(extendedText)) continue;
       for (const nestedField of nestedFields) {
         if (!tokens.has(snakeCase(nestedField))) {
@@ -570,7 +568,6 @@ function passesResultWhole(call: RpcCall, resultName: string): boolean {
 
 function assignsResultWhole(call: RpcCall, resultName: string): boolean {
   const text = call.scope.text();
-  // Copying result.value (or result["value"]) does not forward the whole result.
   if (
     new RegExp(
       `(?:[.#][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b(?!\\s*(?:\\?\\.|[.\\[]))`,

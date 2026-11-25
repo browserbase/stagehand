@@ -1,11 +1,3 @@
-/**
- * Task and model configuration.
- *
- * This module now builds the task registry from the filesystem (auto-discovery)
- * instead of reading a static tasks array from evals.config.json.
- * Model configuration logic is preserved as-is.
- */
-
 import fs from "fs";
 import path from "path";
 import {
@@ -20,7 +12,6 @@ import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
 const ALL_EVAL_MODELS = [
-  // GOOGLE
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
@@ -29,24 +20,19 @@ const ALL_EVAL_MODELS = [
   "gemini-1.5-flash-8b",
   "gemini-2.5-flash-preview-04-17",
   "gemini-2.5-pro-preview-03-25",
-  // ANTHROPIC
   "claude-sonnet-4-6",
-  // OPENAI
   "gpt-4o-mini",
   "gpt-4o",
   "gpt-4.5-preview",
   "o3",
   "o3-mini",
   "o4-mini",
-  // TOGETHER - META
   "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
   "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   "meta-llama/Llama-4-Scout-17B-16E-Instruct",
   "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-  // TOGETHER - DEEPSEEK
   "deepseek-ai/DeepSeek-V3",
   "Qwen/Qwen2.5-7B-Instruct-Turbo",
-  // GROQ
   "groq/meta-llama/llama-4-scout-17b-16e-instruct",
   "groq/llama-3.3-70b-versatile",
   "groq/llama3-70b-8192",
@@ -54,13 +40,8 @@ const ALL_EVAL_MODELS = [
   "groq/qwen-2.5-32b",
   "groq/deepseek-r1-distill-qwen-32b",
   "groq/deepseek-r1-distill-llama-70b",
-  // CEREBRAS
   "cerebras/llama3.3-70b",
 ];
-
-// ---------------------------------------------------------------------------
-// Auto-discover tasks from filesystem
-// ---------------------------------------------------------------------------
 
 const moduleDir = getCurrentDirPath();
 const tasksRoot = path.join(moduleDir, "tasks");
@@ -70,9 +51,6 @@ type TaskConfig = {
   categories: string[];
 };
 
-/**
- * Walk a directory to find .ts/.js task files (non-recursive for leaf dirs).
- */
 function findTaskFiles(dir: string): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
@@ -92,16 +70,6 @@ function findTaskFiles(dir: string): string[] {
   return results;
 }
 
-/**
- * Cross-cutting categories that tasks may belong to in addition to their
- * primary directory-based category. These were previously stored in
- * evals.config.json and are preserved here as a static mapping so that
- * commands like `evals run regression` or `evals run targeted_extract`
- * continue to work after the migration to filesystem-based discovery.
- */
-/**
- * Extra categories to ADD to a task's directory-derived category.
- */
 const EXTRA_CATEGORIES: Record<string, string[]> = {
   instructions: ["regression"],
   ionwave: ["regression"],
@@ -129,11 +97,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   extract_geniusee_2: ["targeted_extract"],
 };
 
-/**
- * Tasks whose categories REPLACE the directory-derived category entirely.
- * Used for external benchmark suites that live in bench/agent/ but should
- * NOT appear in the plain "agent" category.
- */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
@@ -142,15 +105,6 @@ const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/odysseysbench": ["external_agent_benchmarks"],
 };
 
-/**
- * Build tasksConfig from filesystem structure (bench tier only).
- *
- * Only scans tasks/bench/ — core tier tasks are not exposed to the legacy
- * runner because index.eval.ts cannot execute them yet.
- *
- * Cross-cutting categories (regression, targeted_extract, external_agent_benchmarks)
- * are merged from the static CROSS_CUTTING_CATEGORIES map.
- */
 function buildTasksConfigFromFS(): TaskConfig[] {
   const configs: TaskConfig[] = [];
   const benchDir = path.join(tasksRoot, "bench");
@@ -170,14 +124,12 @@ function buildTasksConfigFromFS(): TaskConfig[] {
       const baseName = path.basename(filePath).replace(/\.(ts|js)$/, "");
       const name = category === "agent" ? `agent/${baseName}` : baseName;
 
-      // Check for full category override first (e.g., external benchmark suites)
       const override = CATEGORY_OVERRIDES[name];
       if (override) {
         configs.push({ name, categories: [...override] });
         continue;
       }
 
-      // Start with the primary directory category, then merge extras
       const taskCategories = [category];
       const extras = EXTRA_CATEGORIES[name];
       if (extras) {
@@ -204,10 +156,6 @@ const tasksByName = tasksConfig.reduce<Record<string, { categories: string[] }>>
   return acc;
 }, {});
 
-/**
- * Validate a specific eval name against the discovered tasks.
- * Called lazily (not at import time) to avoid side effects in bundled builds.
- */
 export function validateEvalName(evalName: string): void {
   if (evalName && !tasksByName[evalName]) {
     console.error(`Error: Evaluation "${evalName}" does not exist.`);
@@ -215,10 +163,6 @@ export function validateEvalName(evalName: string): void {
     process.exit(1);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Model configuration (preserved from original)
-// ---------------------------------------------------------------------------
 
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")

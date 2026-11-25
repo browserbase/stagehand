@@ -31,9 +31,7 @@ export const collectCssMatches = (
         results.push(element);
         if (results.length >= limit) return;
       }
-    } catch {
-      // ignore querySelectorAll issues
-    }
+    } catch {}
 
     try {
       const ownerDocument = root instanceof Document ? root : (root.ownerDocument ?? document);
@@ -48,9 +46,7 @@ export const collectCssMatches = (
         const shadowRoot = getOpenOrClosedShadowRoot(node);
         if (shadowRoot) queue.push(shadowRoot);
       }
-    } catch {
-      // ignore traversal issues
-    }
+    } catch {}
   };
 
   while (queue.length && results.length < limit) {
@@ -102,15 +98,11 @@ export function collectTextMatches(
       if (shouldSkip(node)) return "";
       const inner = (node as HTMLElement).innerText;
       if (typeof inner === "string" && inner.trim()) return inner.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const text = node.textContent;
       if (typeof text === "string") return text.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     return "";
   };
 
@@ -187,9 +179,7 @@ export function collectTextMatches(
           skip = true;
           break;
         }
-      } catch {
-        // ignore containment errors
-      }
+      } catch {}
     }
     if (!skip) {
       innermost.push(item);

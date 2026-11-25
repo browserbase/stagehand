@@ -149,8 +149,6 @@ describe("shared CUA facade boundary", () => {
       "Build @browserbasehq/stagehand-integrations before running this compiled facade test.",
     ).toBe(true);
     const folder = await mkdtemp(path.join(tmpdir(), "cua-compiled-facade-"));
-    // No browser or model: only the raw SDK boundary is a fixture. MCP transport,
-    // facade batch/ref translation, result encoding and CUA decoding are real.
     const source = `
 import { StagehandFacadeTools } from ${JSON.stringify(compiledFacade)};
 let url = 'https://fixture.test', clicks = 0;

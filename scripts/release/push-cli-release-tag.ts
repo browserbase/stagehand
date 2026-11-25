@@ -23,9 +23,6 @@ export async function pushCliReleaseTag(
   if (local.error) throw local.error;
   if (local.status === 1) {
     if (!(await isCliVersionPublished(repositoryRoot, registry))) return "unpublished";
-    // A fresh checkout after npm accepted the upload may have no local tag.
-    // Recover only on the version-bump commit; tagging a later main HEAD would
-    // misidentify the released code. Retrying the original workflow retains it.
     const previous = JSON.parse(git(["show", `HEAD^:${manifestPath}`]));
     if (previous.version === version) {
       throw new Error(

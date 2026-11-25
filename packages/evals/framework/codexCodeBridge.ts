@@ -67,7 +67,6 @@ export async function startCodeBridge(input: {
   mount: Extract<AgentMount, { via: "handles" }>;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
-  /** Awaited after every bridge run, success or failure (per-step probe). */
   onRunExecuted?: () => Promise<void>;
 }): Promise<CodeBridge> {
   const { mount, plan, logger } = input;
@@ -99,19 +98,12 @@ export async function startCodeBridge(input: {
     );
   }
 
-  // Evidence collection is best-effort: a probe failure must never hang a
-  // bridge request or turn a successful run into an error response.
   async function notifyRunExecuted(): Promise<void> {
     try {
       await input.onRunExecuted?.();
-    } catch {
-      // best-effort only
-    }
+    } catch {}
   }
 
-  // Loopback bridge shares this process's live credentials, so gate it: a
-  // per-bridge bearer token (constant-time compared) and no cross-origin
-  // (browser / DNS-rebind) callers.
   const token = randomBytes(32).toString("hex");
   const expectedAuthorization = Buffer.from(`Bearer ${token}`);
 
@@ -185,11 +177,6 @@ export async function startCodeBridge(input: {
   };
 }
 
-/**
- * The workspace client codex invokes via shell. Kept dependency-free and
- * tiny: read a snippet file (or stdin), post to the bridge, print the
- * result text; non-zero exit on execution error so the agent notices.
- */
 export function buildBridgeClientScript(port: number, token: string): string {
   return `#!/usr/bin/env node
 // browser_run.mjs — execute a browser-automation snippet via the eval bridge.
