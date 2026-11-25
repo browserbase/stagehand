@@ -506,8 +506,8 @@ importers:
         specifier: ^2.28.0
         version: 2.28.0
       '@browserbasehq/stagehand':
-        specifier: 4.4.0
-        version: 4.4.0
+        specifier: 4.5.0
+        version: 4.5.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -2153,8 +2153,8 @@ packages:
       puppeteer-core:
         optional: true
 
-  '@browserbasehq/stagehand@4.4.0':
-    resolution: {integrity: sha512-Va2HZwdKjmqbCXIMc3wzCcG54hJToscEKoHo+pdRNIKmTqHJDF/ZvqrvMUQbRi8fXtXNncnoo9qhwvlXbsH2SA==}
+  '@browserbasehq/stagehand@4.5.0':
+    resolution: {integrity: sha512-D2t2DCkC2hSS4KQscJw0GwhgqfcEZKHUKNLtDGQTp7gssmLqHZ2ap2n6tq/TjKBNBoVotN9YFgw4vHF5zrGZWw==}
     engines: {node: '>=22.18.0'}
 
   '@bufbuild/protobuf@1.10.0':
@@ -10594,7 +10594,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@browserbasehq/stagehand@4.4.0':
+  '@browserbasehq/stagehand@4.5.0':
     dependencies:
       '@browserbasehq/sdk': 2.28.0
       '@opentelemetry/api': 1.9.1
