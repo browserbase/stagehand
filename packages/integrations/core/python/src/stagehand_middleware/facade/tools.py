@@ -52,10 +52,11 @@ _CANONICAL_BASE64 = re.compile(r"[A-Za-z0-9+/]*={0,2}")
 # sanitizeErrorMessage in src/harness/redact.ts. JavaScript regexes without the
 # `u` flag are ASCII for \b, \w and case folding, but \s is Unicode whitespace.
 _JS_SPACE = "\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+_QUERY_VALUE_CHAR = rf"(?:\\\\|\\(?![\\'\x22])|[^&{_JS_SPACE}'\x22\\])"
 _REDACTIONS = [
     (
         re.compile(
-            rf"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&{_JS_SPACE}\"'\\]+",
+            rf"([?&](?:signingKey|apiKey|api_key|token|key)=){_QUERY_VALUE_CHAR}+",
             re.I | re.A,
         ),
         r"\1[redacted]",
@@ -63,7 +64,7 @@ _REDACTIONS = [
     (
         re.compile(
             rf"((?:%3f|%26)(?:signingKey|apiKey|api_key|token|key)%3d)"
-            rf"(?:(?!%26|%22|%27|%20)[^&{_JS_SPACE}\"'\\])+",
+            rf"(?:(?!%26){_QUERY_VALUE_CHAR})+",
             re.I | re.A,
         ),
         r"\1[redacted]",
@@ -517,6 +518,15 @@ def _validate_run_input(arguments: dict[str, object]) -> None:
                 raise StagehandFacadeInputError(f"Invalid run input: '{field}' must not be empty")
 
 
+def _is_finite_js_number(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _is_run_envelope(value: object) -> TypeGuard[dict[str, Any]]:
     if not isinstance(value, dict) or value.get("__stagehandPlaywrightCompat") is not True:
         return False
@@ -525,9 +535,7 @@ def _is_run_envelope(value: object) -> TypeGuard[dict[str, Any]]:
     error = value.get("executionError")
     return (
         isinstance(value.get("closeRequested"), bool)
-        and isinstance(runtime_ms, int | float)
-        and not isinstance(runtime_ms, bool)
-        and math.isfinite(runtime_ms)
+        and _is_finite_js_number(runtime_ms)
         and isinstance(value.get("telemetry"), dict)
         and isinstance(artifacts, list)
         and all(

@@ -190,7 +190,7 @@ export type FacadeBundle = ReturnType<typeof facadeBundle>;
  */
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) {
-    return `[${value.map((entry) => canonicalJson(entry) ?? "null").join(",")}]`;
+    return `[${Array.from(value, (entry) => canonicalJson(entry) ?? "null").join(",")}]`;
   }
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value)

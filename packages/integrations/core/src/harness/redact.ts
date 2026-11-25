@@ -1,11 +1,11 @@
 export function sanitizeErrorMessage(message: string): string {
   let sanitized = message;
   sanitized = sanitized.replace(
-    /([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"'\\]+/gi,
+    /([?&](?:signingKey|apiKey|api_key|token|key)=)(?:\\\\|\\(?![\\"'])|[^&\s"'\\])+/gi,
     "$1[redacted]",
   );
   sanitized = sanitized.replace(
-    /((?:%3f|%26)(?:signingKey|apiKey|api_key|token|key)%3d)(?:(?!%26|%22|%27|%20)[^&\s"'\\])+/gi,
+    /((?:%3f|%26)(?:signingKey|apiKey|api_key|token|key)%3d)(?:(?!%26)(?:\\\\|\\(?![\\"'])|[^&\s"'\\]))+/gi,
     "$1[redacted]",
   );
   sanitized = sanitized.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=%-]{8,}/gi, "$1[redacted]");

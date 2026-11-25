@@ -32,6 +32,12 @@ import {
   StagehandFacadeTools,
 } from "../src/facade/tools.js";
 
+const DEFAULT_FC_SEED = 20261125;
+
+function fcParams(numRuns: number): { numRuns: number; seed?: number } {
+  return process.env.FC_UNSEEDED === "1" ? { numRuns } : { numRuns, seed: DEFAULT_FC_SEED };
+}
+
 function isWellFormedUtf16(value: string): boolean {
   return (value as string & { isWellFormed(): boolean }).isWellFormed();
 }
@@ -84,7 +90,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
         expect(transportSafeText(safe)).toBe(safe);
         expect(isWellFormedUtf16(safe)).toBe(true);
       }),
-      { numRuns: 300 },
+      fcParams(300),
     );
 
     fc.assert(
@@ -98,7 +104,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           expect(JSON.parse(serialized)).toEqual(JSON.parse(JSON.stringify(wrapped)));
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 
@@ -120,7 +126,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           ).toStrictEqual({ width, height });
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
 
     fc.assert(
@@ -138,7 +144,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           }
         },
       ),
-      { numRuns: 400 },
+      fcParams(400),
     );
 
     const corruptLengthZeroJpeg = Buffer.from([
@@ -162,7 +168,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           budget,
         );
       }),
-      { numRuns: 100 },
+      fcParams(100),
     );
 
     fc.assert(
@@ -177,7 +183,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           ).toThrow();
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
@@ -227,7 +233,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           }
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
@@ -252,7 +258,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           }
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
 
     const defaultBb = stagehandFacadeConfigFromEnv({ BROWSERBASE_API_KEY: "bb_live_1234567890" });
@@ -281,7 +287,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           ).toThrow(StagehandFacadeConfigError);
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
@@ -306,7 +312,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           expect(isBrowserSessionLostError(lost)).toBe(true);
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
 
     fc.assert(
@@ -324,7 +330,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           ).toBe(false);
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
 
     fc.assert(
@@ -334,11 +340,11 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           expect(() => facadeSurfaceFromArgs([`--surface=${invalid}`])).toThrow();
         },
       ),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
-  it("canonicalJson is key-order invariant and always emits valid JSON even with undefined array entries", () => {
+  it("canonicalJson is key-order invariant and always emits valid JSON even with undefined or sparse array entries", () => {
     fc.assert(
       fc.property(
         fc.dictionary(fc.string({ maxLength: 12 }), fc.jsonValue(), { maxKeys: 10 }),
@@ -347,15 +353,26 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           const c1 = canonicalJson(obj);
           const c2 = canonicalJson(reversed);
           expect(c1).toBe(c2);
-          expect(JSON.parse(c1)).toEqual(obj);
+          expect(JSON.parse(c1)).toEqual(JSON.parse(JSON.stringify(obj)));
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
+
+    expect(canonicalJson({ "": -0 })).toBe('{"":0}');
+    expect(JSON.parse(canonicalJson({ "": -0 }))).toEqual(JSON.parse(JSON.stringify({ "": -0 })));
 
     const withUndefined = canonicalJson([1, undefined, { a: 1, b: undefined }]);
     expect(() => JSON.parse(withUndefined)).not.toThrow();
     expect(JSON.parse(withUndefined)).toEqual([1, null, { a: 1 }]);
+
+    const sparseSingle: unknown[] = [];
+    sparseSingle.length = 1;
+    expect(canonicalJson(sparseSingle)).toBe("[null]");
+    const sparseMulti: unknown[] = [];
+    sparseMulti[1] = "x";
+    sparseMulti.length = 3;
+    expect(canonicalJson(sparseMulti)).toBe('[null,"x",null]');
   });
 
   it("runCallback rejects callback-closing syntax injections and wraps valid code deterministically", () => {
@@ -372,7 +389,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           expect(() => runCallback(malicious)).toThrow(SyntaxError);
         },
       ),
-      { numRuns: 50 },
+      fcParams(50),
     );
 
     fc.assert(
@@ -381,7 +398,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
         const fn = runCallback(code);
         expect(Function.prototype.toString.call(fn)).toBe(RUN_PRELUDE + code + RUN_EPILOGUE);
       }),
-      { numRuns: 50 },
+      fcParams(50),
     );
   });
 
@@ -427,7 +444,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
             }
           },
         ),
-        { numRuns: 40 },
+        fcParams(40),
       );
 
       const fast = { close: async () => undefined };
@@ -497,7 +514,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
           expect(closeSpy).not.toHaveBeenCalled();
         },
       ),
-      { numRuns: 50 },
+      fcParams(50),
     );
 
     fc.assert(
@@ -510,7 +527,7 @@ describe("facade runtime, transport, config, contract, and lifecycle properties 
         expect(err.message).not.toContain("1234567890secret");
         expect(err.stack).toBeUndefined();
       }),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 });

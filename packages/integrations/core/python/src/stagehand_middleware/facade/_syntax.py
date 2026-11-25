@@ -64,12 +64,18 @@ def check_run_syntax(code: str) -> None:
                 )
 
 
+_ECMA_HORIZONTAL_SPACE = frozenset(
+    "\t\v\f \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009"
+    "\u200a\u202f\u205f\u3000\ufeff"
+)
+
+
 def _preceded_by_line_break_only(encoded: bytes, start: int, offset: int) -> bool:
     before = encoded[start:offset].decode("utf-8", errors="replace")
     last_break = max(before.rfind("\n"), before.rfind("\u2028"), before.rfind("\u2029"))
     if last_break == -1:
         return False
-    return before[last_break + 1 :].strip() == ""
+    return all(char in _ECMA_HORIZONTAL_SPACE for char in before[last_break + 1 :])
 
 
 def _first_error(node: Node) -> Node | None:

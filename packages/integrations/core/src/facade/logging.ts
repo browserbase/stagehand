@@ -10,14 +10,30 @@ const SENSITIVE_KEY_PATTERN =
 const BINARY_OMITTED_PATTERN = /^\[binary omitted: \d+ characters\]$/;
 const MAX_LOG_DEPTH = 64;
 
+function omitBinaryData(value: string): string {
+  return BINARY_OMITTED_PATTERN.test(value)
+    ? value
+    : `[binary omitted: ${value.length} characters]`;
+}
+
+function readProperty(target: object, key: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: (target as Record<string, unknown>)[key] };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function redactLogString(text: string): string {
   return sanitizeErrorMessage(text)
     .replace(
-      /((?:password|api[_-]?key|signing[_-]?key|secret|token)["']?\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])*\2/gi,
-      "$1$2[redacted]$2",
+      /((?:authorization|cookie|password|api[_-]?key|signing[_-]?key|secret|token)["']?[ \t]*[:=][ \t]*)(["'])(?:(?:\\.|(?!\2)[^\\\r\n])*(\2)|[^\r\n]*)/gi,
+      (_match, prefix: string, quote: string, close: string | undefined) =>
+        `${prefix}${quote}[redacted]${close ?? ""}`,
     )
+    .replace(/((?:authorization|cookie)["']?[ \t]*[:=][ \t]*)(?!["'\s])[^\r\n]+/gi, "$1[redacted]")
     .replace(
-      /((?:password|api[_-]?key|signing[_-]?key|secret|token)["']?\s*[:=]\s*)[^\s"',;}]+/gi,
+      /((?:password|api[_-]?key|signing[_-]?key|secret|token)["']?[ \t]*[:=][ \t]*)[^\s"',;}]+/gi,
       "$1[redacted]",
     );
 }
@@ -51,14 +67,30 @@ function sanitizeLogValue(value: unknown, ancestors: Set<object>, depth: number)
     }
     if (value instanceof Error) {
       const serialized: Record<string, unknown> = {};
-      defineOwnField(serialized, "name", redactLogString(value.name));
-      defineOwnField(serialized, "message", redactLogString(value.message));
-      if (typeof value.stack === "string") {
-        defineOwnField(serialized, "stack", redactLogString(value.stack));
+      for (const metaKey of ["name", "message"] as const) {
+        const prop = readProperty(value, metaKey);
+        if (!prop.ok) {
+          defineOwnField(serialized, metaKey, "[Unreadable]");
+        } else {
+          const sanitized = sanitizeLogValue(prop.value, ancestors, depth + 1);
+          if (sanitized !== undefined) defineOwnField(serialized, metaKey, sanitized);
+        }
       }
-      const cause = (value as Error & { cause?: unknown }).cause;
-      if (cause !== undefined) {
-        defineOwnField(serialized, "cause", sanitizeLogValue(cause, ancestors, depth + 1));
+      const stackProp = readProperty(value, "stack");
+      if (!stackProp.ok) {
+        defineOwnField(serialized, "stack", "[Unreadable]");
+      } else if (typeof stackProp.value === "string") {
+        defineOwnField(serialized, "stack", redactLogString(stackProp.value));
+      }
+      const causeProp = readProperty(value, "cause");
+      if (!causeProp.ok) {
+        defineOwnField(serialized, "cause", "[Unreadable]");
+      } else if (causeProp.value !== undefined) {
+        defineOwnField(
+          serialized,
+          "cause",
+          sanitizeLogValue(causeProp.value, ancestors, depth + 1),
+        );
       }
       for (const key of Object.keys(value)) {
         const redactedKey = redactLogString(key);
@@ -66,14 +98,16 @@ function sanitizeLogValue(value: unknown, ancestors: Set<object>, depth: number)
           defineOwnField(serialized, redactedKey, "[redacted]");
           continue;
         }
-        let item: unknown;
-        try {
-          item = (value as unknown as Record<string, unknown>)[key];
-        } catch {
+        const prop = readProperty(value, key);
+        if (!prop.ok) {
           defineOwnField(serialized, redactedKey, "[Unreadable]");
           continue;
         }
-        const sanitized = sanitizeLogValue(item, ancestors, depth + 1);
+        if (key === "data" && typeof prop.value === "string") {
+          defineOwnField(serialized, redactedKey, omitBinaryData(prop.value));
+          continue;
+        }
+        const sanitized = sanitizeLogValue(prop.value, ancestors, depth + 1);
         if (sanitized !== undefined) defineOwnField(serialized, redactedKey, sanitized);
       }
       return serialized;
@@ -85,7 +119,9 @@ function sanitizeLogValue(value: unknown, ancestors: Set<object>, depth: number)
         const safeVal =
           typeof entryKey === "string" && SENSITIVE_KEY_PATTERN.test(entryKey)
             ? "[redacted]"
-            : sanitizeLogValue(entryVal, ancestors, depth + 1);
+            : entryKey === "data" && typeof entryVal === "string"
+              ? omitBinaryData(entryVal)
+              : sanitizeLogValue(entryVal, ancestors, depth + 1);
         entries.push([
           safeKey === undefined ? null : safeKey,
           safeVal === undefined ? null : safeVal,
@@ -147,11 +183,7 @@ function sanitizeLogValue(value: unknown, ancestors: Set<object>, depth: number)
         continue;
       }
       if (key === "data" && typeof item === "string") {
-        defineOwnField(
-          output,
-          redactedKey,
-          BINARY_OMITTED_PATTERN.test(item) ? item : `[binary omitted: ${item.length} characters]`,
-        );
+        defineOwnField(output, redactedKey, omitBinaryData(item));
         continue;
       }
       const sanitized = sanitizeLogValue(item, ancestors, depth + 1);

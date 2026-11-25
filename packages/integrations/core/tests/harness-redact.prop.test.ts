@@ -18,6 +18,12 @@ import {
   toFiniteNumber,
 } from "../src/harness/index.js";
 
+const DEFAULT_FC_SEED = 20261125;
+
+function fcParams(numRuns: number): { numRuns: number; seed?: number } {
+  return process.env.FC_UNSEEDED === "1" ? { numRuns } : { numRuns, seed: DEFAULT_FC_SEED };
+}
+
 function isWellFormedUtf16(value: string): boolean {
   return (value as string & { isWellFormed(): boolean }).isWellFormed();
 }
@@ -74,9 +80,37 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           const redactedEncoded = sanitizeErrorMessage(urlEncoded);
           expect(redactedEncoded).not.toContain(encodeURIComponent(secret));
           expect(redactedEncoded).not.toContain(secret);
+
+          const withBackslash = `https://example.test/ws${sep}${param}=prefix\\${secret}&next=ok`;
+          const redactedBackslash = sanitizeErrorMessage(withBackslash);
+          expect(redactedBackslash).not.toContain(secret);
+          expect(redactedBackslash).toBe(
+            `https://example.test/ws${sep}${param}=[redacted]&next=ok`,
+          );
+
+          const escapedJson = `{\\"url\\":\\"https://example.test/ws${sep}${param}=${secret}\\"}`;
+          const redactedEscapedJson = sanitizeErrorMessage(escapedJson);
+          expect(redactedEscapedJson).not.toContain(secret);
+          expect(redactedEscapedJson).toBe(
+            `{\\"url\\":\\"https://example.test/ws${sep}${param}=[redacted]\\"}`,
+          );
+
+          const trailingBackslashJson = JSON.stringify({
+            url: `https://example.test/ws${sep}${param}=${secret}\\`,
+          });
+          const redactedTrailing = sanitizeErrorMessage(trailingBackslashJson);
+          expect(redactedTrailing).not.toContain(secret);
+          expect(() => JSON.parse(redactedTrailing)).not.toThrow();
+
+          const encodedWithSpacesAndQuotes = `redirect=https%3A%2F%2Fexample.test%3F${param}%3Dpart1%20%22${secret}%27%26ok%3D1`;
+          const redactedEncodedSpecial = sanitizeErrorMessage(encodedWithSpacesAndQuotes);
+          expect(redactedEncodedSpecial).not.toContain(secret);
+          expect(redactedEncodedSpecial).toBe(
+            `redirect=https%3A%2F%2Fexample.test%3F${param}%3D[redacted]%26ok%3D1`,
+          );
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 
@@ -109,7 +143,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           }
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 
@@ -120,7 +154,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
         const twice = sanitizeErrorMessage(once);
         expect(twice).toBe(once);
       }),
-      { numRuns: 300 },
+      fcParams(300),
     );
 
     fc.assert(
@@ -132,7 +166,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           expect(sanitizeErrorMessage(clean)).toBe(clean);
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 
@@ -142,6 +176,9 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
         const keySecret = `sk-abcdef${canary}`;
         const urlSecret = `https://example.test?apiKey=${canary}`;
         const quotedSecret = `password="prefix ${canary}"`;
+        const unterminatedQuoted = `password="top ${canary}\nnext=ok`;
+        const basicAuth = `authorization: Basic ${canary}\nHost: example.test`;
+        const cookieHeader = `cookie: sid=${canary}; theme=dark\nHost: example.test`;
         const inlineSigning = `signingKey=${canary}`;
 
         const nullProto = Object.create(null) as Record<string, unknown>;
@@ -159,9 +196,11 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
         const err = new Error(`boom ${urlSecret}`);
         err.stack = `Error: boom ${keySecret}\n    at test (${inlineSigning})`;
         (err as Error & { cause?: unknown }).cause = new TypeError(`inner ${quotedSecret}`);
+        (err as Error & { data?: string }).data = `BASE64_${canary}`;
 
         const map = new Map<unknown, unknown>([
           [keySecret, `Bearer ${canary}`],
+          ["data", `MAP_BASE64_${canary}`],
           ["safe", benign],
         ]);
         const set = new Set<unknown>([urlSecret, benign]);
@@ -173,6 +212,9 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           map,
           set,
           quoted: quotedSecret,
+          unterminated: unterminatedQuoted,
+          basicAuth,
+          cookieHeader,
           signing: inlineSigning,
         };
 
@@ -180,8 +222,10 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
         const serialized = JSON.stringify(redacted);
         expect(serialized).not.toContain(canary);
         expect(serialized).toContain("boom");
+        expect(serialized).toContain("binary omitted");
+        expect(serialized).toContain("Host: example.test");
       }),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
@@ -223,8 +267,38 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
         };
         const redactedHostile = redactToolLog(hostile, 100_000);
         expect(JSON.stringify(redactedHostile)).not.toContain(canary);
+
+        const hostileError = new Error("initial");
+        Object.defineProperty(hostileError, "name", {
+          get() {
+            throw new Error(`name ${canary}`);
+          },
+        });
+        Object.defineProperty(hostileError, "message", {
+          get() {
+            throw new Error(`message ${canary}`);
+          },
+        });
+        Object.defineProperty(hostileError, "stack", {
+          get() {
+            throw new Error(`stack ${canary}`);
+          },
+        });
+        Object.defineProperty(hostileError, "cause", {
+          get() {
+            throw new Error(`cause ${canary}`);
+          },
+        });
+        const redactedHostileError = redactToolLog(hostileError, 100_000);
+        expect(JSON.stringify(redactedHostileError)).not.toContain(canary);
+        expect(redactedHostileError).toMatchObject({
+          name: "[Unreadable]",
+          message: "[Unreadable]",
+          stack: "[Unreadable]",
+          cause: "[Unreadable]",
+        });
       }),
-      { numRuns: 100 },
+      fcParams(100),
     );
   });
 
@@ -243,7 +317,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           expect(twice).toStrictEqual(once);
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
 
     fc.assert(
@@ -262,7 +336,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           expect(isWellFormedUtf16(result.preview)).toBe(true);
         }
       }),
-      { numRuns: 300 },
+      fcParams(300),
     );
   });
 
@@ -312,7 +386,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
             }
           },
         ),
-        { numRuns: 20 },
+        fcParams(20),
       );
     } finally {
       await fsp.rm(dir, { recursive: true, force: true });
@@ -356,7 +430,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           }
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 
@@ -391,7 +465,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           }
         },
       ),
-      { numRuns: 300 },
+      fcParams(300),
     );
   });
 
@@ -399,13 +473,13 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
     fc.assert(
       fc.property(
         unicodeWithAstralArb,
-        fc.oneof(fc.integer({ min: -10, max: 80 }), fc.constant(Number.NaN)),
+        fc.oneof(fc.integer({ min: -10, max: 80 }), fc.constantFrom(0.5, 0.99, 1.5, Number.NaN)),
         (value, maxLength) => {
           const clipped = clip(value, maxLength);
           expect(isWellFormedUtf16(clipped)).toBe(true);
           if (Number.isFinite(maxLength)) {
             expect(clipped.length).toBeLessThanOrEqual(Math.max(0, Math.floor(maxLength)));
-            if (maxLength >= value.length && maxLength >= 0) {
+            if (Math.floor(maxLength) >= value.length && maxLength >= 0) {
               expect(clipped).toBe(value);
             }
           } else {
@@ -413,8 +487,31 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           }
         },
       ),
-      { numRuns: 300 },
+      fcParams(300),
     );
+
+    expect(clip("abcdef", 0.5)).toBe("");
+    expect(clip("abcdef", 0.99)).toBe("");
+
+    const nonStringToStringFn = Object.assign(() => undefined, {
+      toString: () => 42 as unknown as string,
+    });
+    expect(typeof stringifyError(nonStringToStringFn)).toBe("string");
+
+    const throwingToStringFn = Object.assign(() => undefined, {
+      toString: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(stringifyError(throwingToStringFn)).toBe("[Unserializable error]");
+
+    const throwingMessageErr = new Error("hidden");
+    Object.defineProperty(throwingMessageErr, "message", {
+      get() {
+        throw new Error("getter failed");
+      },
+    });
+    expect(stringifyError(throwingMessageErr)).toBe("[Unserializable error]");
 
     fc.assert(
       fc.property(
@@ -447,7 +544,7 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
           expect(Number.isInteger(pos) && pos >= 1).toBe(true);
         },
       ),
-      { numRuns: 200 },
+      fcParams(200),
     );
   });
 });

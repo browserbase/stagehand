@@ -254,6 +254,175 @@ theorem redactSyms_singleton_redacted (secrets : List (List Char)) :
     redactSyms secrets [Sym.redacted] = [Sym.redacted] :=
   redactSyms_eq_of_clean secrets [Sym.redacted] (noSecret_redacted_singleton secrets)
 
+def redactedMarker : List Char := "[redacted]".toList
+
+def renderSyms (marker : List Char) : List Sym → List Char
+  | [] => []
+  | .lit c :: rest => c :: renderSyms marker rest
+  | .redacted :: rest => marker ++ renderSyms marker rest
+
+def redactChars (secrets : List (List Char)) (text : List Char) : List Char :=
+  renderSyms redactedMarker (redactSyms secrets (liftSecret text))
+
+theorem renderSyms_liftSecret (marker : List Char) (cs : List Char) :
+    renderSyms marker (liftSecret cs) = cs := by
+  induction cs with
+  | nil => rfl
+  | cons c rest ih =>
+    simp only [liftSecret, List.map_cons, renderSyms]
+    exact congrArg (c :: ·) ih
+
+theorem liftSecret_infix_of_infix {s t : List Char} (h : liftSecret s <:+: liftSecret t) :
+    s <:+: t := by
+  obtain ⟨l1, l2, heq⟩ := h
+  have hlen : (renderSyms [] (l1 ++ liftSecret s ++ l2)) = renderSyms [] (liftSecret t) :=
+    congrArg (renderSyms []) heq
+  have hr : ∀ xs ys : List Sym, renderSyms [] (xs ++ ys) = renderSyms [] xs ++ renderSyms [] ys := by
+    intro xs ys
+    induction xs with
+    | nil => rfl
+    | cons x rest ih =>
+      cases x <;> simp [renderSyms, ih]
+  rw [hr, hr, renderSyms_liftSecret, renderSyms_liftSecret] at hlen
+  exact ⟨renderSyms [] l1, renderSyms [] l2, hlen⟩
+
+theorem liftSecret_prefix_of_renderSyms_prefix
+    {openCh closeCh : Char} {inner : List Char} {ys : List Sym} {sec : List Char}
+    (hNoOpen : openCh ∉ sec)
+    (hpre : sec <+: renderSyms (openCh :: inner ++ [closeCh]) ys) :
+    liftSecret sec <+: ys := by
+  induction sec generalizing ys with
+  | nil => simp [liftSecret]
+  | cons d ds ih =>
+    cases ys with
+    | nil =>
+      simp [renderSyms] at hpre
+    | cons y rest =>
+      cases y with
+      | lit c =>
+        simp [renderSyms] at hpre
+        obtain ⟨hd, hds⟩ := hpre
+        subst hd
+        have hNoOpen' : openCh ∉ ds := fun hmem => hNoOpen (List.mem_cons_of_mem d hmem)
+        simpa [liftSecret] using ih hNoOpen' hds
+      | redacted =>
+        simp [renderSyms] at hpre
+        obtain ⟨hd, _⟩ := hpre
+        exact False.elim (hNoOpen (hd ▸ List.mem_cons_self))
+
+theorem liftSecret_infix_of_renderSyms_infix
+    {openCh closeCh : Char} {inner : List Char} {ys : List Sym} {sec : List Char}
+    (hne : sec ≠ [])
+    (hNoOpen : openCh ∉ sec)
+    (hNoClose : closeCh ∉ sec)
+    (hNotInInner : ¬ (sec <:+: inner))
+    (hinf : sec <:+: renderSyms (openCh :: inner ++ [closeCh]) ys) :
+    liftSecret sec <:+: ys := by
+  induction ys with
+  | nil =>
+    simp [renderSyms] at hinf
+    exact False.elim (hne hinf)
+  | cons y rest ih =>
+    cases y with
+    | lit c =>
+      simp only [renderSyms] at hinf
+      obtain ⟨l1, l2, heq⟩ := hinf
+      cases l1 with
+      | nil =>
+        simp only [List.nil_append] at heq
+        have hpre : sec <+: c :: renderSyms (openCh :: inner ++ [closeCh]) rest := ⟨l2, heq⟩
+        have hlift : liftSecret sec <+: Sym.lit c :: rest :=
+          liftSecret_prefix_of_renderSyms_prefix hNoOpen hpre
+        exact hlift.isInfix
+      | cons a l1' =>
+        simp only [List.cons_append, List.cons.injEq] at heq
+        have hsub : sec <:+: renderSyms (openCh :: inner ++ [closeCh]) rest := ⟨l1', l2, heq.2⟩
+        obtain ⟨u1, u2, hu⟩ := ih hsub
+        exact ⟨Sym.lit c :: u1, u2, by simp [hu]⟩
+    | redacted =>
+      simp only [renderSyms, List.cons_append, List.append_assoc] at hinf
+      obtain ⟨l1, l2, heq⟩ := hinf
+      cases l1 with
+      | nil =>
+        cases sec with
+        | nil => exact False.elim (hne rfl)
+        | cons d ds =>
+          simp only [List.nil_append, List.cons_append, List.cons.injEq] at heq
+          exact False.elim (hNoOpen (heq.1 ▸ List.mem_cons_self))
+      | cons a l1' =>
+        simp only [List.cons_append, List.cons.injEq] at heq
+        have heq' : l1' ++ sec ++ l2 = inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest := by
+          simpa [List.append_assoc] using heq.2
+        by_cases hle : l1'.length + sec.length ≤ inner.length
+        · have htake : (l1' ++ sec ++ l2).take inner.length =
+              (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest).take inner.length :=
+            congrArg (List.take inner.length) heq'
+          rw [List.take_left] at htake
+          have htake_l : (l1' ++ sec ++ l2).take inner.length =
+              l1' ++ sec ++ l2.take (inner.length - (l1'.length + sec.length)) := by
+            rw [List.take_append, List.take_of_length_le (by simp; omega)]
+            simp [List.append_assoc]
+          rw [htake_l] at htake
+          exact False.elim (hNotInInner ⟨l1', l2.take (inner.length - (l1'.length + sec.length)), htake⟩)
+        · by_cases hlt : l1'.length ≤ inner.length
+          · have hidx_in_rhs : inner.length < (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest).length := by
+              simp
+            have hidx_in_lhs : inner.length < (l1' ++ sec ++ l2).length := by
+              rw [heq']; exact hidx_in_rhs
+            have hget : (l1' ++ sec ++ l2)[inner.length]'hidx_in_lhs =
+                (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest)[inner.length]'hidx_in_rhs := by
+              congr 1
+            have hrhs_val :
+                (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest)[inner.length]'hidx_in_rhs = closeCh := by
+              simp [List.getElem_append_right]
+            have hsec_idx : inner.length - l1'.length < sec.length := by omega
+            have h12 : inner.length < (l1' ++ sec).length := by simp; omega
+            have hlhs_val : (l1' ++ sec ++ l2)[inner.length]'hidx_in_lhs = sec[inner.length - l1'.length]'hsec_idx := by
+              rw [List.getElem_append_left h12, List.getElem_append_right hlt]
+            rw [hlhs_val, hrhs_val] at hget
+            exact False.elim (hNoClose (hget ▸ List.getElem_mem hsec_idx))
+          · have hdrop : (l1' ++ sec ++ l2).drop (inner.length + 1) =
+                (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest).drop (inner.length + 1) :=
+              congrArg (List.drop (inner.length + 1)) heq'
+            have hrhs_drop : (inner ++ closeCh :: renderSyms (openCh :: inner ++ [closeCh]) rest).drop (inner.length + 1) =
+                renderSyms (openCh :: inner ++ [closeCh]) rest := by
+              rw [List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append]
+              have hsub : inner.length + 1 - inner.length = 1 := by omega
+              rw [hsub]
+              rfl
+            have hlhs_drop : (l1' ++ sec ++ l2).drop (inner.length + 1) =
+                l1'.drop (inner.length + 1) ++ sec ++ l2 := by
+              rw [List.drop_append_of_le_length (by simp; omega), List.drop_append_of_le_length (by omega)]
+            rw [hlhs_drop, hrhs_drop] at hdrop
+            have hsub : sec <:+: renderSyms (openCh :: inner ++ [closeCh]) rest :=
+              ⟨l1'.drop (inner.length + 1), l2, hdrop⟩
+            obtain ⟨u1, u2, hu⟩ := ih hsub
+            exact ⟨Sym.redacted :: u1, u2, by simp [hu]⟩
+
+theorem redactChars_no_secret (secrets : List (List Char)) (text : List Char) :
+    ∀ s ∈ secrets, s ≠ [] →
+      '[' ∉ s → ']' ∉ s → ¬ (s <:+: "redacted".toList) →
+      ¬ (s <:+: redactChars secrets text) := by
+  intro s hmem hne hNoOpen hNoClose hNotInInner hinf
+  have hmarker : redactedMarker = '[' :: "redacted".toList ++ [']'] := rfl
+  rw [redactChars, hmarker] at hinf
+  have hlift := liftSecret_infix_of_renderSyms_infix hne hNoOpen hNoClose hNotInInner hinf
+  exact redactSyms_no_secret secrets (liftSecret text) s hmem hne hlift
+
+theorem redactChars_idempotent (secrets : List (List Char)) (text : List Char)
+    (hsep : ∀ s ∈ secrets, s ≠ [] →
+      '[' ∉ s ∧ ']' ∉ s ∧ ¬ (s <:+: "redacted".toList)) :
+    redactChars secrets (redactChars secrets text) = redactChars secrets text := by
+  unfold redactChars
+  have hclean :
+      ∀ s ∈ secrets, s ≠ [] →
+        ¬ (liftSecret s <:+: liftSecret (renderSyms redactedMarker (redactSyms secrets (liftSecret text)))) := by
+    intro s hmem hne hinf
+    obtain ⟨hNoOpen, hNoClose, hNotInInner⟩ := hsep s hmem hne
+    exact redactChars_no_secret secrets text s hmem hne hNoOpen hNoClose hNotInInner
+      (liftSecret_infix_of_infix hinf)
+  rw [redactSyms_eq_of_clean secrets _ hclean, renderSyms_liftSecret]
+
 inductive JsonVal where
   | null
   | bool (b : Bool)
@@ -456,6 +625,7 @@ def isLowSurrogate (u : Nat) : Bool :=
 inductive WellFormedUtf16 : List Nat → Prop where
   | nil : WellFormedUtf16 []
   | bmp {u : Nat} {rest : List Nat}
+      (hCodeUnit : u ≤ 0xFFFF)
       (hNotHigh : isHighSurrogate u = false)
       (hNotLow : isLowSurrogate u = false)
       (hRest : WellFormedUtf16 rest) :
@@ -504,7 +674,7 @@ theorem truncateUtf16Safe_preserves_wellFormed (xs : List Nat) (bound : Nat)
   | nil =>
     simp [truncateUtf16Safe]
     exact .nil
-  | @bmp u rest hNotHigh hNotLow hRest ih =>
+  | @bmp u rest hCodeUnit hNotHigh hNotLow hRest ih =>
     cases bound with
     | zero =>
       simp [truncateUtf16Safe]
@@ -513,10 +683,10 @@ theorem truncateUtf16Safe_preserves_wellFormed (xs : List Nat) (bound : Nat)
       cases rest with
       | nil =>
         simp [truncateUtf16Safe, hNotHigh]
-        exact .bmp hNotHigh hNotLow .nil
+        exact .bmp hCodeUnit hNotHigh hNotLow .nil
       | cons v rs =>
         simp [truncateUtf16Safe, hNotHigh]
-        exact .bmp hNotHigh hNotLow (ih b)
+        exact .bmp hCodeUnit hNotHigh hNotLow (ih b)
   | @pair hi lo rest hHigh hLow hRest ih =>
     cases bound with
     | zero =>

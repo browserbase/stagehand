@@ -37,7 +37,13 @@ export function safeJson(value: unknown): string | undefined {
 
 export function stringifyError(value: unknown): string {
   if (!value) return "";
-  if (value instanceof Error) return value.message;
+  if (value instanceof Error) {
+    try {
+      return typeof value.message === "string" ? value.message : "[Unserializable error]";
+    } catch {
+      return "[Unserializable error]";
+    }
+  }
   if (typeof value === "string") return value;
   const json = safeJson(value);
   if (json !== undefined) return json;
@@ -53,14 +59,25 @@ export function stringifyError(value: unknown): string {
       return "[Unserializable error]";
     }
   }
+  if (typeof value === "function") {
+    try {
+      const candidate = (value as { toString?: unknown }).toString;
+      if (typeof candidate === "function") {
+        const text: unknown = Reflect.apply(candidate, value, []);
+        if (typeof text === "string") return text;
+      }
+      return Function.prototype.toString.call(value);
+    } catch {
+      return "[Unserializable error]";
+    }
+  }
   if (
     typeof value === "number" ||
     typeof value === "boolean" ||
     typeof value === "bigint" ||
-    typeof value === "symbol" ||
-    typeof value === "function"
+    typeof value === "symbol"
   ) {
-    return value.toString();
+    return String(value);
   }
   return "";
 }
@@ -68,6 +85,7 @@ export function stringifyError(value: unknown): string {
 export function clip(value: string, maxLength: number): string {
   if (!Number.isFinite(maxLength) || maxLength <= 0) return "";
   const limit = Math.floor(maxLength);
+  if (limit <= 0) return "";
   if (value.length <= limit) return value;
   if (limit === 1) return "…";
   return `${sliceUtf16Safe(value, limit - 1)}…`;

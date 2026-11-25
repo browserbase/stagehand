@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from stagehand_middleware.facade._syntax import check_run_syntax
+from stagehand_middleware.facade._syntax import _preceded_by_line_break_only, check_run_syntax
 from stagehand_middleware.facade.bundle import (
     StagehandFacadeBundleError,
     canonical_json,
@@ -55,8 +55,15 @@ _JSON_VALUE: st.SearchStrategy[Any] = st.recursive(
 _CANARY = st.from_regex(r"CANARY_[A-Za-z0-9_-]{10,20}", fullmatch=True)
 
 
-def _node_eval(script: str, payload: object, *, esm: bool = False) -> Any:  # noqa: ANN401 - JSON IPC
-    cmd = ["node", "--input-type=module", "-e", script] if esm else ["node", "-e", script]
+def _node_eval(
+    script: str, payload: object, *, esm: bool = False, strip_types: bool = False
+) -> Any:  # noqa: ANN401 - JSON IPC
+    cmd = ["node"]
+    if strip_types:
+        cmd.append("--experimental-strip-types")
+    if esm:
+        cmd.append("--input-type=module")
+    cmd.extend(["-e", script])
     completed = subprocess.run(
         cmd,
         input=json.dumps(payload),
@@ -120,6 +127,15 @@ def test_check_run_syntax_rejects_leading_html_close_comment_matching_v8_prelude
         check_run_syntax(f"{prefix}-->{rest}")
 
 
+def test_check_run_syntax_uses_ecmascript_whitespace_for_html_close_comment() -> None:
+    bom_sample = b"x = 1\n\xef\xbb\xbf--> bom whitespace comment\nreturn 1;"
+    assert _preceded_by_line_break_only(bom_sample, 0, bom_sample.index(b"-->"))
+    nel_sample = "x = 1\n\u0085--> nel is not ecma whitespace\nreturn 1;".encode()
+    assert not _preceded_by_line_break_only(nel_sample, 0, nel_sample.index(b"-->"))
+    with pytest.raises(SyntaxError):
+        check_run_syntax("x = 1\n\u0085--> nel is not ecma whitespace\nreturn 1;")
+
+
 def test_check_run_syntax_matches_v8_non_escape_on_adversarial_corpus() -> None:
     corpus = [
         "return 1;",
@@ -134,6 +150,8 @@ def test_check_run_syntax_matches_v8_non_escape_on_adversarial_corpus() -> None:
         "return <>hello</>;",
         "return <div/>;",
         "return '\ud800';",
+        "x = 1\n\ufeff--> ok\nreturn 1;",
+        "x = 1\n\u0085--> bad\nreturn 1;",
     ]
     accepted = []
     for code in corpus:
@@ -178,7 +196,9 @@ def test_sanitize_error_message_non_interference_and_idempotency(
 ) -> None:
     samples = [
         f"https://example.test/ws?{param}={canary}&ok=1",
+        f"https://example.test/ws?{param}=prefix\\{canary}&ok=1",
         f"redirect=https%3A%2F%2Fexample.test%3F{param}%3D{canary}%26ok%3D1",
+        f"redirect=https%3A%2F%2Fexample.test%3F{param}%3Dpart1%20%22{canary}%27%26ok%3D1",
         f"key sk-{sk_prefix}{canary}",
         f"key {bb_kind}{bb_prefix}{canary}",
         f"key AIza{'0' * 16}{canary}",
@@ -196,8 +216,13 @@ def test_sanitize_error_message_non_interference_and_idempotency(
 def test_sanitize_error_message_matches_typescript_implementation() -> None:
     samples = [
         "https://api.test/v1?apiKey=abc123&key=k9&token=tok_456",
+        "https://api.test/v1?token=prefix\\secret123&ok=1",
         '{"url":"https://api.test/v1?signingKey=secret123"}',
+        '{\\"url\\":\\"https://api.test/v1?apiKey=secret123\\"}',
+        '{"url":"https://api.test/v1?token=abc\\\\"}',
         "redirect=https%3A%2F%2Fapi.test%3FapiKey%3Dsecret123%26a%3D1",
+        "redirect=https%3A%2F%2Fapi.test%3Ftoken%3Dpart1%20part2%22q%27end%26a%3D1",
+        "redirect=https%3A%2F%2Fapi.test%3Ftoken%3Dprefix\\secret123%26a%3D1",
         "sk-proj1234567890abcdef",
         "bb_live_a-cd1234efgh5678",
         "bb_test_w_yz9876secret",
@@ -210,15 +235,18 @@ def test_sanitize_error_message_matches_typescript_implementation() -> None:
     ts_results = _node_eval(
         """
         import fs from "node:fs";
-        import { sanitizeErrorMessage } from "./dist/harness/index.mjs";
+        import { sanitizeErrorMessage } from "./src/harness/redact.ts";
         const samples = JSON.parse(fs.readFileSync(0, "utf8"));
         console.log(JSON.stringify(samples.map(sanitizeErrorMessage)));
         """,
         samples,
         esm=True,
+        strip_types=True,
     )
     for sample, ts_out in zip(samples, ts_results, strict=True):
         assert sanitize_error_message(sample) == ts_out, sample
+        assert "secret123" not in ts_out, sample
+        assert "part2" not in ts_out, sample
 
 
 @settings(max_examples=150)
@@ -272,6 +300,8 @@ def test_contract_error_substitutes_literally(token: str) -> None:
         st.just(math.nan),
         st.just(math.inf),
         st.just(-math.inf),
+        st.just(10**400),
+        st.just(-(10**400)),
         st.booleans(),
         st.text(max_size=10),
     )
