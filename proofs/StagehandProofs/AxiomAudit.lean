@@ -1,0 +1,11 @@
+import StagehandProofs.RedactionNonInterference
+
+#print axioms StagehandProofs.redactSyms_no_secret
+#print axioms StagehandProofs.redactSyms_idempotent
+#print axioms StagehandProofs.redactSyms_eq_of_clean
+#print axioms StagehandProofs.redactTree_no_secret_token
+#print axioms StagehandProofs.redactTree_idempotent
+#print axioms StagehandProofs.redactTree_preserves_shape
+#print axioms StagehandProofs.truncate_respects_bound
+#print axioms StagehandProofs.truncateUtf16Safe_respects_bound
+#print axioms StagehandProofs.truncateUtf16Safe_preserves_wellFormed

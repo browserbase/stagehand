@@ -606,6 +606,7 @@ function isRunEnvelope(value: unknown): value is RunEnvelope {
   return (
     typeof value.closeRequested === "boolean" &&
     typeof value.batchRuntimeMs === "number" &&
+    Number.isFinite(value.batchRuntimeMs) &&
     isRecord(value.telemetry) &&
     Array.isArray(artifacts) &&
     artifacts.every(

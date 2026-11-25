@@ -19,7 +19,12 @@ def canonical_json(value: object) -> str:
 
 
 def parse_bundle(text: str) -> dict[str, Any]:
-    bundle = json.loads(text)
+    try:
+        bundle = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise StagehandFacadeBundleError(f"Facade bundle is not valid JSON: {error}") from None
+    if not isinstance(bundle, dict):
+        raise StagehandFacadeBundleError("Facade bundle must be a JSON object.")
     content = {"sources": bundle.get("sources"), "contract": bundle.get("contract")}
     digest = hashlib.sha256(canonical_json(content).encode("utf-8")).hexdigest()
     if digest != bundle.get("sha256"):

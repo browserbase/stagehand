@@ -55,17 +55,26 @@ _JS_SPACE = "\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\
 _REDACTIONS = [
     (
         re.compile(
-            rf"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&{_JS_SPACE}\"']+", re.I | re.A
+            rf"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&{_JS_SPACE}\"'\\]+",
+            re.I | re.A,
         ),
         r"\1[redacted]",
     ),
-    (re.compile(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
-    (re.compile(r"\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
-    (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}", re.A), "AIza[redacted]"),
     (
-        re.compile(rf"\b(Bearer[{_JS_SPACE}]+)[A-Za-z0-9._~+/=-]{{8,}}", re.I | re.A),
+        re.compile(
+            rf"((?:%3f|%26)(?:signingKey|apiKey|api_key|token|key)%3d)"
+            rf"(?:(?!%26|%22|%27|%20)[^&{_JS_SPACE}\"'\\])+",
+            re.I | re.A,
+        ),
         r"\1[redacted]",
     ),
+    (
+        re.compile(rf"\b(Bearer[{_JS_SPACE}]+)[A-Za-z0-9._~+/=%-]{{8,}}", re.I | re.A),
+        r"\1[redacted]",
+    ),
+    (re.compile(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
+    (re.compile(r"\b(bb_(?:live|test)_[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+", re.A), r"\1[redacted]"),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}", re.A), "AIza[redacted]"),
 ]
 
 
@@ -518,6 +527,7 @@ def _is_run_envelope(value: object) -> TypeGuard[dict[str, Any]]:
         isinstance(value.get("closeRequested"), bool)
         and isinstance(runtime_ms, int | float)
         and not isinstance(runtime_ms, bool)
+        and math.isfinite(runtime_ms)
         and isinstance(value.get("telemetry"), dict)
         and isinstance(artifacts, list)
         and all(
