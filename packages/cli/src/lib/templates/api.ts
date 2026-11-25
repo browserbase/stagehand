@@ -55,7 +55,9 @@ export async function getTemplateIfExists(slug: string): Promise<Template | null
 }
 
 function templatesApiUrl(path?: string, params: TemplatesApiParams = {}): URL {
-  const baseUrl = process.env.BROWSERBASE_TEMPLATES_API ?? defaultTemplatesApiUrl;
+  // An empty override is not a usable base URL: `new URL(path, "")` throws instead of calling the API, so the
+  // empty value is treated as unset.
+  const baseUrl = process.env.BROWSERBASE_TEMPLATES_API || defaultTemplatesApiUrl;
   const url = path
     ? new URL(encodeURIComponent(path), `${baseUrl.replace(/\/+$/, "")}/`)
     : new URL(baseUrl);
