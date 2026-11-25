@@ -441,6 +441,348 @@ describe("extract service", () => {
   );
 });
 
+describe("extract element fields", () => {
+  const elementField = { type: "string", "x-stagehand": "element" } as const;
+
+  it("marks element fields by kind through nesting, arrays, optionals, nullables and $refs", () => {
+    const schema = z.fromJSONSchema({
+      $defs: {
+        account: {
+          type: "object",
+          properties: {
+            number: { type: "string" },
+            element: elementField,
+            link: { type: "string", format: "uri" },
+          },
+          required: ["number", "element", "link"],
+        },
+      },
+      type: "object",
+      properties: {
+        accounts: { type: "array", items: { $ref: "#/$defs/account" } },
+        tags: { type: "array", items: elementField },
+        primary: { anyOf: [elementField, { type: "null" }] },
+        heading: { ...elementField, description: "The page heading" },
+      },
+      required: ["accounts", "primary"],
+    });
+
+    const [transformed, paths] = extractService.transformUrlStringsToNumericIds(schema);
+
+    expect(paths).toStrictEqual([
+      { segments: ["accounts", "*", "element"], kind: "element" },
+      { segments: ["accounts", "*", "link"], kind: "url" },
+      { segments: ["tags", "*"], kind: "element" },
+      { segments: ["primary"], kind: "element" },
+      { segments: ["heading"], kind: "element" },
+    ]);
+
+    const jsonSchema = JSON.stringify(z.toJSONSchema(transformed));
+    expect(jsonSchema).not.toContain("x-stagehand");
+    expect(jsonSchema).toContain("The element is described as: The page heading");
+    expect(() =>
+      transformed.parse({ accounts: [], primary: "not-an-id", tags: [], heading: "0-1" }),
+    ).toThrow();
+  });
+
+  it("handles element fields behind default, catch, readonly wrappers and inside tuples", () => {
+    const schema = z.fromJSONSchema(
+      z.json().parse(
+        z.toJSONSchema(
+          z.object({
+            withDefault: z.string().meta({ "x-stagehand": "element" }).default(""),
+            withCatch: z.string().meta({ "x-stagehand": "element" }).catch(""),
+            readOnly: z.string().meta({ "x-stagehand": "element" }).readonly(),
+            pair: z.tuple([z.string(), z.string().meta({ "x-stagehand": "element" })]),
+            objectWithDefault: z
+              .object({ row: z.string().meta({ "x-stagehand": "element" }) })
+              .default({ row: "" }),
+          }),
+        ),
+      ) as Parameters<typeof z.fromJSONSchema>[0],
+    );
+
+    const [transformed, paths] = extractService.transformUrlStringsToNumericIds(schema);
+
+    expect(paths).toStrictEqual([
+      { segments: ["withDefault"], kind: "element" },
+      { segments: ["withCatch"], kind: "element" },
+      { segments: ["readOnly"], kind: "element" },
+      { segments: ["pair", 1], kind: "element" },
+      { segments: ["objectWithDefault", "row"], kind: "element" },
+    ]);
+    expect(JSON.stringify(z.toJSONSchema(transformed))).not.toContain("x-stagehand");
+    expect(
+      transformed.parse({
+        readOnly: "0-1",
+        pair: ["label", "0-2"],
+        objectWithDefault: { row: "0-3" },
+      }),
+    ).toStrictEqual({ readOnly: "0-1", pair: ["label", "0-2"], objectWithDefault: { row: "0-3" } });
+  });
+
+  it("keeps descriptions that default and catch wrappers carry for element and URL fields", () => {
+    const schema = z.fromJSONSchema(
+      z.json().parse(
+        z.toJSONSchema(
+          z.object({
+            row: z.string().meta({ "x-stagehand": "element" }).describe("The row").default(""),
+            button: z.string().meta({ "x-stagehand": "element" }).describe("The button").catch(""),
+            link: z.url().describe("The contact link").default(""),
+          }),
+        ),
+      ) as Parameters<typeof z.fromJSONSchema>[0],
+    );
+
+    const [transformed, paths] = extractService.transformUrlStringsToNumericIds(schema);
+
+    expect(paths).toStrictEqual([
+      { segments: ["row"], kind: "element" },
+      { segments: ["button"], kind: "element" },
+      { segments: ["link"], kind: "url" },
+    ]);
+    const jsonSchema = JSON.stringify(z.toJSONSchema(transformed));
+    expect(jsonSchema).toContain("The element is described as: The row");
+    expect(jsonSchema).toContain("The element is described as: The button");
+    expect(jsonSchema).toContain("that follows this user-defined description: The contact link");
+  });
+
+  it("resolves URL fields behind default and catch wrappers", async () => {
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the contact link",
+        schema: z
+          .json()
+          .parse(
+            z.toJSONSchema(z.object({ link: z.url().default(""), backup: z.url().catch("") })),
+          ),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-1] link: Contact",
+          combinedXpathMap: { "0-1": "/html/body/a" },
+          combinedUrlMap: { "0-1": "https://example.com/contact" },
+        }),
+        screenshot: vi.fn(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate: vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+        structuredResult(
+          params.responseFormat?.type === "json_schema" &&
+            params.responseFormat.name === "Extraction"
+            ? { link: "0-1", backup: "0-1" }
+            : { progress: "Extracted the link", completed: true },
+        ),
+      ),
+      logger: testLogger(),
+    });
+
+    expect(result.data).toStrictEqual({
+      link: "https://example.com/contact",
+      backup: "https://example.com/contact",
+    });
+  });
+
+  it("rejects element fields inside recursive schemas with the unsupported-shape error", () => {
+    const schema = z.fromJSONSchema({
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            element: elementField,
+            children: { type: "array", items: { $ref: "#/$defs/node" } },
+          },
+          required: ["element"],
+        },
+      },
+      $ref: "#/$defs/node",
+    });
+
+    expect(() => extractService.transformUrlStringsToNumericIds(schema)).toThrow(
+      /Records and recursive schemas are not supported/,
+    );
+  });
+
+  it("rejects element fields inside shapes it cannot resolve instead of leaking the marker", () => {
+    const schema = z.fromJSONSchema({
+      type: "object",
+      properties: {
+        rows: {
+          type: "object",
+          propertyNames: { type: "string" },
+          additionalProperties: elementField,
+        },
+      },
+      required: ["rows"],
+    });
+
+    expect(() => extractService.transformUrlStringsToNumericIds(schema)).toThrow(
+      /element fields are supported inside objects, arrays, tuples/,
+    );
+  });
+
+  it("leaves unmarked strings and other x-stagehand values alone", () => {
+    const schema = z.fromJSONSchema({
+      type: "object",
+      properties: {
+        plain: { type: "string" },
+        other: { type: "string", "x-stagehand": "something-else" },
+      },
+      required: ["plain", "other"],
+    });
+
+    const [transformed, paths] = extractService.transformUrlStringsToNumericIds(schema);
+
+    expect(paths).toStrictEqual([]);
+    expect(transformed).toBe(schema);
+  });
+
+  it("resolves element IDs to observe()-style xpath selectors", async () => {
+    const logger = testLogger();
+    const warn = vi.spyOn(logger, "warn");
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-1] link: 0554063503-3\n[1-7] StaticText: 205354027-13",
+      combinedXpathMap: {
+        "0-1": "/html/body/ul/li[1]/a",
+        "1-7": "/html/body/ul/li[2]/span/text()[1]",
+      },
+      combinedUrlMap: { "0-1": "https://example.com/accounts/1" },
+    }));
+    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? {
+              accounts: [
+                { number: "0554063503-3", element: "0-1", link: "0-1" },
+                { number: "205354027-13", element: "1-7", link: "0-1" },
+                { number: "999", element: "0-404", link: "0-1" },
+              ],
+            }
+          : { progress: "Extracted the accounts", completed: true },
+      ),
+    );
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract every account number",
+        schema: z.json().parse({
+          type: "object",
+          properties: {
+            accounts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  number: { type: "string" },
+                  element: elementField,
+                  link: { type: "string", format: "uri" },
+                },
+                required: ["number", "element", "link"],
+              },
+            },
+          },
+          required: ["accounts"],
+        }),
+      },
+      page: { captureSnapshot, screenshot: vi.fn() },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger,
+    });
+
+    expect(result.data).toStrictEqual({
+      accounts: [
+        {
+          number: "0554063503-3",
+          element: "xpath=/html/body/ul/li[1]/a",
+          link: "https://example.com/accounts/1",
+        },
+        {
+          number: "205354027-13",
+          element: "xpath=/html/body/ul/li[2]/span",
+          link: "https://example.com/accounts/1",
+        },
+        { number: "999", element: "", link: "https://example.com/accounts/1" },
+      ],
+    });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("Extracted element could not be resolved to an XPath", {
+      category: "extraction",
+      elementId: "0-404",
+    });
+
+    const extractionRequest = clientLLMGenerate.mock.calls[0]?.[0];
+    expect(extractionRequest?.responseFormat?.type).toBe("json_schema");
+    expect(JSON.stringify(extractionRequest?.responseFormat)).not.toContain("x-stagehand");
+    expect(extractionRequest?.systemPrompt).toContain("When a field asks for an element-ID");
+  });
+
+  it("leaves the system prompt unchanged when the schema has no element fields", async () => {
+    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { link: "0-1" }
+          : { progress: "Extracted the link", completed: true },
+      ),
+    );
+
+    await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the link",
+        schema: z.json().parse(z.toJSONSchema(z.object({ link: z.url() }))),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-1] link: Contact",
+          combinedXpathMap: { "0-1": "/html/body/a" },
+          combinedUrlMap: { "0-1": "https://example.com/contact" },
+        }),
+        screenshot: vi.fn(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(clientLLMGenerate.mock.calls[0]?.[0].systemPrompt).not.toContain("element-ID");
+  });
+
+  it("resolves an element field used as a non-object root schema", async () => {
+    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { value: "0-3" }
+          : { progress: "Found the button", completed: true },
+      ),
+    );
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Find the submit button",
+        schema: z.json().parse(elementField),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-3] button: Submit",
+          combinedXpathMap: { "0-3": "/html/body/form/button" },
+          combinedUrlMap: {},
+        }),
+        screenshot: vi.fn(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(result.data).toBe("xpath=/html/body/form/button");
+  });
+});
+
 function structuredResult(
   structuredContent: Extract<
     LLMGenerateResult,

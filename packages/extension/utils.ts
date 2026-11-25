@@ -1,7 +1,14 @@
 import { z } from "zod/v4";
-import { ZodPathSegments } from "./types/private/internal.js";
+import type { ExtractIdFieldKind, ZodPathSegments } from "./types/private/internal.js";
 
 const ID_PATTERN = /^\d+-\d+$/;
+
+/**
+ * JSON Schema keyword and value that mark an extract() string field as an element reference.
+ * Keep in sync with the SDK helpers that emit it (`elementRef()` in sdk-ts).
+ */
+const EXTRACT_SCHEMA_MARKER_KEYWORD = "x-stagehand";
+const EXTRACT_ELEMENT_MARKER = "element";
 
 const TYPE_NAME_MAP: Record<string, string> = {
   string: "string",
@@ -123,21 +130,59 @@ export function getZodType(schema: z.ZodType): string {
 }
 
 /**
- * Recursively traverses a given Zod schema, scanning for any fields of type `z.string().url()`.
- * For each such field, it replaces the `z.string().url()` with `z.number()`.
+ * Returns true when a string schema carries the extract element marker
+ * (`"x-stagehand": "element"` in JSON Schema, or `.meta({ "x-stagehand": "element" })` in Zod).
+ */
+export function isExtractElementSchema(schema: z.ZodType): boolean {
+  const meta = z.globalRegistry.get(schema) as Record<string, unknown> | undefined;
+  return meta?.[EXTRACT_SCHEMA_MARKER_KEYWORD] === EXTRACT_ELEMENT_MARKER;
+}
+
+/**
+ * Throws when an element marker survived {@link transformSchema}, which happens when an element
+ * field sits inside a schema shape the transform can't walk (for example a record). Without this
+ * check the field would come back as free text and the marker would be sent to the model provider.
+ */
+export function assertNoUnresolvedElementFields(schema: z.ZodType): void {
+  let jsonSchema: string;
+  try {
+    jsonSchema = JSON.stringify(z.toJSONSchema(schema));
+  } catch {
+    return;
+  }
+  if (jsonSchema.includes(`"${EXTRACT_SCHEMA_MARKER_KEYWORD}":"${EXTRACT_ELEMENT_MARKER}"`)) {
+    throw new TypeError(
+      "extract() element fields are supported inside objects, arrays, tuples, unions, and " +
+        "optional, nullable, default, catch, or readonly wrappers. Records and recursive " +
+        "schemas are not supported. Move the element field out of the unsupported schema shape.",
+    );
+  }
+}
+
+/**
+ * Recursively traverses a given Zod schema, scanning for string fields whose values should be
+ * resolved from element IDs: `z.string().url()` fields (resolved to the element's URL) and fields
+ * marked as extract elements (resolved to an `xpath=` selector for the element).
+ * Each such field is replaced with an element-ID string schema.
  *
  * This function is used internally by higher-level utilities (e.g., transforming entire object schemas)
  * and handles nested objects, arrays, unions, intersections, optionals.
  *
  * @param schema - The Zod schema to transform.
  * @param currentPath - An array of string/number keys representing the current schema path (used internally for recursion).
+ * @param markedElement - True when a wrapper such as `.default()` carries the element marker for
+ *   the string it wraps (Zod's JSON Schema round-trip attaches the marker to the wrapper).
+ * @param inheritedDescription - The description such a wrapper carries for the field it wraps.
  * @returns A two-element tuple:
- *   1. The updated Zod schema, with any `.url()` fields replaced by `z.number()`.
- *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the path segments.
+ *   1. The updated Zod schema, with any URL or element fields replaced by element-ID strings.
+ *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the
+ *      path segments and what the ID resolves to.
  */
 export function transformSchema(
   schema: z.ZodType,
   currentPath: Array<string | number>,
+  markedElement = false,
+  inheritedDescription?: string,
 ): [z.ZodType, ZodPathSegments[]] {
   if (isKind(schema, "string")) {
     const checks = getStringChecks(schema);
@@ -157,8 +202,17 @@ export function transformSchema(
         );
       }) || format === "url";
 
+    if (markedElement || isExtractElementSchema(schema)) {
+      return [
+        makeIdStringSchema(schema, "element", inheritedDescription),
+        [{ segments: [], kind: "element" }],
+      ];
+    }
     if (hasUrlCheck) {
-      return [makeIdStringSchema(schema), [{ segments: [] }]];
+      return [
+        makeIdStringSchema(schema, "url", inheritedDescription),
+        [{ segments: [], kind: "url" }],
+      ];
     }
     return [schema, []];
   }
@@ -180,7 +234,7 @@ export function transformSchema(
       }
       newShape[key] = transformedChild;
       childPaths.forEach((cp) => {
-        urlPaths.push({ segments: [key, ...cp.segments] });
+        urlPaths.push({ segments: [key, ...cp.segments], kind: cp.kind });
       });
     }
 
@@ -198,11 +252,39 @@ export function transformSchema(
     const [transformedItem, childPaths] = transformSchema(itemType, [...currentPath, "*"]);
     const arrayPaths: ZodPathSegments[] = childPaths.map((cp) => ({
       segments: ["*", ...cp.segments],
+      kind: cp.kind,
     }));
     if (transformedItem !== itemType) {
       return [z.array(transformedItem), arrayPaths];
     }
     return [schema, arrayPaths];
+  }
+
+  if (isKind(schema, "tuple")) {
+    const def = getZodDef(schema);
+    const items = Array.isArray(def?.items) ? (def.items as z.ZodType[]) : undefined;
+    if (!items) {
+      return [schema, []];
+    }
+    const newItems: z.ZodType[] = [];
+    const tuplePaths: ZodPathSegments[] = [];
+    let changed = false;
+    items.forEach((item, idx) => {
+      const [newItem, childPaths] = transformSchema(item, [...currentPath, idx]);
+      if (newItem !== item) {
+        changed = true;
+      }
+      newItems.push(newItem);
+      childPaths.forEach((cp) => {
+        tuplePaths.push({ segments: [idx, ...cp.segments], kind: cp.kind });
+      });
+    });
+    if (changed) {
+      const rest = def?.rest as z.ZodType | undefined;
+      const tupleItems = newItems as unknown as [z.ZodType, ...z.ZodType[]];
+      return [rest ? z.tuple(tupleItems, rest) : z.tuple(tupleItems), tuplePaths];
+    }
+    return [schema, tuplePaths];
   }
 
   if (isKind(schema, "union")) {
@@ -268,6 +350,30 @@ export function transformSchema(
     return [schema, innerPaths];
   }
 
+  // Value-fallback wrappers. The model always answers with an element ID, so a transformed field
+  // keeps only its optionality; `.readonly()` has no effect on parsed data and is dropped.
+  if (
+    isKind(schema, "default") ||
+    isKind(schema, "prefault") ||
+    isKind(schema, "catch") ||
+    isKind(schema, "readonly")
+  ) {
+    const innerType = getInnerType(schema);
+    if (!innerType) {
+      return [schema, []];
+    }
+    const [inner, innerPaths] = transformSchema(
+      innerType,
+      currentPath,
+      markedElement || isExtractElementSchema(schema),
+      getDescription(schema) ?? inheritedDescription,
+    );
+    if (inner !== innerType) {
+      return [isKind(schema, "readonly") ? inner : inner.optional(), innerPaths];
+    }
+    return [schema, innerPaths];
+  }
+
   if (isKind(schema, "pipe")) {
     const { in: inSchema, out: outSchema } = getPipeEndpoints(schema);
     if (!inSchema || !outSchema) {
@@ -289,15 +395,17 @@ export function transformSchema(
 }
 
 /**
- * Once we get the final extracted object that has numeric IDs in place of URLs,
- * use `injectUrls` to walk the object and replace numeric IDs
- * with the real URL strings from idToUrlMapping. The `path` may include `*`
+ * Once we get the final extracted object that has element IDs in place of URL or element fields,
+ * use `injectUrls` to walk the object and replace each ID with its resolved value from
+ * idToUrlMapping (a URL, or an `xpath=` selector for element fields). IDs missing from the
+ * mapping become an empty string and are reported through `onMissing`. The `path` may include `*`
  * for array indices (indicating "all items in the array").
  */
 export function injectUrls(
   obj: unknown,
   path: Array<string | number>,
   idToUrlMapping: Record<string, string>,
+  onMissing?: (id: string) => void,
 ): void {
   if (path.length === 0) return;
   const toId = (value: unknown): string | undefined => {
@@ -309,6 +417,12 @@ export function injectUrls(
     }
     return undefined;
   };
+  const resolve = (id: string): string => {
+    const resolved = idToUrlMapping[id];
+    if (resolved !== undefined) return resolved;
+    onMissing?.(id);
+    return "";
+  };
   const [key, ...rest] = path;
 
   if (key === "*") {
@@ -317,11 +431,11 @@ export function injectUrls(
         for (let i = 0; i < obj.length; i += 1) {
           const id = toId(obj[i]);
           if (id !== undefined) {
-            obj[i] = idToUrlMapping[id] ?? "";
+            obj[i] = resolve(id);
           }
         }
       } else {
-        for (const item of obj) injectUrls(item, rest, idToUrlMapping);
+        for (const item of obj) injectUrls(item, rest, idToUrlMapping, onMissing);
       }
     }
     return;
@@ -333,10 +447,10 @@ export function injectUrls(
       const fieldValue = record[key];
       const id = toId(fieldValue);
       if (id !== undefined) {
-        record[key] = idToUrlMapping[id] ?? "";
+        record[key] = resolve(id);
       }
     } else {
-      injectUrls(record[key], rest, idToUrlMapping);
+      injectUrls(record[key], rest, idToUrlMapping, onMissing);
     }
   }
 }
@@ -350,8 +464,27 @@ function isKind(s: z.ZodType, kind: string): boolean {
   }
 }
 
-function makeIdStringSchema(orig: z.ZodType): z.ZodType {
-  const userDesc = (orig as unknown as { description?: string }).description ?? "";
+function getDescription(schema: z.ZodType): string | undefined {
+  const description = (schema as unknown as { description?: string }).description;
+  return description?.trim() ? description : undefined;
+}
+
+function makeIdStringSchema(
+  orig: z.ZodType,
+  kind: ExtractIdFieldKind,
+  fallbackDescription?: string,
+): z.ZodType {
+  const userDesc = getDescription(orig) ?? fallbackDescription ?? "";
+
+  if (kind === "element") {
+    const base =
+      "This field must be the element-ID, in the form 'frameId-backendId' (e.g. \"0-432\"), " +
+      "of the page element this field refers to. Inside an object, use the element that the " +
+      "object's other extracted values came from.";
+    const composed =
+      userDesc.trim().length > 0 ? `${base} The element is described as: ${userDesc}` : base;
+    return z.string().regex(ID_PATTERN).describe(composed);
+  }
 
   const base =
     "This field must be the element-ID in the form 'frameId-backendId' " + '(e.g. "0-432").';
