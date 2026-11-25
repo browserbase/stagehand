@@ -73,10 +73,24 @@ export function fakeDecisionProvider(
     );
   const answerChoice = (key: string, question: WireQuestion) => {
     const scripted = script(key, question) ?? {};
-    const fallback = NEUTRAL.find((id) => question.options.includes(id)) ?? question.options[0]!;
+    const aliased = question.options.every((option, position) => option === `o${position}`);
+    const wireId = (id: string): string | undefined => {
+      if (question.options.includes(id)) return id;
+      if (!aliased) return undefined;
+      return question.options.find((option) => {
+        const description = question.descriptions[option] ?? "";
+        return (
+          description === id ||
+          description.startsWith(`${id}: `) ||
+          description.startsWith(`{"id":${JSON.stringify(id)}`)
+        );
+      });
+    };
+    const fallback =
+      NEUTRAL.map(wireId).find((option) => option !== undefined) ?? question.options[0]!;
     const choice =
       scripted.choice && question.options.includes(scripted.choice) ? scripted.choice : fallback;
-    return { choice, p: scripted.p ?? 0.95 };
+    return { choice, p: Math.min(1, Math.max(scripted.p ?? 0.95, 1 / question.options.length)) };
   };
 
   stub(async (url, init) => {

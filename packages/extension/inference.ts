@@ -327,17 +327,17 @@ export async function toolArguments(params: {
   const startedAt = Date.now();
   const variables =
     params.variableNames.length > 0
-      ? ` Declared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}; when one stands for a value, return it as written including the percent signs.`
+      ? `\ndeclared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}`
       : "";
   const request = (schema: Record<string, unknown>, extra: string) =>
     params.generate({
-      systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise.${variables}${extra}`,
+      systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise. If a declared %variable% placeholder stands for a value, return it as written including the percent signs.${extra}`,
       messages: [
         {
           role: "user",
           content: {
             type: "text",
-            text: `tool: ${JSON.stringify(params.tool)}\nrequest: ${params.instruction}`,
+            text: `tool: ${JSON.stringify(params.tool)}\nrequest: ${params.instruction}${variables}`,
           },
         },
       ],
