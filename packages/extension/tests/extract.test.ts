@@ -306,6 +306,84 @@ describe("extract service", () => {
     });
   });
 
+  it("resolves link element IDs in plain string fields using the snapshot URL map", async () => {
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
+      const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
+      if (name === "Extraction") {
+        return {
+          role: "assistant",
+          content: { type: "text", text: "structured extraction" },
+          outputFormat: "json_schema",
+          structuredContent: {
+            title: "Show HN: Example",
+            url: "0-74",
+            stories: "[0-74]\n[0-112]",
+            score: "3-2",
+          },
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+          },
+        };
+      }
+      return {
+        role: "assistant",
+        content: { type: "text", text: "metadata" },
+        outputFormat: "json_schema",
+        structuredContent: { progress: "Extracted the stories", completed: true },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+        },
+      };
+    });
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the first story title, its URL, and the first two story URLs",
+        schema: z.json().parse(
+          z.toJSONSchema(
+            z.object({
+              title: z.string(),
+              url: z.string(),
+              stories: z.string(),
+              score: z.string(),
+            }),
+          ),
+        ),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: [
+            "[0-74] link: Example",
+            "[0-112] link: Example",
+            "[0-150] text: 3-2",
+          ].join("\n"),
+          combinedXpathMap: {},
+          combinedUrlMap: {
+            "0-74": "https://news.ycombinator.com/item?id=1",
+            "0-112": "https://news.ycombinator.com/item?id=2",
+          },
+        }),
+        screenshot: async () => new Uint8Array(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate: generate,
+      logger: new StagehandLogger({ tracer: trace.getTracer("extract-service-test") }, () => {}),
+    });
+
+    expect(result.data).toStrictEqual({
+      title: "Show HN: Example",
+      url: "https://news.ycombinator.com/item?id=1",
+      stories:
+        "https://news.ycombinator.com/item?id=1\nhttps://news.ycombinator.com/item?id=2",
+      score: "3-2",
+    });
+  });
+
   it("zeroes usage when a cached result avoids inference", async () => {
     const frame = {
       frameId: "frame-1",
