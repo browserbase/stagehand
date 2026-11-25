@@ -47,10 +47,13 @@ export async function hydrateDomTree(
   const stack: Protocol.DOM.Node[] = [root];
   const expandedNodeIds = new Set<number>();
   const expandedBackendIds = new Set<number>();
+  const visitedNodes = new WeakSet<Protocol.DOM.Node>();
 
   while (stack.length) {
     progress?.throwIfStopped();
     const node = stack.pop()!;
+    if (visitedNodes.has(node)) continue;
+    visitedNodes.add(node);
     const nodeId = typeof node.nodeId === "number" && node.nodeId > 0 ? node.nodeId : undefined;
     const backendId =
       typeof node.backendNodeId === "number" && node.backendNodeId > 0
@@ -77,10 +80,12 @@ export async function hydrateDomTree(
               pierce,
             }),
           );
-          mergeDomNodes(node, described.node);
-          if (!nodeId && described.node.nodeId && described.node.nodeId > 0) {
-            node.nodeId = described.node.nodeId;
-            expandedNodeIds.add(described.node.nodeId);
+          if (described?.node) {
+            mergeDomNodes(node, described.node);
+            if (!nodeId && described.node.nodeId && described.node.nodeId > 0) {
+              node.nodeId = described.node.nodeId;
+              expandedNodeIds.add(described.node.nodeId);
+            }
           }
           expanded = true;
           break;
@@ -178,10 +183,13 @@ export async function domMapsForSession(
 
   type StackEntry = { node: Protocol.DOM.Node; xpath: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
+  const visited = new WeakSet<Protocol.DOM.Node>();
 
   while (stack.length) {
     progress?.throwIfStopped();
     const { node, xpath } = stack.pop()!;
+    if (visited.has(node)) continue;
+    visited.add(node);
 
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
@@ -242,6 +250,7 @@ export async function buildSessionDomIndex(
   };
   const rootBe = root.backendNodeId!;
   const stack: Entry[] = [{ node: root, xp: "/", docRootBe: rootBe, phase: "enter" }];
+  const visited = new WeakSet<Protocol.DOM.Node>();
   let dfsIndex = 0;
 
   while (stack.length) {
@@ -253,6 +262,9 @@ export async function buildSessionDomIndex(
       }
       continue;
     }
+
+    if (visited.has(node)) continue;
+    visited.add(node);
 
     if (node.backendNodeId) {
       enterByBe.set(node.backendNodeId, dfsIndex++);
@@ -290,7 +302,9 @@ export async function buildSessionDomIndex(
 
     const cd = node.contentDocument as Protocol.DOM.Node | undefined;
     if (cd && typeof cd.backendNodeId === "number") {
-      contentDocRootByIframe.set(node.backendNodeId!, cd.backendNodeId);
+      if (typeof node.backendNodeId === "number") {
+        contentDocRootByIframe.set(node.backendNodeId, cd.backendNodeId);
+      }
       stack.push({
         node: cd,
         xp,
@@ -316,13 +330,18 @@ export async function buildSessionDomIndex(
 export function relativizeXPath(baseAbs: string, nodeAbs: string): string {
   const base = normalizeXPath(baseAbs);
   const abs = normalizeXPath(nodeAbs);
-  if (abs === base) return "/";
-  if (abs.startsWith(base)) {
-    const tail = abs.slice(base.length);
-    if (!tail) return "/";
-    return tail.startsWith("/") || tail.startsWith("//") ? tail : `/${tail}`;
+  if (!abs || abs === base) return "/";
+  if (!base || base === "/") return abs;
+  if (base.endsWith("//")) {
+    if (abs.startsWith(base)) {
+      const tail = abs.slice(base.length);
+      return tail ? `/${tail}` : "/";
+    }
+    return abs;
   }
-  if (base === "/") return abs;
+  if (abs.startsWith(`${base}/`)) {
+    return abs.slice(base.length);
+  }
   return abs;
 }
 
@@ -352,11 +371,15 @@ export function findNodeByBackendId(
   backendNodeId: number,
 ): Protocol.DOM.Node | undefined {
   const stack: Protocol.DOM.Node[] = [root];
+  const visited = new WeakSet<Protocol.DOM.Node>();
   while (stack.length) {
     const n = stack.pop()!;
+    if (visited.has(n)) continue;
+    visited.add(n);
     if (n.backendNodeId === backendNodeId) return n;
     if (n.children) for (const c of n.children) stack.push(c);
     if (n.shadowRoots) for (const s of n.shadowRoots) stack.push(s);
+    if (n.contentDocument) stack.push(n.contentDocument);
   }
   return undefined;
 }

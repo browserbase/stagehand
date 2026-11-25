@@ -96,6 +96,10 @@ export async function a11yForFrame(
       }
       if (!target) return nodes;
       scopeApplied = true;
+      const nodeById = new Map<string, Protocol.Accessibility.AXNode>();
+      for (const n of nodes) {
+        if (!nodeById.has(n.nodeId)) nodeById.set(n.nodeId, n);
+      }
       const keep = new Set<string>([target.nodeId]);
       const parents = new Map<string, string>();
       const queue: Protocol.Accessibility.AXNode[] = [target];
@@ -105,7 +109,7 @@ export async function a11yForFrame(
           if (keep.has(id)) continue;
           keep.add(id);
           parents.set(id, cur.nodeId);
-          const child = nodes.find((n) => n.nodeId === id);
+          const child = nodeById.get(id);
           if (child) queue.push(child);
         }
       }
@@ -174,10 +178,21 @@ export function decorateRoles(
       role = tag;
     }
 
+    const rawName = n.name?.value;
+    const name =
+      typeof rawName === "string" ? rawName : rawName != null ? String(rawName) : undefined;
+    const rawDescription = n.description?.value;
+    const description =
+      typeof rawDescription === "string"
+        ? rawDescription
+        : rawDescription != null
+          ? String(rawDescription)
+          : undefined;
+
     return {
       role,
-      name: n.name?.value,
-      description: n.description?.value,
+      name,
+      description,
       value: n.value?.value,
       selected: extractBooleanProperty(n, "selected"),
       checked: extractBooleanProperty(n, "checked"),
@@ -195,40 +210,71 @@ export async function buildHierarchicalTree(
   opts: A11yOptions,
 ): Promise<{ tree: A11yNode[] }> {
   const nodeMap = new Map<string, A11yNode>();
+  const referencedParentIds = new Set<string>();
+  for (const n of nodes) {
+    if (n.parentId && n.parentId !== n.nodeId) referencedParentIds.add(n.parentId);
+  }
 
   for (const n of nodes) {
+    if (nodeMap.has(n.nodeId)) continue;
+    const nameStr = typeof n.name === "string" ? n.name : n.name != null ? String(n.name) : "";
     const keep =
-      !!(n.name && n.name.trim()) || !!(n.childIds && n.childIds.length) || !isStructural(n.role);
+      Boolean(nameStr.trim()) ||
+      Boolean(n.childIds && n.childIds.length) ||
+      referencedParentIds.has(n.nodeId) ||
+      !isStructural(n.role);
     if (!keep) continue;
-    nodeMap.set(n.nodeId, { ...n });
+    nodeMap.set(n.nodeId, {
+      ...n,
+      name: n.name != null ? nameStr : undefined,
+      children: undefined,
+    });
   }
 
-  for (const n of nodes) {
-    if (!n.parentId) continue;
+  const linkedChildren = new Map<string, Set<string>>();
+  for (const n of nodeMap.values()) {
+    if (!n.parentId || n.parentId === n.nodeId) continue;
     const parent = nodeMap.get(n.parentId);
-    const cur = nodeMap.get(n.nodeId);
-    if (parent && cur) (parent.children ??= []).push(cur);
+    if (!parent) continue;
+    let seenForParent = linkedChildren.get(parent.nodeId);
+    if (!seenForParent) {
+      seenForParent = new Set<string>();
+      linkedChildren.set(parent.nodeId, seenForParent);
+    }
+    if (seenForParent.has(n.nodeId)) continue;
+    seenForParent.add(n.nodeId);
+    (parent.children ??= []).push(n);
   }
 
-  const roots = nodes
-    .filter((n) => !n.parentId && nodeMap.has(n.nodeId))
-    .map((n) => nodeMap.get(n.nodeId)!) as A11yNode[];
+  const roots: A11yNode[] = [];
+  for (const n of nodeMap.values()) {
+    if (!n.parentId) roots.push(n);
+  }
 
-  const cleaned = (await Promise.all(roots.map(pruneStructuralSafe))).filter(Boolean) as A11yNode[];
+  const cleaned = (
+    await Promise.all(roots.map((root) => pruneStructuralSafe(root, new Set())))
+  ).filter(Boolean) as A11yNode[];
 
   return { tree: cleaned };
 
-  async function pruneStructuralSafe(node: A11yNode): Promise<A11yNode | null> {
+  async function pruneStructuralSafe(
+    node: A11yNode,
+    ancestors: Set<string>,
+  ): Promise<A11yNode | null> {
     if (+node.nodeId < 0) return null;
+    if (ancestors.has(node.nodeId)) return null;
 
     const children = node.children ?? [];
     if (!children.length) {
       return isStructural(node.role) ? null : node;
     }
 
-    const cleanedKids = (await Promise.all(children.map(pruneStructuralSafe))).filter(
-      Boolean,
-    ) as A11yNode[];
+    const nextAncestors = new Set(ancestors);
+    nextAncestors.add(node.nodeId);
+
+    const cleanedKids = (
+      await Promise.all(children.map((child) => pruneStructuralSafe(child, nextAncestors)))
+    ).filter(Boolean) as A11yNode[];
 
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 

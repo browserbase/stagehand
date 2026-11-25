@@ -23,7 +23,11 @@ export async function resolveFocusFrameAndTail(
   progress?: Progress,
 ): Promise<ResolvedFocusFrame> {
   progress?.throwIfStopped();
-  const steps = parseXPathToSteps(absoluteXPath);
+  const stripped = absoluteXPath
+    .trim()
+    .replace(/^xpath=/i, "")
+    .trim();
+  const steps = parseXPathToSteps(stripped);
   let ctxFrameId = rootId;
   let buf: Step[] = [];
   let absPrefix = "";
@@ -82,10 +86,27 @@ export async function resolveFocusFrameAndTail(
     buf = [];
   };
 
+  let activeQuote: "'" | '"' | null = null;
+  let bracketDepth = 0;
+
   for (const st of steps) {
     progress?.throwIfStopped();
+    const startsAtTopLevel = activeQuote === null && bracketDepth === 0;
+    for (let i = 0; i < st.raw.length; i++) {
+      const ch = st.raw[i]!;
+      if (activeQuote !== null) {
+        if (ch === activeQuote) activeQuote = null;
+      } else if (ch === "'" || ch === '"') {
+        activeQuote = ch;
+      } else if (ch === "[") {
+        bracketDepth += 1;
+      } else if (ch === "]" && bracketDepth > 0) {
+        bracketDepth -= 1;
+      }
+    }
+    const endsAtTopLevel = activeQuote === null && bracketDepth === 0;
     buf.push(st);
-    if (IFRAME_STEP_RE.test(st.name)) {
+    if (startsAtTopLevel && endsAtTopLevel && IFRAME_STEP_RE.test(st.name)) {
       await flushIntoChild();
     }
   }
@@ -93,6 +114,43 @@ export async function resolveFocusFrameAndTail(
   progress?.throwIfStopped();
   const tailXPath = buildXPathFromSteps(buf);
   return { targetFrameId: ctxFrameId, tailXPath, absPrefix };
+}
+
+function splitCssFrameHops(rawSelector: string): string[] {
+  const parts: string[] = [];
+  let quote: "'" | '"' | null = null;
+  let escaped = false;
+  let start = 0;
+
+  for (let i = 0; i < rawSelector.length; i++) {
+    const ch = rawSelector[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch === ">" && rawSelector[i + 1] === ">") {
+      const segment = rawSelector.slice(start, i).trim();
+      if (segment) parts.push(segment);
+      i += 1;
+      start = i + 1;
+    }
+  }
+
+  const tail = rawSelector.slice(start).trim();
+  if (tail) parts.push(tail);
+  return parts;
 }
 
 export async function resolveCssFocusFrameAndTail(
@@ -103,10 +161,7 @@ export async function resolveCssFocusFrameAndTail(
   progress?: Progress,
 ): Promise<ResolvedCssFocus> {
   progress?.throwIfStopped();
-  const parts = rawSelector
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const parts = splitCssFrameHops(rawSelector);
   let ctxFrameId = rootId;
   const absPrefix = "";
 

@@ -8,6 +8,7 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
   const tree = page.getFullFrameTree();
   const parentByFrame = new Map<string, string | null>();
   (function index(n: Protocol.Page.FrameTree, parent: string | null) {
+    if (parentByFrame.has(n.frame.id)) return;
     parentByFrame.set(n.frame.id, parent);
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(tree, null);
@@ -98,17 +99,19 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
 
   let prefix = "";
   let cur: string | null | undefined = focusedFrameId;
-  while (cur) {
+  const visitedFrames = new Set<string>();
+  while (cur && !visitedFrames.has(cur)) {
+    visitedFrames.add(cur);
     const parent: string | null = parentByFrame.get(cur) ?? null;
     if (!parent) break;
-    const parentSess = page.getSessionForFrame(parent);
     try {
+      const parentSess = page.getSessionForFrame(parent);
       const { backendNodeId } = await parentSess.send<{
         backendNodeId?: number;
       }>("DOM.getFrameOwner", { frameId: cur });
       if (typeof backendNodeId === "number") {
         const xp = await absoluteXPathForBackendNode(parentSess, backendNodeId);
-        if (xp) prefix = prefix ? prefixXPath(prefix, xp) : normalizeXPath(xp);
+        if (xp) prefix = prefix ? prefixXPath(xp, prefix) : normalizeXPath(xp);
       }
     } catch {}
     cur = parent;

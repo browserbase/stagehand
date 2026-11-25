@@ -1,11 +1,26 @@
 import type { A11yNode } from "../../../types/private/snapshot.js";
 
 export function formatTreeLine(node: A11yNode, level = 0): string {
-  const indent = "  ".repeat(level);
-  const labelId = node.encodedId ?? node.nodeId;
+  return formatTreeLineSafe(node, level, new Set());
+}
+
+function formatTreeLineSafe(node: A11yNode, level: number, ancestors: Set<A11yNode>): string {
+  if (ancestors.has(node)) return "";
+  ancestors.add(node);
+  const safeLevel = Number.isFinite(level) && level > 0 ? Math.floor(level) : 0;
+  const indent = "  ".repeat(safeLevel);
+  const rawId = node.encodedId ?? node.nodeId;
+  const labelId = cleanText(String(rawId ?? "")).replace(/[[\]]/g, "");
+  const role = cleanText(String(node.role ?? ""));
+  const cleanedName = node.name != null ? cleanText(String(node.name)) : "";
   const stateFlags = formatStateFlags(node);
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${stateFlags}`;
-  const kids = node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
+  const label = `[${labelId}] ${role}${cleanedName ? `: ${cleanedName}` : ""}${stateFlags}`;
+  const kids =
+    node.children
+      ?.map((c) => formatTreeLineSafe(c, safeLevel + 1, ancestors))
+      .filter((line) => line.length > 0)
+      .join("\n") ?? "";
+  ancestors.delete(node);
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
 }
 
@@ -17,9 +32,16 @@ function formatStateFlags(node: A11yNode): string {
 }
 
 export function injectSubtrees(rootOutline: string, idToTree: Map<string, string>): string {
+  return injectSubtreesWithVisited(rootOutline, idToTree, new Set());
+}
+
+function injectSubtreesWithVisited(
+  rootOutline: string,
+  idToTree: Map<string, string>,
+  visited: Set<string>,
+): string {
   type Frame = { lines: string[]; i: number };
   const out: string[] = [];
-  const visited = new Set<string>();
   const stack: Frame[] = [{ lines: rootOutline.split("\n"), i: 0 }];
 
   while (stack.length) {
@@ -44,8 +66,10 @@ export function injectSubtrees(rootOutline: string, idToTree: Map<string, string
 
     visited.add(encId);
 
-    const fullyInjectedChild = injectSubtrees(childOutline, idToTree);
-    out.push(indentBlock(fullyInjectedChild.trimEnd(), indent + "  "));
+    const fullyInjectedChild = injectSubtreesWithVisited(childOutline, idToTree, visited).trimEnd();
+    if (fullyInjectedChild.length > 0) {
+      out.push(indentBlock(fullyInjectedChild, indent + "  "));
+    }
   }
 
   return out.join("\n");
@@ -93,20 +117,23 @@ export function diffCombinedTrees(prevTree: string, nextTree: string): string {
 export function cleanText(input: string): string {
   const PUA_START = 0xe000;
   const PUA_END = 0xf8ff;
-  const NBSP = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
+  const SPACE_EQUIV = new Set<number>([
+    0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x0085, 0x00a0, 0x2007, 0x2028, 0x2029, 0x202f, 0xfeff,
+  ]);
 
   let out = "";
   let prevSpace = false;
   for (let i = 0; i < input.length; i++) {
     const code = input.charCodeAt(i);
     if (code >= PUA_START && code <= PUA_END) continue;
-    if (NBSP.has(code)) {
+    if (SPACE_EQUIV.has(code)) {
       if (!prevSpace) {
         out += " ";
         prevSpace = true;
       }
       continue;
     }
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) continue;
     out += input[i];
     prevSpace = input[i] === " ";
   }

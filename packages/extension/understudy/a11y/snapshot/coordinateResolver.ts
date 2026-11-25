@@ -7,14 +7,22 @@ import type { ResolvedLocation } from "../../../types/private/snapshot.js";
 import { listChildrenOf } from "./focusSelectors.js";
 import { buildAbsoluteXPathFromChain } from "./xpathUtils.js";
 
+function finiteOrZero(value: unknown): number {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
 export async function resolveXpathForLocation(
   page: Page,
   x: number,
   y: number,
 ): Promise<ResolvedLocation | null> {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
   const tree = page.getFullFrameTree();
   const parentByFrame = new Map<string, string | null>();
   (function index(n: Protocol.Page.FrameTree, parent: string | null) {
+    if (parentByFrame.has(n.frame.id)) return;
     parentByFrame.set(n.frame.id, parent);
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(tree, null);
@@ -25,7 +33,12 @@ export async function resolveXpathForLocation(
   }> = [];
 
   let curFrameId = page.mainFrameId();
-  let curSession = page.getSessionForFrame(curFrameId);
+  let curSession: CDPSessionLike;
+  try {
+    curSession = page.getSessionForFrame(curFrameId);
+  } catch {
+    return null;
+  }
   let curX = x;
   let curY = y;
 
@@ -51,11 +64,14 @@ export async function resolveXpathForLocation(
         const { result } = await curSession.send<{
           result: { value?: { sx?: number; sy?: number } };
         }>("Runtime.evaluate", evalParams);
-        sx = Number(result?.value?.sx ?? 0);
-        sy = Number(result?.value?.sy ?? 0);
+        sx = finiteOrZero(result?.value?.sx);
+        sy = finiteOrZero(result?.value?.sy);
       } catch {}
-      const xi = Math.max(0, Math.floor(curX + sx));
-      const yi = Math.max(0, Math.floor(curY + sy));
+      const rawXi = curX + sx;
+      const rawYi = curY + sy;
+      if (!Number.isFinite(rawXi) || !Number.isFinite(rawYi)) return null;
+      const xi = Math.max(0, Math.floor(rawXi));
+      const yi = Math.max(0, Math.floor(rawYi));
 
       let res: { backendNodeId?: number; frameId?: string } | undefined;
       try {
@@ -114,20 +130,25 @@ export async function resolveXpathForLocation(
         }>("DOM.resolveNode", { backendNodeId: be });
         const objectId = object?.objectId;
         if (objectId) {
-          const { result } = await curSession.send<{
-            result: { value?: { left: number; top: number } };
-          }>("Runtime.callFunctionOn", {
-            objectId,
-            functionDeclaration: getBoundingRectLite.toString(),
-            returnByValue: true,
-          });
-          left = Number(result?.value?.left ?? 0);
-          top = Number(result?.value?.top ?? 0);
-          await curSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+          try {
+            const { result } = await curSession.send<{
+              result: { value?: { left: number; top: number } };
+            }>("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration: getBoundingRectLite.toString(),
+              returnByValue: true,
+            });
+            left = finiteOrZero(result?.value?.left);
+            top = finiteOrZero(result?.value?.top);
+          } finally {
+            await curSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+          }
         }
       } catch {}
-      curX = Math.max(0, curX - left);
-      curY = Math.max(0, curY - top);
+      const nextX = curX - left;
+      const nextY = curY - top;
+      curX = Number.isFinite(nextX) ? Math.max(0, nextX) : 0;
+      curY = Number.isFinite(nextY) ? Math.max(0, nextY) : 0;
       curFrameId = matchedChild;
       curSession = page.getSessionForFrame(curFrameId);
     } catch {
