@@ -36,6 +36,7 @@ catalog:
   oxfmt: 0.76.0
   oxlint: 1.72.0
   oxlint-tsgolint: 0.24.0
+  fast-check: 4.11.0
   tsdown: 0.22.3
   vite: 8.1.7
   vitest: 4.1.12

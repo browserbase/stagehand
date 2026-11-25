@@ -40,7 +40,7 @@ import {
 import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
-import { abortReason } from "./abort.js";
+import { abortReason, throwIfAborted } from "./abort.js";
 import { RPCResponseTimeoutError } from "./rpcErrors.js";
 
 type PendingRequest = {
@@ -177,6 +177,7 @@ export class RPCClient {
     if (method.name === StagehandMethods.stagehandInit.name && !options.signal) {
       throw new Error("stagehand.init requires an initialization lifecycle signal");
     }
+    throwIfAborted(options.signal);
 
     const parentContext = context.active();
     const span = TRACER.startSpan(
@@ -204,8 +205,14 @@ export class RPCClient {
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
-        const responseTimeoutMs =
+        const rawResponseTimeoutMs =
           options.responseTimeoutMs ?? rpcResponseTimeoutMs(method.name, parsedParams);
+        const responseTimeoutMs =
+          rawResponseTimeoutMs === undefined || rawResponseTimeoutMs === Number.POSITIVE_INFINITY
+            ? undefined
+            : Number.isNaN(rawResponseTimeoutMs)
+              ? 0
+              : Math.max(0, rawResponseTimeoutMs);
         const timeoutController =
           responseTimeoutMs === undefined ? undefined : new AbortController();
         const signal =
@@ -227,9 +234,17 @@ export class RPCClient {
         }
 
         try {
+          if (signal?.aborted) throw abortReason(signal);
           const response = this.waitForResponse(request.id, method, signal);
+          let dispatch: Promise<void>;
+          try {
+            dispatch = this.cdp.send(request, signal);
+          } catch (error) {
+            this.rejectPending(request.id, asError(error));
+            dispatch = Promise.resolve();
+          }
           const [, result] = await Promise.all([
-            this.cdp.send(request, signal).catch((error: unknown) => {
+            dispatch.catch((error: unknown) => {
               this.rejectPending(request.id, asError(error));
             }),
             response,
@@ -543,7 +558,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
   if (method.startsWith("locator.")) {
     const timeout =
       numericProperty(recordProperty(params, "options"), "timeout") ?? DEFAULT_LOCATOR_TIMEOUT_MS;
-    return timeout === 0 ? undefined : timeout + RPC_RESPONSE_GRACE_MS;
+    return timeout === 0 ? undefined : Math.max(0, timeout) + RPC_RESPONSE_GRACE_MS;
   }
 
   let operationTimeoutMs: number | undefined;

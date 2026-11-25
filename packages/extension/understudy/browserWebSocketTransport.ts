@@ -4,19 +4,23 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   messageHandlers = new Set<(data: string) => void>();
   errorHandlers = new Set<(error: Error) => void>();
   messageQueue: Promise<void> = Promise.resolve();
+  private terminated = false;
 
   constructor(readonly socket: WebSocket) {
     this.socket.addEventListener("message", (event) => {
       this.messageQueue = this.messageQueue
         .then(async () => {
+          if (this.terminated) return;
           const data = await browserWebSocketMessageToString(event.data as unknown);
-          for (const handler of this.messageHandlers) handler(data);
+          if (this.terminated) return;
+          for (const handler of Array.from(this.messageHandlers)) handler(data);
         })
         .catch((error: unknown) => {
+          this.terminated = true;
           const reason =
             error instanceof Error ? error : new Error("Failed to decode CDP websocket message");
-          for (const handler of this.errorHandlers) handler(reason);
-          void this.close();
+          for (const handler of Array.from(this.errorHandlers)) handler(reason);
+          void this.close().catch(() => {});
         });
     });
   }
