@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   LocatorChain,
+  RoleSelectorQuery,
   LocatorQueryStep,
   StagehandRpcRequest,
 } from "@browserbasehq/stagehand-protocol/types";
@@ -649,4 +650,379 @@ describe("iframe chain resolution in Chrome", () => {
       expect(releases).toEqual(expect.arrayContaining(["main", "child"]));
     },
   );
+  describe("role chains", () => {
+    const role = (
+      value: RoleSelectorQuery["value"],
+      options: Omit<RoleSelectorQuery, "kind" | "value"> = {},
+    ): LocatorQueryStep => ({
+      type: "query",
+      selector: { kind: "role", value, ...options },
+    });
+
+    it("preserves DOM scope/order despite AX ownership & supports later queries & indices", async () => {
+      await page.evaluate(() => {
+        document.body.innerHTML =
+          '<span id="label" hidden>Save</span>' +
+          '<section class="scope" role="group" aria-label="Editor"><button id="a" aria-owns="outside" aria-labelledby="label"><span id="inner">Save</span></button>' +
+          '<div class="scope"><button id="b">Save</button></div></section><button id="outside">Save</button>';
+        document.body.setAttribute("aria-owns", "outside a");
+      });
+      expect(await ids(await targets([role("button")]))).toEqual(["a", "b", "outside"]);
+      expect(await ids(await targets([css(".scope"), role("button")]))).toEqual(["a", "b"]);
+      expect(await resolve([css("#a"), role("button")], "count")).toEqual({
+        mode: "count",
+        count: 0,
+      });
+      expect(
+        await ids(
+          await targets([
+            role("group", { name: "Editor" }),
+            role("button", { name: "Save", exact: true }),
+            { type: "nth", index: 0 },
+            css("span"),
+          ]),
+        ),
+      ).toEqual(["inner"]);
+      expect(
+        await ids(await targets([css(".scope"), role("button"), { type: "nth", index: 1 }])),
+      ).toEqual(["b"]);
+      expect(await resolve([role("button"), { type: "nth", index: 99 }], "count")).toEqual({
+        mode: "count",
+        count: 0,
+      });
+    });
+
+    it.each(["open", "closed"] as const)("keeps CSS ordering across %s roots", async (mode) => {
+      await page.evaluate((mode) => {
+        document.body.innerHTML = '<div id="host"></div><button id="light">Light</button>';
+        document.getElementById("host")!.attachShadow({ mode }).innerHTML =
+          '<button id="shadow">Shadow</button>';
+      }, mode);
+      for (const selector of [css("button"), role("button")]) {
+        expect(await ids(await targets([selector]))).toEqual(["light", "shadow"]);
+        expect(await ids(await targets([selector, { type: "nth", index: 1 }]))).toEqual(["shadow"]);
+      }
+    });
+
+    it.each([
+      {
+        property: "checked",
+        html: '<input type="checkbox">',
+        query: role("checkbox", { checked: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "indeterminate",
+        html: '<input type="checkbox">',
+        query: role("checkbox", { checked: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "selected",
+        html: "<select multiple><option>Item</option></select>",
+        query: role("option", { selected: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "value",
+        html: '<input type="button" value="Before">',
+        query: role("button", { name: "Before" }),
+        value: "After",
+        count: 0,
+      },
+      {
+        property: "value",
+        html: "<textarea>Before</textarea>",
+        query: role("textbox"),
+        value: "After",
+        count: 1,
+      },
+    ])(
+      "reads current native $property on each query for $html",
+      async ({ property, html, query, value, count }) => {
+        await page.evaluate((html) => {
+          document.body.innerHTML = '<div id="host"></div>';
+          const root = document.getElementById("host")!.attachShadow({ mode: "closed" });
+          root.innerHTML = html;
+          (globalThis as unknown as { control: Element }).control =
+            root.querySelector("input,textarea,option")!;
+        }, html);
+        expect(await resolve([query], "count")).toEqual({ mode: "count", count: 1 });
+        await page.evaluate(
+          ({ property, value }) => {
+            const { control } = globalThis as unknown as { control: Element };
+            Reflect.set(control, property, value);
+          },
+          { property, value },
+        );
+        expect(await resolve([query], "count")).toEqual({ mode: "count", count });
+      },
+    );
+
+    it("restarts the prefix if its scope detaches before role capture", async () => {
+      await page.evaluate(() => {
+        document.body.innerHTML = '<section class="scope"><button id="old">Save</button></section>';
+      });
+      const session = page.mainFrame().session;
+      const send = session.send.bind(session);
+      let captures = 0;
+      vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+        if (
+          method === "Runtime.callFunctionOn" &&
+          String((params as { functionDeclaration?: string }).functionDeclaration).includes(
+            "this.roleCandidates(",
+          ) &&
+          ++captures === 1
+        ) {
+          await page.evaluate(() => {
+            document.querySelector(".scope")!.outerHTML =
+              '<section class="scope"><button id="new">Save</button></section>';
+          });
+        }
+        return send(method, params);
+      });
+      expect(await ids(await targets([css(".scope"), role("button")]))).toEqual(["new"]);
+      expect(captures).toBe(2);
+    });
+
+    it.each([false, true])(
+      "keeps child documents separate & enters same/cross-origin frames: %s",
+      async (crossOrigin) => {
+        await addFrame("/child", crossOrigin);
+        expect(await ids(await targets([role("button")]))).toEqual(["outside"]);
+        expect(await ids(await targets([css("iframe"), role("button", { name: "save" })]))).toEqual(
+          ["save", "open-save", "closed-save"],
+        );
+        expect(
+          await ids(
+            await targets([
+              css("iframe"),
+              { type: "frame", selector: { kind: "role", value: "button", name: "Shadow save" } },
+            ]),
+          ),
+        ).toEqual(["open-save", "closed-save"]);
+        expect(await ids(await targets([css("iframe"), css("#closed"), role("button")]))).toEqual([
+          "closed-save",
+        ]);
+      },
+    );
+
+    it("interleaves documents & preserves all/count/selected result contracts", async () => {
+      await mixedScopes();
+      const steps: LocatorChain["steps"] = [css(".scope"), role("button")];
+      expect(await ids(await targets(steps))).toEqual([
+        "a",
+        "save",
+        "open-save",
+        "closed-save",
+        "b",
+      ]);
+      expect(await resolve(steps, "count")).toEqual({ mode: "count", count: 5 });
+      const selected = await resolve(steps, { mode: "selected", index: 4 });
+      if (selected.mode === "count") throw new Error("Expected selected target");
+      expect(await ids(selected.targets)).toEqual(["b"]);
+    });
+
+    it("matches native states & names through the role selector schema", async () => {
+      await page.evaluate(() => {
+        document.body.innerHTML =
+          '<input id="checked" type="checkbox" checked aria-label=" Ready ">' +
+          '<button id="disabled" disabled>Save</button><button hidden>Save</button>' +
+          '<img id="image" alt="Diagram"><h3 id="heading">Report</h3>' +
+          '<div role="listbox"><div role="option" aria-checked="true" id="option">Item</div></div>' +
+          '<div role="tree"><div role="treeitem" aria-checked="mixed" id="treeitem">Branch</div></div>' +
+          '<div role="grid"><div role="row"><div role="columnheader" aria-selected="true" id="header">Column</div></div></div>';
+      });
+      expect(
+        await ids(await targets([role("checkbox", { checked: true, name: "ready" })])),
+      ).toEqual(["checked"]);
+      expect(
+        await ids(await targets([role("button", { disabled: true, name: "Save", exact: true })])),
+      ).toEqual(["disabled"]);
+      expect(await ids(await targets([role("img", { name: "Diagram" })]))).toEqual(["image"]);
+      expect(await ids(await targets([role("heading", { level: 3 })]))).toEqual(["heading"]);
+      expect(await ids(await targets([role("option", { checked: true })]))).toEqual(["option"]);
+      expect(await ids(await targets([role("treeitem", { checked: "mixed" })]))).toEqual([
+        "treeitem",
+      ]);
+      expect(await ids(await targets([role("columnheader", { selected: true })]))).toEqual([
+        "header",
+      ]);
+    });
+
+    it("reads changed prefixes, external labels, & roles on fresh queries", async () => {
+      await page.evaluate(() => {
+        document.body.innerHTML =
+          '<span id="label" hidden>Before</span><section class="scope"><button id="old" aria-labelledby="label"></button></section>' +
+          '<section id="new"><div id="new-target" role="link" aria-labelledby="label"></div></section>';
+      });
+      expect(await ids(await targets([css(".scope"), role("button", { name: "Before" })]))).toEqual(
+        ["old"],
+      );
+      await page.evaluate(() => {
+        document.querySelector(".scope")!.classList.remove("scope");
+        document.getElementById("new")!.className = "scope";
+        document.getElementById("label")!.textContent = "After";
+        document.getElementById("new-target")!.setAttribute("role", "button");
+      });
+      expect(await ids(await targets([css(".scope"), role("button", { name: "After" })]))).toEqual([
+        "new-target",
+      ]);
+      expect(await resolve([css(".scope"), role("button", { name: "Before" })], "count")).toEqual({
+        mode: "count",
+        count: 0,
+      });
+    });
+
+    it.each(["open", "closed"] as const)(
+      "reads changed names & newly attached %s roots on fresh queries",
+      async (mode) => {
+        await page.evaluate((mode) => {
+          document.body.innerHTML = '<div id="host"></div><div id="new-host"></div>';
+          const root = document.getElementById("host")!.attachShadow({ mode });
+          root.innerHTML = '<button id="shadow">Before</button>';
+          (globalThis as unknown as { mutateRoot: () => void }).mutateRoot = () => {
+            root.querySelector("button")!.textContent = "After";
+            document.getElementById("new-host")!.attachShadow({ mode }).innerHTML =
+              '<button id="added">After</button>';
+          };
+        }, mode);
+        expect(await ids(await targets([role("button", { name: "Before" })]))).toEqual(["shadow"]);
+        await page.evaluate("globalThis.mutateRoot()");
+        expect(await ids(await targets([role("button", { name: "After" })]))).toEqual([
+          "shadow",
+          "added",
+        ]);
+        expect(await resolve([role("button", { name: "Before" })], "count")).toEqual({
+          mode: "count",
+          count: 0,
+        });
+      },
+    );
+
+    it.each(["until-deadline", "none"] as const)(
+      "resolves during unrelated animation with readiness retries %s",
+      async (readinessRetries) => {
+        resolver = new FrameChainResolver(page, page.mainFrame(), { readinessRetries });
+        await page.evaluate(() => {
+          document.body.innerHTML =
+            '<section class="scope"><button id="save">Save</button></section><div id="animated"></div>';
+          const state = { ticks: 0, frame: 0 };
+          (globalThis as unknown as { animation: typeof state }).animation = state;
+          const element = document.getElementById("animated")!;
+          const tick = () => {
+            element.style.transform = `translateX(${++state.ticks % 100}px)`;
+            state.frame = requestAnimationFrame(tick);
+          };
+          tick();
+        });
+        const session = page.mainFrame().session;
+        const send = session.send.bind(session);
+        let queries = 0;
+        let mutationsDuringQuery = 0;
+        vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+          const result = await send(method, params);
+          if (method === "Accessibility.queryAXTree") {
+            queries++;
+            // Ensure style writes occur between the AX response & the DOM join.
+            mutationsDuringQuery += await page.evaluate(async () => {
+              const { animation } = globalThis as unknown as { animation: { ticks: number } };
+              const before = animation.ticks;
+              await new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+              );
+              return animation.ticks - before;
+            });
+          }
+          return result;
+        });
+        try {
+          expect(
+            await ids(await targets([css(".scope"), role("button", { name: "Save" })])),
+          ).toEqual(["save"]);
+          expect(mutationsDuringQuery).toBeGreaterThan(0);
+          expect(queries).toBe(1);
+        } finally {
+          await page.evaluate(() => {
+            const { animation } = globalThis as unknown as { animation: { frame: number } };
+            cancelAnimationFrame(animation.frame);
+          });
+        }
+      },
+    );
+
+    it("releases captured handles after an AX failure", async () => {
+      const session = page.mainFrame().session;
+      const send = session.send.bind(session);
+      const handles: string[] = [];
+      vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+        if (method === "Accessibility.queryAXTree") throw new Error("test AX failure");
+        const result = await send(method, params);
+        const objectId = (result as { result?: { objectId?: string } }).result?.objectId;
+        if ((params as { objectGroup?: string })?.objectGroup && objectId) handles.push(objectId);
+        return result;
+      });
+      await expect(resolve([role("button")], "count")).rejects.toThrow("test AX failure");
+      expect(handles.length).toBeGreaterThan(1);
+      for (const objectId of handles) {
+        await expect(
+          send("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: "function() { return true; }",
+          }),
+        ).rejects.toThrow();
+      }
+    });
+
+    it.each(["button", "img"] as const)(
+      "keeps %s query call counts constant at 500 & 1,000 scopes, including role-to-CSS chains",
+      async (queryRole) => {
+        const callCounts: number[] = [];
+        const payloadSizes: number[] = [];
+        for (const size of [500, 1000]) {
+          await page.evaluate(
+            ({ size, queryRole }) => {
+              document.body.innerHTML = Array.from(
+                { length: size },
+                (_, i) =>
+                  `<section class="card"><div role="${queryRole}" aria-label="Save"><span id="label-${i}">Save</span></div></section>`,
+              ).join("");
+            },
+            { size, queryRole },
+          );
+          const traffic = recordTraffic();
+          try {
+            expect(
+              await resolve(
+                [css(".card"), role(queryRole, { name: "Save" }), css("span")],
+                "count",
+              ),
+            ).toEqual({ mode: "count", count: size });
+          } finally {
+            traffic.stop();
+          }
+          const queryCalls = traffic.calls.filter(({ method }) =>
+            ["Runtime.callFunctionOn", "Accessibility.queryAXTree"].includes(method),
+          );
+          callCounts.push(queryCalls.length);
+          expect(
+            traffic.calls.filter(({ method }) => method === "Accessibility.queryAXTree"),
+          ).toHaveLength(queryRole === "img" ? 2 : 1);
+          expect(
+            traffic.calls.some(({ method }) =>
+              ["DOM.resolveNode", "DOM.describeNode", "Runtime.getProperties"].includes(method),
+            ),
+          ).toBe(false);
+          payloadSizes.push(JSON.stringify(queryCalls.map(({ result }) => result)).length);
+        }
+        expect(callCounts[0]).toBe(callCounts[1]);
+        expect(callCounts[0]).toBeLessThanOrEqual(queryRole === "img" ? 7 : 6);
+        // Calls are bounded; serializing candidates and AX rows still scales with matches.
+        expect(payloadSizes[1]).toBeGreaterThan(payloadSizes[0]);
+      },
+    );
+  });
 });
