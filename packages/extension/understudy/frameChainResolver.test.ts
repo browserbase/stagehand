@@ -533,4 +533,240 @@ describe("frame chain deadlines & ownership", () => {
     await assertion;
     cleanup.resolve({});
   });
+  describe("role joins", () => {
+    const roleChain: LocatorChain = {
+      steps: [{ type: "query", selector: { kind: "role", value: "button" } }],
+    };
+    function setupRoles() {
+      const state = setup();
+      const captured = {
+        type: "array",
+        value: [101, 102, 103].map((backendNodeId) => ({
+          type: "node",
+          value: { backendNodeId, nodeType: 1 },
+        })),
+      };
+      const respond = async (method: string, params?: object): Promise<unknown> => {
+        const fallback = await state.main.respond(method, params);
+        const p = params as { functionDeclaration?: string; arguments?: { value: unknown }[] };
+        if (method === "Accessibility.queryAXTree")
+          return {
+            nodes: [102, 101].map((backendDOMNodeId) => ({
+              nodeId: String(backendDOMNodeId),
+              backendDOMNodeId,
+              ignored: false,
+              role: { type: "role", value: "button" },
+              name: { type: "string", value: "Save" },
+            })),
+          };
+        if (p?.functionDeclaration?.includes("this.roleCandidates("))
+          return { result: { deepSerializedValue: captured } };
+        if (p?.functionDeclaration?.includes("this.roleMatches("))
+          return {
+            result: {
+              value: [
+                (p.arguments![0].value as number[]).map((index) => ({
+                  id: index + 1,
+                  isFrame: false,
+                })),
+              ],
+            },
+          };
+        return fallback;
+      };
+      state.main.send.mockImplementation(respond);
+      return { ...state, respond, captured };
+    }
+    const isCapture = (params?: object) =>
+      String((params as { functionDeclaration?: string })?.functionDeclaration).includes(
+        "this.roleCandidates(",
+      );
+    const isJoin = (params?: object) =>
+      String((params as { functionDeclaration?: string })?.functionDeclaration).includes(
+        "this.roleMatches(",
+      );
+
+    it("joins backend IDs to candidate order & exports only the requested target", async () => {
+      const state = setupRoles();
+      const result = await state.resolver.resolve(
+        roleChain,
+        { mode: "selected", index: 0 },
+        progress(),
+      );
+      expect(result).toEqual({
+        mode: "selected",
+        targets: [{ session: state.main.value, frameId: "main", backendNodeId: 101 }],
+      });
+      expect(state.main.send.mock.calls.find(([, params]) => isJoin(params))?.[1]).toMatchObject({
+        arguments: [{ value: [0, 1] }],
+      });
+      expect(
+        state.main.send.mock.calls.filter(([method]) => method === "DOM.describeNode"),
+      ).toHaveLength(1);
+      expect(state.main.send.mock.calls.some(([method]) => method === "DOM.resolveNode")).toBe(
+        false,
+      );
+      expect(state.main.send.mock.calls.find(([, params]) => isCapture(params))?.[1]).toMatchObject(
+        {
+          serializationOptions: {
+            serialization: "deep",
+            maxDepth: 2,
+            additionalParameters: { maxNodeDepth: 0 },
+          },
+        },
+      );
+      expect(state.main.live.size).toBe(0);
+    });
+
+    it.each([
+      undefined,
+      { type: "array", value: [{ type: "node", value: { backendNodeId: 12, nodeType: 3 } }] },
+      { type: "array", value: [{ type: "node", value: {} }] },
+    ])("rejects missing or malformed bulk identities", async (serialized) => {
+      const state = setupRoles();
+      state.main.send.mockImplementation((method, params) =>
+        isCapture(params)
+          ? Promise.resolve({ result: { deepSerializedValue: serialized } })
+          : state.respond(method, params),
+      );
+      await expect(
+        state.resolver.resolve(roleChain, { mode: "count" }, progress()),
+      ).rejects.toThrow(/deep serialization/);
+      expect(
+        state.main.send.mock.calls.some(([method]) => method === "Accessibility.queryAXTree"),
+      ).toBe(false);
+      expect(state.main.live.size).toBe(0);
+    });
+
+    it("restarts the chain when a scope detaches before role capture", async () => {
+      const state = setupRoles();
+      let captures = 0;
+      let prefixes = 0;
+      state.main.send.mockImplementation((method, params) => {
+        if (
+          String((params as { functionDeclaration?: string })?.functionDeclaration).includes(
+            "this.query(",
+          )
+        ) {
+          prefixes++;
+          return Promise.resolve({ result: { value: [[{ id: prefixes, isFrame: false }]] } });
+        }
+        return isCapture(params) && ++captures === 1
+          ? Promise.resolve({ result: { deepSerializedValue: { type: "null" } } })
+          : state.respond(method, params);
+      });
+      const pending = state.resolver.resolve(
+        {
+          steps: [
+            { type: "query", selector: { kind: "css", value: ".scope" } },
+            ...roleChain.steps,
+          ],
+        },
+        { mode: "count" },
+        progress(),
+      );
+      await vi.advanceTimersByTimeAsync(50);
+      expect(await pending).toEqual({ mode: "count", count: 2 });
+      expect(prefixes).toBe(2);
+      expect(state.ready).toHaveBeenCalledTimes(2);
+      expect(state.main.live.size).toBe(0);
+    });
+
+    it.each([
+      { timeout: undefined, retries: "until-deadline" },
+      { timeout: 0, retries: "until-deadline" },
+      { timeout: 100, retries: "until-deadline" },
+      { timeout: 100, retries: "none" },
+    ] as const)(
+      "bounds repeated scope detachment with timeout $timeout & retries $retries",
+      async ({ timeout, retries }) => {
+        const state = setupRoles();
+        state.main.send.mockImplementation((method, params) =>
+          isCapture(params)
+            ? Promise.resolve({ result: { deepSerializedValue: { type: "null" } } })
+            : state.respond(method, params),
+        );
+        const resolver = new FrameChainResolver(state.page, state.page.mainFrame(), {
+          readinessRetries: retries,
+        });
+        const pending = resolver.resolve(
+          roleChain,
+          { mode: "count" },
+          timeout === undefined ? undefined : progress(timeout),
+        );
+        const canRetry = timeout === 100 && retries !== "none";
+        const assertion = expect(pending).rejects.toThrow(
+          canRetry ? /timed out/i : /scope detached/,
+        );
+        await vi.advanceTimersByTimeAsync(100);
+        await assertion;
+        expect(state.main.live.size).toBe(0);
+        if (!canRetry) expect(state.ready).toHaveBeenCalledTimes(1);
+        expect(
+          state.main.send.mock.calls.some(([method]) => method === "Accessibility.queryAXTree"),
+        ).toBe(false);
+      },
+    );
+
+    it.each(["navigation", "detach"])(
+      "rejects %s during AX query & releases handles",
+      async (change) => {
+        const state = setupRoles();
+        state.main.send.mockImplementation(async (method, params) => {
+          const response = await state.respond(method, params);
+          if (method === "Accessibility.queryAXTree") {
+            if (change === "detach") state.registry.onFrameDetached("main");
+            else
+              state.registry.frames.get("main")!.lastSeen = {
+                loaderId: "new",
+              } as Protocol.Page.Frame;
+          }
+          return response;
+        });
+        await expect(
+          state.resolver.resolve(roleChain, { mode: "count" }, progress()),
+        ).rejects.toThrow(/Chain frame (changed|detached)/);
+        expect(state.main.send.mock.calls.some(([, params]) => isJoin(params))).toBe(false);
+        expect(state.main.live.size).toBe(0);
+      },
+    );
+
+    it.each(["capture", "AX", "join"])(
+      "cleans up after %s timeout & late replies",
+      async (phase) => {
+        const state = setupRoles();
+        const gate = deferred();
+        state.main.send.mockImplementation(async (method, params) => {
+          if (
+            (phase === "capture" && isCapture(params)) ||
+            (phase === "AX" && method === "Accessibility.queryAXTree") ||
+            (phase === "join" && isJoin(params))
+          )
+            await gate.promise;
+          return state.respond(method, params);
+        });
+        const pending = state.resolver.resolve(roleChain, { mode: "count" }, progress());
+        const assertion = expect(pending).rejects.toBeInstanceOf(TimeoutError);
+        await vi.advanceTimersByTimeAsync(100);
+        await assertion;
+        expect(state.main.live.size).toBe(0);
+        gate.resolve({});
+        await vi.advanceTimersByTimeAsync(0);
+        expect(state.main.live.size).toBe(0);
+      },
+    );
+
+    it("propagates AX errors after releasing handles", async () => {
+      const state = setupRoles();
+      state.main.send.mockImplementation((method, params) =>
+        method === "Accessibility.queryAXTree"
+          ? Promise.reject(new Error("AX unavailable"))
+          : state.respond(method, params),
+      );
+      await expect(
+        state.resolver.resolve(roleChain, { mode: "count" }, progress()),
+      ).rejects.toThrow("AX unavailable");
+      expect(state.main.live.size).toBe(0);
+    });
+  });
 });
