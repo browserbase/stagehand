@@ -304,11 +304,7 @@ export class Page {
       }
       try {
         const result = deliver(notification);
-        if (
-          result !== null &&
-          (typeof result === "object" || typeof result === "function") &&
-          typeof (result as { then?: unknown }).then === "function"
-        ) {
+        if (result !== null && (typeof result === "object" || typeof result === "function")) {
           void Promise.resolve(result).catch((error: unknown) =>
             reportPageEventListenerError(error, platform),
           );

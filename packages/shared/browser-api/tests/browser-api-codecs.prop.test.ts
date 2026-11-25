@@ -6,10 +6,11 @@ import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-regis
 import {
   ClearCookieOptionsSchema,
   ContextClearCookiesParamsSchema,
+  ContextCookiesParamsSchema,
   InputFilePayloadSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
-import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
+import type { Cookie, StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { decodeBase64 } from "../src/base64.js";
 import { BrowserContext, type ClearCookieOptions } from "../src/browserContext.js";
@@ -72,7 +73,10 @@ const unicodeWithSurrogatesArb = fc
   )
   .map((parts) => parts.join(""));
 
-function createRecordingClient(platform: BrowserApiPlatform = browserPlatform): {
+function createRecordingClient(
+  platform: BrowserApiPlatform = browserPlatform,
+  cookiesResponse: Cookie[] = [],
+): {
   client: StagehandCommandClient;
   calls: Array<{ method: string; params: unknown }>;
 } {
@@ -85,7 +89,7 @@ function createRecordingClient(platform: BrowserApiPlatform = browserPlatform): 
     ): Promise<z.output<Method["result"]>> {
       calls.push({ method: method.name, params });
       if (method.name === StagehandMethods.contextCookies.name) {
-        return [] as unknown as z.output<Method["result"]>;
+        return cookiesResponse as unknown as z.output<Method["result"]>;
       }
       if (method.name === StagehandMethods.contextGetDomainPolicy.name) {
         return null as unknown as z.output<Method["result"]>;
@@ -531,6 +535,36 @@ describe("browser-api codecs property verification", () => {
           },
         }.async,
       },
+      {
+        label: "async-arrow-regex-default-param",
+        fn: runInNewContext(
+          "async (arg = /\\)/) => ({ received: arg instanceof RegExp ? arg.source : arg })",
+        ),
+      },
+      {
+        label: "async-arrow-charclass-regex-and-template-default-param",
+        fn: runInNewContext(
+          "async (arg = /[)]/, extra = `${/\\}/}`) => ({ received: arg instanceof RegExp ? arg.source : arg, extra })",
+        ),
+      },
+      {
+        label: "async-arrow-chained-division-default-param",
+        fn: runInNewContext("async (arg = 1 / 2 / 3) => ({ received: arg })"),
+      },
+      {
+        label: "async-arrow-division-then-regex-default-param",
+        fn: runInNewContext("async (arg = 1 / /\\)/.source.length) => ({ received: arg })"),
+      },
+      {
+        label: "async-arrow-property-keyword-division-default-param",
+        fn: runInNewContext("async (arg = ({ return: 12 }).return / 2 / 3) => ({ received: arg })"),
+      },
+      {
+        label: "async-arrow-if-header-regex-default-param",
+        fn: runInNewContext(
+          'async (arg = (() => { let ok = false; if (true) ok = /\\)/.test(")"); return ok; })()) => ({ received: arg })',
+        ),
+      },
     ];
 
     it("produces vm-executable scripts for arbitrary sync/async function shapes and JSON args", async () => {
@@ -853,16 +887,25 @@ describe("browser-api codecs property verification", () => {
       );
     });
 
-    it("rejects malformed clearCookies options and non-string/non-RegExp filters before sending RPC", async () => {
+    it("rejects malformed clearCookies options, unknown keys, and non-string/non-RegExp filters before sending RPC", async () => {
       const invalidInputs: unknown[] = [
         null,
         42,
         "session",
         [],
+        /session/,
+        { domainn: "example.com" },
+        { domainn: undefined },
+        { name: "session", extra: "unexpected" },
         { name: null },
         { name: 123 },
         { domain: {} },
         { path: ["a"] },
+        { name: { [Symbol.toStringTag]: "RegExp", source: "session", flags: "i" } },
+        { domain: Object.create(RegExp.prototype) },
+        { path: RegExp.prototype },
+        { name: runInNewContext("RegExp.prototype") },
+        { domain: new Proxy(/example\.com/i, {}) },
       ];
 
       for (const bad of invalidInputs) {
@@ -871,6 +914,26 @@ describe("browser-api codecs property verification", () => {
         await expect(context.clearCookies(bad as ClearCookieOptions)).rejects.toThrow(TypeError);
         expect(calls).toHaveLength(0);
       }
+
+      class CustomRegExp extends RegExp {}
+      const crossRealmRegex = runInNewContext("/session/gi") as RegExp;
+      crossRealmRegex.lastIndex = 4;
+      const subclassRegex = new CustomRegExp("example\\.test", "i");
+      const { client, calls } = createRecordingClient();
+      const context = new BrowserContext(client);
+      await context.clearCookies({ name: crossRealmRegex, domain: subclassRegex });
+      expect(crossRealmRegex.lastIndex).toBe(4);
+      expect(calls).toStrictEqual([
+        {
+          method: StagehandMethods.contextClearCookies.name,
+          params: {
+            options: {
+              name: { source: "session", flags: "gi" },
+              domain: { source: "example\\.test", flags: "i" },
+            },
+          },
+        },
+      ]);
     });
 
     it("forwards addCookies, setDomainPolicy, cookies, and clipboard memoization accurately", async () => {
@@ -895,20 +958,44 @@ describe("browser-api codecs property verification", () => {
             }),
             { nil: null },
           ),
-          async (cookies, policy) => {
-            const { client, calls } = createRecordingClient();
+          fc.oneof(
+            fc.constant(undefined),
+            fc.constant("https://example.test/"),
+            fc.array(fc.constantFrom("https://example.test/", "https://api.example.test/v1"), {
+              maxLength: 3,
+            }),
+          ),
+          async (cookies, policy, cookieUrls) => {
+            const mockReturnedCookies: Cookie[] = cookies.map((cookie) => ({
+              name: cookie.name,
+              value: cookie.value,
+              domain: "example.test",
+              path: "/",
+              expires: -1,
+              httpOnly: false,
+              secure: true,
+              sameSite: "Lax",
+            }));
+            const { client, calls } = createRecordingClient(browserPlatform, mockReturnedCookies);
             const context = new BrowserContext(client);
 
             expect(context.clipboard).toBe(context.clipboard);
             await context.addCookies(cookies);
+            const fetchedCookies = await context.cookies(cookieUrls);
             await context.setDomainPolicy(policy);
             await context.getDomainPolicy();
             await expect(context.close()).rejects.toThrow(
               "Browser context is not attached to a browser",
             );
 
+            const expectedCookiesParams = cookieUrls === undefined ? {} : { urls: cookieUrls };
+            expect(ContextCookiesParamsSchema.parse(expectedCookiesParams)).toStrictEqual(
+              expectedCookiesParams,
+            );
+            expect(fetchedCookies).toStrictEqual(mockReturnedCookies);
             expect(calls).toStrictEqual([
               { method: StagehandMethods.contextAddCookies.name, params: { cookies } },
+              { method: StagehandMethods.contextCookies.name, params: expectedCookiesParams },
               { method: StagehandMethods.contextSetDomainPolicy.name, params: { policy } },
               { method: StagehandMethods.contextGetDomainPolicy.name, params: {} },
             ]);

@@ -26,6 +26,7 @@ const REGEX_PRECEDING_KEYWORDS = new Set([
   "else",
   "do",
 ]);
+const STATEMENT_HEADER_KEYWORDS = new Set(["if", "while", "for", "with"]);
 
 export function normalizeEvaluationExpression<R, Arg>(
   expression: string | ((arg: Arg) => R | Promise<R>),
@@ -365,20 +366,49 @@ function skipNumericLiteral(source: string, start: number): number {
   return pos;
 }
 
+function skipRegexLiteral(source: string, start: number): number {
+  let pos = start + 1;
+  let inClass = false;
+  while (pos < source.length) {
+    const ch = source[pos]!;
+    if (ch === "\\") {
+      if (pos + 1 >= source.length || isLineTerminator(source[pos + 1])) {
+        return -1;
+      }
+      pos += 2;
+      continue;
+    }
+    if (ch === "[") {
+      inClass = true;
+    } else if (ch === "]") {
+      inClass = false;
+    } else if (ch === "/" && !inClass) {
+      pos += 1;
+      while (pos < source.length && /[a-z]/i.test(source[pos]!)) {
+        pos += 1;
+      }
+      return pos;
+    } else if (isLineTerminator(ch)) {
+      return -1;
+    }
+    pos += 1;
+  }
+  return -1;
+}
+
 function skipBalanced(source: string, start: number, open: string, close: string): number {
   if (source[start] !== open) return -1;
   let depth = 1;
   let pos = start + 1;
+  let expectRegex = true;
+  let prevWasDot = false;
+  let nextParenIsStatementHeader = false;
+  const parenStack: boolean[] = [];
+
   while (pos < source.length && depth > 0) {
     const ch = source[pos]!;
-    if (ch === "'" || ch === '"') {
-      pos = skipStringLiteral(source, pos);
-      if (pos === -1) return -1;
-      continue;
-    }
-    if (ch === "`") {
-      pos = skipTemplateLiteral(source, pos);
-      if (pos === -1) return -1;
+    if (/\s/.test(ch)) {
+      pos += 1;
       continue;
     }
     if (ch === "/" && source[pos + 1] === "/") {
@@ -392,8 +422,150 @@ function skipBalanced(source: string, start: number, open: string, close: string
       pos = Math.min(source.length, pos + 2);
       continue;
     }
-    if (ch === open) depth += 1;
-    else if (ch === close) depth -= 1;
+    if (ch === "'" || ch === '"') {
+      pos = skipStringLiteral(source, pos);
+      if (pos === -1) return -1;
+      expectRegex = false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "`") {
+      pos = skipTemplateLiteral(source, pos);
+      if (pos === -1) return -1;
+      expectRegex = false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "/") {
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      if (expectRegex) {
+        pos = skipRegexLiteral(source, pos);
+        if (pos === -1) return -1;
+        expectRegex = false;
+        continue;
+      }
+      pos += source[pos + 1] === "=" ? 2 : 1;
+      expectRegex = true;
+      continue;
+    }
+    if (ch === open) {
+      depth += 1;
+      if (ch === "(") {
+        parenStack.push(nextParenIsStatementHeader);
+      }
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      pos += 1;
+      continue;
+    }
+    if (ch === close) {
+      depth -= 1;
+      if (ch === ")") {
+        expectRegex = parenStack.pop() ?? false;
+      } else if (ch === "}") {
+        expectRegex = true;
+      } else {
+        expectRegex = false;
+      }
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      pos += 1;
+      continue;
+    }
+    if (ch === "(") {
+      parenStack.push(nextParenIsStatementHeader);
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      pos += 1;
+      continue;
+    }
+    if (ch === ")") {
+      expectRegex = parenStack.pop() ?? false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      pos += 1;
+      continue;
+    }
+    if (ch === "{" || ch === "}") {
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      pos += 1;
+      continue;
+    }
+    if (ch === "=" && source[pos + 1] === ">") {
+      pos += 2;
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if ((ch === "+" && source[pos + 1] === "+") || (ch === "-" && source[pos + 1] === "-")) {
+      pos += 2;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "." && source[pos + 1] === "." && source[pos + 2] === ".") {
+      pos += 3;
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "?" && source[pos + 1] === ".") {
+      const afterOpt = source[pos + 2];
+      if (afterOpt === undefined || afterOpt < "0" || afterOpt > "9") {
+        pos += 2;
+        expectRegex = false;
+        prevWasDot = true;
+        nextParenIsStatementHeader = false;
+        continue;
+      }
+    }
+    if (ch === ".") {
+      const next = source[pos + 1];
+      if (next !== undefined && next >= "0" && next <= "9") {
+        pos = skipNumericLiteral(source, pos);
+        expectRegex = false;
+        prevWasDot = false;
+        nextParenIsStatementHeader = false;
+        continue;
+      }
+      pos += 1;
+      expectRegex = false;
+      prevWasDot = true;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    const ident = readIdentifier(source, pos);
+    if (ident !== null) {
+      pos = ident.end;
+      if (prevWasDot) {
+        expectRegex = false;
+        nextParenIsStatementHeader = false;
+      } else {
+        expectRegex = REGEX_PRECEDING_KEYWORDS.has(ident.text);
+        nextParenIsStatementHeader = STATEMENT_HEADER_KEYWORDS.has(ident.text);
+      }
+      prevWasDot = false;
+      continue;
+    }
+    if (ch >= "0" && ch <= "9") {
+      pos = skipNumericLiteral(source, pos);
+      expectRegex = false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    expectRegex = "([,;:=?!&|^~+*%<>".includes(ch) || ch === "-";
+    prevWasDot = false;
+    nextParenIsStatementHeader = false;
     pos += 1;
   }
   return depth === 0 ? pos : -1;
@@ -406,6 +578,9 @@ function wrapParenthesized(expression: string): string {
 function endsWithLineComment(source: string): boolean {
   let pos = 0;
   let expectRegex = true;
+  let prevWasDot = false;
+  let nextParenIsStatementHeader = false;
+  const parenStack: boolean[] = [];
   const templateBraceDepths: number[] = [];
 
   while (pos < source.length) {
@@ -437,10 +612,14 @@ function endsWithLineComment(source: string): boolean {
       const next = skipStringLiteral(source, pos);
       pos = next === -1 ? source.length : next;
       expectRegex = false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       continue;
     }
     if (ch === "`") {
       pos += 1;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       while (pos < source.length) {
         const tch = source[pos];
         if (tch === "\\") {
@@ -462,27 +641,32 @@ function endsWithLineComment(source: string): boolean {
       }
       continue;
     }
-    if (ch === "/" && expectRegex) {
-      pos += 1;
-      let inClass = false;
-      while (pos < source.length) {
-        const rch = source[pos]!;
-        if (rch === "\\") {
-          pos += 2;
-          continue;
-        }
-        if (rch === "[") inClass = true;
-        else if (rch === "]") inClass = false;
-        else if (rch === "/" && !inClass) {
-          pos += 1;
-          while (pos < source.length && /[a-z]/i.test(source[pos]!)) pos += 1;
-          break;
-        } else if (isLineTerminator(rch)) {
-          break;
-        }
-        pos += 1;
+    if (ch === "/") {
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      if (expectRegex) {
+        const next = skipRegexLiteral(source, pos);
+        pos = next === -1 ? pos + 1 : next;
+        expectRegex = false;
+        continue;
       }
-      expectRegex = false;
+      pos += source[pos + 1] === "=" ? 2 : 1;
+      expectRegex = true;
+      continue;
+    }
+    if (ch === "(") {
+      parenStack.push(nextParenIsStatementHeader);
+      pos += 1;
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === ")") {
+      expectRegex = parenStack.pop() ?? false;
+      pos += 1;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       continue;
     }
     if (ch === "{") {
@@ -491,9 +675,13 @@ function endsWithLineComment(source: string): boolean {
       }
       pos += 1;
       expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       continue;
     }
     if (ch === "}") {
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       if (templateBraceDepths.length > 0) {
         const top = templateBraceDepths[templateBraceDepths.length - 1]!;
         if (top === 0) {
@@ -529,20 +717,71 @@ function endsWithLineComment(source: string): boolean {
     if (ch === "=" && source[pos + 1] === ">") {
       pos += 2;
       expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if ((ch === "+" && source[pos + 1] === "+") || (ch === "-" && source[pos + 1] === "-")) {
+      pos += 2;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "." && source[pos + 1] === "." && source[pos + 2] === ".") {
+      pos += 3;
+      expectRegex = true;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
+      continue;
+    }
+    if (ch === "?" && source[pos + 1] === ".") {
+      const afterOpt = source[pos + 2];
+      if (afterOpt === undefined || afterOpt < "0" || afterOpt > "9") {
+        pos += 2;
+        expectRegex = false;
+        prevWasDot = true;
+        nextParenIsStatementHeader = false;
+        continue;
+      }
+    }
+    if (ch === ".") {
+      const next = source[pos + 1];
+      if (next !== undefined && next >= "0" && next <= "9") {
+        pos = skipNumericLiteral(source, pos);
+        expectRegex = false;
+        prevWasDot = false;
+        nextParenIsStatementHeader = false;
+        continue;
+      }
+      pos += 1;
+      expectRegex = false;
+      prevWasDot = true;
+      nextParenIsStatementHeader = false;
       continue;
     }
     const ident = readIdentifier(source, pos);
     if (ident !== null) {
       pos = ident.end;
-      expectRegex = REGEX_PRECEDING_KEYWORDS.has(ident.text);
+      if (prevWasDot) {
+        expectRegex = false;
+        nextParenIsStatementHeader = false;
+      } else {
+        expectRegex = REGEX_PRECEDING_KEYWORDS.has(ident.text);
+        nextParenIsStatementHeader = STATEMENT_HEADER_KEYWORDS.has(ident.text);
+      }
+      prevWasDot = false;
       continue;
     }
     if (ch >= "0" && ch <= "9") {
       pos = skipNumericLiteral(source, pos);
       expectRegex = false;
+      prevWasDot = false;
+      nextParenIsStatementHeader = false;
       continue;
     }
     expectRegex = "([,;:=?!&|^~+*%<>".includes(ch) || ch === "-";
+    prevWasDot = false;
+    nextParenIsStatementHeader = false;
     pos += 1;
   }
 

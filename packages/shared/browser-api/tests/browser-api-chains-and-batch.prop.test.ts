@@ -659,6 +659,128 @@ describe("browser-api chains, subscriptions, batch interleavings & wrappers prop
         { seed: 4303, numRuns: 100 },
       );
     });
+
+    it("assimilates getter-backed object and function thenables with a single .then read", async () => {
+      const thenKey = ["th", "en"].join("");
+      const client = new ControllableCommandClient(() => ({ ok: true }));
+      const page = new Page(client, { pageId: "p-thenable" });
+
+      const emitConsole = (subscriptionId: string) => {
+        client.emit({
+          jsonrpc: "2.0",
+          method: StagehandNotifications.pageCDPEvent.name,
+          params: {
+            subscriptionId,
+            event: {
+              pageId: "p-thenable",
+              method: "Runtime.consoleAPICalled",
+              params: { type: "log" },
+              sessionId: "s-1",
+              targetId: "t-1",
+            },
+          },
+        });
+      };
+
+      const flushMicrotasks = async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      };
+
+      let objectResolveReads = 0;
+      const objResolveSub = await page.onConsole(() => {
+        const thenable: Record<string, unknown> = {};
+        Object.defineProperty(thenable, thenKey, {
+          get() {
+            objectResolveReads += 1;
+            if (objectResolveReads > 1) {
+              throw new Error("then getter read more than once");
+            }
+            return (resolve: (value: unknown) => void) => resolve("ok");
+          },
+        });
+        return thenable;
+      });
+      const objResolveSubId = (client.calls.at(-1)!.params as { subscriptionId: string })
+        .subscriptionId;
+
+      let fnResolveReads = 0;
+      const fnResolveSub = await page.onConsole(() => {
+        const fn = () => {};
+        Object.defineProperty(fn, thenKey, {
+          get() {
+            fnResolveReads += 1;
+            if (fnResolveReads > 1) {
+              throw new Error("fn then getter read more than once");
+            }
+            return (resolve: (value: unknown) => void) => resolve("ok");
+          },
+        });
+        return fn;
+      });
+      const fnResolveSubId = (client.calls.at(-1)!.params as { subscriptionId: string })
+        .subscriptionId;
+
+      let oneShotRejectReads = 0;
+      const oneShotRejectSub = await page.onConsole(() => {
+        const thenable: Record<string, unknown> = {};
+        Object.defineProperty(thenable, thenKey, {
+          get() {
+            oneShotRejectReads += 1;
+            if (oneShotRejectReads === 1) {
+              return (_resolve: unknown, reject: (err: unknown) => void) =>
+                reject(new Error("one-shot-reject-boom"));
+            }
+            return undefined;
+          },
+        });
+        return thenable;
+      });
+      const oneShotRejectSubId = (client.calls.at(-1)!.params as { subscriptionId: string })
+        .subscriptionId;
+
+      let throwingGetterReads = 0;
+      const throwingGetterSub = await page.onConsole(() => {
+        const thenable: Record<string, unknown> = {};
+        Object.defineProperty(thenable, thenKey, {
+          get() {
+            throwingGetterReads += 1;
+            throw new Error("then-getter-boom");
+          },
+        });
+        return thenable;
+      });
+      const throwingGetterSubId = (client.calls.at(-1)!.params as { subscriptionId: string })
+        .subscriptionId;
+
+      emitConsole(objResolveSubId);
+      emitConsole(fnResolveSubId);
+      await flushMicrotasks();
+      expect(objectResolveReads).toBe(1);
+      expect(fnResolveReads).toBe(1);
+      expect(client.warnings).toHaveLength(0);
+
+      emitConsole(oneShotRejectSubId);
+      await flushMicrotasks();
+      expect(oneShotRejectReads).toBe(1);
+      expect(client.warnings).toStrictEqual([
+        { message: "one-shot-reject-boom", code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR" },
+      ]);
+
+      emitConsole(throwingGetterSubId);
+      await flushMicrotasks();
+      expect(throwingGetterReads).toBe(1);
+      expect(client.warnings).toStrictEqual([
+        { message: "one-shot-reject-boom", code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR" },
+        { message: "then-getter-boom", code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR" },
+      ]);
+
+      await objResolveSub.unsubscribe();
+      await fnResolveSub.unsubscribe();
+      await oneShotRejectSub.unsubscribe();
+      await throwingGetterSub.unsubscribe();
+    });
   });
 
   describe("concurrent commandClient & batch error/abort isolation", () => {
