@@ -68,8 +68,6 @@ describe("context.setDomainPolicy", () => {
 
   it("allows matching requests and blocks non-matching requests", async () => {
     const page = await firstPage(stagehand);
-    // Prove the alternate hostname reaches this fixture before policy is applied,
-    // so the later chrome-error can only be attributed to domain policy.
     const initialResponse = await page.goto(alternateHostUrl);
     expect(initialResponse?.ok()).toBe(true);
     await stagehand.browser.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
@@ -145,7 +143,6 @@ describe("DNR domain policy regressions", () => {
     fixture = await startDomainPolicyFixture();
     stagehand = await createStagehand({
       browser: {
-        // Route test names (including trailing dots) to the fixture, and force OOPIFs.
         args: ["--host-resolver-rules=MAP * 127.0.0.1", "--site-per-process"],
       },
       model: {
@@ -492,8 +489,6 @@ describe("DNR domain policy regressions", () => {
   it("blocks cross-site iframe requests after a string act", async () => {
     const result = await stagehand.act("Click Continue", { page });
     expect(result.data.success).toBe(true);
-    // This exercises the reported auto-attachment gap without depending on that bug
-    // remaining present: the policy must hold whether the child is attached or not.
     const frameUrl = new URL("/frame", fixture.url);
     frameUrl.hostname = "frame.test";
     await page.evaluate(

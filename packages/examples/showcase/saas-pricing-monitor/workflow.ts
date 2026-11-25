@@ -36,8 +36,6 @@ export async function run(stagehand: Stagehand, page: Page): Promise<z.output<ty
       await stagehand.act("Switch the pricing to monthly billing", { page });
     }
 
-    // Run this on a schedule with caching on: unchanged pages are served from
-    // the cache, so a daily check costs almost nothing until a price moves.
     const { data } = await stagehand.extract("Every pricing plan on this page", plans, { page });
     vendors.push({ vendor, ...data });
   }

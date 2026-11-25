@@ -2,15 +2,7 @@ import type { ExperimentalBatchCallback } from "@browserbasehq/stagehand";
 import type { RefAction } from "./contract.js";
 import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
 
-/**
- * The JavaScript the facade sends to `experimentalBatch`. The SDK sends a
- * callback's source text, so the exported *_SOURCE / RUN_PRELUDE / RUN_EPILOGUE
- * strings are exactly what reaches the executor and go into the facade bundle
- * unchanged for other hosts.
- */
-
 export type ActionInput = { actions: RefAction[]; xpathById: Record<string, string> };
-/** `staleId` is the first action ID that resolved to no XPath; no action ran. */
 export type ActionResult =
   | { completed: number; staleId?: never }
   | { staleId: string; completed?: never };
@@ -35,7 +27,6 @@ const dynamicFunctionHead = (params: string[]) =>
   `async function anonymous(${params.join(",")}\n) {\n`;
 const DYNAMIC_FUNCTION_TAIL = "\n}";
 
-/** createPlaywrightCompatRuntime as one self-contained function source. */
 export const RUNTIME_SOURCE = createPlaywrightCompatRuntime.toString();
 
 // Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
@@ -110,7 +101,6 @@ return {
   batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
 };`;
 
-/** Resolves snapshot IDs against the page's stored XPath map, then runs the actions. */
 export const actionRunner = new AsyncFunction(
   "stagehand",
   "input",
@@ -119,7 +109,6 @@ export const actionRunner = new AsyncFunction(
 
 export const ACTION_RUNNER_SOURCE = Function.prototype.toString.call(actionRunner);
 
-/** The source of `runCallback(code)` is `RUN_PRELUDE + code + RUN_EPILOGUE`. */
 export const RUN_PRELUDE = dynamicFunctionHead(RUN_PARAMS) + RUN_PRELUDE_BODY;
 export const RUN_EPILOGUE = RUN_EPILOGUE_BODY + DYNAMIC_FUNCTION_TAIL;
 

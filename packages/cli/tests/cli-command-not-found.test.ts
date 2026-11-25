@@ -31,10 +31,6 @@ describe("suggestCommand", () => {
     "cloud:sessions:create",
   ];
 
-  // attempted/suggestion are colon-separated ids. The "attempted" field is what
-  // gets surfaced in messaging + telemetry, so the trailing-token rows below
-  // double as the privacy guard: a free-form user value must never be retained
-  // unless it itself looks like a typo of a real command segment.
   it.each<[string, string, { attempted: string; suggestion: string | null }]>([
     [
       "prefers an explicit alias over a fuzzy match",

@@ -1,14 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * Script to sync SDK documentation from GitHub READMEs
- *
- * Usage: node scripts/sync-sdk-docs.js
- *
- * This script fetches README.md files from each language SDK repo
- * and generates MDX files for the docs.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
@@ -16,7 +7,6 @@ import { getCurrentDirPath } from "./runtimePaths.js";
 
 const currentDir = getCurrentDirPath();
 
-// SDK repos configuration
 const SDK_REPOS = {
   java: {
     repo: "browserbase/stagehand-java",
@@ -44,9 +34,6 @@ const SDK_REPOS = {
   },
 };
 
-/**
- * Fetch content from a URL
- */
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
     https
@@ -58,7 +45,6 @@ function fetchUrl(url) {
           },
         },
         (res) => {
-          // Handle redirects
           if (res.statusCode === 301 || res.statusCode === 302) {
             fetchUrl(res.headers.location).then(resolve).catch(reject);
             return;
@@ -79,73 +65,53 @@ function fetchUrl(url) {
   });
 }
 
-/**
- * Process README content for MDX compatibility
- */
 function processReadmeContent(content, config) {
   let processed = content;
 
-  // Remove HTML comments
   processed = processed.replace(/<!--[\s\S]*?-->/g, "");
 
-  // Remove entire HTML blocks with picture/source tags (badge sections)
   processed = processed.replace(/<div[^>]*>[\s\S]*?<\/div>/gi, "");
   processed = processed.replace(/<p[^>]*align[^>]*>[\s\S]*?<\/p>/gi, "");
   processed = processed.replace(/<picture>[\s\S]*?<\/picture>/gi, "");
 
-  // Remove standalone HTML tags
   processed = processed.replace(/<a[^>]*>[\s]*<img[^>]*>[\s]*<\/a>/gi, "");
   processed = processed.replace(/<img[^>]*badge[^>]*>/gi, "");
   processed = processed.replace(/<img[^>]*shields\.io[^>]*>/gi, "");
   processed = processed.replace(/<a[^>]*>\s*<picture>[\s\S]*?<\/picture>\s*<\/a>/gi, "");
 
-  // Remove badge images in markdown format
   processed = processed.replace(/^\s*(\[!\[.*?\]\(.*?\)\]\(.*?\)\s*)+/gm, "");
   processed = processed.replace(/^\s*!\[.*?\]\(https:\/\/.*?badge.*?\)\s*/gm, "");
   processed = processed.replace(/\[!\[.*?\]\(.*?badge.*?\)\]\(.*?\)/g, "");
 
-  // Remove standalone anchor img tags
   processed = processed.replace(/<a[^>]*href[^>]*><img[^>]*><\/a>/gi, "");
 
-  // Clean up <code> tags with backticks inside (common in Go docs)
   processed = processed.replace(/<code>\\`([^`]*?)\\`<\/code>/g, "`$1`");
   processed = processed.replace(/<code>`([^`]*?)`<\/code>/g, "`$1`");
   processed = processed.replace(/<code>([^<]*?)<\/code>/g, "`$1`");
 
-  // Fix malformed links with parentheses in URL (Go docs issue)
   processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\(([^)]+)\)([^)]*)\)/g, "[$1]($2)");
 
-  // Convert relative links to absolute GitHub links
   const repoUrl = `https://github.com/${config.repo}`;
   processed = processed.replace(
     /\]\((?!http)(?!#)(?!mailto)([^)]+)\)/g,
     `](${repoUrl}/blob/main/$1)`,
   );
 
-  // Fix code block language hints for MDX
   processed = processed.replace(/```kotlin/g, "```java");
 
-  // Remove the first H1 if it exists (we'll add our own title)
   processed = processed.replace(/^#\s+.*\n+/, "");
 
-  // Clean up excessive newlines
   processed = processed.replace(/\n{4,}/g, "\n\n\n");
 
-  // Remove any remaining inline HTML img tags
   processed = processed.replace(/<img[^>]*>/gi, "");
 
-  // Remove any remaining <a> tags that are empty or just whitespace
   processed = processed.replace(/<a[^>]*>\s*<\/a>/gi, "");
 
-  // Clean up lines that are just whitespace
   processed = processed.replace(/^\s+$/gm, "");
 
   return processed.trim();
 }
 
-/**
- * Generate MDX frontmatter
- */
 function generateFrontmatter(config) {
   return `---
 title: "${config.title}"
@@ -159,9 +125,6 @@ description: "${config.description}"
 `;
 }
 
-/**
- * Sync a single SDK's documentation
- */
 async function syncSdk(language, config) {
   const rawUrl = `https://raw.githubusercontent.com/${config.repo}/main/README.md`;
 
@@ -173,13 +136,11 @@ async function syncSdk(language, config) {
     const frontmatter = generateFrontmatter(config);
     const mdxContent = frontmatter + processedContent;
 
-    // Ensure directory exists
     const outputDir = path.dirname(`${currentDir}/../${config.outputPath}`);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    // Write MDX file
     const outputFile = `${currentDir}/../${config.outputPath}`;
     fs.writeFileSync(outputFile, mdxContent, "utf8");
 
@@ -191,9 +152,6 @@ async function syncSdk(language, config) {
   }
 }
 
-/**
- * Main function
- */
 async function main() {
   console.log("Syncing SDK documentation from GitHub...\n");
 

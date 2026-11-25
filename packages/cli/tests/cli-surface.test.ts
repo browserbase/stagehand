@@ -75,7 +75,6 @@ describe("CLI surface", () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("Start here (for AI agents):");
       expect(result.stdout).toContain("browse skills show");
-      // The header must appear before the auto-generated sections.
       expect(result.stdout.indexOf("Start here (for AI agents):")).toBeLessThan(
         result.stdout.indexOf("USAGE"),
       );

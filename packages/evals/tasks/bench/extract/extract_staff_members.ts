@@ -58,7 +58,6 @@ export default defineBenchTask(
         };
       }
 
-      // Check for the presence of the expected items
       const firstItemExists = staff_members.some(
         (member) =>
           member.name === expectedFirstItem.name &&

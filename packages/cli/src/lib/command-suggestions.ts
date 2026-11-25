@@ -10,11 +10,6 @@
 
 import { distance } from "fastest-levenshtein";
 
-/**
- * Old Commander-era syntax (and common agent guesses) mapped to the current
- * command tree. Keys and values are colon-separated oclif ids; values may
- * also be topics (e.g. `cloud:contexts`, which prints topic help).
- */
 export const aliasSuggestions: ReadonlyMap<string, string> = new Map([
   ["sessions", "cloud:sessions:list"],
   ["sessions:list", "cloud:sessions:list"],
@@ -35,17 +30,10 @@ const maxCommandTokens = 4;
 const maxSuggestionDistance = 5;
 
 export interface CommandSuggestion {
-  /** Sanitized colon-separated tokens treated as the attempted command. */
   attempted: string;
-  /** Colon-separated suggested command or topic, when a decent match exists. */
   suggestion: string | null;
 }
 
-/**
- * Extracts the leading command-shaped tokens from an attempted id, stopping
- * at the first token that does not look like a command word (URLs, selectors,
- * flags, and other argument-like values).
- */
 export function extractCommandTokens(id: string): string[] {
   const tokens: string[] = [];
   for (const token of id.split(":")) {
@@ -61,14 +49,6 @@ function tokenThreshold(token: string): number {
   return Math.max(2, Math.floor(token.length / 3));
 }
 
-/**
- * Segment-aligned fuzzy distance between a token prefix and a command id.
- * Only command ids with the same number of segments are considered, and every
- * token must be within its own edit-distance threshold of the corresponding
- * segment. This means a trailing token can only ever be retained in the
- * attempted command when it itself looks like a typo of a real command
- * segment — free-form user values can never ride along.
- */
 function prefixDistance(tokens: readonly string[], commandId: string): number | null {
   const segments = commandId.split(":");
   if (segments.length !== tokens.length) {
@@ -88,13 +68,6 @@ function prefixDistance(tokens: readonly string[], commandId: string): number | 
   return total > maxSuggestionDistance ? null : total;
 }
 
-/**
- * Computes a suggestion for an unknown command id. Explicit aliases win over
- * fuzzy matches, and longer token prefixes win over shorter ones so that
- * `auth status` resolves before `auth`. Returns only the matched prefix as
- * `attempted` (or the first token when nothing matches) so user-provided
- * values never escape into messaging or telemetry.
- */
 export function suggestCommand(id: string, commandIds: readonly string[]): CommandSuggestion {
   const tokens = extractCommandTokens(id);
   if (tokens.length === 0) {

@@ -115,8 +115,6 @@ export const FACADE_BUNDLE_VERSION = 7;
  *   (see canonicalJson).
  */
 export function facadeBundle(packageVersion: string) {
-  // A frozen copy: callers can't change the sources, caps or wording that the
-  // module's own hosts keep using.
   const content = deepFreeze(
     structuredClone({
       sources: {

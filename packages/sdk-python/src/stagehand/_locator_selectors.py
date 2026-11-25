@@ -60,8 +60,6 @@ def _frame_selectors(raw: str) -> list[str]:
     if not selector.startswith(("xpath=", "/")):
         return [selector]
 
-    # Match the generated-path tokenizer used by the legacy extension resolver,
-    # including its handling of slash literals and lowercase routing prefixes.
     path = selector.removeprefix("xpath=").strip()
     if not path.startswith("/"):
         path = "/" + path

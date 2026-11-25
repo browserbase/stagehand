@@ -30,17 +30,14 @@ describe("Page.hover() - mouse hover at coordinates", () => {
         ),
     );
 
-    // Check initial state
     let hovered = await page.evaluate(() => {
       const el = document.getElementById("target");
       return el?.dataset.hovered === "true";
     });
     expect(hovered).toBe(false);
 
-    // Hover at coordinates within the target element (200, 200 is center of the div)
     await page.hover(200, 200);
 
-    // Verify mouseover was triggered
     hovered = await page.evaluate(() => {
       const el = document.getElementById("target");
       return el?.dataset.hovered === "true";
@@ -65,10 +62,8 @@ describe("Page.hover() - mouse hover at coordinates", () => {
         ),
     );
 
-    // Hover over the button
     await page.hover(200, 150);
 
-    // Check that hover happened but click did not
     const state = await page.evaluate(() => {
       const btn = document.getElementById("btn");
       return {
@@ -109,22 +104,19 @@ describe("Page.hover() - mouse hover at coordinates", () => {
         ),
     );
 
-    // Get initial background color
     let bgColor = await page.evaluate(() => {
       const el = document.getElementById("hoverable");
       return getComputedStyle(el!).backgroundColor;
     });
-    expect(bgColor).toBe("rgb(255, 0, 0)"); // red
+    expect(bgColor).toBe("rgb(255, 0, 0)");
 
-    // Hover over the element
     await page.hover(200, 200);
 
-    // Check that CSS :hover state is applied
     bgColor = await page.evaluate(() => {
       const el = document.getElementById("hoverable");
       return getComputedStyle(el!).backgroundColor;
     });
-    expect(bgColor).toBe("rgb(0, 128, 0)"); // green
+    expect(bgColor).toBe("rgb(0, 128, 0)");
   });
 
   it("multiple hovers move the mouse correctly", async () => {
@@ -150,7 +142,6 @@ describe("Page.hover() - mouse hover at coordinates", () => {
         ),
     );
 
-    // Hover over box1
     await page.hover(50, 50);
 
     let state = await page.evaluate(() => ({
@@ -161,7 +152,6 @@ describe("Page.hover() - mouse hover at coordinates", () => {
     expect(state.box1).toBe(true);
     expect(state.box2).toBe(false);
 
-    // Move hover to box2
     await page.hover(250, 50);
 
     state = await page.evaluate(() => ({

@@ -1,11 +1,3 @@
-/**
- * Effective judge model for the rubric verifier.
- *
- * Dependency-free so the CLI header can print the judge without loading the
- * evaluator. `verifierAdapter.ts` consumes the same resolution, so the CLI
- * never reports a judge the run did not use.
- */
-
 export const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 
 /**

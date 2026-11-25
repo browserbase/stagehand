@@ -56,7 +56,6 @@ export interface ClaudeCuaRunnerInput {
   toolAdapter: PreparedClaudeCuaToolAdapter;
   signal?: AbortSignal;
   verifier?: ExternalHarnessVerifierConfig;
-  /** Scripted Messages client for tests. */
   client?: CuaMessagesClient;
 }
 
@@ -71,11 +70,6 @@ export function buildClaudeCuaPrompt(
   });
 }
 
-/**
- * The Browser Use toolset is an Anthropic tool surface, so a non-Anthropic
- * provider is rejected. Claude models outside the public allowlist only warn:
- * new checkpoints land faster than this list is updated.
- */
 export function assertClaudeCuaModel(model: string, logger?: Pick<EvalLogger, "warn">): void {
   const provider = model.includes("/") ? model.slice(0, model.indexOf("/")) : undefined;
   const bare = provider ? model.slice(provider.length + 1) : model;
@@ -93,11 +87,6 @@ export function assertClaudeCuaModel(model: string, logger?: Pick<EvalLogger, "w
   }
 }
 
-/**
- * Thinking is on (adaptive) unless EVAL_CLAUDE_CUA_THINKING=off.
- * EVAL_CLAUDE_CUA_THINKING_EFFORT sets output_config.effort;
- * EVAL_CLAUDE_CUA_THINKING_BUDGET switches to budget_tokens for pre-4.6 models.
- */
 export function resolveClaudeCuaThinking(env: NodeJS.ProcessEnv = process.env): CuaThinkingConfig {
   if ((env.EVAL_CLAUDE_CUA_THINKING ?? "").trim().toLowerCase() === "off") {
     return { type: "disabled" };
@@ -117,8 +106,6 @@ export function resolveClaudeCuaThinking(env: NodeJS.ProcessEnv = process.env): 
 export async function runClaudeCuaAgent(input: ClaudeCuaRunnerInput): Promise<TaskResult> {
   const { plan, model, logger, toolAdapter, signal, verifier, client } = input;
   assertClaudeCuaModel(model, logger);
-  // One turn is one API round trip and may hold several tool members; the
-  // shared tool-step budget is a mild over-allowance, as for claude_code / pi.
   const maxTurns = resolveStepBudget({
     harnessEnvKey: "EVAL_CLAUDE_CUA_MAX_TURNS",
     dataset: plan.dataset,

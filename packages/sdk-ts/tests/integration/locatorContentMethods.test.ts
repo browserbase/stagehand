@@ -30,7 +30,6 @@ describe("Locator content methods (textContent, innerHtml, innerText, inputValue
     );
 
     const content = await page.locator("#content").textContent();
-    // textContent includes all text nodes, even hidden ones
     expect(content).toContain("Hello");
     expect(content).toContain("Hidden");
     expect(content).toContain("World");
@@ -53,7 +52,6 @@ describe("Locator content methods (textContent, innerHtml, innerText, inputValue
     );
 
     const text = await page.locator("#content").innerText();
-    // innerText is layout-aware and excludes hidden elements
     expect(text).toContain("Visible");
     expect(text).toContain("Text");
     expect(text).not.toContain("Hidden");
@@ -207,13 +205,11 @@ text</textarea>
     );
 
     const textContent = await page.locator("#mixed").textContent();
-    // textContent includes script content
     expect(textContent).toContain("Visible text");
     expect(textContent).toContain("More visible");
     expect(textContent).toContain("console.log");
 
     const innerText = await page.locator("#mixed").innerText();
-    // innerText excludes script/style
     expect(innerText).toContain("Visible text");
     expect(innerText).toContain("More visible");
     expect(innerText).not.toContain("console.log");

@@ -13,12 +13,6 @@ import { facadeAgentSession } from "./facade.ts";
 const stderr = (line: { message: string }) => console.error(line.message);
 const logger: HarnessLogger = { log: () => {}, warn: stderr, error: stderr };
 
-/**
- * The text to print for a completed run. Any other status (step cap, SDK or
- * discovery error) throws with the status, stop reason and last agent text, so
- * the CLI exits non-zero. The adapter already redacts known key formats from
- * finalText and stopReason.
- */
 export function reportMastraResult(
   result: Pick<MastraSessionResult, "status" | "stopReason" | "finalText" | "iterationError">,
 ): string {
@@ -40,7 +34,6 @@ async function main(): Promise<void> {
   const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
   if (!instruction) throw new Error('Usage: pnpm start "your instruction"');
 
-  // Bare model ids are routed to OpenAI; `provider/model` ids pick another provider.
   const result = await runMastraSession({
     prompt: instruction,
     model: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna",

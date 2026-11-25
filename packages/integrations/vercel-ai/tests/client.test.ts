@@ -15,9 +15,6 @@ describe("Stagehand facade MCP client", () => {
     delete process.env.NOT_ALLOWLISTED_SECRET;
   });
 
-  // The contract itself (tool names, descriptions, schemas) is pinned by
-  // core's facade tests; this test covers only what is unique to this
-  // example — the host-env allowlist actually reaching the spawned server.
   it("forwards allowlisted host env vars and nothing else", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
     process.env.NOT_ALLOWLISTED_SECRET = "must-not-cross";
@@ -37,9 +34,6 @@ describe("Stagehand facade MCP client", () => {
       isError?: boolean;
     };
 
-    // The server saw STAGEHAND_BROWSER=invalid from the host environment via
-    // the allowlist filter — proving the filter path runs (an options.env
-    // injection would bypass it).
     expect(result.isError).toBe(true);
     expect(result.content).toEqual(
       expect.arrayContaining([

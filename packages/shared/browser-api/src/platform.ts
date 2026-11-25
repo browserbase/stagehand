@@ -1,6 +1,5 @@
 import type { InputFilePayload } from "@browserbasehq/stagehand-protocol/types";
 
-/** Host capabilities for the browser API: filesystem access, byte encoding, and warnings. */
 export interface BrowserApiPlatform {
   readInputFile(path: string): Promise<InputFilePayload>;
   readTextFile(path: string, caller: string): Promise<string>;
@@ -10,7 +9,6 @@ export interface BrowserApiPlatform {
   utf8ByteLengthExceeds(value: string, limit: number): boolean;
 }
 
-/** Browser implementation and default for command clients without filesystem access. */
 export const browserPlatform: BrowserApiPlatform = {
   async readInputFile() {
     throw new TypeError(

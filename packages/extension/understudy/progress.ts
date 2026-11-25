@@ -2,14 +2,12 @@ import { TimeoutError } from "../errors.js";
 
 type ProgressOptions = {
   name: string;
-  /** Milliseconds for the whole operation. Zero disables the deadline. */
   timeout: number;
 };
 
 const MAX_TIMER_MS = 2_147_483_647;
 const CLEANUP_TIMEOUT_MS = 1_000;
 
-/** One call's deadline and cancellation state, shared by all downstream steps. */
 export class Progress {
   private readonly controller = new AbortController();
   private readonly deadline: number | null;
@@ -36,16 +34,10 @@ export class Progress {
   }
 
   throwIfStopped(): void {
-    // Check the clock too: the deadline timer may not have run yet.
     this.expireIfNeeded();
     this.signal.throwIfAborted();
   }
 
-  /**
-   * Start work only while active, and stop waiting at the shared deadline.
-   * onLateResult releases a resource that could not be delivered to the caller.
-   * Resources delivered successfully remain the caller's responsibility.
-   */
   async run<T>(
     phase: string,
     work: () => Promise<T>,
@@ -66,7 +58,6 @@ export class Progress {
         onAbort = () => reject(this.signal.reason);
         this.signal.addEventListener("abort", onAbort, { once: true });
       });
-      // Observe rejection before invoking work, including synchronous throws.
       const pending = Promise.resolve()
         .then(() => {
           this.throwIfStopped();
@@ -82,7 +73,6 @@ export class Progress {
       return value;
     } catch (error) {
       abandoned = true;
-      // The result may have arrived just before expiry, but not been delivered.
       if (result) discard(result.value);
       this.throwIfStopped();
       throw error;
@@ -92,7 +82,6 @@ export class Progress {
     }
   }
 
-  /** Sleep within the operation's budget and remove the sleep timer on expiry. */
   async delay(ms: number): Promise<void> {
     if (!Number.isFinite(ms) || ms < 0) {
       throw new RangeError("Delay must be a finite, non-negative number");
@@ -115,10 +104,6 @@ export class Progress {
     }
   }
 
-  /**
-   * Attempt cleanup even after expiry, waiting at most one second.
-   * Failures are best-effort; issued cleanup commands may still finish later.
-   */
   async cleanup(work: () => void | Promise<unknown>): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -129,13 +114,11 @@ export class Progress {
         }),
       ]);
     } catch {
-      // Cleanup must not replace the action's result or timeout error.
     } finally {
       clearTimeout(timer);
     }
   }
 
-  /** Only the runner that created this context owns its timer. */
   dispose(): void {
     clearTimeout(this.timer);
     this.timer = undefined;
@@ -152,7 +135,6 @@ export class Progress {
   }
 
   private scheduleDeadline(): void {
-    // Long timeouts need several timer intervals; never truncate the deadline.
     this.timer = setTimeout(
       () => {
         this.expireIfNeeded();
@@ -163,10 +145,6 @@ export class Progress {
   }
 }
 
-/**
- * Own a new operation, or reuse a parent's context without resetting its clock.
- * Expiry stops waiting; work must check the context before continuing its steps.
- */
 export async function runWithProgress<T>(
   options: ProgressOptions | Progress,
   work: (progress: Progress) => Promise<T>,
@@ -182,7 +160,6 @@ export async function runWithProgress<T>(
   }
 }
 
-/** Temporary adapter for resolution callers that do not yet supply progress. */
 export function runLocatorStep<T>(
   progress: Progress | undefined,
   phase: string,

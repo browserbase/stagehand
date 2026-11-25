@@ -127,7 +127,6 @@ export type DomainPolicyCdpEvent = {
   };
 };
 
-/** Observe network/preload completion without installing any Fetch interception. */
 export async function observeDomainPolicyRequests(stagehand: Stagehand, page: Page) {
   const signal = AbortSignal.timeout(10_000);
   const url = await resolveBrowserWebSocketUrl(stagehand.browser.cdpUrl!, { signal });

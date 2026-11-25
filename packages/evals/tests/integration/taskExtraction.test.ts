@@ -8,9 +8,6 @@ import { createServer, type Server } from "node:http";
 import { Stagehand, localBrowser, type ClientLLM } from "@browserbasehq/stagehand";
 import { writeObservationTask } from "../../tasks/record.js";
 
-// Historical bug: https://github.com/browserbase/stagehand/pull/2624
-// Exercise real SDK -> extension -> snapshot -> model -> result, substituting
-// only model generation so this transport regression requires no API keys.
 const schema = z.object({ company_name: z.string(), employee_count: z.number() });
 let directory: string;
 let server: Server;
@@ -77,8 +74,6 @@ describe.sequential("recorded extraction regression", () => {
               structuredContent: { progress: "Extracted both fields", completed: true },
             };
           modelCalls++;
-          // This is the exact invariant broken by #2624. Check the schema that
-          // actually reaches the model, not the original SDK argument.
           expect(
             format.schema,
             `Schema received by model: ${JSON.stringify(format.schema)}`,
@@ -94,8 +89,6 @@ describe.sequential("recorded extraction regression", () => {
                 .map((content) => content.text),
             )
             .join("\n");
-          // Read values from Stagehand's browser observation, rather than returning
-          // canned success independent of the page. Node IDs are session-local.
           const company = prompt.match(/Acme Labs/);
           const employees = prompt.match(/\b42\b/);
           expect(company).not.toBeNull();

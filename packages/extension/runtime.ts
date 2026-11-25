@@ -352,12 +352,10 @@ export class StagehandRuntime {
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private browserSessionCdpUrl?: string;
-  // Retain disconnected sessions until cleanup succeeds; undefined permits a retry.
   private readonly pendingBrowserSessionCleanup = new Map<
     StagehandBrowserSession,
     Promise<void> | undefined
   >();
-  /** Bumped whenever B is replaced or dropped; a connect that finishes late checks it. */
   private browserConnectionGeneration = 0;
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
@@ -397,7 +395,6 @@ export class StagehandRuntime {
 
     const session = await this.adapters.browserSessionFactory(cdpUrl, this.logger, bootstrapLogger);
     if (generation !== this.browserConnectionGeneration) {
-      // Late connections also need a retained cleanup handle if close rejects.
       await this.cleanupSession(session);
       throw new Error("Stagehand browser connection was dropped while connecting");
     }
@@ -405,12 +402,7 @@ export class StagehandRuntime {
     this.browserSessionCdpUrl = cdpUrl;
   }
 
-  /**
-   * Closes the runtime's own browser connection immediately, outside the lifecycle
-   * queue: a lost client must not wait behind lifecycle work that needs that client.
-   */
   async disconnectBrowser(): Promise<void> {
-    // Invalidates a connection still being opened, so it closes instead of being installed.
     this.browserConnectionGeneration += 1;
     if (this.browserSession && !this.pendingBrowserSessionCleanup.has(this.browserSession)) {
       this.pendingBrowserSessionCleanup.set(this.browserSession, undefined);
@@ -1100,7 +1092,6 @@ export class StagehandRuntime {
     await this.enqueueLifecycle(async () => {
       this.clearStagehandInstance();
       await this.disconnectBrowser();
-      // A queued instance disposal still owns request admission.
       if (!this.stagehandInstanceDisposal) this.stagehandInstanceClosing = false;
     });
   }
@@ -1110,10 +1101,8 @@ export class StagehandRuntime {
 
     this.stagehandInstanceClosing = true;
     const disposal = this.enqueueLifecycle(async () => {
-      // Pending registrations must release their request leases before disposal can drain them.
       this.disposeAllPageEventSubscriptions();
       await this.waitForStagehandInstanceRequests();
-      // The browser connection can outlive the instance, but its policy must not.
       const session = this.browserSession;
       if (session?.getDomainPolicy()) await session.setDomainPolicy(null);
       await this.runPendingSessionCleanup();
@@ -1121,8 +1110,6 @@ export class StagehandRuntime {
       this.stagehandInstanceClosing = false;
     });
     this.stagehandInstanceDisposal = disposal.finally(() => {
-      // Failed disposal has already removed subscriptions. Keep requests closed,
-      // but release the promise so cleanup can be retried.
       this.stagehandInstanceDisposal = undefined;
     });
     return await this.stagehandInstanceDisposal;

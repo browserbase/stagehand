@@ -8,9 +8,6 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
-// A shadow root anywhere in the document routes XPath through the composed-tree parser
-// instead of document.evaluate(), and that parser is only reachable over http: data: URLs
-// keep the native engine, so these cases have to be served to exercise it at all.
 const FIXTURE = `<!doctype html>
 <html>
   <body>
@@ -44,7 +41,6 @@ describe("XPath text() predicates with a shadow root in the document", () => {
     const page = await firstPage(stagehand);
     await page.goto(fixtureServer.url, { waitUntil: "load" });
 
-    // #wrapped holds its label in a <span>, so it has no direct text child to match.
     await expect.poll(() => page.locator("xpath=//button[text()='Save']").count()).toBe(1);
     await expect(page.locator("xpath=//button[text()='Save']").innerHtml()).resolves.toBe("Save");
 

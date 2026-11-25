@@ -32,10 +32,6 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-// Compiles the `build:local-only` TypeScript program into a throwaway outDir and
-// asserts the artifact contains no Browserbase API-key code. This is the
-// security contract of the local-only (CDP-only) build: if a future change
-// reintroduces a key code path into a non-excluded module, this test fails.
 describe("local-only build", () => {
   let outDir: string;
   let jsFiles: string[];

@@ -1,8 +1,3 @@
-/**
- * eveAdapter — converts Eve's streamed session events into verifier tool
- * calls. Tool requests retain their inputs by callId; results, reasoning,
- * usage, images, and page observations are folded in when their events arrive.
- */
 import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
@@ -87,8 +82,6 @@ export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
         const normalized = normalizeOutput(actionResult.output);
         const stepIndex = finiteIndex(data?.stepIndex) ?? request?.stepIndex;
         const stepReasoning = stepIndex !== undefined ? reasoningByStep.get(stepIndex) : undefined;
-        // The first tool call of a step carries the step's reasoning; sibling
-        // calls from the same step were chosen by that same reasoning.
         if (stepIndex !== undefined) reasoningByStep.delete(stepIndex);
         const reasoning = stepReasoning ?? pendingReasoning;
         toolCalls.push({
@@ -106,8 +99,6 @@ export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
       }
       if (event.type === "message.completed" && typeof data?.message === "string") {
         pendingReasoning = "";
-        // Narration before a tool call (finishReason "tool-calls") is not the
-        // agent's conclusion; only a terminal reply can stand in as the answer.
         if (data.finishReason !== "tool-calls") latestAgentMessage = data.message;
         continue;
       }

@@ -103,7 +103,6 @@ ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
-# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
 _UNSET_ARG = object()
 
 

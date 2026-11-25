@@ -1,41 +1,16 @@
 import type { Locator, LocatorInput } from "@browserbasehq/stagehand-protocol/types";
 
-/**
- * Options that control how hybrid snapshots and targeted scopes are captured.
- */
 export type SnapshotOptions = {
-  /**
-   * Filter the snapshot to a specific element/subtree using a locator that can cross iframes.
-   * Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
-   */
   focusLocator?: LocatorInput;
-  /**
-   * Exclude matching elements and their descendants from the captured snapshot.
-   * Each locator may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
-   */
   ignoreLocators?: LocatorInput[];
-  /**
-   * Pierce shadow DOM when calling DOM.getDocument. Defaults to true to retain the
-   * existing behaviour.
-   */
   pierceShadow?: boolean;
-  /**
-   * Toggle whether iframe subtrees are included in the merged snapshot. Defaults to true.
-   */
   includeIframes?: boolean;
 };
 
-/**
- * Hybrid snapshot payload consumed by act/extract/observe handlers.
- */
 export type HybridSnapshot = {
-  /** Merged outline across every frame. */
   combinedTree: string;
-  /** EncodedId (frameOrdinal-backendNodeId) -> absolute XPath. */
   combinedXpathMap: Record<string, string>;
-  /** EncodedId -> URL extracted from AX properties. */
   combinedUrlMap: Record<string, string>;
-  /** Per-frame payloads expose the original relative data for debugging. */
   perFrame?: PerFrameSnapshot[];
 };
 
@@ -46,10 +21,6 @@ export type PerFrameSnapshot = {
   urlMap: Record<string, string>;
 };
 
-/**
- * Compact encoding of DOM data for an entire session. Shared between capture
- * and focus helpers so DOM traversal can be unit tested in isolation.
- */
 export type SessionDomIndex = {
   rootBackend: number;
   absByBe: Map<number, string>;
@@ -123,12 +94,6 @@ export type AccessibilityTreeResult = {
 
 export type FrameParentIndex = Map<string, string | null>;
 
-/**
- * Shared frame metadata that every snapshot step needs.
- * - `rootId`: stable identifier for the main frame so we can detect root prefixes.
- * - `parentByFrame`: lookup table for iframe parentage (used by focus scoping and prefixing).
- * - `frames`: DFS-ordered frame ids so merging walks parents before children.
- */
 export type FrameContext = {
   rootId: string;
   parentByFrame: FrameParentIndex;

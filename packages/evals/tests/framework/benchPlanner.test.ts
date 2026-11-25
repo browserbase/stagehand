@@ -324,8 +324,6 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.name).toBe("agent/webtailbench");
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webtailbench");
-    // task_category must carry the dataset row's fine-grained category
-    // (e.g. hotels_head / flights), not collapse to the directory category.
     const rowCategory = testcases[0].input.params?.category as string;
     expect(rowCategory).toBeTruthy();
     expect(testcases[0].metadata.task_category).toBe(rowCategory);

@@ -15,12 +15,6 @@ import { IFRAME_STEP_RE, parseXPathToSteps, buildXPathFromSteps } from "../../se
 
 export { IFRAME_STEP_RE, parseXPathToSteps, buildXPathFromSteps } from "../../selectorQuery.js";
 
-/**
- * Given a cross-frame XPath, walk iframe steps to resolve:
- * - the target frameId (last iframe hop)
- * - the tail XPath (within the target frame)
- * - the absolute XPath prefix up to the iframe element hosting that frame
- */
 export async function resolveFocusFrameAndTail(
   page: Page,
   absoluteXPath: string,
@@ -101,7 +95,6 @@ export async function resolveFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailXPath, absPrefix };
 }
 
-/** Resolve focus frame and tail CSS selector using '>>' to hop iframes. */
 export async function resolveCssFocusFrameAndTail(
   page: Page,
   rawSelector: string,
@@ -168,7 +161,6 @@ function iframeResolutionError(frameUrl: string, message: string): Error {
   );
 }
 
-/** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
 export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
@@ -183,7 +175,6 @@ export async function resolveObjectIdForXPath(
   return resolveObjectId(session, expression, frameId, progress);
 }
 
-/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
 export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
@@ -205,8 +196,6 @@ async function resolveObjectId(
   progress?: Progress,
 ): Promise<string | null> {
   progress?.throwIfStopped();
-  // Scope can fall back to the full tree; unresolved exclusions can be skipped.
-  // Avoid repeated readiness attempts, but still honor the caller's deadline.
   const contextId = frameId
     ? (
         await executionContexts.waitForLocatorWorld(session, frameId, 800, progress, {
@@ -236,7 +225,6 @@ async function resolveObjectId(
   return response.result?.objectId ?? null;
 }
 
-/** Release snapshot references even after expiry, without replacing the read error. */
 export async function releaseSnapshotObject(
   session: CDPSessionLike,
   objectId: string | undefined,

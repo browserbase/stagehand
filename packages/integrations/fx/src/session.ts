@@ -78,7 +78,6 @@ export type FxEvent =
   | { type: "turn_committed"; terminal_reason?: string; turn_kind?: string };
 
 export type FxTokenUsage = {
-  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
   reported?: boolean;
   input_tokens: number;
   cached_input_tokens: number;
@@ -134,13 +133,11 @@ export type FxSessionStore = {
    * events.jsonl once the turn completes (the file is removed on commit).
    */
   readRecoveryCheckpoint?(sessionDir: string): Promise<Record<string, unknown> | undefined>;
-  /** Read a `tool-results/` artifact referenced by a tool result, capped at maxBytes. */
   readToolResultArtifact?(
     sessionDir: string,
     ref: string,
     maxBytes: number,
   ): Promise<string | undefined>;
-  /** Merge session defaults into `$HOME/.fx/settings.json` so session.json records them. */
   mergeSettings?(home: string, patch: Record<string, unknown>): Promise<void>;
 };
 
@@ -182,7 +179,6 @@ export const FX_REASONING_EFFORTS = [
 
 export type FxReasoningEffort = (typeof FX_REASONING_EFFORTS)[number];
 
-/** Validate a requested fx reasoning effort; empty/undefined means fx's default. */
 export function parseFxReasoningEffort(
   raw: string | undefined,
   source = "fx reasoning effort",
@@ -195,9 +191,7 @@ export function parseFxReasoningEffort(
   throw new HarnessAdapterError(`${source} must be one of ${FX_REASONING_EFFORTS.join(", ")}.`);
 }
 
-/** Largest tool-result artifact inlined into a step; larger outputs are clipped. */
 export const FX_TOOL_RESULT_MAX_BYTES = 512 * 1024;
-// Screenshots need more room than text output; keep the artifact read bounded.
 const FX_IMAGE_RESULT_MAX_BYTES = 20 * 1024 * 1024;
 
 const liveFxChildren = new Set<ChildProcess>();
@@ -218,15 +212,11 @@ export function createFxProcessRunner(
       try {
         killProcess(-child.pid, signal);
         return;
-      } catch {
-        // Fall back to the direct child if the process group is already gone.
-      }
+      } catch {}
     }
     try {
       child.kill(signal);
-    } catch {
-      // The child may have exited between the abort check and the signal.
-    }
+    } catch {}
   };
 
   const terminateChild = (
@@ -396,12 +386,10 @@ const defaultSessionStore: FxSessionStore = {
       const parsed: unknown = JSON.parse(text);
       return isRecord(parsed) ? parsed : undefined;
     } catch {
-      // Missing (turn committed) or caught mid-rewrite; the next poll retries.
       return undefined;
     }
   },
   async readToolResultArtifact(sessionDir, ref, maxBytes) {
-    // Artifact refs are bare file names; never follow one out of tool-results/.
     if (!ref || ref !== path.basename(ref)) return undefined;
     let file: fsp.FileHandle | undefined;
     try {
@@ -423,9 +411,7 @@ const defaultSessionStore: FxSessionStore = {
     try {
       const parsed: unknown = JSON.parse(await fsp.readFile(settingsPath, "utf8"));
       if (isRecord(parsed)) current = parsed;
-    } catch {
-      // No settings yet.
-    }
+    } catch {}
     await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
     await fsp.writeFile(settingsPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`);
   },
@@ -439,7 +425,6 @@ export async function runFxSession(input: {
   home: string;
   env: Record<string, string>;
   permissionMode?: "auto" | "yolo";
-  /** Passed as `fx ask --effort`; undefined leaves fx's per-model default. */
   reasoningEffort?: FxReasoningEffort;
   maxAgentSteps?: number;
   signal?: AbortSignal;
@@ -527,9 +512,7 @@ export async function runFxSession(input: {
         observedToolCallKeys.push(key);
         try {
           await input.onToolStep(call);
-        } catch {
-          // Live observation is best-effort and must never fail an fx run.
-        }
+        } catch {}
       }
     }
   };
@@ -560,8 +543,6 @@ export async function runFxSession(input: {
     if (!sessionDir || !store.readRecoveryCheckpoint) return [];
     const recovery = await store.readRecoveryCheckpoint(sessionDir).catch(() => undefined);
     const steps = extractFxRecoverySteps(recovery);
-    // recovery.json disappears when the turn commits; keep the last one seen
-    // so a run killed mid-turn still reports the steps it took.
     if (steps.length >= lastRecoverySteps.length && steps.length > 0) lastRecoverySteps = steps;
     return steps;
   };
@@ -749,9 +730,7 @@ export function parseFxEventsJsonl(text: string): FxLogEvent[] {
     try {
       const parsed: unknown = JSON.parse(line);
       if (isRecord(parsed)) events.push(parsed as FxLogEvent);
-    } catch {
-      // A partially written final line is normal while tailing events.jsonl.
-    }
+    } catch {}
   }
   return events;
 }
@@ -843,7 +822,6 @@ function extractFxStreamToolSteps(events: FxLogEvent[]): FxToolStep[] {
   return steps;
 }
 
-/** The last assistant message of the stream that no tool call followed: the turn's conclusion. */
 export function extractFxFinalAssistant(events: FxLogEvent[]): string | undefined {
   let final: string | undefined;
   for (const event of events) {
@@ -862,7 +840,6 @@ function hasFxTurnCompleted(events: FxLogEvent[]): boolean {
   return events.some((event) => fxStreamPayload(event)?.type === "turn_completed");
 }
 
-/** Tool steps of the in-flight turn from fx >= 0.0.11 `recovery.json`. */
 export function extractFxRecoverySteps(
   recovery: Record<string, unknown> | undefined,
 ): FxToolStep[] {
@@ -907,7 +884,6 @@ export async function hydrateFxToolResults(
   );
 }
 
-/** Fill the data-less image placeholders of an MCP result with the stored image blocks. */
 function mergeFxImageBlocks(output: string, imagesText: string | undefined): string {
   if (!imagesText) return output;
   let images: unknown;
