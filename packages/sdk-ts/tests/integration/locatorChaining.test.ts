@@ -136,6 +136,61 @@ describe("public locator chaining", () => {
     expect(screenshot.length).toBeGreaterThan(0);
   });
 
+  it("filters original matches before actions & respects positions and document boundaries", async () => {
+    const page = await firstPage(stagehand);
+    const cards = page.locator(".card");
+    const filtered = cards.filter({ hasText: " b ", hasNotText: "A" });
+    expect(await filtered.count()).toBe(1);
+    expect(await filtered.locator("button").count()).toBe(2);
+    expect(await cards.filter({ hasText: "B", hasNotText: "C" }).count()).toBe(0);
+    expect(await cards.nth(1).filter({ hasText: "B" }).count()).toBe(1);
+    expect(await cards.filter({ hasText: "B" }).nth(1).count()).toBe(0);
+    expect(await cards.filter().count()).toBe(2);
+    expect(await cards.filter({ hasText: "" }).count()).toBe(2);
+    expect(await cards.filter({ hasNotText: "" }).count()).toBe(0);
+    await page.evaluate(() => {
+      const button = document.querySelectorAll<HTMLButtonElement>(".card button")[2]!;
+      button.onclick = () => {
+        button.dataset.filtered = "yes";
+      };
+    });
+    await filtered.getByRole("button").filter({ hasNotText: "B" }).click({ timeout: 5000 });
+    expect(await page.locator("button[data-filtered=yes]").textContent()).toBe("C");
+    await page.evaluate(() => {
+      document.querySelectorAll(".card button")[1]!.textContent = "Draft";
+    });
+    try {
+      expect(await filtered.count()).toBe(0);
+    } finally {
+      await page.evaluate(() => {
+        document.querySelectorAll(".card button")[1]!.textContent = "B";
+      });
+    }
+
+    const frame = page.locator("#checkout");
+    expect(await frame.filter({ hasText: "Save target" }).count()).toBe(0);
+    const scope = frame.filter({ hasNotText: "Save target" }).locator("#scope");
+    expect(
+      await scope.filter({ hasText: "SAVE\u200b\u00ad \n target" }).locator("button").count(),
+    ).toBe(2);
+    const hosts = frame.locator("#open, #closed").filter({ hasText: "Shadow" });
+    expect(await hosts.count()).toBe(2);
+    expect(await hosts.locator("button").count()).toBe(2);
+    expect(await hosts.filter({ hasNotText: "open" }).locator("button").textContent()).toBe(
+      "Shadow closed",
+    );
+    expect(
+      await page
+        .locator("#nested")
+        .filter({})
+        .locator("iframe")
+        .filter({ hasNotText: "Save" })
+        .locator("button")
+        .filter({ hasText: "Save target" })
+        .count(),
+    ).toBe(1);
+  });
+
   it("exposes role locators for actions, positions, frames, shadows & masks", async () => {
     const page = await firstPage(stagehand);
     expect(await page.getByRole("button").count()).toBe(4);

@@ -87,7 +87,8 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations(
 
     child = """<section id="scope">
         <button onclick="this.dataset.clicked='yes'"><span>Save target</span></button>
-        <button class="omit">Excluded choice</button></section><button>Outside child</button>
+        <button class="omit" onclick="this.dataset.filtered='yes'">Excluded choice</button>
+        </section><button>Outside child</button>
         <div id="open"></div><div id="closed"></div><script>
           for (const mode of ['open', 'closed']) {
             document.getElementById(mode).attachShadow({mode}).innerHTML =
@@ -112,6 +113,36 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations(
             scope = page.locator("iframe").locator("#scope")
             buttons = scope.locator("button")
             assert await buttons.count() == 2
+            filtered = buttons.filter(has_text=" CHOICE ", has_not_text="Save")
+            assert await filtered.count() == 1
+            assert await buttons.nth(0).filter(has_not_text="Save").count() == 0
+            assert (
+                await buttons.filter(has_not_text="Save").nth(0).text_content() == "Excluded choice"
+            )
+            assert await buttons.filter().count() == 2
+            assert await buttons.filter(has_text="").count() == 2
+            assert await buttons.filter(has_not_text="").count() == 0
+            await filtered.click(timeout=5000)
+            assert (
+                await scope.locator("button[data-filtered=yes]").text_content() == "Excluded choice"
+            )
+            assert await scope.filter(has_text="Save target").locator("button").count() == 2
+            assert await page.locator("iframe").filter(has_text="Save target").count() == 0
+            assert (
+                await page
+                .locator("iframe")
+                .filter(has_not_text="Save target")
+                .locator("#scope")
+                .count()
+                == 1
+            )
+            hosts = page.locator("iframe").locator("#open, #closed").filter(has_text="Shadow")
+            assert await hosts.count() == 2
+            assert await hosts.locator("button").count() == 2
+            assert (
+                await hosts.filter(has_not_text="open").locator("button").text_content()
+                == "Shadow closed"
+            )
             assert await page.get_by_role("button", name="Save target").count() == 0
             roles = page.locator("iframe").get_by_role("button", name="Save target", exact=True)
             assert await roles.count() == 1
