@@ -946,9 +946,14 @@ describe("iframe chain resolution in Chrome", () => {
         expression: `(() => {
         const Original = MutationObserver;
         globalThis.__roleObservers = new Set();
+        globalThis.__roleObserveCalls = 0;
         globalThis.__restoreObserver = () => { globalThis.MutationObserver = Original; };
         globalThis.MutationObserver = class extends Original {
-          observe(...args) { globalThis.__roleObservers.add(this); return super.observe(...args); }
+          observe(...args) {
+            globalThis.__roleObserveCalls++;
+            globalThis.__roleObservers.add(this);
+            return super.observe(...args);
+          }
           disconnect() { globalThis.__roleObservers.delete(this); return super.disconnect(); }
         };
       })()`,
@@ -961,11 +966,16 @@ describe("iframe chain resolution in Chrome", () => {
       );
       try {
         await expect(resolve([role("button")], "count")).rejects.toThrow("test AX failure");
-        const response = await frame.session.send<{ result: { value: number } }>(
-          "Runtime.evaluate",
-          { contextId, expression: "globalThis.__roleObservers.size", returnByValue: true },
-        );
-        expect(response.result.value).toBe(0);
+        const response = await frame.session.send<{
+          result: { value: { observed: number; active: number } };
+        }>("Runtime.evaluate", {
+          contextId,
+          expression:
+            "({ observed: globalThis.__roleObserveCalls, active: globalThis.__roleObservers.size })",
+          returnByValue: true,
+        });
+        expect(response.result.value.observed).toBeGreaterThan(0);
+        expect(response.result.value.active).toBe(0);
       } finally {
         await send("Runtime.evaluate", { contextId, expression: "globalThis.__restoreObserver()" });
       }
