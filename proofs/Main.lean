@@ -152,8 +152,13 @@ private def runOracleChecks : IO UInt32 := do
   let env : ChainEnv := {
     frameSession := fun fid => if fid == 1 then some 10 else if fid == 2 then some 20 else none
     frameLoader := fun fid => if fid == 1 || fid == 2 then some 1 else none
-    queryWorld := fun w sel _ =>
+    queryWorld := fun w sel scopeNid =>
       if w.frameId == 1 && sel == "iframe" then [(11, true)]
+      else if w.frameId == 1 && sel == "scope" then [(101, false), (102, false)]
+      else if w.frameId == 1 && sel == "item" then
+        if scopeNid == 101 then [(201, false), (202, false)]
+        else if scopeNid == 102 then [(201, false), (203, false)]
+        else []
       else if w.frameId == 2 && sel == "button" then [(21, false), (22, false)]
       else []
     contentFrame := fun w nid => if w.frameId == 1 && nid == 11 then some 2 else none
@@ -162,10 +167,18 @@ private def runOracleChecks : IO UInt32 := do
   }
   let g0 : GroupState := { activeGroups := [(10, 999)] }
   let (outcome, gFinal) := resolveChainWithGroup env 1
-    [.query "iframe", .frameHop "button", .slice .last] g0 42 [10, 20]
+    [.query "iframe", .frameHop "button", .slice .last] g0 42 [10, 20] (fun _ => .ok)
   ok := ok && (← check "locator: cross-frame resolution isolates session"
     (outcome == .ok [{ sessionId := 20, frameId := 2, backendNodeId := 220 }]))
-  ok := ok && (← check "locator: zero objectGroup leak" (gFinal == g0))
+  ok := ok && (← check "locator: zero objectGroup leak on successful release" (gFinal == g0))
+  let (_, gPartial) := resolveChainWithGroup env 1
+    [.query "iframe", .frameHop "button", .slice .last] g0 42 [10, 20]
+    (fun sid => if sid == 20 then .timedOut else .ok)
+  ok := ok && (← check "locator: timed-out release retains only failed session group"
+    (gPartial.activeGroups == [(20, 42), (10, 999)]))
+  let dedupOutcome := resolveChain env 1 [.query "scope", .query "item", .slice (.nth 2)]
+  ok := ok && (← check "locator: overlapping query scopes deduplicate before nth"
+    (dedupOutcome == .ok [{ sessionId := 10, frameId := 1, backendNodeId := 2030 }]))
   ok := ok && (← check "locator: slice out-of-bounds returns empty"
     (sliceMatches (.nth 5) [1, 2, 3] == []))
 

@@ -200,10 +200,43 @@ def enterFrames (env : ChainEnv) : List ChainMatch → ChainOutcome (List ChainM
       | .ok restScopes => .ok (m :: restScopes)
       | other => other
 
-/-- Query every scope strictly within its own `FrameWorld` (never mixing sessions). -/
+/-- Deduplicate matches by `(world, nodeId)` in first-seen order, mirroring
+    `FrameChainOperation.query` deduplication across overlapping scopes before `nth` slicing. -/
+def dedupMatchesAux (seen : List (FrameWorld × NodeId)) : List ChainMatch → List ChainMatch
+  | [] => []
+  | m :: rest =>
+    let key := (m.world, m.nodeId)
+    if seen.contains key then
+      dedupMatchesAux seen rest
+    else
+      m :: dedupMatchesAux (key :: seen) rest
+
+def dedupMatches (ms : List ChainMatch) : List ChainMatch :=
+  dedupMatchesAux [] ms
+
+private theorem dedupMatchesAux_mem (seen : List (FrameWorld × NodeId)) (ms : List ChainMatch) :
+    ∀ m ∈ dedupMatchesAux seen ms, m ∈ ms := by
+  induction ms generalizing seen with
+  | nil =>
+    intro m hm; cases hm
+  | cons x rest ih =>
+    intro m hm
+    unfold dedupMatchesAux at hm
+    dsimp only at hm
+    split at hm
+    · exact List.mem_cons_of_mem x (ih seen m hm)
+    · rcases List.mem_cons.mp hm with rfl | hrest
+      · exact List.mem_cons_self ..
+      · exact List.mem_cons_of_mem x (ih ((x.world, x.nodeId) :: seen) m hrest)
+
+theorem dedupMatches_mem (ms : List ChainMatch) : ∀ m ∈ dedupMatches ms, m ∈ ms :=
+  dedupMatchesAux_mem [] ms
+
+/-- Query every scope strictly within its own `FrameWorld` (never mixing sessions),
+    deduplicating `(world, nodeId)` matches in first-seen order. -/
 def queryScopes (env : ChainEnv) (selector : String) (scopes : List ChainMatch) :
     List ChainMatch :=
-  scopes.flatMap fun sc =>
+  dedupMatches <| scopes.flatMap fun sc =>
     (env.queryWorld sc.world selector sc.nodeId).map fun (nid, isF) =>
       { world := sc.world, nodeId := nid, isFrame := isF }
 
@@ -327,7 +360,8 @@ theorem queryScopes_preserves_worldValid (env : ChainEnv) (sel : String) (scopes
     ∀ m ∈ queryScopes env sel scopes, worldValid env m.world := by
   intro m hm
   unfold queryScopes at hm
-  rcases List.mem_flatMap.mp hm with ⟨sc, hsc, hm'⟩
+  have hraw := dedupMatches_mem _ m hm
+  rcases List.mem_flatMap.mp hraw with ⟨sc, hsc, hm'⟩
   rcases List.mem_map.mp hm' with ⟨⟨nid, isF⟩, _, rfl⟩
   exact hvalid sc hsc
 
@@ -465,44 +499,62 @@ structure GroupState where
   activeGroups : List (SessionId × ObjectGroupId)
   deriving DecidableEq, Repr
 
+/-- Outcome of releasing an `objectGroup` on a given CDP session. Mirrors
+    `Progress.cleanup`, which swallows CDP release errors and gives up after 1s timeout. -/
+inductive ReleaseResult where
+  | ok
+  | failed
+  | timedOut
+  deriving DecidableEq, Repr
+
 /-- Register handles allocated in `gid` across a list of touched sessions during chain work. -/
 def acquireGroups (s : GroupState) (touchedSessions : List SessionId) (gid : ObjectGroupId) :
     GroupState :=
   { activeGroups := touchedSessions.map (fun sid => (sid, gid)) ++ s.activeGroups }
 
-/-- Release all remote handles belonging to `gid` across all sessions (`dispose()`). -/
-def releaseGroup (s : GroupState) (gid : ObjectGroupId) : GroupState :=
-  { activeGroups := s.activeGroups.filter (fun p => p.2 != gid) }
+/-- Release remote handles belonging to `gid` for every session whose CDP release
+    succeeds (`.ok`); sessions whose release fails or times out remain live. -/
+def releaseGroup (s : GroupState) (gid : ObjectGroupId)
+    (releaseOutcome : SessionId → ReleaseResult) : GroupState :=
+  { activeGroups := s.activeGroups.filter (fun p => p.2 != gid || releaseOutcome p.1 != .ok) }
 
 /-- Bracketed execution (`try { ... } finally { dispose(); }`): runs a chain operation
     that allocates handles in a fresh `objectGroup` across arbitrarily many sessions and
-    terminates with ANY outcome (`ok`, `notFound`, `error`, `aborted`), then releases `gid`. -/
+    terminates with ANY outcome (`ok`, `notFound`, `error`, `aborted`), then attempts to
+    release `gid` on every session with per-session outcome `releaseOutcome`. -/
 def withObjectGroup {α : Type} (s₀ : GroupState) (gid : ObjectGroupId)
+    (releaseOutcome : SessionId → ReleaseResult)
     (run : GroupState → ChainOutcome α × GroupState) :
     ChainOutcome α × GroupState :=
   let (outcome, sAfterWork) := run s₀
-  (outcome, releaseGroup sAfterWork gid)
+  (outcome, releaseGroup sAfterWork gid releaseOutcome)
 
 /-- Execute `resolveChain` inside a bracketed `objectGroup`, recording allocations across
-    any list of touched sessions before releasing on exit. -/
+    any list of touched sessions before attempting release on exit. -/
 def resolveChainWithGroup (env : ChainEnv) (rootFrameId : FrameId) (steps : List ChainStep)
-    (s₀ : GroupState) (gid : ObjectGroupId) (touchedSessions : List SessionId) :
+    (s₀ : GroupState) (gid : ObjectGroupId) (touchedSessions : List SessionId)
+    (releaseOutcome : SessionId → ReleaseResult) :
     ChainOutcome (List ResolvedHandle) × GroupState :=
-  withObjectGroup s₀ gid fun s =>
+  withObjectGroup s₀ gid releaseOutcome fun s =>
     let sAlloc := acquireGroups s touchedSessions gid
     (resolveChain env rootFrameId steps, sAlloc)
 
-private theorem filter_neq_append_eq {α : Type} [DecidableEq α] {β : Type} [DecidableEq β]
-    (xs : List α) (g : β) (ys : List (α × β))
-    (hfresh : ∀ p ∈ ys, p.2 ≠ g) :
-    (xs.map (fun x => (x, g)) ++ ys).filter (fun p => p.2 != g) = ys := by
+private theorem filter_release_ok_eq (xs : List SessionId) (g : ObjectGroupId)
+    (ys : List (SessionId × ObjectGroupId))
+    (releaseOutcome : SessionId → ReleaseResult)
+    (hfresh : ∀ p ∈ ys, p.2 ≠ g)
+    (hrel : ∀ sid ∈ xs, releaseOutcome sid = .ok) :
+    (xs.map (fun x => (x, g)) ++ ys).filter (fun p => p.2 != g || releaseOutcome p.1 != .ok) = ys := by
   rw [List.filter_append]
-  have h1 : (xs.map (fun x => (x, g))).filter (fun p => p.2 != g) = [] := by
+  have h1 : (xs.map (fun x => (x, g))).filter (fun p => p.2 != g || releaseOutcome p.1 != .ok) = [] := by
     induction xs with
     | nil => rfl
     | cons x rest ih =>
-      simp [ih]
-  have h2 : ys.filter (fun p => p.2 != g) = ys := by
+      have hx : releaseOutcome x = .ok := hrel x (List.mem_cons_self ..)
+      have hrest : ∀ sid ∈ rest, releaseOutcome sid = .ok := fun sid hs =>
+        hrel sid (List.mem_cons_of_mem x hs)
+      simp [hx, ih hrest]
+  have h2 : ys.filter (fun p => p.2 != g || releaseOutcome p.1 != .ok) = ys := by
     induction ys with
     | nil => rfl
     | cons p rest ih =>
@@ -513,20 +565,47 @@ private theorem filter_neq_append_eq {α : Type} [DecidableEq α] {β : Type} [D
       simp [hb, ih hrest]
   rw [h1, h2, List.nil_append]
 
-/-- Theorem (Zero `objectGroup` Leak): Executing any locator chain under bracketed
-    `withObjectGroup` with a fresh group ID leaves `activeGroups` unchanged across ALL
-    outcomes (`ok`, `notFound`, `error`, `aborted`) and any number of touched sessions. -/
+/-- Theorem (Zero `objectGroup` Leak Under Successful Disposal): Executing any locator chain
+    under bracketed `withObjectGroup` with a fresh group ID leaves `activeGroups` unchanged
+    across ALL outcomes (`ok`, `notFound`, `error`, `aborted`) and any number of touched
+    sessions whenever CDP `Runtime.releaseObjectGroup` succeeds on every touched session. -/
 theorem resolveChain_zero_objectGroup_leak (env : ChainEnv) (rootFrameId : FrameId)
     (steps : List ChainStep) (s₀ : GroupState) (gid : ObjectGroupId)
     (touchedSessions : List SessionId)
-    (hfresh : ∀ p ∈ s₀.activeGroups, p.2 ≠ gid) :
-    (resolveChainWithGroup env rootFrameId steps s₀ gid touchedSessions).2 = s₀ := by
+    (releaseOutcome : SessionId → ReleaseResult)
+    (hfresh : ∀ p ∈ s₀.activeGroups, p.2 ≠ gid)
+    (hrel : ∀ sid ∈ touchedSessions, releaseOutcome sid = .ok) :
+    (resolveChainWithGroup env rootFrameId steps s₀ gid touchedSessions releaseOutcome).2 = s₀ := by
   unfold resolveChainWithGroup withObjectGroup acquireGroups releaseGroup
   dsimp only
   cases s₀ with
   | mk gs =>
     dsimp only at hfresh ⊢
     congr 1
-    exact filter_neq_append_eq touchedSessions gid gs hfresh
+    exact filter_release_ok_eq touchedSessions gid gs releaseOutcome hfresh hrel
+
+/-- Theorem (Fault-Aware Release Accounting): Under arbitrary per-session release outcomes
+    (including `.failed` and `.timedOut` swallowed by `Progress.cleanup`), every surviving
+    entry in `activeGroups` was either pre-existing in `s₀` or belongs to a touched session
+    whose disposal of `gid` did not succeed. -/
+theorem resolveChain_release_retains_only_failed (env : ChainEnv) (rootFrameId : FrameId)
+    (steps : List ChainStep) (s₀ : GroupState) (gid : ObjectGroupId)
+    (touchedSessions : List SessionId)
+    (releaseOutcome : SessionId → ReleaseResult) :
+    ∀ p ∈ (resolveChainWithGroup env rootFrameId steps s₀ gid touchedSessions releaseOutcome).2.activeGroups,
+      p ∈ s₀.activeGroups ∨ (p.2 = gid ∧ p.1 ∈ touchedSessions ∧ releaseOutcome p.1 ≠ .ok) := by
+  unfold resolveChainWithGroup withObjectGroup acquireGroups releaseGroup
+  dsimp only
+  intro p hp
+  have hmem := List.mem_filter.mp hp
+  rcases List.mem_append.mp hmem.1 with hnew | hold
+  · right
+    rcases List.mem_map.mp hnew with ⟨sid, hsid, rfl⟩
+    refine ⟨rfl, hsid, ?_⟩
+    have hpred := hmem.2
+    simp only [bne_self_eq_false, Bool.false_or, bne_iff_ne, ne_eq] at hpred
+    exact hpred
+  · left
+    exact hold
 
 end StagehandProofs.LocatorChain

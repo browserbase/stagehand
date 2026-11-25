@@ -71,9 +71,11 @@ and bracketed `objectGroup` handle accounting.
 - `resolveChain_session_isolation`: inductive proof over **arbitrary chain lengths
   `List ChainStep`** that every resolved handle's `sessionId` matches its owning
   frame's authoritative session.
-- `resolveChain_zero_objectGroup_leak`: executing any chain under bracketed
-  `withObjectGroup` with a fresh group ID leaves `activeGroups` unchanged across all
-  outcomes (`ok`, `notFound`, `error`, `aborted`) and any number of touched sessions.
+- `resolveChain_zero_objectGroup_leak` / `resolveChain_release_retains_only_failed`:
+  executing any chain under bracketed `withObjectGroup` with a fresh group ID leaves
+  `activeGroups` unchanged across all outcomes (`ok`, `notFound`, `error`, `aborted`)
+  whenever per-session CDP release succeeds (`.ok`), and under `.failed`/`.timedOut`
+  disposal (matching `Progress.cleanup`) retains only the failed sessions' handles.
 - `slice_bounds_sound` / `sliceIndex_lt_length` / `sliceIndex_deterministic`:
   `first`, `last`, and `nth` never return out-of-bounds indices, never fabricate
   elements outside the input list, and are deterministic.

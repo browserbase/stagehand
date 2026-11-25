@@ -82,16 +82,18 @@ echo "==> Running stagehand-oracle reference checks..."
 lake exe stagehand-oracle
 
 echo "==> Validating stagehand-oracle --vectors JSON output..."
-VECTORS_JSON="$(lake exe stagehand-oracle --vectors)"
-if command -v node >/dev/null 2>&1; then
-  printf '%s' "${VECTORS_JSON}" | node -e '
-    const fs = require("node:fs");
-    const data = JSON.parse(fs.readFileSync(0, "utf8"));
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error("Expected non-empty JSON array of DomainPolicy vectors");
-    }
-    console.log(`Validated ${data.length} DomainPolicy JSON test vectors.`);
-  '
+if ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: 'node' not found in PATH; required to validate stagehand-oracle --vectors JSON output." >&2
+  exit 1
 fi
+VECTORS_JSON="$(lake exe stagehand-oracle --vectors)"
+printf '%s' "${VECTORS_JSON}" | node -e '
+  const fs = require("node:fs");
+  const data = JSON.parse(fs.readFileSync(0, "utf8"));
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error("Expected non-empty JSON array of DomainPolicy vectors");
+  }
+  console.log(`Validated ${data.length} DomainPolicy JSON test vectors.`);
+'
 
 echo "==> All Lean 4 formal proofs, axiom audits, and oracle checks passed!"

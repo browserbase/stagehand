@@ -14,12 +14,14 @@ import StagehandProofs.CacheSafety
 -- DomainPolicy theorems
 #print axioms StagehandProofs.DomainPolicy.blocked_always_wins
 #print axioms StagehandProofs.DomainPolicy.allowlist_default_deny
+#print axioms StagehandProofs.DomainPolicy.allowlist_default_deny_reason
 #print axioms StagehandProofs.DomainPolicy.empty_host_blocked_under_allowlist
 #print axioms StagehandProofs.DomainPolicy.dot_host_blocked_under_allowlist
 #print axioms StagehandProofs.DomainPolicy.wildcard_boundary_sound
 #print axioms StagehandProofs.DomainPolicy.wildcard_no_suffix_spoofing
 #print axioms StagehandProofs.DomainPolicy.wildcard_excludes_apex
 #print axioms StagehandProofs.DomainPolicy.monotone_blocklist_addition
+#print axioms StagehandProofs.DomainPolicy.monotone_blocklist_append
 #print axioms StagehandProofs.DomainPolicy.rule_order_independent
 #print axioms StagehandProofs.DomainPolicy.decideDnr_eq_decide
 
@@ -33,7 +35,9 @@ import StagehandProofs.CacheSafety
 -- LocatorChain theorems
 #print axioms StagehandProofs.LocatorChain.resolveChain_session_isolation
 #print axioms StagehandProofs.LocatorChain.resolveChain_zero_objectGroup_leak
+#print axioms StagehandProofs.LocatorChain.resolveChain_release_retains_only_failed
 #print axioms StagehandProofs.LocatorChain.slice_bounds_sound
+#print axioms StagehandProofs.LocatorChain.sliceIndex_lt_length
 #print axioms StagehandProofs.LocatorChain.sliceIndex_deterministic
 
 -- CacheSafety theorems
