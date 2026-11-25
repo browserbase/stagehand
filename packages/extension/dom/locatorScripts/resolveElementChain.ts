@@ -37,13 +37,17 @@ export function resolveElementChain(
     throw new Error("Frame entry is not supported by the element chain resolver");
   }
 
+  if (chain.steps.some((step) => step.type !== "nth" && step.selector.kind === "role")) {
+    throw new Error("Role queries require the frame chain resolver");
+  }
+
   let current: readonly (Document | Element)[] = scopes;
   let matches: Element[] = [];
   for (const step of chain.steps) {
     if (step.type === "nth") {
       const selected = matches[step.index];
       matches = selected ? [selected] : [];
-    } else if (step.type === "query") {
+    } else if (step.type === "query" && step.selector.kind !== "role") {
       if (
         current.some(
           (scope) => scope instanceof Element && /^(iframe|frame)$/i.test(scope.localName),

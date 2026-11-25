@@ -1,6 +1,7 @@
 import { expectTypeOf } from "vitest";
 import type {
   LocatorChain,
+  RoleSelectorQuery,
   LocatorFrameStep,
   LocatorNthStep,
   LocatorQuerySelector,
@@ -9,6 +10,7 @@ import type {
 } from "../../types.js";
 
 expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
+  | RoleSelectorQuery
   | { kind: "css"; value: string }
   | { kind: "xpath"; value: string }
   | { kind: "text"; value: string }

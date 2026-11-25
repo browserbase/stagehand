@@ -18,6 +18,7 @@ from pydantic import (
 from stagehand._validation import (
     LocatorChainValidation,
     PageScreenshotOptionsValidation,
+    RoleSelectorQueryValidation,
     StagehandInitParamsValidation,
     TelemetryConfigValidation,
     WireModel,
@@ -148,6 +149,91 @@ class Animations(StrEnum):
 
 class AnthropicModelName(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(pattern="^anthropic\\/\\S+$")]
+
+
+class AriaRole(StrEnum):
+    alert = "alert"
+    alertdialog = "alertdialog"
+    application = "application"
+    article = "article"
+    banner = "banner"
+    blockquote = "blockquote"
+    button = "button"
+    caption = "caption"
+    cell = "cell"
+    checkbox = "checkbox"
+    code = "code"
+    columnheader = "columnheader"
+    combobox = "combobox"
+    complementary = "complementary"
+    contentinfo = "contentinfo"
+    definition = "definition"
+    deletion = "deletion"
+    dialog = "dialog"
+    directory = "directory"
+    document = "document"
+    emphasis = "emphasis"
+    feed = "feed"
+    figure = "figure"
+    form = "form"
+    generic = "generic"
+    grid = "grid"
+    gridcell = "gridcell"
+    group = "group"
+    heading = "heading"
+    img = "img"
+    insertion = "insertion"
+    link = "link"
+    list = "list"
+    listbox = "listbox"
+    listitem = "listitem"
+    log = "log"
+    main = "main"
+    marquee = "marquee"
+    math = "math"
+    menu = "menu"
+    menubar = "menubar"
+    menuitem = "menuitem"
+    menuitemcheckbox = "menuitemcheckbox"
+    menuitemradio = "menuitemradio"
+    meter = "meter"
+    navigation = "navigation"
+    none = "none"
+    note = "note"
+    option = "option"
+    paragraph = "paragraph"
+    presentation = "presentation"
+    progressbar = "progressbar"
+    radio = "radio"
+    radiogroup = "radiogroup"
+    region = "region"
+    row = "row"
+    rowgroup = "rowgroup"
+    rowheader = "rowheader"
+    scrollbar = "scrollbar"
+    search = "search"
+    searchbox = "searchbox"
+    separator = "separator"
+    slider = "slider"
+    spinbutton = "spinbutton"
+    status = "status"
+    strong = "strong"
+    subscript = "subscript"
+    superscript = "superscript"
+    switch = "switch"
+    tab = "tab"
+    table = "table"
+    tablist = "tablist"
+    tabpanel = "tabpanel"
+    term = "term"
+    textbox = "textbox"
+    time = "time"
+    timer = "timer"
+    toolbar = "toolbar"
+    tooltip = "tooltip"
+    tree = "tree"
+    treegrid = "treegrid"
+    treeitem = "treeitem"
 
 
 class Browser(StrEnum):
@@ -1389,12 +1475,6 @@ class LocatorQuerySelector4(WireModel):
     value: StrictStr
 
 
-class LocatorQuerySelector(
-    RootModel[Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4]]
-):
-    root: Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4]
-
-
 class LocatorQueryStep(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2511,6 +2591,29 @@ class RgbaColor(WireModel):
     g: StrictFloat
     b: StrictFloat
     a: Optional[StrictFloat] = None
+
+
+class RoleSelectorQuery(RoleSelectorQueryValidation):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Optional[StrictStr] = None
+    exact: Optional[StrictBool] = None
+    checked: Optional[Union[StrictBool, Literal["mixed"]]] = None
+    pressed: Optional[Union[StrictBool, Literal["mixed"]]] = None
+    selected: Optional[StrictBool] = None
+    expanded: Optional[StrictBool] = None
+    disabled: Optional[StrictBool] = None
+    level: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    kind: Literal["role"]
+    value: AriaRole
+
+
+class LocatorQuerySelector(
+    RootModel[Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4, RoleSelectorQuery]]
+):
+    root: Union[LocatorQuerySelector1, LocatorQuerySelector2, LocatorQuerySelector3, LocatorQuerySelector4, RoleSelectorQuery]
 
 
 class SameSite(StrEnum):

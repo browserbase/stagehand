@@ -1747,7 +1747,264 @@
           },
           "required": ["kind", "value"],
           "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/RoleSelectorQuery"
         }
+      ]
+    },
+    "RoleSelectorQuery": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "checked": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "const": "mixed"
+            }
+          ]
+        },
+        "pressed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "const": "mixed"
+            }
+          ]
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "expanded": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "const": "role"
+        },
+        "value": {
+          "$ref": "#/$defs/AriaRole"
+        }
+      },
+      "required": ["kind", "value"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["checked"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "checkbox",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "option",
+                  "radio",
+                  "switch",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["pressed"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["button"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["selected"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "columnheader",
+                  "gridcell",
+                  "option",
+                  "row",
+                  "rowheader",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["expanded"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "application",
+                  "button",
+                  "checkbox",
+                  "columnheader",
+                  "combobox",
+                  "gridcell",
+                  "link",
+                  "listbox",
+                  "menuitem",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "row",
+                  "rowheader",
+                  "switch",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["level"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["heading", "listitem", "row", "treeitem"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value": {
+                "enum": ["radio", "menuitemradio", "switch"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checked": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AriaRole": {
+      "type": "string",
+      "enum": [
+        "alert",
+        "alertdialog",
+        "application",
+        "article",
+        "banner",
+        "blockquote",
+        "button",
+        "caption",
+        "cell",
+        "checkbox",
+        "code",
+        "columnheader",
+        "combobox",
+        "complementary",
+        "contentinfo",
+        "definition",
+        "deletion",
+        "dialog",
+        "directory",
+        "document",
+        "emphasis",
+        "feed",
+        "figure",
+        "form",
+        "generic",
+        "grid",
+        "gridcell",
+        "group",
+        "heading",
+        "img",
+        "insertion",
+        "link",
+        "list",
+        "listbox",
+        "listitem",
+        "log",
+        "main",
+        "marquee",
+        "math",
+        "menu",
+        "menubar",
+        "menuitem",
+        "menuitemcheckbox",
+        "menuitemradio",
+        "meter",
+        "navigation",
+        "none",
+        "note",
+        "option",
+        "paragraph",
+        "presentation",
+        "progressbar",
+        "radio",
+        "radiogroup",
+        "region",
+        "row",
+        "rowgroup",
+        "rowheader",
+        "scrollbar",
+        "search",
+        "searchbox",
+        "separator",
+        "slider",
+        "spinbutton",
+        "status",
+        "strong",
+        "subscript",
+        "superscript",
+        "switch",
+        "tab",
+        "table",
+        "tablist",
+        "tabpanel",
+        "term",
+        "textbox",
+        "time",
+        "timer",
+        "toolbar",
+        "tooltip",
+        "tree",
+        "treegrid",
+        "treeitem"
       ]
     },
     "LocatorStep": {

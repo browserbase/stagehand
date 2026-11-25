@@ -1,6 +1,13 @@
-import { GetByTextOptionsSchema, LocatorQuerySelectorSchema } from "./schemas.js";
+import {
+  GetByTextOptionsSchema,
+  GetByRoleOptionsSchema,
+  RoleSelectorQuerySchema,
+  LocatorQuerySelectorSchema,
+} from "./schemas.js";
 import type {
   GetByTextOptions,
+  GetByRoleOptions,
+  AriaRole,
   LocatorChain,
   LocatorQuerySelector,
   LocatorQueryStep,
@@ -11,6 +18,17 @@ export function textQueryStep(value: string, options: GetByTextOptions = {}): Lo
   return {
     type: "query",
     selector: LocatorQuerySelectorSchema.parse({ kind: "textMatch", value, exact }),
+  };
+}
+
+export function roleQueryStep(role: AriaRole, options: GetByRoleOptions = {}): LocatorQueryStep {
+  return {
+    type: "query",
+    selector: RoleSelectorQuerySchema.parse({
+      kind: "role",
+      value: role,
+      ...GetByRoleOptionsSchema.parse(options),
+    }),
   };
 }
 
@@ -35,7 +53,7 @@ export type CssSelectorQuery = Extract<LocatorQuerySelector, { kind: "css" }>;
 export type XPathSelectorQuery = Extract<LocatorQuerySelector, { kind: "xpath" }>;
 /** The legacy text= substring engine, separate from getByText matching. */
 export type LegacyTextSelectorQuery = Extract<LocatorQuerySelector, { kind: "text" }>;
-export type SelectorQuery = LocatorQuerySelector;
+export type SelectorQuery = Exclude<LocatorQuerySelector, { kind: "role" }>;
 
 export type LegacySelectorPlan = {
   frameHopSelectors: string[];
