@@ -320,6 +320,12 @@ describe("harness redaction & logging non-interference (fast-check)", () => {
       fcParams(200),
     );
 
+    const prettyPrinted = '{\n  "password"\n  :\n  "super_secret_pw_12345"\n}';
+    const redactedPretty = redactToolLog(prettyPrinted, 100_000);
+    expect(typeof redactedPretty).toBe("string");
+    expect(String(redactedPretty)).not.toContain("super_secret_pw_12345");
+    expect(String(redactedPretty)).toContain("[redacted]");
+
     fc.assert(
       fc.property(unicodeWithAstralArb, fc.integer({ min: 0, max: 120 }), (text, maxChars) => {
         const payload = { emoji: `😀🏈🚀${text}😀🏈🚀${"x".repeat(40)}` };

@@ -27,7 +27,7 @@ function readProperty(target: object, key: string): { ok: true; value: unknown }
 function redactLogString(text: string): string {
   return sanitizeErrorMessage(text)
     .replace(
-      /((?:authorization|cookie|password|api[_-]?key|signing[_-]?key|secret|token)["']?[ \t]*[:=][ \t]*)(["'])(?:(?:\\.|(?!\2)[^\\\r\n])*(\2)|[^\r\n]*)/gi,
+      /((?:authorization|cookie|password|api[_-]?key|signing[_-]?key|secret|token)["']?\s*[:=]\s*)(["'])(?:(?:\\.|(?!\2)[^\\\r\n])*(\2)|[^\r\n]*)/gi,
       (_match, prefix: string, quote: string, close: string | undefined) =>
         `${prefix}${quote}[redacted]${close ?? ""}`,
     )
