@@ -95,7 +95,6 @@ class WireModel(BaseModel):
     @override
     def model_post_init(self, context: object, /) -> None:
         super().model_post_init(context)
-        # Protocol defaults must survive `model_dump(exclude_unset=True)` at the wire boundary.
         for name, field in type(self).model_fields.items():
             value = getattr(self, name)
             if name not in self.model_fields_set and not field.is_required() and value is not None:

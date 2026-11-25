@@ -42,7 +42,6 @@ describe("runtime locator deadlines", () => {
         const budget = options?.timeout ?? DEFAULT_LOCATOR_TIMEOUT_MS;
         vi.spyOn(runtime, "resolveLocator").mockImplementation(() => {
           expect(vi.getTimerCount()).toBe(budget === 0 ? 0 : 1);
-          // Resolution has already spent part of this call's budget.
           vi.advanceTimersByTime(10);
           return {
             [actionName[0]!.toLowerCase() + actionName.slice(1)]: action,

@@ -31,7 +31,6 @@ export async function createStagehand(options?: {
   browser?: LocalBrowserLaunchOptions;
   model?: ClientLLM;
 }): Promise<Stagehand> {
-  // The integration suite is always headless; callers may customize other launch options.
   const browser = await localBrowser.launch({ ...options?.browser, headless: true });
   try {
     return await Stagehand.create({
@@ -67,11 +66,6 @@ export function closeStagehand(stagehand?: Stagehand | null): Promise<void> {
   return close;
 }
 
-/**
- * First existing page, or a fresh one. Every integration spec needs this, and writing it
- * inline invites dropping the `await` on the now-async `context.pages()` -- which yields a
- * truthy Promise and a silently passing test rather than a type error.
- */
 export async function firstPage(stagehand: Stagehand) {
   const pages = await stagehand.browser.context.pages();
   return pages[0] ?? (await stagehand.browser.context.newPage());

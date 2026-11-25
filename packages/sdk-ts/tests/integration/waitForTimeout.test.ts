@@ -22,7 +22,6 @@ describe("Page.waitForTimeout tests", () => {
     await page.waitForTimeout(200);
     const elapsed = Date.now() - startTime;
 
-    // Should have waited at least 200ms (allow some tolerance)
     expect(elapsed).toBeGreaterThanOrEqual(190);
   });
 
@@ -52,7 +51,6 @@ describe("Page.waitForTimeout tests", () => {
         ),
     );
 
-    // Wait for counter to increment
     await page.waitForTimeout(350);
 
     await expect
@@ -96,15 +94,12 @@ describe("Page.waitForTimeout tests", () => {
         ),
     );
 
-    // Trigger the delayed update
     await page.evaluate(() => {
       (window as unknown as { startUpdate: () => void }).startUpdate();
     });
 
-    // Wait for the timeout to allow DOM update
     await page.waitForTimeout(300);
 
-    // Content should now be loaded
     const afterText = await page.locator("#delayed").textContent();
     expect(afterText).toBe("Loaded");
   });
@@ -116,7 +111,6 @@ describe("Page.waitForTimeout tests", () => {
 
     const startTime = Date.now();
 
-    // Multiple small waits
     await page.waitForTimeout(50);
     await page.waitForTimeout(50);
     await page.waitForTimeout(50);
@@ -124,7 +118,6 @@ describe("Page.waitForTimeout tests", () => {
 
     const elapsed = Date.now() - startTime;
 
-    // Should have waited at least 200ms total (4 * 50ms)
     expect(elapsed).toBeGreaterThanOrEqual(190);
   });
 
@@ -143,16 +136,13 @@ describe("Page.waitForTimeout tests", () => {
         ),
     );
 
-    // Start a timeout
     const timeoutPromise = page.waitForTimeout(100);
 
     try {
-      // Execute something else while waiting
       await page.evaluate(() => {
         (window as unknown as { updateText: () => void }).updateText();
       });
 
-      // Verify the update happened
       const text = await page.locator("#async-test").textContent();
       expect(text).toBe("Updated");
     } finally {

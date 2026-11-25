@@ -1,5 +1,3 @@
-// Writes the facade bundle (browser-side sources + model-facing contract) so hosts
-// in other languages ship exactly what the TypeScript facade sends.
 import { readFile, writeFile } from "node:fs/promises";
 import { facadeBundle } from "../dist/facade/index.mjs";
 

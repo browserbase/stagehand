@@ -65,7 +65,6 @@ it("recovers after npm accepted the version but the publisher did not create a t
   expect(git("ls-remote", "--tags", "origin", "refs/tags/browse@0.10.0")).toBe(
     `${releaseCommit}\trefs/tags/browse@0.10.0`,
   );
-  // A fresh checkout/rerun must recognize the remote tag without recreating it.
   git("tag", "-d", "browse@0.10.0");
   registryState.status = 503;
   expect(await pushCliReleaseTag(repositoryRoot, registry)).toBe("existing");

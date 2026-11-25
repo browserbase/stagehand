@@ -1,4 +1,3 @@
-// lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
 import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
@@ -22,16 +21,7 @@ interface FrameManager {
   pageId: string;
 }
 
-/**
- * Frame
- *
- * A thin, session-bound handle to a specific DOM frame (by frameId).
- * All CDP calls in this class go through `this.session`, which MUST be the
- * owning session for `this.frameId`. Page is responsible for constructing
- * Frames with the correct session.
- */
 export class Frame implements FrameManager {
-  /** Owning CDP session id (useful for logs); null for root connection (should not happen for targets) */
   public readonly sessionId: string | null;
 
   constructor(
@@ -44,12 +34,10 @@ export class Frame implements FrameManager {
     this.sessionId = this.session.id ?? null;
   }
 
-  /** True when the controlled browser runs on a different machine. */
   public isBrowserRemote(): boolean {
     return this.remoteBrowser;
   }
 
-  /** DOM.getNodeForLocation → DOM.describeNode */
   async getNodeAtLocation(x: number, y: number): Promise<Protocol.DOM.Node> {
     await this.session.send("DOM.enable");
     const { backendNodeId } = await this.session.send<{
@@ -68,7 +56,6 @@ export class Frame implements FrameManager {
     return node;
   }
 
-  /** CSS selector → DOM.querySelector → DOM.getBoxModel */
   async getLocationForSelector(
     selector: string,
   ): Promise<{ x: number; y: number; width: number; height: number }> {
@@ -92,7 +79,6 @@ export class Frame implements FrameManager {
     return { x, y, width, height };
   }
 
-  /** Read this frame's accessibility tree. */
   async getAccessibilityTree(progress?: Progress): Promise<Protocol.Accessibility.AXNode[]> {
     await runLocatorStep(progress, "enabling accessibility", () =>
       this.session.send("Accessibility.enable"),
@@ -123,13 +109,6 @@ export class Frame implements FrameManager {
     return nodes;
   }
 
-  /**
-   * Evaluate a function or expression in this frame's main world.
-   * - If a string is provided, treated as a JS expression.
-   * - If a function is provided, it is stringified and invoked with the optional argument.
-   * Progress guards dispatch, but issued evaluations are awaited so screenshot
-   * restoration cannot run before a late page mutation finishes.
-   */
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
@@ -188,7 +167,6 @@ export class Frame implements FrameManager {
     return res.result.value as R;
   }
 
-  /** Evaluate an internal expression in Stagehand's selected locator world. */
   async evaluateInLocatorWorld<R = unknown>(
     buildExpression: () => string,
     progress?: Progress,
@@ -200,7 +178,6 @@ export class Frame implements FrameManager {
     return response.result.value as R;
   }
 
-  /** Own a disposable browser wait, including a handle delivered after expiry. */
   async waitInLocatorWorld(buildExpression: () => string, progress: Progress): Promise<boolean> {
     for (let attempt = 0; ; attempt++) {
       progress.throwIfStopped();
@@ -224,7 +201,6 @@ export class Frame implements FrameManager {
       } catch (error) {
         progress.throwIfStopped();
         const message = error instanceof Error ? error.message : String(error);
-        // Retry context loss once, matching locator evaluation recovery.
         if (
           attempt !== 0 ||
           contextId === undefined ||
@@ -293,7 +269,6 @@ export class Frame implements FrameManager {
     return { ...response, contextId: locatorWorld.contextId };
   }
 
-  /** Page.captureScreenshot (frame-scoped session) */
   async screenshot(
     options: {
       fullPage?: boolean;
@@ -304,8 +279,6 @@ export class Frame implements FrameManager {
     },
     progress: Progress,
   ): Promise<Uint8Array> {
-    // The page bounds the caller's wait. Await actual commands here so the capture
-    // lock stays held until Chrome finishes, even after the caller times out.
     progress.throwIfStopped();
     await this.session.send("Page.enable");
     const format = options?.type ?? "png";
@@ -350,7 +323,6 @@ export class Frame implements FrameManager {
     return base64ToBytes(data);
   }
 
-  /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
     timeout: number = 15_000,
@@ -401,12 +373,10 @@ export class Frame implements FrameManager {
     progress?.throwIfStopped();
   }
 
-  /** Simple placeholder for your own locator abstraction */
   locator(selector: string, options?: { deep?: boolean; depth?: number }): Locator {
     return new Locator(this, selector, options);
   }
 
-  /** Resolve the main-world execution context id for this frame. */
   async getMainWorldExecutionContextId(progress?: Progress): Promise<number> {
     return executionContexts.waitForMainWorld(this.session, this.frameId, 1000, progress);
   }

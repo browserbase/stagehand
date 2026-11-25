@@ -44,11 +44,8 @@ describe("welcomeState", () => {
     const dir = makeTempEntryDir();
     markFirstRunComplete(dir);
     const first = readWelcomeMeta(dir).firstRunCompletedAt;
-    // small delay to ensure timestamps would differ if rewritten
     const now = Date.now();
-    while (Date.now() - now < 5) {
-      /* spin */
-    }
+    while (Date.now() - now < 5) {}
     markFirstRunComplete(dir);
     expect(readWelcomeMeta(dir).firstRunCompletedAt).toBe(first);
   });
@@ -83,7 +80,6 @@ describe("welcomeState", () => {
   it("missing config — readWelcomeMeta returns {} instead of throwing", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "evals-welcome-state-"));
     tempDirs.push(dir);
-    // No evals.config.json written
     expect(readWelcomeMeta(dir)).toEqual({});
     expect(isFirstRun(dir)).toBe(true);
   });

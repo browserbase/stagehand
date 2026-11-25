@@ -11,15 +11,6 @@ vi.mock("playwright", () => ({
   chromium: {},
 }));
 
-/**
- * We can't import generateTestcases directly (it's not exported),
- * but we can test the public behavior through the module's exports
- * and verify the logic by constructing the same inputs.
- *
- * For now, test the behaviors we can observe: project name selection
- * and the agent model detection fix.
- */
-
 function makeTask(overrides: Partial<DiscoveredTask>): DiscoveredTask {
   return {
     name: "test",
@@ -103,7 +94,6 @@ describe("runner: single-task agent model detection", () => {
       }),
     ];
 
-    // Replicate the logic from generateTestcases
     let effectiveCategory: string | null = null;
     if (
       !effectiveCategory &&

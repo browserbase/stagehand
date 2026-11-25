@@ -1,19 +1,3 @@
-/**
- * Executes Anthropic Browser Use toolset members against a Stagehand browser
- * through the facade's Playwright-compat batch runtime.
- *
- * Every member is one `experimentalBatch` round trip where the surface allows
- * it: coordinate/keyboard/tab members run as one `run` snippet that also
- * reports the tab inventory; ref-targeted members go through the facade's
- * hydrated snapshot actions (`run` actions); `read_page` / `find` are one
- * `snapshot`; `screenshot` is one facade screenshot. See ARCHITECTURE.md for
- * the per-member table and what has no facade equivalent.
- *
- * Element references are the facade's snapshot ids (`0-7812`): `read_page`
- * and `find` mint them, `run` actions resolve them through the facade's
- * per-page id → xpath map, so a stale id fails with the facade's own message.
- */
-
 import {
   StagehandFacadeSessionLostError,
   StagehandFacadeTools,
@@ -105,7 +89,6 @@ const INTERACTIVE_ROLES: ReadonlySet<string> = new Set([
   "tablist",
 ]);
 
-/** CUA / xdotool key names → Playwright key names. */
 const KEY_NAMES: Record<string, string> = {
   return: "Enter",
   enter: "Enter",
@@ -147,11 +130,6 @@ type PointerTarget = { type: "coordinate"; x: number; y: number } | { type: "ref
 
 type BrowserTab = { tab_id: string; title: string; url: string; active: boolean };
 
-/**
- * Tail of every mutating `run` snippet: the tab inventory as the toolset's
- * `browser_state` wants it. The canonical visible context excludes keeper pages;
- * its readonly pageId is the underlying Stagehand page identity.
- */
 const TABS_SNIPPET = `class StagehandFacadePageIdentityError extends Error {
   constructor(message) {
     super(message);
@@ -172,7 +150,6 @@ for (let __i = 0; __i < __pages.length && __i < 100; __i += 1) {
   __tabs.push({ tab_id: __p.pageId, title: __title, url: __p.url(), active: __p.pageId === __activeId });
 }`;
 
-/** Convenience for in-process hosts: executor over a live Stagehand instance. */
 export function createStagehandCuaExecutor(
   stagehand: Stagehand,
   options: Omit<StagehandCuaExecutorOptions, "tools">,
@@ -212,8 +189,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
         input.tab_id !== undefined &&
         !["switch_tab", "close_tab", "new_tab", "list_tabs"].includes(member)
       ) {
-        // Batch pages are selected when each callback starts. Select the target
-        // first so coordinate actions and hydrated refs use the requested tab.
         await this.runWithTabs(tabSelectionCode(asString(input.tab_id, "tab_id")));
       }
       const result = await this.executeMember(member, input);
@@ -225,8 +200,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
       return result;
     } catch (error) {
       const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
-      // Every later call would fail identically; let the session end instead
-      // of feeding the model a stream of terminal errors.
       if (this.isSessionLost(error)) throw error;
       this.options.logger.log({
         category: "claude_cua",
@@ -300,11 +273,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Facade round trips
-  // ---------------------------------------------------------------------------
-
-  /** One batch: `body` mutates the page, the tail reports tabs plus `extra`. */
   private async runWithTabs(
     body: string,
     extra = "{}",
@@ -317,7 +285,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
     return { tabs: value.tabs, extra: value.extra ?? {} };
   }
 
-  /** Refresh the visible inventory after hydrated actions, which can open popups. */
   private async runRefActions(actions: RefAction[]): Promise<BrowserTab[]> {
     await this.options.tools.runActions(actions);
     const { tabs } = await this.runWithTabs("");
@@ -360,10 +327,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
     const state = this.browserState(tabs, true);
     return { content: state ? [state] : [] };
   }
-
-  // ---------------------------------------------------------------------------
-  // Navigation / tabs (1 round trip each)
-  // ---------------------------------------------------------------------------
 
   private async navigate(input: Record<string, unknown>): Promise<CuaToolResult> {
     const raw = asString(input.url, "url").trim();
@@ -419,10 +382,6 @@ if (__wasActive) {
     );
     return this.stateOnly(tabs.filter((tab) => String(tab.tab_id) !== tabId));
   }
-
-  // ---------------------------------------------------------------------------
-  // Pointer
-  // ---------------------------------------------------------------------------
 
   private async click(member: string, input: Record<string, unknown>): Promise<CuaToolResult> {
     const button =
@@ -494,8 +453,6 @@ if (__wasActive) {
       throw new Error("left_click_drag requires coordinate targets in from and target.");
     }
     this.lastMouse = { x: to.x, y: to.y };
-    // The SDK owns the full press/move/release sequence. Two movement steps
-    // preserve the midpoint used by this executor before the endpoint.
     const { tabs } = await this.runWithTabs(
       `await batchStagehand.page.dragAndDrop(${from.x}, ${from.y}, ${to.x}, ${to.y}, { steps: 2 });`,
     );
@@ -517,8 +474,6 @@ if (__wasActive) {
     const target = parseTarget(input) ?? { type: "coordinate" as const, ...this.lastMouse };
 
     if (target.type === "ref") {
-      // No element geometry on this side of the facade: bring the element into
-      // view (hover), then wheel at the viewport centre. Two round trips.
       await this.options.tools.runActions([{ op: "hover", id: target.ref }]);
       const { tabs } = await this.runWithTabs(
         `const __vp = await page.evaluate("({ w: innerWidth, h: innerHeight })");
@@ -542,15 +497,9 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
   private async scrollTo(input: Record<string, unknown>): Promise<CuaToolResult> {
     const target = requireTarget(input);
     if (target.type !== "ref") throw new Error("scroll_to requires a ref target.");
-    // Hovering scrolls the element into view; the facade exposes no
-    // scrollIntoView on snapshot ids.
     const tabs = await this.runRefActions([{ op: "hover", id: target.ref }]);
     return this.withState(`Scrolled element ${target.ref} into view.`, tabs);
   }
-
-  // ---------------------------------------------------------------------------
-  // Keyboard / timing (1 round trip each)
-  // ---------------------------------------------------------------------------
 
   private async typeText(input: Record<string, unknown>): Promise<CuaToolResult> {
     const text = asString(input.text, "text");
@@ -590,10 +539,6 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
     return this.withState(`Waited ${seconds}s.`, tabs);
   }
 
-  // ---------------------------------------------------------------------------
-  // Capture / reading (1 round trip each)
-  // ---------------------------------------------------------------------------
-
   private async screenshot(): Promise<CuaToolResult> {
     const image = await this.options.tools.screenshot({ type: "png" });
     return { content: [imageBlock(image.data, image.mimeType)] };
@@ -610,7 +555,6 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
     if (width <= 0 || height <= 0) {
       throw new Error("zoom region must have positive width and height.");
     }
-    // Base64 is produced inside the batch: its return value must be JSON.
     const base64 = await this.options.tools.run(
       `const __bytes = await page.screenshot({ type: "png", clip: { x: ${x0}, y: ${y0}, width: ${width}, height: ${height} } });
 const __u8 = __bytes instanceof Uint8Array ? __bytes : new Uint8Array(__bytes);
@@ -656,7 +600,6 @@ return btoa(__bin);`,
     return { content: [{ type: "text", text: truncateText(`${header}\n${lines.join("\n")}`) }] };
   }
 
-  /** Lexical match over a fresh snapshot; the facade has no model-backed locator. */
   private async find(input: Record<string, unknown>): Promise<CuaToolResult> {
     const query = asString(input.query, "query").trim();
     if (!query) throw new Error('"query" must not be empty.');
@@ -704,8 +647,6 @@ return btoa(__bin);`,
     let summary: string;
     let tabs: BrowserTab[];
     if (typeof value === "boolean") {
-      // Snapshot ids carry no element state on this side of the facade; the
-      // toggle is a click and the result says so.
       tabs = await this.runRefActions([{ op: "click", id: target.ref }]);
       summary = `Clicked ${target.ref} to ${value ? "check" : "uncheck"} it; verify its state with read_page.`;
     } else {
@@ -713,8 +654,6 @@ return btoa(__bin);`,
         tabs = await this.runRefActions([{ op: "fill", id: target.ref, value: String(value) }]);
         summary = `Set value of ${target.ref}.`;
       } catch (error) {
-        // fill rejects <select> ("unsupported-element"); the facade's select op
-        // is the equivalent. Second round trip only on that path.
         const message = error instanceof Error ? error.message : String(error);
         if (!/select|unsupported-element/iu.test(message)) throw error;
         tabs = await this.runRefActions([{ op: "select", id: target.ref, values: String(value) }]);
@@ -735,10 +674,6 @@ try { return JSON.stringify(__value, null, 2) ?? String(__value); } catch { retu
     return { content: [{ type: "text", text: truncateText(String(output ?? "undefined")) }] };
   }
 }
-
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
 
 function tabSelectionCode(tabId: string): string {
   return `const __target = context.pages().find((p) => p.pageId === ${JSON.stringify(tabId)});
@@ -860,7 +795,6 @@ export function normalizeNavigationUrl(raw: string): string {
 
 function sanitizeStateField(value: unknown): string {
   const str = typeof value === "string" ? value : String(value ?? "");
-  // No control characters or Unicode line/paragraph separators allowed.
   // eslint-disable-next-line no-control-regex
   return str.replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, "").slice(0, MAX_STATE_FIELD_CHARS);
 }

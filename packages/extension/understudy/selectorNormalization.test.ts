@@ -6,9 +6,6 @@ import type { Page } from "./page.js";
 import { FrameSelectorResolver } from "./selectorResolver.js";
 import { legacyEngineCases, legacyRoutingCases } from "./fixtures/legacySelectors.js";
 
-// These fixtures describe the released string interpretation, including quirks.
-// They are not the desired behavior of a new parser. Keep frame routing separate
-// from engine parsing so a normalization refactor cannot silently conflate them.
 describe("legacy selector engine normalization", () => {
   it.each(legacyEngineCases)("$name", ({ input, query }) => {
     expect(FrameSelectorResolver.parseSelector(input)).toEqual(query);
@@ -18,8 +15,6 @@ describe("legacy selector engine normalization", () => {
 describe("legacy selector frame routing", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  // Only frame discovery is stubbed. The actual string routing, XPath hop
-  // planning, and Locator construction remain under test; no browser is needed.
   function createRoutingContext() {
     const root = { frameId: "root" } as Frame;
     const child = { frameId: "child" } as Frame;

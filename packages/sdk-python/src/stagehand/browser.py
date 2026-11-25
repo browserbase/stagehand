@@ -111,7 +111,6 @@ class ResolvedBrowserSource:
         try:
             await asyncio.shield(task)
         except BaseException:
-            # A failed close (e.g. a transient Browserbase release error) can be retried.
             if (
                 self._close_task is task
                 and task.done()
@@ -185,7 +184,6 @@ class StagehandBrowser:
         self._invalidate_callback = invalidate or close
         self._disconnect_callback = disconnect or _noop
         self._connected = connected or (lambda: True)
-        # What close() does after an unexpectedly lost connection.
         self._close_without_connection = close_without_connection or _noop
         self._cdp_url = cdp_url
         self._claimed = False
@@ -193,7 +191,6 @@ class StagehandBrowser:
         self._disconnect_task: asyncio.Task[None] | None = None
         self._close_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
-        # Closes the attached Stagehand instance; disconnect() runs it before the connection.
         self._close_stagehand: Callable[[], Awaitable[None]] | None = None
         self._session_id = session_id
 
@@ -264,7 +261,6 @@ class StagehandBrowser:
         try:
             await self._close_without_connection()
         except BaseException:
-            # Releasing over the Browserbase API can fail transiently: allow a retry.
             self._close_task = None
             raise
 
@@ -295,15 +291,12 @@ class StagehandBrowser:
         try:
             try:
                 if close_stagehand is not None:
-                    # stagehand.close() waits for in-flight work without a deadline;
-                    # disconnect() stops waiting and lets go anyway, which also ends that work.
                     await _close_stagehand_within(
                         close_stagehand, _DISCONNECT_STAGEHAND_TIMEOUT_SECONDS
                     )
             finally:
                 await self._disconnect_callback()
         except BaseException:
-            # Still connected means nothing was let go: keep the handle usable for a retry.
             if self._connected():
                 self._state = "open"
                 self._disconnect_task = None
@@ -355,7 +348,6 @@ async def _close_stagehand_within(
         async with deadline:
             await close_stagehand()
     except TimeoutError:
-        # Only this deadline is expected; a TimeoutError from Stagehand itself is a failure.
         if not deadline.expired():
             raise
 
@@ -382,8 +374,6 @@ def _browser_session_metadata(
     session_id: str,
     region: BrowserbaseRegion | None,
 ) -> BrowserSessionMetadata:
-    # Leave region unset (not None) so the wire payload omits it entirely; the
-    # worker schema rejects "region": null.
     return BrowserSessionMetadata.model_validate({
         name: value
         for name, value in (
@@ -497,9 +487,6 @@ async def _connect_browser(
     connected_client = cdp_client
 
     async def disconnect() -> None:
-        # Detaching first disarms the extension's watchdog; without that acknowledgement
-        # the socket stays open, since closing it would read as a lost client and could
-        # shut the browser down.
         await connected_client.detach_client()
         await connected_client.close()
 
@@ -515,14 +502,11 @@ async def _connect_browser(
         try:
             if provider == "local":
                 try:
-                    # Bounded so an unresponsive Chrome cannot keep a launched one from
-                    # being terminated.
                     async with asyncio.timeout(_BROWSER_CLOSE_TIMEOUT_SECONDS):
                         await connected_client.send_command("Browser.close")
                 except CDPConnectionClosedError:
                     pass
                 except TimeoutError:
-                    # A launched browser is terminated below; a connected one cannot be.
                     if origin == "connected":
                         raise RuntimeError(
                             "Browser.close did not respond within "
@@ -531,9 +515,6 @@ async def _connect_browser(
         except BaseException as error:
             errors.append(error)
         try:
-            # A launched local browser is also terminated if Browser.close failed or
-            # left it running, and its profile removed unless preserved; a Browserbase
-            # session is released.
             if provider == "browserbase" or origin == "launched":
                 await source.close()
         except BaseException as error:
@@ -560,8 +541,6 @@ async def _connect_browser(
         # session without keep_alive once this connection closes.
         disconnect=disconnect,
         connected=lambda: not connected_client.closed,
-        # After an unexpected loss, a Browserbase session can still be released over its
-        # API; a local browser is left alone.
         close_without_connection=source.close if provider == "browserbase" else None,
         cdp_url=source.cdp_url if provider == "local" else None,
         session_id=(
@@ -764,7 +743,6 @@ class _ConnectedBrowserSource:
 def _sdk_client_options(options: BrowserbaseClientOptions | None) -> dict[str, Any] | None:
     if options is None:
         return None
-    # Read attributes rather than model_dump so a caller's http_client passes through as-is.
     return {
         name: value
         for name in type(options).model_fields

@@ -1,5 +1,4 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
-// Dependency-free; the harness and tool registries stay lazily imported.
 import { listBenchSuites } from "../../framework/benchSuites.js";
 
 const HELP_COL_WIDTH = 34;
@@ -148,10 +147,6 @@ export async function printRunHelp(): Promise<void> {
   ]);
 }
 
-/**
- * One dim row per harness that mounts a tool, listing its surfaces with the
- * default (first registered) starred: `claude_code: browse_cli* | … | stagehand_facade`.
- */
 function buildHarnessToolRows(
   harnesses: string[],
   getHarness: (harness: string) => { supportedToolSurfaces: readonly string[] },

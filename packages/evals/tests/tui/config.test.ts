@@ -20,8 +20,6 @@ afterEach(() => {
   }
 });
 
-// The harness registry is imported lazily by the code under test; its first
-// cold import can take seconds when the whole suite runs in parallel.
 beforeAll(async () => {
   await import("../../framework/benchHarness.js");
 }, 60_000);
@@ -134,7 +132,6 @@ describe("config v2: tracked + local", () => {
       harness: "claude_code",
     });
 
-    // Setting a key back to the tracked value removes the override.
     await handleConfig(["set", "concurrency", "3"], entryDir);
     expect(readLocal(entryDir).defaults).toEqual({ env: "browserbase", harness: "claude_code" });
   });
@@ -184,7 +181,6 @@ describe("config v2: tracked + local", () => {
       benchmarks: {},
       providers: { openai: { concurrency: 6 } },
     });
-    // Personal overrides stay personal, and still apply.
     expect(readLocal(entryDir)).toEqual({
       defaults: { concurrency: 10, env: "browserbase" },
       harnesses: { codex: { models: ["openai/personal"] } },
@@ -345,7 +341,6 @@ describe("config v2: validation", () => {
       ["tracing", "set", "transport", "otel", "--shared"],
       "--shared is not supported for config tracing",
     );
-    // The command tree hands the raw args (still carrying --shared) to the handlers.
     const { handleCore } = await import("../../tui/commands/core.js");
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await handleCore(["set", "tool", "understudy_code", "--shared"], entryDir);

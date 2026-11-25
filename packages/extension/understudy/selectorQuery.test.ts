@@ -25,7 +25,6 @@ describe("pure legacy selector normalization", () => {
   });
 });
 
-// Keep both import paths compatible while sharing the tokenizer implementation.
 describe.each([
   { name: "query helpers", parse: parseXPathToSteps, build: buildXPathFromSteps },
   {

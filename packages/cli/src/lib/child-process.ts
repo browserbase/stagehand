@@ -8,7 +8,6 @@ import { win32 } from "node:path";
 export function terminateChild(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): boolean {
   if (!child.pid || child.exitCode !== null || child.signalCode !== null) return false;
   if (process.platform === "win32") {
-    // Use the system executable even when a caller supplies a restricted PATH.
     const taskkill = win32.join(
       process.env.SystemRoot || "C:\\Windows",
       "System32",

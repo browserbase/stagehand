@@ -10,8 +10,6 @@ export type ExtensionBuildInfo = {
   fingerprint: string;
 };
 
-// SHA-256 of one "<sha256 hex of content>  <posix path>\n" line per file, paths in UTF-8 byte
-// order: the output of `sha256sum` over the files listed with `LC_ALL=C sort`.
 export function fingerprintFiles(files: ReadonlyMap<string, Uint8Array>): string {
   const lines = [...files.keys()]
     .toSorted((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)))

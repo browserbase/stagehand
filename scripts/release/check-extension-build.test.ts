@@ -122,7 +122,6 @@ async function buildFixture(distFiles = extensionFiles): Promise<string> {
 
 describe("fingerprintFiles", () => {
   it("hashes sha256sum-style lines sorted by path bytes", () => {
-    // SHA-256 of "<sha256 hex of content>  <posix path>\n" per file, sorted by UTF-8 path bytes.
     const expected = sha256(
       [
         `${sha256("zeta\n")}  Zeta.js\n`,
@@ -178,7 +177,6 @@ describe("checkExtensionBuild", () => {
     "rejects a %s package whose embedded build info %s",
     async (side, problem, message) => {
       const { root, typescriptDist, wheel } = await releaseFixture({
-        // Same fingerprint, other bytes: the embedded file is compared whole.
         embeddedBuildInfo:
           problem === "missing"
             ? null

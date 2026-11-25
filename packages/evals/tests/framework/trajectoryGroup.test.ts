@@ -44,16 +44,13 @@ describe("sanitizeSlug", () => {
   it("keeps ordinary values and collapses separators", () => {
     expect(sanitizeSlug("agent/onlineMind2Web")).toBe("agent_onlineMind2Web");
     expect(sanitizeSlug("openai/gpt-4.1-mini")).toBe("openai_gpt-4.1-mini");
-    // Dots are legal INSIDE a name — only pure-dot components are path-special.
     expect(sanitizeSlug("gpt-4.1")).toBe("gpt-4.1");
   });
 
   it("rejects path-special pure-dot values so a group can't escape the root", () => {
-    // ".." writes above the root; "." collapses the group into it.
     for (const raw of ["..", ".", "...", "__..__", " .. "]) {
       expect(sanitizeSlug(raw)).toBe("");
     }
-    // Traversal with separators is already neutralized by the whitelist.
     expect(sanitizeSlug("../../etc")).toBe(".._.._etc");
   });
 
@@ -85,11 +82,9 @@ describe("generateRunToken", () => {
   });
 
   it("uses 64 bits of real entropy, not just enough to look random", () => {
-    // The tests above inject entropy, so they'd pass even if the default shrank.
     const now = new Date(2026, 6, 15, 11, 3, 42);
     expect(generateRunToken(now)).toMatch(/^\d{8}-\d{6}-[a-f0-9]{16}$/);
 
-    // And it must actually be distributed, not a constant or a counter.
     const tokens = new Set(Array.from({ length: 200 }, () => generateRunToken(now)));
     expect(tokens.size).toBe(200);
   });
@@ -135,7 +130,6 @@ describe("buildTrajectoryGroupSlug", () => {
       ...opts,
       runToken: "20260715-114500",
     });
-    // The anti-clobber property: a re-run cannot land on the earlier run's dir.
     expect(first).not.toBe(second);
   });
 });
@@ -152,9 +146,6 @@ describe("resolveUnambiguousModel", () => {
   });
 
   it("omits a core-only model list", () => {
-    // A single "none" is the real core-only shape, and the only input that proves
-    // the sentinel filter exists: 2+ elements return undefined from the size check
-    // alone, filtered or not.
     expect(resolveUnambiguousModel(["none"])).toBeUndefined();
     expect(resolveUnambiguousModel(["none", "NONE", " none "])).toBeUndefined();
   });
@@ -177,11 +168,6 @@ describe("resolveUnambiguousModel", () => {
 });
 
 describe("writeExperimentLink", () => {
-  /**
-   * Simulate a task having persisted a trajectory into `group`. The link only lands
-   * in a group that recorded something, so positive cases must establish that
-   * precondition the way a real reservation does.
-   */
   async function recordTrajectory(root: string, group: string): Promise<string> {
     await fs.mkdir(path.join(root, group, "task-1", "run-1"), {
       recursive: true,
@@ -224,7 +210,6 @@ describe("writeExperimentLink", () => {
   it("is a no-op when trajectory persistence is disabled", async () => {
     process.env.VERIFIER_PERSIST_TRAJECTORIES = "1";
     const root = await makeTempDir();
-    // Trajectories present, but the caller says persistence is off: still no link.
     await recordTrajectory(root, "group-1");
 
     await writeExperimentLink(root, "group-1", { braintrustExperimentId: "x" }, { persist: false });
@@ -233,8 +218,6 @@ describe("writeExperimentLink", () => {
   });
 
   it("skips a group that recorded no trajectory instead of leaving an empty tree", async () => {
-    // Core-only / non-agent categories: persistence on, but nothing recorded — so
-    // no group dir, and the link must not create one to hold an orphan.
     process.env.VERIFIER_PERSIST_TRAJECTORIES = "1";
     const root = await makeTempDir();
 

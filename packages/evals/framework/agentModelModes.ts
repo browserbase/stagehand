@@ -1,7 +1,5 @@
 import { AVAILABLE_CUA_MODELS, type AgentToolMode } from "stagehand-v3";
 
-// Mirrors packages/core/lib/v3/types/private/agent.ts. Keep this local until
-// core exposes a public model-capability helper.
 const HYBRID_CAPABLE_MODEL_PATTERNS = [
   "gemini-3",
   "claude",

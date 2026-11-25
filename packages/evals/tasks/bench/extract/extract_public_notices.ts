@@ -67,8 +67,6 @@ export default defineBenchTask(
           sessionUrl,
         };
       }
-      // NOTE (preserved v3 quirk): compareStrings returns an object, which is
-      // always truthy — these `&&` chains never actually gate on similarity.
       const firstItemMatches =
         compareStrings(
           publicNotices[0].notice_description,
