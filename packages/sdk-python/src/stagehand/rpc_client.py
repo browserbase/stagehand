@@ -6,8 +6,9 @@ import json
 import math
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
+from typing import Annotated, Any, Literal, Protocol, TypeVar, cast, overload
 
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import (
@@ -72,6 +73,15 @@ _RequestId = Annotated[int, Field(ge=0, le=_MAX_REQUEST_ID, strict=True)]
 _Params = dict[str, JsonValue] | list[JsonValue] | None
 _RequestHandler = Callable[[BaseModel, "RPCRequestContext"], Awaitable[BaseModel]]
 _NotificationListener = Callable[[BaseModel], Coroutine[object, object, None]]
+_CLOSING_RPC_CLIENTS: ContextVar[frozenset[RPCClient]] = ContextVar(
+    "stagehand_closing_rpc_clients",
+    default=frozenset(),
+)
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
 
 
 class _JSONRPCModel(BaseModel):
@@ -153,12 +163,10 @@ class RPCClient:
         ] = {}
         self._pending_notifications: list[_JSONRPCNotification] = []
         self._inbound_tasks: set[asyncio.Task[None]] = set()
-        self._background_close_tasks: set[asyncio.Task[None]] = set()
         self._close_listeners: dict[object, Callable[[], Awaitable[None]]] = {}
         self._closed = False
         self._close_reason: BaseException | None = None
-        self._close_done = asyncio.Event()
-        self._closing_task: asyncio.Task[None] | None = None
+        self._close_task: asyncio.Task[None] | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
 
     @property
@@ -350,14 +358,32 @@ class RPCClient:
         *,
         close_transport: bool = True,
     ) -> None:
+        if self in _CLOSING_RPC_CLIENTS.get():
+            return
         current_task = asyncio.current_task()
-        if self._closed:
-            if self._closing_task is not current_task:
-                await self._close_done.wait()
+        if self._close_task is not None:
+            if current_task is self._close_task or current_task is self._reader:
+                return
+            await asyncio.shield(self._close_task)
             return
 
+        close_task = self._start_close(
+            reason,
+            initiator=current_task,
+            close_transport=close_transport,
+        )
+        await asyncio.shield(close_task)
+
+    def _start_close(
+        self,
+        reason: BaseException | None,
+        *,
+        initiator: asyncio.Task[Any] | None,
+        close_transport: bool,
+    ) -> asyncio.Task[None]:
+        if self._close_task is not None:
+            return self._close_task
         self._closed = True
-        self._closing_task = current_task
         self._close_reason = reason or RuntimeError("RPC client closed")
         self._request_handlers.clear()
         self._notification_listeners.clear()
@@ -366,23 +392,37 @@ class RPCClient:
             if not response.done():
                 response.set_exception(self._close_reason)
         self._pending.clear()
+        self._close_task = asyncio.create_task(
+            self._close_impl(initiator=initiator, close_transport=close_transport),
+            name="stagehand-rpc-close",
+        )
+        self._close_task.add_done_callback(_consume_task_exception)
+        return self._close_task
 
+    async def _close_impl(
+        self,
+        *,
+        initiator: asyncio.Task[Any] | None,
+        close_transport: bool,
+    ) -> None:
+        token = _CLOSING_RPC_CLIENTS.set(_CLOSING_RPC_CLIENTS.get() | {self})
         try:
-            if self._reader is not current_task:
-                self._reader.cancel()
-                with suppress(asyncio.CancelledError):
-                    await self._reader
-
-            for task in self._inbound_tasks:
-                if task is not current_task:
-                    task.cancel()
-            remaining = [task for task in self._inbound_tasks if task is not current_task]
-            if remaining:
-                await asyncio.gather(*remaining, return_exceptions=True)
-            self._inbound_tasks.clear()
-            listeners = list(self._close_listeners.values())
-            self._close_listeners.clear()
             try:
+                if self._reader is not initiator:
+                    self._reader.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await self._reader
+
+                for task in self._inbound_tasks:
+                    if task is not initiator:
+                        task.cancel()
+                remaining = [task for task in self._inbound_tasks if task is not initiator]
+                if remaining:
+                    await asyncio.gather(*remaining, return_exceptions=True)
+                self._inbound_tasks.clear()
+
+                listeners = list(self._close_listeners.values())
+                self._close_listeners.clear()
                 results = await asyncio.gather(
                     *(listener() for listener in listeners), return_exceptions=True
                 )
@@ -393,8 +433,7 @@ class RPCClient:
                 if close_transport:
                     await self._transport.close()
         finally:
-            self._close_done.set()
-            self._closing_task = None
+            _CLOSING_RPC_CLIENTS.reset(token)
 
     async def _read(self) -> None:
         try:
@@ -403,7 +442,8 @@ class RPCClient:
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            await self.close(error)
+            with suppress(Exception):
+                await self.close(error)
 
     async def _receive(self, raw: object) -> None:
         if self._closed:
@@ -430,7 +470,8 @@ class RPCClient:
             try:
                 response = _response.validate_python(message, strict=True)
             except ValidationError:
-                await self.close(RuntimeError("Invalid JSON-RPC response"))
+                with suppress(Exception):
+                    await self.close(RuntimeError("Invalid JSON-RPC response"))
                 return
             self._receive_response(response)
             return
@@ -596,15 +637,7 @@ class RPCClient:
     def _finish_inbound(self, task: asyncio.Task[None]) -> None:
         self._inbound_tasks.discard(task)
         if not task.cancelled() and (error := task.exception()) is not None and not self._closed:
-            close_task = asyncio.create_task(self.close(error))
-            self._background_close_tasks.add(close_task)
-
-            def finish_close(completed: asyncio.Task[None]) -> None:
-                self._background_close_tasks.discard(completed)
-                if not completed.cancelled():
-                    completed.exception()
-
-            close_task.add_done_callback(finish_close)
+            self._start_close(error, initiator=None, close_transport=True)
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:

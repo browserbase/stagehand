@@ -78,6 +78,7 @@ class _AdversarialRPCTransport:
         self.fail_next_send: Literal["none", "sync", "async", "async_after_close"] = "none"
         self.send_gate: asyncio.Event | None = None
         self.close_gate: asyncio.Event | None = None
+        self.close_started = asyncio.Event()
         self.fail_on_close = False
 
     async def send(self, message: JSON) -> None:
@@ -103,6 +104,7 @@ class _AdversarialRPCTransport:
         return item
 
     async def close(self) -> None:
+        self.close_started.set()
         if self.close_gate is not None:
             await self.close_gate.wait()
         self.closed = True
@@ -682,6 +684,91 @@ async def test_rpc_concurrent_close_waits_for_inflight_close_completion() -> Non
 
 
 @pytest.mark.asyncio
+async def test_rpc_on_close_listener_reentrant_close_does_not_deadlock() -> None:
+    loop = asyncio.get_running_loop()
+    recorder = _LoopExceptionRecorder(loop)
+    transport = _AdversarialRPCTransport()
+    client = RPCClient(transport)
+    listener_entered = asyncio.Event()
+    listener_release = asyncio.Event()
+    reentrant_completed = False
+
+    async def on_close_listener() -> None:
+        nonlocal reentrant_completed
+        listener_entered.set()
+        await asyncio.wait_for(client.close(), timeout=1)
+        await asyncio.wait_for(asyncio.create_task(client.close()), timeout=1)
+        reentrant_completed = True
+        await listener_release.wait()
+
+    client.on_close(on_close_listener)
+    try:
+        first_close = asyncio.create_task(client.close())
+        await asyncio.wait_for(listener_entered.wait(), timeout=1)
+        await _drain(4)
+        assert reentrant_completed
+
+        independent_close = asyncio.create_task(client.close())
+        await _drain(4)
+        assert not independent_close.done()
+        assert not transport.closed
+
+        listener_release.set()
+        await asyncio.wait_for(asyncio.gather(first_close, independent_close), timeout=1)
+        assert transport.closed
+        assert transport.close_count == 1
+    finally:
+        listener_release.set()
+        await client.close()
+        await _drain(4)
+        recorder.assert_clean()
+        recorder.restore()
+
+
+@pytest.mark.asyncio
+async def test_rpc_cancelled_close_caller_still_completes_cleanup_and_blocks_later_close() -> None:
+    loop = asyncio.get_running_loop()
+    recorder = _LoopExceptionRecorder(loop)
+    transport = _AdversarialRPCTransport()
+    close_gate = asyncio.Event()
+    transport.close_gate = close_gate
+    client = RPCClient(transport)
+    listener_ran = False
+
+    async def on_close_listener() -> None:
+        nonlocal listener_ran
+        listener_ran = True
+
+    client.on_close(on_close_listener)
+    try:
+        first_close = asyncio.create_task(client.close())
+        await asyncio.wait_for(transport.close_started.wait(), timeout=1)
+        assert listener_ran
+        assert not first_close.done()
+        assert not transport.closed
+
+        first_close.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first_close
+        assert not transport.closed
+
+        second_close = asyncio.create_task(client.close())
+        await _drain(4)
+        assert not second_close.done()
+
+        close_gate.set()
+        await asyncio.wait_for(second_close, timeout=1)
+        assert transport.closed
+        assert transport.close_count == 1
+    finally:
+        close_gate.set()
+        await client.close()
+        await _drain(4)
+        recorder.assert_clean()
+        recorder.restore()
+
+
+@pytest.mark.asyncio
 async def test_rpc_receive_after_close_does_not_leak_notifications_or_tasks() -> None:
     loop = asyncio.get_running_loop()
     recorder = _LoopExceptionRecorder(loop)
@@ -855,8 +942,11 @@ class _AdversarialWebSocket:
         self.incoming: asyncio.Queue[str | bytes | BaseException] = asyncio.Queue()
         self.sent: list[dict[str, object]] = []
         self.closed = False
+        self.close_count = 0
         self.fail_next_send: Literal["none", "sync", "async", "async_after_close"] = "none"
         self.send_gate: asyncio.Event | None = None
+        self.close_gate: asyncio.Event | None = None
+        self.close_started = asyncio.Event()
 
     async def send(self, message: str) -> None:
         mode = self.fail_next_send
@@ -881,7 +971,11 @@ class _AdversarialWebSocket:
         return item
 
     async def close(self) -> None:
+        self.close_started.set()
+        if self.close_gate is not None:
+            await self.close_gate.wait()
         self.closed = True
+        self.close_count += 1
 
 
 class CDPClientStateMachine(RuleBasedStateMachine):
@@ -1068,6 +1162,8 @@ class CDPClientStateMachine(RuleBasedStateMachine):
         self._run(self._socket.incoming.put(json.dumps({"id": unknown_id, "result": {}})))
         self._run(_drain(3))
         assert not self._client.closed
+        assert all(not task.done() for task in self._inflight.values())
+        assert set(self._inflight).issubset(self._client._pending)
 
     @rule()
     def schedule_background_command(self) -> None:
@@ -1263,6 +1359,75 @@ async def test_cdp_disconnect_during_detach_client_does_not_affect_sibling_sessi
     finally:
         await client_a.close()
         await client_b.close()
+        await _drain(4)
+        recorder.assert_clean()
+        recorder.restore()
+
+
+@pytest.mark.asyncio
+async def test_cdp_boolean_response_id_does_not_resolve_command_id_1() -> None:
+    loop = asyncio.get_running_loop()
+    recorder = _LoopExceptionRecorder(loop)
+    socket = _AdversarialWebSocket()
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    try:
+        cmd = asyncio.create_task(client.send_command("Runtime.evaluate", {}))
+        await _drain(3)
+        assert 1 in client._pending
+
+        await socket.incoming.put(json.dumps({"id": True, "result": {"spoofed": True}}))
+        await socket.incoming.put(json.dumps({"id": False, "result": {}}))
+        await _drain(4)
+        assert not cmd.done()
+        assert 1 in client._pending
+
+        await socket.incoming.put(json.dumps({"id": 1, "result": {"real": True}}))
+        assert await asyncio.wait_for(cmd, timeout=1) == {"real": True}
+    finally:
+        await client.close()
+        await _drain(4)
+        recorder.assert_clean()
+        recorder.restore()
+
+
+@pytest.mark.asyncio
+async def test_cdp_cancelled_close_caller_still_completes_cleanup_and_blocks_later_close() -> None:
+    loop = asyncio.get_running_loop()
+    recorder = _LoopExceptionRecorder(loop)
+    socket = _AdversarialWebSocket()
+    send_gate = asyncio.Event()
+    close_gate = asyncio.Event()
+    socket.send_gate = send_gate
+    socket.close_gate = close_gate
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._schedule_best_effort_command("Target.closeTarget", {"targetId": "t1"})
+    await _drain(2)
+    assert len(client._background_tasks) == 1
+    try:
+        first_close = asyncio.create_task(client.close())
+        await asyncio.wait_for(socket.close_started.wait(), timeout=1)
+        assert not first_close.done()
+        assert not socket.closed
+        assert client._background_tasks == set()
+
+        first_close.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first_close
+        assert not socket.closed
+
+        second_close = asyncio.create_task(client.close())
+        await _drain(4)
+        assert not second_close.done()
+
+        close_gate.set()
+        await asyncio.wait_for(second_close, timeout=1)
+        assert socket.closed
+        assert socket.close_count == 1
+        assert client._reader.done()
+    finally:
+        send_gate.set()
+        close_gate.set()
+        await client.close()
         await _drain(4)
         recorder.assert_clean()
         recorder.restore()
