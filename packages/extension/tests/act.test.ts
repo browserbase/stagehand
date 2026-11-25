@@ -632,7 +632,6 @@ describe("act service", () => {
 
   it("re-infers instead of replaying a cached action whose selector now points elsewhere", async () => {
     const frame = { frameId: "frame-1", getAccessibilityTree: vi.fn(async () => []) };
-    // The cached selector still resolves, but to a different control.
     const captureSnapshot = vi.fn(async () => ({
       combinedTree: "[0-12] button: Delete account\n[0-13] button: Submit",
       combinedXpathMap: { "0-12": "/html/body/button", "0-13": "/html/body/form/button" },
@@ -697,7 +696,6 @@ describe("act service", () => {
       });
 
       expect(result.metadata.cache.status).toBe("MISS");
-      // The miss must come from the stale verdict, not from a failed cache read.
       expect(result.metadata.cache.missReason).toBe("replay_failed");
       expect(performAction).toHaveBeenCalledTimes(1);
       expect(performAction.mock.calls[0]?.[3]).toBe("xpath=/html/body/form/button");

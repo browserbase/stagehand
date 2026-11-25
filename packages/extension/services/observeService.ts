@@ -34,7 +34,6 @@ type ObserveServiceOptions = {
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
   progress?: Progress;
-  /** Experimental: resolve observe() through the decision model first (needs `observe: true`). */
   decisions?: DecisionsConfig & { observe?: boolean };
 };
 
@@ -89,7 +88,6 @@ async function observeWithProgress(
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
-    // `enabled: false` is the shared kill switch for every decision-model feature.
     if (decisions?.observe && decisions.enabled !== false) {
       const outcome = await runDecisionsObserve(decisions, {
         page,
@@ -122,8 +120,6 @@ async function observeWithProgress(
         reason: outcome.reason,
       });
       if (decisions.llmFallback === false) {
-        // Like act(): an abstention with the fallback off is a failure the
-        // caller can see, not an empty "nothing on the page" success.
         throw new Error(`Decisions observe abstained (${outcome.reason.slice(0, 160)})`);
       }
     }

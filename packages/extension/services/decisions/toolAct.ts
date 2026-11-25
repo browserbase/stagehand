@@ -8,12 +8,6 @@ import { redactor, substituteVariables } from "./args.js";
 import type { TraceEntry } from "./pick.js";
 import type { JsonValue } from "./typesafeClient.js";
 
-/**
- * act() through a WebMCP tool: when the page registers tools and the decision model is sure
- * one of them IS the request, the tool is invoked instead of finding something
- * to click. The choice itself rides in the act pipeline's intent request.
- */
-
 const RESULT_TIMEOUT_MS = 30_000;
 const RESULT_MESSAGE_CHARS = 2_000;
 
@@ -21,12 +15,7 @@ export type ToolInput = Record<string, JsonValue>;
 
 export type DecisionsToolDeps = {
   page: Pick<Page, "invokeWebMCPTool" | "waitForWebMCPInvocationResult" | "cancelWebMCPInvocation">;
-  /**
-   * The page's tools. A promise, so the listing overlaps whatever the caller
-   * was already waiting for; empty on browsers without the WebMCP domain.
-   */
   tools: Promise<WebMCPToolDescriptor[]>;
-  /** Argument-only LLM call for one tool; null when it cannot fill them. */
   fillArguments?: (tool: WebMCPToolDescriptor) => Promise<ToolInput | null>;
 };
 
@@ -42,8 +31,6 @@ export async function invokeTool(
   const invocation = await deps.page.invokeWebMCPTool(tool.frameId, tool.name, {
     input: resolveVariables(input, variables),
   });
-  // Past this point the tool is running: a failure to hear back is a failed
-  // act, never a reason to go and click through the UI as well.
   const response = await deps.page
     .waitForWebMCPInvocationResult(invocation.invocationId, { timeout: RESULT_TIMEOUT_MS })
     .catch((error: unknown) => {
@@ -64,8 +51,6 @@ export async function invokeTool(
   });
 
   const success = response.status === "Completed";
-  // The tool may echo what it was given; the message goes to the caller and
-  // the logs, so resolved %variable% values are put back behind their names.
   const redact = redactor(variables) ?? ((text: string) => text);
   const thrown = response.exception?.description;
   const detail = success
@@ -82,14 +67,12 @@ export async function invokeTool(
         selector: `webmcp:${tool.name}`,
         description: tool.description,
         method: "webmcp",
-        // The placeholders, not the resolved values: results are logged and returned.
         arguments: [JSON.stringify(input)],
       },
     ],
   };
 }
 
-/** Placeholders can sit inside arrays and objects when the argument LLM shaped the input. */
 function resolveVariables(input: ToolInput, variables: Variables | undefined): ToolInput {
   const resolve = (value: JsonValue): JsonValue => {
     if (typeof value === "string") return substituteVariables(value, variables);
