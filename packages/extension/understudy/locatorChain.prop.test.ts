@@ -357,7 +357,7 @@ function queryDocNodes(doc: MockFrameDoc, scopeNodeId: number, selectorValue: st
   return results;
 }
 
-type OracleTarget = { frameId: string; backendNodeId: number };
+type OracleTarget = { sessionId: string; frameId: string; backendNodeId: number };
 
 function evaluateChainOracle(
   spec: WorldSpec,
@@ -410,7 +410,7 @@ function evaluateChainOracle(
   const targets = matches.map((m) => {
     const doc = spec.docs.get(m.frameId)!;
     const node = doc.nodes.get(m.nodeId)!;
-    return { frameId: m.frameId, backendNodeId: node.backendNodeId };
+    return { sessionId: doc.sessionId, frameId: m.frameId, backendNodeId: node.backendNodeId };
   });
   return { ok: true, mode: resolution.mode, targets };
 }
@@ -634,6 +634,8 @@ function createMockHarness(
     root,
     readySpy,
     lateGates,
+    sessionIdOf: (session: CDPSessionLike) =>
+      [...sessions.values()].find((s) => s.session === session)?.id,
     allViolations: () => [...sessions.values()].flatMap((s) => s.violations),
     allSpuriousReleases: () => [...sessions.values()].flatMap((s) => s.spuriousReleases),
     totalLiveGroups: () => [...sessions.values()].reduce((sum, s) => sum + s.liveGroups.size, 0),
@@ -766,6 +768,7 @@ describe("locatorChain stateful & adversarial properties", () => {
               if (actual!.mode !== "count") {
                 expect(
                   actual!.targets.map((t) => ({
+                    sessionId: harness.sessionIdOf(t.session),
                     frameId: t.frameId,
                     backendNodeId: t.backendNodeId,
                   })),
