@@ -83,6 +83,82 @@ describe("focusSelectors properties", () => {
     );
   });
 
+  it("resolveCssFocusFrameAndTail ignores >> inside CSS comments across single-frame and multi-hop selectors", async () => {
+    const commentInnerArb = fc
+      .tuple(
+        fc.stringMatching(/^[a-zA-Z0-9 _"'\\-]{0,8}$/),
+        fc.stringMatching(/^[a-zA-Z0-9 _"'\\-]{0,8}$/),
+      )
+      .map(([a, b]) => `${a} >> ${b}`.replaceAll("*/", ""));
+
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom("div", "section", "iframe"),
+        commentInnerArb,
+        fc.stringMatching(/^[a-z]{1,6}$/),
+        async (tag, commentInner, tailClass) => {
+          const singleSelector = `${tag}/*${commentInner}*/.${tailClass}`;
+          const singleSend = vi.fn(async () => {
+            throw new Error("Should not attempt iframe hop for >> inside CSS comment");
+          });
+          const singleSession = { id: "s0", send: singleSend } as unknown as CDPSessionLike;
+          const singlePage = {
+            getSessionForFrame: () => singleSession,
+          } as unknown as Page;
+
+          const singleRes = await resolveCssFocusFrameAndTail(
+            singlePage,
+            singleSelector,
+            new Map([["root", null]]),
+            "root",
+          );
+          expect(singleRes.targetFrameId).toBe("root");
+          expect(singleRes.tailSelector).toBe(singleSelector);
+          expect(singleSend).not.toHaveBeenCalled();
+
+          const hopSelector = `iframe/*${commentInner}*/ >> .${tailClass}`;
+          const evalExpressions: string[] = [];
+          const rootSend = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+            if (method === "Runtime.evaluate") {
+              evalExpressions.push(typeof params?.expression === "string" ? params.expression : "");
+              return { result: { type: "object", objectId: "obj-iframe" } };
+            }
+            if (method === "DOM.describeNode") {
+              return { node: { backendNodeId: 101 } };
+            }
+            if (method === "DOM.getFrameOwner") {
+              return { backendNodeId: 101 };
+            }
+            return {};
+          });
+          const rootSession = { id: "s-root", send: rootSend } as unknown as CDPSessionLike;
+          const childSession = {
+            id: "s-child",
+            send: vi.fn(async () => ({})),
+          } as unknown as CDPSessionLike;
+          const hopPage = {
+            getSessionForFrame: (fid: string) => (fid === "root" ? rootSession : childSession),
+          } as unknown as Page;
+
+          const hopRes = await resolveCssFocusFrameAndTail(
+            hopPage,
+            hopSelector,
+            new Map<string, string | null>([
+              ["root", null],
+              ["child", "root"],
+            ]),
+            "root",
+          );
+          expect(hopRes.targetFrameId).toBe("child");
+          expect(hopRes.tailSelector).toBe(`.${tailClass}`);
+          expect(evalExpressions).toHaveLength(1);
+          expect(evalExpressions[0]).toContain(JSON.stringify(`iframe/*${commentInner}*/`));
+        },
+      ),
+      { seed: SEED + 100, numRuns: 100 },
+    );
+  });
+
   it("resolveCssFocusFrameAndTail walks multi-hop iframe chains and releases every objectId", async () => {
     await fc.assert(
       fc.asyncProperty(

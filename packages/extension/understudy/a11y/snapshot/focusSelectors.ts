@@ -120,10 +120,18 @@ function splitCssFrameHops(rawSelector: string): string[] {
   const parts: string[] = [];
   let quote: "'" | '"' | null = null;
   let escaped = false;
+  let inComment = false;
   let start = 0;
 
   for (let i = 0; i < rawSelector.length; i++) {
     const ch = rawSelector[i]!;
+    if (inComment) {
+      if (ch === "*" && rawSelector[i + 1] === "/") {
+        inComment = false;
+        i += 1;
+      }
+      continue;
+    }
     if (escaped) {
       escaped = false;
       continue;
@@ -134,6 +142,11 @@ function splitCssFrameHops(rawSelector: string): string[] {
     }
     if (quote !== null) {
       if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && rawSelector[i + 1] === "*") {
+      inComment = true;
+      i += 1;
       continue;
     }
     if (ch === "'" || ch === '"') {
