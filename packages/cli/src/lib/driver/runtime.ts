@@ -2,19 +2,27 @@ import { ensureDriverDaemon, openViaDaemon, runDriverCommandViaDaemon } from "./
 import type { DriverCommandName } from "./commands/types.js";
 import type { ConnectionTarget } from "./types.js";
 
+export type DriverSessionSelection =
+  | { kind: "existing" }
+  | { kind: "create"; target: ConnectionTarget };
+
 type OpenCommandParams = {
   timeoutMs?: number;
   url: string;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
 };
 
-export async function runDriverCommandWithTarget(
+export async function runDriverCommand(
   session: string,
-  target: ConnectionTarget,
+  selection: DriverSessionSelection,
   command: DriverCommandName,
   params?: unknown,
 ): Promise<unknown> {
-  await ensureDriverDaemon({ session, target });
+  if (selection.kind === "create") {
+    await ensureDriverDaemon({ session, target: selection.target });
+  }
+  // Reusing a session never starts a daemon. If it vanished after selection,
+  // propagate the connection error instead of recreating it from its reply.
   if (command === "open" && isOpenCommandParams(params)) {
     return openViaDaemon(session, params.url, params);
   }

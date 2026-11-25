@@ -64,9 +64,11 @@ describe("Page.pdf", () => {
       await progress.delay(10);
       return locator;
     });
-    const resolve = vi
-      .spyOn(locator.selectorResolver, "resolveAll")
-      .mockResolvedValue([{ objectId: "mask-node", nodeId: null }]);
+    const release = vi.fn(async () => {});
+    const resolve = vi.spyOn(locator.selectorResolver, "resolveAll").mockResolvedValue({
+      nodes: [{ objectId: "mask-node", nodeId: null }],
+      release,
+    });
     const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockResolvedValue(undefined);
     send.mockResolvedValue({ result: { value: { x: 1, y: 2, width: 3, height: 4 } } });
     await vi.advanceTimersByTimeAsync(10);
@@ -80,7 +82,7 @@ describe("Page.pdf", () => {
       await timedOut;
       await expect(screenshot).rejects.toBe(progress.signal.reason);
       expect(evaluate).toHaveBeenCalledTimes(2);
-      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "mask-node" });
+      expect(release).toHaveBeenCalledOnce();
       expect(send.mock.calls.some(([method]) => method === "Page.captureScreenshot")).toBe(false);
     } finally {
       progress.dispose();
@@ -90,10 +92,14 @@ describe("Page.pdf", () => {
   it("restores late mask measurements and releases skipped nodes before allowing printing", async () => {
     vi.useFakeTimers();
     const locator = new Locator(page.mainFrame(), ".mask");
-    vi.spyOn(locator.selectorResolver, "resolveAll").mockResolvedValue([
-      { objectId: "first", nodeId: null },
-      { objectId: "second", nodeId: null },
-    ]);
+    const release = vi.fn(async () => {});
+    vi.spyOn(locator.selectorResolver, "resolveAll").mockResolvedValue({
+      nodes: [
+        { objectId: "first", nodeId: null },
+        { objectId: "second", nodeId: null },
+      ],
+      release,
+    });
     const measurement = hold({
       result: { value: { x: 1, y: 2, width: 3, height: 4, rootToken: "root" } },
     });
@@ -113,9 +119,7 @@ describe("Page.pdf", () => {
     expect(send.mock.calls.filter(([method]) => method === "Runtime.callFunctionOn")).toHaveLength(
       1,
     );
-    for (const objectId of ["first", "second"]) {
-      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId });
-    }
+    expect(release).toHaveBeenCalledOnce();
     expect(evaluate).toHaveBeenCalledTimes(1);
     await expect(page.pdf()).rejects.toThrow(/still recovering/);
     cleanup.release();

@@ -585,8 +585,9 @@ class RPCClient:
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
+    wire_params = params.model_dump(mode="python", exclude_none=True, exclude_unset=True)
     if method.startswith("locator."):
-        timeout = _numeric_property(_property(params, "options"), "timeout")
+        timeout = _numeric_property(_property(wire_params, "options"), "timeout")
         if timeout == 0:
             return None
         if timeout is None:
@@ -614,11 +615,11 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.webmcp_tools",
         "page.webmcp_invocation_result",
     }:
-        operation_timeout_ms = _numeric_property(_property(params, "options"), "timeout")
+        operation_timeout_ms = _numeric_property(_property(wire_params, "options"), "timeout")
     elif method == "page.wait_for_load_state":
-        operation_timeout_ms = _numeric_property(params, "timeout")
+        operation_timeout_ms = _numeric_property(wire_params, "timeout")
     elif method == "page.wait_for_timeout":
-        operation_timeout_ms = _numeric_property(params, "ms")
+        operation_timeout_ms = _numeric_property(wire_params, "ms")
 
     if operation_timeout_ms is not None:
         if operation_timeout_ms == 0 and method in {

@@ -1,4 +1,5 @@
 import { RPCResponseTimeoutError } from "../src/rpcErrors.js";
+import { nodeBrowserApiPlatform } from "../src/nodeBrowserApiPlatform.js";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import {
@@ -104,6 +105,12 @@ describe("RPCClientOptionsSchema", () => {
 });
 
 describe("RPCClient", () => {
+  it("supplies Node capabilities to the browser API", () => {
+    const client = new RPCClient(new FakeCDPTransport({}));
+
+    expect(client.platform).toBe(nodeBrowserApiPlatform);
+  });
+
   it("keeps callback batches in the ordinary pending RPC path", async () => {
     const source = "async () => undefined";
     const cdp = new FakeCDPTransport({});

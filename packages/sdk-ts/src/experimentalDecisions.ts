@@ -7,7 +7,7 @@ import type {
   ObserveResult,
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
-import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
+import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-browser-api/clientLocatorOptions";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -16,7 +16,7 @@ import {
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
-import type { Page } from "./page.js";
+import type { Page } from "@browserbasehq/stagehand-browser-api/page";
 import type { RPCClient } from "./rpcClient.js";
 import type { ExtractResult } from "./stagehand.js";
 import { isZodSchema } from "./zodSchema.js";

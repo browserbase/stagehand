@@ -55,6 +55,9 @@ _MAX_NAME_BYTES = 255
 # Either signature is accepted under any image extension, as Playwright's `type` wins
 # over the path.
 _IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
+# Artifacts are written relative to open directory descriptors; os.replace shares
+# os.rename's dir_fd support.
+_DIR_FD = {os.open, os.mkdir, os.stat, os.rename, os.unlink} <= os.supports_dir_fd
 _ERROR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]*Error")
 # Padded RFC 4648 base64, as btoa writes it (see isCanonicalBase64 in tools.ts).
 _CANONICAL_BASE64 = re.compile(r"[A-Za-z0-9+/]*={0,2}")
@@ -252,7 +255,8 @@ class StagehandFacadeTools:
             raise StagehandFacadeInputError(contract_error("RUN_RESULT_MALFORMED_ERROR"))
         run_error: Exception | None = None
         try:
-            self._write_artifacts(envelope["artifacts"])
+            # Off the event loop: artifacts can total many megabytes.
+            await asyncio.to_thread(self._write_artifacts, envelope["artifacts"])
             execution_error = envelope.get("executionError")
             if execution_error is not None:
                 raise StagehandFacadeExecutionError(
@@ -332,8 +336,9 @@ class StagehandFacadeTools:
         # so a rejected run leaves nothing behind.
         checked = [_check_artifact(configured_root, artifact) for artifact in artifacts]
         no_follow = getattr(os, "O_NOFOLLOW", None)
-        if no_follow is None:
-            # Without O_NOFOLLOW (Windows) artifact writes stay refused.
+        if no_follow is None or not _DIR_FD:
+            # Without O_NOFOLLOW or directory-relative calls (Windows) artifact writes
+            # stay refused.
             raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
         # A configured root may be a symlink; the default one, found in whatever
         # directory the host runs in, may not.
@@ -344,55 +349,37 @@ class StagehandFacadeTools:
         for parents, name, _ in checked:
             _check_destination(configured_root, [*parents, name])
         os.makedirs(configured_root, exist_ok=True)
-        root = os.path.realpath(configured_root)
-        for parents, name, data in checked:
-            # Reject symlinks before creating nested directories. An existing file is
-            # replaced by renaming a new file over it, never written through, so other
-            # links to it keep their contents.
-            directory = root
-            for component in parents:
-                directory = os.path.join(directory, component)
-                with contextlib.suppress(FileExistsError):
-                    os.mkdir(directory)
-                mode = os.lstat(directory).st_mode
-                if stat.S_ISLNK(mode):
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
-                    )
-                if not stat.S_ISDIR(mode):
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR")
-                    )
-            target = os.path.join(directory, name)
-            try:
-                existing: os.stat_result | None = os.lstat(target)
-            except FileNotFoundError:
-                existing = None
-            if existing is not None:
-                if stat.S_ISLNK(existing.st_mode):
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR")
-                    )
-                if not stat.S_ISREG(existing.st_mode):
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR")
-                    )
-            temporary = os.path.join(directory, f".stagehand-{secrets.token_hex(8)}.tmp")
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
-            descriptor = os.open(temporary, flags, 0o600)
-            try:
-                with os.fdopen(descriptor, "wb") as file:
-                    # A replaced file keeps its permissions; a new one is owner-only. Some
-                    # filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
-                    if existing is not None:
-                        with contextlib.suppress(OSError):
-                            os.fchmod(file.fileno(), stat.S_IMODE(existing.st_mode) & 0o777)
-                    file.write(data)
-                os.replace(temporary, target)
-            except BaseException:
-                with contextlib.suppress(FileNotFoundError):
-                    os.unlink(temporary)
+        root_flags = os.O_RDONLY | os.O_DIRECTORY | (0 if self._artifact_root else no_follow)
+        try:
+            root = os.open(configured_root, root_flags)
+        except OSError as error:
+            if error.errno not in (errno.ELOOP, errno.ENOTDIR) or not os.path.islink(
+                configured_root
+            ):
                 raise
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
+            ) from None
+        try:
+            for parents, name, data in checked:
+                # Each step is relative to an open directory, so the checks hold for the
+                # directory the file lands in, and symlinks are rejected before nested
+                # directories are created. An existing file is replaced by renaming
+                # a new file over it, never written through, so other links to it keep
+                # their contents.
+                directory = root
+                try:
+                    for component in parents:
+                        child = _open_directory(directory, component, no_follow)
+                        if directory != root:
+                            os.close(directory)
+                        directory = child
+                    _write_file(directory, name, data, no_follow)
+                finally:
+                    if directory != root:
+                        os.close(directory)
+        finally:
+            os.close(root)
 
     async def _active_page(self) -> Page:
         """The page the agent works on; a fresh blank page when its tab is gone.
@@ -454,6 +441,52 @@ def _check_destination(root: str, components: list[str]) -> None:
             raise StagehandFacadeInputError(
                 contract_error("SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR")
             )
+
+
+def _open_directory(parent: int, name: str, no_follow: int) -> int:
+    """Creates the directory `name` under `parent` if missing and opens it, refusing
+    symlinks and non-directories."""
+    with contextlib.suppress(FileExistsError):
+        os.mkdir(name, dir_fd=parent)
+    try:
+        return os.open(name, os.O_RDONLY | os.O_DIRECTORY | no_follow, dir_fd=parent)
+    except OSError as error:
+        if error.errno not in (errno.ELOOP, errno.ENOTDIR):
+            raise
+        mode = os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode
+    kind = "SYMLINK" if stat.S_ISLNK(mode) else "NOT_DIRECTORY"
+    raise StagehandFacadeInputError(contract_error(f"SCREENSHOT_ARTIFACT_{kind}_ERROR"))
+
+
+def _write_file(directory: int, name: str, data: bytes, no_follow: int) -> None:
+    """Writes `name` under `directory` through a temporary file renamed over it."""
+    try:
+        existing: os.stat_result | None = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if stat.S_ISLNK(existing.st_mode):
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR")
+            )
+        if not stat.S_ISREG(existing.st_mode):
+            raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"))
+    temporary = f".stagehand-{secrets.token_hex(8)}.tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
+    descriptor = os.open(temporary, flags, 0o600, dir_fd=directory)
+    try:
+        with os.fdopen(descriptor, "wb") as file:
+            # A replaced file keeps its permissions; a new one is owner-only. Some
+            # filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
+            if existing is not None:
+                with contextlib.suppress(OSError):
+                    os.fchmod(file.fileno(), stat.S_IMODE(existing.st_mode) & 0o777)
+            file.write(data)
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary, dir_fd=directory)
+        raise
 
 
 def _check_artifact(root: str, artifact: dict[str, str]) -> tuple[list[str], str, bytes]:

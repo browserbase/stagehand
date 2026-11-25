@@ -1,9 +1,17 @@
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
-import { defineConfig } from "vite";
+import { build, defineConfig, type Plugin } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
+import { EXTENSION_BUILD_ID_FILE, STAGEHAND_EXTENSION_BUILD_ID } from "./version.ts";
+import protocolPackageJson from "../protocol/package.json" with { type: "json" };
+import {
+  EXTENSION_BUILD_INFO_FILE,
+  fingerprintFiles,
+  readDirectoryFiles,
+  type ExtensionBuildInfo,
+} from "./buildFingerprint.ts";
 
 const root = import.meta.dirname;
 const outDir = path.join(root, "dist");
@@ -11,10 +19,58 @@ const artifactsDir = path.join(root, "artifacts");
 const extensionArchivePath = path.join(artifactsDir, "stagehand-extension.zip");
 const deterministicZipModifiedAt = new Date(1980, 0, 1);
 
-function buildExtensionArtifacts() {
+// Content scripts are classic scripts, so they cannot import chunks shared with
+// the module service worker. Bundle this entry independently, including its scope.
+function standaloneContentScript(): Plugin {
+  return {
+    name: "stagehand-extension-content-script",
+    async generateBundle() {
+      const result = await build({
+        configFile: false,
+        build: {
+          write: false,
+          minify: "oxc",
+          target: "es2022",
+          lib: {
+            entry: path.join(root, "content-script.ts"),
+            formats: ["iife"],
+            name: "StagehandContentScript",
+            fileName: () => "content-script.js",
+          },
+        },
+      });
+      for (const output of Array.isArray(result) ? result : [result]) {
+        if (!("output" in output)) throw new Error("Unexpected content script build result");
+        for (const file of output.output) {
+          this.emitFile({
+            type: "asset",
+            fileName: file.fileName,
+            source: file.type === "chunk" ? file.code : file.source,
+          });
+        }
+      }
+    },
+  };
+}
+
+function buildExtensionArtifacts(): Plugin {
+  let rejectedBundle = false;
   return {
     name: "stagehand-extension-artifacts",
+    generateBundle(_options, bundle) {
+      rejectedBundle = false;
+      // Minified output no longer carries the placeholder's name, so check the module graph.
+      for (const [file, output] of Object.entries(bundle)) {
+        if (output.type !== "chunk") continue;
+        if (output.moduleIds.some((id) => id.includes("__vite-browser-external"))) {
+          rejectedBundle = true;
+          throw new Error(`${file} bundles a Node built-in, which the extension cannot load`);
+        }
+      }
+    },
     async closeBundle() {
+      // Nothing was written; let the build error surface instead of a missing-file one.
+      if (rejectedBundle) return;
       await mkdir(outDir, { recursive: true });
       const manifest = JSON.parse(
         await readFile(path.join(root, "manifest.json"), "utf8"),
@@ -34,6 +90,7 @@ function buildExtensionArtifacts() {
         path.join(outDir, "offscreen/service-worker-heartbeat.html"),
       );
 
+      await stampBuildId(outDir);
       await validateExtension(outDir);
       const archive = zipSync(await readExtensionFiles(outDir), { level: 9 });
       await mkdir(artifactsDir, { recursive: true });
@@ -44,8 +101,38 @@ function buildExtensionArtifacts() {
       } finally {
         await rm(temporaryArchivePath, { force: true });
       }
+
+      const buildInfo: ExtensionBuildInfo = {
+        extensionVersion: packageJson.version,
+        protocolVersion: protocolPackageJson.version,
+        fingerprint: fingerprintFiles(await readDirectoryFiles(outDir)),
+      };
+      await writeFile(
+        path.join(artifactsDir, EXTENSION_BUILD_INFO_FILE),
+        `${JSON.stringify(buildInfo, null, 2)}\n`,
+      );
     },
   };
+}
+
+// The unstamped build's fingerprint: the shipped fingerprint hashes the stamped files themselves.
+async function stampBuildId(directory: string): Promise<void> {
+  const files = await readDirectoryFiles(directory);
+  const buildId = fingerprintFiles(files);
+  let stamped = false;
+  for (const [relativePath, contents] of files) {
+    if (!relativePath.endsWith(".js")) continue;
+    const source = Buffer.from(contents).toString("utf8");
+    if (!source.includes(STAGEHAND_EXTENSION_BUILD_ID)) continue;
+    await writeFile(
+      path.join(directory, relativePath),
+      source.replaceAll(STAGEHAND_EXTENSION_BUILD_ID, buildId),
+    );
+    stamped = true;
+  }
+  if (!stamped)
+    throw new Error("The extension build does not contain the build identity placeholder");
+  await writeFile(path.join(directory, EXTENSION_BUILD_ID_FILE), `${buildId}\n`);
 }
 
 function chromeManifestVersion(version: string): string {
@@ -109,14 +196,13 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
 export default defineConfig({
   build: {
     emptyOutDir: true,
-    minify: false,
+    minify: "oxc",
     modulePreload: false,
     outDir,
     target: "es2022",
     rolldownOptions: {
       input: {
         "service-worker": path.join(root, "service-worker.ts"),
-        "content-script": path.join(root, "content-script.ts"),
         "offscreen/service-worker-heartbeat": path.join(
           root,
           "service-worker-lifecycle/heartbeat.ts",
@@ -125,8 +211,15 @@ export default defineConfig({
       },
       output: {
         entryFileNames: "[name].js",
+        // `build.minify` turns minification on and this object adds keepNames, so stack traces
+        // and logs stay readable. To turn minification off, set `build.minify: false` and remove
+        // this object; either one alone still minifies.
+        minify: {
+          compress: { keepNames: { function: true, class: true } },
+          mangle: { keepNames: { function: true, class: true } },
+        },
       },
     },
   },
-  plugins: [instrumentedDecoratorBuild(), buildExtensionArtifacts()],
+  plugins: [instrumentedDecoratorBuild(), standaloneContentScript(), buildExtensionArtifacts()],
 });

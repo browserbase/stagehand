@@ -16,17 +16,21 @@ and publisher; the wrapper chooses which changesets/packages they see.
 - Re-run the failed Release workflow to retry publication. Each package has one
   publisher, and Changesets skips versions already present in the registry.
 
-Browse still depends on the TypeScript SDK via `workspace:*`. Packing resolves
-that to the workspace SDK's exact version. That SDK version must already exist
-on npm; a dependency change requiring new SDK code must ship the SDK first.
-The CLI publishing path waits up to 15 minutes for that SDK version to appear,
-so it can complete alongside a concurrent SDK publication without depending on
-unrelated SDK checks.
-Before publishing, the CLI job packs and installs Browse outside the workspace
-and checks its entry points against registry dependencies. This does not prove
-that every browser command is compatible with an unreleased SDK change.
+Browse pins an exact published TypeScript SDK version in `packages/cli/package.json`.
+Development, CI, and installed packages all use that version from npm. SDK upgrades
+are explicit Browse dependency changes: publish the SDK first, update the pin and
+lockfile, and run Browse's contract and browser smoke tests before releasing.
+The CLI publishing path checks the declared version on npm and rejects workspace
+links or version ranges for monorepo dependencies. It retains a bounded wait for
+registry propagation, independent of unrelated SDK checks.
+Before publishing, the CLI job also packs and installs Browse outside the workspace
+to check its packaged entry points and dependencies.
 
 ## Coordination details
+
+The versioning wrapper applies only entries belonging to the selected release
+group, including entries with no version bump. This prevents SDK releases from
+silently updating Browse's dependency pin.
 
 Changesets 2.x `publish` does not honor `ignore`. The wrapper temporarily marks
 packages outside the selected group private and restores their exact manifests
@@ -58,7 +62,7 @@ releases instead. Already-published alpha versions are skipped on retries.
 
 The alpha job runs independently of the stable release jobs, uses only the
 Browse publisher, and creates no Git tag. It builds and smoke-tests the tarball
-against the published workspace SDK version, just like stable Browse releases;
+against Browse's pinned published SDK version, just like stable Browse releases;
 it does not depend on an SDK alpha being published for the same commit.
 
 ## First rollout
@@ -76,8 +80,8 @@ publication permissions must still be verified on the first production release.
 
 `publish-python.yml` uses `just _install-python-release` for stable and alpha builds.
 It installs root release tooling plus the extension, protocol, and TypeScript SDK
-pnpm dependencies, and syncs only the Python `stagehand` environment. The SDK TS
-dependencies are required by the extension's current direct source imports.
+pnpm dependencies, and syncs only the Python `stagehand` environment. The job packages
+the release's extension build (see below) instead of building the extension.
 
 The build job disables pnpm's automatic dependency installation before `run`/`exec`
 so alpha manifest changes cannot trigger a full-workspace reinstall. For local
@@ -88,3 +92,25 @@ Both installs use locked dependencies. Alpha preparation still deliberately upda
 the shared lockfile after changing versions; filtered installation does not isolate
 workspace-wide dependency resolution. Existing wheel and source-distribution smoke
 checks and publication steps are unchanged.
+
+## Extension build
+
+Within one Release run, the npm packages and the wheels are packaged from one extension
+build. The `build-extension` job runs `just _build-release-extension`, which applies the
+SDK snapshot versioning (a no-op when no SDK changeset is pending, the only case in which
+stable packages publish), runs `just build-extension` and prints the fingerprint after
+checking it against `dist/`. The job uploads the build as the `extension` workflow
+artifact and exposes the fingerprint as a job output. The TypeScript and Python publish
+jobs download that artifact into `packages/extension/` instead of rebuilding it. Before
+publishing, `check-extension-build.ts --expect <fingerprint>` compares the copies in
+`sdk-ts/dist` and the wheel with that fingerprint, checks that each package embeds the
+same `extension-build.json` (`dist/assets/extension-build.json`,
+`stagehand/_extension_build.json`) and confirms the extension was built for the job's
+current protocol and extension versions. The sdist is not checked; `uv build`
+builds the wheel from it.
+
+The check compares each package with the extension build from the same run. Re-running
+all jobs rebuilds the extension from the same commit, so parity with a package the first
+attempt already published relies on the build being reproducible. A later push that
+publishes a missing package builds from a newer commit, so it also needs the extension's
+inputs to be unchanged since the release commit.

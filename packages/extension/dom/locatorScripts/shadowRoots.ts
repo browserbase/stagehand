@@ -15,9 +15,9 @@ export function getOpenOrClosedShadowRoot(element: Element): ShadowRoot | null {
   }
 }
 
-export function documentHasShadowRoot(): boolean {
+export function documentHasShadowRoot(scope: Document = document): boolean {
   try {
-    const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+    const walker = scope.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT);
     while (walker.nextNode()) {
       if (getOpenOrClosedShadowRoot(walker.currentNode as Element)) return true;
     }

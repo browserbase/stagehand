@@ -455,6 +455,31 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(await fsp.readdir(artifactRoot)).toEqual([]);
   });
 
+  it("writes nothing outside the root when a checked directory is swapped for a symlink", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
+    const outside = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-outside-"));
+    tempDirs.push(artifactRoot, outside);
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    const realOpen = fsp.open.bind(fsp);
+    const open = vi.spyOn(fsp, "open").mockImplementation(async (file, ...rest) => {
+      if (String(file).includes(".stagehand-")) {
+        const shots = path.join(artifactRoot, "shots");
+        await fsp.rename(shots, path.join(artifactRoot, "moved"));
+        await fsp.symlink(outside, shots);
+      }
+      return realOpen(file, ...rest);
+    });
+    try {
+      await expect(tools.run(`await page.screenshot({ path: "shots/shot.png" });`)).rejects.toThrow(
+        SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+      );
+    } finally {
+      open.mockRestore();
+    }
+    expect(await fsp.readdir(outside)).toEqual([]);
+  });
+
   it("reports a filesystem error by its code, without host paths", async () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     const artifactRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-tools-"));
