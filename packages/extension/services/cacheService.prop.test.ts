@@ -399,8 +399,11 @@ describe("cacheService and actService adversarial properties", () => {
             const actDataJson = JSON.stringify(actCacheData);
             const observeDataJson = JSON.stringify(observeCacheData);
             for (const canary of canaries) {
+              const jsonEscapedCanary = JSON.stringify(canary).slice(1, -1);
               expect(actDataJson).not.toContain(canary);
+              expect(actDataJson).not.toContain(jsonEscapedCanary);
               expect(observeDataJson).not.toContain(canary);
+              expect(observeDataJson).not.toContain(jsonEscapedCanary);
             }
 
             const capturedGets: CacheGetRequest[] = [];
@@ -474,7 +477,9 @@ describe("cacheService and actService adversarial properties", () => {
             ];
             for (const artifact of serializedArtifacts) {
               for (const canary of canaries) {
+                const jsonEscapedCanary = JSON.stringify(canary).slice(1, -1);
                 expect(artifact).not.toContain(canary);
+                expect(artifact).not.toContain(jsonEscapedCanary);
               }
             }
           },
@@ -593,24 +598,54 @@ describe("cacheService and actService adversarial properties", () => {
   });
 
   describe("cache key determinism, isolation, and corrupt payload resilience", () => {
-    it("isolates distinct instructions, variable names, descriptions, and thresholds without mutating caller data", () => {
-      fc.assert(
-        fc.property(
+    it("isolates distinct instructions, variable names, descriptions, and thresholds without mutating caller data", async () => {
+      await fc.assert(
+        fc.asyncProperty(
           fc.string({ minLength: 1, maxLength: 30 }),
           fc.string({ minLength: 1, maxLength: 30 }),
           variableNameArb,
           variableNameArb,
-          (inst1, inst2, key1, key2) => {
+          fc.integer({ min: 0, max: 10 }),
+          fc.integer({ min: 0, max: 10 }),
+          async (inst1, inst2, key1, key2, threshold1, threshold2) => {
+            const actParams = {
+              pageId: "p",
+              instruction: inst1,
+              options: {
+                variables: { [key1]: { value: "secret", description: "Desc A" } },
+                cache: { threshold: threshold1 },
+              },
+            };
+            const obsParams = {
+              pageId: "p",
+              instruction: inst1,
+              options: {
+                variables: { [key1]: { value: "secret", description: "Desc A" } },
+                cache: { threshold: threshold1 },
+              },
+            };
+            const actSnapshot = JSON.stringify(actParams);
+            const obsSnapshot = JSON.stringify(obsParams);
+
+            const builtAct = cacheService.buildActCacheData(actParams);
+            const builtObs = cacheService.buildObserveCacheData(obsParams);
+            expect(JSON.stringify(actParams)).toBe(actSnapshot);
+            expect(JSON.stringify(obsParams)).toBe(obsSnapshot);
+
             if (inst1 !== inst2) {
-              expect(
-                cacheService.buildActCacheData({ pageId: "p", instruction: inst1 }),
-              ).not.toStrictEqual(
-                cacheService.buildActCacheData({ pageId: "p", instruction: inst2 }),
+              expect(builtAct).not.toStrictEqual(
+                cacheService.buildActCacheData({
+                  pageId: "p",
+                  instruction: inst2,
+                  options: { variables: { [key1]: { value: "secret", description: "Desc A" } } },
+                }),
               );
-              expect(
-                cacheService.buildObserveCacheData({ pageId: "p", instruction: inst1 }),
-              ).not.toStrictEqual(
-                cacheService.buildObserveCacheData({ pageId: "p", instruction: inst2 }),
+              expect(builtObs).not.toStrictEqual(
+                cacheService.buildObserveCacheData({
+                  pageId: "p",
+                  instruction: inst2,
+                  options: { variables: { [key1]: { value: "secret", description: "Desc A" } } },
+                }),
               );
             }
 
@@ -643,10 +678,91 @@ describe("cacheService and actService adversarial properties", () => {
                 options: { variables: { [key1]: { value: "v", description: "Desc B" } } },
               }),
             );
+
+            if (threshold1 !== threshold2) {
+              const { page } = makeMockPage();
+              const builtActSnapshot = JSON.stringify(builtAct);
+              const captured: CacheGetRequest[] = [];
+              const get = vi.fn(async (req: CacheGetRequest) => {
+                captured.push(req);
+                return { hit: false, cacheKey: "k", missReason: "not_found" };
+              });
+              const set = vi.fn(async () => ({ written: true, cacheKey: "k" }));
+              for (const threshold of [threshold1, threshold2]) {
+                await cacheService.withCache<{ metadata: { cache: CacheMetadata } }>({
+                  context: {
+                    sessionId: "s",
+                    client: { get, set } as unknown as CacheClient,
+                    defaultCaching: true,
+                  },
+                  caching: { threshold },
+                  page,
+                  method: "act",
+                  data: builtAct,
+                  logger: testLogger(),
+                  onHit: async () => ({ metadata: { cache: { status: "HIT" } } }),
+                  execute: async () => ({
+                    result: { metadata: { cache: { status: "MISS" } } },
+                  }),
+                });
+              }
+              expect(JSON.stringify(builtAct)).toBe(builtActSnapshot);
+              expect(captured).toHaveLength(2);
+              const opts0 = captured[0]!.data.options as Record<string, unknown>;
+              const opts1 = captured[1]!.data.options as Record<string, unknown>;
+              expect(opts0.cacheThreshold).toBe(threshold1);
+              expect(opts1.cacheThreshold).toBe(threshold2);
+              expect(captured[0]!.data).not.toStrictEqual(captured[1]!.data);
+            }
           },
         ),
         { seed: BASE_SEED + 20, numRuns: 100 },
       );
+    });
+
+    it("rejects multi-action cached replay with an unknown later method before executing action 1", async () => {
+      performAction.mockReset().mockResolvedValue();
+      const { page } = makeMockPage();
+      const get = vi.fn().mockResolvedValue({
+        hit: true,
+        cacheKey: "unknown-method-key",
+        value: [
+          { selector: "xpath=//button[1]", description: "Step 1", method: "click", arguments: [] },
+          {
+            selector: "xpath=//button[2]",
+            description: "Step 2",
+            method: "nonExistentMethod",
+            arguments: [],
+          },
+        ],
+      } satisfies CacheGetResponse);
+      const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "unknown-method-key" });
+      const clientLLMGenerate = vi.fn(async () =>
+        makeActGeneration({
+          elementId: "0-1",
+          description: "Fallback click",
+          method: "click",
+          arguments: [],
+        }),
+      );
+
+      const result = await actService.act({
+        params: { pageId: "page-1", instruction: "click button" },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+        cache: {
+          sessionId: "session-1",
+          client: { get, set } as unknown as CacheClient,
+          defaultCaching: true,
+        },
+      });
+
+      expect(result.data.success).toBe(true);
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
+      expect(performAction).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledTimes(1);
     });
 
     it("never crashes when normalizing arbitrary corrupt or cjson-mangled cached action payloads", () => {

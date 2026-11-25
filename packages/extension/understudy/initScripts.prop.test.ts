@@ -43,6 +43,15 @@ describe("initScripts adversarial properties", () => {
         (globalThis as Record<string, unknown>).__captured = v;
       },
     };
+    const commentedMethod = vm.runInNewContext(
+      "({ foo /* (fake param) */ (v) { globalThis.__captured = v; } }).foo",
+    ) as (v: unknown) => unknown;
+    const lineCommentMethod = vm.runInNewContext(
+      "({ foo // (fake param)\n (v) { globalThis.__captured = v; } }).foo",
+    ) as (v: unknown) => unknown;
+    const quotedCommentMethod = vm.runInNewContext(
+      `({ "quoted-comment" /* (fake) */ (v) { globalThis.__captured = v; } })["quoted-comment"]`,
+    ) as (v: unknown) => unknown;
 
     const fnVariants: Array<{
       name: string;
@@ -95,6 +104,21 @@ describe("initScripts adversarial properties", () => {
         fn: methodContainer[computedKey],
         isAsync: false,
       },
+      {
+        name: "block-commented concise method",
+        fn: commentedMethod,
+        isAsync: false,
+      },
+      {
+        name: "line-commented concise method",
+        fn: lineCommentMethod,
+        isAsync: false,
+      },
+      {
+        name: "quoted block-commented concise method",
+        fn: quotedCommentMethod,
+        isAsync: false,
+      },
     ];
 
     await fc.assert(
@@ -127,13 +151,14 @@ describe("initScripts adversarial properties", () => {
           await expect(normalizeInitScriptSource(code)).resolves.toBe(code);
           await expect(normalizeInitScriptSource({ content: code })).resolves.toBe(code);
 
+          const callerPrefix = new RegExp(`^${caller.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`);
           await expect(
             normalizeInitScriptSource(
               code as unknown as InitScriptSource<unknown>,
               nonUndefinedArg,
               caller,
             ),
-          ).rejects.toThrow(new RegExp(caller.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+          ).rejects.toThrow(callerPrefix);
           await expect(
             normalizeInitScriptSource(
               { content: code } as unknown as InitScriptSource<unknown>,
@@ -141,6 +166,13 @@ describe("initScripts adversarial properties", () => {
               caller,
             ),
           ).rejects.toThrow(TypeError);
+          await expect(
+            normalizeInitScriptSource(
+              { content: code } as unknown as InitScriptSource<unknown>,
+              nonUndefinedArg,
+              caller,
+            ),
+          ).rejects.toThrow(callerPrefix);
         },
       ),
       { seed: BASE_SEED + 1, numRuns: 80 },
@@ -163,6 +195,7 @@ describe("initScripts adversarial properties", () => {
         invalidSourceArb,
         fc.stringMatching(/^[a-zA-Z0-9_.]{1,20}$/),
         async (badSource, caller) => {
+          const callerPrefix = new RegExp(`^${caller.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`);
           await expect(
             normalizeInitScriptSource(
               badSource as unknown as InitScriptSource<never>,
@@ -170,6 +203,13 @@ describe("initScripts adversarial properties", () => {
               caller,
             ),
           ).rejects.toThrow(TypeError);
+          await expect(
+            normalizeInitScriptSource(
+              badSource as unknown as InitScriptSource<never>,
+              undefined,
+              caller,
+            ),
+          ).rejects.toThrow(callerPrefix);
         },
       ),
       { seed: BASE_SEED + 2, numRuns: 40 },

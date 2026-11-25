@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
@@ -11,42 +12,63 @@ import {
 
 const BASE_SEED = 20261124;
 
-function isIpHostname(hostname: string): boolean {
-  return hostname.startsWith("[") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
-}
-
-function rfc6265DomainMatches(requestHost: string, cookieDomain: string): boolean {
-  const host = requestHost.toLowerCase();
-  const domain = cookieDomain.toLowerCase();
-  if (!host || !domain) return false;
-  if (!domain.startsWith(".")) return host === domain;
-  const bare = domain.slice(1);
-  if (!bare || bare.startsWith(".")) return false;
-  if (isIpHostname(host)) return false;
-  return host === bare || host.endsWith(domain);
-}
-
-function rfc6265PathMatches(requestPath: string, cookiePath: string): boolean {
-  if (!cookiePath.startsWith("/") || !requestPath.startsWith("/")) return false;
-  if (requestPath === cookiePath) return true;
-  if (!requestPath.startsWith(cookiePath)) return false;
-  return cookiePath.endsWith("/") || requestPath[cookiePath.length] === "/";
+function isIpLiteralHost(hostname: string): boolean {
+  const unwrapped =
+    hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+  return isIP(unwrapped) !== 0;
 }
 
 function rfc6265SecureMatches(url: URL, cookieSecure: boolean): boolean {
   if (!cookieSecure) return true;
   if (url.protocol === "https:" || url.protocol === "wss:") return true;
-  const isLoopback =
-    url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  return (url.protocol === "http:" || url.protocol === "ws:") && isLoopback;
+  const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  return (
+    (url.protocol === "http:" || url.protocol === "ws:") &&
+    loopbackHosts.has(url.hostname.toLowerCase())
+  );
 }
 
+/**
+ * Independent RFC 6265 §5.1.3 / §5.1.4 / §5.4 oracle derived via label arrays,
+ * `node:net` IP classification, and segment boundary matching rather than
+ * reusing the production `cookies.ts` implementation.
+ */
 function rfc6265OracleMatches(cookie: Cookie, url: URL): boolean {
-  return (
-    rfc6265DomainMatches(url.hostname, cookie.domain) &&
-    rfc6265PathMatches(url.pathname, cookie.path) &&
-    rfc6265SecureMatches(url, cookie.secure)
-  );
+  const host = url.hostname.toLowerCase();
+  const rawDomain = cookie.domain.toLowerCase();
+  if (!host || !rawDomain) return false;
+
+  let domainOk: boolean;
+  if (rawDomain.startsWith(".")) {
+    const stripped = rawDomain.slice(1);
+    if (!stripped || stripped.startsWith(".")) {
+      domainOk = false;
+    } else if (host === stripped) {
+      domainOk = true;
+    } else if (isIpLiteralHost(host)) {
+      domainOk = false;
+    } else {
+      const hostLabels = host.split(".");
+      const domainLabels = stripped.split(".");
+      domainOk =
+        hostLabels.length > domainLabels.length &&
+        domainLabels.every(
+          (label, idx) => hostLabels[hostLabels.length - domainLabels.length + idx] === label,
+        );
+    }
+  } else {
+    domainOk = host === rawDomain;
+  }
+  if (!domainOk) return false;
+
+  const reqPath = url.pathname;
+  const cPath = cookie.path;
+  if (!cPath.startsWith("/") || !reqPath.startsWith("/")) return false;
+  const normalizedCookiePrefix = cPath.endsWith("/") ? cPath : `${cPath}/`;
+  const pathOk = reqPath === cPath || reqPath.startsWith(normalizedCookiePrefix);
+  if (!pathOk) return false;
+
+  return rfc6265SecureMatches(url, cookie.secure);
 }
 
 const labelArb = fc.stringMatching(/^[a-z][a-z0-9-]{0,6}[a-z0-9]$/);
@@ -191,14 +213,36 @@ describe("cookies RFC 6265 adversarial properties", () => {
     );
   });
 
-  it("never matches leading-dot cookie domains against IPv4 or IPv6 URLs", () => {
+  it("allows identical IP domain matches per RFC 6265 §5.1.3 while blocking IP suffix matches", () => {
+    const tableCases: Array<{ domain: string; url: string; expected: boolean }> = [
+      { domain: ".127.0.0.1", url: "http://127.0.0.1/", expected: true },
+      { domain: "127.0.0.1", url: "https://127.0.0.1/", expected: true },
+      { domain: ".0.0.1", url: "http://127.0.0.1/", expected: false },
+      { domain: ".1", url: "http://127.0.0.1/", expected: false },
+      { domain: ".[::1]", url: "http://[::1]/", expected: true },
+      { domain: "[::1]", url: "https://[::1]/", expected: true },
+      { domain: ".example.com", url: "https://example.com/", expected: true },
+      { domain: ".example.com", url: "https://sub.example.com/", expected: true },
+      { domain: ".example.com", url: "https://evil-example.com/", expected: false },
+      { domain: "example.com", url: "https://sub.example.com/", expected: false },
+      { domain: "..example.com", url: "https://sub.example.com/", expected: false },
+    ];
+    for (const tc of tableCases) {
+      const cookie = baseCookie({ domain: tc.domain });
+      expect(filterCookies([cookie], [tc.url])).toStrictEqual(tc.expected ? [cookie] : []);
+    }
+
     fc.assert(
-      fc.property(ipHostArb, fc.boolean(), (ip, useSuffix) => {
-        const domain =
-          useSuffix && !ip.startsWith("[") ? `.${ip.split(".").slice(1).join(".")}` : `.${ip}`;
-        const cookie = baseCookie({ domain });
-        expect(filterCookies([cookie], [`http://${ip}/`])).toStrictEqual([]);
-        expect(filterCookies([cookie], [`https://${ip}/`])).toStrictEqual([]);
+      fc.property(ipHostArb, (ip) => {
+        const exactDotted = baseCookie({ domain: `.${ip}` });
+        expect(filterCookies([exactDotted], [`http://${ip}/`])).toStrictEqual([exactDotted]);
+        expect(filterCookies([exactDotted], [`https://${ip}/`])).toStrictEqual([exactDotted]);
+
+        if (!ip.startsWith("[")) {
+          const suffixCookie = baseCookie({ domain: `.${ip.split(".").slice(1).join(".")}` });
+          expect(filterCookies([suffixCookie], [`http://${ip}/`])).toStrictEqual([]);
+          expect(filterCookies([suffixCookie], [`https://${ip}/`])).toStrictEqual([]);
+        }
       }),
       { seed: BASE_SEED + 2, numRuns: 100 },
     );

@@ -33,6 +33,38 @@ function normalizeFunctionExpression(rawSource: string): string {
   return `${prefix}${rest.slice(paramsStart)}`;
 }
 
+function skipWsAndComments(source: string, start: number): number {
+  let i = start;
+  while (i < source.length) {
+    const ch = source[i]!;
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      i += 2;
+      while (i < source.length && source[i] !== "\n" && source[i] !== "\r") {
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      const end = source.indexOf("*/", i + 2);
+      if (end === -1) return -1;
+      i = end + 2;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+function findNextOpenParen(source: string, start: number): number {
+  const i = skipWsAndComments(source, start);
+  if (i === -1 || source[i] !== "(") return -1;
+  return i;
+}
+
 function findMethodParamsStart(source: string): number {
   if (source.startsWith('"') || source.startsWith("'")) {
     const quote = source[0];
@@ -43,7 +75,7 @@ function findMethodParamsStart(source: string): number {
         continue;
       }
       if (source[i] === quote) {
-        return source.indexOf("(", i + 1);
+        return findNextOpenParen(source, i + 1);
       }
       i += 1;
     }
@@ -62,18 +94,35 @@ function findMethodParamsStart(source: string): number {
         }
         continue;
       }
+      if (ch === "/" && source[i + 1] === "/") {
+        i += 1;
+        while (i + 1 < source.length && source[i + 1] !== "\n" && source[i + 1] !== "\r") {
+          i += 1;
+        }
+        continue;
+      }
+      if (ch === "/" && source[i + 1] === "*") {
+        const end = source.indexOf("*/", i + 2);
+        if (end === -1) return -1;
+        i = end + 1;
+        continue;
+      }
       if (ch === '"' || ch === "'" || ch === "`") {
         inString = ch;
       } else if (ch === "[") {
         depth += 1;
       } else if (ch === "]") {
         depth -= 1;
-        if (depth === 0) return source.indexOf("(", i + 1);
+        if (depth === 0) return findNextOpenParen(source, i + 1);
       }
     }
     return -1;
   }
-  return source.indexOf("(");
+  let i = 0;
+  while (i < source.length && !/[\s/(]/.test(source[i]!)) {
+    i += 1;
+  }
+  return findNextOpenParen(source, i);
 }
 
 export async function normalizeInitScriptSource<Arg>(

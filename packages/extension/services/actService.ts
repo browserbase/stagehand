@@ -243,6 +243,15 @@ async function actWithProgress(
   }
 }
 
+const SUPPORTED_REPLAY_METHODS: ReadonlySet<string> = new Set<string>([
+  ...Object.values(SupportedUnderstudyAction),
+  "scrollIntoView",
+  "scrollByPixelOffset",
+  "scroll",
+  "mouse.wheel",
+  "selectOption",
+]);
+
 async function replayCachedActions(
   value: unknown,
   instruction: string,
@@ -256,7 +265,7 @@ async function replayCachedActions(
 
   for (const action of actions) {
     const method = action.method?.trim();
-    if (!method || method === "not-supported") {
+    if (!method || !SUPPORTED_REPLAY_METHODS.has(method)) {
       throw new Error(`Cached action has unsupported method '${method ?? ""}'`);
     }
   }

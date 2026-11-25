@@ -33,9 +33,9 @@ function domainMatches(requestHost: string, cookieDomain: string): boolean {
   if (!domain.startsWith(".")) return host === domain;
   const bare = domain.slice(1);
   if (!bare || bare.startsWith(".")) return false;
-  // RFC 6265 §5.1.3: domain-attribute cookies never subdomain-match IP literals.
+  if (host === bare) return true;
   if (isIpHostname(host)) return false;
-  return host === bare || host.endsWith(domain);
+  return host.endsWith(domain);
 }
 
 function pathMatches(requestPath: string, cookiePath: string): boolean {

@@ -44,10 +44,7 @@ describe("fileUploadUtils adversarial properties", () => {
           expect(encoded.length).toBe(4 * Math.ceil(length / 3));
           const decoded = Buffer.from(encoded, "base64");
           expect(decoded.length).toBe(length);
-          expect(decoded[0]).toBe(bytes[0]);
-          expect(decoded[32_767]).toBe(bytes[32_767]);
-          expect(decoded[32_768]).toBe(bytes[32_768]);
-          expect(decoded[length - 1]).toBe(bytes[length - 1]);
+          expect(decoded.equals(bytes)).toBe(true);
         },
       ),
       { seed: BASE_SEED + 1, numRuns: 20 },
