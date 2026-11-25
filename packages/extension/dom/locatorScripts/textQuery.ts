@@ -1,3 +1,4 @@
+import type { LocatorFilterStep } from "@browserbasehq/stagehand-protocol/types";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 const excludedTags = new Set(["head", "script", "style", "template", "noscript"]);
@@ -60,6 +61,21 @@ export function createTextQueryCache(): (node: Node) => QueryText {
     return value;
   };
   return read;
+}
+
+export function filterTextMatches(
+  candidates: readonly Element[],
+  options: Pick<LocatorFilterStep, "hasText" | "hasNotText">,
+): Element[] {
+  const include = options.hasText === undefined ? undefined : createTextMatcher(options.hasText);
+  const exclude =
+    options.hasNotText === undefined ? undefined : createTextMatcher(options.hasNotText);
+  if (!include && !exclude) return [...candidates];
+  const read = createTextQueryCache();
+  return candidates.filter((candidate) => {
+    const text = read(candidate).normalized;
+    return (!include || include(text)) && (!exclude || !exclude(text));
+  });
 }
 
 export function collectNormalizedTextMatches(

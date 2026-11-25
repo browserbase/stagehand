@@ -1,6 +1,7 @@
 import { LocatorChainSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LocatorChain,
+  LocatorFilterStep,
   LocatorQuerySelector,
   RoleSelectorQuery,
 } from "@browserbasehq/stagehand-protocol/types";
@@ -102,6 +103,10 @@ class FrameChainOperation {
         matches = matches[step.index] ? [matches[step.index]] : [];
         continue;
       }
+      if (step.type === "filter") {
+        matches = await this.filter(step, matches);
+        continue;
+      }
       if (step.type === "frame" && matches.some((match) => !match.isFrame)) {
         throw new Error("Explicit frame hop requires an iframe or frame element");
       }
@@ -180,6 +185,23 @@ class FrameChainOperation {
 
   private assertWorlds() {
     for (const world of this.worlds.values()) this.assertWorld(world);
+  }
+
+  private async filter(options: LocatorFilterStep, matches: Match[]): Promise<Match[]> {
+    const retained = new Set<Match>();
+    for (const [world, entries] of groupByWorld(matches)) {
+      const result = await this.call(
+        world,
+        "function(options, ids) { return this.filter(options, ids); }",
+        [options, entries.map(({ match }) => match.id)],
+        true,
+      );
+      const ids = new Set(result.value as number[]);
+      for (const { match } of entries) {
+        if (ids.has(match.id)) retained.add(match);
+      }
+    }
+    return matches.filter((match) => retained.has(match));
   }
 
   private async query(selector: LocatorQuerySelector, scopes: Match[]): Promise<Match[]> {

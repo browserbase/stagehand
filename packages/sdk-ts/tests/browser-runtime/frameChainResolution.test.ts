@@ -416,6 +416,29 @@ describe("iframe chain resolution in Chrome", () => {
     expect(await targets([css(".scope"), { type: "nth", index: 9 }, css("button")])).toEqual([]);
   });
 
+  it("preserves filtered order across documents in all, count & selected modes", async () => {
+    await mixedScopes();
+    const steps: LocatorChain["steps"] = [
+      css(".scope"),
+      css("button"),
+      { type: "filter", hasText: "save", hasNotText: "shadow" },
+    ];
+    const all = await targets(steps);
+    expect(await ids(all)).toEqual(["a", "save", "b"]);
+    expect(await resolve(steps, "count")).toEqual({ mode: "count", count: 3 });
+    expect(await resolve(steps, { mode: "selected", index: 1 })).toEqual({
+      mode: "selected",
+      targets: [all[1]],
+    });
+    expect(await ids(await targets([...steps, { type: "nth", index: 2 }]))).toEqual(["b"]);
+    expect(await targets([...steps, { type: "nth", index: 3 }])).toEqual([]);
+    expect(await ids(await targets([css(".scope, body"), css("button"), steps[2]!]))).toEqual([
+      "a",
+      "b",
+      "save",
+    ]);
+  });
+
   it("deduplicates overlapping scopes by document identity before selecting positions", async () => {
     await mixedScopes();
     await page.evaluate(() => {
@@ -523,6 +546,82 @@ describe("iframe chain resolution in Chrome", () => {
     },
     30_000,
   );
+
+  it("batches text filters at 500 & 1,000 candidates per document", async () => {
+    await mixedScopes();
+    const [childTarget] = await targets([css("iframe"), css("#save")]);
+    const child = page.frameForId(childTarget.frameId);
+    for (const size of [500, 1000]) {
+      await page.evaluate((size) => {
+        for (const [side, section] of Array.from(document.querySelectorAll("section")).entries()) {
+          section.innerHTML = Array.from(
+            { length: size / 2 },
+            (_, i) =>
+              '<div class="card">Billing <button id="main-' +
+              ((side * size) / 2 + i) +
+              '">' +
+              (i % 2 ? "Archived" : "Pay") +
+              "</button></div>",
+          ).join("");
+        }
+      }, size);
+      await child.evaluate((size) => {
+        document.body.innerHTML = Array.from(
+          { length: size },
+          (_, i) =>
+            '<div class="card">Billing <button id="child-' +
+            i +
+            '">' +
+            (i % 2 ? "Archived" : "Pay") +
+            "</button></div>",
+        ).join("");
+      }, size);
+      const steps: LocatorChain["steps"] = [
+        css(".scope"),
+        css(".card"),
+        { type: "filter", hasText: "Billing", hasNotText: "Archived" },
+        css("button"),
+      ];
+      for (const mode of [
+        { mode: "count" },
+        { mode: "selected", index: size / 4 },
+      ] satisfies ElementChainResolution[]) {
+        const traffic = recordTraffic();
+        let result;
+        try {
+          result = await resolve(steps, mode);
+        } finally {
+          traffic.stop();
+        }
+        const filters = traffic.calls.filter((call) =>
+          String(call.params?.functionDeclaration).includes("this.filter("),
+        );
+        expect(filters).toHaveLength(2);
+        for (const call of filters) {
+          expect((call.params!.arguments as { value: unknown }[])[1].value).toHaveLength(size);
+          expect((call.result as { result: { value: unknown } }).result.value).toHaveLength(
+            size / 2,
+          );
+        }
+        expect(
+          traffic.calls.filter((call) =>
+            String(call.params?.functionDeclaration).includes("this.query("),
+          ),
+        ).toHaveLength(5);
+        expect(traffic.calls.filter(({ method }) => method === "DOM.describeNode")).toHaveLength(
+          mode.mode === "count" ? 1 : 2,
+        );
+        expect(
+          traffic.calls.filter(({ method }) => method === "Runtime.releaseObjectGroup"),
+        ).toHaveLength(2);
+        expect(
+          traffic.calls.filter(({ method }) => method === "Runtime.releaseObject"),
+        ).toHaveLength(0);
+        if (result.mode === "count") expect(result.count).toBe(size);
+        else expect(await ids(result.targets)).toEqual(["child-0"]);
+      }
+    }
+  }, 30_000);
 
   it("releases temporary objects in every session while consumer handles stay usable", async () => {
     await mixedScopes();

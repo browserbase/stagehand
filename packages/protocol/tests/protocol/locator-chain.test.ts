@@ -18,11 +18,11 @@ import { invalidLocatorChains, validLocatorChains } from "../fixtures/locator-ch
 
 describe("locator chain validation", () => {
   it.each(validLocatorChains)("preserves $name", ({ chain }) => {
-    expect(LocatorChainSchema.parse(chain)).toStrictEqual(chain);
+    expect(encodeWireValue(wireSchema(LocatorChainSchema).parse(chain))).toStrictEqual(chain);
   });
 
   it.each(invalidLocatorChains)("rejects $name", ({ chain }) => {
-    expect(LocatorChainSchema.safeParse(chain).success).toBe(false);
+    expect(wireSchema(LocatorChainSchema).safeParse(chain).success).toBe(false);
   });
 
   it.each([NaN, Infinity])("rejects non-finite position %s", (index) => {
@@ -124,6 +124,7 @@ describe("released locator wire compatibility", () => {
       "LocatorQuerySelector",
       "LocatorFrameStep",
       "LocatorNthStep",
+      "LocatorFilterStep",
     ]) {
       expect(protocol.$defs).toHaveProperty(name);
     }

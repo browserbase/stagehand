@@ -1,5 +1,6 @@
 import type { LocatorChain } from "@browserbasehq/stagehand-protocol/types";
 import { queryAll } from "./queryAll.js";
+import { filterTextMatches } from "./textQuery.js";
 
 export type ElementChainResolution =
   | { mode: "count" }
@@ -29,7 +30,7 @@ export function resolveElementChain(
     throw new Error("Frame entry is not supported by the element chain resolver");
   }
 
-  if (chain.steps.some((step) => step.type !== "nth" && step.selector.kind === "role")) {
+  if (chain.steps.some((step) => step.type === "query" && step.selector.kind === "role")) {
     throw new Error("Role queries require the frame chain resolver");
   }
 
@@ -39,6 +40,8 @@ export function resolveElementChain(
     if (step.type === "nth") {
       const selected = matches[step.index];
       matches = selected ? [selected] : [];
+    } else if (step.type === "filter") {
+      matches = filterTextMatches(matches, step);
     } else if (step.type === "query" && step.selector.kind !== "role") {
       if (
         current.some(

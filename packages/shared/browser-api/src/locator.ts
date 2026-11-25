@@ -1,4 +1,7 @@
-import { LocatorRequestDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import {
+  LocatorFilterOptionsSchema,
+  LocatorRequestDescriptorSchema,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import {
   locatorSteps,
   textQueryStep,
@@ -9,6 +12,8 @@ import type {
   LocatorClickParams,
   LocatorCentroidResult,
   LocatorChain,
+  LocatorStep,
+  LocatorFilterOptions,
   GetByTextOptions,
   GetByRoleOptions,
   AriaRole,
@@ -26,6 +31,7 @@ import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 export type {
   LocatorOptions,
   GetByTextOptions,
+  LocatorFilterOptions,
   GetByRoleOptions,
   AriaRole,
 } from "@browserbasehq/stagehand-protocol/types";
@@ -204,7 +210,11 @@ export class Locator {
     return this.appendSteps([roleQueryStep(role, options)]);
   }
 
-  private appendSteps(next: LocatorChain["steps"]): Locator {
+  filter(options: LocatorFilterOptions = {}): Locator {
+    return this.appendSteps([{ type: "filter", ...LocatorFilterOptionsSchema.parse(options) }]);
+  }
+
+  private appendSteps(next: readonly LocatorStep[]): Locator {
     const steps: LocatorChain["steps"] =
       "chain" in this.descriptor
         ? [...this.descriptor.chain.steps]

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TypedDict, assert_type, cast
 
 import pytest
+from pydantic import ValidationError
 
 from stagehand._generated.input_types import LocatorQueryStep
 from stagehand._generated.models import PageRef
@@ -32,12 +33,90 @@ def test_legacy_selector_normalization(fixture: SelectorFixture) -> None:
     assert [
         [step["type"], step["selector"]["kind"], step["selector"]["value"]]
         for step in locator_steps(fixture["selector"])
-        if step["type"] != "nth"
+        if step["type"] == "query" or step["type"] == "frame"
     ] == fixture["steps"]
 
 
 def query(value: str) -> LocatorQueryStep:
     return {"type": "query", "selector": {"kind": "css", "value": value}}
+
+
+async def test_filters_are_lazy_preserve_branches_and_dispatch_in_order() -> None:
+    recording = RecordingRPCClient({"locator.click": {"clicked": True}, "locator.count": 2})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="p"))
+    cards = page.locator(".card")
+    filtered = assert_type(
+        cards.filter(has_text=" Billing >> 保存 ", has_not_text="Archived"), Locator
+    )
+    step = {"type": "filter", "has_text": " Billing >> 保存 ", "has_not_text": "Archived"}
+    expected = {"page_id": "p", "chain": {"steps": [query(".card"), step]}}
+    assert filtered.descriptor.model_dump(exclude_unset=True) == expected
+    assert cards.descriptor.model_dump(exclude_unset=True) == {"page_id": "p", "selector": ".card"}
+    assert cards.nth(1).filter(has_text="Billing").descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "p",
+        "chain": {
+            "steps": [
+                query(".card"),
+                {"type": "nth", "index": 1},
+                {"type": "filter", "has_text": "Billing"},
+            ]
+        },
+    }
+    branch = filtered.nth(1).filter(has_not_text="Draft").locator("button").get_by_text("Save")
+    assert branch.descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "p",
+        "chain": {
+            "steps": [
+                query(".card"),
+                step,
+                {"type": "nth", "index": 1},
+                {"type": "filter", "has_not_text": "Draft"},
+                query("button"),
+                {
+                    "type": "query",
+                    "selector": {"kind": "textMatch", "value": "Save", "exact": False},
+                },
+            ]
+        },
+    }
+    assert filtered.descriptor.model_dump(exclude_unset=True) == expected
+    assert recording.calls == []
+    await filtered.click(timeout=0)
+    assert recording.calls[-1][1].model_dump(exclude_unset=True) == {
+        **expected,
+        "options": {"timeout": 0},
+    }
+    assert await branch.count() == 2
+    assert recording.calls[-1][1].model_dump(exclude_unset=True) == branch.descriptor.model_dump(
+        exclude_unset=True
+    )
+
+
+@pytest.mark.parametrize(
+    "options", [{}, {"has_text": ""}, {"has_not_text": ""}, {"has_text": "", "has_not_text": ""}]
+)
+def test_filter_preserves_empty_strings(options: dict[str, str]) -> None:
+    recording = RecordingRPCClient()
+    cards = Page(cast(RPCClient, recording), PageRef(page_id="p")).locator(".card")
+    assert cards.filter(**options).descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "p",
+        "chain": {"steps": [query(".card"), {"type": "filter", **options}]},
+    }
+    assert cards.filter(has_text=None, has_not_text=None).descriptor == cards.filter().descriptor
+    assert recording.calls == []
+
+
+def test_filter_rejects_unsupported_options_before_dispatch() -> None:
+    recording = RecordingRPCClient()
+    cards = Page(cast(RPCClient, recording), PageRef(page_id="p")).locator(".card")
+    for key in ("has_text", "has_not_text"):
+        for value in (re.compile("Billing"), 42, False, {"text": "Billing"}):
+            with pytest.raises(ValidationError):
+                cards.filter(**{key: cast(str, value)})
+    for key in ("has", "has_not", "exact", "type"):
+        with pytest.raises(TypeError):
+            cards.filter(**{key: "Billing"})
+    assert recording.calls == []
 
 
 async def test_text_queries_on_pages_and_positioned_locators() -> None:

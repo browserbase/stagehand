@@ -17,6 +17,7 @@ from pydantic import (
 )
 from stagehand._validation import (
     LocatorChainValidation,
+    LocatorFilterStepValidation,
     PageScreenshotOptionsValidation,
     RoleSelectorQueryValidation,
     StagehandInitParamsValidation,
@@ -1310,6 +1311,16 @@ class LocatorFillResult(WireModel):
     filled: Literal[True]
 
 
+class LocatorFilterStep(LocatorFilterStepValidation):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["filter"]
+    has_text: Optional[StrictStr] = None
+    has_not_text: Optional[StrictStr] = None
+
+
 class LocatorFrameStep(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1648,8 +1659,10 @@ class LocatorSetInputFilesResult(WireModel):
     set: Literal[True]
 
 
-class LocatorStep(RootModel[Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep]]):
-    root: Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep]
+class LocatorStep(
+    RootModel[Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep, LocatorFilterStep]]
+):
+    root: Union[LocatorQueryStep, LocatorFrameStep, LocatorNthStep, LocatorFilterStep]
 
 
 class LocatorTextContentResult(RootModel[StrictStr]):

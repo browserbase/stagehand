@@ -172,6 +172,15 @@ class RoleSelectorQueryValidation(WireModel):
         return self
 
 
+class LocatorFilterStepValidation(WireModel):
+    @field_validator("has_text", "has_not_text", mode="before", check_fields=False)
+    @classmethod
+    def reject_null_filters(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("text filters cannot be null")
+        return value
+
+
 class LocatorChainValidation(WireModel):
     @field_validator("steps", mode="after", check_fields=False)
     @classmethod

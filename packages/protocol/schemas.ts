@@ -664,11 +664,23 @@ export const LocatorNthStepSchema = z
   .strictObject({ type: z.literal("nth"), index: z.number().int().nonnegative() })
   .meta({ id: "LocatorNthStep" });
 
+export const LocatorFilterOptionsSchema = z
+  .strictObject({
+    hasText: z.string().optional(),
+    hasNotText: z.string().optional(),
+  })
+  .meta({ id: "LocatorFilterOptions" });
+
+export const LocatorFilterStepSchema = z
+  .strictObject({ type: z.literal("filter"), ...LocatorFilterOptionsSchema.shape })
+  .meta({ id: "LocatorFilterStep" });
+
 export const LocatorStepSchema = z
   .discriminatedUnion("type", [
     LocatorQueryStepSchema,
     LocatorFrameStepSchema,
     LocatorNthStepSchema,
+    LocatorFilterStepSchema,
   ])
   .meta({ id: "LocatorStep" });
 

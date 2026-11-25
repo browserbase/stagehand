@@ -34,6 +34,93 @@ function fixture() {
 }
 
 describe("public locator chaining", () => {
+  it("builds lazy text filters with independent branches & ordered positions", async () => {
+    const { page, send } = fixture();
+    const cards = page.locator(".card");
+    const options = { hasText: " Billing >> 保存 ", hasNotText: "Archived" };
+    const filter = { type: "filter", ...options };
+    const filtered = cards.filter(options);
+    expectTypeOf(filtered).toEqualTypeOf<Locator>();
+    options.hasText = "changed";
+    expect(filtered.descriptor).toEqual({
+      pageId: "p",
+      chain: { steps: [query(".card"), filter] },
+    });
+    expect(cards.descriptor).toEqual({ pageId: "p", selector: ".card" });
+    expect(cards.nth(1).filter({ hasText: "Billing" }).descriptor).toEqual({
+      pageId: "p",
+      chain: {
+        steps: [query(".card"), { type: "nth", index: 1 }, { type: "filter", hasText: "Billing" }],
+      },
+    });
+    const branch = filtered
+      .nth(1)
+      .filter({ hasNotText: "Draft" })
+      .locator("button")
+      .getByText("Save");
+    expect(branch.descriptor).toEqual({
+      pageId: "p",
+      chain: {
+        steps: [
+          query(".card"),
+          filter,
+          { type: "nth", index: 1 },
+          { type: "filter", hasNotText: "Draft" },
+          query("button"),
+          { type: "query", selector: { kind: "textMatch", value: "Save", exact: false } },
+        ],
+      },
+    });
+    expect(filtered.descriptor).toEqual({
+      pageId: "p",
+      chain: { steps: [query(".card"), filter] },
+    });
+    expect(send).not.toHaveBeenCalled();
+    await filtered.click({ timeout: 0 });
+    expect(send).toHaveBeenLastCalledWith(StagehandMethods.locatorClick, {
+      ...filtered.descriptor,
+      options: { timeout: 0 },
+    });
+    expect(await branch.count()).toBe(2);
+    expect(send).toHaveBeenLastCalledWith(StagehandMethods.locatorCount, branch.descriptor);
+  });
+
+  it.each([{}, { hasText: "" }, { hasNotText: "" }, { hasText: "", hasNotText: "" }])(
+    "preserves empty filter options %j",
+    (options) => {
+      const { page, send } = fixture();
+      const cards = page.locator(".card");
+      expect(cards.filter(options).descriptor).toEqual({
+        pageId: "p",
+        chain: { steps: [query(".card"), { type: "filter", ...options }] },
+      });
+      expect(cards.filter().descriptor).toEqual(cards.filter({}).descriptor);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects unsupported filters before dispatch", () => {
+    const { page, send } = fixture();
+    const cards = page.locator(".card");
+    for (const options of [
+      null,
+      "Billing",
+      [],
+      { has: cards },
+      { hasNot: cards },
+      { exact: true },
+      { type: "nth" },
+    ]) {
+      expect(() => cards.filter(options as never)).toThrow();
+    }
+    for (const key of ["hasText", "hasNotText"]) {
+      for (const value of [/Billing/, null, 42, false, { text: "Billing" }]) {
+        expect(() => cards.filter({ [key]: value } as never)).toThrow();
+      }
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("constructs typed text queries on pages & positioned locators", async () => {
     const { page, send } = fixture();
     const text = (value: string, exact = false) => ({
@@ -170,7 +257,7 @@ describe("public locator chaining", () => {
   it.each(fixtures)("normalizes $selector with the legacy routing rules", ({ selector, steps }) => {
     expect(
       locatorSteps(selector).map((step) => {
-        if (step.type === "nth") throw new Error("Unexpected position");
+        if (step.type !== "query" && step.type !== "frame") throw new Error("Unexpected step");
         return [step.type, step.selector.kind, step.selector.value];
       }),
     ).toEqual(steps);
