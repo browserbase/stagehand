@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { describePosix } from "./helpers/platform.js";
 import { mockDirectoryOwner, mockRootOwnedParents } from "./helpers/directory-owner.js";
-import { resolveTargetForCommand } from "../src/lib/driver/command-cli.js";
+import { resolveDriverSession } from "../src/lib/driver/command-cli.js";
 import {
   ensureDriverDaemon,
   getDriverStatus,
@@ -95,8 +95,8 @@ describePosix("daemon directory validation before connections", () => {
         () => getDriverStatus(session),
         () => stopDriverDaemon(session),
         () => stopDriverDaemon(session, true),
-        () => resolveTargetForCommand(session, {}),
-        () => resolveTargetForCommand(session, { local: true }),
+        () => resolveDriverSession(session, {}),
+        () => resolveDriverSession(session, { local: true }),
         () => openViaDaemon(session, "about:blank"),
         () => runDriverCommandViaDaemon(session, "snapshot"),
       ];
@@ -295,7 +295,7 @@ describePosix("daemon directory validation before connections", () => {
       () => openViaDaemon(session, "about:blank"),
       () => runDriverCommandViaDaemon(session, "snapshot"),
       () => stopDriverDaemon(session, true),
-      () => resolveTargetForCommand(session, { local: true }),
+      () => resolveDriverSession(session, { local: true }),
     ]) {
       await expect(operation()).rejects.toMatchObject({
         telemetry: { resultCode: "daemon_dir_unsafe_parent" },

@@ -1,3 +1,4 @@
+import { ChainLocatorDelegate } from "./understudy/chainLocator.js";
 import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
@@ -35,7 +36,7 @@ import type {
   LocatorClickResult,
   LocatorCentroidResult,
   LocatorCountResult,
-  LocatorDescriptor,
+  LocatorRequestDescriptor,
   LocatorParams,
   LocatorFillParams,
   LocatorFillResult,
@@ -184,7 +185,7 @@ export type UnderstudyRuntimePage = {
   invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolDescriptor, "toolId">,
   ): Promise<WebMCPInvocationDescriptor>;
   waitForWebMCPInvocationResult(
     invocationId: string,
@@ -198,6 +199,10 @@ export type UnderstudyRuntimePage = {
   subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeResponse(
+    listener: (response: Response) => void,
     signal?: AbortSignal,
   ): Promise<() => void>;
   subscribeWebMCPToolsChanged(
@@ -824,8 +829,10 @@ export class StagehandRuntime {
   }
 
   async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
+    const tools = await this.resolvePage(params.pageId).listWebMCPTools(params.options);
     return {
-      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
+      // Older clients validate descriptors against a schema without toolId.
+      tools: params.includeToolIds ? tools : tools.map(({ toolId: _toolId, ...tool }) => tool),
     };
   }
 
@@ -834,6 +841,7 @@ export class StagehandRuntime {
   ): Promise<WebMCPInvocationDescriptor> {
     return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
       input: params.input,
+      ...(params.toolId === undefined ? {} : { toolId: params.toolId }),
     });
   }
 
@@ -896,11 +904,31 @@ export class StagehandRuntime {
             subscription.controller.signal,
           );
           break;
+        case "response":
+          subscription.dispose = await page.subscribeResponse((response) => {
+            if (!isActive()) return;
+            this.adapters.emitPageEvent({
+              subscriptionId: params.subscriptionId,
+              event: "response",
+              pageId: params.pageId,
+              sessionId: response.session.id ?? params.pageId,
+              targetId: response.page.conn.targetIdForSession(response.session.id) ?? params.pageId,
+              response: this.responseDescriptor(params.pageId, response),
+            });
+          }, subscription.controller.signal);
+          break;
         case "toolsadded":
         case "toolsremoved":
           subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
             if (!isActive() || event.event !== params.event) return;
-            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+            const notification = {
+              ...(params.includeToolIds ? event : structuredClone(event)),
+              subscriptionId: params.subscriptionId,
+            };
+            if (!params.includeToolIds) {
+              for (const tool of notification.tools) delete tool.toolId;
+            }
+            this.adapters.emitPageEvent(notification);
           }, subscription.controller.signal);
           break;
         default: {
@@ -1169,7 +1197,9 @@ export class StagehandRuntime {
     return page;
   }
 
-  resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+  resolveLocator(params: LocatorRequestDescriptor): UnderstudyRuntimeLocator {
+    if ("chain" in params)
+      return new ChainLocatorDelegate(this.resolveUnderstudyPage(params.pageId), params.chain);
     const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
     return params.nth === undefined ? locator : locator.nth(params.nth);
   }
@@ -1214,6 +1244,17 @@ export class StagehandRuntime {
     return pageId;
   }
 
+  private responseDescriptor(pageId: string, response: Response) {
+    return {
+      responseId: this.responseHandles.register(pageId, response),
+      url: response.url(),
+      status: response.status(),
+      statusText: response.statusText(),
+      headers: response.headers(),
+      fromServiceWorker: response.fromServiceWorker(),
+    };
+  }
+
   private pageNavigationResult(
     pageId: string,
     page: UnderstudyRuntimePage,
@@ -1222,18 +1263,7 @@ export class StagehandRuntime {
     const pageRef = pageRefFromUnderstudyPage(page);
     if (!(response instanceof Response)) return { page: pageRef, response: null };
 
-    const responseId = this.responseHandles.register(pageId, response);
-    return {
-      page: pageRef,
-      response: {
-        responseId,
-        url: response.url(),
-        status: response.status(),
-        statusText: response.statusText(),
-        headers: response.headers(),
-        fromServiceWorker: response.fromServiceWorker(),
-      },
-    };
+    return { page: pageRef, response: this.responseDescriptor(pageId, response) };
   }
 
   requireBrowserSession(): StagehandBrowserSession {

@@ -28,6 +28,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-browser-api": "workspace:*",
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",

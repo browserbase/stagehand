@@ -143,6 +143,12 @@ extension, or the protocol compatibility contract. Select only the packages inte
 commit the generated `.changeset/*.md` file with the pull request. Tests, documentation, formatting,
 and internal refactors do not need a Changeset.
 
+### Writing a good changeset
+
+The summary you write becomes a release-note line. Keep it to **one terse, user-facing sentence**
+in imperative or past tense—no file names, test notes, or multi-paragraph explanation.
+See [`.changeset/README.md`](.changeset/README.md) for examples and bad-to-good rewrites.
+
 | Change                                                       | Changeset                                                            |
 | ------------------------------------------------------------ | -------------------------------------------------------------------- |
 | SDK-only fix or feature                                      | Patch or minor for that SDK only                                     |
