@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { fail } from "../errors.js";
+import { terminateChild } from "../child-process.js";
 import {
   functionsRequest,
   resolveEntrypoint,
@@ -306,7 +307,7 @@ class RuntimeProcess {
 
     await new Promise<void>((resolvePromise) => {
       const forceKillTimer = setTimeout(() => {
-        child.kill("SIGKILL");
+        terminateChild(child, "SIGKILL");
       }, 5_000);
       const finish = () => {
         clearTimeout(forceKillTimer);
@@ -314,7 +315,7 @@ class RuntimeProcess {
       };
 
       child.once("exit", finish);
-      if (!child.kill("SIGTERM")) {
+      if (!terminateChild(child)) {
         child.off("exit", finish);
         finish();
       }

@@ -1,3 +1,4 @@
+import { ChainLocatorDelegate } from "./chainLocator.js";
 import type { Progress } from "./progress.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
@@ -341,11 +342,21 @@ export async function applyMaskOverlays(
   for (const locator of locators) {
     try {
       progress.throwIfStopped();
-      const resolved = "real" in locator ? await locator.real(progress) : locator;
-      const frame = resolved.getFrame();
-      const rects = rectsByFrame.get(frame) ?? [];
-      rectsByFrame.set(frame, rects);
-      rects.push(...(await resolveMaskRects(resolved, token, progress)));
+      const resolvedLocators =
+        locator instanceof ChainLocatorDelegate
+          ? await locator.all(progress)
+          : ["real" in locator ? await locator.real(progress) : locator];
+      for (const resolved of resolvedLocators) {
+        try {
+          progress.throwIfStopped();
+          const frame = resolved.getFrame();
+          const rects = rectsByFrame.get(frame) ?? [];
+          rectsByFrame.set(frame, rects);
+          rects.push(...(await resolveMaskRects(resolved, token, progress)));
+        } catch {
+          progress.throwIfStopped();
+        }
+      }
     } catch {
       progress.throwIfStopped();
       // ignore individual locator failures
@@ -426,7 +437,7 @@ async function resolveMaskRects(
   const resolved = await locator.resolveNodesForMask(progress);
   const rects: Array<ScreenshotClip & { rootToken?: string | null }> = [];
   try {
-    for (const { objectId } of resolved) {
+    for (const { objectId } of resolved.nodes) {
       progress.throwIfStopped();
       try {
         const rect = await resolveMaskRectForObject(session, objectId, maskToken);
@@ -438,12 +449,8 @@ async function resolveMaskRects(
     }
     return rects;
   } finally {
-    // Release every resolved handle, including elements skipped after expiry.
-    await Promise.all(
-      resolved.map(({ objectId }) =>
-        session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
-      ),
-    );
+    // Includes the result array and nodes skipped after expiry.
+    await resolved.release();
   }
 }
 

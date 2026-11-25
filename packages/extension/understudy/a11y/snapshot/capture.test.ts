@@ -342,10 +342,11 @@ describe("snapshot Unicode repair", () => {
       absPrefix: "",
     });
     vi.mocked(ownerSession).mockReturnValue(session as never);
-    const resolveAtIndex = vi
-      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
-      .mockResolvedValue({ objectId: "object-second", nodeId: null });
-    const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll");
+    const release = vi.fn(async () => {});
+    const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue({
+      nodes: [{ objectId: "object-second", nodeId: null }],
+      release,
+    });
 
     try {
       const ignoredNodes = await resolveIgnoredNodes(
@@ -359,12 +360,15 @@ describe("snapshot Unicode repair", () => {
         new Map(),
       );
 
-      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1, undefined);
-      expect(resolveAll).not.toHaveBeenCalled();
+      expect(resolveAll).toHaveBeenCalledWith(
+        { kind: "css", value: ".card" },
+        { start: 1, limit: 1 },
+        undefined,
+      );
+      expect(release).toHaveBeenCalledOnce();
       expect(ignoredNodes.get("root")).toEqual(new Set([20]));
       expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
     } finally {
-      resolveAtIndex.mockRestore();
       resolveAll.mockRestore();
     }
   });
@@ -530,10 +534,14 @@ describe("snapshot progress ownership", () => {
   );
 
   it("releases ignored-node references without continuing after expiry", async () => {
-    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
-      { nodeId: null, objectId: "first" },
-      { nodeId: null, objectId: "second" },
-    ]);
+    const release = vi.fn(async () => {});
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue({
+      nodes: [
+        { nodeId: null, objectId: "first" },
+        { nodeId: null, objectId: "second" },
+      ],
+      release,
+    });
     send.mockImplementation(async (method) => {
       if (method === "DOM.describeNode") {
         vi.spyOn(performance, "now").mockReturnValue(20);
@@ -545,10 +553,7 @@ describe("snapshot progress ownership", () => {
       page.captureSnapshot({ ignoreLocators: [{ selector: ".card" }] }, progress),
     ).rejects.toThrow(/extract timed out/);
     await vi.advanceTimersByTimeAsync(0);
-    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
-      ["Runtime.releaseObject", { objectId: "first" }],
-      ["Runtime.releaseObject", { objectId: "second" }],
-    ]);
+    expect(release).toHaveBeenCalledOnce();
     expect(send.mock.calls.filter(([method]) => method === "DOM.describeNode")).toHaveLength(1);
     expect(a11yForFrame).not.toHaveBeenCalled();
   });

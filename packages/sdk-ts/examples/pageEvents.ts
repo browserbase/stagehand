@@ -38,7 +38,7 @@ try {
     const consoleEvent = new Promise<string>((resolve) => {
       resolveConsoleEvent = resolve;
     });
-    subscription = await page.on("console", (event) => {
+    subscription = await page.onConsole((event) => {
       if (event.params.type === "log") resolveConsoleEvent(event.method);
     });
 

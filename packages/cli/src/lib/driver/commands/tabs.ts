@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DriverError } from "../errors.js";
 import type { DriverPage } from "../session-manager.js";
 import type { DriverCommandHandlers } from "./types.js";
 
@@ -42,7 +43,7 @@ export const tabHandlers: DriverCommandHandlers = {
     const context = await manager.browserContext();
     const pages = await context.pages();
     if (pages.length === 1) {
-      throw new Error("Cannot close the last tab.");
+      throw new DriverError("Cannot close the last tab.", { code: "last_tab" });
     }
 
     const active = await context.activePage();
