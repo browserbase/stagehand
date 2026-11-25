@@ -130,4 +130,22 @@ describe("APC locator candidates", () => {
       progress.dispose();
     }
   });
+
+  it("keeps controls inside a fieldset actionable", () => {
+    const frame = { frameId: "main" } as Frame;
+    const email = control("FORM_CONTROL_TYPE_INPUT_EMAIL", "email", { label: "Email" });
+    const fieldset = control("FORM_CONTROL_TYPE_FIELDSET", "contact", {
+      label: "Contact details",
+    });
+    fieldset.childrenNodes = [email];
+    const query = prepareAnnotatedPageContentQuery(
+      { rootNode: { childrenNodes: [fieldset] } },
+      ["fill"],
+      undefined,
+      new Map([[email, { id: "0-7", frame, backendNodeId: 7 }]]),
+    );
+    const result = prepareAnnotatedPageContentCandidates(query);
+    expect(result.candidates.map((candidate) => candidate.id)).toEqual(["0-7"]);
+    expect(result.candidates[0]?.description).toContain("Email");
+  });
 });
