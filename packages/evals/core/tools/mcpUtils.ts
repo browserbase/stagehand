@@ -48,69 +48,96 @@ export interface ParsedListedPage {
 
 const MAX_BALANCED_JSON_PARSE_ATTEMPTS = 256;
 const MAX_BALANCED_JSON_PARSED_CHARS = 1_000_000;
+const MAX_BALANCED_JSON_RESYNC_PASSES = 8;
+const MAX_BALANCED_JSON_SCAN_CHARS = 200_000;
 
 function findBalancedJsonCandidate(text: string): string | null {
-  const stack: Array<{ start: number; close: "}" | "]" }> = [];
-  const intervals: Array<{ start: number; end: number }> = [];
-  let inString = false;
-  let escaping = false;
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (inString) {
-      if (escaping) {
-        escaping = false;
-      } else if (char === "\\") {
-        escaping = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === '"' && stack.length > 0) {
-      inString = true;
-      continue;
-    }
-
-    if (char === "{") {
-      stack.push({ start: i, close: "}" });
-    } else if (char === "[") {
-      stack.push({ start: i, close: "]" });
-    } else if (char === "}" || char === "]") {
-      const top = stack[stack.length - 1];
-      if (!top) continue;
-      if (top.close !== char) {
-        stack.length = 0;
-        continue;
-      }
-      stack.pop();
-      intervals.push({ start: top.start, end: i });
-    }
-  }
-
-  if (intervals.length === 0) return null;
-  intervals.sort((a, b) => a.start - b.start || b.end - a.end);
-
   let parseAttempts = 0;
   let parsedChars = 0;
-  for (const { start, end } of intervals) {
-    const length = end - start + 1;
-    if (
-      parseAttempts >= MAX_BALANCED_JSON_PARSE_ATTEMPTS ||
-      (parseAttempts > 0 && parsedChars + length > MAX_BALANCED_JSON_PARSED_CHARS)
-    ) {
+  let totalScannedChars = 0;
+  let startOffset = 0;
+
+  for (
+    let pass = 0;
+    pass <= MAX_BALANCED_JSON_RESYNC_PASSES && startOffset < text.length;
+    pass += 1
+  ) {
+    if (pass > 0 && totalScannedChars >= MAX_BALANCED_JSON_SCAN_CHARS) {
       break;
     }
-    parseAttempts += 1;
-    parsedChars += length;
-    const candidate = text.slice(start, end + 1);
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch {
-      continue;
+
+    const stack: Array<{ start: number; close: "}" | "]" }> = [];
+    const intervals: Array<{ start: number; end: number }> = [];
+    let inString = false;
+    let escaping = false;
+    let sawQuoteInsideStack = false;
+
+    for (let i = startOffset; i < text.length; i += 1) {
+      totalScannedChars += 1;
+      const char = text[i];
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+        } else if (char === "\\") {
+          escaping = true;
+        } else if (char === '"') {
+          inString = false;
+        } else if (char === "\n" || char === "\r") {
+          inString = false;
+          escaping = false;
+          stack.length = 0;
+        }
+        continue;
+      }
+
+      if (char === '"' && stack.length > 0) {
+        inString = true;
+        sawQuoteInsideStack = true;
+        continue;
+      }
+
+      if (char === "{") {
+        stack.push({ start: i, close: "}" });
+      } else if (char === "[") {
+        stack.push({ start: i, close: "]" });
+      } else if (char === "}" || char === "]") {
+        const top = stack[stack.length - 1];
+        if (!top) continue;
+        if (top.close !== char) {
+          stack.length = 0;
+          continue;
+        }
+        stack.pop();
+        intervals.push({ start: top.start, end: i });
+      }
     }
+
+    if (intervals.length > 0) {
+      intervals.sort((a, b) => a.start - b.start || b.end - a.end);
+      for (const { start, end } of intervals) {
+        const length = end - start + 1;
+        if (
+          parseAttempts >= MAX_BALANCED_JSON_PARSE_ATTEMPTS ||
+          (parseAttempts > 0 && parsedChars + length > MAX_BALANCED_JSON_PARSED_CHARS)
+        ) {
+          return null;
+        }
+        parseAttempts += 1;
+        parsedChars += length;
+        const candidate = text.slice(start, end + 1);
+        try {
+          JSON.parse(candidate);
+          return candidate;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (!sawQuoteInsideStack || stack.length === 0) {
+      break;
+    }
+    startOffset = stack[0]!.start + 1;
   }
 
   return null;

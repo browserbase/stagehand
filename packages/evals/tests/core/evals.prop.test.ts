@@ -140,6 +140,13 @@ describe("evals formal properties", () => {
       const nestedInvalidStart = performance.now();
       expect(() => parseLooseJson(`${"[".repeat(20_000)}x${"]".repeat(20_000)}`)).toThrow(Error);
       expect(performance.now() - nestedInvalidStart).toBeLessThan(250);
+
+      expect(parseLooseJson('prefix {"broken {"ok":true}')).toEqual({ ok: true });
+      expect(parseLooseJson('{"unclosed\n{"ok":true}')).toEqual({ ok: true });
+
+      const quoteBracketFloodStart = performance.now();
+      expect(() => parseLooseJson('["'.repeat(20_000))).toThrow(Error);
+      expect(performance.now() - quoteBracketFloodStart).toBeLessThan(250);
     });
 
     it("extractMcpText and extractMcpImage tolerate arbitrary malformed content arrays", () => {
