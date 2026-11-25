@@ -21,21 +21,11 @@ import type { RPCClient } from "./rpcClient.js";
 import type { ExtractResult } from "./stagehand.js";
 import { isZodSchema } from "./zodSchema.js";
 
-/** What the namespace needs from its Stagehand: a live RPC client and the page to work on. */
 export type ExperimentalDecisionsHost = {
   rpcClient(): RPCClient;
   activePage(): Promise<Page | undefined>;
 };
 
-/**
- * `stagehand.experimentalDecisions`: act, observe and extract resolved by a
- * decision model (typed questions answered with probabilities, a few hundred
- * milliseconds each) instead of an LLM call, falling back to the LLM when the
- * model is not confident. Same arguments and results as the methods on
- * `Stagehand`; requires `experimentalDecisions` in `Stagehand.create()`.
- *
- * Experimental: the surface and its behaviour may change between releases.
- */
 export class ExperimentalDecisions {
   constructor(private readonly host: ExperimentalDecisionsHost) {}
 

@@ -51,7 +51,6 @@ type ExtractServiceOptions = {
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Experimental: the decision model judges completion ("judge") or picks the values itself ("pick"). */
   decisions?: DecisionsConfig;
   progress?: Progress;
 };
@@ -127,8 +126,6 @@ async function extractWithProgress(
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
 
-    // Pick-and-copy: the decision model chooses the elements that hold the values, code copies
-    // their text. Screenshot-based extraction stays with the LLM.
     if (decisions?.extract === "pick" && instruction && !screenshot) {
       const outcome = await runDecisionsExtract(decisions, {
         logger,

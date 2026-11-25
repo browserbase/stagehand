@@ -9,11 +9,6 @@ import {
 } from "../services/decisions/client.js";
 import { fakeDecisionProvider } from "./decisionsTestUtils.js";
 
-/**
- * Every provider must give the pipeline the same thing for the same question.
- * `fakeProvider` is a server for each wire format: it reads the request the
- * way that provider documents it and answers in that provider's own shape.
- */
 type WireQuestion = { type: string; options: string[] };
 type Scripted = (key: string, question: WireQuestion) => { choice?: string; p?: number };
 
@@ -45,7 +40,6 @@ const QUESTIONS: Record<string, DecisionQuestion> = {
     instructions: "Which kind of browser action does the instruction ask for?",
     criteria: { click: "A click", fill: "Typing text into a field", scroll: "Scrolling" },
   },
-  // Ids a strict provider would reject: a colon in the key, spaces and slashes in the options.
   "tool_arg:add_to_cart:size": {
     type: "choice",
     instructions: { task: "Which size?", request: "add the large one" },
@@ -67,7 +61,6 @@ describe.each(DECISION_PROVIDERS)("decision provider %s", (name) => {
     const seen = fakeProvider(name, (key, question) => {
       if (key === "family") return { choice: "fill", p: 0.92 };
       if (question.type === "noul") return { p: 0.11 };
-      // The second option, whatever it is called on the wire.
       return { choice: question.options[1]!, p: 0.8 };
     });
     const response = await decide(config(), { instruction: "add the large one" }, QUESTIONS);
@@ -83,7 +76,6 @@ describe.each(DECISION_PROVIDERS)("decision provider %s", (name) => {
     expect(
       Object.keys((response.answers.family as { probabilities: object }).probabilities).sort(),
     ).toEqual(["click", "fill", "scroll"]);
-    // Aliased on the wire where needed, but always the caller's own ids coming back.
     expect(response.answers["tool_arg:add_to_cart:size"]).toMatchObject({
       type: "choice",
       choice: "size / M",
@@ -185,7 +177,6 @@ describe.each(DECISION_PROVIDERS)("decision provider %s", (name) => {
     );
     await expect(decide(config(), {}, one)).rejects.toThrow(/not a decision payload/);
 
-    // 429 with Retry-After is retried, then succeeds.
     let calls = 0;
     vi.stubGlobal(
       "fetch",
@@ -337,7 +328,6 @@ describe("provider wire formats", () => {
           expect(description === null || typeof description === "string").toBe(true);
         }
       }
-      // The aliased option still tells the model what it is.
       const aliased =
         body.questions[keys.find((key) => key !== "family" && key !== "names_control")!]!;
       expect(JSON.stringify(aliased.criteria)).toContain("size / L");

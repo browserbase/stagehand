@@ -62,11 +62,6 @@ export function createStagehandController(
     return { closed: true as const };
   }
 
-  /**
-   * `stagehand.act()` and friends never touch the decision model; only the
-   * `stagehand.experimentalDecisions.*` methods do. With a config present the
-   * plain methods still log their per-call timing, so the two can be compared.
-   */
   type Via = "llm" | "decisions";
 
   function decisionsFor(via: Via, operation: string): DecisionsConfig | undefined {
@@ -199,7 +194,6 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
-        // Only the explicit method sends page or extracted content to the decision provider.
         decisions: via === "decisions" ? decisionsFor(via, "extract") : undefined,
       });
       runtime.metrics.record("extract", result.metadata.usage);

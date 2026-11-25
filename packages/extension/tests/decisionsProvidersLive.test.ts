@@ -7,16 +7,6 @@ import {
   type DecisionQuestion,
 } from "../services/decisions/client.js";
 
-/**
- * Live conformance: the same questions against every provider a key exists
- * for. Never runs in CI; opt in with DECISIONS_LIVE=1 and any of
- *   TYPESAFE_API_KEY
- *   CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
- *   PERPLEXITY_API_KEY
- *   OPENAI_API_KEY   (needs Decisions preview access)
- * The questions are unambiguous on purpose: this checks that a provider is
- * wired correctly and answers in a usable shape, not how good its model is.
- */
 const env = process.env;
 const LIVE = env.DECISIONS_LIVE === "1";
 
@@ -61,8 +51,6 @@ const QUESTIONS: Record<string, DecisionQuestion> = {
       scroll: "Scrolling the page",
     },
   },
-  // A key and option ids outside every strict provider's alphabet, and JSON
-  // instructions and descriptions: the client has to make these acceptable.
   "target:pointer/0": {
     type: "choice",
     instructions: { task: "Which element should receive the click?", request: STATE.instruction },
@@ -90,7 +78,6 @@ describe.skipIf(!LIVE)("live decision providers", () => {
         try {
           response = await decide(config!, STATE, QUESTIONS);
         } catch (error) {
-          // A key without access to a gated preview is a skip, not a failure of the adapter.
           if (error instanceof Error && /decisions_not_enabled/.test(error.message)) {
             ctx.skip(`${name}: ${error.message}`);
             return;

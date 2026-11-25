@@ -1383,7 +1383,6 @@ async def test_experimental_decisions_routes_ai_methods_like_stagehand(
         assert extracted.data == PageInfo(heading="Example Domain", count=1)
         assert extracted.metadata.cache.status is CacheStatus.hit
 
-        # Without options both surfaces fall back to the active page.
         await target.act(action)
         await target.observe()
         await target.extract("Extract the heading", PageInfo)

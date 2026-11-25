@@ -224,8 +224,6 @@ export class Stagehand {
         );
       }
 
-      // Build (and validate) the init params before the request counts as
-      // started: a configuration error must not invalidate the browser claim.
       const initParams = stagehandCreateParamsForWorker(
         createConfig,
         browser,

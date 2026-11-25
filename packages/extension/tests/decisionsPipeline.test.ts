@@ -40,7 +40,6 @@ function noul(value: number) {
   return { type: "noul", noul: value };
 }
 
-/** `best` is a Noul for a lone candidate and a Choice otherwise. */
 function best(id: string, confidence = 0.95) {
   return (question: { criteria?: Record<string, unknown> }) =>
     question.criteria ? choice(id, confidence) : noul(confidence);
@@ -53,7 +52,6 @@ const DEFAULT_ANSWERS: Record<string, unknown> = {
   toggle_state: choice("unspecified"),
   after_typing: choice("nothing"),
   key: choice("other"),
-  // page-state signals default to "nothing unusual"
   access_denied: noul(0.02),
   captcha: noul(0.02),
   login_wall: noul(0.02),
@@ -62,7 +60,6 @@ const DEFAULT_ANSWERS: Record<string, unknown> = {
   empty_or_loading: noul(0.02),
 };
 
-/** Answers keyed by question name; a function receives the question for per-request answers. */
 type Answer = unknown | ((question: { criteria?: Record<string, unknown> }) => unknown);
 
 function stubDecisions(table: Answers) {
@@ -212,7 +209,6 @@ describe("decisions act pipeline", () => {
       },
     );
 
-    // Read-back needs a changed snapshot; the static fixture cannot provide one.
     const outcome = await runDecisionsAct({ ...config, verify: "off" as const }, value);
 
     expect(outcome.kind).toBe("done");
@@ -418,7 +414,6 @@ describe("decisions act pipeline", () => {
     const opened = [custom, "  [0-4] listitem: Mexico", "  [0-5] listitem: Peru"].join("\n");
     stubDecisions({
       family: choice("select"),
-      // The trigger is accepted; none of the options that open is Canada.
       strict: (question: { criteria?: Record<string, unknown> }) =>
         choice("0-3" in (question.criteria ?? {}) ? "0-3" : "none_match", 0.99),
       best: (question: { criteria?: Record<string, unknown> }) =>
@@ -448,8 +443,6 @@ describe("decisions act pipeline", () => {
       priorActions: [expect.objectContaining({ method: "click" })],
     });
 
-    // Nothing opens after clicking something that should have opened a list:
-    // the option was not chosen, so the LLM path continues from the click.
     stubDecisions({ family: choice("select"), strict: choice("0-3"), best: noul(0.95) });
     const stuck = deps(
       custom,
@@ -462,7 +455,6 @@ describe("decisions act pipeline", () => {
       priorActions: [expect.objectContaining({ method: "click" })],
     });
 
-    // A calendar day is the choice itself: one click, done.
     const calendar = ["[0-1] grid: March", "  [0-2] gridcell: 15"].join("\n");
     stubDecisions({ family: choice("select"), strict: choice("0-2"), best: best("0-2") });
     const day = deps(
@@ -702,7 +694,6 @@ describe("decisions act pipeline", () => {
       "none_match",
     ]);
 
-    // The quote was only an anchor: the decision model says no, and the normal pick runs.
     stubDecisions({
       family: choice("click"),
       strict: (question: { criteria?: Record<string, unknown> }) =>
@@ -768,7 +759,6 @@ describe("decisions act pipeline", () => {
       expect.objectContaining({ method: "fill", arguments: ["linear algebra"] }),
     );
 
-    // With the argument LLM switched off the run is LLM-free: the helper is never called.
     stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const spy = vi.fn(async () => "business");
     const pure = deps(
@@ -785,7 +775,6 @@ describe("decisions act pipeline", () => {
     });
     expect(spy).not.toHaveBeenCalled();
 
-    // Invented text is rejected: it must be lifted from the instruction.
     stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const invented = deps(
       FORM,
@@ -949,7 +938,6 @@ describe("decisions act pipeline", () => {
       },
     );
 
-    // Off by default: a second click is a second side effect.
     await runDecisionsAct(config, value);
     expect(takeAction).toHaveBeenCalledTimes(1);
 
@@ -984,7 +972,6 @@ describe("decisions act pipeline", () => {
       result: { success: false, message: expect.stringContaining("access denied") },
     });
 
-    // Vetoed by strict, but the decision model's shortlist is credible: it rides along for the LLM.
     stubDecisions({
       family: choice("fill"),
       strict: choice("none_match", 0.99),
@@ -1049,7 +1036,6 @@ describe("decisions act pipeline and DOM settle", () => {
       "fetch",
       vi.fn(async () => {
         order.push("intent");
-        // The page settles only after the decision model has answered.
         setTimeout(() => {
           order.push("settled");
           settle();
@@ -1101,7 +1087,6 @@ describe("decisions act pipeline target readiness", () => {
   const xpaths = { "0-7": "/html/body/button" };
   const never = new Promise<void>(() => {});
 
-  /** The in-page guard's verdicts, in the order it is called. */
   function locator(verdicts: string[], backendNodeId = 7, value = "") {
     let calls = 0;
     return {
@@ -1128,7 +1113,6 @@ describe("decisions act pipeline target readiness", () => {
     const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
-    // The settle promise never resolves: only readiness let this act through.
     expect(d.captureSnapshot).toHaveBeenCalledTimes(1);
   });
 
@@ -1216,7 +1200,6 @@ describe("decisions act pipeline target readiness", () => {
       best: best("0-7", 0.95),
     });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"]));
-    // Empty page for the first three snapshots, then the button appears.
     const empty = "[0-1] RootWebArea: Shop";
     let snapshots = 0;
     const d = deps(empty, xpaths, { instruction: "click Checkout", settled: never });
@@ -1229,8 +1212,6 @@ describe("decisions act pipeline target readiness", () => {
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     expect(snapshots).toBe(4);
-    // Intent, then one pick when the candidates first appeared: unchanged empty
-    // snapshots did not cost a decision-model request each.
     const picks = calls.filter((call) => "best" in call.questions && !("family" in call.questions));
     expect(picks.length).toBeLessThanOrEqual(2);
     vi.mocked(resolveLocatorWithHops).mockReset();
@@ -1241,7 +1222,6 @@ describe("decisions act pipeline target readiness", () => {
 
   it("after the settle wait, holds a click while the target is covered and clicks once it clears", async () => {
     stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
-    // Readiness attempt: covered. Pre-act guard: covered, covered, then clear.
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(
       locator(["covered", "covered", "covered", "ok"]),
     );
@@ -1250,7 +1230,6 @@ describe("decisions act pipeline target readiness", () => {
     const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
-    // Two polls of 150 ms before the cover cleared.
     expect(Date.now() - started).toBeGreaterThanOrEqual(250);
     vi.mocked(resolveLocatorWithHops).mockReset();
     vi.mocked(resolveLocatorWithHops).mockImplementation(

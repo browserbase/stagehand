@@ -1,13 +1,3 @@
-/**
- * Decision-model providers. A decision model answers typed questions about a
- * state (pick one option, yes/no) with probabilities instead of text. Three of
- * the four providers here speak the same "System One" request shape; OpenAI's
- * Decisions API carries the same information in a different one. Each provider
- * is a codec: how to address it, how to encode a request, how to read answers.
- * Everything else (timeouts, retries, circuit breaking, validation, splitting
- * oversized requests) is shared in client.ts.
- */
-
 export type JsonValue =
   | string
   | number
@@ -35,19 +25,15 @@ export const DECISION_PROVIDERS = ["typesafe", "cloudflare", "perplexity", "open
 export type DecisionProviderName = (typeof DECISION_PROVIDERS)[number];
 
 export type DecisionModelConfig = {
-  /** Which decision model service to call. Default `"typesafe"`. */
   provider?: DecisionProviderName;
   apiKey: string;
   model?: string;
-  /** Overrides the provider's base URL (https only). */
   apiUrl?: string;
-  /** Cloudflare account id; required for `provider: "cloudflare"` unless `apiUrl` names the account. */
   accountId?: string;
 };
 
 export type EncodedRequest = { url: string; headers: Record<string, string>; body: JsonValue };
 
-/** Answers as the provider returned them, keyed by the question keys that were sent. */
 export type DecodedResponse = {
   model: string;
   answers: Record<string, unknown>;
@@ -56,27 +42,18 @@ export type DecodedResponse = {
 
 export type DecisionProvider = {
   name: DecisionProviderName;
-  /** Used in error messages and logs. */
   label: string;
   defaultModel: string;
   defaultTimeoutMs: number;
-  /** A request with more questions is split into several (same state) and the answers merged. */
   maxQuestions: number;
-  /**
-   * Question keys and option ids the provider accepts as they are. Others are
-   * sent under a generated alias and mapped back, so callers never care.
-   */
   safeId: RegExp;
-  /** Whether instructions and option descriptions may be JSON values, or must be text. */
   structuredText: boolean;
   encode(
     config: DecisionModelConfig,
     state: JsonValue,
     questions: Record<string, DecisionQuestion>,
   ): EncodedRequest;
-  /** Undefined when the payload is not this provider's success shape. */
   decode(payload: unknown): DecodedResponse | undefined;
-  /** A short machine-readable reason from an error body; never the raw body. */
   errorCode(body: string): string | undefined;
 };
 
@@ -107,7 +84,6 @@ function usageOf(payload: Record<string, unknown>): DecodedResponse["usage"] {
   };
 }
 
-/** `{ model, answers: { key: answer }, usage }`, optionally inside Workers AI's `{ result }` envelope. */
 function decodeSystemOne(payload: unknown): DecodedResponse | undefined {
   const outer = record(payload);
   const body = outer && record(outer.result) ? record(outer.result)! : outer;
@@ -132,7 +108,6 @@ const typesafe: DecisionProvider = {
   label: "TypeSafe",
   defaultModel: TYPESAFE_DEFAULT_MODEL,
   defaultTimeoutMs: 8_000,
-  // No documented limit; requests are sent whole, as they always were.
   maxQuestions: 1_000,
   safeId: ANY_ID,
   structuredText: true,
@@ -145,7 +120,6 @@ const typesafe: DecisionProvider = {
   errorCode: (body) => /"error_type"\s*:\s*"([\w-]{1,64})"/.exec(body)?.[1],
 };
 
-/** Clef on Workers AI: System One body, account-scoped URL, answers inside `{ result }`. */
 const cloudflare: DecisionProvider = {
   name: "cloudflare",
   label: "Cloudflare",

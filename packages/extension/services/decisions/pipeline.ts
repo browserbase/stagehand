@@ -53,69 +53,19 @@ import {
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 
-/**
- * Experimental act pipeline that resolves an instruction through a decision
- * tree of decision-model questions instead of one LLM call:
- *
- *   intent fan-out → family-specific candidate view (pruned in code) →
- *   best/strict pick → bounded arguments → deterministic action → checks
- *
- * Any low-confidence node returns `fallback` so actService runs the existing
- * LLM pipeline; the reason is logged so eval runs can attribute every miss.
- */
-
 export type DecisionsConfig = DecisionModelConfig & {
-  /** Minimum confidence before acting on a node's answer. */
   actConfidence?: number;
-  /**
-   * `"checks"` (default): deterministic checks only — fill read-back and the
-   * native-select flag. `"full"` adds a logged-only decision-model yes/no over the page
-   * diff. `"off"` disables every check.
-   */
   verify?: "off" | "checks" | "full";
-  /** When false, a decision-model abstention fails the act instead of running the LLM pipeline. */
   llmFallback?: boolean;
-  /**
-   * The argument-only LLM call for unquoted text. Independent of `llmFallback`:
-   * turn both off for a run with no LLM at all. Default true.
-   */
   argumentLlm?: boolean;
-  /** Ask the decision model what kind of page this is when no target is found. Default true. */
   pageState?: boolean;
-  /** False keeps only the per-act instrumentation log (eval baselines). Default true. */
   enabled?: boolean;
-  /**
-   * Click the runner-up when an ambiguous click provably changed nothing. Off
-   * by default: effects the outline cannot show (aria-pressed, copy, play)
-   * look like "nothing", and a second click is a second side effect.
-   */
   retryNoEffect?: boolean;
-  /** Show the LLM fallback the decision model's shortlist before the whole tree on huge pages. Default false. */
   focusFallback?: boolean;
-  /** Check cached actions against the page before replaying them. Default false. */
   cacheCheck?: boolean;
-  /**
-   * extract() on the decision model. `"judge"`: only the completion yes/no replaces the second
-   * LLM call. `"pick"`: the decision model picks the elements holding each field's value and
-   * code copies their text; the LLM extracts only when that does not fit.
-   * Both send page or extracted content to the decision provider. Default `"off"`.
-   */
   extract?: "off" | "judge" | "pick";
-  /** Resolve observe() through the decision model first. Default false. */
   observe?: boolean;
-  /**
-   * Act as soon as the target is there instead of waiting out the DOM-settle
-   * heuristic: pick on an early snapshot, and go when the decision model finds the target
-   * and it is in place and hittable a moment later. The settle wait bounds that
-   * early look; a covered pointer target is then held up to 1.5 s. Default false.
-   */
   targetReadiness?: boolean;
-  /**
-   * Let act() invoke a WebMCP tool the page registered when the decision model is sure the
-   * tool is the request. Sends tool names and descriptions, and for the likely
-   * tools their parameter names, descriptions, types and enum values, to
-   * the decision provider. Default false.
-   */
   tools?: boolean;
 };
 
@@ -126,21 +76,10 @@ export type DecisionsActDeps = {
   variables?: Variables;
   snapshotOptions: Parameters<Page["captureSnapshot"]>[0];
   ensureTimeRemaining: () => void;
-  /** Open tab count, so checks can see an action that opened a new tab. */
   openPageCount?: () => number;
-  /**
-   * Argument-only LLM call: returns the literal text the instruction wants
-   * typed (or null). The decision model still chooses the element.
-   */
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
-  /**
-   * Resolves when the DOM has settled. The intent request needs no page, so
-   * it runs while this is pending; snapshots and actions wait for it unless
-   * `targetReadiness` lets the act go early.
-   */
   settled?: Promise<void>;
-  /** Present when `tools` is on and the act is not scoped to a locator. */
   webmcp?: DecisionsToolDeps;
 };
 
@@ -148,18 +87,14 @@ export type DecisionsActOutcome =
   | {
       kind: "done";
       result: ActResultData;
-      /** Must not be written to the act cache. */ noCache?: boolean;
-      /** The act was a WebMCP tool call; `argumentLlm` when its input came from the LLM. */
+      noCache?: boolean;
       viaTool?: { argumentLlm: boolean };
     }
   | {
       kind: "fallback";
       reason: string;
-      /** The LLM's result must not be written to the act cache (a proven no-op is on record). */
       noCache?: boolean;
-      /** Already ran and must be kept in the final result. */
       priorActions?: ActResultData["actions"];
-      /** The decision model's shortlist; the LLM fallback can look at these instead of the whole page. */
       focusIds?: string[];
     };
 
@@ -169,11 +104,8 @@ type Fallback = Extract<DecisionsActOutcome, { kind: "fallback" }>;
 type PipelineContext = AskContext & {
   config: DecisionsConfig;
   deps: DecisionsActDeps;
-  /** Every action that already ran, so an error or abstention later never loses one. */
   performed: ActResultData["actions"];
-  /** Target readiness already vouched for the page; do not also wait for the settle heuristic. */
   ready?: boolean;
-  /** With target readiness the first snapshot depends on nothing, so it is captured while intent is asked. */
   earlySnapshot?: Promise<Snapshot>;
 };
 
@@ -181,18 +113,15 @@ const DEFAULT_ACT_CONFIDENCE = 0.7;
 const NOT_AN_ACTION_CONFIDENCE = 0.9;
 const DIFF_BUDGET = 6000;
 const MODIFIER_CHORD = /\b(ctrl|control|cmd|command|shift|alt|option|meta)\b\s*[+-]\s*\S/i;
-/** A target with one of these roles is itself the thing to choose, not a control to expand. */
 const LEAF_CHOICE_ROLES =
   /\b(option|menuitem|menuitemradio|menuitemcheckbox|radio|checkbox|switch|tab|treeitem)\b/i;
 const CHECKABLE_ROLES = /\b(checkbox|switch|radio|menuitemcheckbox|menuitemradio)\b/i;
 const EDITABLE_ROLES = /\b(textbox|searchbox|combobox|spinbutton|textarea)\b/i;
-/** A runner-up at least this likely makes a no-effect click worth retrying on it. */
 const RETRY_RUNNER_UP = 0.2;
 const MERGED_FAMILY_MASS = 0.85;
 const PAGE_STATE_NONE = 0.5;
 const APPEAR_POLLS = 3;
 const APPEAR_POLL_MS = 450;
-/** Clicking one of these IS the choice; nothing is expected to open afterwards. */
 const SELF_CONTAINED_CHOICE = /\b(gridcell|cell|link|image|img|listitem)\b/i;
 const OPTION_LIKE = /\b(option|menuitem|menuitemradio|menuitemcheckbox|listitem|treeitem)\b/i;
 const MAX_DOM_HINTS = 25;
@@ -253,7 +182,6 @@ export async function runDecisionsAct(
   const performed: ActResultData["actions"] = [];
   try {
     const outcome = await decideAndAct(config, deps, trace, performed);
-    // Whatever the decision model already did stays in the final result when it hands off.
     if (outcome.kind === "fallback" && !outcome.priorActions && performed.length > 0) {
       outcome.priorActions = [...performed];
     }
@@ -273,10 +201,7 @@ export async function runDecisionsAct(
       error: error instanceof Error ? error.message : String(error),
       trace: JSON.stringify(trace),
     });
-    // A decision-model error after an action already ran must not drop that action from
-    // the final result (and from the cache entry built out of it).
     if (performed.length > 0 && !(error instanceof TimeoutError)) {
-      // Error text can quote selectors or typed values: same redaction as requests.
       const raw = error instanceof Error ? error.message : String(error);
       const message = (redactor(deps.variables) ?? ((text: string) => text))(raw).slice(0, 200);
       return fallback(`decision_error:${message}`, performed);
@@ -291,7 +216,6 @@ async function decideAndAct(
   trace: TraceEntry[],
   performed: ActResultData["actions"],
 ): Promise<DecisionsActOutcome> {
-  // Chords and modifier clicks have no representation in the tree yet.
   if (MODIFIER_CHORD.test(deps.instruction)) return fallback("modifier_chord");
 
   const ctx: PipelineContext = {
@@ -306,19 +230,14 @@ async function decideAndAct(
     redact: redactor(deps.variables),
   };
 
-  // Intent fan-out: every question that only needs the instruction rides in
-  // one request, so press / not-an-action / whole-page scroll finish here.
   if (config.targetReadiness && deps.settled) {
     ctx.earlySnapshot = capture(deps, trace);
     ctx.earlySnapshot.catch(() => {});
   }
 
   const fillValues = fillValueCandidates(deps.instruction, deps.variables);
-  // Tool choice only needs the instruction too, so it costs no round trip of
-  // its own, and a page without tools adds no question at all.
   const tools = deps.webmcp ? await deps.webmcp.tools.catch(() => []) : [];
   const asked = tools.length > 0 ? toolQuestions(deps.instruction, tools) : undefined;
-  // Known from the schema alone: if this tool wins, only the LLM can fill it.
   const speculative = asked?.needsArgumentLlm;
   const speculativeInput =
     speculative && deps.webmcp?.fillArguments && config.argumentLlm !== false
@@ -331,8 +250,6 @@ async function decideAndAct(
     {
       ...(fillValues.length > 0 && !isLoneVariable(fillValues)
         ? {
-            // Always asked, even for a lone candidate: the only quoted string
-            // in "type John into the 'Name' field" is the field's label.
             fill_value: {
               type: "choice" as const,
               instructions:
@@ -424,7 +341,6 @@ async function decideAndAct(
         });
       }
       if (input) {
-        // A tool runs page code: not before the document has settled.
         await deps.settled;
         deps.ensureTimeRemaining();
         const result = await invokeTool(
@@ -435,7 +351,6 @@ async function decideAndAct(
           input,
           trace,
         );
-        // Replay only knows element actions.
         return { kind: "done", result, noCache: true, viaTool: { argumentLlm } };
       }
       intentEntry.tool_skip = "arguments_not_filled";
@@ -452,7 +367,6 @@ async function decideAndAct(
   if (family.confidence < ctx.threshold) return fallback(`intent_low_confidence:${family.top}`);
 
   if (family.choice === "not_an_action") {
-    // Matches the LLM pipeline's null-action result without spending a call on it.
     if (family.confidence < NOT_AN_ACTION_CONFIDENCE) return fallback("not_an_action_unsure");
     return failure(deps.instruction, "Failed to perform act: No action found");
   }
@@ -470,11 +384,6 @@ async function decideAndAct(
   return fallback(`unsupported_family:${family.choice}`);
 }
 
-/**
- * "Pick the Chicory suggestion" splits the decision model between click and select, and
- * "open the folder" between click and double-click. Those pairs lead to the
- * same first step, so their combined weight decides, not the split.
- */
 export function resolveFamily(
   answer: ReturnType<typeof choiceAnswer>,
   threshold: number,
@@ -491,9 +400,6 @@ export function resolveFamily(
   for (const [a, b, winner] of [
     ["click", "select", undefined],
     ["click", "double_click", "click"],
-    // "Run the search": a button click and Enter do the same thing, so the
-    // combined mass counts; the more likely of the two is what gets done
-    // ("press Enter in the search box" must not turn into a click on it).
     ["click", "press", undefined],
   ] as const) {
     const combined = p(a) + p(b);
@@ -535,8 +441,6 @@ async function runPointer(
   const { snap, picked } = await pickWhenReady(
     ctx,
     (candidate) => {
-      // DOM hints cost a CDP round trip per nameless control: only when the decision model is
-      // actually about to be asked about them.
       ctx.prepare = () => addDomHints(ctx, candidate);
       return pickTarget(
         ctx,
@@ -552,7 +456,6 @@ async function runPointer(
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = await preferVisibleTwin(ctx, snap, picked.target);
 
-  // "Make sure X is checked" on a checked box: a click would undo it.
   const desired = choiceAnswer(intent, "toggle_state");
   if (
     method === "click" &&
@@ -588,9 +491,6 @@ async function runPointer(
     return await act(ctx, action, { before: snap, target });
   }
 
-  // Opt-in (retryNoEffect): when the click provably changed nothing and the decision model had
-  // a credible second choice, try that one. The decision model's pre-visibility pick is a copy
-  // of the same control, never a "runner-up".
   const runnerUp = picked.ranked.find(
     (entry) =>
       entry.id !== target.id && entry.id !== picked.target!.id && entry.p >= RETRY_RUNNER_UP,
@@ -603,8 +503,6 @@ async function runPointer(
   const after = await probe.unchanged(snap);
   if (!after) return first;
 
-  // Re-resolve the runner-up in the fresh snapshot: a positional XPath from
-  // before the click may now point at a different element.
   const before = snap.nodes.find((node) => node.id === runnerUp.id);
   const retryNode = after.nodes.find((node) => node.id === runnerUp.id);
   const retrySelector = retryNode ? selectorFor(after, retryNode) : undefined;
@@ -624,10 +522,7 @@ async function runPointer(
     method,
     arguments: buttonArgs,
   });
-  // The first click provably did nothing and the retry failed: hand off with
-  // the first action on record rather than report (and cache) a no-op.
   if (second.kind === "fallback") return { ...second, noCache: true };
-  // Two clicks for one instruction is a recovery, not a recipe to replay.
   return { ...merge(first, second), noCache: true };
 }
 
@@ -644,8 +539,6 @@ async function runScroll(
   }
 
   const snap = await snapshot(ctx.deps);
-  // "Scroll the page" names no element, so asking the decision model to match one only
-  // produces hedged answers; the scope decides the main document in code.
   const scope = choiceAnswer(intent, "scroll_scope");
   let target =
     scope.choice === "whole_page" && scope.confidence >= ctx.threshold
@@ -685,8 +578,6 @@ async function runFill(
   intent: DecisionResponse,
   values: string[],
 ): Promise<DecisionsActOutcome> {
-  // The text to type: a lone declared %variable% (never a label), else the decision model's
-  // choice among quoted strings, else an argument-only LLM call for unquoted text.
   let value: string | undefined;
   if (isLoneVariable(values)) {
     value = values[0];
@@ -744,8 +635,6 @@ async function runFill(
     { selector, description: describeLine(target), method: "fill", arguments: [value] },
     { expectedValue },
   );
-  // Search boxes that swap themselves for a richer widget on focus leave the
-  // picked node detached; the same question over a fresh snapshot finds the new one.
   if (isDetached(filled)) {
     const fresh = await snapshot(ctx.deps);
     const again = await pickTarget(
@@ -774,7 +663,6 @@ async function runFill(
   }
   if (filled.kind === "fallback") return filled;
 
-  // "…and pick the suggestion": choose among what the typing made appear.
   const afterTyping = choiceAnswer(intent, "after_typing");
   if (afterTyping.choice !== "pick_suggestion" || afterTyping.confidence < ctx.threshold)
     return filled;
@@ -786,8 +674,6 @@ async function runFill(
     "Which suggestion or autocomplete option does the instruction ask to choose?",
     "wait",
   );
-  // The instruction asked for a suggestion and none was chosen: that is not a
-  // success to report. The LLM path gets the page as it now is.
   if (chosen.kind === "nothing_appeared")
     return fallback("suggestion_none_appeared", filled.result.actions);
   if (chosen.kind === "fallback")
@@ -809,8 +695,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   const selector = selectorFor(snap, target);
   if (!selector) return fallback(`target_missing_xpath:${target.id}`);
 
-  // Native select: the role decides this deterministically, replacing the
-  // prompt's CASE 1 / CASE 2 dropdown rules.
   const options = nativeSelectOptions(snap.nodes, target);
   if (options.length > 0) {
     let option = matchOption(options, ctx.instruction, target.name);
@@ -853,8 +737,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
     );
     if (selected.kind === "fallback" || ctx.config.verify === "off") return selected;
 
-    // selectOption reports success even when nothing matched; the [selected]
-    // flag in a fresh snapshot is the read-back.
     const after = await snapshot(ctx.deps);
     const refreshed = after.nodes.find((node) => node.id === target.id);
     const matched = refreshed
@@ -864,8 +746,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
     return matched === false ? fallback("select_readback_mismatch") : selected;
   }
 
-  // The "dropdown" the decision model matched is already the thing to choose (a radio, a
-  // menu item, an open listbox option): one click, no expand step.
   if (LEAF_CHOICE_ROLES.test(target.role)) {
     return await act(
       ctx,
@@ -874,7 +754,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
     );
   }
 
-  // Custom dropdown: expand, then choose among what appeared.
   const expand = await act(ctx, {
     selector,
     description: describeLine(target),
@@ -884,13 +763,11 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   if (expand.kind === "fallback") return expand;
 
   const question = "Which element is the option the instruction asks to choose?";
-  // Anything that may open a list gets the polling; a calendar day or a link does not.
   const selfContained = SELF_CONTAINED_CHOICE.test(target.role);
   const patience = selfContained ? "once" : "wait";
   let chosen = await chooseFromAppeared(ctx, snap, target.id, "option", question, patience);
   let done: Done = expand;
 
-  // An editable combobox that shows nothing on click filters as you type.
   if (chosen.kind === "nothing_appeared" && EDITABLE_ROLES.test(target.role)) {
     const text = await optionText(ctx, target);
     if (text) {
@@ -906,12 +783,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
     }
   }
 
-  // The earlier actions already happened: hand them to the LLM path so the
-  // final result (and the cache entry built from it) still contains every step.
-  // Nothing opened. For a calendar day or a link the click was the whole
-  // action. For anything that should have opened a list, the option was NOT
-  // chosen: options already in the tree before the click never count as
-  // "appeared", and the LLM path's second step looks at the whole page then.
   if (chosen.kind === "nothing_appeared") {
     return selfContained ? done : fallback("option_none_appeared", done.result.actions);
   }
@@ -923,7 +794,6 @@ async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
 async function runDrag(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   const snap = await snapshot(ctx.deps);
   await addDomHints(ctx, snap);
-  // Source and destination are independent questions over the same page.
   const [source, destination] = await Promise.all([
     pickTarget(
       ctx,
@@ -964,10 +834,6 @@ async function runDrag(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   );
 }
 
-/**
- * Second step of two-step widgets: re-snapshot, keep only what the previous
- * action made appear, and let the decision model choose among that.
- */
 async function chooseFromAppeared(
   ctx: PipelineContext,
   before: Snapshot,
@@ -976,17 +842,11 @@ async function chooseFromAppeared(
   question: string,
   patience: "wait" | "once",
 ): Promise<Done | Fallback | { kind: "nothing_appeared" }> {
-  // Suggestion lists are usually fetched after the keystrokes; an immediate
-  // snapshot sees only the changed input. Poll briefly when one is expected.
   const startedAt = Date.now();
-  // Wait for what the action should produce, not for the page: two frames, or
-  // (when choices are expected) until an option-like element is visible.
   const waited = await waitForChoices(ctx.deps, patience === "wait");
   if (waited !== undefined) ctx.trace.push({ node: "await_choices", ms: waited });
   let after = await snapshot(ctx.deps);
   let filter = appearedFilter(before, after, triggerId);
-  // Keep polling until real choices show up: the first thing to "appear" is
-  // often just the field's own changed state or a loading row.
   const ready = () =>
     buildView(after.nodes, "option").some((node) => filter(node) && OPTION_LIKE.test(node.role));
   for (let attempt = 0; patience === "wait" && attempt < APPEAR_POLLS && !ready(); attempt++) {
@@ -1016,7 +876,6 @@ async function chooseFromAppeared(
 
 const CHOICES_CAP_MS = 400;
 
-/** In the main frame only; anything it misses is still caught by the snapshot polling below. */
 async function waitForChoices(
   deps: DecisionsActDeps,
   expectChoices: boolean,
@@ -1046,13 +905,10 @@ function appearedFilter(before: Snapshot, after: Snapshot, triggerId: string) {
     parseOutline(diffCombinedTrees(before.tree, after.tree)).map((node) => node.id),
   );
   const trigger = before.nodes.find((node) => node.id === triggerId);
-  // The typed-into field shows up as "changed" (and some sites swap it for a
-  // new node); it is never one of the choices it opened.
   return (node: OutlineNode) =>
     node.id !== triggerId &&
     appeared.has(node.id) &&
     !(EDITABLE_ROLES.test(node.role) && (!trigger || node.name === trigger.name)) &&
-    // The field's own echoed text is not a suggestion either.
     !insideEditable(after.nodes, node);
 }
 
@@ -1062,7 +918,6 @@ function hasAppeared(after: Snapshot, filter: (node: OutlineNode) => boolean): b
   );
 }
 
-/** Text to type into a filter-as-you-type combobox: the quoted option, else an argument-only LLM call. */
 async function optionText(ctx: PipelineContext, control: OutlineNode): Promise<string | undefined> {
   const quoted = quotedStrings(ctx.instruction).filter(
     (value) => value.toLowerCase() !== control.name.toLowerCase(),
@@ -1098,10 +953,6 @@ function extractText(ctx: PipelineContext): Promise<string | null> | undefined {
     });
 }
 
-/**
- * No target was accepted. Before paying for the LLM, ask what kind of page
- * this is: on a bot wall nobody will find the element.
- */
 async function rejected(
   ctx: PipelineContext,
   snap: Snapshot,
@@ -1109,8 +960,6 @@ async function rejected(
   picked: TargetResult,
 ): Promise<DecisionsActOutcome> {
   let suffix = "";
-  // Only when the decision model leaned toward "not on this page". A split between plausible
-  // candidates is not a page problem, and the LLM should not wait for this.
   if (ctx.config.pageState !== false && picked.none >= PAGE_STATE_NONE) {
     try {
       const state = await readPageState(ctx, snap.nodes, withoutQuery(ctx.deps.page.url()));
@@ -1136,7 +985,6 @@ async function rejected(
   return fallback(`${label}:${picked.reason}${suffix}`, undefined, focusIds(picked));
 }
 
-/** Only a shortlist the decision model actually believed in; a flat guess would just mislead the LLM. */
 function isDetached(outcome: Done | Fallback): boolean {
   return (
     outcome.kind === "fallback" &&
@@ -1155,11 +1003,7 @@ async function act(
   action: Action,
   options: { before?: Snapshot; expectedValue?: string; target?: OutlineNode } = {},
 ): Promise<Done | Fallback> {
-  // Press and whole-page scroll get here without ever taking a snapshot.
   if (!ctx.ready) await ctx.deps.settled;
-  // The settle wait is about the network, not about what a click would hit:
-  // a consent overlay that arrives after load covers the target the pick
-  // found. Re-validate right before input and give the cover a moment to go.
   if (ctx.config.targetReadiness && options.before && options.target && isPointer(action)) {
     await waitForClickable(ctx, options.before, options.target);
   }
@@ -1189,7 +1033,6 @@ async function act(
     return { kind: "done", result };
   }
 
-  // Scroll position never shows up in the accessibility tree diff.
   const scrolls = Object.values(SCROLL_METHODS).includes(action.method ?? "");
   if (ctx.config.verify === "full" && options.before && !scrolls) {
     await verifyByDiff(ctx, options.before, action, urlBefore, pagesBefore);
@@ -1197,16 +1040,10 @@ async function act(
   return { kind: "done", result };
 }
 
-/**
- * Deterministic "nothing happened": same URL, same tab count, and an outline
- * identical in both directions (diffCombinedTrees alone only sees additions,
- * so a closed modal or a deleted row would look like no effect).
- */
 function beginEffectProbe(ctx: PipelineContext) {
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   return {
-    /** The fresh snapshot when nothing changed, else undefined. */
     async unchanged(before: Snapshot): Promise<Snapshot | undefined> {
       try {
         if (ctx.deps.page.url() !== urlBefore) return undefined;
@@ -1217,7 +1054,6 @@ function beginEffectProbe(ctx: PipelineContext) {
         ctx.trace.push({ node: "effect_probe", ms: 0, changed: !same });
         return same ? after : undefined;
       } catch {
-        // Out of time or the page went away: the action stands.
         return undefined;
       }
     },
@@ -1232,10 +1068,6 @@ function normalizeTree(tree: string): string {
     .join("\n");
 }
 
-/**
- * Logged only (verify: "full"): records the Noul so runs can measure its
- * calibration against the eval's own outcome, without changing the act result.
- */
 async function verifyByDiff(
   ctx: PipelineContext,
   before: Snapshot,
@@ -1244,7 +1076,6 @@ async function verifyByDiff(
   pagesBefore: number | undefined,
 ): Promise<void> {
   try {
-    // The action already succeeded; running out of time here must not undo that.
     try {
       ctx.deps.ensureTimeRemaining();
     } catch {
@@ -1285,10 +1116,6 @@ async function verifyByDiff(
   }
 }
 
-/**
- * Icon-only controls reach the outline with a role and nothing else. Their
- * DOM attributes (aria-label, title, class, icon href…) are the only handle.
- */
 async function addDomHints(ctx: PipelineContext, snap: Snapshot): Promise<void> {
   const nameless = buildView(snap.nodes, "pointer")
     .filter((node) => isNameless(snap.nodes, node))
@@ -1339,18 +1166,11 @@ function domHintOf(this: Element): string {
   return parts.join(" ");
 }
 
-/**
- * Pages render the same control twice (desktop and mobile navs, hover
- * overlays) and only one copy is really there for the user. The decision model cannot tell
- * identical descriptions apart, so the DOM decides.
- */
 async function preferVisibleTwin(
   ctx: PipelineContext,
   snap: Snapshot,
   target: OutlineNode,
 ): Promise<OutlineNode> {
-  // Same item only. Identical-looking controls elsewhere on the page belong
-  // to other items, and swapping to one of those changes WHAT gets acted on.
   const twins = nearbyTwins(snap.nodes, target);
   if (twins.length < 2) return target;
 
@@ -1380,10 +1200,6 @@ function shownInPage(this: Element): boolean {
     ) {
       return false;
     }
-    // Hover overlays park their content outside a clipping ancestor: the
-    // control has a size, but none of it falls inside what that ancestor shows.
-    // Only hard clipping: a scroll container merely has the control scrolled
-    // out of view, and the click scrolls it back in.
     const hard = (value: string) => value === "hidden" || value === "clip";
     const clips = hard(style.overflowX) || hard(style.overflowY);
     if (
@@ -1416,7 +1232,6 @@ async function isShown(deps: DecisionsActDeps, selector: string): Promise<boolea
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   } catch {
-    // Unknown is not hidden: keep the decision model's pick.
     return true;
   }
 }
@@ -1455,22 +1270,6 @@ async function readInputValue(
 
 const READY_POLL_MS = 150;
 
-/**
- * "Is the page loaded" has no answer a snapshot can give: on 40 sites the decision model
- * rated a 1%-complete page as finished as the final one, under four phrasings,
- * because a half-loaded page reads as a smaller complete page. The settle
- * heuristic is right more often (network quiet for 500 ms) and pays for it
- * with a median 1.2 s of waiting on a page that was already there.
- *
- * What an act needs is narrower, and answerable: is the thing it is about to
- * use there, and is it staying put. With `targetReadiness` the pick runs on a
- * snapshot taken while intent is asked, and the act goes ahead the moment the decision model
- * accepts a target and the guard finds it in place and hittable. Until then
- * it keeps looking, for as long as the settle wait itself is still running:
- * a fresh snapshot each round, but the decision model is only asked again when the
- * candidates it would see have changed; otherwise only the guard reruns on
- * the earlier pick. When the settle wait ends first, it decides as before.
- */
 async function pickWhenReady(
   ctx: PipelineContext,
   pick: (snap: Snapshot) => Promise<TargetResult>,
@@ -1492,8 +1291,6 @@ async function pickWhenReady(
       attempt++;
       const early = ctx.earlySnapshot;
       ctx.earlySnapshot = undefined;
-      // A capture can fail while a navigation commits; that is "not ready
-      // yet", and the settle wait still bounds the loop.
       let snap: Snapshot;
       try {
         snap = await (early ?? capture(deps, ctx.trace));
@@ -1509,8 +1306,6 @@ async function pickWhenReady(
         await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
         continue;
       }
-      // The decision model looks at the role view and then at every named node: a change in
-      // either is a reason to ask again.
       const signature = [...buildView(snap.nodes, view), ...buildView(snap.nodes, "broad")]
         .map((node) => `${node.id}:${node.name}`)
         .join("|");
@@ -1521,7 +1316,6 @@ async function pickWhenReady(
         asked = true;
         lastSignature = signature;
       } else {
-        // Same candidates as last time: the decision model would say the same thing.
         picked = last.picked;
       }
       last = { snap, picked };
@@ -1552,13 +1346,6 @@ async function pickWhenReady(
   return { snap, picked: await pick(snap) };
 }
 
-/**
- * One in-page call right before the act goes early: the selector must still
- * resolve to the node the decision model picked, which must be connected, enabled, in the
- * same place two animation frames later, and (for pointer actions) be what a
- * click at its centre would actually hit. An overlay that is still fading in
- * or a layout that is still moving fails here, and the act waits instead.
- */
 async function staysPut(
   deps: DecisionsActDeps,
   snap: Snapshot,
@@ -1601,7 +1388,6 @@ function isPointer(action: Action): boolean {
   return action.method === "click" || action.method === "hover" || action.method === "doubleClick";
 }
 
-/** Polls the guard until the target is hittable, up to a cap; the act proceeds either way. */
 async function waitForClickable(
   ctx: PipelineContext,
   snap: Snapshot,
@@ -1617,8 +1403,6 @@ async function waitForClickable(
     await sleep(PRE_ACT_POLL_MS);
   }
   if (polls > 0) {
-    // Still covered after the cap: the click goes ahead (a wrapper that forwards
-    // clicks looks the same to a hit-test), but the trace names what it will hit.
     ctx.trace.push({
       node: "pre_act_guard",
       ms: Math.round(performance.now() - startedAt),
@@ -1631,14 +1415,9 @@ async function waitForClickable(
 
 type GuardResult = {
   verdict: string;
-  /** What a click at the target's centre would hit instead, when covered. */
   cover?: string;
 };
 
-/**
- * Runs in the page with the target as `this`. Frames when they tick, else a
- * timer (background tabs).
- */
 function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
   // oxlint-disable-next-line typescript/no-this-alias -- runs in the page with the element as `this`
   const element = this;
@@ -1664,12 +1443,8 @@ function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
       const y = rect.y + rect.height / 2;
       const inView =
         rect.width > 0 && rect.height > 0 && x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
-      // Off-screen targets get scrolled into view by the action; nothing to hit-test yet.
       if (pointer && inView) {
         const root = element.getRootNode() as Document | ShadowRoot;
-        // Inside a shadow root, a cover that lives in the light DOM makes
-        // elementFromPoint return null; the document's answer is then the
-        // cover (or the host chain, which counts as "hits the target").
         const hit = root.elementFromPoint(x, y) ?? document.elementFromPoint(x, y);
         const encloses = (outer: Element, inner: Element): boolean => {
           for (let node: Node | null = inner; node;) {
@@ -1715,7 +1490,6 @@ async function capture(deps: DecisionsActDeps, trace?: TraceEntry[]): Promise<Sn
   );
   const nodes = parseOutline(combinedTree);
   markEditable(nodes, combinedEditableIds);
-  // On heavy, still-loading pages this is seconds; the trace makes that visible.
   trace?.push({
     node: "snapshot",
     ms: Math.round(performance.now() - startedAt),
@@ -1724,7 +1498,6 @@ async function capture(deps: DecisionsActDeps, trace?: TraceEntry[]): Promise<Sn
   return { tree: combinedTree, xpathMap: combinedXpathMap as Record<string, string>, nodes };
 }
 
-/** Query strings and fragments carry tokens; page-state questions only need where we are. */
 function withoutQuery(url: string): string {
   return url.replace(/[?#].*$/, "");
 }

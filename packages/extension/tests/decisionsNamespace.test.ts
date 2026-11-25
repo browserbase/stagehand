@@ -10,9 +10,6 @@ import * as observeService from "../services/observeService.ts";
 import { createStagehandTracingRuntime } from "../tracing.ts";
 import type { Page } from "../understudy/page.ts";
 
-// stagehand.experimentalDecisions.* and the plain methods share services; what differs is the
-// decision config each one hands over. These tests pin that hand-over at the RPC boundary.
-
 const USAGE = {
   inputTokens: 0,
   outputTokens: 0,
@@ -52,7 +49,6 @@ describe("stagehand.experimentalDecisions routing", () => {
     await router.handle(call("stagehand.observe", { instruction: "find" }));
     await router.handle(call("stagehand.extract", { instruction: "get" }));
 
-    // act keeps the config for its timing log, switched off; the others get nothing at all.
     expect(services.act.mock.calls[0][0].decisions).toMatchObject({ enabled: false });
     expect(services.observe.mock.calls[0][0].decisions).toBeUndefined();
     expect(services.extract.mock.calls[0][0].decisions).toBeUndefined();
@@ -84,7 +80,6 @@ describe("stagehand.experimentalDecisions routing", () => {
     expect(services.observe).not.toHaveBeenCalled();
     expect(services.extract).not.toHaveBeenCalled();
 
-    // The plain methods are unaffected.
     await expect(
       router.handle(call("stagehand.act", { instruction: "click it" })),
     ).resolves.toMatchObject({ data: { success: true } });

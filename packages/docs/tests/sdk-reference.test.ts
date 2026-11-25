@@ -142,8 +142,6 @@ const DOCUMENTATION_LANGUAGES = [...LANGUAGES, "Go"] as const;
 const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
-// Objects that expose act/observe/extract: Stagehand, and the experimentalDecisions namespace,
-// whose methods take the same inputs and return the same results.
 const AI_METHOD_CLASS_SLUGS = new Set(["stagehand", "experimental-decisions"]);
 const EXTRACT_OPERATIONS = new Set([
   "stagehand.extract",
