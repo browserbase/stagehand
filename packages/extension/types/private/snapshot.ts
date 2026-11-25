@@ -11,10 +11,6 @@ export type HybridSnapshot = {
   combinedTree: string;
   combinedXpathMap: Record<string, string>;
   combinedUrlMap: Record<string, string>;
-  /**
-   * EncodedIds the browser reports as editable (inputs, and contenteditable
-   * nodes whose role says nothing about it). Not part of the outline.
-   */
   combinedEditableIds?: string[];
   perFrame?: PerFrameSnapshot[];
 };
