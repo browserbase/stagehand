@@ -8,9 +8,6 @@ export default defineBenchTask(
 
       await stagehand.act("click the button called 'click me (inner 2)'");
 
-      // v3 chained frameLocator iframe2.html -> inner2.html; v4 has no
-      // frameLocator, so the same check is re-expressed in-page by walking
-      // the same-origin iframes' contentDocuments.
       const messageText = await page.evaluate(() => {
         const outer = (
           document.querySelector('iframe[src="iframe2.html"]') as HTMLIFrameElement | null

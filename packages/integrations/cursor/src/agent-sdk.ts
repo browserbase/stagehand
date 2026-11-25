@@ -207,8 +207,6 @@ async function acquireAbortably<T>(
     if (signal?.aborted) throw abortReason(signal);
     return value;
   } catch (error) {
-    // The caller can finish immediately. A late resolution still owns cleanup;
-    // both cleanup callbacks below bound and log their own failures.
     if (signal?.aborted) {
       void pending.then(releaseLate, releaseFailedLate).catch(() => {});
     }

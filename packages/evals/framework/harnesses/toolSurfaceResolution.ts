@@ -13,17 +13,12 @@ function formatList(values: ToolSurface[]): string {
 
 const DEFAULT_TOOL_SURFACE_PREFERENCE: ToolSurface[] = ["stagehand_facade"];
 
-/** Resolve the tool surface for a row on `harness`. */
 export function resolveToolSurface(
   harness: Pick<BenchHarness, "harness" | "supportedToolSurfaces">,
   requested?: ToolSurface,
 ): ToolSurface | undefined {
   const supported = harness.supportedToolSurfaces;
   if (supported.length === 0) return requested;
-  // Default to the facade wherever the harness supports it: it is the surface
-  // every benchmark comparison is run on, and the list's first entry
-  // (browse_cli / playwright_code) has silently produced invalid runs when
-  // --tool was omitted.
   if (requested === undefined)
     return (
       DEFAULT_TOOL_SURFACE_PREFERENCE.find((surface) => supported.includes(surface)) ?? supported[0]
@@ -34,7 +29,6 @@ export function resolveToolSurface(
   );
 }
 
-/** Resolve the startup profile for `toolSurface` in `environment`. */
 export function resolveStartupProfile(
   toolSurface: ToolSurface,
   environment: BenchEnvironment,
@@ -53,7 +47,6 @@ export function resolveStartupProfile(
   throw new EvalsError(`No startup profile default for tool "${toolSurface}" in ${environment}.`);
 }
 
-/** Same as resolveStartupProfile but returns undefined when toolSurface is undefined. */
 export function resolveOptionalStartupProfile(
   toolSurface: ToolSurface | undefined,
   environment: BenchEnvironment,

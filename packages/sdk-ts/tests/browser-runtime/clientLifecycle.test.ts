@@ -77,8 +77,6 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
       try {
         const { cdpUrl } = await message(child);
         observer = await connect(String(cdpUrl));
-        // A paused client has not disconnected. It must never be mistaken for a
-        // dead process because its JS timers cannot run.
         child.kill("SIGSTOP");
         await new Promise((resolve) => setTimeout(resolve, 100));
         expect(await observer.send("Browser.getVersion")).toHaveProperty("product");
@@ -126,15 +124,12 @@ describe.skipIf(process.platform === "win32")("client loss without heartbeat", (
   );
 
   it("intentional disconnect preserves an owned keepAlive=false browser", async () => {
-    // A named profile: the reconnected handle closes Chrome but cannot remove the
-    // original launch's temporary profile.
     const profile = await mkdtemp(path.join(tmpdir(), "stagehand-lifecycle-"));
     const browser = await localBrowser.launch({ headless: true, userDataDir: profile });
     try {
       await Stagehand.create({ browser, logging: { level: "off" } });
       await browser.disconnect();
       await expect(browser.close()).rejects.toThrow("connect() again to close it");
-      // The new handle owns closing it: Browser.close over its own connection.
       const reconnected = await localBrowser.connect({ cdpUrl: browser.cdpUrl! });
       try {
         const next = await Stagehand.create({ browser: reconnected, logging: { level: "off" } });

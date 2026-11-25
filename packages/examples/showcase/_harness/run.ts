@@ -55,8 +55,6 @@ const log = (message: string) => console.log(`[${slug}] ${message}`);
 const describe = (run: RunMetrics) =>
   `${run.success ? "ok" : "FAILED"} ${run.inputTokens + run.outputTokens} tok $${run.costUsd.toFixed(4)} ${(run.durationMs / 1000).toFixed(1)}s${run.error ? ` (${run.error})` : ""}`;
 
-// Account problems are not task failures: recording them would publish a
-// success rate that says nothing about the task. Stop and fix the account.
 const FATAL =
   /credit balance|insufficient_quota|invalid x-api-key|incorrect api key|authentication_error/i;
 
@@ -101,9 +99,6 @@ if (scriptRuns && !values["skip-cached"]) {
   );
 }
 
-// A skipped lane keeps its numbers from the previous results file, so one lane
-// can be re-run without paying for the others again. Version 1 files used the
-// names stagehand / stagehandCached for the script lanes.
 type Lanes = ShowcaseResults["runs"];
 const previous: Partial<Lanes> = await readFile(join(out, "results.json"), "utf8")
   .then((text) => {
@@ -124,8 +119,6 @@ const previous: Partial<Lanes> = await readFile(join(out, "results.json"), "utf8
 const summaryOf = (lane: { metrics: RunMetrics }[] | null, name: keyof Lanes) =>
   lane ? summarize(lane.map((run) => run.metrics)) : (previous[name] ?? null);
 
-// The headline recording is the code-mode agent: the successful run closest to
-// the median duration, so the video shows a typical run, not the luckiest one.
 const featuredLane: Featured[] = (codeModeRuns ?? scriptRuns ?? []) as Featured[];
 const featuredSummary = summarize(featuredLane.map((run) => run.metrics));
 const successful = featuredLane.filter((run) => run.metrics.success);

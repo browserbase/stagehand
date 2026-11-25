@@ -3,11 +3,9 @@ import path from "node:path";
 import { getPackageRootDir } from "../runtimePaths.js";
 import type { NormalizedUsage } from "./usageNormalization.js";
 
-/** USD per million tokens. `null` marks a model the owner has not priced yet. */
 export interface ModelPrice {
   input_per_m: number | null;
   cached_input_per_m: number | null;
-  /** Cache-write rate where the provider bills one; falls back to `input_per_m`. */
   cache_write_input_per_m?: number | null;
   output_per_m: number | null;
   source: string;
@@ -19,40 +17,15 @@ export interface PriceMap {
   models: Record<string, ModelPrice>;
 }
 
-/**
- * Where `cost_usd` came from:
- * - `reported`: the harness's own billing channel reported dollars.
- * - `computed`: the harness called the provider API directly with our key, so
- *   the estimate is normalized tokens × the dated catalog price in pricing.json.
- * - `unavailable`: neither — subscription-billed cells (cursor, claude_code on
- *   a plan) or a model missing from the price map. No cost metric is emitted;
- *   token efficiency stays on the usage_* metrics.
- */
 export type CostSource = "reported" | "computed" | "unavailable";
 
 export interface BilledCost {
   cost_usd?: number;
   cost_source: CostSource;
-  /** Who billed the tokens, e.g. "anthropic_api", "ai_gateway", "pi_catalog", "subscription". */
   billing_channel: string;
-  /** Catalog provenance for a list-price estimate, never for a reported bill. */
   cost_pricing?: { as_of: string; model: string; source: string };
 }
 
-/**
- * Billing channel per harness.
- *
- * | harness     | reports dollars?                        | channel when reported | when not reported                                     |
- * |-------------|-----------------------------------------|-----------------------|-------------------------------------------------------|
- * | claude_code | total_cost_usd on the result message    | anthropic_api         | subscription (Claude plan; no dollars, unavailable)   |
- * | eve         | costUsd per step (gateway-routed models)| ai_gateway            | first-party creators run direct → computed <p>_api    |
- * | pi          | usage.cost.total from pi's model catalog| pi_catalog            | direct provider call → computed <provider>_api        |
- * | fx          | total_cost in usage-v2.json             | fx_gateway            | fx always bills via its gateway → unavailable         |
- * | codex       | never (turn.completed has tokens only)  | —                     | OpenAI API with our key → computed openai_api         |
- * | mastra      | never (AI SDK usage has no dollars)     | —                     | provider SDK with our key → computed <provider>_api   |
- * | deepagents  | never (LangChain usage_metadata)        | —                     | provider SDK with our key → computed <provider>_api   |
- * | cursor      | never                                   | —                     | subscription → unavailable                            |
- */
 const REPORTED_CHANNEL: Readonly<Record<string, string>> = {
   claude_code: "anthropic_api",
   claude_cua: "anthropic_api",
@@ -62,7 +35,6 @@ const REPORTED_CHANNEL: Readonly<Record<string, string>> = {
   fx: "fx_gateway",
 };
 
-/** Harnesses whose unreported bill is our own provider-API spend, priceable at list. */
 const DIRECT_PROVIDER_HARNESSES: ReadonlySet<string> = new Set([
   "codex",
   "claude_cua",
@@ -79,16 +51,10 @@ export interface ResolveBilledCostInput {
   harness: string;
   model: string | undefined;
   usage: NormalizedUsage;
-  /** Dollars the harness's own channel reported for the run, when any. */
   reportedCostUsd?: number;
   priceMap?: PriceMap;
 }
 
-/**
- * The cost column: reported dollars win;
- * otherwise a direct-provider harness is estimated at catalog price; otherwise the
- * cost is unavailable rather than zero.
- */
 export function resolveBilledCost({
   harness,
   model,
@@ -135,7 +101,6 @@ export function resolveBilledCost({
       };
 }
 
-/** Provider segment of a configured model id, normalized to the price-map spelling. */
 export function providerOf(model: string | undefined): string | undefined {
   if (!model) return undefined;
   const [candidate] = modelPriceCandidates(model);
@@ -144,10 +109,6 @@ export function providerOf(model: string | undefined): string | undefined {
   return provider === "spacexai" || provider === "x-ai" ? "xai" : provider;
 }
 
-/**
- * cost = uncached·p_in + cached·p_cached + cache_write·(p_write ?? p_in) + output·p_out,
- * plus reasoning at the output rate only when the SDK reports it outside output.
- */
 export function computeListCost(
   usage: NormalizedUsage,
   model: string | undefined,
@@ -170,7 +131,6 @@ export function computeListCost(
 const PRICE_MAP_FILE = "pricing/pricing.json";
 let cachedPriceMap: PriceMap | undefined;
 
-/** The versioned price map shipped with the package (empty when the file is missing). */
 export function loadPriceMap(filePath?: string): PriceMap {
   if (filePath) return readPriceMap(filePath);
   cachedPriceMap ??= readPriceMap(path.join(getPackageRootDir(), PRICE_MAP_FILE));
@@ -186,7 +146,6 @@ function readPriceMap(filePath: string): PriceMap {
   }
 }
 
-/** Find a fully priced entry for the model id, trying each alias in turn. */
 export function resolveModelPrice(
   model: string | undefined,
   priceMap: PriceMap,
@@ -231,12 +190,6 @@ const PROVIDER_ALIASES: Record<string, string[]> = {
   qwen: ["alibaba"],
 };
 
-/**
- * Alias forms of a configured model id, most specific first:
- * `gateway/` prefixes dropped, harness defaults expanded, version dashes as
- * dots (`claude-sonnet-4-6` → `claude-sonnet-4.6`), `-preview` and trailing
- * date segments stripped, provider spellings swapped, and unqualified model names matched only when one provider carries them.
- */
 export function modelPriceCandidates(model: string): string[] {
   let id = model.trim();
   while (id.startsWith("gateway/")) id = id.slice("gateway/".length);
@@ -245,9 +198,6 @@ export function modelPriceCandidates(model: string): string[] {
   const provider = slash >= 0 ? id.slice(0, slash) : undefined;
   const name = slash >= 0 ? id.slice(slash + 1) : id;
 
-  // Only suffixes that never distinguish one priced model from another are
-  // stripped; version segments (`-4-6`, `-mini`) stay so a sibling model's
-  // price is never borrowed.
   const names = new Set<string>();
   for (const base of [name, name.replace(/(\d)-(?=\d)/g, "$1.")]) {
     names.add(base);

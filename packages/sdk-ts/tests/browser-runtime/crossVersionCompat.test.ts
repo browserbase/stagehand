@@ -1,15 +1,3 @@
-/**
- * Cross-version compatibility: the CURRENT sdk-ts against the extension that shipped in the LAST
- * PUBLISHED `@browserbasehq/stagehand` release.
- *
- * Unit tests fake the runtime marker; this test drives the real negotiation end to end in a real
- * Chromium so a release cannot silently break the handshake (or regress fail-fast back to the
- * 60 s init timeout). The expected outcome is COMPUTED from `checkProtocolCompatibility`, never
- * hardcoded, so it keeps meaning when the protocol version moves.
- *
- * Network: fetches the published tarball with `npm pack` on first run; cached (gitignored) under
- * node_modules/.cache. Override the baseline with STAGEHAND_COMPAT_BASELINE_VERSION.
- */
 import { execFile } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -41,7 +29,6 @@ const PACKAGE_NAME = "@browserbasehq/stagehand";
 const BASELINE_SPEC = process.env.STAGEHAND_COMPAT_BASELINE_VERSION?.trim() || "latest";
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const CACHE_ROOT = path.join(REPO_ROOT, "node_modules", ".cache", "stagehand-cross-version");
-/** Upper bound for an incompatible runtime to be rejected. Far below the 60 s init timeout. */
 const FAIL_FAST_BUDGET_MS = 5_000;
 
 type BaselineExtension = {
@@ -112,7 +99,6 @@ describe("cross-version compatibility against the last published extension", () 
 
     const mutatedDir = await forkExtensionWithProtocolVersion(baseline.extensionDir, nextMajor);
     cleanups.push(() => rm(mutatedDir, { recursive: true, force: true }));
-    // Prove the mutation took in the real browser before asserting on negotiation.
     const mutatedMarker = await readRuntimeMarker(mutatedDir);
     expect(mutatedMarker.protocolVersion).toBe(nextMajor);
     expect(mutatedMarker.serverInfo).toStrictEqual(baselineMarker.serverInfo);
@@ -130,12 +116,6 @@ describe("cross-version compatibility against the last published extension", () 
   }, 120_000);
 });
 
-/**
- * Drives the SDK's own `localBrowser.launch` path (init deadline, connectBrowser, CDPClient.connect,
- * runtime negotiation). The only seam is `connectCdp`, which pins `extensionDir` to the extension
- * under test instead of the package's bundled build. Timing starts once Chrome is up so it
- * measures negotiation, not browser start-up.
- */
 async function launchThroughSdk(
   extensionDir: string,
   cleanups: Array<() => Promise<void>>,
@@ -159,7 +139,6 @@ async function launchThroughSdk(
   }
 }
 
-/** Resolves `npm pack` output into a cached, unpacked `dist/extension` of the published SDK. */
 async function obtainBaselineExtension(): Promise<BaselineExtension> {
   const version = await npmJson<string>(["view", `${PACKAGE_NAME}@${BASELINE_SPEC}`, "version"]);
   expect(version, `could not resolve ${PACKAGE_NAME}@${BASELINE_SPEC}`).toMatch(/^\d+\.\d+\.\d+/);
@@ -190,11 +169,6 @@ async function obtainBaselineExtension(): Promise<BaselineExtension> {
   return { version, extensionDir };
 }
 
-/**
- * Copies an extension and rewrites the protocolVersion its service worker publishes on
- * `__stagehand_runtime`. Targets the marker assignment only, so the extension's own handshake
- * logic and everything else in the bundle stay untouched.
- */
 async function forkExtensionWithProtocolVersion(
   sourceDir: string,
   protocolVersion: string,
@@ -213,11 +187,6 @@ async function forkExtensionWithProtocolVersion(
   return dir;
 }
 
-/**
- * Reads `globalThis.__stagehand_runtime` straight from the extension's service worker with raw
- * CDP. Deliberately bypasses the SDK's negotiation so the expectation is independent of the code
- * under test.
- */
 async function readRuntimeMarker(extensionDir: string): Promise<RuntimeMarker> {
   const signal = AbortSignal.timeout(60_000);
   const chrome = await launchLocalBrowser({ headless: true }, signal);

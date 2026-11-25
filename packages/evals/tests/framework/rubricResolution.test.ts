@@ -36,7 +36,6 @@ describe("resolveRubricTraced", () => {
     savedDisableCache = process.env.VERIFIER_DISABLE_RUBRIC_CACHE;
     savedBraintrustKey = process.env.BRAINTRUST_API_KEY;
     delete process.env.VERIFIER_DISABLE_RUBRIC_CACHE;
-    // Keep tracedSpan on its no-op path so tests never touch Braintrust.
     delete process.env.BRAINTRUST_API_KEY;
   });
 

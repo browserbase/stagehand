@@ -21,14 +21,11 @@ export function normalizeFunctionWaitExpression<R, Arg>(
   arg?: Arg,
   caller = "page.waitForFunction",
 ): string {
-  // The browser invokes an expression that evaluates to a function exactly once per poll, so
-  // callbacks and bound function strings become thunks and their own results are never invoked.
   if (typeof expression === "function") {
     return `() => (${expression.toString()})(${parsedArgument(arg, caller)})`;
   }
   if (arg === undefined) return expression;
 
-  // Like Playwright, a string that evaluates to a function receives arg; other expressions ignore it.
   return `((value) => typeof value === "function" ? () => value(${parsedArgument(arg, caller)}) : value)((${expression}))`;
 }
 

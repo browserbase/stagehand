@@ -27,10 +27,6 @@ export default class ContextsDelete extends BrowseCommand {
     const id = await resolveContextRefOrFail(args.id);
     const client = createBrowserbaseClient(toApiOptions(flags));
     await withBrowserbaseApi("contexts", () => client.contexts.delete(id));
-    // Keep the local name map consistent: drop any aliases pointing at the
-    // now-deleted context (whether the user passed a name or a raw id). The
-    // remote delete already succeeded, so a local cleanup failure must not turn
-    // the command into a false negative — best-effort, never throws.
     let removed: string[];
     try {
       removed = await removeContextAliasesById(id);

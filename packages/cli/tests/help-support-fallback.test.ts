@@ -61,10 +61,8 @@ describe("error support hint", () => {
   });
 
   it("does not show support hint for usage errors", async () => {
-    // Missing required argument - this is a usage error
     const result = await runCli(["cloud", "sessions", "get"]);
     expect(result.exitCode).not.toBe(0);
-    // Oclif usage errors should not trigger the support hint
     expect(result.stderr).not.toContain("Get help:");
     expect(result.stderr).not.toContain(DISCORD_INVITE_URL);
   });
@@ -72,16 +70,12 @@ describe("error support hint", () => {
   it("does not show support hint for command-not-found", async () => {
     const result = await runCli(["nonexistent-command"]);
     expect(result.exitCode).not.toBe(0);
-    // Command not found errors are handled by the hook, not catch()
     expect(result.stderr).not.toContain("Get help:");
   });
 
   it("does not show support hint for expected CommandFailure errors", async () => {
-    // This triggers a CommandFailure with a resultCode (expected error)
-    // e.g., invalid skill id
     const result = await runCli(["skills", "add", "invalid"]);
     expect(result.exitCode).not.toBe(0);
-    // CommandFailure is an expected error, should not show support hint
     expect(result.stderr).not.toContain("Get help:");
   });
 });

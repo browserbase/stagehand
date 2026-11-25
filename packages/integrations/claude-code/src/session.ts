@@ -110,8 +110,6 @@ export async function runClaudeAgentSession(input: {
       prompt: input.prompt,
       options: {
         abortController,
-        // No implicit tool grants: a shared session layer must not default to
-        // web access. Callers opt in to every tool explicitly.
         allowedTools: input.session.allowedTools ?? [],
         ...(input.session.canUseTool && { canUseTool: input.session.canUseTool }),
         ...(input.session.cwd && { cwd: input.session.cwd }),
@@ -155,8 +153,6 @@ export async function runClaudeAgentSession(input: {
       },
     });
   } finally {
-    // A long-lived caller signal must not accumulate forwarders across
-    // sessions that complete without aborting.
     input.signal?.removeEventListener("abort", forwardAbort);
   }
 

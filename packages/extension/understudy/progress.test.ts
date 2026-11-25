@@ -165,7 +165,6 @@ describe("progress", () => {
       const rejected = expect(pending).rejects.toThrow(
         "locator.click timed out after 100ms while finding node",
       );
-      // A finished concurrent phase must not replace the phase that is still waiting.
       await progress.run("inspecting another frame", async () => {});
       await vi.advanceTimersByTimeAsync(40);
       await rejected;

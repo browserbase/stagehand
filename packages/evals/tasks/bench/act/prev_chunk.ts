@@ -30,7 +30,7 @@ export default defineBenchTask(
       const finalScrollTop = await page.evaluate(() => window.scrollY);
 
       const actualDiff = initialScrollTop - finalScrollTop;
-      const threshold = 20; // px tolerance
+      const threshold = 20;
       const scrolledOneChunk = Math.abs(actualDiff - chunkHeight) <= threshold;
 
       const evaluationResult = scrolledOneChunk

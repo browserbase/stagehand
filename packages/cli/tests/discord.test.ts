@@ -64,10 +64,8 @@ describe("browse discord", () => {
 
   describe("no driver interaction", () => {
     it("does not call any driver commands", async () => {
-      // The command should complete without needing a browser session
       const result = await runCli(["discord", "--no-open"]);
       expect(result.exitCode).toBe(0);
-      // Should not contain driver-related errors
       expect(result.stderr).not.toContain("daemon");
       expect(result.stderr).not.toContain("session");
       expect(result.stderr).not.toContain("browser");

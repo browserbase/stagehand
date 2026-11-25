@@ -13,7 +13,6 @@ export type ClientBrowserbaseRequest = (
   signal?: AbortSignal,
 ) => Promise<Response>;
 
-/** Requests one buffered Browserbase HTTP attempt over the connected SDK. */
 export async function requestBrowserbase(
   client: RPCClient,
   params: BrowserbaseRequestParams,
@@ -38,7 +37,6 @@ export async function requestBrowserbase(
         isTimeout(signal.reason) ? "TimeoutError" : "AbortError",
       );
     }
-    // RPC failures are separate from upstream HTTP/network failures.
     throw new Error(
       client.closed ? "Browserbase connection is disconnected" : "Browserbase RPC request failed",
       {

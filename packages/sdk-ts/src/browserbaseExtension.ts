@@ -58,7 +58,6 @@ const UPLOAD_BACKOFF_MS = [500, 1500, 4000];
 
 export type ProvisionBrowserbaseExtensionOptions = {
   attempts?: number;
-  /** Test seam; defaults to a real delay. */
   sleep?: (ms: number) => Promise<void>;
 };
 
@@ -82,8 +81,6 @@ export async function provisionBrowserbaseExtension(
       uploaded = await client.uploadExtension(archivePath);
     } catch (error) {
       lastError = error;
-      // Retry an explicit rate-limit rejection only. A transport/server error
-      // may follow a successful create whose ID we never received.
       if (!error || typeof error !== "object" || !("status" in error) || error.status !== 429)
         break;
       if (attempt + 1 < attempts) {

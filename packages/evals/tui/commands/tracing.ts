@@ -1,19 +1,3 @@
-/**
- * `evals config tracing` — persisted defaults for the trace transport and
- * its sinks. Namespaced under `config` so it lives beside run defaults.
- *
- * Subcommands (what this module sees after `config tracing` is stripped):
- *   (none)                print current tracing section + effective values
- *   path                  print the config file path
- *   set <k> <v>           set transport | braintrustProject | langsmithProject
- *   reset [key]           reset one key or the whole tracing section
- *
- * Each key is a default for one env var (see TRACING_ENV_VARS). The env var
- * always wins, so a shell export or CI secret overrides whatever is stored
- * here. Credentials (API keys) are never stored in config — they stay in
- * .env / the shell, surfaced by `evals doctor`.
- */
-
 import { bold, cyan, dim, gray, green, red } from "../format.js";
 import {
   readConfig,
@@ -47,8 +31,6 @@ export async function handleTracing(args: string[], entryDir: string): Promise<v
     return;
   }
 
-  // Per-sub help. Only intercepted at args[1] (immediately after the verb)
-  // so leaf values like `set transport --help` aren't swallowed as help.
   if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigTracingHelp } = await import("./help.js");
     printConfigTracingHelp();
@@ -82,11 +64,6 @@ export async function handleTracing(args: string[], entryDir: string): Promise<v
   process.exitCode = 1;
 }
 
-/**
- * Effective value for one tracing key: env var if set, else the persisted
- * config value, else undefined. Exported so `doctor` reports the same
- * resolution the runner sees.
- */
 export function resolveTracingValue(
   key: TracingKey,
   tracing: TracingConfigSection | undefined,

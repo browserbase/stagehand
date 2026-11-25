@@ -20,7 +20,5 @@ export async function endBrowserbaseSession(v3?: V3 | null): Promise<void> {
 
   try {
     await settleWithTimeout(v3.context.conn.send("Browser.close"), CLOSE_TIMEOUT_MS);
-  } catch {
-    // best-effort cleanup
-  }
+  } catch {}
 }

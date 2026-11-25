@@ -7,8 +7,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://github.com/facebook/react");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const {
         data: { extraction },
       } = await stagehand.extract(

@@ -4,7 +4,6 @@ import {
   type SpanExporter,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-// verify after install: @opentelemetry/sdk-trace-node exports NodeTracerProvider.
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 import { resolveBraintrustProjectName } from "./braintrust.js";
@@ -23,8 +22,6 @@ export async function buildTracerProvider({
 }: {
   braintrustParent?: string;
 }): Promise<void> {
-  // Self-gate: never register a global provider off the otel transport, so the
-  // native/Braintrust path is untouched even if a caller invokes this directly.
   if (resolveTraceTransport() !== "otel") return;
   if (providerRegistered || currentProvider) return;
   if (providerPromise) return providerPromise;
@@ -42,12 +39,7 @@ async function initializeTracerProvider(braintrustParent?: string): Promise<void
   const braintrustApiKey = process.env.BRAINTRUST_API_KEY;
 
   if (braintrustApiKey) {
-    // verify after install: @braintrust/otel exports BraintrustSpanProcessor.
     const { BraintrustSpanProcessor } = await import("@braintrust/otel");
-    // Precedence: raw parent override (env) > caller-computed default >
-    // project-name fallback (which itself honors BRAINTRUST_PROJECT_NAME). The
-    // runner always passes `braintrustParent`, so the env var must win over it
-    // or it would never take effect for eval runs.
     const parent =
       process.env.BRAINTRUST_OTEL_PARENT?.trim() ||
       braintrustParent ||
@@ -67,7 +59,6 @@ async function initializeTracerProvider(braintrustParent?: string): Promise<void
   }
 
   if (langSmithTracingEnabled()) {
-    // verify after install: this subpath exports LangSmithOTLPTraceExporter.
     const { LangSmithOTLPTraceExporter } = await import("langsmith/experimental/otel/exporter");
     // LangSmith's exporter inherits the full OTLP exporter implementation at
     // runtime, but its declaration omits the inherited shutdown() method when
@@ -94,7 +85,6 @@ export function jsonAttr(value: unknown): string {
   }
 }
 
-/** JSON attribute value, replaced with a truncation marker if oversized. */
 export function cappedJsonAttr(value: unknown): string {
   const serialized = jsonAttr(value);
   if (Buffer.byteLength(serialized, "utf8") <= MAX_SPAN_ATTR_BYTES) return serialized;
@@ -104,24 +94,12 @@ export function cappedJsonAttr(value: unknown): string {
 }
 
 export interface HarnessAgentSpanInfo {
-  /** Harness name, e.g. "claude_code" | "codex". */
   harness: string;
   model: string;
   task: string;
   instruction?: string;
 }
 
-/**
- * Wrap an external-harness (claude_code / codex) agent run in an OTEL span so
- * it appears as an agent node under the eval's task-root span in LangSmith /
- * Braintrust — parity with the `stagehand` harness, whose native RPC spans are
- * captured directly via the global tracer. These harnesses drive their own
- * SDKs (claude-agent-sdk / codex-sdk), which do not emit OTEL, so this span +
- * the trajectory payload on the task-root span are the trace's agent record.
- *
- * No-op (runs `fn` directly, creates no span) unless the OTEL transport is
- * active, so the native/Braintrust path stays byte-identical.
- */
 export async function withHarnessAgentSpan<T extends { _success?: boolean }>(
   info: HarnessAgentSpanInfo,
   fn: () => Promise<T>,
@@ -172,8 +150,6 @@ export async function shutdownTracing(): Promise<void> {
   const provider = currentProvider;
   currentProvider = null;
   providerPromise = null;
-  // Clear the init guard so a later runEvals in the same process can register a
-  // fresh provider (otherwise buildTracerProvider() short-circuits and drops spans).
   providerRegistered = false;
 
   if (!(provider instanceof NodeTracerProvider)) return;
@@ -196,7 +172,6 @@ export async function shutdownTracing(): Promise<void> {
       timeoutPromise,
     ]);
   } catch {
-    // Tracing teardown must never mask an eval result.
   } finally {
     if (timeout) clearTimeout(timeout);
   }

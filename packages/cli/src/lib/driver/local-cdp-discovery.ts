@@ -110,11 +110,6 @@ async function probeJsonVersion(port: number): Promise<string | null> {
   }
 }
 
-/**
- * Multiple candidates (several profile dirs, or a profile dir and a fallback
- * port) can reference the same port within one discovery call. Memoize the
- * live /json/version probe per port so that port is only actually hit once.
- */
 function createJsonVersionProbe(): (port: number) => Promise<string | null> {
   const cache = new Map<number, Promise<string | null>>();
   return (port) => {

@@ -1,12 +1,3 @@
-/**
- * Run command — executes evals with live progress output.
- *
- * Takes a fully-resolved ResolvedRunOptions bundle from parse.ts; does not
- * re-apply precedence. Handles --dry-run (prints a deterministic JSON plan
- * and returns) and scopes env overrides per run so benchmark shorthand
- * values don't leak across REPL commands.
- */
-
 import { bold, dim, cyan, red, yellow, separator, stripAnsi } from "../format.js";
 import { ProgressRenderer, formatElapsed, rowDisplayName, type ProgressRow } from "../progress.js";
 import { setActiveRun } from "../liveRun.js";
@@ -147,11 +138,6 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
-/**
- * `10 global · anthropic 3 · openai 3` — the per-provider widths that will
- * actually gate the run, so a 10-wide config against one provider reads as
- * what it is. Falls back to the bare number when no row has a provider.
- */
 function describeConcurrency(
   options: ResolvedRunOptions,
   matrix: Array<Record<string, unknown>>,
@@ -168,11 +154,6 @@ function describeConcurrency(
   return widths ? `${global} global · ${widths}` : String(global);
 }
 
-/**
- * Mirrors stagehand's `shouldPersistTrajectory(undefined)` (the rule the
- * runner applies), but over an explicit env so the header can include the
- * run's env overrides: VERIFIER_PERSIST_TRAJECTORIES wins, then "on unless CI".
- */
 export function trajectoryPersistence(env: NodeJS.ProcessEnv): { on: boolean; why?: string } {
   const flag = env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
   if (flag === "1" || flag === "true") return { on: true, why: "VERIFIER_PERSIST_TRAJECTORIES" };
@@ -181,12 +162,6 @@ export function trajectoryPersistence(env: NodeJS.ProcessEnv): { on: boolean; wh
   return env.CI ? { on: false, why: "CI is set" } : { on: true };
 }
 
-/**
- * `Judge: google/gemini-3.5-flash  Success: outcome  Trajectories: on (.trajectories)`
- * — the verifier settings a bench run will grade with. Resolved over the
- * run's env overrides, so `verifier.model` from config shows up here exactly
- * as the runner will see it.
- */
 function buildVerifierContextLine(options: ResolvedRunOptions): string {
   const env = { ...process.env, ...options.envOverrides };
   const judge = resolveVerifierModel(env);
@@ -207,7 +182,6 @@ function buildVerifierContextLine(options: ResolvedRunOptions): string {
   ].join("  ");
 }
 
-/** `Running:` / `Plan:` / context / judge lines printed before the progress block. */
 export function renderRunHeader(
   options: ResolvedRunOptions,
   tasks: DiscoveredTask[],
@@ -223,12 +197,6 @@ export function renderRunHeader(
   print("");
 }
 
-/**
- * Everything printed after the run: pass/fail totals, per-cell table,
- * verifiability + dead-judge banner, failures, experiment link — or the
- * `--json` object. Exit code side effects (dead judge, verifiability gate)
- * live here too. Exported so the summary can be rendered from fixture data.
- */
 export function renderRunSummary(
   result: RunEvalsResult,
   options: Pick<ResolvedRunOptions, "harness" | "json" | "verbose" | "target" | "normalizedTarget">,
@@ -278,8 +246,6 @@ export function renderRunSummary(
 
   printVerifiabilityLines(result, deadJudge);
   if (isBenchRun) {
-    // With a dead judge every row is ungraded for the same reason, which the
-    // banner below states once; listing them all would bury the rest.
     const failures = collectFailures(result.results, options.harness);
     printFailures(deadJudge ? failures.filter((failure) => failure.kind !== "ungraded") : failures);
   }
@@ -312,7 +278,6 @@ export function renderRunSummary(
 
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
-/** `hardbenchmark · 46 runs · 35m12s · 1.9M tokens · $4.81 (12/46 rows report cost)` */
 function buildSummaryHeadline(
   options: Pick<ResolvedRunOptions, "target" | "normalizedTarget">,
   summary: ReturnType<typeof buildRunSummaryJson>,
@@ -336,10 +301,6 @@ function buildSummaryHeadline(
   return `${bold(name)} ${dim(`· ${parts.join(" · ")}`)}`;
 }
 
-/**
- * Per-arm verifiability line plus the judge. Dead-judge rows are called out
- * by count; the banner and exit code live in runCommand.
- */
 function printVerifiabilityLines(
   result: { results: SummaryRow[]; judgeModel?: string },
   deadJudge: boolean,
@@ -366,10 +327,6 @@ function printVerifiabilityLines(
   console.log("");
 }
 
-/**
- * EVAL_MAX_UNVERIFIABLE_CRITERIA gate. Only active when the env var is set;
- * a gated batch must never publish self-reported rows as passes.
- */
 function applyVerifiabilityGate(results: SummaryRow[], harness: string): void {
   const unverifiableLimit = resolveUnverifiableCriteriaLimit();
   if (unverifiableLimit === undefined) return;
@@ -386,8 +343,6 @@ function applyVerifiabilityGate(results: SummaryRow[], harness: string): void {
       `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
     );
   }
-  // A pass the agent reached without the browser surface is not a
-  // browser-benchmark pass, whatever the rubric said.
   const noBrowser = armsWithPassesWithoutBrowserUse(arms);
   for (const arm of noBrowser) {
     console.error(
@@ -403,7 +358,6 @@ type LogMode = "off" | "all" | "one";
 
 const LOG_MODE_CYCLE: Record<LogMode, LogMode> = { off: "all", all: "one", one: "off" };
 
-/** `14:02:11 47e314cc codex   tool browser_navigate …` — one streamed log line. */
 function formatStreamLine(event: RunProgressEvent): string {
   const at = new Date().toTimeString().slice(0, 8);
   const who = event.case?.shortId ?? event.taskName ?? "run";
@@ -422,7 +376,6 @@ function progressRow(event: RunProgressEvent): ProgressRow {
   };
 }
 
-/** Canonical names of the Browserbase credentials that are absent (aliases BB_* count). */
 export function missingBrowserbaseKeys(env: NodeJS.ProcessEnv): string[] {
   const missing: string[] = [];
   if (!(env.BROWSERBASE_API_KEY?.trim() || env.BB_API_KEY?.trim())) {
@@ -471,8 +424,6 @@ export async function runCommand(
     throw new Error(message);
   }
 
-  // A malformed EVAL_PROVIDER_CONCURRENCY fails the plan (dry-run and
-  // preview included) rather than the first row of a real run.
   try {
     parseProviderConcurrencyEnv(
       options.envOverrides[PROVIDER_CONCURRENCY_ENV] ?? process.env[PROVIDER_CONCURRENCY_ENV],
@@ -503,8 +454,6 @@ export async function runCommand(
     return;
   }
 
-  // Preflight Browserbase credentials once here instead of failing per task
-  // inside session creation, N times at concurrency N.
   if (options.environment === "BROWSERBASE") {
     const missing = missingBrowserbaseKeys(process.env);
     if (missing.length > 0) {
@@ -522,8 +471,6 @@ export async function runCommand(
   const matrix = await buildDryRunMatrix(options, tasks, registry);
 
   const isBenchRun = tasks.some((task) => task.tier === "bench");
-  // With --json, stdout carries only the summary object: everything a human
-  // reads (header, board, console output during the run) goes to stderr.
   const humanStream = options.json ? process.stderr : process.stdout;
   renderRunHeader(
     options,
@@ -532,8 +479,6 @@ export async function runCommand(
     options.json ? (line) => console.error(line) : (line) => console.log(line),
   );
 
-  // The animated board rewrites lines in place; without a TTY (CI, pipes)
-  // those cursor escapes turn into garbage, so fall back to one line per event.
   const interactive = Boolean(humanStream.isTTY);
   const progress = new ProgressRenderer({
     animated: interactive,
@@ -541,9 +486,6 @@ export async function runCommand(
     stream: humanStream,
   });
 
-  // Log streaming: off by default (every row still writes its own file),
-  // `-v` streams all rows above the board, `--follow <id>` one row. The `v`
-  // key cycles off → all → one (the oldest running row) → off.
   let logMode: LogMode = options.follow ? "one" : options.verbose ? "all" : "off";
   let followedRowKey: string | undefined;
   let helpOpen = false;
@@ -567,8 +509,6 @@ export async function runCommand(
     );
   };
   refreshHints();
-  // Key handlers (REPL and argv keypress listeners) reach the run through the
-  // active-run registry instead of printing over the redrawn board.
   setActiveRun({
     setStopping: (mode) => progress.setStopping(mode),
     onKey: (name) => {
@@ -686,18 +626,6 @@ export function canExecuteBenchHarness(harness: Harness): boolean {
   return isExecutableBenchHarness(harness);
 }
 
-/**
- * Build the deterministic plan payload and render it.
- *
- * Mode is chosen by ResolvedRunOptions.preview:
- *   - false (default, --dry-run) → JSON.stringify to stdout. Shape is fixed:
- *     { target, normalizedTarget, tasks (sorted), envOverrides (sorted),
- *       runOptions (sorted keys), matrix, error? }. Test-support only —
- *     not part of the public CLI contract.
- *   - true (--preview) → renderPreview prints a human-readable table.
- *
- * The payload built here is the single source of truth for both renderers.
- */
 async function emitDryRun(
   options: ResolvedRunOptions,
   tasks: DiscoveredTask[],
@@ -838,12 +766,6 @@ function sortKeys<T extends Record<string, unknown>>(obj: T): T {
   return sorted as T;
 }
 
-/**
- * Console output during a run. Inside a row it belongs to that row: it goes
- * to the row's log file (and the live stream when enabled) instead of
- * scribbling over the board. Outside a row (Braintrust, the runner itself)
- * it's dropped unless `outside` is given.
- */
 async function withConsoleCapture<T>(
   fn: () => Promise<T>,
   outside?: (text: string) => void,

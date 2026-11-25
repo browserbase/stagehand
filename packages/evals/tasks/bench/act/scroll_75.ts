@@ -9,7 +9,6 @@ export default defineBenchTask(
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // Get the current scroll position and total scroll height
       const scrollInfo = await page.evaluate(() => {
         return {
           scrollTop: window.scrollY + window.innerHeight * 0.75,

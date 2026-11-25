@@ -42,7 +42,6 @@ export interface MastraToolAdapterInput {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
   sdk?: MastraSdk;
-  /** Test seam for runtime mounts. */
   startRuntime?: typeof startAgentToolRuntime;
 }
 
@@ -51,12 +50,10 @@ export interface PreparedMastraToolAdapter {
   startupProfile: StartupProfile;
   cwd: string;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
@@ -182,9 +179,7 @@ export async function prepareMastraToolAdapter(
           cleanupPromise ??= (async () => {
             try {
               await capturedBridge.close();
-            } catch {
-              // Best-effort teardown continues through the remaining owners.
-            }
+            } catch {}
             await cleanupRuntime(runtime.cleanup, capturedCwd);
           })();
           await cleanupPromise;
@@ -306,9 +301,7 @@ async function cleanupRuntime(cleanup: () => Promise<void>, cwd: string): Promis
       cleanup(),
       readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
     );
-  } catch {
-    // The temporary workspace is still removed when runtime cleanup fails.
-  }
+  } catch {}
   await fsp.rm(cwd, { recursive: true, force: true });
 }
 

@@ -1,8 +1,3 @@
-/**
- * TypeScript SDK configuration schemas for browser connections, initialization, logging, and
- * local LLM callbacks. Browser API operation schemas are re-exported for compatibility.
- */
-
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import type { ClientOptions } from "@browserbasehq/sdk";
@@ -62,7 +57,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-// Validate the whole map before record parsing so errors never contain header names or values.
 const CDPHeadersSchema = z.preprocess(
   (value) => {
     try {
@@ -85,7 +79,6 @@ const CDPHeadersSchema = z.preprocess(
         )
       )
         return null;
-      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
       return Object.fromEntries(entries);
     } catch {
       return null;
@@ -163,10 +156,6 @@ type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   clientOptions?: BrowserbaseClientOptions;
 };
 
-/**
- * Browserbase owns the session option surface. Keep this object loose so newly added SDK options
- * pass through without requiring a Stagehand protocol or schema update.
- */
 export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
@@ -252,7 +241,6 @@ export const BrowserbaseFetchResultSchema = z
   })
   .meta({ id: "BrowserbaseFetchResult" });
 
-/** Data returned by the Browserbase SDK after creating a session. */
 export const BrowserbaseSessionCreateResultSchema = z
   .object({
     id: z.string(),
@@ -260,7 +248,6 @@ export const BrowserbaseSessionCreateResultSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateResult" });
 
-/** Data returned by the Browserbase SDK when retrieving a session. */
 export const BrowserbaseSessionRetrieveResultSchema = z
   .object({
     id: z.string(),
@@ -269,7 +256,6 @@ export const BrowserbaseSessionRetrieveResultSchema = z
   })
   .meta({ id: "BrowserbaseSessionRetrieveResult" });
 
-/** Normalized connection data shared by Browserbase launch and connect flows. */
 export const BrowserbaseSessionConnectionSchema = z
   .strictObject({
     sessionId: z.string().trim().min(1),

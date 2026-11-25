@@ -1,10 +1,4 @@
-// Deterministic reducer for `browse cloud sessions logs --only-errors`.
-// Turns the raw CDP firehose (~hundreds of events per session) into the high-signal error slice:
-// console errors/warnings/asserts, uncaught exceptions, HTTP 4xx/5xx responses, and net-level load
-// failures. No LLM — pure allowlist + severity/status filter + field projection + dedupe + stack trim.
-
 export interface ReduceLogsOptions {
-  /** Only failed / error-status network requests (4xx/5xx + load failures). */
   failedRequests?: boolean;
 }
 
@@ -36,7 +30,6 @@ function paramsOf(e: RawLog): CdpLogParams {
   }
 }
 
-// Keep the message line + the app (`/src/`) stack frames; drop framework/vendor frames and hosts.
 function trimStack(s: string): string {
   return (s || "")
     .split("\n")
@@ -125,10 +118,10 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         type: p.type,
       };
     } else {
-      continue; // everything else (byte-chunk / lifecycle events) is noise
+      continue;
     }
 
-    if (!rec) continue; // e.g. a console.error whose text was empty / formatting noise
+    if (!rec) continue;
     if (opts.failedRequests && rec.domain !== "Network") continue;
     push(rec);
   }

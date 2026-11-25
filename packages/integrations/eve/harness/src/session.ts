@@ -271,7 +271,6 @@ export async function runEveSession(input: {
         // "tool-calls"; only a terminal reply is the agent's final message.
         if (data.finishReason !== "tool-calls") finalMessage = data.message;
       } else if (event.type === "step.completed") {
-        // Usage is aggregated from the complete event list below.
       } else if (event.type === "actions.requested" && Array.isArray(data?.actions)) {
         for (const action of data.actions) {
           if (!isRecord(action) || action.kind !== "tool-call") continue;
