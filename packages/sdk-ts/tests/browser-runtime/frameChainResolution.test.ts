@@ -692,6 +692,111 @@ describe("iframe chain resolution in Chrome", () => {
       });
     });
 
+    it.each(["open", "closed"] as const)("keeps CSS ordering across %s roots", async (mode) => {
+      await page.evaluate((mode) => {
+        document.body.innerHTML = '<div id="host"></div><button id="light">Light</button>';
+        document.getElementById("host")!.attachShadow({ mode }).innerHTML =
+          '<button id="shadow">Shadow</button>';
+      }, mode);
+      for (const selector of [css("button"), role("button")]) {
+        expect(await ids(await targets([selector]))).toEqual(["light", "shadow"]);
+        expect(await ids(await targets([selector, { type: "nth", index: 1 }]))).toEqual(["shadow"]);
+      }
+    });
+
+    it.each([
+      {
+        property: "checked",
+        html: '<input type="checkbox">',
+        query: role("checkbox", { checked: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "indeterminate",
+        html: '<input type="checkbox">',
+        query: role("checkbox", { checked: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "selected",
+        html: "<select multiple><option>Item</option></select>",
+        query: role("option", { selected: false }),
+        value: true,
+        count: 0,
+      },
+      {
+        property: "value",
+        html: '<input type="button" value="Before">',
+        query: role("button", { name: "Before" }),
+        value: "After",
+        count: 0,
+      },
+      {
+        property: "value",
+        html: "<textarea>Before</textarea>",
+        query: role("textbox"),
+        value: "After",
+        count: 1,
+      },
+    ])(
+      "retries native $property changes for $html",
+      async ({ property, html, query, value, count }) => {
+        await page.evaluate((html) => {
+          document.body.innerHTML = '<div id="host"></div>';
+          const root = document.getElementById("host")!.attachShadow({ mode: "closed" });
+          root.innerHTML = html;
+          (globalThis as unknown as { control: Element }).control =
+            root.querySelector("input,textarea,option")!;
+        }, html);
+        const session = page.mainFrame().session;
+        const send = session.send.bind(session);
+        let queries = 0;
+        vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+          const result = await send(method, params);
+          if (method === "Accessibility.queryAXTree" && ++queries === 1) {
+            await page.evaluate(
+              ({ property, value }) => {
+                const { control } = globalThis as unknown as { control: Element };
+                Reflect.set(control, property, value);
+              },
+              { property, value },
+            );
+          }
+          return result;
+        });
+        expect(await resolve([query], "count")).toEqual({ mode: "count", count });
+        expect(queries).toBe(2);
+      },
+    );
+
+    it("restarts the prefix if its scope detaches before role capture", async () => {
+      await page.evaluate(() => {
+        document.body.innerHTML = '<section class="scope"><button id="old">Save</button></section>';
+      });
+      const session = page.mainFrame().session;
+      const send = session.send.bind(session);
+      let captures = 0;
+      vi.spyOn(session, "send").mockImplementation(async (method, params) => {
+        if (
+          method === "Runtime.callFunctionOn" &&
+          String((params as { functionDeclaration?: string }).functionDeclaration).includes(
+            "this.roleCandidates(",
+          ) &&
+          ++captures === 1
+        ) {
+          await page.evaluate(() => {
+            document.querySelector(".scope")!.outerHTML =
+              '<section class="scope"><button id="new">Save</button></section>';
+          });
+        }
+        return send(method, params);
+      });
+      expect(await ids(await targets([css(".scope"), role("button")]))).toEqual(["new"]);
+      expect(captures).toBe(2);
+    });
+
     it.each([false, true])(
       "keeps child documents separate & enters same/cross-origin frames: %s",
       async (crossOrigin) => {

@@ -596,6 +596,8 @@ const roleStateSupport: Partial<
   level: ["heading", "listitem", "row", "treeitem"],
 };
 
+const booleanCheckedRoles = ["radio", "menuitemradio", "switch"];
+
 export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
   kind: z.literal("role"),
   value: AriaRoleSchema,
@@ -613,7 +615,7 @@ export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
         });
       }
     }
-    if (query.checked === "mixed" && ["radio", "menuitemradio", "switch"].includes(query.value)) {
+    if (query.checked === "mixed" && booleanCheckedRoles.includes(query.value)) {
       context.addIssue({
         code: "custom",
         path: ["checked"],
@@ -621,7 +623,19 @@ export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
       });
     }
   })
-  .meta({ id: "RoleSelectorQuery" });
+  .meta({
+    id: "RoleSelectorQuery",
+    allOf: [
+      ...Object.entries(roleStateSupport).map(([option, roles]) => ({
+        if: { required: [option] },
+        then: { properties: { value: { enum: roles } } },
+      })),
+      {
+        if: { properties: { value: { enum: booleanCheckedRoles } } },
+        then: { properties: { checked: { type: "boolean" } } },
+      },
+    ],
+  });
 
 export const LocatorQuerySelectorSchema = z
   .discriminatedUnion("kind", [

@@ -36,11 +36,11 @@ export function createFrameChainScope() {
           .map(register),
       );
     },
-    roleCandidates(scopes: number[]): Element[] {
+    roleCandidates(scopes: number[]): Element[] | null {
       if (disposed) throw new Error("Chain scope disposed");
       roleCapture?.dispose();
       roleCapture = captureRoleCandidates(scopes.map(scopeFor));
-      return roleCapture.candidates;
+      return roleCapture?.candidates ?? null;
     },
     roleMatches(indices: number[]): FrameChainMatch[][] | null {
       if (!roleCapture) throw new Error("No pending role query");

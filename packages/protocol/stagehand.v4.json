@@ -1807,7 +1807,118 @@
         }
       },
       "required": ["kind", "value"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["checked"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "checkbox",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "option",
+                  "radio",
+                  "switch",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["pressed"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["button"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["selected"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "columnheader",
+                  "gridcell",
+                  "option",
+                  "row",
+                  "rowheader",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["expanded"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "application",
+                  "button",
+                  "checkbox",
+                  "columnheader",
+                  "combobox",
+                  "gridcell",
+                  "link",
+                  "listbox",
+                  "menuitem",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "row",
+                  "rowheader",
+                  "switch",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["level"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["heading", "listitem", "row", "treeitem"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value": {
+                "enum": ["radio", "menuitemradio", "switch"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checked": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
     },
     "AriaRole": {
       "type": "string",

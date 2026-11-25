@@ -10,9 +10,33 @@ function documentRoots(): (Document | ShadowRoot)[] {
   ];
 }
 
+function captureFormState(roots: (Document | ShadowRoot)[]): (() => boolean)[] {
+  return roots.flatMap((root) =>
+    Array.from(root.querySelectorAll("input,textarea,option"), (element) => {
+      if (element instanceof HTMLInputElement) {
+        const { checked, indeterminate, value } = element;
+        return () =>
+          element.checked === checked &&
+          element.indeterminate === indeterminate &&
+          element.value === value;
+      }
+      if (element instanceof HTMLTextAreaElement) {
+        const { value } = element;
+        return () => element.value === value;
+      }
+      const option = element as HTMLOptionElement;
+      const { selected } = option;
+      return () => option.selected === selected;
+    }),
+  );
+}
+
 /** Retain real elements while Chrome computes AX data, including out-of-scope naming evidence. */
 export function captureRoleCandidates(scopes: (Document | Element)[]) {
+  if (scopes.some((scope) => !scope.isConnected)) return null;
   const roots = documentRoots();
+  // Property assignments such as input.checked do not emit mutation records.
+  const formState = captureFormState(roots);
   let changed = false;
   const observer = new MutationObserver(() => {
     changed = true;
@@ -26,10 +50,7 @@ export function captureRoleCandidates(scopes: (Document | Element)[]) {
     });
   }
   try {
-    const groups = scopes.map((scope) => {
-      if (!scope.isConnected) throw new Error("Role query scope detached");
-      return queryAll({ kind: "css", value: "*" }, [scope]);
-    });
+    const groups = scopes.map((scope) => queryAll({ kind: "css", value: "*" }, [scope]));
     const candidates = [...new Set(groups.flat())];
     return {
       candidates,
@@ -39,6 +60,7 @@ export function captureRoleCandidates(scopes: (Document | Element)[]) {
         if (
           changed ||
           observer.takeRecords().length ||
+          formState.some((unchanged) => !unchanged()) ||
           currentRoots.length !== roots.length ||
           currentRoots.some((root, index) => root !== roots[index])
         )

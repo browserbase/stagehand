@@ -103,10 +103,21 @@ class WireModel(BaseModel):
 
 
 class RoleSelectorQueryValidation(WireModel):
-    @model_validator(mode="before")
+    @field_validator(
+        "name",
+        "exact",
+        "checked",
+        "pressed",
+        "selected",
+        "expanded",
+        "disabled",
+        "level",
+        mode="before",
+        check_fields=False,
+    )
     @classmethod
     def reject_null_options(cls, value: object) -> object:
-        if isinstance(value, Mapping) and any(item is None for item in value.values()):
+        if value is None:
             raise ValueError("role query options cannot be null")
         return value
 

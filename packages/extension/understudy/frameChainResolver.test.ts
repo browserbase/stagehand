@@ -659,13 +659,17 @@ describe("frame chain deadlines & ownership", () => {
       expect(state.main.live.size).toBe(0);
     });
 
-    it.each([undefined, 0, 100])(
-      "bounds continuous DOM changes with timeout %s",
-      async (timeout) => {
+    it.each(
+      [undefined, 0, 100].flatMap((timeout) =>
+        ["capture", "join"].map((phase) => ({ timeout, phase })),
+      ),
+    )(
+      "bounds continuous changes during $phase with timeout $timeout",
+      async ({ timeout, phase }) => {
         const state = setupRoles();
         state.main.send.mockImplementation((method, params) =>
-          isJoin(params)
-            ? Promise.resolve({ result: { value: null } })
+          (phase === "capture" ? isCapture(params) : isJoin(params))
+            ? Promise.resolve({ result: { value: null, deepSerializedValue: { type: "null" } } })
             : state.respond(method, params),
         );
         const pending = state.resolver.resolve(

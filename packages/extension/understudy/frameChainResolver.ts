@@ -232,6 +232,7 @@ class FrameChainOperation {
       false,
       { serialization: "deep", maxDepth: 2, additionalParameters: { maxNodeDepth: 0 } },
     );
+    if (captured.deepSerializedValue?.type === "null") throw new RoleQueryChangedError();
     const backendIds = roleCandidateIds(captured);
     const { value: role, kind: _kind, ...options } = selector;
     const matches = await queryNativeRoles(
