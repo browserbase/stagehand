@@ -110,7 +110,11 @@ export function createBrowserbaseSessionClient(
 
       let sessionReleased = false;
       let extensionCleaned = extension === undefined;
-      const connection = BrowserbaseSessionConnectionSchema.parse({ sessionId, cdpUrl });
+      const connection = BrowserbaseSessionConnectionSchema.parse({
+        sessionId,
+        cdpUrl,
+        ...(session.signingKey ? { signingKey: session.signingKey } : {}),
+      });
       return {
         ...connection,
         async close() {
@@ -159,6 +163,7 @@ export function createBrowserbaseSessionClient(
       const connection = BrowserbaseSessionConnectionSchema.parse({
         sessionId: session.id.trim() || normalizedSessionId,
         cdpUrl,
+        ...(session.signingKey ? { signingKey: session.signingKey } : {}),
         ...(session.region === undefined ? {} : { region: session.region }),
       });
       return {

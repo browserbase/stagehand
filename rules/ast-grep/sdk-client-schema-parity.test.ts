@@ -15,6 +15,8 @@ type Concept = {
   name: string;
   python: () => Promise<string[]>;
   typescript: ObjectSchema;
+  /** Options for a transport that exists only in the TypeScript SDK. */
+  typescriptOnlyFields?: readonly string[];
 };
 
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
@@ -34,11 +36,13 @@ const concepts: readonly Concept[] = [
     name: "LocalBrowserConnectOptions",
     typescript: ClientSchemas.LocalBrowserConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserConnectOptions"),
+    typescriptOnlyFields: ["preloaded_extension", "relay_extension_cdp"],
   },
   {
     name: "BrowserbaseConnectOptions",
     typescript: ClientSchemas.BrowserbaseConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "BrowserbaseConnectOptions"),
+    typescriptOnlyFields: ["signing_key"],
   },
   {
     name: "BrowserbaseSearchOptions",
@@ -375,7 +379,9 @@ async function clientSchemaDifferences(concepts: readonly Concept[]): Promise<st
   const differences: string[] = [];
 
   for (const concept of concepts) {
-    const expected = schemaFields(concept.typescript);
+    const expected = schemaFields(concept.typescript).filter(
+      (field) => !concept.typescriptOnlyFields?.includes(field),
+    );
     const pythonFields = await concept.python();
     if (!arraysEqual(pythonFields, expected)) {
       differences.push(

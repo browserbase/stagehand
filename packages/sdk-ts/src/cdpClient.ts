@@ -37,6 +37,7 @@ export type ServiceWorkerInfo = {
 export type CDPClientOptions = {
   cdpUrl: string;
   headers?: Record<string, string>;
+  relayExtensionCdp?: true;
   extensionDir?: string;
   localExtensionDir?: string;
   extensionId?: string;
@@ -190,6 +191,40 @@ const RuntimeBindingCalledSchema = z.looseObject({
   executionContextId: z.int(),
 });
 
+const HostRelayMessageSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("open"),
+    id: z.uuid(),
+  }),
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("send"),
+    id: z.uuid(),
+    data: z.string().max(1_000_000),
+  }),
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("close"),
+    id: z.uuid(),
+  }),
+]);
+type HostRelayMessage = z.infer<typeof HostRelayMessageSchema>;
+type HostRelayEvent =
+  | { type: "open" }
+  | { type: "message"; data: string }
+  | { type: "error" }
+  | { type: "close"; code: number; reason: string };
+
+function parseHostRelayMessage(payload: string): HostRelayMessage | undefined {
+  try {
+    const parsed = HostRelayMessageSchema.safeParse(JSON.parse(payload));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const RuntimeReadinessEnvelopeSchema = z.looseObject({
   marker: z.unknown(),
   hasReceiver: z.boolean(),
@@ -227,6 +262,12 @@ export class CDPClient {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   readonly webSocketDebuggerUrl: string;
+  readonly relayExtensionCdp: boolean;
+  readonly hostRelayHeaders?: Record<string, string>;
+  readonly hostRelaySockets = new Map<
+    string,
+    { socket: WebSocket; timer: ReturnType<typeof setTimeout> }
+  >();
   nextId = 1;
   pending = new Map<number, PendingCDPRequest>();
   sessionId: string | undefined;
@@ -245,8 +286,12 @@ export class CDPClient {
   constructor(
     readonly socket: WebSocket,
     webSocketDebuggerUrl: string,
+    relayExtensionCdp = false,
+    hostRelayHeaders?: Record<string, string>,
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
+    this.relayExtensionCdp = relayExtensionCdp;
+    this.hostRelayHeaders = hostRelayHeaders;
     this.socket.addEventListener("message", (event) => {
       if (this.closed) return;
       this.lastMsgAt = Date.now();
@@ -300,6 +345,7 @@ export class CDPClient {
     this.logDrop(reason, kind, code);
     this.stopHeartbeat();
     this.rejectPending(reason);
+    this.closeHostRelays();
     if (kind === "error") {
       try {
         this.socket.close();
@@ -359,7 +405,12 @@ export class CDPClient {
     }
     const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, headers);
 
-    const client = new CDPClient(socket, webSocketDebuggerUrl);
+    const client = new CDPClient(
+      socket,
+      webSocketDebuggerUrl,
+      Boolean(options.relayExtensionCdp),
+      headers,
+    );
 
     try {
       let extensionId: string;
@@ -643,6 +694,7 @@ export class CDPClient {
     this.onerror = undefined;
     const reason = new Error("CDP client closed");
     this.rejectPending(reason);
+    this.closeHostRelays();
     try {
       this.socket.close();
     } finally {
@@ -665,9 +717,105 @@ export class CDPClient {
 
     const binding = RuntimeBindingCalledSchema.safeParse(event.params);
     if (!binding.success) return;
+    const relayMessage = parseHostRelayMessage(binding.data.payload);
+    if (relayMessage) {
+      this.handleHostRelayMessage(relayMessage);
+      return;
+    }
     void Promise.resolve(this.onmessage?.(binding.data.payload)).catch((error: unknown) => {
       this.onerror?.(asError(error));
     });
+  }
+
+  closeHostRelays(): void {
+    for (const { socket, timer } of this.hostRelaySockets.values()) {
+      clearTimeout(timer);
+      this.closeRelaySocket(socket);
+    }
+    this.hostRelaySockets.clear();
+  }
+
+  handleHostRelayMessage(message: HostRelayMessage): void {
+    if (!this.relayExtensionCdp || !this.sessionId || this.closed) return;
+    if (message.type === "open") {
+      if (this.hostRelaySockets.has(message.id)) return;
+      if (this.hostRelaySockets.size >= 4) {
+        this.sendHostRelayEvent(message.id, { type: "error" });
+        return;
+      }
+      // The worker cannot choose an upstream URL or see the host's headers.
+      const NodeWebSocket = WebSocket as typeof WebSocket & {
+        new (url: string, options: { headers: Record<string, string> }): WebSocket;
+      };
+      const relay = this.hostRelayHeaders
+        ? new NodeWebSocket(this.webSocketDebuggerUrl, { headers: this.hostRelayHeaders })
+        : new WebSocket(this.webSocketDebuggerUrl);
+      const timer = setTimeout(() => {
+        if (relay.readyState === WebSocket.CONNECTING) {
+          this.hostRelaySockets.delete(message.id);
+          this.closeRelaySocket(relay);
+          this.sendHostRelayEvent(message.id, { type: "error" });
+        }
+      }, 10_000);
+      timer.unref?.();
+      this.hostRelaySockets.set(message.id, { socket: relay, timer });
+      relay.addEventListener("open", () => {
+        clearTimeout(timer);
+        this.sendHostRelayEvent(message.id, { type: "open" });
+      });
+      relay.addEventListener("message", (event) => {
+        void messageDataToString(event.data)
+          .then((data) => {
+            this.sendHostRelayEvent(message.id, { type: "message", data });
+          })
+          .catch(() => this.sendHostRelayEvent(message.id, { type: "error" }));
+      });
+      relay.addEventListener("error", () => {
+        clearTimeout(timer);
+        this.hostRelaySockets.delete(message.id);
+        this.closeRelaySocket(relay);
+        this.sendHostRelayEvent(message.id, { type: "error" });
+      });
+      relay.addEventListener("close", (event) => {
+        clearTimeout(timer);
+        this.hostRelaySockets.delete(message.id);
+        const closed = event as CloseEvent;
+        this.sendHostRelayEvent(message.id, {
+          type: "close",
+          code: closed.code,
+          reason: closed.reason,
+        });
+      });
+    } else if (message.type === "send") {
+      const relay = this.hostRelaySockets.get(message.id)?.socket;
+      if (relay?.readyState === WebSocket.OPEN) relay.send(message.data);
+      else this.sendHostRelayEvent(message.id, { type: "error" });
+    } else {
+      const entry = this.hostRelaySockets.get(message.id);
+      if (entry) {
+        clearTimeout(entry.timer);
+        this.hostRelaySockets.delete(message.id);
+        this.closeRelaySocket(entry.socket);
+      }
+    }
+  }
+
+  private closeRelaySocket(socket: WebSocket): void {
+    try {
+      socket.close();
+    } catch {
+      // A failed close must not close the SDK's main CDP connection.
+    }
+  }
+
+  sendHostRelayEvent(id: string, event: HostRelayEvent): void {
+    if (this.closed || !this.sessionId) return;
+    const expression = `globalThis.__stagehandHostRelayReceive(${JSON.stringify({ id, ...event })}); true`;
+    void this.sendCommand(
+      "Runtime.evaluate",
+      { expression, awaitPromise: false },
+      this.sessionId,
+    ).catch(() => undefined);
   }
 
   handleResponse(message: z.output<typeof CDPResponseEnvelopeSchema>): void {

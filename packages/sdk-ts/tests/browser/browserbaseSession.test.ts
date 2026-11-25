@@ -109,6 +109,7 @@ describe("Browserbase session creation", () => {
     const retrieveSession = vi.fn(async () => ({
       id: "session_123",
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      signingKey: "test-key",
       region: "eu-central-1" as const,
     }));
     const releaseSession = vi.fn(async () => {});
@@ -126,6 +127,7 @@ describe("Browserbase session creation", () => {
     expect(connection).toMatchObject({
       sessionId: "session_123",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      signingKey: "test-key",
       region: "eu-central-1",
     });
     expect(retrieveSession).toHaveBeenCalledWith("session_123");
