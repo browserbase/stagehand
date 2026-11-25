@@ -4,8 +4,6 @@ import { fallback } from "../outcomes.js";
 import { act } from "../perform.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
-/** Key presses: the key comes from the intent answer, so there is nothing to pick. */
-
 export async function runPress(
   ctx: PipelineContext,
   intent: DecisionResponse,

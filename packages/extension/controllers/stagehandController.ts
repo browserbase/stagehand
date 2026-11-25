@@ -62,11 +62,6 @@ export function createStagehandController(
     return { closed: true as const };
   }
 
-  /**
-   * act, observe and extract under one set of drivers. The services are the same for every
-   * set; which drivers they are handed is the whole difference between `stagehand.act()` and
-   * `stagehand.experimentalDecisions.act()`.
-   */
   function aiOperations(
     names: { act: string; observe: string; extract: string },
     driversFor: (initParams: StagehandInitParams, method: "act" | "observe" | "extract") => Drivers,
@@ -162,8 +157,6 @@ export function createStagehandController(
     return { act, observe, extract };
   }
 
-  // The plain methods never ask a decision model. When one is configured they log each act's
-  // timing, so the two paths can be compared.
   const llmOperations = aiOperations(
     { act: "stagehand.act", observe: "stagehand.observe", extract: "stagehand.extract" },
     (initParams) => llmDrivers({ logActTiming: initParams.experimentalDecisions !== undefined }),

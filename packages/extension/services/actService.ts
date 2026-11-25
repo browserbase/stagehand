@@ -19,13 +19,6 @@ import { createLlmPort } from "./drivers/llmPort.js";
 import type { ActDriver, ActRequest, CachedActionGuard } from "./drivers/types.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-/**
- * act(): perform what the instruction describes.
- *
- * This service owns the call's frame — timeout, DOM settle, cache lookup and replay, usage,
- * the result envelope — and asks `driver` for the one thing in the middle: which action to
- * take. The driver defaults to the language model; see `drivers/` for the contract.
- */
 type ActServiceOptions = {
   params: StagehandActParams;
   page: Page;
@@ -38,13 +31,9 @@ type ActServiceOptions = {
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
   openPageCount?: () => number;
-  /** Chooses the action for a natural-language instruction. */
   driver?: ActDriver;
-  /** Vets each cached action before it is replayed. */
   cachedActionGuard?: CachedActionGuard;
-  /** Log one line per act with its path, duration and LLM usage. */
   logTiming?: boolean;
-  /** The caller's deadline; act() starts its own from `options.timeout` when absent. */
   progress?: Progress;
 };
 
@@ -96,13 +85,11 @@ async function actWithProgress(
   });
 
   progress.throwIfStopped();
-  // An Action is already a decision: perform it.
   if (typeof actInstruction !== "string") {
     return actResult(await runAction(actInstruction), usage());
   }
 
   const instruction = actInstruction;
-  // performance.now(): tests script Date.now() for inference timing.
   const startedAt = performance.now();
   const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   const request: ActRequest = {
@@ -123,8 +110,6 @@ async function actWithProgress(
   };
   driver.prepare?.(request);
 
-  // The cache lookup keys on the page's tree and URL, so the page must have
-  // settled before it; only acts that skip the lookup overlap.
   const cacheBypass = cacheService.shouldBypassCacheForLocatorScope(options);
   const cacheLookup =
     cache !== undefined &&
@@ -151,20 +136,16 @@ async function actWithProgress(
       const resolveStartedAt = performance.now();
       const resolution = await driver.resolve(request);
       if (resolution.kind === "abstained") {
-        // A lone driver that abstains has nothing behind it; chains and `actOrFail` never
-        // reach here. Treat it as the failure it is.
         throw new Error(`act() failed: no driver resolved the instruction (${resolution.reason})`);
       }
       const result = actResult(resolution.result, usage());
       if (logTiming) {
-        // One line per act, so runs can be compared on latency and LLM usage from the log.
         logger.info("Act pipeline finished", {
           category: "act-timing",
           instruction,
           path: resolution.path,
           success: result.data.success,
           durationMs: Math.round(performance.now() - resolveStartedAt),
-          // From the start of act(), DOM settle included: what the caller waits for.
           totalMs: Math.round(performance.now() - startedAt),
           llmInputTokens: result.metadata.usage.inputTokens,
           llmOutputTokens: result.metadata.usage.outputTokens,

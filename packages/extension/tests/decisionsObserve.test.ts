@@ -73,7 +73,6 @@ describe("decisions observe", () => {
     ).toEqual([
       ["textbox: Email", "fill"],
       ["textbox: Password", "fill"],
-      // Native selects are form controls too; without an instruction no option is chosen.
       ["select: Country", "selectOptionFromDropdown"],
       ["button: Sign up", "click"],
       ["link: Terms", "click"],

@@ -8,15 +8,11 @@ import { act, extractText, rejected } from "../perform.js";
 import { pickWhenReady, staysPut } from "../readiness.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
-/** Typing into a field, including fields that then offer suggestions to choose from. */
-
 export async function runFill(
   ctx: PipelineContext,
   intent: DecisionResponse,
   values: string[],
 ): Promise<DecisionsActOutcome> {
-  // The text to type: a lone declared %variable% (never a label), else the decision model's
-  // choice among quoted strings, else an argument-only LLM call for unquoted text.
   let value: string | undefined;
   if (isLoneVariable(values)) {
     value = values[0];
@@ -74,8 +70,6 @@ export async function runFill(
     { selector, description: describeLine(target), method: "fill", arguments: [value] },
     { expectedValue },
   );
-  // Search boxes that swap themselves for a richer widget on focus leave the
-  // picked node detached; the same question over a fresh snapshot finds the new one.
   if (isDetached(filled)) {
     const fresh = await snapshot(ctx.deps);
     const again = await pickTarget(
@@ -104,7 +98,6 @@ export async function runFill(
   }
   if (filled.kind === "fallback") return filled;
 
-  // "…and pick the suggestion": choose among what the typing made appear.
   const afterTyping = choiceAnswer(intent, "after_typing");
   if (afterTyping.choice !== "pick_suggestion" || afterTyping.confidence < ctx.threshold)
     return filled;
@@ -116,8 +109,6 @@ export async function runFill(
     "Which suggestion or autocomplete option does the instruction ask to choose?",
     "wait",
   );
-  // The instruction asked for a suggestion and none was chosen: that is not a
-  // success to report. The LLM path gets the page as it now is.
   if (chosen.kind === "nothing_appeared")
     return fallback("suggestion_none_appeared", filled.result.actions);
   if (chosen.kind === "fallback")

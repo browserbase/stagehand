@@ -1,10 +1,5 @@
 import { choiceAnswer } from "../client.js";
 
-/**
- * The closed sets the intent question chooses from: action families, keys, and the page
- * methods each family maps to.
- */
-
 const MERGED_FAMILY_MASS = 0.85;
 
 export const FAMILIES: Record<string, string> = {
@@ -54,11 +49,6 @@ export const SCROLL_METHODS: Record<string, string> = {
   prev_chunk: "prevChunk",
 };
 
-/**
- * "Pick the Chicory suggestion" splits the decision model between click and select, and
- * "open the folder" between click and double-click. Those pairs lead to the
- * same first step, so their combined weight decides, not the split.
- */
 export function resolveFamily(
   answer: ReturnType<typeof choiceAnswer>,
   threshold: number,
@@ -75,9 +65,6 @@ export function resolveFamily(
   for (const [a, b, winner] of [
     ["click", "select", undefined],
     ["click", "double_click", "click"],
-    // "Run the search": a button click and Enter do the same thing, so the
-    // combined mass counts; the more likely of the two is what gets done
-    // ("press Enter in the search box" must not turn into a click on it).
     ["click", "press", undefined],
   ] as const) {
     const combined = p(a) + p(b);

@@ -1,9 +1,3 @@
-/**
- * Shared by the decisions test stubs. A real decision model can only ever
- * answer with one of the options it was offered; the client now rejects
- * anything else. Stubs that script "whatever, nothing matches" answers go
- * through this so they stay short and still look like a provider's reply.
- */
 type Question = { type?: string; criteria?: object | null };
 type Choice = {
   type: "choice";
@@ -12,7 +6,6 @@ type Choice = {
   probabilities: Record<string, number>;
 };
 
-/** Options that mean "none of the above" in the pipeline's questions, in order of preference. */
 const NEUTRAL = [
   "none_match",
   "none_of_these",
@@ -32,7 +25,6 @@ export function realisticAnswer<T>(question: Question, answer: T): T | Choice {
   const options = Object.keys(question.criteria ?? {});
   if (options.length === 0 || options.includes(scripted.choice)) return answer;
   const neutral = NEUTRAL.find((id) => options.includes(id));
-  // No way to say "none": a real model still names an option, just without conviction.
   const choice = neutral ?? options[0]!;
   const confidence = neutral ? (scripted.confidence ?? 0.95) : 0.2;
   return { type: "choice", choice, confidence, probabilities: { [choice]: confidence } };
@@ -41,9 +33,7 @@ export function realisticAnswer<T>(question: Question, answer: T): T | Choice {
 export type FakeProviderName = "typesafe" | "cloudflare" | "perplexity" | "openai";
 export type WireQuestion = {
   type: "choice" | "noul";
-  /** Option ids exactly as they arrived on the wire (possibly aliased). */
   options: string[];
-  /** Instructions plus option descriptions, as text, to script answers by content. */
   text: string;
   descriptions: Record<string, string>;
 };
@@ -54,11 +44,6 @@ export type SeenRequest = {
   body: Record<string, unknown>;
 };
 
-/**
- * A stand-in server for each provider's wire format: it reads the request the
- * way that provider documents it and replies in that provider's own shape.
- * Unscripted choices fall on a "none of the above" option when there is one.
- */
 export function fakeDecisionProvider(
   name: FakeProviderName,
   script: (key: string, question: WireQuestion) => ScriptedAnswer | undefined,
@@ -174,7 +159,6 @@ export function fakeDecisionProvider(
       answers,
       usage: { input_tokens: 40, output_tokens: 3 },
     };
-    // Workers AI wraps every model's output.
     return Response.json(
       name === "cloudflare"
         ? { result: payload, success: true, errors: [], messages: [] }

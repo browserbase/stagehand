@@ -8,13 +8,9 @@ import { describeLine, selectorFor, snapshot } from "../page.js";
 import { act, optionText, rejected } from "../perform.js";
 import type { DecisionsActOutcome, Done, PipelineContext } from "../types.js";
 
-/** Choosing an option: native selects in one step, custom dropdowns by opening them first. */
-
-/** A target with one of these roles is itself the thing to choose, not a control to expand. */
 const LEAF_CHOICE_ROLES =
   /\b(option|menuitem|menuitemradio|menuitemcheckbox|radio|checkbox|switch|tab|treeitem)\b/i;
 
-/** Clicking one of these IS the choice; nothing is expected to open afterwards. */
 const SELF_CONTAINED_CHOICE = /\b(gridcell|cell|link|image|img|listitem)\b/i;
 
 const MAX_NATIVE_OPTIONS = 254;
@@ -33,8 +29,6 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
   const selector = selectorFor(snap, target);
   if (!selector) return fallback(`target_missing_xpath:${target.id}`);
 
-  // Native select: the role decides this deterministically, replacing the
-  // prompt's CASE 1 / CASE 2 dropdown rules.
   const options = nativeSelectOptions(snap.nodes, target);
   if (options.length > 0) {
     let option = matchOption(options, ctx.instruction, target.name);
@@ -77,8 +71,6 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
     );
     if (selected.kind === "fallback" || ctx.config.verify === "off") return selected;
 
-    // selectOption reports success even when nothing matched; the [selected]
-    // flag in a fresh snapshot is the read-back.
     const after = await snapshot(ctx.deps);
     const refreshed = after.nodes.find((node) => node.id === target.id);
     const matched = refreshed
@@ -88,8 +80,6 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
     return matched === false ? fallback("select_readback_mismatch") : selected;
   }
 
-  // The "dropdown" the decision model matched is already the thing to choose (a radio, a
-  // menu item, an open listbox option): one click, no expand step.
   if (LEAF_CHOICE_ROLES.test(target.role)) {
     return await act(
       ctx,
@@ -98,7 +88,6 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
     );
   }
 
-  // Custom dropdown: expand, then choose among what appeared.
   const expand = await act(ctx, {
     selector,
     description: describeLine(target),
@@ -108,13 +97,11 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
   if (expand.kind === "fallback") return expand;
 
   const question = "Which element is the option the instruction asks to choose?";
-  // Anything that may open a list gets the polling; a calendar day or a link does not.
   const selfContained = SELF_CONTAINED_CHOICE.test(target.role);
   const patience = selfContained ? "once" : "wait";
   let chosen = await chooseFromAppeared(ctx, snap, target.id, "option", question, patience);
   let done: Done = expand;
 
-  // An editable combobox that shows nothing on click filters as you type.
   if (chosen.kind === "nothing_appeared" && EDITABLE_ROLES.test(target.role)) {
     const text = await optionText(ctx, target);
     if (text) {
@@ -130,12 +117,6 @@ export async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutco
     }
   }
 
-  // The earlier actions already happened: hand them to the LLM path so the
-  // final result (and the cache entry built from it) still contains every step.
-  // Nothing opened. For a calendar day or a link the click was the whole
-  // action. For anything that should have opened a list, the option was NOT
-  // chosen: options already in the tree before the click never count as
-  // "appeared", and the LLM path's second step looks at the whole page then.
   if (chosen.kind === "nothing_appeared") {
     return selfContained ? done : fallback("option_none_appeared", done.result.actions);
   }

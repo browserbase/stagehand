@@ -1,13 +1,3 @@
-/**
- * One client for every decision-model provider (see providers.ts for the
- * wire formats). Raw fetch rather than vendor SDKs: this runs inside the
- * extension service worker.
- *
- * What is shared here, so each provider behaves the same to the pipeline:
- * request timeout, retry on overload, a circuit breaker per endpoint + key,
- * splitting requests that exceed a provider's question limit, aliasing ids a
- * provider would reject, and validating every answer before it is trusted.
- */
 import {
   providerFor,
   type DecisionAnswer,
@@ -50,10 +40,6 @@ const OUTAGE_BREAKER_MS = 30_000;
 /** Probabilities are rounded by providers; allow each option half a unit of two-decimal rounding. */
 const SUM_SLACK_PER_OPTION = 0.005;
 
-// A bad key, exhausted quota, or a provider outage fails every act the same
-// way; skip the decision model for a while instead of paying a doomed round
-// trip before each LLM fallback. Keyed by provider + endpoint + key so one
-// tenant's bad key does not pause another's in a shared worker.
 const breakers = new Map<string, { openUntil: number; failures: number }>();
 
 function breakerFor(config: DecisionModelConfig, provider: DecisionProvider) {
@@ -75,7 +61,6 @@ export class DecisionRequestError extends Error {
   }
 }
 
-/** Asks one decision model a set of typed questions about one state. */
 export async function decide(
   config: DecisionModelConfig,
   state: JsonValue,
@@ -83,8 +68,6 @@ export async function decide(
 ): Promise<DecisionResponse> {
   const provider = providerFor(config);
   const startedAt = Date.now();
-  // A choice among one option has one possible answer (a softmax over one
-  // option is 1). Providers reject or waste tokens on it, so it never leaves.
   const settled: Record<string, DecisionAnswer> = {};
   for (const [key, question] of Object.entries(questions)) {
     if (question.type !== "choice") continue;
@@ -113,7 +96,6 @@ export async function decide(
     };
   }
 
-  // Every chunk sees the same state; the answers are independent per question.
   const parts = await Promise.all(
     chunks.map((chunk) =>
       requestOnce(
@@ -140,9 +122,7 @@ export async function decide(
 
 type Aliases = {
   questions: Record<string, DecisionQuestion>;
-  /** wire question key → caller's key */
   keyOf: Map<string, string>;
-  /** caller's key → (wire option id → caller's option id) */
   optionOf: Map<string, Map<string, string>>;
 };
 
@@ -150,11 +130,6 @@ function text(value: JsonValue): JsonValue {
   return typeof value === "string" || value === null ? value : JSON.stringify(value);
 }
 
-/**
- * Rewrites questions into what the provider accepts: ids outside its alphabet
- * get an alias (the description still says what the option is), and JSON
- * instructions or descriptions become text where only text is taken.
- */
 function prepare(provider: DecisionProvider, questions: Record<string, DecisionQuestion>): Aliases {
   const keyOf = new Map<string, string>();
   const optionOf = new Map<string, Map<string, string>>();
@@ -189,7 +164,6 @@ function prepare(provider: DecisionProvider, questions: Record<string, DecisionQ
       const wireId = aliasAll ? `o${position}` : id;
       options.set(wireId, id);
       const description = question.criteria[id]!;
-      // An aliased id no longer says anything: keep the original in the description.
       criteria[wireId] = aliasAll
         ? flatten(
             description === null || description === ""
@@ -217,7 +191,6 @@ function probability(value: unknown): number | undefined {
     : undefined;
 }
 
-/** A provider's answer, checked against the question that was asked. Throws on anything unusable. */
 function validate(
   provider: DecisionProvider,
   key: string,
@@ -311,11 +284,6 @@ async function requestOnce(
     }
 
     if (response.ok) {
-      // A 2xx with a body that is not the documented shape (an intermediary's
-      // HTML, a truncated response) or with answers that do not fit the
-      // questions must surface as a typed error, not as something the
-      // pipeline acts on. It also counts as a failure: a provider returning
-      // nonsense is an outage too.
       const decoded = provider.decode(await response.json().catch(() => undefined));
       if (!decoded) {
         failed();
@@ -363,11 +331,8 @@ async function requestOnce(
     } else if (response.status >= 500 || RETRY_STATUSES.has(response.status)) {
       failed();
     } else {
-      // A terminal client error (bad request) is not an outage: it must not
-      // let earlier counted failures open the outage breaker later.
       breaker.failures = 0;
     }
-    // Only the provider's error code reaches logs, never the raw body.
     const detail = provider.errorCode(await response.text().catch(() => ""));
     throw new DecisionRequestError(
       `${provider.label} decision request failed (${response.status}${detail ? `: ${detail}` : ""})`,

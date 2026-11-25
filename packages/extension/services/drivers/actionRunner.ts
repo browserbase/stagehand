@@ -15,17 +15,11 @@ export type ActionRunnerEnvironment = {
   logger: StagehandLogger;
   llm: LlmPort;
   variables?: Variables;
-  /** Whether a failed action is re-inferred once and retried, unless the caller says otherwise. */
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
   progress: Progress;
 };
 
-/**
- * Performs actions on the page: variable substitution, the understudy call, and one self-heal
- * retry (re-find the element by its description) when enabled. Every driver acts through this,
- * so an action behaves the same whoever chose it.
- */
 export function createActionRunner(environment: ActionRunnerEnvironment): ActRequest["runAction"] {
   const { page, logger, variables, domSettleTimeoutMs, progress } = environment;
   const ensureTimeRemaining = () => progress.throwIfStopped();

@@ -18,13 +18,6 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
 
 export { transformUrlStringsToNumericIds } from "./drivers/llm/extract.js";
 
-/**
- * extract(): read structured data off the page.
- *
- * This service owns the timeout, the page capture, the cache and the result envelope, and asks
- * `driver` for the values. The driver defaults to the language model; see `drivers/` for the
- * contract.
- */
 type ExtractServiceOptions = {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -34,9 +27,7 @@ type ExtractServiceOptions = {
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Produces the values for the schema. */
   driver?: ExtractDriver;
-  /** The caller's deadline; extract() starts its own from `options.timeout` when absent. */
   progress?: Progress;
 };
 
@@ -130,8 +121,6 @@ async function extractWithProgress(
       llm,
     });
     if (resolution.kind === "abstained") {
-      // A lone driver that abstains has nothing behind it; chains and `extractOrFail` never
-      // reach here.
       throw new Error(
         `extract() failed: no driver resolved the instruction (${resolution.reason})`,
       );

@@ -3,9 +3,6 @@ import { type OutlineNode, textOf } from "../tree.js";
 import type { Leaf } from "./plan.js";
 import type { DecisionsExtractDeps, Item } from "./types.js";
 
-/** Copying a value off a node: text, numbers, URLs, and the small tree helpers that needs. */
-
-/** Equal, or numbers within 2% ("250.5k" in the sidebar, "251k" in the header). */
 export function sameValue(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
   if (a === undefined || b === undefined) return false;
   if (typeof a === "number" && typeof b === "number") {
@@ -48,7 +45,6 @@ export function valueOf(
   if (leaf.kind === "url") {
     const direct = deps.urlMap[node.id];
     if (direct) return direct;
-    // The picked text may sit inside the link.
     for (let at = node.parent; at !== undefined; at = deps.snap.nodes[at]!.parent) {
       const url = deps.urlMap[deps.snap.nodes[at]!.id];
       if (url) return url;
@@ -60,17 +56,10 @@ export function valueOf(
   if (leaf.kind === "string") return text;
   const number = parseNumberText(text);
   if (number === undefined) return undefined;
-  // An integer field whose text is fractional is the wrong element, not a
-  // value to round into the schema.
   if (leaf.kind === "integer") return Number.isInteger(number) ? number : undefined;
   return number;
 }
 
-/**
- * "1,249.50" → 1249.5, "1.2k stars" → 1200, "3M views" → 3e6, "2 km" → 2.
- * Whitespace is collapsed, not removed: a unit word after the suffix must not
- * swallow the suffix, and a space between number and letter is not a suffix.
- */
 export function parseNumberText(text: string): number | undefined {
   const match = /(-?\d[\d,]*(?:\.\d+)?)([kKmMbB])?(?![\w])/.exec(text.replace(/\s+/g, " "));
   if (!match) return undefined;
@@ -79,7 +68,6 @@ export function parseNumberText(text: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
-/** "Price: $20" picked for the field `price` → "$20". */
 function stripLabel(text: string, leaf: Leaf): string {
   const match = /^([^:]{1,40}):\s+(.+)$/s.exec(text.trim());
   if (!match) return text.trim();
@@ -104,7 +92,6 @@ export function setPath(target: Record<string, JsonValue>, path: string[], value
   at[path[path.length - 1]!] = value;
 }
 
-/** Lists longer than a few items are shown to the completion judge as count + first items. */
 export function compactForJudge(value: JsonValue, limit = 6000): JsonValue {
   if ((JSON.stringify(value) ?? "").length <= limit) return value;
   const compact = (item: JsonValue): JsonValue => {

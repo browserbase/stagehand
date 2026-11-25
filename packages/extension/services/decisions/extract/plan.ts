@@ -1,7 +1,5 @@
 import type { JsonValue } from "../client.js";
 
-/** Turns the caller's JSON Schema into what to look for: scalar leaves and lists of items. */
-
 export type JsonSchema = {
   type?: string | string[];
   properties?: Record<string, JsonSchema>;
@@ -30,7 +28,6 @@ export class Unsupported extends Error {}
 
 export const MAX_FIELDS = 24;
 
-/** Flattens the JSON schema into copyable leaves and lists; throws Unsupported otherwise. */
 export function planSchema(schema: JsonSchema): Plan {
   const plan: Plan = { leaves: [], lists: [] };
   const walk = (

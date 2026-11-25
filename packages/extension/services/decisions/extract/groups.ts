@@ -6,8 +6,6 @@ import type { Leaf, ListPlan } from "./plan.js";
 import type { DecisionsExtractDeps, Group, Item, Step } from "./types.js";
 import { childrenOf, clip, descendantsOf, itemText } from "./values.js";
 
-/** Repeating structure: find the container of items, and a field's position inside one item. */
-
 export function fieldSummary(list: ListPlan): string {
   return `a list; each item has: ${list.fields.map((field) => field.path.join(".") + (field.description ? ` (${field.description})` : "")).join(", ")}`;
 }
@@ -73,8 +71,6 @@ export async function pickGroup(
   );
   const best = choiceAnswer(response, "best");
   const none = round(choiceAnswer(response, "strict").probabilities[NONE] ?? 0);
-  // Nested groups (a table's rows, its row groups) split the vote between
-  // near-equivalent answers: a clear leader is enough.
   const [leader = 0, second = 0] = Object.values(best.probabilities).sort((a, b) => b - a);
   const accepted =
     (best.confidence >= ctx.threshold && none <= 0.9) ||
@@ -89,7 +85,6 @@ export async function pickGroup(
   return accepted ? groups[Number(best.choice.slice("group_".length))] : undefined;
 }
 
-/** Same-role siblings, and flat runs where an anchor role (a heading) starts each item. */
 export function findGroups(nodes: OutlineNode[]): Group[] {
   const groups: Group[] = [];
   for (const parent of nodes) {
@@ -111,7 +106,6 @@ export function findGroups(nodes: OutlineNode[]): Group[] {
         groups.push({ kind: "siblings", role, parent, items: withText.map((member) => [member]) });
       }
 
-      // Flat run: h3, date, p, h3, date, p … — each anchor plus what follows it.
       if (members.length >= 3 && children.length >= members.length * 2 && !rich) {
         const items: Item[] = members.map((anchor, index) => {
           const from = children.indexOf(anchor);
@@ -125,7 +119,6 @@ export function findGroups(nodes: OutlineNode[]): Group[] {
         )[0]!;
         const regular = sizes.filter((size) => size === mode).length / sizes.length;
         if (mode >= 2 && regular >= 0.6) {
-          // The trailing item often swallows the footer: cut it to the usual size.
           groups.push({
             kind: "flat",
             role,
@@ -157,8 +150,6 @@ export async function pickInItem(
   );
   const usable = usableCandidates(deps, leaf, inItem);
   const candidates = inItem.filter((node) => usable.has(node.id));
-  // Even a lone candidate is confirmed (one yes/no): the first "item" of a
-  // group is often a category header whose only text is not the field at all.
   if (candidates.length === 0) return undefined;
   const pick = await pickCandidate(
     ctx,
@@ -171,8 +162,6 @@ export async function pickInItem(
     false,
   );
   if (pick.picked && pick.accepted) return pick.picked;
-  // Inside a single item a clear leader is enough: the alternatives are the
-  // item's other fields, not other items.
   const [first, second] = pick.ranked;
   if (first && first.p >= 0.5 && first.p >= 2 * (second?.p ?? 0) && pick.none <= 0.5) {
     return deps.snap.nodes.find((node) => node.id === first.id);
@@ -180,7 +169,6 @@ export async function pickInItem(
   return undefined;
 }
 
-/** Path from an item's top-level nodes down to `target`, as (role, ordinal among same-role siblings). */
 export function routeTo(nodes: OutlineNode[], item: Item, target: OutlineNode): Step[] | undefined {
   const tops = new Set(item.map((node) => node.index));
   const steps: Step[] = [];
@@ -198,7 +186,6 @@ export function routeTo(nodes: OutlineNode[], item: Item, target: OutlineNode): 
   }
 }
 
-/** The nearest heading above a node, in document order. */
 export function precedingHeading(
   nodes: OutlineNode[],
   first: OutlineNode | undefined,
@@ -211,7 +198,6 @@ export function precedingHeading(
   return undefined;
 }
 
-/** The node at the exemplar's exact position, or (when the item has none) the same-role nodes nearest to it. */
 export function follow(
   nodes: OutlineNode[],
   item: Item,
@@ -236,7 +222,6 @@ export function follow(
   return exact && at ? { exact: at, neighbours } : { neighbours };
 }
 
-/** Coarse "same kind of value": both carry digits or neither does, and a comparable length. */
 export function looksAlike(
   value: JsonValue | undefined,
   exemplar: JsonValue | undefined,

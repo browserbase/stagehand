@@ -2,11 +2,6 @@ import type { ActResultData } from "@browserbasehq/stagehand-protocol/types";
 import type { TargetResult } from "../pick.js";
 import type { Done, Fallback } from "./types.js";
 
-/**
- * Builders and predicates for pipeline outcomes: done, failed, or handed over.
- */
-
-/** Only a shortlist the decision model actually believed in; a flat guess would just mislead the LLM. */
 export function isDetached(outcome: Done | Fallback): boolean {
   return (
     outcome.kind === "fallback" &&

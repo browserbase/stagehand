@@ -8,7 +8,6 @@ import type { ObserveDriver } from "../types.js";
 const DEFAULT_OBSERVE_INSTRUCTION =
   "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
-/** observe() by language model: one inference over the page outline lists the actions. */
 export function llmObserveDriver(): ObserveDriver {
   return {
     name: "llm",

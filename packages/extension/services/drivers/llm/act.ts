@@ -11,15 +11,8 @@ import type { ActDriver, ActRequest, ActResolution, LlmPort } from "../types.js"
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
 
-// Set high on purpose: on ordinary pages a shortlist cost accuracy (the model lost the context
-// that disambiguates), so it is reserved for huge trees where the full-page call is slow and
-// expensive.
 const FOCUS_MIN_TREE_CHARS = 120_000;
 
-/**
- * act() by language model: one inference over the page outline picks the element and method,
- * and a second one finishes two-step widgets (open the dropdown, then choose).
- */
 export function llmActDriver(): ActDriver {
   return {
     name: "llm",
@@ -38,8 +31,6 @@ export function llmActDriver(): ActDriver {
         variables,
       );
 
-      // An earlier driver shortlisted a handful of elements on a big page: look at those (with
-      // ancestors and subtrees) first, and only pay for the whole tree if nothing is found.
       let first: InferredAction | undefined;
       const focused =
         handoff?.focus && combinedTree.length > FOCUS_MIN_TREE_CHARS
@@ -116,7 +107,6 @@ export function llmActDriver(): ActDriver {
 
 type InferredAction = { action?: Action; response: ActInferenceResponse };
 
-/** One act inference over `domElements`, resolved to an action the page can perform. */
 export async function inferAction(
   context: { llm: LlmPort; logger: StagehandLogger },
   instruction: string,

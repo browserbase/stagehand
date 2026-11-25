@@ -39,9 +39,6 @@ vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
 const performAction = vi.mocked(performUnderstudyMethod);
 const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
 
-// The services take any driver. These tests use hand-written ones: nothing here knows about
-// language models or decision models, which is the point of the seam.
-
 const OPEN: Action = {
   selector: "xpath=/menu",
   description: "menu",
@@ -121,7 +118,6 @@ describe("act driver chains", () => {
     expect(resolution).toMatchObject({
       kind: "resolved",
       path: "first+second",
-      // The first driver proved something must not be cached; the chain keeps that.
       cacheable: false,
       result: { success: true, actions: [OPEN, PICK] },
     });
@@ -227,7 +223,6 @@ describe("observe and extract driver chains", () => {
     await expect(observeWithFallback(sure, unsure).resolve(observeRequest)).resolves.toMatchObject({
       kind: "resolved",
     });
-    // An abstention must not read as "nothing on the page".
     await expect(observeOrFail(unsure).resolve(observeRequest)).rejects.toThrow(
       "observe() failed: the unsure driver abstained (too many candidates)",
     );
@@ -296,14 +291,12 @@ describe("services with an injected driver", () => {
       logTiming: true,
     });
 
-    // Variables are substituted for the page and kept as placeholders in the result.
     expect(performAction.mock.calls[0]?.slice(2, 5)).toStrictEqual([
       "fill",
       "xpath=/html/body/input",
       ["user@example.com"],
     ]);
     expect(result.data).toMatchObject({ success: true, actions: [{ arguments: ["%email%"] }] });
-    // What the driver spent on a model is the operation's usage.
     expect(result.metadata.usage).toMatchObject({
       inputTokens: 7,
       outputTokens: 2,
@@ -374,7 +367,6 @@ describe("services with an injected driver", () => {
       cachedActionGuard: guard,
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    // The cache key is built from the page: no lookup until it has settled.
     expect(get).not.toHaveBeenCalled();
     settle();
     const result = await pending;
@@ -410,7 +402,6 @@ describe("services with an injected driver", () => {
     });
 
     expect(result.metadata.cache).toMatchObject({ status: "MISS", missReason: "replay_failed" });
-    // Self-heal would have re-read the page to find the element again.
     expect(page.captureSnapshot).not.toHaveBeenCalled();
     expect(driver.resolve).toHaveBeenCalledTimes(1);
   });
@@ -526,7 +517,6 @@ describe("services with an injected driver", () => {
       instruction: "find the item",
       variables: { a: "b" },
     });
-    // The page is the driver's to read; the service did not capture it on its behalf.
     expect(captureSnapshot).not.toHaveBeenCalled();
   });
 
@@ -596,7 +586,6 @@ describe("decision-first act, end to end through the service", () => {
   });
 
   it("continues with the language model when the decision model does not commit", async () => {
-    // Every question comes back undecided, so the decision driver abstains.
     const decisionRequests = vi.fn(async (_url: string, init: RequestInit) => {
       const questions = Object.keys(JSON.parse(String(init.body)).questions);
       return new Response(
@@ -695,7 +684,6 @@ describe("driver composition", () => {
       "decisions+llm",
       "decisions+llm",
     ]);
-    // The intent question needs no page, so the chain may start while the DOM settles.
     expect(drivers.act.startsBeforeSettle).toBe(true);
     expect(drivers.cachedActionGuard).toBeUndefined();
   });
@@ -710,7 +698,6 @@ describe("driver composition", () => {
       "decisions",
     ]);
     expect(strict.cachedActionGuard).toBeDefined();
-    // "judge": the language model extracts; the decision model only checks completion.
     expect(judge.extract.name).toBe("llm");
     expect(judge.act.name).toBe("decisions+llm");
   });
@@ -720,7 +707,6 @@ function actPage(frame: object = {}): Page {
   return { mainFrame: () => frame, captureSnapshot: vi.fn() } as unknown as Page;
 }
 
-/** A page the cache can key on: it has a URL and frames to read the tree from. */
 function cachePage(frame: object): Page {
   return {
     mainFrame: () => frame,

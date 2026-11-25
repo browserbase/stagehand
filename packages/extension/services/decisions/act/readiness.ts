@@ -8,22 +8,6 @@ import type { DecisionsActDeps, PipelineContext } from "./types.js";
 
 const READY_POLL_MS = 150;
 
-/**
- * "Is the page loaded" has no answer a snapshot can give: on 40 sites the decision model
- * rated a 1%-complete page as finished as the final one, under four phrasings,
- * because a half-loaded page reads as a smaller complete page. The settle
- * heuristic is right more often (network quiet for 500 ms) and pays for it
- * with a median 1.2 s of waiting on a page that was already there.
- *
- * What an act needs is narrower, and answerable: is the thing it is about to
- * use there, and is it staying put. With `targetReadiness` the pick runs on a
- * snapshot taken while intent is asked, and the act goes ahead the moment the decision model
- * accepts a target and the guard finds it in place and hittable. Until then
- * it keeps looking, for as long as the settle wait itself is still running:
- * a fresh snapshot each round, but the decision model is only asked again when the
- * candidates it would see have changed; otherwise only the guard reruns on
- * the earlier pick. When the settle wait ends first, it decides as before.
- */
 export async function pickWhenReady(
   ctx: PipelineContext,
   pick: (snap: Snapshot) => Promise<TargetResult>,
@@ -45,8 +29,6 @@ export async function pickWhenReady(
       attempt++;
       const early = ctx.earlySnapshot;
       ctx.earlySnapshot = undefined;
-      // A capture can fail while a navigation commits; that is "not ready
-      // yet", and the settle wait still bounds the loop.
       let snap: Snapshot;
       try {
         snap = await (early ?? capture(deps, ctx.trace));
@@ -62,8 +44,6 @@ export async function pickWhenReady(
         await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
         continue;
       }
-      // The decision model looks at the role view and then at every named node: a change in
-      // either is a reason to ask again.
       const signature = [...buildView(snap.nodes, view), ...buildView(snap.nodes, "broad")]
         .map((node) => `${node.id}:${node.name}`)
         .join("|");
@@ -74,7 +54,6 @@ export async function pickWhenReady(
         asked = true;
         lastSignature = signature;
       } else {
-        // Same candidates as last time: the decision model would say the same thing.
         picked = last.picked;
       }
       last = { snap, picked };
@@ -105,13 +84,6 @@ export async function pickWhenReady(
   return { snap, picked: await pick(snap) };
 }
 
-/**
- * One in-page call right before the act goes early: the selector must still
- * resolve to the node the decision model picked, which must be connected, enabled, in the
- * same place two animation frames later, and (for pointer actions) be what a
- * click at its centre would actually hit. An overlay that is still fading in
- * or a layout that is still moving fails here, and the act waits instead.
- */
 export async function staysPut(
   deps: DecisionsActDeps,
   snap: Snapshot,
@@ -155,7 +127,6 @@ export function isPointer(action: Action): boolean {
   return action.method === "click" || action.method === "hover" || action.method === "doubleClick";
 }
 
-/** Polls the guard until the target is hittable, up to a cap; the act proceeds either way. */
 export async function waitForClickable(
   ctx: PipelineContext,
   snap: Snapshot,
@@ -171,8 +142,6 @@ export async function waitForClickable(
     await sleep(PRE_ACT_POLL_MS);
   }
   if (polls > 0) {
-    // Still covered after the cap: the click goes ahead (a wrapper that forwards
-    // clicks looks the same to a hit-test), but the trace names what it will hit.
     ctx.trace.push({
       node: "pre_act_guard",
       ms: Math.round(performance.now() - startedAt),
@@ -185,14 +154,9 @@ export async function waitForClickable(
 
 type GuardResult = {
   verdict: string;
-  /** What a click at the target's centre would hit instead, when covered. */
   cover?: string;
 };
 
-/**
- * Runs in the page with the target as `this`. Frames when they tick, else a
- * timer (background tabs).
- */
 function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
   // oxlint-disable-next-line typescript/no-this-alias -- runs in the page with the element as `this`
   const element = this;
@@ -218,12 +182,8 @@ function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
       const y = rect.y + rect.height / 2;
       const inView =
         rect.width > 0 && rect.height > 0 && x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
-      // Off-screen targets get scrolled into view by the action; nothing to hit-test yet.
       if (pointer && inView) {
         const root = element.getRootNode() as Document | ShadowRoot;
-        // Inside a shadow root, a cover that lives in the light DOM makes
-        // elementFromPoint return null; the document's answer is then the
-        // cover (or the host chain, which counts as "hits the target").
         const hit = root.elementFromPoint(x, y) ?? document.elementFromPoint(x, y);
         const encloses = (outer: Element, inner: Element): boolean => {
           for (let node: Node | null = inner; node;) {

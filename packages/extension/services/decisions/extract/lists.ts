@@ -14,19 +14,10 @@ import type { Leaf, ListPlan } from "./plan.js";
 import type { DecisionsExtractDeps, Step } from "./types.js";
 import { clip, descendantsOf, itemText, requestedCount, setPath, valueOf } from "./values.js";
 
-/** List fields: induce every item from one exemplar, then keep the items that were asked for. */
-
 const MAX_ITEMS = 200;
 
 const MIN_ITEM_RESOLUTION = 0.7;
 
-/**
- * Lists, item-first. Code finds the groups of repeated siblings on the page
- * (rows, cards, list items, and flat heading/text/paragraph runs), the decision model says
- * which group is the list, then picks each field inside the FIRST item only:
- * a handful of candidates that are guaranteed to belong together. The same
- * relative positions are then read from every other item.
- */
 export async function readList(
   list: ListPlan,
   deps: DecisionsExtractDeps,
@@ -47,8 +38,6 @@ export async function readList(
   const group = await pickGroup(listCtx, deps, label, list);
   if (!group) return undefined;
 
-  // Field picks inside one item. If the first item lacks a required field
-  // (a sponsored card, a header), the second item gets a try.
   let routes: Array<Step[] | undefined> | undefined;
   let exemplarValues: Array<JsonValue | undefined> = [];
   for (const exemplar of group.items.slice(0, 2)) {
@@ -58,8 +47,6 @@ export async function readList(
         pickInItem(forField(field), deps, field, inside, `${label}[].${field.path.join(".")}`),
       ),
     );
-    // Two fields landing on the same element means at least one pick is wrong
-    // ("area" and "area code" both on the Area cell): not an exemplar to trust.
     const ids = picks
       .filter((node): node is OutlineNode => node !== undefined)
       .map((node) => node.id);
@@ -72,9 +59,6 @@ export async function readList(
       exemplarValues = picks.map((node, index) =>
         node ? valueOf(deps, list.fields[index]!, node) : undefined,
       );
-      // A list of plain values whose items each say one thing: read the item
-      // itself, so items wrapped slightly differently (a link here, bare text
-      // there) still resolve.
       if (
         list.primitive &&
         list.fields[0]!.kind !== "url" &&
@@ -92,15 +76,9 @@ export async function readList(
 
   const items: JsonValue[] = [];
   const kept: Array<{ text: string; section: string }> = [];
-  // The nearest preceding item that did not resolve is usually a section
-  // header ("Economy", "Daily Driver") and says which section an item is in.
-  // A list introduced by a heading ("Economy") is in that section from its
-  // first item on, before any header shows up between items.
   let section = clip(precedingHeading(nodes, group.items[0]?.[0]) ?? "", 80);
   let previousEnd = -1;
   for (const item of group.items.slice(0, MAX_ITEMS)) {
-    // Text sitting BETWEEN two items (a "Premium" band that is not itself an
-    // item of the group) is a section header too.
     const start = item[0]!.index;
     if (previousEnd >= 0) {
       const between = nodes
@@ -115,23 +93,7 @@ export async function readList(
     let complete = true;
     list.fields.forEach((field, index) => {
       const route = routes![index];
-      // The exemplar's position first; in an item shaped a little differently
-      // (an extra badge cell, a missing photo) the same-role neighbours are
-      // tried too. Whatever is read must look like the exemplar's value, so a
-      // category header between rows contributes nothing.
-      // The exemplar's exact position is trusted as is. Only when an item has
-      // no such position (an extra badge, a missing photo, a section header)
-      // are same-role neighbours read, and then the value must look like the
-      // exemplar's, so a header between rows contributes nothing.
-      // An inserted or removed same-role element before the field shifts the
-      // ordinal: an exact position whose value does not resemble the exemplar's
-      // (a badge cell where a name should be) is a shifted route, and the
-      // same-role neighbours are read instead.
       const found = route ? follow(nodes, item, route) : undefined;
-      // The exact position is trusted on a lenient check for strings (length
-      // only: "AirPods Max" next to an exemplar "Sony WH-1000XM5" is the same
-      // kind of value, digits or not). A neighbour substituted for a shifted
-      // route must match strictly, so a header's text between rows never does.
       const lenient = field.kind === "string" || field.kind === "enum";
       const exactValue = found?.exact ? valueOf(deps, field, found.exact) : undefined;
       const value =
@@ -155,8 +117,6 @@ export async function readList(
     kept.push({ text: clip(itemText(nodes, item), 200), section });
   }
 
-  // The group is structural; the instruction may want only some of it ("in the
-  // 'economy' category"). One yes/no per item, all in one request.
   const wanted = await itemsAskedFor(
     forField({ path: list.path, kind: "string", description: "", required: true }),
     label,
@@ -183,7 +143,6 @@ export async function readList(
 
 const ITEM_BATCH = 60;
 
-/** With section headers present, an item the decision model doubts belongs to the asked-for section is left out. */
 const ITEM_NOT_WANTED = 0.5;
 
 async function itemsAskedFor(
@@ -191,8 +150,6 @@ async function itemsAskedFor(
   label: string,
   items: Array<{ text: string; section: string }>,
 ): Promise<boolean[]> {
-  // Without sections there is nothing structural to filter on, and a list of
-  // plain siblings is what the group choice already answered.
   if (!items.some((item) => item.section)) return items.map(() => true);
   const verdicts: boolean[] = [];
   for (let at = 0; at < items.length; at += ITEM_BATCH) {

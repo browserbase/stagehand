@@ -19,12 +19,6 @@ import type { Drivers } from "./types.js";
 
 export type * from "./types.js";
 
-/**
- * The composition root: the two ways Stagehand's AI methods are wired. Anything else, a test
- * double or a third driver family, is another function returning `Drivers`.
- */
-
-/** act(), observe() and extract() resolved by the configured language model. */
 export function llmDrivers(options: { logActTiming?: boolean } = {}): Drivers {
   return {
     act: llmActDriver(),
@@ -34,16 +28,10 @@ export function llmDrivers(options: { logActTiming?: boolean } = {}): Drivers {
   };
 }
 
-/**
- * The decision model first, the language model whenever it abstains. With `llmFallback: false`
- * an abstention is a visible failure instead, which shows what the decision model alone gets
- * wrong.
- */
 export function decisionDrivers(config: DecisionsConfig): Drivers {
   const llmFallback = config.llmFallback !== false;
   const act = decisionsActDriver(config);
   const observe = decisionsObserveDriver(config);
-  // Whenever the language model extracts here, the decision model judges completion for it.
   const llmExtract = llmExtractDriver({ completionJudge: decisionsCompletionJudge(config) });
   const pick = decisionsExtractDriver(config, { gateOnCompletion: llmFallback });
 

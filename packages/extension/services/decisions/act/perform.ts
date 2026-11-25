@@ -12,16 +12,10 @@ import { isPointer, waitForClickable } from "./readiness.js";
 import type { DecisionsActOutcome, Done, Fallback, PipelineContext } from "./types.js";
 import { SCROLL_METHODS } from "./vocabulary.js";
 
-/**
- * Performing the picked action and judging what happened: the pre-act guard, deterministic
- * checks, the effect probe behind the no-effect retry, and what to do when no target fits.
- */
-
 const DIFF_BUDGET = 6000;
 
 const PAGE_STATE_NONE = 0.5;
 
-/** Text to type into a filter-as-you-type combobox: the quoted option, else an argument-only LLM call. */
 export async function optionText(
   ctx: PipelineContext,
   control: OutlineNode,
@@ -60,10 +54,6 @@ export function extractText(ctx: PipelineContext): Promise<string | null> | unde
     });
 }
 
-/**
- * No target was accepted. Before paying for the LLM, ask what kind of page
- * this is: on a bot wall nobody will find the element.
- */
 export async function rejected(
   ctx: PipelineContext,
   snap: Snapshot,
@@ -71,8 +61,6 @@ export async function rejected(
   picked: TargetResult,
 ): Promise<DecisionsActOutcome> {
   let suffix = "";
-  // Only when the decision model leaned toward "not on this page". A split between plausible
-  // candidates is not a page problem, and the LLM should not wait for this.
   if (ctx.config.pageState !== false && picked.none >= PAGE_STATE_NONE) {
     try {
       const state = await readPageState(ctx, snap.nodes, withoutQuery(ctx.deps.page.url()));
@@ -103,11 +91,7 @@ export async function act(
   action: Action,
   options: { before?: Snapshot; expectedValue?: string; target?: OutlineNode } = {},
 ): Promise<Done | Fallback> {
-  // Press and whole-page scroll get here without ever taking a snapshot.
   if (!ctx.ready) await ctx.deps.settled;
-  // The settle wait is about the network, not about what a click would hit:
-  // a consent overlay that arrives after load covers the target the pick
-  // found. Re-validate right before input and give the cover a moment to go.
   if (ctx.config.targetReadiness && options.before && options.target && isPointer(action)) {
     await waitForClickable(ctx, options.before, options.target);
   }
@@ -137,7 +121,6 @@ export async function act(
     return { kind: "done", result };
   }
 
-  // Scroll position never shows up in the accessibility tree diff.
   const scrolls = Object.values(SCROLL_METHODS).includes(action.method ?? "");
   if (ctx.config.verify === "full" && options.before && !scrolls) {
     await verifyByDiff(ctx, options.before, action, urlBefore, pagesBefore);
@@ -145,16 +128,10 @@ export async function act(
   return { kind: "done", result };
 }
 
-/**
- * Deterministic "nothing happened": same URL, same tab count, and an outline
- * identical in both directions (diffCombinedTrees alone only sees additions,
- * so a closed modal or a deleted row would look like no effect).
- */
 export function beginEffectProbe(ctx: PipelineContext) {
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   return {
-    /** The fresh snapshot when nothing changed, else undefined. */
     async unchanged(before: Snapshot): Promise<Snapshot | undefined> {
       try {
         if (ctx.deps.page.url() !== urlBefore) return undefined;
@@ -165,7 +142,6 @@ export function beginEffectProbe(ctx: PipelineContext) {
         ctx.trace.push({ node: "effect_probe", ms: 0, changed: !same });
         return same ? after : undefined;
       } catch {
-        // Out of time or the page went away: the action stands.
         return undefined;
       }
     },
@@ -180,10 +156,6 @@ function normalizeTree(tree: string): string {
     .join("\n");
 }
 
-/**
- * Logged only (verify: "full"): records the Noul so runs can measure its
- * calibration against the eval's own outcome, without changing the act result.
- */
 async function verifyByDiff(
   ctx: PipelineContext,
   before: Snapshot,
@@ -192,7 +164,6 @@ async function verifyByDiff(
   pagesBefore: number | undefined,
 ): Promise<void> {
   try {
-    // The action already succeeded; running out of time here must not undo that.
     try {
       ctx.deps.ensureTimeRemaining();
     } catch {

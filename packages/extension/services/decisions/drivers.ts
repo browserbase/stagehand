@@ -21,20 +21,12 @@ import type { DecisionsConfig } from "./config.js";
 import type { DecisionsToolDeps, ToolInput } from "./toolAct.js";
 import { focusOutline, parseOutline } from "./tree.js";
 
-/**
- * The decision model behind the driver contracts. Each driver asks its typed questions and
- * abstains, with a reason, whenever an answer is not confident enough to act on; what happens
- * next is the caller's composition, not this file's concern.
- */
-
 const NAME = "decisions";
 const DEFAULT_ACT_CONFIDENCE = 0.7;
 const COMPLETION_THRESHOLD = 0.5;
-/** Tools registered at load are reported within the listing's quiet window. */
 const LIST_TOOLS_TIMEOUT_MS = 300;
 
 export function decisionsActDriver(config: DecisionsConfig): ActDriver {
-  // The page's tools are listed while the DOM settles, so knowing them costs the act nothing.
   const toolListings = new WeakMap<ActRequest, Promise<WebMCPToolDescriptor[]>>();
   const listTools = (request: ActRequest): Promise<WebMCPToolDescriptor[]> => {
     let listing = toolListings.get(request);
@@ -45,13 +37,11 @@ export function decisionsActDriver(config: DecisionsConfig): ActDriver {
     }
     return listing;
   };
-  // A scoped act is about that element; tools are page-level.
   const usesTools = (request: ActRequest): boolean =>
     config.tools === true && !request.snapshotOptions?.focusLocator;
 
   return {
     name: NAME,
-    // The intent question needs no page, so it is asked while the DOM settles.
     startsBeforeSettle: true,
     prepare(request) {
       if (usesTools(request)) void listTools(request);
@@ -95,8 +85,6 @@ export function decisionsActDriver(config: DecisionsConfig): ActDriver {
         openPageCount: request.openPageCount,
         settled: request.settled,
         ...(webmcp ? { webmcp } : {}),
-        // The decision model picks the element; unquoted text to type is lifted from the
-        // instruction by a small model call.
         extractText: async (text) => {
           const response = await inference.actTextArgument({
             instruction: text,
@@ -107,8 +95,6 @@ export function decisionsActDriver(config: DecisionsConfig): ActDriver {
           usedArgumentLlm = true;
           return response.text;
         },
-        // Self-heal re-enters LLM inference; a failed action is an abstention instead, so the
-        // next driver sees the whole instruction.
         takeAction: (action) => request.runAction(action, { selfHeal: false }),
       }).catch((error: unknown): DecisionsActOutcome => {
         request.progress.throwIfStopped();
@@ -134,7 +120,6 @@ export function decisionsActDriver(config: DecisionsConfig): ActDriver {
       const focusIds = config.focusFallback ? (outcome.focusIds ?? []) : [];
       return {
         kind: "abstained",
-        // Reasons can carry error text that quotes typed values.
         reason: redact(outcome.reason),
         handoff: {
           priorActions: outcome.priorActions ?? [],
@@ -171,11 +156,6 @@ export function decisionsObserveDriver(config: DecisionsConfig): ObserveDriver {
   };
 }
 
-/**
- * Pick-and-copy extraction: the decision model chooses the elements that hold the values and
- * code copies their text. `gateOnCompletion` adds the completion yes/no before a result is
- * accepted; without it whatever was copied is returned.
- */
 export function decisionsExtractDriver(
   config: DecisionsConfig,
   options: { gateOnCompletion: boolean },
@@ -183,7 +163,6 @@ export function decisionsExtractDriver(
   return {
     name: NAME,
     async resolve(request) {
-      // A screenshot carries what the outline cannot; that is a language model's job.
       if (request.screenshot) return { kind: "abstained", reason: "screenshot_extraction" };
 
       const outcome = await runDecisionsExtract(config, {
@@ -213,7 +192,6 @@ export function decisionsExtractDriver(
   };
 }
 
-/** The decision model's yes/no on "did this extraction fulfil the instruction". */
 export function decisionsCompletionJudge(config: DecisionsConfig): CompletionJudge {
   return async (extracted, request) => {
     const trace: TraceEntry[] = [];
@@ -238,11 +216,6 @@ export function decisionsCompletionJudge(config: DecisionsConfig): CompletionJud
   };
 }
 
-/**
- * Replay is blind: a cached selector that still resolves but now points at another control gets
- * acted on with no model in the loop. This asks one yes/no per cached action, against the page
- * as it is right then (earlier actions of the same entry may have changed it).
- */
 export function decisionsCachedActionGuard(config: DecisionsConfig): CachedActionGuard {
   return {
     async check(action, request) {
@@ -271,7 +244,6 @@ export function decisionsCachedActionGuard(config: DecisionsConfig): CachedActio
           action,
         );
       })().catch((error: unknown) => {
-        // A check that could not run says nothing about the action: replay as before.
         request.progress.throwIfStopped();
         if (error instanceof TimeoutError) throw error;
         return undefined;
@@ -287,7 +259,6 @@ export function decisionsCachedActionGuard(config: DecisionsConfig): CachedActio
       if (verdict.verdict !== "stale") return { verdict: "ok" };
       return {
         verdict: "stale",
-        // The element's name can echo a value an earlier act typed; redact it like every request.
         detail: `selector now resolves to "${(redact ?? ((text: string) => text))(verdict.found ?? "")}" (match ${verdict.score})`,
       };
     },

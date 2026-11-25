@@ -7,11 +7,8 @@ import { act, beginEffectProbe, rejected } from "../perform.js";
 import { pickWhenReady } from "../readiness.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
-/** click, double click and hover: pick the target, act, and retry a runner-up when a click provably did nothing. */
-
 const CHECKABLE_ROLES = /\b(checkbox|switch|radio|menuitemcheckbox|menuitemradio)\b/i;
 
-/** A runner-up at least this likely makes a no-effect click worth retrying on it. */
 const RETRY_RUNNER_UP = 0.2;
 
 export async function runPointer(
@@ -26,8 +23,6 @@ export async function runPointer(
   const { snap, picked } = await pickWhenReady(
     ctx,
     (candidate) => {
-      // DOM hints cost a CDP round trip per nameless control: only when the decision model is
-      // actually about to be asked about them.
       ctx.prepare = () => addDomHints(ctx, candidate);
       return pickTarget(
         ctx,
@@ -43,7 +38,6 @@ export async function runPointer(
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = await preferVisibleTwin(ctx, snap, picked.target);
 
-  // "Make sure X is checked" on a checked box: a click would undo it.
   const desired = choiceAnswer(intent, "toggle_state");
   if (
     method === "click" &&
@@ -79,9 +73,6 @@ export async function runPointer(
     return await act(ctx, action, { before: snap, target });
   }
 
-  // Opt-in (retryNoEffect): when the click provably changed nothing and the decision model had
-  // a credible second choice, try that one. The decision model's pre-visibility pick is a copy
-  // of the same control, never a "runner-up".
   const runnerUp = picked.ranked.find(
     (entry) =>
       entry.id !== target.id && entry.id !== picked.target!.id && entry.p >= RETRY_RUNNER_UP,
@@ -94,8 +85,6 @@ export async function runPointer(
   const after = await probe.unchanged(snap);
   if (!after) return first;
 
-  // Re-resolve the runner-up in the fresh snapshot: a positional XPath from
-  // before the click may now point at a different element.
   const before = snap.nodes.find((node) => node.id === runnerUp.id);
   const retryNode = after.nodes.find((node) => node.id === runnerUp.id);
   const retrySelector = retryNode ? selectorFor(after, retryNode) : undefined;
@@ -115,9 +104,6 @@ export async function runPointer(
     method,
     arguments: buttonArgs,
   });
-  // The first click provably did nothing and the retry failed: hand off with
-  // the first action on record rather than report (and cache) a no-op.
   if (second.kind === "fallback") return { ...second, noCache: true };
-  // Two clicks for one instruction is a recovery, not a recipe to replay.
   return { ...merge(first, second), noCache: true };
 }

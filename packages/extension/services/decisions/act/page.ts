@@ -3,10 +3,6 @@ import type { Snapshot, TraceEntry } from "../pick.js";
 import { markEditable, type OutlineNode, parseOutline } from "../tree.js";
 import type { DecisionsActDeps } from "./types.js";
 
-/**
- * Reading the page for the pipeline: snapshots, selectors, and how a node is shown in traces.
- */
-
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -24,7 +20,6 @@ export async function capture(deps: DecisionsActDeps, trace?: TraceEntry[]): Pro
   );
   const nodes = parseOutline(combinedTree);
   markEditable(nodes, combinedEditableIds);
-  // On heavy, still-loading pages this is seconds; the trace makes that visible.
   trace?.push({
     node: "snapshot",
     ms: Math.round(performance.now() - startedAt),
@@ -33,7 +28,6 @@ export async function capture(deps: DecisionsActDeps, trace?: TraceEntry[]): Pro
   return { tree: combinedTree, xpathMap: combinedXpathMap as Record<string, string>, nodes };
 }
 
-/** Query strings and fragments carry tokens; page-state questions only need where we are. */
 export function withoutQuery(url: string): string {
   return url.replace(/[?#].*$/, "");
 }

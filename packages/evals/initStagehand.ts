@@ -75,14 +75,9 @@ export async function initStagehand({
     );
   }
 
-  // EVAL_DECISIONS=1 sends the tasks' act() calls (and observe()/extract() with their own
-  // switches) to stagehand.experimentalDecisions, which falls back to the configured model
-  // when the decision model abstains.
   const useDecisions = process.env.EVAL_DECISIONS === "1";
   let experimentalDecisions: StagehandCreateOptions["experimentalDecisions"];
   if (!useDecisions && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
-    // Baseline arm: stagehand.act() never asks the decision model; being configured only
-    // turns on the per-act timing log the report parses.
     experimentalDecisions = { apiKey: "instrument-only" };
   }
   const decisionsObserve = useDecisions && process.env.EVAL_DECISIONS_OBSERVE === "1";
@@ -91,7 +86,6 @@ export async function initStagehand({
     (process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
       process.env.EVAL_DECISIONS_EXTRACT === "judge");
   if (useDecisions) {
-    // EVAL_DECISIONS_PROVIDER: typesafe (default) | cloudflare | perplexity | openai
     const keyNames = {
       typesafe: "TYPESAFE_API_KEY",
       cloudflare: "CLOUDFLARE_API_TOKEN",
@@ -191,8 +185,6 @@ export async function initStagehand({
       ...(experimentalDecisions ? { experimentalDecisions } : {}),
     });
     if (useDecisions) {
-      // Tasks call stagehand.act()/observe()/extract(); in this arm those calls are the
-      // namespace's, so the same task files measure both paths.
       const decisions = stagehand.experimentalDecisions;
       stagehand.act = decisions.act.bind(decisions);
       if (decisionsObserve) stagehand.observe = decisions.observe.bind(decisions);

@@ -7,8 +7,6 @@ import { describeLine, selectorFor, snapshot } from "../page.js";
 import { act, rejected } from "../perform.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
-/** Scrolling: the page itself, or the scrollable region the instruction names. */
-
 export async function runScroll(
   ctx: PipelineContext,
   method: string,
@@ -22,8 +20,6 @@ export async function runScroll(
   }
 
   const snap = await snapshot(ctx.deps);
-  // "Scroll the page" names no element, so asking the decision model to match one only
-  // produces hedged answers; the scope decides the main document in code.
   const scope = choiceAnswer(intent, "scroll_scope");
   let target =
     scope.choice === "whole_page" && scope.confidence >= ctx.threshold

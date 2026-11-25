@@ -15,12 +15,6 @@ import { createLlmPort } from "./drivers/llmPort.js";
 import type { ObserveDriver } from "./drivers/types.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-/**
- * observe(): list the actions on the page that match the instruction.
- *
- * This service owns the timeout, the cache and the result envelope, and asks `driver` which
- * elements match. The driver defaults to the language model; see `drivers/` for the contract.
- */
 type ObserveServiceOptions = {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -30,9 +24,7 @@ type ObserveServiceOptions = {
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Finds the matching elements. */
   driver?: ObserveDriver;
-  /** The caller's deadline; observe() starts its own from `options.timeout` when absent. */
   progress?: Progress;
 };
 
@@ -105,8 +97,6 @@ async function observeWithProgress(
         llm,
       });
       if (resolution.kind === "abstained") {
-        // A lone driver that abstains has nothing behind it; chains and `observeOrFail` never
-        // reach here.
         throw new Error(
           `observe() failed: no driver resolved the instruction (${resolution.reason})`,
         );

@@ -10,9 +10,6 @@ import * as observeService from "../services/observeService.ts";
 import { createStagehandTracingRuntime } from "../tracing.ts";
 import type { Page } from "../understudy/page.ts";
 
-// stagehand.experimentalDecisions.* and the plain methods share services; what differs is the
-// drivers each one hands over. These tests pin that hand-over at the RPC boundary.
-
 const USAGE = {
   inputTokens: 0,
   outputTokens: 0,
@@ -49,7 +46,6 @@ describe("stagehand.experimentalDecisions routing", () => {
     await router.handle(call("stagehand.observe", { instruction: "find" }));
     await router.handle(call("stagehand.extract", { instruction: "get" }));
 
-    // A configured decision model changes one thing for the plain methods: act logs its timing.
     expect(services.act.mock.calls[0][0]).toMatchObject({
       driver: { name: "llm", startsBeforeSettle: false },
       logTiming: true,
@@ -72,7 +68,6 @@ describe("stagehand.experimentalDecisions routing", () => {
     await router.handle(call("stagehand.experimental_decisions_observe", { instruction: "find" }));
     await router.handle(call("stagehand.experimental_decisions_extract", { instruction: "get" }));
 
-    // No fallback: the decision drivers stand alone. "judge": the language model extracts.
     expect(services.act.mock.calls[0][0].driver?.name).toBe("decisions");
     expect(services.act.mock.calls[0][0].cachedActionGuard).toBeDefined();
     expect(services.observe.mock.calls[0][0].driver?.name).toBe("decisions");
@@ -96,7 +91,6 @@ describe("stagehand.experimentalDecisions routing", () => {
     expect(services.observe).not.toHaveBeenCalled();
     expect(services.extract).not.toHaveBeenCalled();
 
-    // The plain methods are unaffected.
     await expect(
       router.handle(call("stagehand.act", { instruction: "click it" })),
     ).resolves.toMatchObject({ data: { success: true } });

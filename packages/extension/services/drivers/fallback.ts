@@ -6,14 +6,8 @@ import type {
   ObserveDriver,
 } from "./types.js";
 
-/**
- * Composition of drivers. A chain is itself a driver, so services never know whether they were
- * handed one driver or several.
- */
-
 const REASON_CHARS = 160;
 
-/** `primary` first; when it abstains, `secondary` continues from what it left behind. */
 export function actWithFallback(primary: ActDriver, secondary: ActDriver): ActDriver {
   return {
     name: `${primary.name}+${secondary.name}`,
@@ -35,13 +29,10 @@ export function actWithFallback(primary: ActDriver, secondary: ActDriver): ActDr
       const carried = mergeHandoffs(handoff, first.handoff);
       const second = await secondary.resolve(request, carried);
       if (second.kind === "abstained") {
-        // Relative to this chain: the caller already holds the hand-off it passed in.
         return { ...second, handoff: mergeHandoffs(first.handoff, second.handoff) };
       }
       return {
         kind: "resolved",
-        // Whatever the first driver already did changed the page, whether or not the act then
-        // succeeded: it belongs in the result either way.
         result: withPriorActions(second.result, first.handoff.priorActions),
         path: `${primary.name}+${second.path}`,
         cacheable: second.cacheable && first.handoff.cacheable,
@@ -50,7 +41,6 @@ export function actWithFallback(primary: ActDriver, secondary: ActDriver): ActDr
   };
 }
 
-/** `driver` alone: an abstention is a failed act the caller can see, not a silent hand-off. */
 export function actOrFail(driver: ActDriver): ActDriver {
   return {
     name: driver.name,
@@ -96,7 +86,6 @@ export function observeWithFallback(
   };
 }
 
-/** `driver` alone: an abstention throws rather than read as "nothing on the page". */
 export function observeOrFail(driver: ObserveDriver): ObserveDriver {
   return {
     name: driver.name,
@@ -148,7 +137,6 @@ function mergeHandoffs(earlier: ActHandoff | undefined, later: ActHandoff): ActH
   if (!earlier) return later;
   return {
     priorActions: [...earlier.priorActions, ...later.priorActions],
-    // The most recent shortlist is the most informed one.
     focus: later.focus ?? earlier.focus,
     cacheable: earlier.cacheable && later.cacheable,
   };

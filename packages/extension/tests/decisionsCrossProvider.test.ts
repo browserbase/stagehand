@@ -23,11 +23,6 @@ vi.mock("../understudy/deepLocator.js", () => ({
   resolveLocatorWithHops: vi.fn(async () => ({ inputValue: async () => "Ada" })),
 }));
 
-/**
- * The same act / observe / extract / tool scenarios through every provider's
- * wire format. The scripted model answers by what a question says, not by
- * its key, because providers with a strict id alphabet see aliased keys.
- */
 const SHOP = [
   "[0-1] RootWebArea: Shop",
   "  [0-3] textbox: Email",
@@ -85,7 +80,6 @@ function actDeps(instruction: string, overrides: Partial<DecisionsActDeps> = {})
   return { deps, takeAction };
 }
 
-/** Picks the option whose description mentions `needle`. */
 function optionAbout(question: WireQuestion, needle: string): string | undefined {
   return Object.entries(question.descriptions).find(([, text]) => text.includes(needle))?.[0];
 }
@@ -122,7 +116,6 @@ describe.each(DECISION_PROVIDERS)("decisions pipeline on %s", (provider) => {
       selector: "xpath=/html/body/*[7]",
       method: "click",
     });
-    // Whatever the wire shape, the page URL leaves without its query string.
     expect(JSON.stringify(seen.map((request) => request.body))).not.toContain("session=abc");
   });
 
@@ -146,7 +139,6 @@ describe.each(DECISION_PROVIDERS)("decisions pipeline on %s", (provider) => {
   it("hands off to the LLM when the model says nothing matches", async () => {
     serve(provider, (key, question) => {
       if (key === "strict") return { choice: "none_match", p: 0.97 };
-      // Unsure, but still a real distribution: the leader is the most likely option.
       if (key === "best") return { choice: question.options[0], p: 0.45 };
       return intent("click")(key);
     });
@@ -223,7 +215,6 @@ describe.each(DECISION_PROVIDERS)("decisions pipeline on %s", (provider) => {
       if (key === "tool_best") return { choice: "add_to_cart", p: 0.97 };
       if (key === "tool_strict") return { choice: "add_to_cart", p: 0.96 };
       if (key === "tool_names_control") return { p: 0.03 };
-      // Argument questions: keyed "tool_arg:add_to_cart:<param>", aliased where colons are not allowed.
       if (question.text.includes("parameter 'product_id'")) {
         return { choice: optionAbout(question, "the exact words: p_102"), p: 0.97 };
       }
@@ -258,7 +249,6 @@ describe.each(DECISION_PROVIDERS)("decisions pipeline on %s", (provider) => {
     const outcome = await runDecisionsAct({ ...config(provider), tools: true }, deps);
     expect(outcome).toMatchObject({ kind: "done", viaTool: { argumentLlm: false } });
     expect(invoked).toEqual([{ name: "add_to_cart", input: { product_id: "p_102", quantity: 2 } }]);
-    // One request carried intent, tool choice and the arguments.
     expect(seen).toHaveLength(1);
   });
 });

@@ -15,11 +15,6 @@ export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
   return [finalSchema, urlPaths];
 }
 
-/**
- * extract() by language model: one inference fills the schema from the page outline (and the
- * screenshot, when there is one); a second checks completion unless a `completionJudge` is
- * given to do that instead.
- */
 export function llmExtractDriver(
   options: { completionJudge?: CompletionJudge } = {},
 ): ExtractDriver {
@@ -30,7 +25,6 @@ export function llmExtractDriver(
       const { instruction, schema, snapshot, screenshot, ensureTimeRemaining, logger, llm } =
         request;
 
-      // Models answer in objects; a bare schema is wrapped for the call and unwrapped after.
       const isObjectSchema = schema instanceof z.ZodObject;
       const objectSchema: z.ZodObject = isObjectSchema ? schema : z.object({ [WRAP_KEY]: schema });
       const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);

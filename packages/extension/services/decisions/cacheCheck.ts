@@ -4,16 +4,9 @@ import { ask, round, type AskContext, type Snapshot } from "./pick.js";
 import { describeCandidate } from "./tree.js";
 import { noulAnswer } from "./client.js";
 
-/**
- * Cached actions replay blind: a selector that still resolves, but now points
- * at a different control, is acted on without any model in the loop. One decision-model
- * yes/no over the element the cached selector resolves to catches that before
- * the replay instead of after.
- */
 export type CacheVerdict =
   | { verdict: "match"; score: number }
   | { verdict: "stale"; score: number; found: string }
-  /** Selector not present in the snapshot; the replay itself will surface that. */
   | { verdict: "unknown" };
 
 const STALE_BELOW = 0.35;
@@ -59,11 +52,6 @@ export async function checkCachedAction(
     : { verdict: "match", score };
 }
 
-/**
- * Both sides in one shape: cached press/scroll actions use `xpath=/html` while
- * the snapshot map records the same element as `/html[1]`, so every step
- * without an index gets `[1]`.
- */
 function normalizeXpath(selector: string): string {
   const xpath = selector.replace(/^xpath=/i, "").trim();
   return (trimTrailingTextNode(xpath) ?? xpath)

@@ -5,17 +5,8 @@ import { buildView, isNameless, nearbyTwins, type OutlineNode } from "../tree.js
 import { selectorFor } from "./page.js";
 import type { DecisionsActDeps, PipelineContext } from "./types.js";
 
-/**
- * What the accessibility outline leaves out, read from the DOM on demand: attributes of
- * nameless controls, whether an element is actually shown, and an input's current value.
- */
-
 const MAX_DOM_HINTS = 25;
 
-/**
- * Icon-only controls reach the outline with a role and nothing else. Their
- * DOM attributes (aria-label, title, class, icon href…) are the only handle.
- */
 export async function addDomHints(ctx: PipelineContext, snap: Snapshot): Promise<void> {
   const nameless = buildView(snap.nodes, "pointer")
     .filter((node) => isNameless(snap.nodes, node))
@@ -66,18 +57,11 @@ function domHintOf(this: Element): string {
   return parts.join(" ");
 }
 
-/**
- * Pages render the same control twice (desktop and mobile navs, hover
- * overlays) and only one copy is really there for the user. The decision model cannot tell
- * identical descriptions apart, so the DOM decides.
- */
 export async function preferVisibleTwin(
   ctx: PipelineContext,
   snap: Snapshot,
   target: OutlineNode,
 ): Promise<OutlineNode> {
-  // Same item only. Identical-looking controls elsewhere on the page belong
-  // to other items, and swapping to one of those changes WHAT gets acted on.
   const twins = nearbyTwins(snap.nodes, target);
   if (twins.length < 2) return target;
 
@@ -107,10 +91,6 @@ function shownInPage(this: Element): boolean {
     ) {
       return false;
     }
-    // Hover overlays park their content outside a clipping ancestor: the
-    // control has a size, but none of it falls inside what that ancestor shows.
-    // Only hard clipping: a scroll container merely has the control scrolled
-    // out of view, and the click scrolls it back in.
     const hard = (value: string) => value === "hidden" || value === "clip";
     const clips = hard(style.overflowX) || hard(style.overflowY);
     if (
@@ -143,7 +123,6 @@ async function isShown(deps: DecisionsActDeps, selector: string): Promise<boolea
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   } catch {
-    // Unknown is not hidden: keep the decision model's pick.
     return true;
   }
 }

@@ -5,8 +5,6 @@ import type { Leaf } from "./plan.js";
 import type { DecisionsExtractDeps } from "./types.js";
 import { sameValue, valueOf } from "./values.js";
 
-/** Scalar fields: pick the element holding the value, or judge booleans and enums directly. */
-
 export const EXTRACT_CONFIDENCE = 0.45;
 
 export async function readLeaf(
@@ -42,8 +40,6 @@ async function pickValueNode(
   );
   if (picked.target) return picked.target;
 
-  // Pages repeat a value (a star count in the header and in the sidebar). A
-  // vote split between copies of the same text is not doubt about the value.
   const [first, second] = picked.ranked;
   const node = (id: string | undefined) => deps.snap.nodes.find((candidate) => candidate.id === id);
   const a = node(first?.id);
@@ -61,11 +57,6 @@ async function pickValueNode(
   return undefined;
 }
 
-/**
- * Only candidates that can yield a value of the field's type (a number field
- * cannot be copied from the label "Stars"), and one node per distinct value:
- * copies of the same text would only split the decision model's vote over an identical result.
- */
 export function usableCandidates(
   deps: DecisionsExtractDeps,
   leaf: Leaf,
@@ -74,7 +65,6 @@ export function usableCandidates(
   const seen = new Set<string>();
   const keep = new Set<string>();
   for (const node of candidates) {
-    // A column header names a value; it is never the value.
     if (/columnheader/i.test(node.role)) continue;
     const value = valueOf(deps, leaf, node);
     if (value === undefined) continue;
@@ -86,7 +76,6 @@ export function usableCandidates(
   return keep;
 }
 
-/** Booleans and enums are judgments about the page, not text to copy. */
 async function judgeLeaf(
   ctx: AskContext,
   deps: DecisionsExtractDeps,

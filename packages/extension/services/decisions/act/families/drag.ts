@@ -5,12 +5,9 @@ import { describeLine, selectorFor, snapshot } from "../page.js";
 import { act, rejected } from "../perform.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
-/** Drag and drop: pick the source and the destination. */
-
 export async function runDrag(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   const snap = await snapshot(ctx.deps);
   await addDomHints(ctx, snap);
-  // Source and destination are independent questions over the same page.
   const [source, destination] = await Promise.all([
     pickTarget(
       ctx,
