@@ -55,6 +55,8 @@ PYDANTIC_CONFIG = GenerateConfig(
     ],
     type_mappings=["string+byte=string", "string+uuid=string"],
     base_class_map={
+        "RoleSelectorQuery": "stagehand._validation.RoleSelectorQueryValidation",
+        "LocatorChain": "stagehand._validation.LocatorChainValidation",
         "StagehandInitParams": "stagehand._validation.StagehandInitParamsValidation",
         "PageScreenshotOptions": "stagehand._validation.PageScreenshotOptionsValidation",
         "TelemetryConfig": "stagehand._validation.TelemetryConfigValidation",

@@ -9,7 +9,7 @@ import {
   rmSync,
 } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -204,7 +204,7 @@ function ensureArchiveLockfile(
   }
 
   // Omit resolved URLs so the builder installs from its own registry rather than the one on your machine.
-  const result = spawnSync(
+  const result = spawn.sync(
     "npm",
     ["install", "--package-lock-only", "--omit-lockfile-registry-resolved"],
     {

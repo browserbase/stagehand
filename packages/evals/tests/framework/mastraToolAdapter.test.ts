@@ -1,7 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
-import type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra-sdk";
+import type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra";
 import type { AgentMount, ToolStartResult } from "../../core/contracts/tool.js";
 import { AGENT_RUN_TOOL_NAME } from "../../core/contracts/tool.js";
 import { EvalsError } from "../../errors.js";

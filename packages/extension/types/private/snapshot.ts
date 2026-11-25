@@ -1,4 +1,4 @@
-import type { Locator } from "@browserbasehq/stagehand-protocol/types";
+import type { Locator, LocatorInput } from "@browserbasehq/stagehand-protocol/types";
 
 /**
  * Options that control how hybrid snapshots and targeted scopes are captured.
@@ -8,12 +8,12 @@ export type SnapshotOptions = {
    * Filter the snapshot to a specific element/subtree using a locator that can cross iframes.
    * Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
    */
-  focusLocator?: Locator;
+  focusLocator?: LocatorInput;
   /**
    * Exclude matching elements and their descendants from the captured snapshot.
    * Each locator may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
    */
-  ignoreLocators?: Locator[];
+  ignoreLocators?: LocatorInput[];
   /**
    * Pierce shadow DOM when calling DOM.getDocument. Defaults to true to retain the
    * existing behaviour.
@@ -93,13 +93,10 @@ export type ResolvedCssFocus = {
   absPrefix: string;
 };
 
-export type Axis = "child" | "desc";
-
-export type Step = {
-  axis: Axis;
-  raw: string;
-  name: string;
-};
+export type {
+  LegacyXPathAxis as Axis,
+  LegacyXPathStep as Step,
+} from "../../understudy/selectorQuery.js";
 
 export type A11yNode = {
   role: string;
@@ -117,6 +114,7 @@ export type A11yNode = {
 };
 
 export type A11yOptions = {
+  focusBackendNodeId?: number;
   focusLocator?: Locator;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;

@@ -288,6 +288,23 @@ go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 
 Local runs need [Chrome](https://www.google.com/chrome/) installed. Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
 
+<details>
+<summary><b>Using a coding agent? (Claude Code, Cursor, Codex)</b></summary>
+
+Install the `browse` CLI and skill instead of using the SDK directly:
+
+```bash
+npm install -g browse
+npx skills add browserbase/stagehand --skill browse
+browse open https://example.com --local
+browse snapshot
+browse get title
+```
+
+No LLM key or Browserbase account needed for local use. See [CLI vs SDK vs hosted MCP](https://docs.stagehand.dev/v4/first-steps/choosing-your-path) for when to use each.
+
+</details>
+
 ## Why Stagehand
 
 <table>
@@ -375,9 +392,9 @@ if err != nil {
 
 [Verified mode](https://docs.browserbase.com/platform/identity/verified-customization), [residential proxies](https://docs.browserbase.com/platform/identity/proxies), [persistent contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), and [session recordings](https://docs.browserbase.com/platform/browser/observability/session-replay) come with it. [Get an API key](https://www.browserbase.com/overview) and learn how to configure your browser [here](https://docs.stagehand.dev/v4/configuration/browser).
 
-## Give your coding agent a browser
+## Hosted MCP: browser tools without installing anything
 
-The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser. Requires a [Browserbase API key](https://www.browserbase.com/overview).
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -399,6 +416,8 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 ```
 
 </details>
+
+For local browsing without an API key, use the [`browse` CLI](./packages/cli#readme) instead.
 
 ## Search and fetch without a browser
 

@@ -1,5 +1,6 @@
+import { FrameChainResolver } from "../../frameChainResolver.js";
 import type { Protocol } from "devtools-protocol";
-import type { Locator } from "@browserbasehq/stagehand-protocol/types";
+import type { LocatorInput } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { Frame } from "../../frame.js";
@@ -185,9 +186,9 @@ export async function tryScopedSnapshot(
   progress?.throwIfStopped();
   const focusLocator = options?.focusLocator;
   if (!focusLocator) return null;
-  const requestedFocus = focusLocator.selector.trim();
-  if (!requestedFocus) return null;
-  const focusNth = focusLocator.nth;
+  const requestedFocus = "selector" in focusLocator ? focusLocator.selector.trim() : "";
+  if (!requestedFocus && !("chain" in focusLocator)) return null;
+  const focusNth = "nth" in focusLocator ? focusLocator.nth : undefined;
 
   const logScopeFallback = () => {
     logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
@@ -199,9 +200,22 @@ export async function tryScopedSnapshot(
     let targetFrameId: string;
     let tailSelector: string | undefined;
     let absPrefix: string | undefined;
+    let focusBackendNodeId: number | undefined;
+    let focusSession: CDPSessionLike | undefined;
 
     const looksLikeXPath = /^xpath=/i.test(requestedFocus) || requestedFocus.startsWith("/");
-    if (looksLikeXPath) {
+    if ("chain" in focusLocator) {
+      const result = await new FrameChainResolver(page, undefined, {
+        readinessRetries: "none",
+      }).resolve(focusLocator.chain, { mode: "selected", index: 0 }, progress);
+      if (result.mode === "count" || !result.targets.length)
+        throw new Error("Locator chain scope did not match an element");
+      const target = result.targets[0];
+      targetFrameId = target.frameId;
+      focusBackendNodeId = target.backendNodeId;
+      focusSession = target.session;
+      absPrefix = await chainFramePrefix(page, context, targetFrameId, pierce, progress);
+    } else if (looksLikeXPath) {
       const focus = normalizeXPath(requestedFocus);
       const hit = await resolveFocusFrameAndTail(
         page,
@@ -226,7 +240,10 @@ export async function tryScopedSnapshot(
       absPrefix = cssHit.absPrefix;
     }
 
-    const owningSess = ownerSession(page, targetFrameId);
+    const owningSess = focusSession ?? ownerSession(page, targetFrameId);
+    if (focusSession && ownerSession(page, targetFrameId) !== focusSession) {
+      throw new Error("Locator chain scope frame changed during capture");
+    }
     const parentId = context.parentByFrame.get(targetFrameId);
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === ownerSession(page, targetFrameId);
@@ -243,6 +260,7 @@ export async function tryScopedSnapshot(
       owningSess,
       targetFrameId,
       {
+        focusBackendNodeId,
         focusLocator: tailSelector
           ? {
               selector: tailSelector,
@@ -311,12 +329,51 @@ export async function tryScopedSnapshot(
       return snapshot;
     }
 
+    if ("chain" in focusLocator)
+      throw new Error("Unable to scope accessibility tree to locator chain target");
     logScopeFallback();
-  } catch {
+  } catch (error) {
     progress?.throwIfStopped();
+    if ("chain" in focusLocator) throw error;
     logScopeFallback();
   }
   return null;
+}
+
+async function chainFramePrefix(
+  page: Page,
+  context: FrameContext,
+  targetFrameId: string,
+  pierce: boolean,
+  progress?: Progress,
+): Promise<string> {
+  let prefix = "";
+  let child = targetFrameId;
+  while (child !== context.rootId) {
+    const parent = context.parentByFrame.get(child);
+    if (!parent) throw new Error("Locator chain scope frame is no longer attached");
+    const session = ownerSession(page, parent);
+    const { backendNodeId } = await runLocatorStep(
+      progress,
+      "finding chain scope frame owner",
+      () =>
+        session.send<Protocol.DOM.GetFrameOwnerResponse>("DOM.getFrameOwner", { frameId: child }),
+    );
+    const grandparent = context.parentByFrame.get(parent);
+    const maps = await domMapsForSession(
+      session,
+      parent,
+      pierce,
+      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+      !!grandparent && ownerSession(page, grandparent) === session,
+      progress,
+    );
+    const host = maps.xpathMap[`${page.getOrdinal(parent)}-${backendNodeId}`];
+    if (!host) throw new Error("Unable to locate chain scope iframe in the snapshot");
+    prefix = prefix ? prefixXPath(host, prefix) : host;
+    child = parent;
+  }
+  return prefix;
 }
 
 /**
@@ -436,7 +493,7 @@ export async function collectPerFrameMaps(
 
 export async function resolveIgnoredNodes(
   page: Page,
-  ignoreLocators: Locator[] | undefined,
+  ignoreLocators: LocatorInput[] | undefined,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
   progress?: Progress,
@@ -445,13 +502,13 @@ export async function resolveIgnoredNodes(
 
   for (const locator of ignoreLocators ?? []) {
     progress?.throwIfStopped();
-    const selector = locator.selector.trim();
-    if (!selector) continue;
+    const selector = "selector" in locator ? locator.selector.trim() : undefined;
+    if (selector === "") continue;
 
     try {
       const resolved = await resolveIgnoredNodesForLocator(
         page,
-        { ...locator, selector },
+        "chain" in locator ? locator : { ...locator, selector: selector! },
         context,
         sessionToIndex,
         progress,
@@ -461,8 +518,9 @@ export async function resolveIgnoredNodes(
         nodes.add(match.backendNodeId);
         ignoredNodesByFrame.set(match.frameId, nodes);
       }
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if ("chain" in locator) throw error;
       continue;
     }
   }
@@ -472,11 +530,18 @@ export async function resolveIgnoredNodes(
 
 async function resolveIgnoredNodesForLocator(
   page: Page,
-  locator: Locator,
+  locator: LocatorInput,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
   progress?: Progress,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  if ("chain" in locator) {
+    const result = await new FrameChainResolver(page, undefined, {
+      readinessRetries: "none",
+    }).resolve(locator.chain, { mode: "all" }, progress);
+    if (result.mode === "count") throw new Error("Expected chain exclusion targets");
+    return result.targets;
+  }
   const selector = locator.selector;
   const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
 
@@ -549,16 +614,18 @@ async function resolveIgnoredNodesInFrame(
   const frame = new Frame(session, frameId, "", false, page.logger);
   // An unavailable ignore locator can be skipped; progress still enforces expiry.
   const resolver = new FrameSelectorResolver(frame, { readinessRetries: "none" });
-  const resolvedNodes =
-    nth === undefined
-      ? await resolver.resolveAll(query, {}, progress)
-      : [await resolver.resolveAtIndex(query, nth, progress)].filter(
-          (node): node is ResolvedNode => !!node,
-        );
-  if (!resolvedNodes.length) return [];
-
-  const backendNodeIds = await describeResolvedNodes(session, resolvedNodes, progress);
-  return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+  const batch = await resolver.resolveAll(
+    query,
+    nth === undefined ? {} : { start: nth, limit: 1 },
+    progress,
+  );
+  try {
+    const backendNodeIds = await describeResolvedNodes(session, batch.nodes, progress);
+    return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+  } finally {
+    await batch.release();
+    progress?.throwIfStopped();
+  }
 }
 
 async function describeResolvedNodes(
@@ -568,29 +635,14 @@ async function describeResolvedNodes(
 ): Promise<number[]> {
   const backendNodeIds = new Set<number>();
 
-  try {
-    for (const resolvedNode of resolvedNodes) {
-      const desc = await runLocatorStep(progress, "reading ignored snapshot nodes", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-          objectId: resolvedNode.objectId,
-        }),
-      );
-      const backendNodeId = desc.node.backendNodeId;
-      if (typeof backendNodeId === "number") {
-        backendNodeIds.add(backendNodeId);
-      }
-    }
-  } finally {
-    const release = () =>
-      Promise.all(
-        resolvedNodes.map((resolvedNode) =>
-          session
-            .send("Runtime.releaseObject", { objectId: resolvedNode.objectId })
-            .catch(() => {}),
-        ),
-      );
-    if (progress) await progress.cleanup(release);
-    else await release();
+  for (const resolvedNode of resolvedNodes) {
+    const desc = await runLocatorStep(progress, "reading ignored snapshot nodes", () =>
+      session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
+        objectId: resolvedNode.objectId,
+      }),
+    );
+    const backendNodeId = desc.node.backendNodeId;
+    if (typeof backendNodeId === "number") backendNodeIds.add(backendNodeId);
   }
 
   progress?.throwIfStopped();

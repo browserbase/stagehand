@@ -230,11 +230,11 @@ async def test_send_omits_unset_nested_file_metadata() -> None:
     call = asyncio.create_task(
         client.send(
             "locator.set_input_files",
-            models.LocatorSetInputFilesParams(
-                page_id="page-1",
-                selector="#upload",
-                files=normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
-            ),
+            models.LocatorSetInputFilesParams.model_validate({
+                "page_id": "page-1",
+                "selector": "#upload",
+                "files": normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
+            }),
             models.LocatorSetInputFilesResult,
         )
     )
@@ -995,7 +995,7 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
     call = asyncio.create_task(
         client.send(
             "locator.count",
-            models.LocatorParams(page_id="page-1", selector="button"),
+            models.LocatorParams.model_validate({"page_id": "page-1", "selector": "button"}),
             models.LocatorCountResult,
         )
     )
