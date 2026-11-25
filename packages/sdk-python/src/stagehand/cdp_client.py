@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Callable, Mapping
@@ -35,6 +36,22 @@ _RUNTIME_READINESS_EXPRESSION = """(() => ({
   marker: globalThis.__stagehand_runtime ?? null,
   hasReceiver: typeof globalThis.__stagehandReceiveFromHost === "function",
 }))()"""
+
+_SERVICE_WORKER_BUILD_EXPRESSION = """(async () => {
+  if (globalThis.__stagehand_runtime === undefined) return null;
+  let onDisk = null;
+  try {
+    const response = await fetch(chrome.runtime.getURL("build-id.txt"), {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok) onDisk = (await response.text()).trim();
+  } catch {}
+  return { running: globalThis.__stagehand_build_id ?? null, onDisk };
+})()"""
+# About 1.5 s at the poll interval, while a just-attached worker context starts.
+_SERVICE_WORKER_BUILD_READ_RETRIES = 15
+# Well beyond a slow worker start; connect then reaches the readiness wait and its own error.
+_SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS = 10
 
 
 def _callback_batch_expression(
@@ -217,6 +234,24 @@ class ServiceWorkerInfo:
     extension_id: str | None = None
 
 
+_UNSTAMPED_BUILD_ID = "__STAGEHAND_EXTENSION_BUILD_ID__"
+
+_StaleServiceWorkerReplacement = Literal["not owned", "reloaded", "reload failed"]
+
+
+@dataclass(frozen=True)
+class _ServiceWorkerBuild:
+    running: str | None
+    on_disk: str | None
+
+    @property
+    def stale(self) -> bool:
+        """A directory without a build identity predates this check and is not compared."""
+        if {"", _UNSTAMPED_BUILD_ID} & {self.running, self.on_disk}:
+            return False
+        return self.on_disk is not None and self.running != self.on_disk
+
+
 @dataclass(frozen=True)
 class _InstalledExtension:
     id: str
@@ -310,26 +345,53 @@ class CDPClient:
 
         try:
             resolved_extension_id = extension_id
+            loaded_from: str | None = None
+            installed_path: str | None = None
             if local_extension_dir is not None:
-                resolved_extension_id = await client._resolve_extension(
+                (
+                    resolved_extension_id,
+                    loaded_from,
+                    installed_path,
+                ) = await client._discover_or_load_extension(
                     load_if_not_found=True, extension_dir=local_extension_dir
                 )
             elif extension_dir is not None:
                 resolved_extension_id = await client._load_unpacked_extension(extension_dir)
+                loaded_from = extension_dir
             elif preloaded_extension:
                 resolved_extension_id = await client._resolve_extension(load_if_not_found=False)
             if resolved_extension_id is None:
                 raise RuntimeError("Stagehand extension ID was not resolved")
 
-            worker = await client._wait_for_service_worker(
-                resolved_extension_id,
-                service_worker_url_includes or "service-worker.js",
+            worker, session_id = await client._attach_service_worker(
+                resolved_extension_id, service_worker_url_includes or "service-worker.js"
             )
-            attached = await client.send_command(
-                "Target.attachToTarget",
-                {"targetId": worker.target_id, "flatten": True},
-            )
-            session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+            build = await client._read_service_worker_build(session_id)
+            if build.stale and installed_path is not None and local_extension_dir is not None:
+                # Reconnecting after an SDK upgrade rewrote its own directory: the worker is ours.
+                directory = local_extension_dir()
+                if _same_directory(installed_path, directory):
+                    loaded_from = directory
+            replacement: _StaleServiceWorkerReplacement = "not owned"
+            if build.stale and loaded_from is not None:
+                try:
+                    resolved_extension_id = await client._load_unpacked_extension(loaded_from)
+                    replacement = "reloaded"
+                except CDPConnectionClosedError:
+                    raise
+                except Exception:
+                    replacement = "reload failed"
+                if replacement == "reloaded":
+                    worker, session_id = await client._attach_service_worker(
+                        resolved_extension_id,
+                        service_worker_url_includes or "service-worker.js",
+                        exclude_target_id=worker.target_id,
+                    )
+                    build = await client._read_service_worker_build(session_id)
+            if build.stale:
+                _LOGGER.warning(
+                    _stale_service_worker_message(resolved_extension_id, build, replacement)
+                )
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
                 target_id=worker.target_id,
@@ -627,15 +689,83 @@ class CDPClient:
             raise
         return _required_string(loaded, "id", "Extensions.loadUnpacked")
 
+    async def _attach_service_worker(
+        self,
+        extension_id: str,
+        url_includes: str,
+        *,
+        exclude_target_id: str | None = None,
+    ) -> tuple[ServiceWorkerInfo, str]:
+        worker = await self._wait_for_service_worker(
+            extension_id, url_includes, exclude_target_id=exclude_target_id
+        )
+        attached = await self.send_command(
+            "Target.attachToTarget",
+            {"targetId": worker.target_id, "flatten": True},
+        )
+        return worker, _required_string(attached, "sessionId", "Target.attachToTarget")
+
+    async def _read_service_worker_build(self, session_id: str) -> _ServiceWorkerBuild:
+        """Wait for the runtime marker so a starting worker is not read as unidentified."""
+        try:
+            async with asyncio.timeout(_SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS):
+                return await self._poll_service_worker_build(session_id)
+        except TimeoutError:
+            return _ServiceWorkerBuild(running=None, on_disk=None)
+
+    async def _poll_service_worker_build(self, session_id: str) -> _ServiceWorkerBuild:
+        failures = 0
+        while True:
+            value: object = None
+            try:
+                evaluated = await self.send_command(
+                    "Runtime.evaluate",
+                    {
+                        "expression": _SERVICE_WORKER_BUILD_EXPRESSION,
+                        "returnByValue": True,
+                        "awaitPromise": True,
+                    },
+                    session_id=session_id,
+                )
+                result = evaluated.get("result")
+                if not isinstance(evaluated.get("exceptionDetails"), Mapping) and isinstance(
+                    result, Mapping
+                ):
+                    value = result.get("value")
+            except CDPConnectionClosedError:
+                raise
+            except Exception:
+                failures += 1
+                if failures > _SERVICE_WORKER_BUILD_READ_RETRIES:
+                    return _ServiceWorkerBuild(running=None, on_disk=None)
+            if isinstance(value, Mapping):
+                running, on_disk = value.get("running"), value.get("onDisk")
+                if isinstance(running, str | None) and isinstance(on_disk, str | None):
+                    return _ServiceWorkerBuild(running=running, on_disk=on_disk)
+            if value is not None:
+                return _ServiceWorkerBuild(running=None, on_disk=None)
+            await asyncio.sleep(0.1)
+
     async def _resolve_extension(
         self,
         *,
         load_if_not_found: bool,
         extension_dir: Callable[[], str] | None = None,
     ) -> str:
-        extension_id: str | None = None
+        extension_id, _, _ = await self._discover_or_load_extension(
+            load_if_not_found=load_if_not_found, extension_dir=extension_dir
+        )
+        return extension_id
+
+    async def _discover_or_load_extension(
+        self,
+        *,
+        load_if_not_found: bool,
+        extension_dir: Callable[[], str] | None = None,
+    ) -> tuple[str, str | None, str | None]:
+        installed: _InstalledExtension | None = None
         try:
-            extension_id = await self._get_installed_stagehand_extension_id()
+            installed = await self._get_installed_stagehand_extension()
         except _CDPCommandError as error:
             unsupported = error.method == "Extensions.getExtensions" and (
                 error.code == -32601
@@ -644,18 +774,19 @@ class CDPClient:
             )
             if not load_if_not_found or not unsupported:
                 raise
-        if extension_id is not None:
-            return extension_id
+        if installed is not None:
+            return installed.id, None, installed.path
         if load_if_not_found:
             if extension_dir is None:
                 raise ValueError("extension_dir is required to load the Stagehand extension")
-            return await self._load_unpacked_extension(extension_dir())
+            directory = extension_dir()
+            return await self._load_unpacked_extension(directory), directory, None
         raise RuntimeError(
             "Stagehand extension is not installed in the connected browser. "
             "The extension must be included when the Browserbase session is created."
         )
 
-    async def _get_installed_stagehand_extension_id(self) -> str | None:
+    async def _get_installed_stagehand_extension(self) -> _InstalledExtension | None:
         response = await self.send_command("Extensions.getExtensions")
         installed = [
             extension
@@ -665,7 +796,7 @@ class CDPClient:
         enabled = [extension for extension in installed if extension.enabled]
 
         if len(enabled) == 1:
-            return enabled[0].id
+            return enabled[0]
         if len(enabled) > 1:
             ids = ", ".join(sorted(extension.id for extension in enabled))
             raise RuntimeError(f"Multiple enabled Stagehand extensions are installed: {ids}")
@@ -679,6 +810,8 @@ class CDPClient:
         self,
         extension_id: str,
         url_includes: str,
+        *,
+        exclude_target_id: str | None = None,
     ) -> ServiceWorkerInfo:
         started = time.monotonic()
         activation_target_id: str | None = None
@@ -695,6 +828,7 @@ class CDPClient:
                     url = target_info.get("url")
                     if (
                         target_info.get("type") == "service_worker"
+                        and target_info.get("targetId") != exclude_target_id
                         and isinstance(url, str)
                         and url.startswith("chrome-extension://")
                         and url.startswith(f"chrome-extension://{extension_id}/")
@@ -876,6 +1010,40 @@ def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, 
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")
     return cast(dict[str, object], value)
+
+
+def _same_directory(first: str, second: str) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        # A browser on another machine reports a path that may not exist here.
+        return os.path.normpath(first) == os.path.normpath(second)
+
+
+def _stale_service_worker_message(
+    extension_id: str, build: _ServiceWorkerBuild, replacement: _StaleServiceWorkerReplacement
+) -> str:
+    running = (
+        "a service worker without a build identity"
+        if build.running is None
+        else f"service worker build {build.running}"
+    )
+    if replacement == "reloaded":
+        return (
+            f"The Stagehand extension {extension_id} still runs {running} "
+            f"after it was reloaded from a directory that holds build {build.on_disk}, "
+            "so Stagehand continues with the running worker."
+        )
+    reason = (
+        "Stagehand could not load this extension again from its directory to replace the worker"
+        if replacement == "reload failed"
+        else "Stagehand did not load this extension from its own directory"
+    )
+    return (
+        f"The Stagehand extension {extension_id} runs {running}, but its "
+        f"directory holds build {build.on_disk}: the browser profile kept the worker of "
+        f"another build. {reason}, so it continues with the running worker."
+    )
 
 
 def _required_string(value: Mapping[str, object], key: str, method: str) -> str:

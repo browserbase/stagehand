@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./locatorSelectors": "./locatorSelectors.ts",
     "./json-rpc/schemas": "./json-rpc/schemas.ts",
     "./json-rpc/types": "./json-rpc/types.ts",
     "./json-rpc/wire-casing": "./json-rpc/wire-casing.ts",

@@ -21,6 +21,9 @@ class ActResultData(TypedDict):
 AnthropicModelName: TypeAlias = str
 
 
+AriaRole: TypeAlias = Literal["alert", "alertdialog", "application", "article", "banner", "blockquote", "button", "caption", "cell", "checkbox", "code", "columnheader", "combobox", "comment", "complementary", "contentinfo", "definition", "deletion", "dialog", "directory", "document", "emphasis", "feed", "figure", "form", "generic", "grid", "gridcell", "group", "heading", "img", "insertion", "link", "list", "listbox", "listitem", "log", "main", "mark", "marquee", "math", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio", "meter", "navigation", "none", "note", "option", "paragraph", "presentation", "progressbar", "radio", "radiogroup", "region", "row", "rowgroup", "rowheader", "scrollbar", "search", "searchbox", "separator", "slider", "spinbutton", "status", "strong", "subscript", "suggestion", "superscript", "switch", "tab", "table", "tablist", "tabpanel", "term", "textbox", "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem"]
+
+
 class BrowserbaseContext(TypedDict):
     id: str
     persist: NotRequired[bool]
@@ -569,11 +572,16 @@ LocatorIsCheckedResult: TypeAlias = bool
 LocatorIsVisibleResult: TypeAlias = bool
 
 
+class LocatorNthStep(TypedDict):
+    type: Literal["nth"]
+    index: int
+
+
 class LocatorOptions(TypedDict):
     timeout: NotRequired[float]
 
 
-class LocatorFillParams(TypedDict):
+class LocatorFillParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -581,14 +589,35 @@ class LocatorFillParams(TypedDict):
     value: str
 
 
-class LocatorParams(TypedDict):
+class LocatorParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorOptions]
 
 
-class LocatorScrollToParams(TypedDict):
+class LocatorQuerySelector1(TypedDict):
+    kind: Literal["css"]
+    value: str
+
+
+class LocatorQuerySelector2(TypedDict):
+    kind: Literal["xpath"]
+    value: str
+
+
+class LocatorQuerySelector3(TypedDict):
+    kind: Literal["text"]
+    value: str
+
+
+class LocatorQuerySelector4(TypedDict):
+    exact: NotRequired[bool]
+    kind: Literal["textMatch"]
+    value: str
+
+
+class LocatorScrollToParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -600,7 +629,7 @@ class LocatorScrollToResult(TypedDict):
     scrolled: Literal[True]
 
 
-class LocatorSelectOptionParams(TypedDict):
+class LocatorSelectOptionParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -619,7 +648,7 @@ class LocatorSendClickEventOptions(TypedDict):
     detail: NotRequired[float]
 
 
-class LocatorSendClickEventParams(TypedDict):
+class LocatorSendClickEventParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -630,7 +659,7 @@ class LocatorSendClickEventResult(TypedDict):
     clicked: Literal[True]
 
 
-class LocatorSetInputFilesParams(TypedDict):
+class LocatorSetInputFilesParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -650,7 +679,7 @@ class LocatorTypeOptions(TypedDict):
     delay: NotRequired[float]
 
 
-class LocatorTypeParams(TypedDict):
+class LocatorTypeParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -671,7 +700,7 @@ class LocatorClickOptions(TypedDict):
     click_count: NotRequired[int]
 
 
-class LocatorClickParams(TypedDict):
+class LocatorClickParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
@@ -719,15 +748,6 @@ class ModelConfig(TypedDict):
     api_key: NotRequired[str]
     headers: NotRequired[dict[str, str]]
     model_name: ModelName
-
-
-class ExtractOptions(TypedDict):
-    model: NotRequired[ModelConfig]
-    timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
-    screenshot: NotRequired[bool]
-    cache: NotRequired[Caching]
 
 
 class PageAddInitScriptParams(TypedDict):
@@ -906,31 +926,20 @@ class PageReloadParams(TypedDict):
     options: NotRequired[PageReloadOptions]
 
 
+class PageResponseNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["response"]
+    response: NavigationResponseDescriptor
+
+
 class PageScreenshotClip(TypedDict):
     x: float
     y: float
     width: float
     height: float
-
-
-class PageScreenshotOptions(TypedDict):
-    animations: NotRequired[Literal["disabled", "allow"]]
-    caret: NotRequired[Literal["hide", "initial"]]
-    clip: NotRequired[PageScreenshotClip]
-    full_page: NotRequired[bool]
-    mask: NotRequired[list[LocatorDescriptor]]
-    mask_color: NotRequired[str]
-    omit_background: NotRequired[bool]
-    quality: NotRequired[int]
-    scale: NotRequired[Literal["css", "device"]]
-    style: NotRequired[str]
-    timeout: NotRequired[float]
-    type: NotRequired[Literal["png", "jpeg"]]
-
-
-class PageScreenshotParams(TypedDict):
-    page_id: str
-    options: NotRequired[PageScreenshotOptions]
 
 
 class PageScreenshotResult(TypedDict):
@@ -971,13 +980,14 @@ class PageSnapshotParams(TypedDict):
     options: NotRequired[PageSnapshotOptions]
 
 
-PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved"]
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved", "response"]
 
 
 class PageOnParams(TypedDict):
     page_id: str
     subscription_id: str
     event: PageSubscriptionEventName
+    include_tool_ids: NotRequired[bool]
 
 
 PageTitleResult: TypeAlias = str
@@ -1104,11 +1114,174 @@ class LocatorHighlightOptions(TypedDict):
     content_color: NotRequired[RgbaColor]
 
 
-class LocatorHighlightParams(TypedDict):
+class LocatorHighlightParams1(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorHighlightOptions]
+
+
+class RoleSelectorQuery(TypedDict):
+    name: NotRequired[str]
+    exact: NotRequired[bool]
+    checked: NotRequired[bool | Literal["mixed"]]
+    pressed: NotRequired[bool | Literal["mixed"]]
+    selected: NotRequired[bool]
+    expanded: NotRequired[bool]
+    disabled: NotRequired[bool]
+    level: NotRequired[int]
+    kind: Literal["role"]
+    value: AriaRole
+
+
+LocatorQuerySelector: TypeAlias = LocatorQuerySelector1 | LocatorQuerySelector2 | LocatorQuerySelector3 | LocatorQuerySelector4 | RoleSelectorQuery
+
+
+class LocatorFrameStep(TypedDict):
+    type: Literal["frame"]
+    selector: LocatorQuerySelector
+
+
+class LocatorQueryStep(TypedDict):
+    type: Literal["query"]
+    selector: LocatorQuerySelector
+
+
+LocatorStep: TypeAlias = LocatorQueryStep | LocatorFrameStep | LocatorNthStep
+
+
+class LocatorChain(TypedDict):
+    steps: list[LocatorQueryStep | LocatorStep]
+
+
+class ChainLocator(TypedDict):
+    chain: LocatorChain
+
+
+class ChainLocatorDescriptor(TypedDict):
+    chain: LocatorChain
+    page_id: str
+
+
+class LocatorClickParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorClickOptions]
+
+
+LocatorClickParams: TypeAlias = LocatorClickParams1 | LocatorClickParams2
+
+
+class LocatorFillParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    value: str
+
+
+LocatorFillParams: TypeAlias = LocatorFillParams1 | LocatorFillParams2
+
+
+class LocatorHighlightParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorHighlightOptions]
+
+
+LocatorHighlightParams: TypeAlias = LocatorHighlightParams1 | LocatorHighlightParams2
+
+
+LocatorInput: TypeAlias = Locator | ChainLocator
+
+
+class ExtractOptions(TypedDict):
+    model: NotRequired[ModelConfig]
+    timeout: NotRequired[float]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
+    screenshot: NotRequired[bool]
+    cache: NotRequired[Caching]
+
+
+class LocatorParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+
+
+LocatorParams: TypeAlias = LocatorParams1 | LocatorParams2
+
+
+LocatorRequestDescriptor: TypeAlias = LocatorDescriptor | ChainLocatorDescriptor
+
+
+class LocatorScrollToParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    percent: float | str
+
+
+LocatorScrollToParams: TypeAlias = LocatorScrollToParams1 | LocatorScrollToParams2
+
+
+class LocatorSelectOptionParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    values: str | list[str]
+
+
+LocatorSelectOptionParams: TypeAlias = LocatorSelectOptionParams1 | LocatorSelectOptionParams2
+
+
+class LocatorSendClickEventParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorSendClickEventOptions]
+
+
+LocatorSendClickEventParams: TypeAlias = LocatorSendClickEventParams1 | LocatorSendClickEventParams2
+
+
+class LocatorSetInputFilesParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorOptions]
+    files: list[InputFilePayload]
+
+
+LocatorSetInputFilesParams: TypeAlias = LocatorSetInputFilesParams1 | LocatorSetInputFilesParams2
+
+
+class LocatorTypeParams2(TypedDict):
+    chain: LocatorChain
+    page_id: str
+    options: NotRequired[LocatorTypeOptions]
+    text: str
+
+
+LocatorTypeParams: TypeAlias = LocatorTypeParams1 | LocatorTypeParams2
+
+
+class PageScreenshotOptions(TypedDict):
+    animations: NotRequired[Literal["disabled", "allow"]]
+    caret: NotRequired[Literal["hide", "initial"]]
+    clip: NotRequired[PageScreenshotClip]
+    full_page: NotRequired[bool]
+    mask: NotRequired[list[LocatorRequestDescriptor]]
+    mask_color: NotRequired[str]
+    omit_background: NotRequired[bool]
+    quality: NotRequired[int]
+    scale: NotRequired[Literal["css", "device"]]
+    style: NotRequired[str]
+    timeout: NotRequired[float]
+    type: NotRequired[Literal["png", "jpeg"]]
+
+
+class PageScreenshotParams(TypedDict):
+    page_id: str
+    options: NotRequired[PageScreenshotOptions]
 
 
 class SnapshotResult(TypedDict):
@@ -1240,8 +1413,8 @@ class ActOptions(TypedDict):
     model: NotRequired[ModelConfig]
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
     cache: NotRequired[Caching]
 
 
@@ -1249,8 +1422,8 @@ class ObserveOptions(TypedDict):
     model: NotRequired[ModelConfig]
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
-    locator: NotRequired[Locator]
-    ignore_locators: NotRequired[list[Locator]]
+    locator: NotRequired[LocatorInput]
+    ignore_locators: NotRequired[list[LocatorInput]]
     cache: NotRequired[Caching]
 
 
@@ -1282,6 +1455,7 @@ class PageWebMCPInvokeToolParams(TypedDict):
     page_id: str
     frame_id: str
     tool_name: str
+    tool_id: NotRequired[str]
     input: NotRequired[dict[str, WebMCPJsonValue]]
 
 
@@ -1306,6 +1480,7 @@ class PageWebMCPInvocationResultParams(TypedDict):
 
 
 class WebMCPToolDescriptor(TypedDict):
+    tool_id: NotRequired[str]
     name: str
     description: str
     input_schema: NotRequired[dict[str, WebMCPJsonValue]]
@@ -1328,6 +1503,7 @@ class PageWebMCPToolsResult(TypedDict):
 
 
 class WebMCPToolIdentity(TypedDict):
+    tool_id: NotRequired[str]
     frame_id: str
     name: str
 
@@ -1341,7 +1517,7 @@ class PageToolsRemovedNotification(TypedDict):
     tools: list[WebMCPToolIdentity]
 
 
-PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification
+PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification | PageResponseNotification
 
 
 class WebMCPToolResponse(TypedDict):
@@ -1359,3 +1535,4 @@ class WebMCPToolsOptions(TypedDict):
 class PageWebMCPToolsParams(TypedDict):
     page_id: str
     options: NotRequired[WebMCPToolsOptions]
+    include_tool_ids: NotRequired[bool]

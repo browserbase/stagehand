@@ -13,6 +13,7 @@ import {
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
 import type { WebMCPToolsEvent } from "../understudy/page.js";
+import type { Response } from "../understudy/response.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -246,7 +247,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly invokeWebMCPToolCalls: Array<{
     frameId: string;
     toolName: string;
-    options?: Partial<WebMCPInvokeOptions>;
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolDescriptor, "toolId">;
   }> = [];
   readonly waitForWebMCPInvocationResultCalls: Array<{
     invocationId: string;
@@ -274,6 +275,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   };
   webMCPTools: WebMCPToolDescriptor[] = [
     {
+      toolId: "search-id",
       name: "search",
       description: "Search this site",
       inputSchema: {
@@ -413,7 +415,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolDescriptor, "toolId">,
   ): Promise<WebMCPInvocationDescriptor> {
     this.invokeWebMCPToolCalls.push({ frameId, toolName, options });
     const invocationId = `${this.id}-invocation-${this.webMCPInvocations.size + 1}`;
@@ -473,6 +475,15 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
       this.locatorsBySelector.get(selector) ?? new FakeUnderstudyRuntimeLocator(selector);
     this.locatorRefs.push(locator);
     return locator;
+  }
+
+  readonly responseListeners = new Set<(response: Response) => void>();
+
+  async subscribeResponse(listener: (response: Response) => void): Promise<() => void> {
+    this.responseListeners.add(listener);
+    return () => {
+      this.responseListeners.delete(listener);
+    };
   }
 
   readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
@@ -839,39 +850,53 @@ describe("Stagehand worker clients", () => {
     await runtime.contextPages();
     await runtime.pageOn({ pageId: "page-a", subscriptionId: "added", event: "toolsadded" });
     await runtime.pageOn({ pageId: "page-a", subscriptionId: "removed", event: "toolsremoved" });
+    await runtime.pageOn({
+      pageId: "page-a",
+      subscriptionId: "added-with-ids",
+      event: "toolsadded",
+      includeToolIds: true,
+    });
+    await runtime.pageOn({
+      pageId: "page-a",
+      subscriptionId: "removed-with-ids",
+      event: "toolsremoved",
+      includeToolIds: true,
+    });
     const listeners = [...page.toolEventListeners];
+    const identity = { name: "search", frameId: "child-frame" };
+    const tool = {
+      ...identity,
+      description: "Search",
+      inputSchema: { properties: { searchQuery: { type: "string" } } },
+    };
     const added: WebMCPToolsEvent = {
       pageId: "page-a",
       sessionId: "child-session",
       targetId: "child-target",
       event: "toolsadded",
-      tools: [
-        {
-          name: "search",
-          description: "Search",
-          frameId: "child-frame",
-          inputSchema: { properties: { searchQuery: { type: "string" } } },
-        },
-      ],
+      tools: [{ ...tool, toolId: "search-id" }],
     };
     for (const listener of listeners) listener(added);
     const removed: WebMCPToolsEvent = {
       ...added,
       event: "toolsremoved",
-      tools: [{ name: "search", frameId: "child-frame" }],
+      tools: [{ ...identity, toolId: "search-id" }],
     };
     for (const listener of listeners) listener(removed);
     expect(notifications).toEqual([
-      { ...added, subscriptionId: "added" },
-      { ...removed, subscriptionId: "removed" },
+      { ...added, tools: [tool], subscriptionId: "added" },
+      { ...added, subscriptionId: "added-with-ids" },
+      { ...removed, tools: [identity], subscriptionId: "removed" },
+      { ...removed, subscriptionId: "removed-with-ids" },
     ]);
     expect(consoleNotifications).not.toHaveBeenCalled();
     runtime.pageOff({ subscriptionId: "added" });
+    runtime.pageOff({ subscriptionId: "added-with-ids" });
     for (const listener of listeners) listener(added);
-    expect(notifications).toHaveLength(2);
+    expect(notifications).toHaveLength(4);
     await runtime.close();
     for (const listener of listeners) listener(removed);
-    expect(notifications).toHaveLength(2);
+    expect(notifications).toHaveLength(4);
     expect(page.toolEventListeners.size).toBe(0);
   });
 
@@ -2219,6 +2244,7 @@ describe("Stagehand worker clients", () => {
         params: {
           page_id: "page-a",
           options: { timeout: 250 },
+          include_tool_ids: true,
         },
       }),
     ).resolves.toStrictEqual({
@@ -2227,6 +2253,7 @@ describe("Stagehand worker clients", () => {
       result: {
         tools: [
           {
+            tool_id: "search-id",
             name: "search",
             description: "Search this site",
             input_schema: {
@@ -2248,6 +2275,7 @@ describe("Stagehand worker clients", () => {
           page_id: "page-a",
           frame_id: "frame-1",
           tool_name: "search",
+          tool_id: "search-id",
           input: { searchQuery: "Stagehand" },
         },
       }),
@@ -2304,7 +2332,7 @@ describe("Stagehand worker clients", () => {
       {
         frameId: "frame-1",
         toolName: "search",
-        options: { input: { searchQuery: "Stagehand" } },
+        options: { input: { searchQuery: "Stagehand" }, toolId: "search-id" },
       },
     ]);
     expect(page.waitForWebMCPInvocationResultCalls).toStrictEqual([
@@ -2314,6 +2342,15 @@ describe("Stagehand worker clients", () => {
       },
     ]);
     expect(page.cancelWebMCPInvocationCalls).toStrictEqual(["page-a-invocation-1"]);
+  });
+
+  it("omits WebMCP registration IDs for legacy discovery requests", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+    const [tool] = (await runtime.pageWebMCPTools({ pageId: "page-a" })).tools;
+
+    expect(tool).not.toHaveProperty("toolId");
+    expect(page.webMCPTools[0]?.toolId).toBe("search-id");
   });
 
   it("rejects use of a WebMCP invocation through another page", async () => {

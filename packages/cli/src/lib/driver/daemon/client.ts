@@ -135,7 +135,7 @@ export async function stopDriverDaemon(
   }
 }
 
-function assertCompatibleTarget(
+export function assertCompatibleTarget(
   session: string,
   status: DriverStatus,
   target: ConnectionTarget,
@@ -143,6 +143,8 @@ function assertCompatibleTarget(
   if (targetsCompatible(status.target, target)) return;
   fail(
     `Session "${session}" is already running in ${status.mode} mode. Run browse stop --session ${session} before changing modes.`,
+    1,
+    { resultCode: "session_mode_conflict" },
   );
 }
 
@@ -180,6 +182,8 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
     const socket = net.createConnection(socketPath);
+    // Decode across chunk boundaries so split multi-byte characters survive.
+    socket.setEncoding("utf8");
     let buffer = "";
     let settled = false;
 
@@ -216,7 +220,7 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
       socket.write(`${JSON.stringify(request)}\n`);
     });
     socket.on("data", (chunk) => {
-      buffer += chunk.toString();
+      buffer += chunk;
       const newline = buffer.indexOf("\n");
       if (newline === -1) return;
       try {
@@ -272,6 +276,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
     [entrypoint, "daemon", "--session", session, "--target", JSON.stringify(target)],
     {
       detached: true,
+      windowsHide: true,
       env: process.env,
       stdio: "ignore",
     },
