@@ -283,9 +283,25 @@ function childFrameFor(sessionId: SessionId): string | undefined {
 }
 
 function assertManagerInvariants(manager: NetworkManager): void {
+  const expectedUnfinishedBySession = new Map<string, Set<string>>();
+  for (const [sid, tracked] of manager.sessions) {
+    expectedUnfinishedBySession.set(sid, new Set());
+    for (const [reqId, info] of tracked.unfinishedRequests) {
+      expect(info.requestId).toBe(reqId);
+      expect(info.sessionId).toBe(sid);
+      expect(manager.requests.get(info.requestKey)).toBe(info);
+    }
+  }
   for (const [key, info] of manager.requests) {
     expect(manager.sessions.has(info.sessionId)).toBe(true);
     expect(key).toBe(`${info.sessionId}:${info.requestId}`);
+    expect(manager.sessions.get(info.sessionId)?.unfinishedRequests.get(info.requestId)).toBe(info);
+    expectedUnfinishedBySession.get(info.sessionId)?.add(info.requestId);
+  }
+  for (const [sid, tracked] of manager.sessions) {
+    expect(new Set(tracked.unfinishedRequests.keys())).toEqual(
+      expectedUnfinishedBySession.get(sid),
+    );
   }
   for (const [frameId, requestKey] of manager.documentRequestsByFrame) {
     const info = manager.requests.get(requestKey);
@@ -484,11 +500,34 @@ describe("NetworkManager stateful properties", () => {
               expect(activeRequests).toEqual(new Set(manager.requests.keys()));
             }
 
-            for (const sid of SESSION_IDS) {
+            // Drain only requests the start/finish observer model still considers in-flight;
+            // requests already settled (e.g. requestServedFromCache, data:, loadingFinished)
+            // must already be absent from manager.requests and tracked.unfinishedRequests.
+            const remainingBySession = new Map<SessionId, string[]>();
+            for (const key of activeRequests) {
+              const sep = key.indexOf(":");
+              const sid = key.slice(0, sep) as SessionId;
+              const reqId = key.slice(sep + 1);
+              const list = remainingBySession.get(sid) ?? [];
+              list.push(reqId);
+              remainingBySession.set(sid, list);
+            }
+            for (const [sid, tracked] of manager.sessions) {
+              expect(new Set(tracked.unfinishedRequests.keys())).toEqual(
+                new Set(remainingBySession.get(sid as SessionId) ?? []),
+              );
+            }
+            for (const [sid, reqIds] of remainingBySession) {
               if (!manager.sessions.has(sid)) continue;
-              for (const reqId of REQUEST_IDS) {
+              for (const reqId of reqIds) {
                 sessions[sid].emit("Network.loadingFinished", { requestId: reqId });
               }
+            }
+            for (const response of emittedResponses) {
+              if (response.finishedSettled) continue;
+              const sid = response.session.id as SessionId;
+              if (!manager.sessions.has(sid)) continue;
+              sessions[sid].emit("Network.loadingFinished", { requestId: response.requestId });
             }
             await Promise.resolve();
 
@@ -941,5 +980,118 @@ describe("NetworkManager stateful properties", () => {
       ),
       { seed: 0x4e4d0004, numRuns: 40 },
     );
+  });
+
+  it("clears unfinishedRequests and respondedRequestKeys on requestServedFromCache without a trailing loadingFinished", () => {
+    const session = new MockSession("main");
+    const manager = new NetworkManager({} as Page);
+    manager.trackSession(session);
+
+    const finished: string[] = [];
+    manager.addObserver({
+      onRequestFinished: (info) => finished.push(info.requestKey),
+    });
+
+    session.emit("Network.requestWillBeSent", {
+      requestId: "cached-req",
+      frameId: "main-frame",
+      loaderId: "loader-1",
+      type: "Script",
+      request: { url: "https://example.test/app.js" },
+    });
+    session.emit("Network.responseReceived", {
+      requestId: "cached-req",
+      frameId: "main-frame",
+      loaderId: "loader-1",
+      type: "Script",
+      response: {
+        url: "https://example.test/app.js",
+        status: 200,
+        statusText: "OK",
+        headers: {},
+      },
+    });
+    session.emit("Network.requestServedFromCache", {
+      requestId: "cached-req",
+    });
+
+    const internals = manager as unknown as {
+      respondedRequestKeys: Set<string>;
+    };
+    expect(finished).toEqual(["main:cached-req"]);
+    expect(manager.requests.size).toBe(0);
+    expect(manager.sessions.get("main")!.unfinishedRequests.size).toBe(0);
+    expect(internals.respondedRequestKeys.size).toBe(0);
+    assertManagerInvariants(manager);
+    manager.dispose();
+  });
+
+  it("preserves cross-session child failure until late parent responseReceived and prunes abandoned entries", async () => {
+    const parent = new MockSession("parent");
+    const child = new MockSession("child");
+    const manager = new NetworkManager({} as Page);
+    manager.trackSession(parent);
+    manager.trackSession(child, undefined, "child-frame");
+
+    const responses: Response[] = [];
+    manager.subscribeResponse((r) => responses.push(r));
+
+    // Parent starts document, child fails before parent receives responseReceived.
+    parent.emit("Network.requestWillBeSent", {
+      requestId: "doc-1",
+      frameId: "child-frame",
+      loaderId: "doc-1",
+      type: "Document",
+      request: { url: "https://example.test/doc-1" },
+    });
+    child.emit("Network.loadingFailed", {
+      requestId: "doc-1",
+      errorText: "net::ERR_CONNECTION_RESET",
+    });
+
+    // Late parent responseReceived must still settle with the child failure.
+    parent.emit("Network.responseReceived", {
+      requestId: "doc-1",
+      frameId: "child-frame",
+      loaderId: "doc-1",
+      type: "Document",
+      response: {
+        url: "https://example.test/doc-1",
+        status: 200,
+        statusText: "OK",
+        headers: {},
+      },
+    });
+
+    const internals = manager as unknown as {
+      pendingDocumentCompletions: Map<string, unknown>;
+    };
+    expect(responses).toHaveLength(1);
+    expect(responses[0]!.finishedSettled).toBe(true);
+    await expect(responses[0]!.finished()).resolves.toBeInstanceOf(Error);
+    expect(internals.pendingDocumentCompletions.size).toBe(0);
+
+    // Repeated child-fail -> parent-start-without-headers cycles must not leak pendingDocumentCompletions.
+    for (let i = 0; i < 40; i += 1) {
+      const reqId = `abandoned-${i}`;
+      child.emit("Network.loadingFailed", {
+        requestId: reqId,
+        errorText: "net::ERR_ABORTED",
+      });
+      parent.emit("Network.requestWillBeSent", {
+        requestId: reqId,
+        frameId: "child-frame",
+        loaderId: reqId,
+        type: "Document",
+        request: { url: `https://example.test/${reqId}` },
+      });
+      parent.emit("Page.frameStoppedLoading", {
+        frameId: "child-frame",
+      });
+    }
+    expect(internals.pendingDocumentCompletions.size).toBe(0);
+
+    assertManagerInvariants(manager);
+    manager.dispose();
   });
 });

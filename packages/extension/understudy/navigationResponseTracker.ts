@@ -1,7 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Page } from "./page.js";
-import { Response } from "./response.js";
+import { isMatchingExtraInfoStatus, Response } from "./response.js";
 
 export class NavigationResponseTracker {
   readonly page: Page;
@@ -141,10 +141,11 @@ export class NavigationResponseTracker {
     this.pendingCompletions.delete(event.requestId);
     const loaderId = event.loaderId ?? "";
     if (this.expectedLoaderId) {
-      if (loaderId !== this.expectedLoaderId) {
-        if (loaderId) this.pendingResponsesByLoader.set(loaderId, event);
+      if (loaderId && loaderId !== this.expectedLoaderId) {
+        this.pendingResponsesByLoader.set(loaderId, event);
         return;
       }
+      if (!loaderId && !event.response.fromServiceWorker) return;
       this.selectResponse(event);
       return;
     }
@@ -217,11 +218,7 @@ export class NavigationResponseTracker {
 
     const extraInfo = this.pendingExtraInfo.get(event.requestId);
     if (extraInfo) {
-      if (
-        extraInfo.statusCode === undefined ||
-        event.response?.status === undefined ||
-        extraInfo.statusCode === event.response.status
-      ) {
+      if (isMatchingExtraInfoStatus(event.response?.status, extraInfo.statusCode)) {
         response.applyExtraInfo(extraInfo);
       }
       this.pendingExtraInfo.delete(event.requestId);

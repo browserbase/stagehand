@@ -56,6 +56,16 @@ function parseHeadersText(headersText: string | undefined): Array<{ name: string
 // TODO(protocol): Keep this class internal. If clients need navigation response
 // metadata, define a JSON-safe Zod result in protocol and map this live CDP
 // state into that result instead of exposing this object.
+export function isMatchingExtraInfoStatus(
+  responseStatus: number | undefined,
+  extraStatus: number | undefined,
+): boolean {
+  if (extraStatus === undefined || responseStatus === undefined) return true;
+  if (extraStatus === responseStatus) return true;
+  // CDP reports 200 on responseReceived and 304 on responseReceivedExtraInfo for cached revalidation.
+  return responseStatus === 200 && extraStatus === 304;
+}
+
 export class Response {
   readonly page: Page;
   private _session: CDPSessionLike;
@@ -79,11 +89,7 @@ export class Response {
     event: Protocol.Network.ResponseReceivedExtraInfoEvent,
   ): void => {
     if (event?.requestId !== this.requestId) return;
-    if (
-      event.statusCode !== undefined &&
-      this.response.status !== undefined &&
-      event.statusCode !== this.response.status
-    ) {
+    if (!isMatchingExtraInfoStatus(this.response.status, event.statusCode)) {
       return;
     }
     this.applyExtraInfo(event);

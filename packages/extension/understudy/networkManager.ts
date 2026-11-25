@@ -87,6 +87,15 @@ export class NetworkManager {
             this.completedRequestsBySession.get(childSid)?.delete(info.requestId);
           }
         }
+        for (const [key, pendingCompletion] of this.pendingDocumentCompletions) {
+          if (
+            pendingCompletion.frameId === info.frameId &&
+            pendingCompletion.requestId !== info.requestId &&
+            pendingCompletion.requestRetired
+          ) {
+            this.pendingDocumentCompletions.delete(key);
+          }
+        }
       }
 
       unfinishedRequests.set(evt.requestId, info);
@@ -108,7 +117,20 @@ export class NetworkManager {
     };
 
     const completeRequest = (requestId: string, error: Error | null) => {
+      const hadLocalResponse = [...this.pendingResponses.keys()].some(
+        (response) =>
+          !response.finishedSettled &&
+          response.session === session &&
+          response.requestId === requestId,
+      );
       this.finishResponse(session, requestId, error);
+      if (!hadLocalResponse) {
+        for (const [key, pendingCompletion] of this.pendingDocumentCompletions) {
+          if (pendingCompletion.requestId === requestId && pendingCompletion.session !== session) {
+            this.pendingDocumentCompletions.delete(key);
+          }
+        }
+      }
       unfinishedRequests.delete(requestId);
       this.respondedRequestKeys.delete(this.requestKey(sid, requestId));
       this.recordCompletedRequest(sid, requestId);
@@ -140,6 +162,11 @@ export class NetworkManager {
 
     const onFrameStopped = (evt: Protocol.Page.FrameStoppedLoadingEvent, receivedAt: number) => {
       if (!evt?.frameId) return;
+      for (const [key, pendingCompletion] of this.pendingDocumentCompletions) {
+        if (pendingCompletion.frameId === evt.frameId && pendingCompletion.requestRetired) {
+          this.pendingDocumentCompletions.delete(key);
+        }
+      }
       const key = this.documentRequestsByFrame.get(evt.frameId);
       if (!key) return;
       const stored = this.requests.get(key);
@@ -147,6 +174,8 @@ export class NetworkManager {
         this.documentRequestsByFrame.delete(evt.frameId);
         return;
       }
+      this.sessions.get(stored.sessionId)?.unfinishedRequests.delete(stored.requestId);
+      this.respondedRequestKeys.delete(stored.requestKey);
       this.removeIdleRequest(stored);
       this.emitFinish({ ...stored, timestamp: receivedAt });
     };
@@ -154,6 +183,11 @@ export class NetworkManager {
     const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
       if (!evt?.frame) return;
       const { id, loaderId } = evt.frame;
+      for (const [key, pendingCompletion] of this.pendingDocumentCompletions) {
+        if (pendingCompletion.frameId === id && pendingCompletion.requestId !== loaderId) {
+          this.pendingDocumentCompletions.delete(key);
+        }
+      }
       // Chrome sends no loadingFinished/loadingFailed for requests of the replaced document.
       for (const info of this.requests.values()) {
         if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
@@ -204,8 +238,13 @@ export class NetworkManager {
         },
         "Network.requestServedFromCache": (event) => {
           if (!event?.requestId) return;
+          unfinishedRequests.delete(event.requestId);
+          this.respondedRequestKeys.delete(this.requestKey(sid, event.requestId));
           const info = this.takeIdleRequest(session, event.requestId);
-          if (info) this.emitFinish(info);
+          if (!info) return;
+          this.sessions.get(info.sessionId)?.unfinishedRequests.delete(event.requestId);
+          this.respondedRequestKeys.delete(info.requestKey);
+          this.emitFinish(info);
         },
         "Network.responseReceived": onResponse,
         "Page.frameStoppedLoading": onFrameStopped,
@@ -518,14 +557,36 @@ export class NetworkManager {
       document.updateSession(session);
       document.markFinished(error);
       this.pendingResponses.delete(document);
-    } else if (!pending.length && !matchedParentResponded && !(matchedParentDocument && error)) {
-      this.pendingDocumentCompletions.set(this.requestKey(sid, requestId), {
+    } else if (!pending.length && !matchedParentResponded) {
+      this.recordPendingDocumentCompletion(this.requestKey(sid, requestId), {
         session,
         frameId,
         requestId,
         error,
+        requestRetired: matchedParentDocument,
       });
     }
+  }
+
+  private recordPendingDocumentCompletion(
+    key: string,
+    completion: PendingDocumentCompletion,
+  ): void {
+    const MAX_PENDING_DOCUMENT_COMPLETIONS = 256;
+    this.pendingDocumentCompletions.delete(key);
+    while (this.pendingDocumentCompletions.size >= MAX_PENDING_DOCUMENT_COMPLETIONS) {
+      let evictKey: string | undefined;
+      for (const [candidateKey, candidate] of this.pendingDocumentCompletions) {
+        if (candidate.requestRetired) {
+          evictKey = candidateKey;
+          break;
+        }
+      }
+      evictKey ??= this.pendingDocumentCompletions.keys().next().value;
+      if (!evictKey) break;
+      this.pendingDocumentCompletions.delete(evictKey);
+    }
+    this.pendingDocumentCompletions.set(key, completion);
   }
 
   private findDocumentCompletion(request: DocumentIdentity): PendingDocumentCompletion | undefined {

@@ -65,6 +65,7 @@ type UrlKind = "http" | "data" | "about";
 type NavCommand =
   | {
       kind: "responseReceived";
+      originCommandId: 1 | 2;
       requestId: string;
       loaderId: string | undefined;
       frameId: string;
@@ -113,13 +114,8 @@ type NavCommand =
     };
 
 const requestIdArb = fc.constantFrom("req-1", "req-2", "req-3");
-const loaderIdArb = fc.constantFrom("loader-1", "loader-2", "loader-3");
-const optionalLoaderIdArb = fc.constantFrom<string | undefined>(
-  "loader-1",
-  "loader-2",
-  "loader-3",
-  undefined,
-);
+const nav1LoaderArb = fc.constantFrom("loader-1a", "loader-1b");
+const nav2LoaderArb = fc.constantFrom("loader-2a", "loader-2b");
 const frameIdArb = fc.constantFrom("main-frame", "main-frame-2", "sub-frame");
 const resourceTypeArb = fc.constantFrom<Protocol.Network.ResourceType>(
   "Document",
@@ -132,15 +128,21 @@ const urlKindArb = fc.constantFrom<UrlKind>("http", "data", "about");
 const navCommandArb: fc.Arbitrary<NavCommand> = fc.oneof(
   {
     weight: 6,
-    arbitrary: fc.record({
-      kind: fc.constant("responseReceived" as const),
-      requestId: requestIdArb,
-      loaderId: optionalLoaderIdArb,
-      frameId: frameIdArb,
-      type: resourceTypeArb,
-      urlKind: urlKindArb,
-      status: fc.constantFrom(200, 302, 404),
-    }),
+    arbitrary: fc.constantFrom(1 as const, 2 as const).chain((originCommandId) =>
+      fc.record({
+        kind: fc.constant("responseReceived" as const),
+        originCommandId: fc.constant(originCommandId),
+        requestId: requestIdArb,
+        loaderId: fc.oneof(
+          originCommandId === 1 ? nav1LoaderArb : nav2LoaderArb,
+          fc.constant(undefined),
+        ),
+        frameId: frameIdArb,
+        type: resourceTypeArb,
+        urlKind: urlKindArb,
+        status: fc.constantFrom(200, 302, 404),
+      }),
+    ),
   },
   {
     weight: 4,
@@ -168,11 +170,13 @@ const navCommandArb: fc.Arbitrary<NavCommand> = fc.oneof(
   },
   {
     weight: 3,
-    arbitrary: fc.record({
-      kind: fc.constant("setExpectedLoaderId" as const),
-      trackerIndex: fc.constantFrom(0 as const, 1 as const),
-      loaderId: loaderIdArb,
-    }),
+    arbitrary: fc.constantFrom(0 as const, 1 as const).chain((trackerIndex) =>
+      fc.record({
+        kind: fc.constant("setExpectedLoaderId" as const),
+        trackerIndex: fc.constant(trackerIndex),
+        loaderId: trackerIndex === 0 ? nav1LoaderArb : nav2LoaderArb,
+      }),
+    ),
   },
   {
     weight: 2,
@@ -288,20 +292,22 @@ describe("NavigationResponseTracker stateful properties", () => {
               loaderId: string | undefined;
               url: string;
               isNonNetwork: boolean;
+              activeCommandAtArrival: number;
             }>
           >();
           const recordQualifying = (
-            commandId: number,
+            originCommandId: number,
             entry: {
               requestId: string;
               loaderId: string | undefined;
               url: string;
               isNonNetwork: boolean;
+              activeCommandAtArrival: number;
             },
           ) => {
-            const list = qualifyingByCommand.get(commandId) ?? [];
+            const list = qualifyingByCommand.get(originCommandId) ?? [];
             list.push(entry);
-            qualifyingByCommand.set(commandId, list);
+            qualifyingByCommand.set(originCommandId, list);
           };
 
           const createdResponses = new Set<Response>();
@@ -311,13 +317,16 @@ describe("NavigationResponseTracker stateful properties", () => {
             for (const cmd of commands) {
               switch (cmd.kind) {
                 case "responseReceived": {
+                  // A navigation's response cannot arrive before that navigation starts.
+                  if (cmd.originCommandId > page.latestCommandId) break;
                   const { url, protocol } = buildUrl(cmd.urlKind, cmd.requestId);
                   if (cmd.type === "Document" && cmd.frameId === page.currentMainFrameId) {
-                    recordQualifying(page.latestCommandId, {
+                    recordQualifying(cmd.originCommandId, {
                       requestId: cmd.requestId,
                       loaderId: cmd.loaderId,
                       url,
                       isNonNetwork: cmd.urlKind !== "http",
+                      activeCommandAtArrival: page.latestCommandId,
                     });
                   }
                   session.emit("Network.responseReceived", {
@@ -436,17 +445,30 @@ describe("NavigationResponseTracker stateful properties", () => {
                   expect(resp.url().startsWith("data:")).toBe(false);
                   expect(resp.url().startsWith("about:")).toBe(false);
 
-                  const allowed = qualifyingByCommand.get(tracker.navigationCommandId) ?? [];
-                  expect(
-                    allowed.some(
-                      (q) =>
-                        !q.isNonNetwork && q.requestId === resp.requestId && q.url === resp.url(),
-                    ),
-                  ).toBe(true);
-
                   const expectedLoader = expectedLoaderByTracker[idx];
                   if (expectedLoader) {
                     expect(resp.loaderId).toBe(expectedLoader);
+                    const originAllowed =
+                      qualifyingByCommand.get(tracker.navigationCommandId) ?? [];
+                    expect(
+                      originAllowed.some(
+                        (q) =>
+                          !q.isNonNetwork &&
+                          q.requestId === resp.requestId &&
+                          q.url === resp.url() &&
+                          q.loaderId === expectedLoader,
+                      ),
+                    ).toBe(true);
+                  } else {
+                    const arrivedWhileActive = [...qualifyingByCommand.values()]
+                      .flat()
+                      .filter((q) => q.activeCommandAtArrival === tracker.navigationCommandId);
+                    expect(
+                      arrivedWhileActive.some(
+                        (q) =>
+                          !q.isNonNetwork && q.requestId === resp.requestId && q.url === resp.url(),
+                      ),
+                    ).toBe(true);
                   }
                 }
               }
@@ -625,5 +647,123 @@ describe("NavigationResponseTracker stateful properties", () => {
       }),
       { seed: 0x4e525403, numRuns: 30 },
     );
+  });
+
+  it("preserves cached-revalidation 304 extraInfo headers on a 200 response while still rejecting 302 redirect extraInfo", async () => {
+    for (const earlyArrival of [true, false]) {
+      const session = new MockSession();
+      const page = new MockNavPage();
+      const tracker = new NavigationResponseTracker({
+        page: page as unknown as Page,
+        session,
+        navigationCommandId: 1,
+      });
+      tracker.setExpectedLoaderId("loader-304");
+
+      const emit304Extra = () => {
+        session.emit("Network.responseReceivedExtraInfo", {
+          requestId: "req-304",
+          blockedCookies: [],
+          headers: { etag: '"v1"', "x-revalidated": "304" },
+          resourceIPAddressSpace: "Public",
+          statusCode: 304,
+        } as Protocol.Network.ResponseReceivedExtraInfoEvent);
+      };
+
+      if (earlyArrival) emit304Extra();
+
+      session.emit("Network.responseReceived", {
+        requestId: "req-304",
+        loaderId: "loader-304",
+        frameId: "main-frame",
+        type: "Document",
+        timestamp: 1,
+        hasExtraInfo: true,
+        response: makeProtocolResponse({
+          url: "https://example.test/cached",
+          protocol: "h2",
+          status: 200,
+          headers: { "x-base": "200" },
+        }),
+      } satisfies Protocol.Network.ResponseReceivedEvent);
+
+      const response = await tracker.navigationCompleted();
+      expect(response).not.toBeNull();
+      if (!earlyArrival) emit304Extra();
+
+      expect(response!.headers()["x-revalidated"]).toBe("304");
+      expect(response!.headers()["etag"]).toBe('"v1"');
+
+      // Stale 302 redirect metadata must still be ignored on the 200 response.
+      session.emit("Network.responseReceivedExtraInfo", {
+        requestId: "req-304",
+        blockedCookies: [],
+        headers: { location: "https://example.test/redirect", "x-revalidated": "stale-302" },
+        resourceIPAddressSpace: "Public",
+        statusCode: 302,
+      } as Protocol.Network.ResponseReceivedExtraInfoEvent);
+      expect(response!.headers()["x-revalidated"]).toBe("304");
+
+      response!.dispose();
+      tracker.dispose();
+      expect(session.listenerCount()).toBe(0);
+    }
+  });
+
+  it("accepts empty loaderId for fromServiceWorker responses when expectedLoaderId is set, while ignoring non-SW empty loaderId", async () => {
+    const session = new MockSession();
+    const page = new MockNavPage();
+    const tracker = new NavigationResponseTracker({
+      page: page as unknown as Page,
+      session,
+      navigationCommandId: 1,
+    });
+    tracker.setExpectedLoaderId("loader-expected");
+
+    session.emit("Network.responseReceived", {
+      requestId: "req-non-sw",
+      loaderId: "",
+      frameId: "main-frame",
+      type: "Document",
+      timestamp: 1,
+      hasExtraInfo: false,
+      response: {
+        ...makeProtocolResponse({
+          url: "https://example.test/stale-no-loader",
+          protocol: "h2",
+          status: 200,
+          headers: {},
+        }),
+        fromServiceWorker: false,
+      },
+    } satisfies Protocol.Network.ResponseReceivedEvent);
+    expect(tracker.responseResolved).toBe(false);
+
+    session.emit("Network.responseReceived", {
+      requestId: "req-sw",
+      loaderId: "",
+      frameId: "main-frame",
+      type: "Document",
+      timestamp: 2,
+      hasExtraInfo: false,
+      response: {
+        ...makeProtocolResponse({
+          url: "https://example.test/sw-doc",
+          protocol: "h2",
+          status: 200,
+          headers: {},
+        }),
+        fromServiceWorker: true,
+      },
+    } satisfies Protocol.Network.ResponseReceivedEvent);
+
+    const response = await tracker.navigationCompleted();
+    expect(response).not.toBeNull();
+    expect(response!.requestId).toBe("req-sw");
+    expect(response!.fromServiceWorker()).toBe(true);
+
+    response!.dispose();
+    tracker.dispose();
+    expect(session.listenerCount()).toBe(0);
   });
 });

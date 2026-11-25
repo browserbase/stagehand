@@ -28,6 +28,7 @@ export class LifecycleWatcher {
   abortReject: ((error: Error) => void) | null = null;
   abortPromise: Promise<never>;
   abortError: Error | null = null;
+  private readonly abortController = new AbortController();
   disposed = false;
   private waitCompleted = false;
 
@@ -245,7 +246,11 @@ export class LifecycleWatcher {
     if (this.abortError) throw this.abortError;
     try {
       await this.awaitWithAbort(
-        this.page.waitForMainLoadState(state, this.timeRemaining(deadline)),
+        this.page.waitForMainLoadState(
+          state,
+          this.timeRemaining(deadline),
+          this.abortController.signal,
+        ),
       );
     } catch (error) {
       if (error instanceof TimeoutError && !this.abortError) {
@@ -282,6 +287,7 @@ export class LifecycleWatcher {
   triggerAbort(error: Error): void {
     if (this.abortError) return;
     this.abortError = error;
+    this.abortController.abort(error);
     if (this.abortReject) {
       this.abortReject(error);
       this.abortReject = null;

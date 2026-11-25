@@ -2443,10 +2443,21 @@ export class Page {
     }
   }
 
-  async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
+  async waitForMainLoadState(
+    state: LoadState,
+    timeout = 15000,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const abortError = (): Error =>
+      signal?.reason instanceof Error ? signal.reason : new Error("waitForMainLoadState aborted");
+
+    if (signal?.aborted) throw abortError();
+
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
+
+    if (signal?.aborted) throw abortError();
 
     if (
       (state === "domcontentloaded" || state === "load") &&
@@ -2454,6 +2465,8 @@ export class Page {
     ) {
       return;
     }
+
+    if (signal?.aborted) throw abortError();
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
@@ -2466,6 +2479,7 @@ export class Page {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+        signal?.removeEventListener("abort", onAbort);
       };
       const clearPollTimer = () => {
         if (pollTimer) {
@@ -2486,6 +2500,22 @@ export class Page {
         resolve();
       };
 
+      const fail = (error: Error) => {
+        if (done) return;
+        done = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        clearPollTimer();
+        off();
+        reject(error);
+      };
+
+      const onAbort = () => {
+        fail(abortError());
+      };
+
       const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
         if (evt.name !== wanted) return;
         if (evt.frameId === this.mainFrameId()) finish();
@@ -2503,6 +2533,7 @@ export class Page {
       // Backups for sites that don't emit lifecycle consistently
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       // Fallback polling closes lifecycle-event races in remote environments
       // where readyState has advanced but the corresponding event was missed.
@@ -2531,11 +2562,7 @@ export class Page {
       void pollReadyState();
 
       timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        clearPollTimer();
-        off();
-        reject(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
+        fail(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
       }, timeout);
     });
   }

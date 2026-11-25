@@ -82,8 +82,16 @@ class MockLifecyclePage {
     return this.latestCommandId === id;
   }
 
-  waitForMainLoadState(state: LoadState, timeout: number): Promise<void> {
+  waitForMainLoadState(state: LoadState, timeout: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(
+        signal.reason instanceof Error ? signal.reason : new Error("waitForMainLoadState aborted"),
+      );
+    }
     return new Promise<void>((resolve, reject) => {
+      const cleanupAbort = () => {
+        signal?.removeEventListener("abort", onAbort);
+      };
       const entry: PendingLoadWait = {
         state,
         settled: false,
@@ -91,12 +99,14 @@ class MockLifecyclePage {
           if (entry.settled) return;
           entry.settled = true;
           clearTimeout(entry.timer);
+          cleanupAbort();
           resolve();
         },
         reject: (error: Error) => {
           if (entry.settled) return;
           entry.settled = true;
           clearTimeout(entry.timer);
+          cleanupAbort();
           reject(error);
         },
         timer: setTimeout(
@@ -106,6 +116,14 @@ class MockLifecyclePage {
           Math.max(0, timeout),
         ),
       };
+      const onAbort = () => {
+        entry.reject(
+          signal?.reason instanceof Error
+            ? signal.reason
+            : new Error("waitForMainLoadState aborted"),
+        );
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
       this.pendingLoadWaits.push(entry);
     });
   }
@@ -412,6 +430,7 @@ describe("LifecycleWatcher stateful properties", () => {
       requestId: string;
       startDelayMs: number;
       durationMs: number;
+      redirectHops: number;
       matchesLoader: boolean;
       ignoredType: boolean;
       fail: boolean;
@@ -421,6 +440,7 @@ describe("LifecycleWatcher stateful properties", () => {
       requestId: fc.constantFrom("r1", "r2", "r3", "r4"),
       startDelayMs: fc.integer({ min: 0, max: 450 }),
       durationMs: fc.integer({ min: 10, max: 400 }),
+      redirectHops: fc.integer({ min: 0, max: 2 }),
       matchesLoader: fc.boolean(),
       ignoredType: fc.boolean(),
       fail: fc.boolean(),
@@ -474,15 +494,28 @@ describe("LifecycleWatcher stateful properties", () => {
         let quietSince: number | null = 0;
 
         try {
-          const timeline: Array<{ at: number; kind: "start" | "end"; op: RequestOp; key: string }> =
-            [];
+          const timeline: Array<{
+            at: number;
+            kind: "start" | "redirect" | "end";
+            op: RequestOp;
+            key: string;
+            hop: number;
+          }> = [];
           ops.forEach((op, idx) => {
             const key = `${op.requestId}-${idx}`;
             const startAt = op.startDelayMs;
-            timeline.push({ at: startAt, kind: "start", op, key });
-            timeline.push({ at: startAt + op.durationMs, kind: "end", op, key });
+            timeline.push({ at: startAt, kind: "start", op, key, hop: 0 });
+            for (let hop = 1; hop <= op.redirectHops; hop += 1) {
+              const hopAt =
+                startAt + Math.max(1, Math.floor((op.durationMs * hop) / (op.redirectHops + 1)));
+              if (hopAt < startAt + op.durationMs) {
+                timeline.push({ at: hopAt, kind: "redirect", op, key, hop });
+              }
+            }
+            timeline.push({ at: startAt + op.durationMs, kind: "end", op, key, hop: 0 });
           });
-          timeline.sort((a, b) => a.at - b.at || (a.kind === "start" ? -1 : 1));
+          const kindOrder = { start: 0, redirect: 1, end: 2 } as const;
+          timeline.sort((a, b) => a.at - b.at || kindOrder[a.kind] - kindOrder[b.kind]);
 
           for (const step of timeline) {
             const delta = step.at - now;
@@ -502,13 +535,23 @@ describe("LifecycleWatcher stateful properties", () => {
               : "XHR";
             const isRelevant = step.op.matchesLoader && !IGNORED_RESOURCE_TYPES.has(resourceType);
 
-            if (step.kind === "start") {
+            if (step.kind === "start" || step.kind === "redirect") {
               session.emit("Network.requestWillBeSent", {
                 requestId: step.key,
                 frameId: "main-frame",
                 loaderId: step.op.matchesLoader ? "loader-main" : "other-loader",
                 type: resourceType,
-                request: { url: `https://example.test/${step.key}` },
+                request: { url: `https://example.test/${step.key}/hop-${step.hop}` },
+                ...(step.kind === "redirect"
+                  ? {
+                      redirectResponse: {
+                        url: `https://example.test/${step.key}/hop-${step.hop - 1}`,
+                        status: 302,
+                        statusText: "Found",
+                        headers: {},
+                      },
+                    }
+                  : {}),
               });
               if (isRelevant) {
                 activeRelevant.add(step.key);
@@ -741,5 +784,41 @@ describe("LifecycleWatcher stateful properties", () => {
       ),
       { seed: 0x4c570004, numRuns: 80 },
     );
+  });
+
+  it("cancels waitForMainLoadState timers and listeners immediately when disposed mid-wait", async () => {
+    vi.useFakeTimers();
+    const session = new MockSession();
+    const page = new MockLifecyclePage("loader-1");
+    const manager = new NetworkManager(page as unknown as Page);
+    manager.trackSession(session);
+
+    const watcher = new LifecycleWatcher({
+      page: page as unknown as Page,
+      mainSession: session,
+      networkManager: manager,
+      waitUntil: "load",
+      timeout: 15_000,
+      navigationCommandId: 1,
+    });
+
+    const waitPromise = watcher.wait().catch((err: unknown) => err);
+    session.emit("Page.frameNavigated", {
+      frame: { id: "main-frame", loaderId: "loader-1" },
+    });
+    for (let i = 0; i < 6 && page.pendingLoadWaits.length === 0; i += 1) {
+      await Promise.resolve();
+    }
+    expect(page.pendingLoadWaits).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(1);
+
+    watcher.dispose();
+    const err = await waitPromise;
+    expect(err).toBeInstanceOf(Error);
+    expect(page.pendingLoadWaits[0]!.settled).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+
+    manager.dispose();
+    expect(session.listenerCount()).toBe(0);
   });
 });
