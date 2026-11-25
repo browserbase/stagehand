@@ -7,7 +7,6 @@ import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stageh
 
 export type ClientLlmRequest = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
 
-/** Sends a Stagehand LLM request to the connected SDK and awaits its response. */
 export async function generateWithClientLlm(
   request: ClientLlmRequest,
   input: LLMGenerateParams,

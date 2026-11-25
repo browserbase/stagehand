@@ -28,8 +28,8 @@ import {
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
-import { Locator, type GetByTextOptions } from "./locator.js";
-import { textQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
+import { Locator, type GetByTextOptions, type GetByRoleOptions, type AriaRole } from "./locator.js";
+import { textQueryStep, roleQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
@@ -333,7 +333,6 @@ export class Page {
     } catch (error) {
       removeNotificationListener();
       try {
-        // A failed response does not mean the runtime stopped registering.
         await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
         this.eventSubscriptions.delete(subscription);
       } catch (cleanupError) {
@@ -473,6 +472,13 @@ export class Page {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
       chain: { steps: [textQueryStep(text, options)] },
+    });
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return new Locator(this.rpcClient, {
+      pageId: this.pageId,
+      chain: { steps: [roleQueryStep(role, options)] },
     });
   }
 }

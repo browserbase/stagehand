@@ -1,7 +1,6 @@
 import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-// Every word Wordle accepts as a guess, from github.com/tabatkins/wordle-list.
 const WORDS_URL = "https://raw.githubusercontent.com/tabatkins/wordle-list/main/words";
 const MAX_GUESSES = 6;
 
@@ -22,8 +21,6 @@ export const schema = z.object({
   guesses: z.array(z.object({ word: z.string(), feedback: z.string() })),
 });
 
-// The feedback Wordle would show for `guess` if the answer were `answer`,
-// including its duplicate-letter rules.
 function feedback(guess: string, answer: string): TileState[] {
   const result: TileState[] = Array(5).fill("absent");
   const unmatched: string[] = [];
@@ -42,7 +39,6 @@ function feedback(guess: string, answer: string): TileState[] {
   return result;
 }
 
-// Favour words whose distinct letters are common among the remaining candidates.
 function bestGuess(candidates: string[]): string {
   const counts = new Map<string, number>();
   for (const word of candidates) {

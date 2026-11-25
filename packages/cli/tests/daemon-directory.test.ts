@@ -21,8 +21,6 @@ import {
   getSocketPath,
 } from "../src/lib/driver/daemon/paths.js";
 
-// Use a real listening socket: these tests must detect both bare connectivity
-// probes and requests that could forward credentials to an untrusted daemon.
 describePosix("daemon directory validation before connections", () => {
   const session = "default";
   const sockets = new Set<net.Socket>();
@@ -64,8 +62,6 @@ describePosix("daemon directory validation before connections", () => {
       server.once("error", reject);
       server.listen(getSocketPath(session), resolve);
     });
-    // These stale artifacts would be removed if a validation failure were
-    // incorrectly treated as an absent daemon or a successful forced stop.
     await fs.writeFile(getPidPath(session), "999999");
     await fs.writeFile(getLockPath(session), "999999");
   });
@@ -124,8 +120,6 @@ describePosix("daemon directory validation before connections", () => {
     async ({ operation, validChecks }) => {
       const { uid } = await fs.lstat(daemonDir);
       let remainingChecks = validChecks;
-      // Keep the caller fixed and change freshly read directory metadata after
-      // the probe or status reply. Caching ownership must not pass this test.
       vi.spyOn(process, "getuid").mockReturnValue(uid);
       mockDirectoryOwner(daemonDir, () => (remainingChecks-- > 0 ? uid : uid + 1));
       const connect = vi.spyOn(net, "createConnection");
@@ -151,7 +145,6 @@ describePosix("daemon directory validation before connections", () => {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
-      // Leave a non-listening socket artifact so the real probe fails.
       await fs.writeFile(getSocketPath(session), "stale socket");
       let foreign = false;
       mockDirectoryOwner(daemonDir, (uid) => (foreign ? uid + 1 : uid));
@@ -238,7 +231,6 @@ describePosix("daemon directory validation before connections", () => {
         });
       } else {
         await fs.unlink(lockPath);
-        // Preserve the owner-mocking implementation rather than the spy itself.
         const open = vi.mocked(fs.open).getMockImplementation()!;
         vi.spyOn(fs, "open").mockImplementation(async (file, flags, mode) => {
           const handle = await open(file, flags, mode);

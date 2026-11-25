@@ -9,9 +9,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DriverStatus, OpenResult } from "../../src/lib/driver/types.js";
 import { runCli } from "../helpers/run-cli.js";
 
-// Build first: pnpm exec turbo run build --filter=browse
-// Then: pnpm --filter browse test:smoke (uses CHROME_PATH or local Chrome discovery).
-// CI runs this scenario through the executable installed from the Browse tarball.
 const suiteName = process.env.BROWSE_SMOKE_BIN ? "Installed Browse" : "Browse";
 describe(`${suiteName} with real Chrome`, () => {
   const session = `smoke-${randomUUID().slice(0, 8)}`;
@@ -93,7 +90,6 @@ describe(`${suiteName} with real Chrome`, () => {
 
     const snapshot = await cli<{ tree: string }>(["snapshot"]);
     expect(snapshot.tree).toContain("Name");
-    // Use a real snapshot ref in a later process to exercise the daemon's ref cache.
     const buttonLine = snapshot.tree.split("\n").find((line) => line.includes("Submit"));
     const buttonRef = buttonLine?.match(/\[(\d+-\d+)\]/)?.[1];
     expect(buttonRef, snapshot.tree).toBeDefined();
@@ -109,7 +105,6 @@ describe(`${suiteName} with real Chrome`, () => {
     expect(reused.selectedTargetId).toBe(initial.selectedTargetId);
 
     expect(await cli(["stop"])).toMatchObject({ stopped: true, session });
-    // Observe cleanup before calling status, which can itself remove stale files.
     await waitForShutdown();
     expect(await cli(["status"])).toMatchObject({ browserConnected: false, initialized: false });
 

@@ -7,10 +7,6 @@ import type { ResolvedLocation } from "../../../types/private/snapshot.js";
 import { listChildrenOf } from "./focusSelectors.js";
 import { buildAbsoluteXPathFromChain } from "./xpathUtils.js";
 
-/**
- * Resolve deepest node for a page coordinate and compute its absolute XPath across frames.
- * More efficient than building a full hybrid snapshot when only a single node’s XPath is needed.
- */
 export async function resolveXpathForLocation(
   page: Page,
   x: number,
@@ -57,9 +53,7 @@ export async function resolveXpathForLocation(
         }>("Runtime.evaluate", evalParams);
         sx = Number(result?.value?.sx ?? 0);
         sy = Number(result?.value?.sy ?? 0);
-      } catch {
-        //
-      }
+      } catch {}
       const xi = Math.max(0, Math.floor(curX + sx));
       const yi = Math.max(0, Math.floor(curY + sy));
 
@@ -131,9 +125,7 @@ export async function resolveXpathForLocation(
           top = Number(result?.value?.top ?? 0);
           await curSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
         }
-      } catch {
-        //
-      }
+      } catch {}
       curX = Math.max(0, curX - left);
       curY = Math.max(0, curY - top);
       curFrameId = matchedChild;

@@ -1,6 +1,7 @@
 import { expectTypeOf } from "vitest";
 import type {
   LocatorChain,
+  RoleSelectorQuery,
   LocatorFrameStep,
   LocatorNthStep,
   LocatorQuerySelector,
@@ -9,6 +10,7 @@ import type {
 } from "../../types.js";
 
 expectTypeOf<LocatorQuerySelector>().toEqualTypeOf<
+  | RoleSelectorQuery
   | { kind: "css"; value: string }
   | { kind: "xpath"; value: string }
   | { kind: "text"; value: string }
@@ -26,7 +28,6 @@ expectTypeOf<LocatorNthStep>().toEqualTypeOf<{ type: "nth"; index: number }>();
 expectTypeOf<LocatorStep>().toEqualTypeOf<LocatorQueryStep | LocatorFrameStep | LocatorNthStep>();
 expectTypeOf<LocatorChain["steps"]>().toEqualTypeOf<[LocatorQueryStep, ...LocatorStep[]]>();
 
-// Position and frame steps are allowed after, but never instead of, the first query.
 expectTypeOf<{ steps: [] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorNthStep] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorFrameStep, LocatorQueryStep] }>().not.toExtend<LocatorChain>();

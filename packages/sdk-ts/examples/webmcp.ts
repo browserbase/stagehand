@@ -7,7 +7,6 @@ const stagehand = await Stagehand.create({ browser });
 
 try {
   const [page] = await browser.context.pages();
-  // Subscribe before navigation: hooks report future changes, not existing tools.
   const added = await page.onToolsAdded((tools) => {
     for (const tool of tools) console.log("Tool added:", tool.name, tool.frameId);
   });

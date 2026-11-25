@@ -19,7 +19,6 @@ const hook: Hook.CommandNotFound = async function ({ config, id }) {
     attempted = result.attempted;
     suggestion = result.suggestion;
     if (suggestion && !config.findCommand(suggestion) && !config.findTopic(suggestion)) {
-      // Guards against alias targets drifting out of the command tree.
       suggestion = null;
     }
 
@@ -33,8 +32,6 @@ const hook: Hook.CommandNotFound = async function ({ config, id }) {
   }
 
   try {
-    // Awaited so the event is delivered before the process exits; the
-    // transport aborts after a short timeout, so this cannot hang the CLI.
     await captureCommandNotFound(config.version, attempted || null, suggestion);
   } catch {
     // Best-effort telemetry should never affect CLI behavior.

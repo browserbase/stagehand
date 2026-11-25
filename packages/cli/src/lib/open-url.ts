@@ -2,28 +2,14 @@ import { readFileSync } from "node:fs";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 
 export interface OpenUrlOptions {
-  /**
-   * Whether to skip opening the browser entirely.
-   * When true, the URL is not opened regardless of environment.
-   */
   noOpen?: boolean;
 }
 
 export interface OpenUrlResult {
-  /**
-   * Whether the browser was attempted to be opened.
-   */
   attempted: boolean;
-  /**
-   * Whether the opener process started (or opening was skipped).
-   * False only when an open was attempted but the spawn failed.
-   */
   success: boolean;
 }
 
-/**
- * WSL and environment detection helpers. Exported for test mocking.
- */
 export const platformDetection = {
   isWsl(): boolean {
     if (process.env.WSL_DISTRO_NAME) return true;
@@ -42,10 +28,6 @@ export const platformDetection = {
   },
 };
 
-/**
- * Parses a single $BROWSER entry into command and args.
- * Handles whitespace-separated args and %s placeholder.
- */
 function parseBrowserEntry(entry: string, url: string): { command: string; args: string[] } {
   const parts = entry.trim().split(/\s+/).filter(Boolean);
   const command = parts[0] ?? entry;
@@ -59,11 +41,6 @@ function parseBrowserEntry(entry: string, url: string): { command: string; args:
   return { command, args };
 }
 
-/**
- * Parses a $BROWSER value into a list of {command, args} alternatives.
- * Handles: colon-separated list, whitespace-separated args per entry,
- * and %s placeholder (replaced with URL, or URL appended if absent).
- */
 export function parseBrowserEnv(
   browser: string,
   url: string,
@@ -81,10 +58,6 @@ export interface OpenCommand {
   fallbacks?: Array<{ command: string; args: string[] }>;
 }
 
-/**
- * Returns the command and arguments to open a URL in the default browser.
- * Exported for testing.
- */
 export function getOpenCommand(
   url: string,
   platform: NodeJS.Platform = process.platform,
@@ -97,7 +70,6 @@ export function getOpenCommand(
     return { command: "rundll32", args: ["url.dll,FileProtocolHandler", url] };
   }
 
-  // Linux and other Unix-like systems
   const browser = platformDetection.getBrowser();
   if (browser) {
     const entries = parseBrowserEnv(browser, url);
@@ -113,7 +85,6 @@ export function getOpenCommand(
     };
   }
 
-  // WSL: use Windows opener via interop (unless over SSH)
   if (platformDetection.isWsl() && !platformDetection.isSSH()) {
     return {
       command: "rundll32.exe",
@@ -125,14 +96,6 @@ export function getOpenCommand(
   return { command: "xdg-open", args: [url] };
 }
 
-/**
- * Opens a URL in the system's default browser.
- *
- * Opens the browser when stdout is a TTY and the CI environment variable is
- * not enabled. Returns a result indicating whether the open was attempted and
- * whether it succeeded. Never throws; failures are reported through the
- * result object so callers can print the URL and exit cleanly.
- */
 export function openUrl(url: string, options: OpenUrlOptions = {}): OpenUrlResult {
   if (options.noOpen || !shouldOpenBrowser()) {
     return { attempted: false, success: true };
@@ -163,13 +126,11 @@ function spawnBrowserOpen(url: string): OpenUrlResult {
     shell: false,
   };
 
-  // Try to spawn with fallback chain on error. Returns true if spawn started.
   function trySpawn(cmd: string, cmdArgs: string[], remaining: typeof fallbacks): boolean {
     let child: ChildProcess;
     try {
       child = spawn(cmd, cmdArgs, spawnOptions);
     } catch {
-      // Sync failure: try next fallback
       const next = remaining?.[0];
       if (next) {
         return trySpawn(next.command, next.args, remaining.slice(1));
@@ -178,7 +139,6 @@ function spawnBrowserOpen(url: string): OpenUrlResult {
     }
 
     child.on("error", () => {
-      // Async failure (e.g. ENOENT): try next fallback
       const next = remaining?.[0];
       if (next) {
         trySpawn(next.command, next.args, remaining.slice(1));

@@ -166,10 +166,6 @@ type ModelPricing = {
 };
 
 const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
-  // Standard (non-introductory) Sonnet 5 pricing. NOTE: introductory pricing
-  // ($2 / $0.20 cached / $10 per 1M) applies through 2026-08-31, so costs
-  // published before then are overstated ~1.5x; standard rates are used
-  // deliberately to keep the dashboard stable across the cutover.
   ["anthropic/claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
   ["claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
   // GPT-5.6 tiers per OpenAI pricing (2026-07).
@@ -589,9 +585,6 @@ function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
   const basePricing = modelPricing(benchCase.model);
   if (!basePricing) return undefined;
 
-  // Only use metrics emitted by the tested agent/harness. Braintrust scorer
-  // spans and task logs can contain verifier model usage, usually Gemini, and
-  // must not be billed as the evaluated model.
   const inputTokens = firstMetric(benchCase.metrics, TESTED_RUN_INPUT_TOKEN_KEYS);
   const cachedInputTokens = firstMetric(benchCase.metrics, TESTED_RUN_CACHED_INPUT_TOKEN_KEYS) ?? 0;
   const outputTokens = firstMetric(benchCase.metrics, TESTED_RUN_OUTPUT_TOKEN_KEYS);

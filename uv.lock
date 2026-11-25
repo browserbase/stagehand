@@ -2145,7 +2145,7 @@ wheels = [
 
 [[package]]
 name = "stagehand"
-version = "4.4.0"
+version = "4.5.0"
 source = { editable = "packages/sdk-python" }
 dependencies = [
     { name = "browserbase" },
@@ -2160,6 +2160,7 @@ dependencies = [
 dev = [
     { name = "datamodel-code-generator" },
     { name = "hypothesis" },
+    { name = "jsonschema" },
     { name = "openai" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -2181,6 +2182,7 @@ requires-dist = [
 dev = [
     { name = "datamodel-code-generator", specifier = "==0.81.0" },
     { name = "hypothesis", specifier = ">=6,<7" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "openai", specifier = ">=2,<3" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-asyncio", specifier = "==1.3.0" },

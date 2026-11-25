@@ -15,10 +15,6 @@ import {
 
 const silentLogger = { log: () => {}, warn: () => {}, error: () => {} };
 
-/**
- * Real Mastra MCP client over the real stdio server, fake agent that records
- * the tools and instructions it was given and finishes at once.
- */
 async function agentSetup(session: MastraSessionConfig) {
   const real = await loadMastraSdk();
   let tools: Record<string, unknown> | undefined;
@@ -78,9 +74,6 @@ describe("Stagehand facade MCP server for Mastra", () => {
     delete process.env.NOT_ALLOWLISTED_SECRET;
   });
 
-  // The contract itself is pinned by core's facade tests; assert against the
-  // exported source of truth instead of restating literals, and cover what is
-  // unique to this example — Mastra toolset discovery and the env allowlist.
   it("is discovered by Mastra as the facade toolset", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
     client = new MCPClient({
@@ -104,8 +97,6 @@ describe("Stagehand facade MCP server for Mastra", () => {
     }
   });
 
-  // The example's path: agent.ts runs facadeAgentSession() through runMastraSession.
-  // The model sees the facade tools namespaced by server, as evals does.
   it("hands the example agent the namespaced facade tools", async () => {
     process.env.STAGEHAND_BROWSER = "invalid";
     const expectedNames = FACADE_TOOLS.map((tool) => `stagehand_${tool.name}`).sort();

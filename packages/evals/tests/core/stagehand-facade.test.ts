@@ -62,8 +62,6 @@ describe("stagehand facade tool surface", () => {
 
   it("is registered as agent-mount-only", () => {
     expect(listCoreTools()).toContain("stagehand_facade");
-    // Never selectable for core-tier runs: its CoreSession throws on every
-    // page operation.
     expect(listCoreRunnableTools()).not.toContain("stagehand_facade");
     expect(getCoreTool("stagehand_facade")).toBeInstanceOf(StagehandFacadeTool);
   });

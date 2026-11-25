@@ -13,7 +13,6 @@ import {
 } from "./stagehand_facade.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
 
-/** Surfaces that exist only as an agent MCP mount; they have no runner-driven CoreSession (activePage() throws). */
 export const AGENT_MOUNT_ONLY_TOOL_SURFACES: ReadonlySet<ToolSurface> = new Set<ToolSurface>([
   "google_computer_use",
   "anthropic_browser_toolset",
@@ -33,8 +32,6 @@ export function listCoreTools(): ToolSurface[] {
     "cdp_code",
     "playwright_mcp",
     "chrome_devtools_mcp",
-    // Listed here as part of the full enumeration, but agent-mount-only:
-    // core-tier selection must use listCoreRunnableTools, which filters it.
     "google_computer_use",
     "anthropic_browser_toolset",
     "stagehand_facade",
@@ -43,7 +40,6 @@ export function listCoreTools(): ToolSurface[] {
   ];
 }
 
-/** Tool surfaces `evals core` can drive directly (listCoreTools minus agent-mount-only surfaces). */
 export function listCoreRunnableTools(): ToolSurface[] {
   return listCoreTools().filter((toolSurface) => !isAgentMountOnlyToolSurface(toolSurface));
 }

@@ -33,7 +33,6 @@ export async function getExtensionArchive(): Promise<Uint8Array> {
   return readFile(STAGEHAND_EXTENSION_ARCHIVE_PATH);
 }
 
-// Internal: not exported from the package entry point.
 export async function getExtensionFingerprint(): Promise<string> {
   const buildInfo = STAGEHAND_EXTENSION_BUILD_INFO_PATH;
   const contents = await readFile(buildInfo, "utf8").catch((error: unknown) => {

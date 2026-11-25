@@ -95,7 +95,6 @@ async def check_locator_timeouts(page: Page) -> None:
                     if await button.inner_text(timeout=5000) != "0":
                         raise AssertionError("Timed-out click fired after returning its error")
                 else:
-                    # Stay blocked beyond the previous 1,200 ms frame readiness limit.
                     await asyncio.sleep(1.6)
                     if click.done():
                         raise AssertionError("Unlimited click stopped before the iframe loaded")

@@ -21,8 +21,6 @@ describe("page-side selector collection", () => {
   let page: Page;
   let cdp: CDPClient;
 
-  // The extension's blank page loads the real registry and chrome.dom API into
-  // its main world, so these checks exercise closed roots without a DOM mock.
   beforeAll(async () => {
     chrome = await launchLocalBrowser({ headless: true }, AbortSignal.timeout(60_000));
     const { localBrowser } = createBrowserFactoriesForTest({
@@ -341,7 +339,6 @@ describe("page-side selector collection", () => {
       expect(installed.exceptionDetails).toBeUndefined();
       executionContexts.registerExtensionWorld(session, frameTree.frame.id, executionContextId);
       const resolver = new FrameSelectorResolver({ session, frameId: frameTree.frame.id } as Frame);
-      // Readiness and fixture setup are outside the measured resolution traffic.
       calls.length = 0;
       return {
         resolver,
@@ -349,7 +346,6 @@ describe("page-side selector collection", () => {
         calls,
         inspect,
         readIds: async (objectIds: string[]) => {
-          // Verification bypasses the recorder; all resolver/cleanup commands use session.send.
           const response = await inspect<{
             result: { value: string[] };
             exceptionDetails?: unknown;
@@ -473,7 +469,6 @@ describe("page-side selector collection", () => {
             expect(selected).not.toBeNull();
             try {
               expect(await readIds([selected!.objectId])).toEqual([`match-${index}`]);
-              // Only one node is materialized, even when selecting the last match.
               expect(methods()).toEqual(["Runtime.evaluate", "DOM.requestNode"]);
               expect(calls[0].result).toMatchObject({
                 result: { subtype: "node", objectId: selected!.objectId },
@@ -529,8 +524,6 @@ describe("page-side selector collection", () => {
           traffic.push(measured);
         }
         expect(traffic[1]).toEqual(traffic[0]);
-        // This bounds protocol messages, not DOM work or response bytes. Reading
-        // geometry/backend IDs for every match still requires per-target work.
       } finally {
         await close();
       }

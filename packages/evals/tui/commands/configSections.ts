@@ -1,21 +1,3 @@
-/**
- * `evals config harnesses|providers|verifier|campaign …`
- *
- *   config harnesses                               print the section
- *   config harnesses set <h> models a,b            → harnesses.<h>.models (EVAL_<H>_MODELS default)
- *   config harnesses set <h> tool <surface>        → harnesses.<h>.tool (--tool default; validated)
- *   config harnesses set <h> nodeOptions "<flags>" → harnesses.<h>.nodeOptions (doctor advisory)
- *   config harnesses reset <h>
- *   config providers set <p> concurrency <n>       → providers.<p>.concurrency
- *   config providers reset <p>
- *   config verifier set model <id> | maxUnverifiableCriteria <n>
- *   config verifier reset
- *   config campaign set tag <value> | reset
- *
- * Mirrors `config tracing`: every key has an env twin and the env always wins.
- * Writes go to evals.config.local.json unless `--shared` was passed.
- */
-
 import { bold, cyan, dim, gray, green, red } from "../format.js";
 import {
   readConfig,
@@ -90,9 +72,6 @@ export function handleConfigSection(
     fail(`Unknown ${name} subcommand "${verb}"`, `Usage: config ${name} [set … | reset …]`);
     return;
   }
-  // Each handler validates its input, then applies one mutation. The config
-  // it mutates is the effective one (local scope) or the tracked file alone
-  // (--shared), so a shared write never carries personal overrides along.
   const apply = (mutate: (config: ConfigFile) => void) => updateConfig(entryDir, mutate, { scope });
   switch (name) {
     case "harnesses":

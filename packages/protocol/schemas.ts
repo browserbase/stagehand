@@ -4,7 +4,6 @@ import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
 
 export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
 
-// Providers determine model availability; Stagehand only validates the ID format.
 const ModelIdSchema = z.string().min(1).regex(/^\S+$/);
 
 export const OpenAIModelIdSchema = ModelIdSchema.meta({ id: "OpenAIModelId" });
@@ -461,13 +460,192 @@ export const GetByTextOptionsSchema = z
   .strictObject({ exact: z.boolean().optional() })
   .meta({ id: "GetByTextOptions" });
 
+export const AriaRoleSchema = z
+  .enum([
+    "alert",
+    "alertdialog",
+    "application",
+    "article",
+    "banner",
+    "blockquote",
+    "button",
+    "caption",
+    "cell",
+    "checkbox",
+    "code",
+    "columnheader",
+    "combobox",
+    "comment",
+    "complementary",
+    "contentinfo",
+    "definition",
+    "deletion",
+    "dialog",
+    "directory",
+    "document",
+    "emphasis",
+    "feed",
+    "figure",
+    "form",
+    "generic",
+    "grid",
+    "gridcell",
+    "group",
+    "heading",
+    "img",
+    "insertion",
+    "link",
+    "list",
+    "listbox",
+    "listitem",
+    "log",
+    "main",
+    "mark",
+    "marquee",
+    "math",
+    "menu",
+    "menubar",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "meter",
+    "navigation",
+    "none",
+    "note",
+    "option",
+    "paragraph",
+    "presentation",
+    "progressbar",
+    "radio",
+    "radiogroup",
+    "region",
+    "row",
+    "rowgroup",
+    "rowheader",
+    "scrollbar",
+    "search",
+    "searchbox",
+    "separator",
+    "slider",
+    "spinbutton",
+    "status",
+    "strong",
+    "subscript",
+    "suggestion",
+    "superscript",
+    "switch",
+    "tab",
+    "table",
+    "tablist",
+    "tabpanel",
+    "term",
+    "textbox",
+    "time",
+    "timer",
+    "toolbar",
+    "tooltip",
+    "tree",
+    "treegrid",
+    "treeitem",
+  ])
+  .meta({ id: "AriaRole" });
+
+export const GetByRoleOptionsSchema = z
+  .strictObject({
+    name: z.string().optional(),
+    exact: z.boolean().optional(),
+    checked: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    pressed: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    selected: z.boolean().optional(),
+    expanded: z.boolean().optional(),
+    disabled: z.boolean().optional(),
+    level: z.number().int().positive().optional(),
+  })
+  .meta({ id: "GetByRoleOptions" });
+
+const roleStateSupport: Partial<
+  Record<keyof z.infer<typeof GetByRoleOptionsSchema>, readonly z.infer<typeof AriaRoleSchema>[]>
+> = {
+  checked: [
+    "checkbox",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "radio",
+    "switch",
+    "treeitem",
+  ],
+  pressed: ["button"],
+  selected: ["columnheader", "gridcell", "option", "row", "rowheader", "tab", "treeitem"],
+  expanded: [
+    "application",
+    "button",
+    "checkbox",
+    "columnheader",
+    "combobox",
+    "gridcell",
+    "link",
+    "listbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "row",
+    "rowheader",
+    "switch",
+    "tab",
+    "treeitem",
+  ],
+  level: ["heading", "listitem", "row", "treeitem"],
+};
+
+const booleanCheckedRoles = ["radio", "menuitemradio", "switch"];
+
+export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
+  kind: z.literal("role"),
+  value: AriaRoleSchema,
+})
+  .superRefine((query, context) => {
+    for (const [option, roles] of Object.entries(roleStateSupport)) {
+      if (
+        query[option as keyof typeof roleStateSupport] !== undefined &&
+        !roles.includes(query.value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: [option],
+          message: `${option} is not supported for role ${query.value}`,
+        });
+      }
+    }
+    if (query.checked === "mixed" && booleanCheckedRoles.includes(query.value)) {
+      context.addIssue({
+        code: "custom",
+        path: ["checked"],
+        message: `Mixed checked state is not supported for role ${query.value}`,
+      });
+    }
+  })
+  .meta({
+    id: "RoleSelectorQuery",
+    allOf: [
+      ...Object.entries(roleStateSupport).map(([option, roles]) => ({
+        if: { required: [option] },
+        then: { properties: { value: { enum: roles } } },
+      })),
+      {
+        if: { properties: { value: { enum: booleanCheckedRoles } } },
+        then: { properties: { checked: { type: "boolean" } } },
+      },
+    ],
+  });
+
 export const LocatorQuerySelectorSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
     z.strictObject({ kind: z.literal("xpath"), value: z.string().min(1) }),
-    // Preserve the legacy text= engine separately from getByText matching.
     z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
     GetByTextOptionsSchema.extend({ kind: z.literal("textMatch"), value: z.string() }),
+    RoleSelectorQuerySchema,
   ])
   .meta({ id: "LocatorQuerySelector" });
 
@@ -577,7 +755,6 @@ export const ApiKeyAuthSchema = z
   })
   .meta({ id: "ApiKeyAuth" });
 
-/** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .strictObject({
     type: z.literal("service_account").optional(),
@@ -748,7 +925,6 @@ export const ClientModelReferenceSchema = z
   })
   .meta({ id: "ClientModelReference" });
 
-/** Browserbase viewport configuration. */
 export const BrowserbaseViewportSchema = z
   .strictObject({
     width: z.number().optional(),
@@ -756,7 +932,6 @@ export const BrowserbaseViewportSchema = z
   })
   .meta({ id: "BrowserbaseViewport" });
 
-/** Browserbase fingerprint screen configuration. */
 export const BrowserbaseFingerprintScreenSchema = z
   .strictObject({
     maxHeight: z.number().optional(),
@@ -766,7 +941,6 @@ export const BrowserbaseFingerprintScreenSchema = z
   })
   .meta({ id: "BrowserbaseFingerprintScreen" });
 
-/** Browserbase fingerprint configuration for stealth mode. */
 export const BrowserbaseFingerprintSchema = z
   .strictObject({
     browsers: z.array(z.enum(["chrome", "edge", "firefox", "safari"])).optional(),
@@ -778,7 +952,6 @@ export const BrowserbaseFingerprintSchema = z
   })
   .meta({ id: "BrowserbaseFingerprint" });
 
-/** Browserbase context configuration for session persistence. */
 export const BrowserbaseContextSchema = z
   .strictObject({
     id: z.string(),
@@ -786,7 +959,6 @@ export const BrowserbaseContextSchema = z
   })
   .meta({ id: "BrowserbaseContext" });
 
-/** Browserbase browser settings for session creation. */
 export const BrowserbaseBrowserSettingsSchema = z
   .strictObject({
     advancedStealth: z.boolean().optional(),
@@ -805,7 +977,6 @@ export const BrowserbaseBrowserSettingsSchema = z
   })
   .meta({ id: "BrowserbaseBrowserSettings" });
 
-/** Browserbase managed proxy geolocation configuration. */
 export const BrowserbaseProxyGeolocationSchema = z
   .strictObject({
     country: z.string(),
@@ -814,7 +985,6 @@ export const BrowserbaseProxyGeolocationSchema = z
   })
   .meta({ id: "BrowserbaseProxyGeolocation" });
 
-/** Browserbase managed proxy configuration. */
 export const BrowserbaseProxyConfigSchema = z
   .strictObject({
     type: z.literal("browserbase"),
@@ -823,7 +993,6 @@ export const BrowserbaseProxyConfigSchema = z
   })
   .meta({ id: "BrowserbaseProxyConfig" });
 
-/** External proxy configuration. */
 export const ExternalProxyConfigSchema = z
   .strictObject({
     type: z.literal("external"),
@@ -834,17 +1003,14 @@ export const ExternalProxyConfigSchema = z
   })
   .meta({ id: "ExternalProxyConfig" });
 
-/** Browserbase session proxy configuration. */
 export const ProxyConfigSchema = z
   .discriminatedUnion("type", [BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema])
   .meta({ id: "ProxyConfig" });
 
-/** Browserbase region identifier for multi-region support. */
 export const BrowserbaseRegionSchema = z
   .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
   .meta({ id: "BrowserbaseRegion" });
 
-/** Browserbase session creation parameters. */
 export const BrowserbaseSessionCreateParamsSchema = z
   .strictObject({
     browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
@@ -857,7 +1023,6 @@ export const BrowserbaseSessionCreateParamsSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
 
-/** Browser session metadata used by provider-independent worker services. */
 export const BrowserSessionMetadataSchema = z
   .strictObject({
     sessionId: z.string().min(1),
@@ -865,7 +1030,6 @@ export const BrowserSessionMetadataSchema = z
   })
   .meta({ id: "BrowserSessionMetadata" });
 
-/** Browser launch options for local browsers. */
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({
     args: z.array(z.string()).optional(),
@@ -896,7 +1060,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Action object returned by observe and used by act */
 export const ActionSchema = z
   .strictObject({
     selector: z.string().meta({
@@ -923,10 +1086,6 @@ export const ActionSchema = z
     id: "Action",
     description: "Action object returned by observe and used by act",
   });
-
-// =============================================================================
-// Act
-// =============================================================================
 
 export const StagehandResultUsageSchema = z
   .strictObject({
@@ -1046,7 +1205,6 @@ export const ActOptionsSchema = z
   })
   .meta({ id: "ActOptions" });
 
-/** Inner act result data */
 export const ActResultDataSchema = z
   .strictObject({
     success: z.boolean().meta({
@@ -1073,10 +1231,6 @@ export const ActResultSchema = z
     metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ActResult" });
-
-// =============================================================================
-// Extract
-// =============================================================================
 
 export const ExtractOptionsSchema = z
   .strictObject({
@@ -1121,10 +1275,6 @@ export const ExtractResultSchema = z
     metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ExtractResult" });
-
-// =============================================================================
-// Observe
-// =============================================================================
 
 export const ObserveOptionsSchema = z
   .strictObject({
@@ -1626,7 +1776,6 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-// Keep the standalone default inline rather than extracting its metadata id into $defs.
 export const DEFAULT_EXTRACT_JSON_SCHEMA = z
   .json()
   .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
@@ -1982,7 +2131,6 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageWaitForSelectorParams" });
 
-/** Default execution budget for a public locator call, in milliseconds. */
 export const DEFAULT_LOCATOR_TIMEOUT_MS = 20_000;
 
 export const LocatorOptionsSchema = z

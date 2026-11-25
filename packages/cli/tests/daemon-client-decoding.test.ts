@@ -27,7 +27,6 @@ describePosix("daemon client reply decoding", () => {
         reply = Buffer.from(
           `${JSON.stringify({ type: "success", id: request.id, data: { text: "日本語 ✓" } })}\n`,
         );
-        // Split inside the 3-byte "日".
         splitAt = reply.indexOf(Buffer.from("日")) + 1;
         socket.setNoDelay(true);
         socket.write(reply.subarray(0, splitAt));

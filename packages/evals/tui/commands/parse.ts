@@ -1,18 +1,3 @@
-/**
- * Shared argument parsing + option resolution for the evals CLI.
- *
- * Both the argv dispatch in cli.ts and the REPL tokenizer in repl.ts feed
- * tokens through parseRunArgs() here, and both resolve their final option
- * bundle through resolveRunOptions() — so flag semantics stay identical
- * regardless of entry point.
- *
- * Precedence (enforced by resolveRunOptions):
- *   1. CLI flags (highest)
- *   2. Benchmark shorthand derived overrides (b:/benchmark:<name>)
- *   3. STAGEHAND_BROWSER_TARGET (env-only fallback for --env)
- *   4. Config defaults (evals.config.json)
- *   5. Ambient EVAL_* env vars consumed downstream by runner/suites
- */
 import { DEFAULT_BENCH_HARNESS, type Harness } from "../../framework/benchTypes.js";
 import { TRACING_ENV_VARS } from "./config.js";
 import { getBenchHarness, parseBenchHarness } from "../../framework/benchHarness.js";
@@ -33,19 +18,9 @@ export interface RunFlags {
   filter?: Array<[string, string]>;
   dryRun?: boolean;
   preview?: boolean;
-  /** Emit the end-of-run summary as JSON instead of the table (CI). */
   json?: boolean;
-  /** Stream every row's log lines above the board (`-v`). */
   verbose?: boolean;
-  /** Stream only this row's log lines (case id prefix, e.g. `47e314cc`). */
   follow?: string;
-  /**
-   * Rubric success mode for the verifier — outcome | process | both.
-   *   outcome (default): binary EvaluationResult.outcomeSuccess.
-   *   process: EvaluationResult.processScore ≥ threshold.
-   *   both: outcome AND process.
-   * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
-   */
   success?: SuccessMode;
 }
 
@@ -63,17 +38,10 @@ export interface ConfigDefaults {
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
-  /** Default bench harness (config v2 `defaults.harness`). */
   harness?: string | null;
-  /** Default rubric success mode (config v2 `defaults.successMode`). */
   successMode?: string | null;
 }
 
-/**
- * Config v2 sections that feed run resolution. Each key has an env twin and
- * the env always wins (same rule as `tracing`), so they resolve to env
- * overrides here rather than new code paths in the planner.
- */
 export interface RunConfigSections {
   benchmarks?: Record<string, { limit?: number | null }>;
   harnesses?: Record<string, { models?: string[] | null; tool?: string | null }>;
@@ -82,7 +50,6 @@ export interface RunConfigSections {
   campaign?: { tag?: string | null };
 }
 
-/** Env twin of `campaign.tag`; the runner stamps it on experiment metadata. */
 export const CAMPAIGN_TAG_ENV = "EVAL_CAMPAIGN_TAG";
 
 export interface ResolvedRunOptions {
@@ -97,18 +64,13 @@ export interface ResolvedRunOptions {
   coreStartupProfile?: string;
   harness: Harness;
   datasetFilter?: string;
-  /** Rubric success mode forwarded to bench tasks via EVAL_SUCCESS_MODE. */
   successMode: SuccessMode;
   envOverrides: Record<string, string>;
   dryRun: boolean;
   preview: boolean;
-  /** End-of-run summary as JSON (see framework/runSummary.ts). Optional so existing callers need no change. */
   json?: boolean;
-  /** Per-provider semaphore widths from config (`providers.<p>.concurrency`); env layers on top. */
   providerConcurrency?: Record<string, number>;
-  /** `-v`: stream every row's log lines above the board. */
   verbose: boolean;
-  /** `--follow <id>`: stream only rows whose case id starts with this. */
   follow?: string;
 }
 
@@ -184,10 +146,6 @@ function readPositiveInteger(value: number | undefined | null, source: string): 
   return value;
 }
 
-/**
- * Parse an argv or REPL-token stream into a RunFlags structure. The first
- * non-flag token becomes `target`; later positional args are rejected.
- */
 export function parseRunArgs(tokens: string[]): RunFlags {
   const flags: RunFlags = {};
   const filters: Array<[string, string]> = [];
@@ -288,15 +246,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
   return flags;
 }
 
-/**
- * Normalize a run target. Returns the target to hand to resolveTarget()
- * along with any env var overrides + datasetFilter needed for the
- * downstream runner / suites.
- *
- *   "all" → undefined (resolveTarget treats undefined as all bench tasks)
- *   "b:webvoyager" / "benchmark:webvoyager" → "agent/webvoyager" + EVAL_DATASET + EVAL_WEBVOYAGER_*
- *   other → passed through unchanged
- */
 export function applyBenchmarkShorthand(
   target: string | undefined,
   flags: RunFlags,
@@ -339,8 +288,6 @@ export function applyBenchmarkShorthand(
     !env[limitEnv]?.trim() &&
     !env.EVAL_MAX_K?.trim()
   ) {
-    // benchmarks.<suite>.limit: honored only when neither --limit nor the
-    // env twins are set, so a shell export still wins over the config file.
     envOverrides[limitEnv] = String(configLimit);
   }
   if (flags.sample !== undefined) {
@@ -357,17 +304,11 @@ export function applyBenchmarkShorthand(
   };
 }
 
-/**
- * Resolve RunFlags + config defaults + process.env into the final
- * ResolvedRunOptions bundle passed to runCommand. Applies precedence in a
- * single place so the order is greppable and testable.
- */
 export interface CoreConfig {
   tool?: string;
   startup?: string;
 }
 
-/** Persisted trace-sink defaults (evals.config.json `tracing`). Env wins. */
 export interface TracingConfig {
   transport?: string;
   braintrustProject?: string;
@@ -417,12 +358,8 @@ export function resolveRunOptions(
   );
   const harnessConfig = sections.harnesses?.[harness];
 
-  // harnesses.<h>.models → EVAL_<H>_MODELS when the env twin is unset. The
-  // planner keeps reading env, so the precedence stays flag → env → config.
   const harnessModels = harnessConfig?.models?.map((model) => model.trim()).filter(Boolean);
   const modelsEnv = `EVAL_${harness.toUpperCase()}_MODELS`;
-  // Only harnesses with a default model list read the env twin; the rest
-  // (stagehand) pick models per task category.
   if (
     getBenchHarness(harness).defaultModels &&
     harnessModels &&
@@ -432,8 +369,6 @@ export function resolveRunOptions(
     envOverrides[modelsEnv] = harnessModels.join(",");
   }
 
-  // verifier.* and campaign.tag follow the tracing rule: persisted default,
-  // env wins.
   const verifierModel = sections.verifier?.model?.trim();
   if (verifierModel && !env.EVAL_VERIFIER_MODEL?.trim()) {
     envOverrides.EVAL_VERIFIER_MODEL = verifierModel;
@@ -460,8 +395,6 @@ export function resolveRunOptions(
     }),
   );
 
-  // Trace-sink defaults from config are applied as env overrides only when the
-  // corresponding env var is unset, so a shell export or CI secret always wins.
   for (const key of Object.keys(TRACING_ENV_VARS) as Array<keyof TracingConfig>) {
     const value = tracing[key]?.trim();
     const envName = TRACING_ENV_VARS[key];
@@ -476,8 +409,6 @@ export function resolveRunOptions(
     envOverrides.EVAL_MODEL_OVERRIDE = model;
   }
 
-  // Success mode resolves from --success first, then EVAL_SUCCESS_MODE env,
-  // then "outcome".
   const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
   const configSuccess = (defaults.successMode ?? "").toLowerCase();
   const successMode: SuccessMode =
@@ -497,8 +428,6 @@ export function resolveRunOptions(
     environment,
     model: model ?? undefined,
     useApi: Boolean(useApi),
-    // harnesses.<h>.tool is the per-harness --tool default; core.tool stays
-    // the fallback so core-tier runs keep their own setting.
     coreToolSurface: flags.tool ?? harnessConfig?.tool?.trim() ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
@@ -514,30 +443,16 @@ export function resolveRunOptions(
   };
 }
 
-/**
- * Env vars a run stamps onto `process.env` from the inside (see
- * `framework/trajectoryGroup.ts`). Their values are only known once the run has
- * generated its testcases, so they can't be passed as `overrides` — but the REPL
- * still must not leak them, so they are restored even though we never set them.
- */
 const RUN_STAMPED_ENV_KEYS = [
   "EVAL_TRAJECTORY_GROUP",
   "EVAL_EXPERIMENT_NAME",
   "EVAL_TRAJECTORY_MODEL",
 ];
 
-/**
- * Set env overrides for the duration of `fn` and restore prior values in
- * a `finally` block. Needed because the REPL is a long-lived process and
- * suites/*.ts read env vars directly — unscoped mutations would leak
- * between REPL commands.
- */
 export async function withEnvOverrides<T>(
   overrides: Record<string, string>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  // Restore the run-stamped keys too, not just the ones we set: otherwise a run's
-  // trajectory group survives the command that created it.
   const keys = [...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS])];
   const previous: Record<string, string | undefined> = {};
   for (const key of keys) {

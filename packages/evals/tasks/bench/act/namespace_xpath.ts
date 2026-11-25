@@ -9,7 +9,6 @@ export default defineBenchTask(
       await stagehand.act("fill 'nunya' into the 'type here' form");
 
       const inputValue = await page.locator("#ns-text").inputValue();
-      // confirm that the form was filled
       const formHasBeenFilled = inputValue === "nunya";
 
       return {

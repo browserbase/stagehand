@@ -38,7 +38,6 @@ const actionSchema = (op: string, extra: Record<string, Record<string, unknown>>
   additionalProperties: false,
 });
 
-/** Where run code's `page.screenshot({ path })` files land; shared by both run descriptions. */
 const RUN_SCREENSHOT_PATH_NOTE =
   "page.screenshot({ path }) saves a .png, .jpg or .jpeg file relative to the host's artifact directory (./stagehand-artifacts under the host's working directory unless the host configures another).";
 
@@ -144,7 +143,6 @@ export type FacadeSurface = "playwright" | "legacy";
 
 const SURFACE_FLAG = "--surface=";
 
-/** `--surface=legacy` selects the pre-Playwright-idiom run description; default is "playwright". */
 export function facadeSurfaceFromArgs(args: string[]): FacadeSurface {
   const value = args.find((arg) => arg.startsWith(SURFACE_FLAG));
   if (value === undefined) return "playwright";
@@ -159,20 +157,12 @@ export function facadeToolsForSurface(surface: FacadeSurface) {
   return surface === "legacy" ? FACADE_LEGACY_TOOLS : FACADE_TOOLS;
 }
 
-/**
- * Prompt-only variant (env EXPLICIT_SNAPSHOT_ACTIONS=1): same tools and
- * runtime, but the instructions and tool descriptions route simple
- * interactions through snapshot IDs and ask for a screenshot before
- * reporting. Without it the Playwright-idiom text leads agents to code-mode
- * for ~99% of run calls (measured 2026-08-31: 16 ref-action calls in 1,199).
- */
 export const SNAPSHOT_ACTIONS_WORKFLOW = `Workflow: after navigating or whenever the page changes, call snapshot first and read the tree. For simple interactions on visible elements — click, fill, select, press — act by snapshot ID through run "actions" (one round trip, no selector guessing). Use run "code" for multi-step logic, data extraction, waits, or anything the snapshot does not expose. Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation. Call screenshot before declaring success and whenever layout or images matter to the task.`;
 
 export const SNAPSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SNAPSHOT_TOOL_DESCRIPTION} Call it after every navigation or page change and before acting by ID.`;
 export const SCREENSHOT_TOOL_DESCRIPTION_EXPLICIT = `${SCREENSHOT_TOOL_DESCRIPTION} Use it to verify the visible state before reporting done, on visual or canvas content, and when text evidence is ambiguous.`;
 export const RUN_TOOL_DESCRIPTION_EXPLICIT = `${RUN_TOOL_DESCRIPTION} Prefer "actions" with snapshot IDs for simple clicks/fills/selects on visible elements; use "code" for multi-step logic and extraction.`;
 
-/** Environment variables as read by the facade; `process.env` satisfies it. */
 export type FacadeEnv = Readonly<Record<string, string | undefined>>;
 
 export function explicitSnapshotActionsEnabled(env: FacadeEnv = process.env): boolean {

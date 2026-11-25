@@ -253,8 +253,6 @@ export async function closeStagehandResources(
   resources: StagehandResources,
   closeTimeoutMs = DEFAULT_BROWSER_CLOSE_TIMEOUT_MS,
 ): Promise<void> {
-  // Stagehand 4.1 separates client disposal from owned-browser release. Start both;
-  // a stalled client must not prevent browser cleanup or the REST fallback.
   const clientClose = withTimeout(
     Promise.resolve().then(() => resources.stagehand.close()),
     closeTimeoutMs,
@@ -279,16 +277,12 @@ async function closeOwnedBrowser(
       "Stagehand browser close",
     );
     return;
-  } catch {
-    // A timeout or lost transport does not prove the owned session was released.
-  }
+  } catch {}
   if (releaseSession) {
     try {
       await releaseSession();
       return;
-    } catch {
-      // The tracked release is retried before the next browser launch.
-    }
+    } catch {}
   }
   throw new StagehandSessionCleanupError();
 }
@@ -300,8 +294,6 @@ function trackRelease(
   let inFlight: Promise<void> | undefined;
   const trackedRelease = (): Promise<void> => {
     if (inFlight) return inFlight;
-    // Register before awaiting: the outer cleanup deadline may expire while the
-    // SDK is still releasing the session. A replacement must await that release.
     pendingReleases.add(trackedRelease);
     inFlight = Promise.resolve()
       .then(releaseSession)

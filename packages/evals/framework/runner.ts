@@ -1,13 +1,3 @@
-/**
- * Unified multi-tier eval runner.
- *
- * Wraps Braintrust Eval() to support both:
- *   - Core tier: deterministic tasks, no model matrix, assertion-based scoring
- *   - Bench tier: agent benchmarks, model × task matrix, exactMatch scoring
- *
- * This module replaces the monolithic task execution logic in index.eval.ts
- * while preserving backward compatibility with legacy EvalFunction tasks.
- */
 import type { AvailableModel } from "stagehand-v3";
 import type { AgentToolMode } from "stagehand-v3";
 import { shouldPersistTrajectory } from "stagehand-v3";
@@ -75,32 +65,18 @@ export interface RunProgressEvent {
     | "log";
   taskName?: string;
   modelName?: string;
-  /**
-   * Identity of one execution (cell + case + trial). Suite rows share
-   * `taskName` (`agent/hardbenchmark`), so consumers must key by this.
-   */
   rowKey?: string;
-  /** Which dataset case the row is (suite rows only). */
   case?: CaseLabel;
-  /** 0-based trial index. */
   trial?: number;
-  /** Wall-clock time from slot acquisition to result, on passed/failed. */
   durationMs?: number;
-  /** Outcome kind on passed/failed (`max_turns`, `sdk_error`, `gated`, …). */
   outcome?: RowOutcome;
-  /** What a running row is doing; present on `phase` events. */
   phase?: RowPhase;
-  /** Browserbase session URL, once known (phase events and results). */
   sessionUrl?: string;
-  /** One log line from the row; present on `log` events. */
   log?: RowLogEntry;
-  /** The row's log file, on passed/failed when it logged anything. */
   logPath?: string;
   error?: string;
   total?: number;
-  /** Live scheduler state; present on `queue` events. */
   queue?: ConcurrencyQueueSnapshot;
-  /** Which semaphore was halved and why; present on `throttled` events. */
   throttle?: ThrottleRecord;
 }
 
@@ -119,24 +95,10 @@ export interface RunEvalsOptions {
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;
-  /**
-   * Per-provider widths under the global cap (`{ openai: 3, anthropic: 3 }`,
-   * `browserbase` for session creation). `EVAL_PROVIDER_CONCURRENCY` layers on
-   * top of these; unset providers default to 3.
-   */
   providerConcurrency?: Record<string, number>;
-  /**
-   * Cooperative abort. When triggered, the runner short-circuits any
-   * unstarted testcases and any in-flight bench task is asked to close
-   * its V3 instance early via `addEventListener('abort', …)`. The reason
-   * passed to `controller.abort(reason)` is read as one of:
-   *   - "cooperative" (default) — let in-flight tasks finish their current step
-   *   - "aggressive" — close V3 sessions immediately to force a throw
-   */
   signal?: AbortSignal;
 }
 
-/** Reason values we read from `controller.abort(reason)`. */
 type AbortMode = "cooperative" | "aggressive";
 
 function readAbortMode(signal?: AbortSignal): AbortMode {
@@ -269,7 +231,6 @@ async function executeCoreTask(
     taskMs = performance.now() - taskStart;
   } catch (error) {
     if (taskMs === 0 && taskStart > 0) {
-      // The task threw before the success path captured a duration.
       taskMs = performance.now() - taskStart;
     }
     if (error instanceof AssertionError) {
@@ -330,13 +291,9 @@ async function executeCoreTask(
 
 export interface RunEvalsResult {
   experimentName: string;
-  /** Braintrust experiment URL, when Eval() resolved one. */
   experimentUrl?: string;
-  /** Judge model the verifier used for this run (env or default). */
   judgeModel?: string;
-  /** Local trajectory group slug under the trajectory root, when persisted. */
   trajectoryGroup?: string;
-  /** Directory holding one log file per row. */
   logDir?: string;
   summary: { passed: number; failed: number; total: number };
   results: Array<{
@@ -402,12 +359,6 @@ function formatProgressError(error: unknown): string | undefined {
   }
 }
 
-/**
- * Experiment-level metadata for Braintrust/LangSmith filtering. Tool surface
- * and model are always present (derived from the planned rows when not set
- * globally) so cells can be grouped without opening a row; a single value
- * is emitted as a scalar, several as a list.
- */
 export function buildExperimentMetadata(input: {
   environment: "LOCAL" | "BROWSERBASE";
   tier: "core" | "bench";
@@ -479,9 +430,7 @@ export function capForSpan(value: Record<string, unknown>): Record<string, unkno
     }
     delete truncated.logs;
     if (byteLength(truncated) <= MAX_SPAN_PAYLOAD_BYTES) return truncated;
-  } catch {
-    // Fall through to a small, serializable replacement.
-  }
+  } catch {}
 
   return {
     _truncated: `Span payload exceeded ${MAX_SPAN_PAYLOAD_BYTES} UTF-8 bytes; non-log fields were dropped.`,
@@ -504,15 +453,11 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       : undefined;
     if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
 
-    // Provider semaphores gate what runs under Braintrust's cap.
     scheduler = ProviderConcurrency.fromEnv(concurrency, {
       configWidths: options.providerConcurrency,
       onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
     });
     const activeScheduler = scheduler;
-    // Interleaved in proportion to provider widths so every provider's rows
-    // reach Braintrust's global slots early instead of queueing behind the
-    // first provider's semaphore.
     const testcases = interleaveByProvider(
       generateTestcases(options.tasks, options),
       (testcase) => testcase.input.modelName,
@@ -556,8 +501,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       testcases.map((testcase) => testcase.input?.modelName),
     );
 
-    // Stamp the run-scoped trajectory group; the token is generated once here and
-    // reused for the completion-time experiment link. Local persistence only.
     const trajectoryGroup = buildTrajectoryGroupSlug({
       experimentName,
       model: runModel,
@@ -584,10 +527,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const { Eval, flush } = await loadBraintrust();
     const sendLogs = hasBraintrustApiKey();
 
-    // Aggressive abort: when the caller flips signal.reason to "aggressive",
-    // close every active session so any in-flight task throws on its next
-    // page operation. The cleanup path inside executeBenchTask handles the
-    // throw; finished tasks' cleanup is a no-op via onceAsync.
     const onAggressiveAbort = async (): Promise<void> => {
       if (readAbortMode(options.signal) !== "aggressive") return;
       const { cleanupActiveRunResources } = await import("./activeRunCleanup.js");
@@ -611,7 +550,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             modelOverride: options.modelOverride,
             useApi: options.useApi,
             testcases,
-            // campaign.tag / EVAL_CAMPAIGN_TAG groups experiments across cells.
             campaign: process.env.EVAL_CAMPAIGN_TAG?.trim() || undefined,
           }),
           data: () => testcases,
@@ -624,10 +562,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
               case: describeCase(input),
               trial,
             };
-            // Cooperative abort: skip any testcase that hasn't started yet
-            // when the signal has flipped. The in-flight task at the moment of
-            // abort still finishes its current step; this stops the next one
-            // from spinning up.
             if (options.signal?.aborted) {
               activeScheduler.markFinished();
               options.onProgress?.({ type: "failed", ...row, error: "aborted" });
@@ -682,14 +616,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                   )
                 : await executeTask(input, resolvedTask, options);
 
-            // Provider slot + single throttle-aware retry. Each attempt builds
-            // its own session inside executeTask, so a retry is a fresh one.
-            // `started` fires once the provider slot is held, so rows queued
-            // behind a provider limit never show as running.
             let startedAt: number | undefined;
-            // Each attempt runs in a row context so session / agent / verify
-            // code deep in the harness can report the row's phase, and every
-            // log line lands in this row's own file.
             const rowLog = new RowLogWriter(
               path.join(
                 logDir,
@@ -766,10 +693,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const resolvedExperimentName = evalResult.summary?.experimentName ?? experimentName;
     const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
 
-    // Cross-link local trajectories to the resolved Braintrust experiment. The
-    // hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now, after
-    // Eval() resolves — so write it once at the group-dir root of the group this
-    // run recorded into.
     await writeExperimentLink(
       resolveTrajectoryRoot(),
       trajectoryGroup,

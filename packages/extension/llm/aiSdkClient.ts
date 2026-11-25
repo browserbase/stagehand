@@ -128,7 +128,6 @@ const AiSdkGenerationSchema = z
   })
   .strip();
 
-/** Creates a direct AI SDK model from a validated Stagehand model configuration. */
 export function createAiSdkLanguageModel(
   config: ModelConfig,
   params?: Pick<LLMGenerateParams, "stopSequences">,
@@ -139,7 +138,6 @@ export function createAiSdkLanguageModel(
   const connection = {
     apiKey: config.apiKey,
     headers: config.headers,
-    // Load-time fetch ref (see boundFetch), not the ambient global.
     fetch: boundFetch,
   };
 
@@ -173,7 +171,6 @@ export function createAiSdkLanguageModel(
   }
 }
 
-/** Generates a Stagehand LLM response through a configured AI SDK language model. */
 export async function generateWithAiSdk(
   model: LanguageModel,
   input: LLMGenerateParams,

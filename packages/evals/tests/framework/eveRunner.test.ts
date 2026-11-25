@@ -142,8 +142,6 @@ describe("Eve runner helpers", () => {
       await fsp.mkdir(path.join(appRoot, "agent"));
       await fsp.writeFile(path.join(appRoot, "agent", "instructions.md"), instructions);
       const realRunEveSession = eveHarness.runEveSession;
-      // Only substitute server startup: the real session implementation must
-      // still deliver the runner's prompt to the recording client.send call.
       const sessionSpy = vi.spyOn(eveHarness, "runEveSession").mockImplementationOnce((input) => {
         expect(input.server).toHaveProperty(
           useExternalServer ? "url" : "appRoot",
@@ -186,7 +184,6 @@ describe("Eve runner helpers", () => {
         const taskPrompt = onPrompt.mock.calls[0][0] as string;
         expect(taskPrompt).toContain(plan.instruction);
         expect(taskPrompt.includes(EVAL_SYSTEM_PROMPT)).toBe(useExternalServer);
-        // An external server does not load this adapter's generated app.
         const systemPrompt = useExternalServer
           ? ""
           : await fsp.readFile(path.join(appRoot, "agent", "instructions.md"), "utf8");

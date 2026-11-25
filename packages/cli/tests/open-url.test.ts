@@ -23,7 +23,6 @@ function createMockChild(): ChildProcess & EventEmitter {
 
 beforeEach(() => {
   vi.mocked(spawn).mockReset();
-  // Explicitly clear all env vars that affect behavior so tests don't depend on runner env
   vi.stubEnv("CI", undefined);
   vi.stubEnv("BROWSER", undefined);
   vi.stubEnv("WSL_DISTRO_NAME", undefined);
@@ -165,7 +164,6 @@ describe("getOpenCommand", () => {
     ];
 
     it.each(trickyUrls)("preserves special chars: %s", (testUrl) => {
-      // Test each unique opener path once
       expect(getOpenCommand(testUrl, "darwin").args[0]).toBe(testUrl);
       expect(getOpenCommand(testUrl, "linux").args[0]).toBe(testUrl);
       expect(getOpenCommand(testUrl, "win32").args[1]).toBe(testUrl);
@@ -184,7 +182,6 @@ describe("platformDetection helpers", () => {
     { env: "SSH_TTY", value: "/dev/pts/0", expected: true },
     { env: "none", value: undefined, expected: false },
   ])("isSSH: $env=$value -> $expected", ({ env, value, expected }) => {
-    // Explicitly clear both SSH env vars for each test
     vi.stubEnv("SSH_CONNECTION", undefined);
     vi.stubEnv("SSH_TTY", undefined);
     if (env !== "none" && value) vi.stubEnv(env, value);
@@ -196,7 +193,6 @@ describe("platformDetection helpers", () => {
     { value: "", expected: undefined },
     { value: undefined, expected: undefined },
   ])("getBrowser: BROWSER=$value -> $expected", ({ value, expected }) => {
-    // Explicitly set BROWSER for every case
     vi.stubEnv("BROWSER", value);
     expect(platformDetection.getBrowser()).toBe(expected);
   });

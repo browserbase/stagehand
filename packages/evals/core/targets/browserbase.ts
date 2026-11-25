@@ -68,7 +68,6 @@ async function cleanupExtensionScope(scope: ExtensionScope): Promise<void> {
   await scope.cleanupPromise;
 }
 
-/** Reuses one uploaded extension across every Browserbase session in a run. */
 export async function withBrowserbaseExtensionScope<T>(fn: () => Promise<T>): Promise<T> {
   if (extensionScopeStorage.getStore()) return fn();
 
@@ -237,9 +236,7 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
         }
       | undefined;
     debugUrl = debugResponse?.debuggerUrl;
-  } catch {
-    // best-effort only
-  }
+  } catch {}
 
   return {
     wsUrl: created.connectUrl,

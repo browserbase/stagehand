@@ -39,8 +39,6 @@ describe("pi thinking precedence through the SDK loader", () => {
       const model = { id: "fixture", provider: "openai" };
       pi.resolveCliModel.mockReturnValue({ model, thinkingLevel: resolved });
       const cliModel = `openai/fixture${resolved ? `:${resolved}` : ""}`;
-      // Exercise runPiSession -> loadPiSdk -> the provider's model resolver; an
-      // injected PiSdk would bypass the point where model suffixes are resolved.
       const result = await runPiSession({
         model: cliModel,
         prompt: "Fixture task",

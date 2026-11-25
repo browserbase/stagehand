@@ -6,7 +6,6 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
       const { data: company } = await stagehand.extract(
         "Extract the company name.",

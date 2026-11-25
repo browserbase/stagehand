@@ -71,7 +71,6 @@ describe("dedicated console callbacks", () => {
       await expect.poll(() => legacy.length).toBe(7);
       expect(modern).toHaveLength(6);
 
-      // An active observer provides a delivery barrier after removing the legacy listener.
       const witness: ConsoleEvent[] = [];
       const observer = await page.onConsole((event) => witness.push(event));
       try {
