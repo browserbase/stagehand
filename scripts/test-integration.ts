@@ -55,6 +55,7 @@ export const integrationTestGroups = {
   ],
   "local/locators-write": [
     "fileUpload",
+    "locatorCodeInputs",
     "locatorFill",
     "locatorInputMethods",
     "locatorSelectOption",

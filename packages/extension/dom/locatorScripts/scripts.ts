@@ -214,6 +214,96 @@ export function prepareElementForTyping(this: Element): boolean {
   }
 }
 
+/**
+ * The group of one-character code boxes this input belongs to, or null. The group is the closest
+ * ancestor (or shadow root) holding another form field, and only counts when every field in it
+ * is a `maxlength="1"` input of the same text-like type. A `maxlength="1"` input next to other
+ * kinds of fields, such as a middle initial in a name form, is not part of a code.
+ */
+export function codeInputGroup(this: Element): ParentNode | null {
+  try {
+    const element = this as HTMLElement;
+    const win = element.ownerDocument.defaultView || window;
+    if (!(element instanceof win.HTMLInputElement) || element.maxLength !== 1) return null;
+
+    const type = element.type.toLowerCase();
+    if (!["number", "password", "tel", "text"].includes(type)) return null;
+
+    const fieldSelector =
+      "input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]), select, textarea";
+    for (let node = element.parentNode; node; node = node.parentNode) {
+      if (!(node instanceof win.Element || node instanceof win.ShadowRoot)) return null;
+      const fields = Array.from(node.querySelectorAll(fieldSelector));
+      if (fields.length < 2) continue;
+      const isBox = (field: Element) =>
+        field instanceof win.HTMLInputElement &&
+        field.maxLength === 1 &&
+        field.type.toLowerCase() === type;
+      return fields.every(isBox) ? node : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Position of an input among this group's inputs, or -1. */
+export function codeInputPosition(this: ParentNode, input: Element): number {
+  return Array.prototype.indexOf.call(this.querySelectorAll("input"), input);
+}
+
+/**
+ * Wait for the page to react to an input event, then return the position of the focused input
+ * among this group's inputs, -1 when focus is outside the group, or -2 when the page has removed
+ * the group from the document. Waits two animation frames so focus moves scheduled with
+ * requestAnimationFrame are seen, with a timer fallback for pages that throttle animation frames.
+ *
+ * A box that receives focus with a value already in it is selected, so the next character
+ * replaces that value instead of being dropped by `maxlength`.
+ */
+export function focusedCodeInputAfterInput(this: ParentNode): Promise<number> {
+  const group = this as ParentNode & Node;
+  const win = (group.ownerDocument ?? document).defaultView || window;
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (!group.isConnected) {
+        resolve(-2);
+        return;
+      }
+      const root = group.getRootNode() as Partial<DocumentOrShadowRoot>;
+      const active = root.activeElement;
+      const position = active
+        ? Array.prototype.indexOf.call(group.querySelectorAll("input"), active)
+        : -1;
+      if (position >= 0 && (active as HTMLInputElement).value) {
+        try {
+          (active as HTMLInputElement).select();
+        } catch {
+          // Some input types do not support selection.
+        }
+      }
+      resolve(position);
+    };
+    win.setTimeout(finish, 100);
+    win.requestAnimationFrame(() => win.requestAnimationFrame(finish));
+  });
+}
+
+/** The focused element in this element's document, looking inside open shadow roots. */
+export function deepActiveElement(this: Element): Element | null {
+  let active = this.ownerDocument.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active;
+}
+
+/** Put back an input's value without firing input events. */
+export function restoreInputValue(this: Element, value: string): void {
+  (this as HTMLInputElement).value = value;
+}
+
 export function fillElementValue(this: Element, rawValue: string): FillElementResult {
   const inputTypesToSetValue = new Set([
     "color",
