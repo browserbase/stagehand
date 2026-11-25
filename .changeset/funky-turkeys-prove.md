@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Support accessible role and name queries in locator chains.
+Prepare locator chains for accessible role and name queries.

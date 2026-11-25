@@ -659,6 +659,18 @@ describe("iframe chain resolution in Chrome", () => {
       selector: { kind: "role", value, ...options },
     });
 
+    it.each(["comment", "mark", "suggestion"] as const)(
+      "resolves scoped %s roles",
+      async (value) => {
+        await page.evaluate((value) => {
+          document.body.innerHTML =
+            `<section id="scope"><div id="target" role="${value}"><span role="deletion">Old</span><span role="insertion">New</span></div></section>` +
+            `<div role="${value}">Outside</div>`;
+        }, value);
+        expect(await ids(await targets([css("#scope"), role(value)]))).toEqual(["target"]);
+      },
+    );
+
     it("preserves DOM scope/order despite AX ownership & supports later queries & indices", async () => {
       await page.evaluate(() => {
         document.body.innerHTML =

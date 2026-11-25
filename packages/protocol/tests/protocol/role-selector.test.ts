@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, expectTypeOf } from "vitest";
+import { roleQueryStep } from "../../locatorSelectors.js";
 import { LocatorChainSchema, RoleSelectorQuerySchema } from "../../schemas.js";
 import type { AriaRole, GetByRoleOptions, RoleSelectorQuery } from "../../types.js";
 
@@ -76,4 +77,39 @@ describe("role selector wire fixtures shared with Python", () => {
   it.each(wireFixtures.invalid)("rejects %j", (selector) => {
     expect(RoleSelectorQuerySchema.safeParse(selector).success).toBe(false);
   });
+});
+
+describe("roleQueryStep", () => {
+  it("constructs wire steps with optional name & state filters", () => {
+    expect(roleQueryStep("button")).toEqual({
+      type: "query",
+      selector: { kind: "role", value: "button" },
+    });
+    const options = {
+      name: "Save >> now",
+      exact: true,
+      pressed: "mixed",
+      disabled: false,
+    } as const;
+    expect(JSON.parse(JSON.stringify(roleQueryStep("button", options)))).toEqual({
+      type: "query",
+      selector: { kind: "role", value: "button", ...options },
+    });
+  });
+
+  it.each([
+    { value: "button", options: { checked: true } },
+    { value: "radio", options: { checked: "mixed" } },
+    { value: "checkbox", options: { pressed: false } },
+    { value: "unknown", options: {} },
+  ])("rejects invalid role/options: %j", ({ value, options }) => {
+    expect(() => roleQueryStep(value as AriaRole, options as GetByRoleOptions)).toThrow();
+  });
+
+  it.each([{ kind: "css" }, { value: "link" }, { includeHidden: false }])(
+    "rejects options outside the role-option contract: %j",
+    (options) => {
+      expect(() => roleQueryStep("button", options as GetByRoleOptions)).toThrow();
+    },
+  );
 });

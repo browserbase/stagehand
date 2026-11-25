@@ -14,7 +14,10 @@
     { "kind": "role", "value": "option", "checked": true },
     { "kind": "role", "value": "columnheader", "selected": true },
     { "kind": "role", "value": "heading", "name": "", "level": 3 },
-    { "kind": "role", "value": "img", "name": "Diagram" }
+    { "kind": "role", "value": "img", "name": "Diagram" },
+    { "kind": "role", "value": "comment" },
+    { "kind": "role", "value": "mark" },
+    { "kind": "role", "value": "suggestion" }
   ],
   "invalid": [
     { "kind": "role", "value": "unknown" },
