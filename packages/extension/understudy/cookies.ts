@@ -22,25 +22,17 @@ const CookieUrlsSchema = z.array(z.string()).superRefine((urls, context) => {
   }
 });
 
-/**
- * helpers for browser cookie management.
- *
- * Mirrors Playwright's cookie API surface, adapted for direct CDP usage
- * against a single default browser context.
- */
-
-/**
- * Filter cookies by URL matching (domain, path, secure).
- * If `urls` is empty every cookie passes.
- */
 export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   if (!urls.length) return cookies;
   const parsed = CookieUrlsSchema.parse(urls).map((url) => new URL(url));
   return cookies.filter((c) => {
     for (const url of parsed) {
-      let domain = c.domain;
-      if (!domain.startsWith(".")) domain = "." + domain;
-      if (!("." + url.hostname).endsWith(domain)) continue;
+      // A leading dot permits subdomains; host-only cookies require an exact match.
+      if (
+        url.hostname !== c.domain &&
+        !(c.domain.startsWith(".") && ("." + url.hostname).endsWith(c.domain))
+      )
+        continue;
       // Path must match on a "/" boundary: cookie path "/foo" should match
       // "/foo" and "/foo/bar" but NOT "/foobar".
       const p = url.pathname;
@@ -58,14 +50,6 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   });
 }
 
-/**
- * Validate and normalise `CookieParam` values before sending to CDP.
- *
- * - Ensures every cookie has either `url` or `domain`+`path`.
- * - When `url` is provided, derives `domain`, `path`, and `secure` from it.
- * - Validates that `sameSite: "None"` is paired with `secure: true`
- *   (browsers silently reject this — we throw early with a clear message).
- */
 export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
   return CookieParamSchema.array()
     .parse(cookies)
@@ -100,10 +84,6 @@ export function toCdpCookieParam(c: Cookie | CookieParam): Record<string, unknow
   };
 }
 
-/**
- * Returns true if a cookie matches all supplied filter criteria.
- * Undefined filters are treated as "match anything".
- */
 export function cookieMatchesFilter(
   cookie: Cookie,
   options: UnderstudyClearCookieOptions,

@@ -24,7 +24,6 @@ def _positive_int_env(name: str, default: int) -> int:
 
 
 def _sanitize_error(message: str) -> str:
-    """Redact credential-bearing fragments before errors reach the model."""
     return sanitize_error_message(message)
 
 
@@ -32,7 +31,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def _release_session(api_key: str, api_url: str, session_id: str) -> bool:
-    """Release a keep-alive session so expiry doesn't strand it; False if it failed."""
     from browserbase import AsyncBrowserbase
 
     try:
@@ -62,15 +60,14 @@ class _BrowserRuntime:
         self.browserbase_api_key = browserbase_api_key
         self.browserbase_api_url = browserbase_api_url
         self.session_id = browser.session_id
-        # Set when run code called browser.close(): later calls get the facade's
-        # terminal closed error instead of a relaunched browser.
         self.closed_by_agent = False
         self._shut_down = False
         self._released = False
         self.tools = StagehandFacadeTools(
             stagehand,
-            artifact_root=os.environ.get("STAGEHAND_ARTIFACT_ROOT") or None,
-            # run code calling browser.close() closes and releases the session.
+            artifact_root=os.environ.get("STAGEHAND_FACADE_ARTIFACT_ROOT")
+            or os.environ.get("STAGEHAND_ARTIFACT_ROOT")
+            or None,
             on_close_requested=self._close_requested,
             quiet_wait=os.environ.get("STAGEHAND_FACADE_QUIET_WAIT", "").lower()
             in {"1", "true", "yes", "on"},
@@ -83,8 +80,6 @@ class _BrowserRuntime:
             raise RuntimeError("BROWSERBASE_API_KEY is required")
         api_url = os.environ.get("BROWSERBASE_API_URL", "https://api.browserbase.com")
         if session_id is not None:
-            # Reconnect to a keep-alive session that already carries the
-            # extension from its original launch.
             browser = await browserbase.connect(
                 api_key=api_key,
                 base_url=api_url,
@@ -95,9 +90,6 @@ class _BrowserRuntime:
                 browserbase_api_key=api_key,
                 browserbase_api_url=api_url,
             )
-        # The published stagehand wheel bundles the extension;
-        # browserbase.launch provisions it automatically. STAGEHAND_EXTENSION_ID
-        # remains available for pre-uploaded extensions.
         configured_extension_id = os.environ.get("STAGEHAND_EXTENSION_ID") or None
         browser = await browserbase.launch(
             api_key=api_key,
@@ -149,8 +141,6 @@ class _BrowserRuntime:
         await self.close()
 
     async def close(self) -> None:
-        # Shutting down happens once; a failed release is retried by later close()
-        # calls (the registry's expiry sweep closes agent-closed entries again).
         try:
             if not self._shut_down:
                 self._shut_down = True
@@ -184,15 +174,9 @@ class _BrowserRegistry:
             await self._close_expired(now)
             entry = self.entries.get(thread_id)
             if entry is not None and entry.browser.closed_by_agent:
-                # An intentional close is not a crash; keep answering with the
-                # facade's closed error until the entry expires.
                 entry.last_used = now
                 return entry.browser
             if entry is not None and not await _runtime_alive(entry.browser):
-                # The handle is dead (socket drop, resume elsewhere) — closed
-                # never flips on its own, so probe liveness. The keep-alive
-                # session may still be running; reconnect by id before falling
-                # back to a fresh launch.
                 stale = self.entries.pop(thread_id)
                 entry = None
                 if stale.browser.session_id is not None:
@@ -201,8 +185,6 @@ class _BrowserRegistry:
                         entry = _RegistryEntry(revived, now)
                         self.entries[thread_id] = entry
                     except Exception:
-                        # Reconnect failed — release the old keep-alive session
-                        # best-effort so the replacement doesn't strand it.
                         if stale.browser.browserbase_api_key:
                             await _release_session(
                                 stale.browser.browserbase_api_key,
@@ -222,8 +204,6 @@ class _BrowserRegistry:
             thread_id for thread_id, entry in self.entries.items() if now - entry.last_used >= ttl
         ]
         for thread_id in expired:
-            # A failing close must not surface in the unrelated tool call that
-            # triggered the sweep, nor abort cleanup of other expired entries.
             try:
                 await self.entries.pop(thread_id).browser.close()
             except Exception:
@@ -255,7 +235,6 @@ _CONTRACT = {spec["name"]: spec for spec in facade_tools()}
 
 
 def _contract_tool(name: str) -> Callable[[Callable[..., Awaitable[object]]], BaseTool]:
-    """`@tool` with the facade contract's description and input schema."""
     return tool(
         name,
         description=_CONTRACT[name]["description"],

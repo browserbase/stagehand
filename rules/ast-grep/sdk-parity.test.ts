@@ -1,3 +1,4 @@
+import { sdkSourceFiles } from "./sdk-source-files.js";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,10 +11,10 @@ registerDynamicLanguage({ python });
 
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py"],
-  ["BrowserContext", "browserContext.ts", "browser_context.py"],
-  ["BrowserClipboard", "browserClipboard.ts", "browser_clipboard.py"],
-  ["Page", "page.ts", "page.py"],
-  ["Locator", "locator.ts", "locator.py"],
+  ["BrowserContext", "../../shared/browser-api/src/browserContext.ts", "browser_context.py"],
+  ["BrowserClipboard", "../../shared/browser-api/src/browserClipboard.ts", "browser_clipboard.py"],
+  ["Page", "../../shared/browser-api/src/page.ts", "page.py"],
+  ["Locator", "../../shared/browser-api/src/locator.ts", "locator.py"],
 ] as const;
 
 const typescriptSource = new URL("../../packages/sdk-ts/src/", import.meta.url);
@@ -22,8 +23,6 @@ const extensionRouterUrl = new URL("../../packages/extension/rpcRouter.ts", impo
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 
-// Extracted JSON is intentionally decoded through a dedicated wire model so
-// Pydantic receives raw JSON values instead of the generated JSON union.
 const pythonWireResultModels: Readonly<Record<string, string>> = {
   "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
@@ -73,9 +72,6 @@ type PythonRpcCall = {
   scope: SgNode;
 };
 
-// Browser lifecycle construction is language-specific only in surface syntax now that both active
-// v4 clients use create(); the legacy init() lifecycles are gone. RPC-backed
-// feature methods remain subject to strict cross-language parity below.
 const stagehandLifecycleMethods = new Set(["create", "init"]);
 const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
 
@@ -601,7 +597,7 @@ async function protocolOperations(
   boundary?: RequestBoundary,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  const files = (await readdir(source, { recursive: true }))
+  const files = (await sdkSourceFiles(source))
     .filter(
       (file) =>
         file.endsWith(extension) &&
@@ -680,9 +676,7 @@ async function clientProtocolNotifications(
   registry: ReadonlyMap<string, string>,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  const files = (await readdir(source, { recursive: true }))
-    .filter((file) => file.endsWith(extension))
-    .sort();
+  const files = (await sdkSourceFiles(source)).filter((file) => file.endsWith(extension)).sort();
   const notifications = new Set<string>();
 
   for (const file of files) {
@@ -732,7 +726,6 @@ async function pythonNotificationBindings(): Promise<
 function pythonNotificationArguments(call: SgNode): SgNode[] {
   const calledFunction = namedChildren(call)[0]?.text();
   if (calledFunction?.endsWith(".on_notification")) return callArguments(call);
-  // Page's typed adapters pass their notification name and model through this helper.
   if (calledFunction === "self._subscribe") return callArguments(call).slice(1);
   return [];
 }

@@ -1,4 +1,3 @@
-// lib/v3/handlers/handlerUtils/actHandlerUtils.ts
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
@@ -22,7 +21,6 @@ export interface UnderstudyMethodHandlerContext {
   domSettleTimeoutMs?: number;
 }
 
-// Normalize cases where the XPath is the root "/" to point to the HTML element.
 function normalizeRootXPath(input: string): string {
   const s = String(input ?? "").trim();
   if (s === "/") return "/html";
@@ -61,7 +59,6 @@ export async function performUnderstudyMethod(
       `Understudy${toTitleCase(method)}`,
       { target: selectorRaw },
       async (spanLogger) => {
-        // Unified resolver: supports '>>' hops and XPath across iframes.
         const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw, progress);
         const initialUrl = await progress.run("reading frame URL", () =>
           frame.evaluate<string>("location.href", undefined, progress),
@@ -114,8 +111,6 @@ export async function performUnderstudyMethod(
     throw e;
   }
 }
-
-/* ===================== Handlers & Map ===================== */
 
 const METHOD_HANDLER_MAP: Record<string, (ctx: UnderstudyMethodHandlerContext) => Promise<void>> = {
   scrollIntoView,
@@ -183,7 +178,6 @@ async function scrollElementToPercentage(ctx: UnderstudyMethodHandlerContext): P
   await locator.scrollTo(yArg, ctx.progress);
 }
 
-/** Scroll the page by pixel offset, starting from the element's center. */
 async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, page, args } = ctx;
   const dx = Number(args[0] ?? 0);
@@ -214,7 +208,7 @@ async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
-    await locator.fill("", ctx.progress); // clear
+    await locator.fill("", ctx.progress);
     await locator.fill(args[0] ?? "", ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -302,11 +296,9 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const targetLocator = await resolveLocatorWithHops(page, frame, toXPath, ctx.progress);
 
   try {
-    // 1) Centers in local (owning-frame) viewport
     const { x: fromLocalX, y: fromLocalY } = await locator.centroid(ctx.progress);
     const { x: toLocalX, y: toLocalY } = await targetLocator.centroid(ctx.progress);
 
-    // 2) Convert to main-viewport absolute coordinates
     const fromAbs = await locator
       .getFrame()
       .evaluate<{ x: number; y: number }, { x: number; y: number }>(
@@ -349,7 +341,6 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         ctx.progress,
       );
 
-    // 3) Perform drag in main session
     await page.dragAndDrop(
       fromAbs.x,
       fromAbs.y,
@@ -374,11 +365,11 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function scrollToNextChunk(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  await scrollByElementHeight(ctx, /*dir=*/ 1);
+  await scrollByElementHeight(ctx, 1);
 }
 
 async function scrollToPreviousChunk(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  await scrollByElementHeight(ctx, /*dir=*/ -1);
+  await scrollByElementHeight(ctx, -1);
 }
 
 async function scrollByElementHeight(
@@ -450,12 +441,6 @@ export async function hover(ctx: UnderstudyMethodHandlerContext) {
   }
 }
 
-/* ===================== Helpers ===================== */
-
-/**
- * More robust DOM settle using Network + Page events to detect network quiet.
- * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
- */
 export async function waitForDomNetworkQuiet(
   frame: Frame,
   logger: StagehandLogger,
@@ -467,7 +452,6 @@ export async function waitForDomNetworkQuiet(
   const client = frame.session;
   const settleStart = Date.now();
 
-  // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
   let hasDoc: boolean;
   try {
     const rs = await progress.run("checking document readiness", () =>
@@ -494,20 +478,6 @@ export async function waitForDomNetworkQuiet(
     client.send("Network.enable").catch(() => {}),
   );
   await progress.run("enabling page events", () => client.send("Page.enable").catch(() => {}));
-  // Best-effort; some sessions may not support Target.setAutoAttach here.
-  await progress.run("attaching to frames", () =>
-    client
-      .send("Target.setAutoAttach", {
-        autoAttach: true,
-        waitForDebuggerOnStart: false,
-        flatten: true,
-        filter: [
-          { type: "worker", exclude: true },
-          { type: "shared_worker", exclude: true },
-        ],
-      })
-      .catch(() => {}),
-  );
 
   progress.throwIfStopped();
   await new Promise<void>((resolve) => {
@@ -538,8 +508,6 @@ export async function waitForDomNetworkQuiet(
     };
 
     const onRequest = (p: Protocol.Network.RequestWillBeSentEvent) => {
-      // Ignore long-lived streams
-      // ResourceType includes: Document, XHR, Fetch, WebSocket, EventSource, etc.
       if (p.type === "WebSocket" || p.type === "EventSource") return;
 
       inflight.add(p.requestId);

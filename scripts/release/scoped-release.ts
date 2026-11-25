@@ -11,7 +11,6 @@ import { belongsToScope, parseReleaseScope, scopedChangesets } from "./release-s
 import type { ReleaseScope } from "./release-scope.ts";
 
 export async function versionScope(repositoryRoot: string, scope: ReleaseScope, snapshot = false) {
-  // Shared prerelease state cannot safely describe two independent release schedules.
   try {
     await access(path.join(repositoryRoot, ".changeset/pre.json"));
   } catch (error) {
@@ -40,6 +39,9 @@ async function applyVersionScope(repositoryRoot: string, scope: ReleaseScope, sn
       throw new Error(`Release would cross the ${scope} boundary: ${release.name}`);
     }
   }
+  // Ignored dependents can still appear with type "none", and applying those
+  // entries rewrites their dependency pins. Leave the other release group alone.
+  plan.releases = plan.releases.filter((release) => belongsToScope(release.name, scope));
   await applyReleasePlan(plan, packages, config, snapshot ? true : undefined, repositoryRoot);
   return plan;
 }
@@ -61,29 +63,29 @@ export async function assertPublishedCliDependencies(
   const browse = packages.packages.find((pkg) => pkg.packageJson.name === "browse");
   if (!browse) throw new Error("Missing browse package");
   for (const [name, range] of Object.entries(browse.packageJson.dependencies ?? {})) {
-    if (!range.startsWith("workspace:")) continue;
-    const dependency = packages.packages.find((pkg) => pkg.packageJson.name === name);
-    if (!dependency) throw new Error(`Missing workspace dependency ${name}`);
+    if (!packages.packages.some((pkg) => pkg.packageJson.name === name)) continue;
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(range)) {
+      throw new Error(`Browse must pin ${name} to an exact published version (received ${range})`);
+    }
     for (;;) {
       const requestTimeoutMs = waitMs > 0 ? Math.min(30_000, deadline - Date.now()) : 30_000;
       if (requestTimeoutMs <= 0) {
         throw new Error(
-          `Publish ${name}@${dependency.packageJson.version} before Browse (wait timed out after ${waitMs} ms)`,
+          `Publish ${name}@${range} before Browse (wait timed out after ${waitMs} ms)`,
         );
       }
-      const response = await fetch(
-        `${registry}/${encodeURIComponent(name)}/${dependency.packageJson.version}`,
-        { signal: AbortSignal.timeout(requestTimeoutMs) },
-      );
+      const response = await fetch(`${registry}/${encodeURIComponent(name)}/${range}`, {
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      });
       await response.body?.cancel();
       if (response.ok) break;
       const remaining = deadline - Date.now();
       if (response.status !== 404 || remaining <= 0) {
         throw new Error(
-          `Publish ${name}@${dependency.packageJson.version} before Browse (registry status ${response.status})`,
+          `Publish ${name}@${range} before Browse (registry status ${response.status})`,
         );
       }
-      process.stdout.write(`Waiting for ${name}@${dependency.packageJson.version} on npm\n`);
+      process.stdout.write(`Waiting for ${name}@${range} on npm\n`);
       await setTimeout(Math.min(retryIntervalMs, remaining));
     }
   }
@@ -116,6 +118,8 @@ export async function assertCliAlphaVersion(repositoryRoot: string): Promise<voi
   }
 }
 
+export const MANUALLY_PUBLISHED_PACKAGES = new Set(["stagehand-middleware"]);
+
 // Changesets 2.x publish does not honor config.ignore. Give each package exactly
 // one publisher, while retaining Changesets' registry checks, tags and OIDC path.
 // These flags exist only during publishing; they never enter a release commit.
@@ -128,7 +132,9 @@ export async function withPublishScope(
   const originals = new Map<string, string>();
   try {
     for (const pkg of packages) {
-      if (belongsToScope(pkg.packageJson.name, scope) || pkg.packageJson.private) continue;
+      const { name } = pkg.packageJson;
+      if (pkg.packageJson.private) continue;
+      if (belongsToScope(name, scope) && !MANUALLY_PUBLISHED_PACKAGES.has(name)) continue;
       const file = path.join(pkg.dir, "package.json");
       const original = await readFile(file, "utf8");
       originals.set(file, original);
@@ -156,8 +162,6 @@ async function main(): Promise<void> {
       );
     }
   } else if (command === "wait-dependencies" && scope === "cli") {
-    // An SDK release may be publishing concurrently. Gate only on the actual
-    // dependency, so unrelated SDK checks cannot block a CLI release.
     await assertPublishedCliDependencies(repositoryRoot, undefined, 15 * 60_000);
   } else if (command === "version") {
     if (flags.some((flag) => flag !== "--snapshot")) throw new Error("Unknown version flag");
@@ -166,8 +170,6 @@ async function main(): Promise<void> {
   } else if (command === "publish") {
     if (flags.some((flag) => flag !== "--alpha")) throw new Error("Unknown publish flag");
     const cliAlpha = scope === "cli" && flags.includes("--alpha");
-    // Path-based CLI alphas retain the notes for the next stable release.
-    // Validate the temporary version before bypassing the pending-notes guard.
     if (cliAlpha) await assertCliAlphaVersion(repositoryRoot);
     else if ((await scopedChangesets(repositoryRoot, scope)).length > 0) {
       throw new Error(`Version pending ${scope} changesets before publishing`);

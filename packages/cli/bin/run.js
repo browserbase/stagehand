@@ -12,24 +12,14 @@ if (!satisfies(process.versions.node, engines.node)) {
   process.exit(1);
 }
 
-// `BROWSE_LOAD_DOTENV` controls whether `browse` auto-loads a `.env` file
-// from the current working directory. This is deprecated: a future release
-// will flip the default to "off" so `browse` only reads `process.env`,
-// matching how most CLIs used across many unrelated projects behave. Until
-// then we keep loading `.env` by default (unset behaves exactly as before)
-// but warn once when we actually pull a value from it, so users relying on
-// the implicit default get a heads-up before the default changes.
 const dotenvToggle = process.env.BROWSE_LOAD_DOTENV;
 const dotenvOptedOut =
-  dotenvToggle !== undefined &&
-  ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
+  dotenvToggle !== undefined && ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
 
 if (!dotenvOptedOut) {
   const keysBeforeLoad = new Set(Object.keys(process.env));
   const { parsed } = loadDotenvConfig();
-  const appliedFromDotenv = Object.keys(parsed ?? {}).filter(
-    (key) => !keysBeforeLoad.has(key),
-  );
+  const appliedFromDotenv = Object.keys(parsed ?? {}).filter((key) => !keysBeforeLoad.has(key));
 
   if (appliedFromDotenv.length > 0 && dotenvToggle === undefined) {
     console.error(

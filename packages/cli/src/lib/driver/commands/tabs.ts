@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DriverError } from "../errors.js";
 import type { DriverPage } from "../session-manager.js";
 import type { DriverCommandHandlers } from "./types.js";
 
@@ -16,9 +17,7 @@ export const tabHandlers: DriverCommandHandlers = {
     const pages = await context.pages();
     return {
       active: true,
-      index: pages.findIndex(
-        (candidate: DriverPage) => candidate.pageId === page.pageId,
-      ),
+      index: pages.findIndex((candidate: DriverPage) => candidate.pageId === page.pageId),
       targetId: page.pageId,
       title: await manager.safeTitle(page),
       url: await page.url(),
@@ -44,27 +43,22 @@ export const tabHandlers: DriverCommandHandlers = {
     const context = await manager.browserContext();
     const pages = await context.pages();
     if (pages.length === 1) {
-      throw new Error("Cannot close the last tab.");
+      throw new DriverError("Cannot close the last tab.", { code: "last_tab" });
     }
 
     const active = await context.activePage();
-    const resolved = tab
-      ? await resolveTab(manager, tab)
-      : resolveActiveTab(pages, active ?? null);
+    const resolved = tab ? await resolveTab(manager, tab) : resolveActiveTab(pages, active ?? null);
     const closedTargetId = resolved.page.pageId;
     const activeTargetId = active?.pageId;
     await resolved.page.close();
-    const remainingPages = (await context.pages()).filter(
-      (page) => page.pageId !== closedTargetId,
-    );
+    const remainingPages = (await context.pages()).filter((page) => page.pageId !== closedTargetId);
     let selectedPage = activeTargetId
       ? remainingPages.find((page) => page.pageId === activeTargetId)
       : undefined;
 
     if (!selectedPage) {
       selectedPage =
-        remainingPages[Math.min(resolved.index, remainingPages.length - 1)] ??
-        remainingPages[0];
+        remainingPages[Math.min(resolved.index, remainingPages.length - 1)] ?? remainingPages[0];
       if (selectedPage) {
         await context.setActivePage(selectedPage);
       }
@@ -90,20 +84,13 @@ async function resolveTab(
   const index = Number.parseInt(tab, 10);
   if (/^\d+$/.test(tab)) {
     const page = pages[index];
-    if (!page)
-      throw new Error(
-        `Tab index ${index} out of range (0-${pages.length - 1}).`,
-      );
+    if (!page) throw new Error(`Tab index ${index} out of range (0-${pages.length - 1}).`);
     return { index, page };
   }
 
-  const targetIndex = pages.findIndex(
-    (page: DriverPage) => page.pageId === tab,
-  );
+  const targetIndex = pages.findIndex((page: DriverPage) => page.pageId === tab);
   if (targetIndex === -1) {
-    throw new Error(
-      `Tab targetId ${tab} was not found. Run browse tab list for current tabs.`,
-    );
+    throw new Error(`Tab targetId ${tab} was not found. Run browse tab list for current tabs.`);
   }
   return { index: targetIndex, page: pages[targetIndex]! };
 }
@@ -113,9 +100,7 @@ function resolveActiveTab(
   active: DriverPage | null,
 ): { index: number; page: DriverPage } {
   const activeTargetId = active?.pageId;
-  const index = activeTargetId
-    ? pages.findIndex((page) => page.pageId === activeTargetId)
-    : 0;
+  const index = activeTargetId ? pages.findIndex((page) => page.pageId === activeTargetId) : 0;
   const page = pages[index] ?? pages[0];
   if (!page) throw new Error("No active tab.");
   return { index: index >= 0 ? index : 0, page };

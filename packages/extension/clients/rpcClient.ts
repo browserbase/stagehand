@@ -55,6 +55,7 @@ export class RPCClient {
   nextRequestId = 1;
   pending = new Map<number, PendingRequest>();
   closed = false;
+  private clientConnected = true;
 
   constructor(
     readonly runtime: ChromeRuntimeClient,
@@ -73,6 +74,7 @@ export class RPCClient {
   ): Promise<z.output<Method["result"]>> {
     options.signal?.throwIfAborted();
     if (this.closed) throw new Error("RPC client is closed");
+    if (!this.clientConnected) throw new Error("Stagehand client disconnected");
 
     const parentContext = context.active();
     const span = this.router.runtime.tracing.tracer.startSpan(
@@ -106,7 +108,6 @@ export class RPCClient {
         let aborted = false;
         const notifyAbort = () => {
           if (this.closed) return;
-          // Notification failure must not prolong or replace local cancellation.
           try {
             void Promise.resolve(options.onAbort?.(id, signal?.reason)).catch(() => {});
           } catch {}
@@ -167,6 +168,17 @@ export class RPCClient {
     this.runtime.onclose = undefined;
     this.runtime.onerror = undefined;
     this.runtime.close();
+  }
+
+  releaseClient(): void {
+    this.clientConnected = false;
+    for (const [id] of this.pending) {
+      this.rejectPending(id, new Error("Stagehand client disconnected"));
+    }
+  }
+
+  acceptClient(): void {
+    this.clientConnected = true;
   }
 
   waitForResponse(id: number, method: RPCMethod, cleanup: () => void = () => {}): Promise<unknown> {

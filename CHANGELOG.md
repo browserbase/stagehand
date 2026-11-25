@@ -3,6 +3,214 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.5.0
+
+### Minor Changes
+
+- [#3490](https://github.com/browserbase/stagehand/pull/3490) [`254e46f`](https://github.com/browserbase/stagehand/commit/254e46fbc0b34c47eecedb8baab233e6e5682360) Thanks [@sharvaribrowserbase](https://github.com/sharvaribrowserbase)! - Add `page.onConsole()` in TypeScript and `page.on_console()` in Python for console subscriptions. Deprecate `page.on("console", listener)` while preserving its callback payload and subscription behavior.
+
+- [#3539](https://github.com/browserbase/stagehand/pull/3539) [`873a921`](https://github.com/browserbase/stagehand/commit/873a92151384d8f47f8235af3f4236ba8a6ae73d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add locator chaining to search within elements and iframe documents.
+
+- [#3552](https://github.com/browserbase/stagehand/pull/3552) [`16e6c3a`](https://github.com/browserbase/stagehand/commit/16e6c3a39f09a74b9ee8de005542cdb16e85ba94) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add role and accessible-name queries with `getByRole()` and `get_by_role()`.
+
+- [#3386](https://github.com/browserbase/stagehand/pull/3386) [`82827a2`](https://github.com/browserbase/stagehand/commit/82827a219512f0399cb159720a63f7d271d21480) Thanks [@ziruihao](https://github.com/ziruihao)! - Add `page.onResponse()` in TypeScript and `page.on_response()` in Python to observe network responses from a page and its child frames. Callbacks receive SDK Response objects when headers arrive, with lazy body retrieval and subscription handles for stopping callbacks.
+
+- [#3541](https://github.com/browserbase/stagehand/pull/3541) [`75a838b`](https://github.com/browserbase/stagehand/commit/75a838b405f454dbde083fa48aa902ab9f511669) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `getByText()` and `get_by_text()` for text-based element queries.
+
+### Patch Changes
+
+- [#3501](https://github.com/browserbase/stagehand/pull/3501) [`4d72a87`](https://github.com/browserbase/stagehand/commit/4d72a87ff7615f160fc66ef917bbb68849a545f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix locator operations timing out on pages that were already open when the extension was loaded into a running browser
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3422](https://github.com/browserbase/stagehand/pull/3422) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@aryansahai22](https://github.com/aryansahai22)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+- [#3550](https://github.com/browserbase/stagehand/pull/3550) [`082bc76`](https://github.com/browserbase/stagehand/commit/082bc76fda89d5ec04718fa3314f742b3cbb4d2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Prepare locator chains for accessible role and name queries.
+
+- [#3465](https://github.com/browserbase/stagehand/pull/3465) [`9d3cfa5`](https://github.com/browserbase/stagehand/commit/9d3cfa51589ab1fdc85e16ddfc09f8c44dc7e2b9) Thanks [@Kelvin-Waititu](https://github.com/Kelvin-Waititu)! - Respect host-only cookie domains when filtering context cookies by URL, while continuing to match subdomains for cookies with a leading-dot domain.
+
+- [#3503](https://github.com/browserbase/stagehand/pull/3503) [`79d63db`](https://github.com/browserbase/stagehand/commit/79d63dbb8b3122b004de22bd81d5b2bed26e2abd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix `waitForLoadState("networkidle")` timing out on an already-idle page, and make `networkidle` waits count requests already in flight.
+
+- [#3533](https://github.com/browserbase/stagehand/pull/3533) [`82ec9b3`](https://github.com/browserbase/stagehand/commit/82ec9b383d2b7f7e9102596b3422923998a9aafd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Reduce browser round trips when resolving selectors with many matches.
+
+- [#3487](https://github.com/browserbase/stagehand/pull/3487) [`f7cae08`](https://github.com/browserbase/stagehand/commit/f7cae08e996dad9010ae755ef8cf1682c12591c1) Thanks [@miguelg719](https://github.com/miguelg719)! - Ship the extension build fingerprint (`extension-build.json`) inside the npm package and the Python wheel.
+
+- [#3502](https://github.com/browserbase/stagehand/pull/3502) [`3bedd82`](https://github.com/browserbase/stagehand/commit/3bedd822f2e31c6716added7743179405985a439) Thanks [@miguelg719](https://github.com/miguelg719)! - Replace a Stagehand extension service worker that a browser profile kept from a different build
+
+- [#3542](https://github.com/browserbase/stagehand/pull/3542) [`8194de9`](https://github.com/browserbase/stagehand/commit/8194de92c2918bedf198731ba08fe328f2d5097d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Keep WebMCP tool handles bound to their original registration on supported Chrome versions.
+
+## Python SDK 4.5.0
+
+### Minor Changes
+
+- [#3490](https://github.com/browserbase/stagehand/pull/3490) [`254e46f`](https://github.com/browserbase/stagehand/commit/254e46fbc0b34c47eecedb8baab233e6e5682360) Thanks [@sharvaribrowserbase](https://github.com/sharvaribrowserbase)! - Add `page.onConsole()` in TypeScript and `page.on_console()` in Python for console subscriptions. Deprecate `page.on("console", listener)` while preserving its callback payload and subscription behavior.
+
+- [#3539](https://github.com/browserbase/stagehand/pull/3539) [`873a921`](https://github.com/browserbase/stagehand/commit/873a92151384d8f47f8235af3f4236ba8a6ae73d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add locator chaining to search within elements and iframe documents.
+
+- [#3552](https://github.com/browserbase/stagehand/pull/3552) [`16e6c3a`](https://github.com/browserbase/stagehand/commit/16e6c3a39f09a74b9ee8de005542cdb16e85ba94) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add role and accessible-name queries with `getByRole()` and `get_by_role()`.
+
+- [#3386](https://github.com/browserbase/stagehand/pull/3386) [`82827a2`](https://github.com/browserbase/stagehand/commit/82827a219512f0399cb159720a63f7d271d21480) Thanks [@ziruihao](https://github.com/ziruihao)! - Add `page.onResponse()` in TypeScript and `page.on_response()` in Python to observe network responses from a page and its child frames. Callbacks receive SDK Response objects when headers arrive, with lazy body retrieval and subscription handles for stopping callbacks.
+
+- [#3541](https://github.com/browserbase/stagehand/pull/3541) [`75a838b`](https://github.com/browserbase/stagehand/commit/75a838b405f454dbde083fa48aa902ab9f511669) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `getByText()` and `get_by_text()` for text-based element queries.
+
+### Patch Changes
+
+- [#3501](https://github.com/browserbase/stagehand/pull/3501) [`4d72a87`](https://github.com/browserbase/stagehand/commit/4d72a87ff7615f160fc66ef917bbb68849a545f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix locator operations timing out on pages that were already open when the extension was loaded into a running browser
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3422](https://github.com/browserbase/stagehand/pull/3422) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@aryansahai22](https://github.com/aryansahai22)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+- [#3550](https://github.com/browserbase/stagehand/pull/3550) [`082bc76`](https://github.com/browserbase/stagehand/commit/082bc76fda89d5ec04718fa3314f742b3cbb4d2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Prepare locator chains for accessible role and name queries.
+
+- [#3465](https://github.com/browserbase/stagehand/pull/3465) [`9d3cfa5`](https://github.com/browserbase/stagehand/commit/9d3cfa51589ab1fdc85e16ddfc09f8c44dc7e2b9) Thanks [@Kelvin-Waititu](https://github.com/Kelvin-Waititu)! - Respect host-only cookie domains when filtering context cookies by URL, while continuing to match subdomains for cookies with a leading-dot domain.
+
+- [#3503](https://github.com/browserbase/stagehand/pull/3503) [`79d63db`](https://github.com/browserbase/stagehand/commit/79d63dbb8b3122b004de22bd81d5b2bed26e2abd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix `waitForLoadState("networkidle")` timing out on an already-idle page, and make `networkidle` waits count requests already in flight.
+
+- [#3533](https://github.com/browserbase/stagehand/pull/3533) [`82ec9b3`](https://github.com/browserbase/stagehand/commit/82ec9b383d2b7f7e9102596b3422923998a9aafd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Reduce browser round trips when resolving selectors with many matches.
+
+- [#3487](https://github.com/browserbase/stagehand/pull/3487) [`f7cae08`](https://github.com/browserbase/stagehand/commit/f7cae08e996dad9010ae755ef8cf1682c12591c1) Thanks [@miguelg719](https://github.com/miguelg719)! - Ship the extension build fingerprint (`extension-build.json`) inside the npm package and the Python wheel.
+
+- [#3502](https://github.com/browserbase/stagehand/pull/3502) [`3bedd82`](https://github.com/browserbase/stagehand/commit/3bedd822f2e31c6716added7743179405985a439) Thanks [@miguelg719](https://github.com/miguelg719)! - Replace a Stagehand extension service worker that a browser profile kept from a different build
+
+- [#3542](https://github.com/browserbase/stagehand/pull/3542) [`8194de9`](https://github.com/browserbase/stagehand/commit/8194de92c2918bedf198731ba08fe328f2d5097d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Keep WebMCP tool handles bound to their original registration on supported Chrome versions.
+
+## Extension Runtime 1.4.0
+
+### Minor Changes
+
+- [#3539](https://github.com/browserbase/stagehand/pull/3539) [`873a921`](https://github.com/browserbase/stagehand/commit/873a92151384d8f47f8235af3f4236ba8a6ae73d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add locator chaining to search within elements and iframe documents.
+
+- [#3550](https://github.com/browserbase/stagehand/pull/3550) [`082bc76`](https://github.com/browserbase/stagehand/commit/082bc76fda89d5ec04718fa3314f742b3cbb4d2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Prepare locator chains for accessible role and name queries.
+
+- [#3386](https://github.com/browserbase/stagehand/pull/3386) [`82827a2`](https://github.com/browserbase/stagehand/commit/82827a219512f0399cb159720a63f7d271d21480) Thanks [@ziruihao](https://github.com/ziruihao)! - Add `page.onResponse()` in TypeScript and `page.on_response()` in Python to observe network responses from a page and its child frames. Callbacks receive SDK Response objects when headers arrive, with lazy body retrieval and subscription handles for stopping callbacks.
+
+- [#3541](https://github.com/browserbase/stagehand/pull/3541) [`75a838b`](https://github.com/browserbase/stagehand/commit/75a838b405f454dbde083fa48aa902ab9f511669) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `getByText()` and `get_by_text()` for text-based element queries.
+
+### Patch Changes
+
+- [#3501](https://github.com/browserbase/stagehand/pull/3501) [`4d72a87`](https://github.com/browserbase/stagehand/commit/4d72a87ff7615f160fc66ef917bbb68849a545f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix locator operations timing out on pages that were already open when the extension was loaded into a running browser
+
+- [#3454](https://github.com/browserbase/stagehand/pull/3454) [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix network tracking missing requests made immediately by newly attached cross-origin iframes.
+
+- [#3422](https://github.com/browserbase/stagehand/pull/3422) [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0) Thanks [@aryansahai22](https://github.com/aryansahai22)! - fix response header lookups reporting a header with an empty value as missing on HTTP/2 responses
+
+- [#3465](https://github.com/browserbase/stagehand/pull/3465) [`9d3cfa5`](https://github.com/browserbase/stagehand/commit/9d3cfa51589ab1fdc85e16ddfc09f8c44dc7e2b9) Thanks [@Kelvin-Waititu](https://github.com/Kelvin-Waititu)! - Respect host-only cookie domains when filtering context cookies by URL, while continuing to match subdomains for cookies with a leading-dot domain.
+
+- [#3503](https://github.com/browserbase/stagehand/pull/3503) [`79d63db`](https://github.com/browserbase/stagehand/commit/79d63dbb8b3122b004de22bd81d5b2bed26e2abd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix `waitForLoadState("networkidle")` timing out on an already-idle page, and make `networkidle` waits count requests already in flight.
+
+- [#3533](https://github.com/browserbase/stagehand/pull/3533) [`82ec9b3`](https://github.com/browserbase/stagehand/commit/82ec9b383d2b7f7e9102596b3422923998a9aafd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Reduce browser round trips when resolving selectors with many matches.
+
+- [#3502](https://github.com/browserbase/stagehand/pull/3502) [`3bedd82`](https://github.com/browserbase/stagehand/commit/3bedd822f2e31c6716added7743179405985a439) Thanks [@miguelg719](https://github.com/miguelg719)! - Replace a Stagehand extension service worker that a browser profile kept from a different build
+
+- [#3542](https://github.com/browserbase/stagehand/pull/3542) [`8194de9`](https://github.com/browserbase/stagehand/commit/8194de92c2918bedf198731ba08fe328f2d5097d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Keep WebMCP tool handles bound to their original registration on supported Chrome versions.
+
+## Protocol 3.2.0
+
+### Minor Changes
+
+- [#3539](https://github.com/browserbase/stagehand/pull/3539) [`873a921`](https://github.com/browserbase/stagehand/commit/873a92151384d8f47f8235af3f4236ba8a6ae73d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add locator chaining to search within elements and iframe documents.
+
+- [#3550](https://github.com/browserbase/stagehand/pull/3550) [`082bc76`](https://github.com/browserbase/stagehand/commit/082bc76fda89d5ec04718fa3314f742b3cbb4d2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Prepare locator chains for accessible role and name queries.
+
+- [#3386](https://github.com/browserbase/stagehand/pull/3386) [`82827a2`](https://github.com/browserbase/stagehand/commit/82827a219512f0399cb159720a63f7d271d21480) Thanks [@ziruihao](https://github.com/ziruihao)! - Add `page.onResponse()` in TypeScript and `page.on_response()` in Python to observe network responses from a page and its child frames. Callbacks receive SDK Response objects when headers arrive, with lazy body retrieval and subscription handles for stopping callbacks.
+
+- [#3541](https://github.com/browserbase/stagehand/pull/3541) [`75a838b`](https://github.com/browserbase/stagehand/commit/75a838b405f454dbde083fa48aa902ab9f511669) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `getByText()` and `get_by_text()` for text-based element queries.
+
+- [#3542](https://github.com/browserbase/stagehand/pull/3542) [`8194de9`](https://github.com/browserbase/stagehand/commit/8194de92c2918bedf198731ba08fe328f2d5097d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Keep WebMCP tool handles bound to their original registration on supported Chrome versions.
+
+## Eve Extension 0.3.0
+
+### Minor Changes
+
+- [#3409](https://github.com/browserbase/stagehand/pull/3409) [`03c00e6`](https://github.com/browserbase/stagehand/commit/03c00e622cf39ee90f48a2c8e30b359369f0b01d) Thanks [@shrey150](https://github.com/shrey150)! - Add support for Eve 1.x and drop support for Eve 0.71.x.
+
+### Patch Changes
+
+- Updated dependencies [[`254e46f`](https://github.com/browserbase/stagehand/commit/254e46fbc0b34c47eecedb8baab233e6e5682360), [`4d72a87`](https://github.com/browserbase/stagehand/commit/4d72a87ff7615f160fc66ef917bbb68849a545f0), [`a94afd6`](https://github.com/browserbase/stagehand/commit/a94afd67031968c0f449258e3e6bf6c98ceb26c9), [`873a921`](https://github.com/browserbase/stagehand/commit/873a92151384d8f47f8235af3f4236ba8a6ae73d), [`b290165`](https://github.com/browserbase/stagehand/commit/b29016565dc83dc4f0e56948fb11210dce7e4df0), [`16e6c3a`](https://github.com/browserbase/stagehand/commit/16e6c3a39f09a74b9ee8de005542cdb16e85ba94), [`082bc76`](https://github.com/browserbase/stagehand/commit/082bc76fda89d5ec04718fa3314f742b3cbb4d2b), [`9d3cfa5`](https://github.com/browserbase/stagehand/commit/9d3cfa51589ab1fdc85e16ddfc09f8c44dc7e2b9), [`82827a2`](https://github.com/browserbase/stagehand/commit/82827a219512f0399cb159720a63f7d271d21480), [`79d63db`](https://github.com/browserbase/stagehand/commit/79d63dbb8b3122b004de22bd81d5b2bed26e2abd), [`82ec9b3`](https://github.com/browserbase/stagehand/commit/82ec9b383d2b7f7e9102596b3422923998a9aafd), [`f7cae08`](https://github.com/browserbase/stagehand/commit/f7cae08e996dad9010ae755ef8cf1682c12591c1), [`75a838b`](https://github.com/browserbase/stagehand/commit/75a838b405f454dbde083fa48aa902ab9f511669), [`3bedd82`](https://github.com/browserbase/stagehand/commit/3bedd822f2e31c6716added7743179405985a439), [`8194de9`](https://github.com/browserbase/stagehand/commit/8194de92c2918bedf198731ba08fe328f2d5097d)]:
+  - @browserbasehq/stagehand@4.5.0
+
+## TypeScript SDK 4.4.0
+
+### Minor Changes
+
+- [#3305](https://github.com/browserbase/stagehand/pull/3305) [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1) Thanks [@miguelg719](https://github.com/miguelg719)! - add `browser.disconnect()`, which closes an attached Stagehand instance and the connection to a browser without closing the browser or releasing its Browserbase session (Browserbase still ends sessions without `keepAlive` on disconnect). `browser.close()` after `disconnect()` now throws (connect again to close the browser), a launched local browser receives `Browser.close` before it is terminated, browser handles expose `cdpUrl` (`cdp_url` in Python) for local browsers, and `connected` reports whether the handle still has a live connection
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+- [#3387](https://github.com/browserbase/stagehand/pull/3387) [`066e875`](https://github.com/browserbase/stagehand/commit/066e875c00af1cce5c60845cbf9d620fe69a911f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fixed domain policy bypasses involving URLs with credentials, background requests, and speculative page loads
+
+- [#3383](https://github.com/browserbase/stagehand/pull/3383) [`1e50db6`](https://github.com/browserbase/stagehand/commit/1e50db680f0429b3fb96e0519cb6d9de8c4640a5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip variable substitution for drag-and-drop arguments in act().
+
+- [#3388](https://github.com/browserbase/stagehand/pull/3388) [`18b96f2`](https://github.com/browserbase/stagehand/commit/18b96f2227505695795208d7163e4fb03a9ae401) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where calling act() prevents cross-origin iframes from loading
+
+## Python SDK 4.4.0
+
+### Minor Changes
+
+- [#3305](https://github.com/browserbase/stagehand/pull/3305) [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1) Thanks [@miguelg719](https://github.com/miguelg719)! - add `browser.disconnect()`, which closes an attached Stagehand instance and the connection to a browser without closing the browser or releasing its Browserbase session (Browserbase still ends sessions without `keepAlive` on disconnect). `browser.close()` after `disconnect()` now throws (connect again to close the browser), a launched local browser receives `Browser.close` before it is terminated, browser handles expose `cdpUrl` (`cdp_url` in Python) for local browsers, and `connected` reports whether the handle still has a live connection
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+- [#3387](https://github.com/browserbase/stagehand/pull/3387) [`066e875`](https://github.com/browserbase/stagehand/commit/066e875c00af1cce5c60845cbf9d620fe69a911f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fixed domain policy bypasses involving URLs with credentials, background requests, and speculative page loads
+
+- [#3383](https://github.com/browserbase/stagehand/pull/3383) [`1e50db6`](https://github.com/browserbase/stagehand/commit/1e50db680f0429b3fb96e0519cb6d9de8c4640a5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip variable substitution for drag-and-drop arguments in act().
+
+- [#3388](https://github.com/browserbase/stagehand/pull/3388) [`18b96f2`](https://github.com/browserbase/stagehand/commit/18b96f2227505695795208d7163e4fb03a9ae401) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where calling act() prevents cross-origin iframes from loading
+
+## Extension Runtime 1.3.0
+
+### Minor Changes
+
+- [#3325](https://github.com/browserbase/stagehand/pull/3325) [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an extension watchdog for lost SDK clients
+
+### Patch Changes
+
+- [#3339](https://github.com/browserbase/stagehand/pull/3339) [`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Adopt cross-origin iframes that were already loaded when Stagehand attached, or that are nested inside another cross-origin iframe, so snapshots and actions can reach them.
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3340](https://github.com/browserbase/stagehand/pull/3340) [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086) Thanks [@akeimach](https://github.com/akeimach)! - Fix act, observe and extract with Claude Opus 5.5 by bumping `@ai-sdk/anthropic` and `ai` in the extension.
+
+- [#3387](https://github.com/browserbase/stagehand/pull/3387) [`066e875`](https://github.com/browserbase/stagehand/commit/066e875c00af1cce5c60845cbf9d620fe69a911f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fixed domain policy bypasses involving URLs with credentials, background requests, and speculative page loads
+
+- [#3383](https://github.com/browserbase/stagehand/pull/3383) [`1e50db6`](https://github.com/browserbase/stagehand/commit/1e50db680f0429b3fb96e0519cb6d9de8c4640a5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - skip variable substitution for drag-and-drop arguments in act().
+
+- [#3388](https://github.com/browserbase/stagehand/pull/3388) [`18b96f2`](https://github.com/browserbase/stagehand/commit/18b96f2227505695795208d7163e4fb03a9ae401) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where calling act() prevents cross-origin iframes from loading
+
+## Protocol 3.1.1
+
+### Patch Changes
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+## Eve Extension 0.2.3
+
+### Patch Changes
+
+- [#3330](https://github.com/browserbase/stagehand/pull/3330) [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump zod to 4.6.6
+
+- [#3350](https://github.com/browserbase/stagehand/pull/3350) [`b7a4b89`](https://github.com/browserbase/stagehand/commit/b7a4b899079f198a0ee78a6dcb62ad02f545cf49) Thanks [@miguelg719](https://github.com/miguelg719)! - Save run screenshots only as PNG or JPEG files, under ./stagehand-artifacts by default
+
+- Updated dependencies [[`44d99df`](https://github.com/browserbase/stagehand/commit/44d99dfbdd24baaf06986492792348582266d8f0), [`dc8eb40`](https://github.com/browserbase/stagehand/commit/dc8eb408c461e1c3421fbbc452fa3b189146da91), [`edb76b0`](https://github.com/browserbase/stagehand/commit/edb76b0e867790132c2e51f3f34027b950463086), [`066e875`](https://github.com/browserbase/stagehand/commit/066e875c00af1cce5c60845cbf9d620fe69a911f), [`1e50db6`](https://github.com/browserbase/stagehand/commit/1e50db680f0429b3fb96e0519cb6d9de8c4640a5), [`aeb1ba0`](https://github.com/browserbase/stagehand/commit/aeb1ba0d27d08e1d653db3e73c042928e27f33b1), [`18b96f2`](https://github.com/browserbase/stagehand/commit/18b96f2227505695795208d7163e4fb03a9ae401), [`d59afde`](https://github.com/browserbase/stagehand/commit/d59afde37e995b165a41f754a12a446f11d471a2)]:
+  - @browserbasehq/stagehand@4.4.0
+
 ## TypeScript SDK 4.3.0
 
 ### Minor Changes

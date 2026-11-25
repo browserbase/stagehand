@@ -1,3 +1,4 @@
+import { nodeBrowserApiPlatform } from "./nodeBrowserApiPlatform.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   ROOT_CONTEXT,
@@ -51,7 +52,6 @@ type PendingRequest = {
 
 export type RPCRequestContext = {
   readonly requestId: number;
-  /** Aborted when the RPC connection closes. */
   readonly signal: AbortSignal;
 };
 
@@ -62,7 +62,6 @@ type RegisteredRequestHandler = {
 
 type RPCSendOptions = {
   signal?: AbortSignal;
-  /** Replaces the method's derived response deadline for this one request. */
   responseTimeoutMs?: number;
 };
 
@@ -147,6 +146,8 @@ export type CDPTransport = {
 };
 
 export class RPCClient {
+  readonly platform = nodeBrowserApiPlatform;
+
   readonly serviceWorker: ServiceWorkerInfo;
   readonly browserWebSocketDebuggerUrl?: string;
   nextRequestId = 1;
@@ -589,8 +590,6 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     return RPC_RESPONSE_GRACE_MS + defaultOperationTimeoutMs;
   }
 
-  // These operations had no v3 deadline. Keep the server as the owner of their
-  // lifetime instead of turning the transport grace period into a 10s ceiling.
   if (UNBOUNDED_BY_DEFAULT_METHODS.has(method)) {
     return undefined;
   }

@@ -14,13 +14,11 @@ import {
 } from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
-  vi.fn(
-    async (): Promise<RunEvalsResult> => ({
-      experimentName: "test-experiment",
-      summary: { passed: 0, failed: 0, total: 0 },
-      results: [],
-    }),
-  ),
+  vi.fn(async (): Promise<RunEvalsResult> => ({
+    experimentName: "test-experiment",
+    summary: { passed: 0, failed: 0, total: 0 },
+    results: [],
+  })),
 );
 
 vi.mock("../../framework/runner.js", () => ({
@@ -57,8 +55,6 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
   };
 }
 
-// runCommand preflights Browserbase credentials for --env browserbase before
-// planning; the mocked runner never opens a session, so any value works.
 const savedBrowserbaseKeys = {
   BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
   BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
@@ -152,8 +148,6 @@ describe("deriveCategoryFilter", () => {
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.tasks.sort()).toEqual(["agent/webvoyager", "dropdown"]);
-    // The suite is omitted from the planned matrix (external harness only),
-    // while the deterministic task still plans.
     expect([...new Set(payload.matrix.map((row: { task: string }) => row.task))]).toEqual([
       "dropdown",
     ]);
@@ -454,7 +448,6 @@ describe("deriveCategoryFilter", () => {
       }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    // The default widths only show when no shell export overrides them.
     vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", undefined);
 
     await runCommand(
@@ -591,7 +584,6 @@ describe("deriveCategoryFilter", () => {
       delete process.env.EVAL_PROVIDER_CONCURRENCY;
       await runCommand(options, registry);
       expect(heading()).toContain("Concurrency: 10 global · openai 4");
-      // The config widths reach the runner, which layers the env on top itself.
       expect(runEvalsMock).toHaveBeenCalledWith(
         expect.objectContaining({ providerConcurrency: { openai: 4, anthropic: 5 } }),
       );
@@ -724,9 +716,7 @@ describe("buildCombinations (preview column-pruning)", () => {
       },
     ];
     const { columns, rows } = buildCombinations(matrix);
-    // category varies across rows, so it stays — but model/environment are constant and drop.
     expect(columns).toEqual(["category"]);
-    // 2 unique categories → 2 combinations.
     expect(rows).toHaveLength(2);
     const counts = Object.fromEntries(rows.map((r) => [String(r.values.category), r.runs]));
     expect(counts).toEqual({ actions: 2, tabs: 1 });
@@ -757,7 +747,6 @@ describe("buildCombinations (preview column-pruning)", () => {
     );
     const { columns, rows } = buildCombinations(matrix);
     expect(columns).toEqual(["model", "agentMode"]);
-    // 2 models × 2 modes = 4 combos, each runs against 2 tasks.
     expect(rows).toHaveLength(4);
     expect(rows.every((r) => r.runs === 2)).toBe(true);
   });
@@ -791,7 +780,6 @@ describe("buildCombinations (preview column-pruning)", () => {
       },
     ];
     const { columns, rows } = buildCombinations(matrix);
-    // Even though harnessConfig differs, it's hidden — single combo.
     expect(columns).toEqual([]);
     expect(rows).toHaveLength(1);
   });
@@ -842,7 +830,6 @@ describe("preview header constants", () => {
     );
     expect(output).not.toContain("Provider: openai  Provider:");
 
-    // With --model the override line names it; the constants line doesn't repeat it.
     log.mockClear();
     renderPreview({
       target: "b:hardbenchmark",
@@ -948,7 +935,6 @@ describe("end-of-run summary", () => {
     expect(output).toMatch(
       /✗ t2\s+sdk_error\s+rate_limit_exceeded \(429\) https:\/\/www.browserbase.com\/sessions\/9ab0/,
     );
-    // One headline instead of a second pass rate; the cell row carries it.
     expect(output).toMatch(/^ {2}hardbenchmark · 2 runs · \d+s$/m);
     expect(streamed.join("")).not.toContain("Results:");
     expect(output).toContain(
@@ -969,7 +955,6 @@ describe("end-of-run summary", () => {
 
   it("prints the dead-judge banner and exits 1 when the judge graded nothing", async () => {
     delete process.env.CI;
-    // On main a verifier failure fails the row closed; the agent's claim is kept aside.
     mockRun([
       row("t1", { agentReportedSuccess: true, verifierError: "Fused judgment call failed" }),
       row("t2", {
@@ -985,7 +970,6 @@ describe("end-of-run summary", () => {
 
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("across 0 graded runs · 2 ungraded");
-    // The banner explains it once; the failures list doesn't repeat it per row.
     expect(output).not.toMatch(/\? t\d\s+ungraded/);
     const errors = error.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(errors).toContain(
@@ -1014,7 +998,6 @@ describe("end-of-run summary", () => {
 
     await runCommand({ ...benchOptions, json: true }, registry());
 
-    // stdout must parse as exactly one JSON document.
     const payload = JSON.parse(stdout.join(""));
     expect(payload).toMatchObject({
       experimentName: "agent/hardbenchmark-a1b2",
@@ -1278,12 +1261,12 @@ describe("log streaming and live keys", () => {
       e({ type: "started", ...B });
       const run = getActiveRun()!;
       e(logEvent(A, "off-a"));
-      run.onKey?.("v"); // all
+      run.onKey?.("v");
       e(logEvent(B, "all-b"));
-      run.onKey?.("v"); // one → A, the oldest running
+      run.onKey?.("v");
       e(logEvent(A, "one-a"));
       e(logEvent(B, "one-b"));
-      run.onKey?.("v"); // off
+      run.onKey?.("v");
       e(logEvent(A, "off-again"));
       seen.push(String(run.onKey?.("x")));
     });

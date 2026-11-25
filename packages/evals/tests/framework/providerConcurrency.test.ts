@@ -146,7 +146,6 @@ describe("interleaveByProvider", () => {
     ];
     const widths: Record<string, number> = { openai: 8, anthropic: 1 };
     const order = interleaveByProvider(rows, model, (provider) => widths[provider ?? ""] ?? 1);
-    // -c 10 admits the first ten: 8 openai + 1 anthropic run, one openai waits.
     expect(order.slice(0, 10).filter((row) => row.model === "anthropic/c")).toHaveLength(1);
     expect(order).toHaveLength(rows.length);
     expect(new Set(order.map((row) => row.id)).size).toBe(rows.length);
@@ -200,7 +199,6 @@ describe("classifyThrottle", () => {
     "max_turns",
     "stream closed before first token",
     "HTTP 401 Unauthorized",
-    // A bare 429 in ids, step counts or URLs is not backpressure.
     "task took 429 steps",
     "see https://www.browserbase.com/sessions/429b1f00",
     "case 7e6993f2-429-ab",
@@ -354,7 +352,6 @@ describe("ProviderConcurrency", () => {
     expect(scheduler.snapshot().semaphores.openai.throttledUntil).toBeUndefined();
     expect(scheduler.snapshot().throttled).toBe(2);
 
-    // After the window, a fresh signal halves again.
     now += THROTTLE_WINDOW_MS;
     expect(scheduler.throttle("openai", "429").widthAfter).toBe(3);
     scheduler.dispose();
@@ -422,7 +419,6 @@ describe("runGatedRow", () => {
       harnessStatus: "sdk_error",
       providerThrottled: { throttles: 2, retried: true },
     });
-    // The second signal lands inside the window: extended, not halved again.
     expect(scheduler.snapshot().semaphores.openai.width).toBe(2);
     scheduler.dispose();
   });
@@ -456,12 +452,10 @@ describe("runGatedRow", () => {
   it("stops waiting out the Browserbase retry delay when the run aborts", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
     const controller = new AbortController();
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        error: "Browserbase session creation failed (HTTP 429).",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      error: "Browserbase session creation failed (HTTP 429).",
+    }));
     const row = runGatedRow({
       scheduler,
       modelName: "openai/gpt-5.4-mini",
@@ -484,12 +478,10 @@ describe("runGatedRow", () => {
 
   it("does not treat a 429 in a provider-less row as a provider throttle", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        error: "page returned HTTP 429 Too Many Requests",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      error: "page returned HTTP 429 Too Many Requests",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "none", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();
@@ -498,14 +490,12 @@ describe("runGatedRow", () => {
 
   it("does not re-run the agent when only the judge was rate limited", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({
-        _success: false,
-        harnessStatus: "completed",
-        verifierError: "Google API error 429",
-        error: "Verification failed: Google API error 429",
-      }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      harnessStatus: "completed",
+      verifierError: "Google API error 429",
+      error: "Verification failed: Google API error 429",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "openai/gpt-5.4-mini", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();
@@ -542,9 +532,10 @@ describe("runGatedRow", () => {
 
   it("does not retry ordinary failures", async () => {
     const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
-    const execute = vi.fn(
-      async (): Promise<TaskResult> => ({ _success: false, harnessStatus: "max_turns" }),
-    );
+    const execute = vi.fn(async (): Promise<TaskResult> => ({
+      _success: false,
+      harnessStatus: "max_turns",
+    }));
     const result = await runGatedRow({ scheduler, modelName: "openai/gpt-5.4-mini", execute });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.providerThrottled).toBeUndefined();

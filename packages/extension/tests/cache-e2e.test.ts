@@ -11,17 +11,6 @@ import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";
 
-/**
- * End-to-end test of the cache path with nothing mocked between the service
- * and the wire: client RPC reaches a local server standing
- * in for stagehand-api-v3's POST /v1/cache/{get,set}. The service tests mock
- * the client, so only this file proves that an actual API payload maps onto
- * `metadata.cache` — the seam where a renamed or dropped field (as `tokensSaved`
- * was) otherwise goes unnoticed.
- *
- * Response fixtures are the API's real shapes, captured from a live instance.
- */
-
 interface CapturedRequest {
   url: string;
   headers: IncomingHttpHeaders;
@@ -36,7 +25,6 @@ let liveCalls = 0;
 let rpcRequests: BrowserbaseRequestParams[];
 const requests: CapturedRequest[] = [];
 
-/** Per-scenario response bodies; each test sets what the API should answer. */
 let getResponse: () => { status: number; body: unknown };
 let setResponse: () => { status: number; body: unknown };
 
@@ -181,8 +169,6 @@ describe("cache metadata over client transport", () => {
       missReason: "not_found",
     });
 
-    // The write must carry llmUsage, or the API has nothing to compute a
-    // future hit's tokensSaved from.
     const write = requests.find((request) => request.url.endsWith("/cache/set"));
     expect(write?.body).toMatchObject({
       method: "extract",

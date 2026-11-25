@@ -1,4 +1,3 @@
-/** Discover or run the v4 extension-backed integration tests. */
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -23,8 +22,6 @@ export interface IntegrationCliArgs {
   args: string[];
 }
 
-// Every integration test file must appear in exactly one semantic group. Discovery
-// throws when this map and packages/sdk-ts/tests/integration fall out of sync.
 export const integrationTestGroups = {
   "local/browser-lifecycle": [
     "cdpSessionDetached",
@@ -37,7 +34,14 @@ export const integrationTestGroups = {
     "contextDomainPolicy",
     "contextExtraHttpHeaders",
   ],
-  "local/frames-shadow": ["coordinateClick", "iframeLocatorReadiness", "nestedDiv"],
+  "local/frames-shadow": [
+    "actIframeAttachment",
+    "coordinateClick",
+    "iframeLocatorReadiness",
+    "iframeNetworkCapture",
+    "locatorChaining",
+    "nestedDiv",
+  ],
   "local/input": ["clipboard", "keyboard"],
   "local/locators-read": [
     "locatorContentMethods",
@@ -52,7 +56,13 @@ export const integrationTestGroups = {
     "locatorInputMethods",
     "locatorSelectOption",
   ],
-  "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
+  "local/page-navigation": [
+    "pageAddInitScript",
+    "pageExtraHttpHeaders",
+    "pageGotoResponse",
+    "pageOnConsole",
+    "pageOnResponse",
+  ],
   "local/page-interactions": [
     "clickCount",
     "pageDragAndDrop",
@@ -62,7 +72,12 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForFunction", "waitForSelector", "waitForTimeout"],
+  "local/waits-timeouts": [
+    "waitForFunction",
+    "waitForLoadState",
+    "waitForSelector",
+    "waitForTimeout",
+  ],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 

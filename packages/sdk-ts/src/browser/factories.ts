@@ -85,7 +85,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             launched = await abortable(launchPromise, signal);
           } catch (error) {
             if (signal.aborted && options.keepAlive !== true) {
-              // A launcher may finish after the deadline; close that late-owned browser.
               void launchPromise.then((lateBrowser) => lateBrowser.close()).catch(() => undefined);
             }
             throw error;
@@ -157,7 +156,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             session = await abortable(sessionPromise, signal);
           } catch (error) {
             if (signal.aborted && sessionOptions.keepAlive !== true) {
-              // A remote session may finish launching after the deadline; release it when owned.
               void sessionPromise
                 .then((lateSession) => lateSession.close?.())
                 .catch(() => undefined);
@@ -235,24 +233,20 @@ const factories = createBrowserFactories();
 export const localBrowser = factories.localBrowser;
 export const browserbase = factories.browserbase;
 
-/** @internal */
 export function createBrowserFactoriesForTest(
   dependencies: BrowserFactoryDependencies,
 ): ReturnType<typeof createBrowserFactories> {
   return createBrowserFactories(dependencies);
 }
 
-/** @internal */
 export function claimStagehandBrowser(browser: StagehandBrowser): ClaimedStagehandBrowser {
   return claimStagehandBrowserHandle<ClaimedStagehandBrowser>(browser);
 }
 
-/** @internal */
 export function releaseStagehandBrowser(browser: StagehandBrowser): void {
   releaseStagehandBrowserHandle(browser);
 }
 
-/** @internal */
 export function invalidateStagehandBrowser(browser: StagehandBrowser): Promise<void> {
   return invalidateStagehandBrowserHandle(browser);
 }
@@ -279,13 +273,16 @@ async function connectBrowser(options: {
       ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
+      clientLifecycle: {
+        closeBrowserOnDisconnect: options.provider === "local" && ownsSource,
+        extensionCdpUrl: options.workerInitMetadata.browserCdpUrl,
+      },
       signal: options.signal,
     });
     try {
       cdpClient = await abortable(connectionPromise, options.signal);
     } catch (error) {
       if (options.signal.aborted) {
-        // An injected connector may ignore AbortSignal and resolve after the factory rejects.
         void connectionPromise.then((lateClient) => lateClient.close()).catch(() => undefined);
       }
       throw error;
@@ -299,36 +296,65 @@ async function connectBrowser(options: {
       }
     };
     const close = async () => {
+      const errors: unknown[] = [];
       try {
-        if (options.provider === "local" && options.origin === "connected") {
+        if (options.provider === "local") {
+          const deadline = new AbortController();
+          const timer = setTimeout(() => deadline.abort(), BROWSER_CLOSE_TIMEOUT_MS);
           try {
-            await connectedClient.sendCommand("Browser.close");
+            await connectedClient.sendCommand("Browser.close", {}, undefined, deadline.signal);
           } catch (error) {
-            if (!(error instanceof CDPConnectionClosedError)) throw error;
+            if (deadline.signal.aborted) {
+              if (options.origin === "connected") {
+                errors.push(
+                  new Error(`Browser.close did not respond within ${BROWSER_CLOSE_TIMEOUT_MS} ms`),
+                );
+              }
+            } else if (!(error instanceof CDPConnectionClosedError)) {
+              errors.push(error);
+            }
+          } finally {
+            clearTimeout(timer);
           }
-        } else {
-          await closeSource(options.source);
+        }
+        if (options.provider === "browserbase" || options.origin === "launched") {
+          try {
+            await closeSource(options.source);
+          } catch (error) {
+            errors.push(error);
+          }
         }
       } finally {
         connectedClient.close();
       }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, "Browser close failed");
     };
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
       sessionId: options.workerInitMetadata.browser?.sessionId,
+      cdpUrl: options.provider === "local" ? options.source.cdpUrl : undefined,
       attachment: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close,
       invalidate,
+      // Never closes the browser or releases its session. Browserbase still ends a
+      // session without keepAlive once this connection closes. Detaching first disarms
+      // the extension's watchdog; without that acknowledgement the socket stays open,
+      // since closing it would read as a lost client and could shut the browser down.
+      disconnect: async () => {
+        await connectedClient.detachClient();
+        connectedClient.close();
+      },
+      connected: () => !connectedClient.closed,
+      closeWithoutConnection:
+        options.provider === "browserbase" ? () => closeSource(options.source) : undefined,
     });
   } catch (error) {
     cdpClient?.close();
-    // No browser handle escaped this failed launch. A newly created remote
-    // session remains ours to release, even if successful handles stay alive
-    // after transport loss. Connecting to somebody else's session stays unowned.
     if (ownsSource || (options.provider === "browserbase" && options.origin === "launched")) {
       try {
         await closeSource(options.source);
@@ -343,6 +369,8 @@ async function connectBrowser(options: {
     throw error;
   }
 }
+
+const BROWSER_CLOSE_TIMEOUT_MS = 5_000;
 
 async function closeSource(source: BrowserConnectionSource): Promise<void> {
   await source.close?.();

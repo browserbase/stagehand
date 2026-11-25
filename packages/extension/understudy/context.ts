@@ -1,9 +1,9 @@
-// lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
-import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
+import type { CDPSessionLike, CdpSession, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
+import { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type {
   Cookie,
@@ -24,7 +24,9 @@ import {
 import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
+import type { DomainPolicyRuleSession } from "./domainPolicyDnr.js";
 import type { ChromeTabTargetController } from "./chromeTabs.js";
+import { CLIENT_TARGET_URL } from "../clientLifecycle.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -36,12 +38,6 @@ function isMissingTargetError(error: unknown): boolean {
   return /No target with given id found/i.test(message);
 }
 
-/**
- * Returns true when the target's URL points to a document with a real,
- * pierceable HTML DOM.  We allowlist the small set of schemes that carry
- * web content rather than trying to blacklist every internal browser scheme
- * (chrome://, chrome-extension://, devtools://, brave://, edge://, …).
- */
 function hasInjectableDOM(url: string | undefined): boolean {
   if (!url || url === "") return true;
   if (url === "about:blank" || url === "about:srcdoc" || url.startsWith("about:blank#"))
@@ -58,31 +54,18 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
-  // Top-level pages should always be tracked — the initial URL may be a
-  // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
-  // web content, and the target identity stays the same.
+  if (info.url === CLIENT_TARGET_URL) return true;
   if (info.type === "page") return false;
   return info.type !== "iframe" || !hasInjectableDOM(info.url);
 }
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
-  return info.type === "page" && ti.subtype !== "iframe";
+  return info.type === "page" && ti.subtype !== "iframe" && info.url !== CLIENT_TARGET_URL;
 }
 
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
 
-/**
- * BrowserContext
- *
- * Owns the root CDP connection and wires Target/Page events into Page.
- * Maintains one Page per top-level target, adopts OOPIF child sessions into the owner Page,
- * and tracks target→page and (root) frame→target mappings for lookups.
- *
- * IMPORTANT: FrameId → session ownership is managed inside Page (via its FrameRegistry).
- * Context never “guesses” owners; it simply forwards events (with the emitting session)
- * so Page can record the correct owner at event time.
- */
 export class BrowserContext {
   constructor(
     readonly conn: CdpConnection,
@@ -92,20 +75,22 @@ export class BrowserContext {
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
+    private readonly domainPolicyRules?: DomainPolicyRuleSession,
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
-  readonly _domainPolicySessionListeners = new Map<
-    SessionId,
-    (evt: Protocol.Fetch.RequestPausedEvent) => void
-  >();
-
   readonly _sessionInit = new Set<SessionId>();
   pagesByTarget = new Map<TargetId, Page>();
   mainFrameToTarget = new Map<string, TargetId>();
   sessionOwnerPage = new Map<SessionId, Page>();
   frameOwnerPage = new Map<string, Page>();
+  private readonly pendingNetworkCaptures = new Map<
+    SessionId,
+    { targetId: TargetId; capture: SessionNetworkCapture }
+  >();
   pendingOopifByMainFrame = new Map<string, SessionId>();
+  pendingOopifParentByMainFrame = new Map<string, string>();
+  adoptedOopifSessionByFrame = new Map<string, SessionId>();
   createdAtByTarget = new Map<TargetId, number>();
   typeByTarget = new Map<TargetId, TargetType>();
   pendingCreatedTargetUrl = new Map<TargetId, string>();
@@ -122,6 +107,9 @@ export class BrowserContext {
   readonly initScripts: string[] = [];
   extraHttpHeaders: Record<string, string> | null = null;
   domainPolicy: NormalizedDomainPolicy | null = null;
+  private domainPolicyTail: Promise<void> = Promise.resolve();
+  private closing = false;
+  private closePromise?: Promise<void>;
   _clipboard?: ContextClipboard;
 
   get connected(): boolean {
@@ -153,9 +141,6 @@ export class BrowserContext {
     });
   }
 
-  /**
-   * Create a Context for a given CDP websocket URL and bootstrap target wiring.
-   */
   static async create(
     wsUrl: string,
     opts: {
@@ -165,6 +150,7 @@ export class BrowserContext {
       blankPageUrl: string;
       fallbackLocatorScriptSource: string;
       chromeTabs: ChromeTabTargetController;
+      domainPolicyRules?: DomainPolicyRuleSession;
       logger: StagehandLogger;
       bootstrapLogger?: StagehandLogger;
     },
@@ -179,6 +165,7 @@ export class BrowserContext {
         opts?.localBrowserLaunchOptions ?? null,
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
+        opts.domainPolicyRules,
       );
       const bootstrap = async () => {
         await ctx.bootstrap();
@@ -186,14 +173,26 @@ export class BrowserContext {
           await ctx.newPage();
         }
       };
-      if (opts.bootstrapLogger) {
-        await conn.runWithTelemetryContext(
-          Symbol("browser.bootstrap"),
-          opts.bootstrapLogger,
-          bootstrap,
-        );
-      } else {
-        await bootstrap();
+      try {
+        if (opts.bootstrapLogger) {
+          await conn.runWithTelemetryContext(
+            Symbol("browser.bootstrap"),
+            opts.bootstrapLogger,
+            bootstrap,
+          );
+        } else {
+          await bootstrap();
+        }
+      } catch (error) {
+        try {
+          await ctx.close();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Browser context initialization and cleanup failed",
+          );
+        }
+        throw error;
       }
       return ctx;
     };
@@ -237,7 +236,6 @@ export class BrowserContext {
     }
   }
 
-  /** Return the understudy Page for Chrome's active tab in its last-focused window. */
   public async activePage(): Promise<Page | undefined> {
     const deadline = Date.now() + DEFAULT_ACTIVE_PAGE_TIMEOUT_MS;
     let targetId: string | undefined;
@@ -260,7 +258,6 @@ export class BrowserContext {
     );
   }
 
-  /** Select the Chrome tab that owns a known understudy Page. */
   public async setActivePage(page: Page): Promise<void> {
     let targetId = page.targetId();
     if (this.pagesByTarget.get(targetId) !== page) {
@@ -343,125 +340,17 @@ export class BrowserContext {
 
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     const nextPolicy = normalizeDomainPolicy(policy);
-    this.domainPolicy = nextPolicy;
+    if (this.closing) throw new Error("Browser context is closing");
+    const rules = this.domainPolicyRules;
+    if (!rules) throw new Error("Domain policy DNR enforcement is unavailable");
 
-    const sessions: CDPSessionLike[] = [];
-    for (const sessionId of this._sessionInit) {
-      const session = this.conn.getSession(sessionId);
-      if (session) sessions.push(session);
-    }
-
-    if (!sessions.length) return;
-
-    const results = await Promise.allSettled(
-      sessions.map(async (session) => {
-        if (!nextPolicy) {
-          try {
-            await session.send("Fetch.disable");
-            this.uninstallDomainPolicyHandler(session);
-          } catch (error) {
-            throw { action: "disable", error };
-          }
-          return;
-        }
-
-        this.installDomainPolicyHandler(session);
-        try {
-          await session.send("Fetch.enable", {
-            patterns: nextPolicy.fetchPatterns,
-          });
-        } catch (error) {
-          throw { action: "enable", error };
-        }
-      }),
-    );
-
-    const failures = results
-      .map((result, index) => ({ result, session: sessions[index] }))
-      .filter(
-        (
-          entry,
-        ): entry is {
-          result: PromiseRejectedResult;
-          session: CDPSessionLike;
-        } => entry.result.status === "rejected",
-      )
-      .map((entry) => {
-        const failure = entry.result.reason as {
-          action?: "enable" | "disable";
-          error?: unknown;
-        };
-        if (failure?.action === "enable") {
-          this.uninstallDomainPolicyHandler(entry.session);
-        }
-        const reason = failure?.error ?? entry.result.reason;
-        const sid = entry.session.id ?? "unknown";
-        const message = reason instanceof Error ? reason.message : String(reason);
-        return { reason, sessionId: sid, message };
-      });
-
-    if (failures.length) {
-      this.logger.error("setDomainPolicy failed for one or more sessions", {
-        category: "ctx",
-        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
-      });
-      throw failures[0]!.reason;
-    }
-  }
-
-  installDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-    if (this._domainPolicySessionListeners.has(sessionId)) return;
-
-    const handler = (evt: Protocol.Fetch.RequestPausedEvent) => {
-      void this.handleDomainPolicyRequestPaused(session, evt);
-    };
-    this._domainPolicySessionListeners.set(sessionId, handler);
-    session.on<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-  }
-
-  uninstallDomainPolicyHandler(session: CDPSessionLike): void {
-    const sessionId = session.id;
-    if (!sessionId) return;
-
-    const handler = this._domainPolicySessionListeners.get(sessionId);
-    if (!handler) return;
-
-    session.off<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
-    this._domainPolicySessionListeners.delete(sessionId);
-  }
-
-  async handleDomainPolicyRequestPaused(
-    session: CDPSessionLike,
-    evt: Protocol.Fetch.RequestPausedEvent,
-  ): Promise<void> {
-    const decision = getDomainPolicyDecision(evt.request.url, this.domainPolicy);
-
-    if (decision.action === "continue") {
-      await session.send("Fetch.continueRequest", { requestId: evt.requestId }).catch(() => {});
-      return;
-    }
-
-    let hostname = "";
-    try {
-      hostname = new URL(evt.request.url).hostname.toLowerCase();
-    } catch {
-      // ignore malformed URLs for logging
-    }
-
-    this.logger.debug("Blocked request by domain policy", {
-      category: "network",
-      hostname,
-      ruleType: decision.reason,
+    const update = this.domainPolicyTail.then(async () => {
+      if (this.closing) throw new Error("Browser context is closing");
+      await rules.replace(nextPolicy);
+      this.domainPolicy = nextPolicy;
     });
-
-    await session
-      .send("Fetch.failRequest", {
-        requestId: evt.requestId,
-        errorReason: "BlockedByClient",
-      })
-      .catch(() => {});
+    this.domainPolicyTail = update.catch(() => undefined);
+    await update;
   }
 
   public get clipboard(): ContextClipboard {
@@ -476,9 +365,6 @@ export class BrowserContext {
     }));
   }
 
-  /**
-   * Return top-level `Page`s (oldest → newest). OOPIF targets are not included.
-   */
   pages(): Page[] {
     const rows: Array<{ tid: TargetId; page: Page; created: number }> = [];
     for (const [tid, page] of this.pagesByTarget) {
@@ -502,38 +388,24 @@ export class BrowserContext {
     }
   }
 
-  /**
-   * Resolve an owning `Page` by the **top-level main frame id**.
-   * Note: child (OOPIF) roots are intentionally not present in this mapping.
-   */
   resolvePageByMainFrameId(frameId: string): Page | undefined {
     const targetId = this.mainFrameToTarget.get(frameId);
     return targetId ? this.pagesByTarget.get(targetId) : undefined;
   }
 
-  /**
-   * Serialize the full frame tree for a given top-level main frame id.
-   */
   async getFullFrameTreeByMainFrameId(rootMainFrameId: string): Promise<Protocol.Page.FrameTree> {
     const owner = this.resolvePageByMainFrameId(rootMainFrameId);
     if (!owner) throw new Error(`No Page found for mainFrameId=${rootMainFrameId}`);
     return owner.asProtocolFrameTree(rootMainFrameId);
   }
 
-  /**
-   * Create a new top-level page (tab) with the given URL and return its Page object.
-   * Waits until the target is attached and registered.
-   */
   public async newPage(url?: string): Promise<Page> {
     const targetUrl = url === undefined ? this.blankPageUrl : String(url);
-    const { targetId } = await this.conn.send<{ targetId: string }>(
-      "Target.createTarget",
-      // The packaged page provides locators before a caller's first navigation.
-      { url: this.blankPageUrl },
-    );
+    const { targetId } = await this.conn.send<{ targetId: string }>("Target.createTarget", {
+      url: this.blankPageUrl,
+    });
     this.pendingCreatedTargetUrl.set(targetId, this.blankPageUrl);
     this.pendingNewPageTargets.add(targetId);
-    // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
     try {
@@ -562,44 +434,55 @@ export class BrowserContext {
     }
   }
 
-  /**
-   * Close CDP and clear all mappings. Best-effort cleanup.
-   */
-  async close(): Promise<void> {
-    await this.conn.close();
-    this.pagesByTarget.clear();
-    this.mainFrameToTarget.clear();
-    this.sessionOwnerPage.clear();
-    this.frameOwnerPage.clear();
-    this.pendingOopifByMainFrame.clear();
-    this.createdAtByTarget.clear();
-    this.typeByTarget.clear();
-    this.pendingCreatedTargetUrl.clear();
-    this.pageCreationFailures.clear();
-    this.pendingInitialTopLevelTargets.clear();
-    this.pendingNewPageTargets.clear();
-    this.domainPolicyClosingTargets.clear();
-    this.domainPolicyClosePromises.clear();
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    for (const { capture } of this.pendingNetworkCaptures.values()) capture.dispose();
+    this.pendingNetworkCaptures.clear();
+    const closing = Promise.resolve().then(async () => {
+      try {
+        await this.conn.close();
+      } finally {
+        await this.domainPolicyTail;
+        try {
+          await this.domainPolicyRules?.close();
+          this.domainPolicy = null;
+        } finally {
+          this.pagesByTarget.clear();
+          this.mainFrameToTarget.clear();
+          this.sessionOwnerPage.clear();
+          this.frameOwnerPage.clear();
+          this.pendingOopifByMainFrame.clear();
+          this.pendingOopifParentByMainFrame.clear();
+          this.adoptedOopifSessionByFrame.clear();
+          this.createdAtByTarget.clear();
+          this.typeByTarget.clear();
+          this.pendingCreatedTargetUrl.clear();
+          this.pageCreationFailures.clear();
+          this.pendingInitialTopLevelTargets.clear();
+          this.pendingNewPageTargets.clear();
+          this.domainPolicyClosingTargets.clear();
+          this.domainPolicyClosePromises.clear();
+          this._sessionInit.clear();
+        }
+      }
+    });
+    this.closePromise = closing.catch((error) => {
+      this.closePromise = undefined;
+      throw error;
+    });
+    return this.closePromise;
   }
 
-  /**
-   * Bootstrap target lifecycle:
-   * - Attach to existing targets.
-   * - Handle auto-attach events.
-   * - Clean up on detach/destroy.
-   */
   async bootstrap(): Promise<void> {
-    // Live attach via auto-attach (normal path)
     this.conn.on<Protocol.Target.AttachedToTargetEvent>("Target.attachedToTarget", async (evt) => {
       await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
     });
 
-    // Live detach (clean up session from owner page & frame graph)
     this.conn.on<Protocol.Target.DetachedFromTargetEvent>("Target.detachedFromTarget", (evt) => {
       this.onDetachedFromTarget(evt.sessionId, evt.targetId ?? null);
     });
 
-    // Destroyed targets (fallback cleanup by targetId)
     this.conn.on<Protocol.Target.TargetDestroyedEvent>("Target.targetDestroyed", (evt) => {
       this.cleanupByTarget(evt.targetId);
     });
@@ -622,8 +505,6 @@ export class BrowserContext {
     const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
     for (const targetId of topLevelTargetIds) this.pendingInitialTopLevelTargets.add(targetId);
 
-    // Only enable auto-attach after listeners and initial target state are ready
-    // so replayed targets are captured without racing bootstrap bookkeeping.
     await this.conn.enableAutoAttach();
 
     const targetsAfterAutoAttach = new Map(
@@ -639,7 +520,7 @@ export class BrowserContext {
         );
         continue;
       }
-      if (currentTarget.attached) continue; // auto-attach already handled this target
+      if (currentTarget.attached) continue;
       try {
         await this.conn.attachToTarget(t.targetId);
       } catch (error) {
@@ -650,16 +531,8 @@ export class BrowserContext {
     await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
-  /**
-   * Handle a newly attached target (top-level or potential OOPIF):
-   * - Enable Page domain and lifecycle events.
-   * - If top-level → create Page, wire listeners, resume.
-   * - Else → probe child root frame id via `Page.getFrameTree` and adopt immediately
-   *   if the parent is known; otherwise stage until parent `frameAttached`.
-   * - Resume the target only after listeners are wired.
-   */
   async onAttachedToTarget(info: Protocol.Target.TargetInfo, sessionId: SessionId): Promise<void> {
-    if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
+    if ((await this.closePopupIfBlockedByDomainPolicy(info, "attached")) || this.closing) {
       return;
     }
 
@@ -678,7 +551,6 @@ export class BrowserContext {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
-    // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
 
@@ -690,7 +562,6 @@ export class BrowserContext {
     }
     executionContexts.attachSession(session);
 
-    // Ensure we only resume once even if multiple code paths hit finally.
     let resumed = false;
     const resume = async (): Promise<void> => {
       if (resumed) return;
@@ -699,6 +570,14 @@ export class BrowserContext {
       // any "must happen before first document" work.
       await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     };
+
+    const networkCapture = isTopLevelPage(info) ? undefined : new SessionNetworkCapture(session);
+    if (networkCapture) {
+      this.pendingNetworkCaptures.set(sessionId, {
+        targetId: info.targetId,
+        capture: networkCapture,
+      });
+    }
 
     // Attach lifecycle (per target session):
     // 1) while paused, enable domains + child auto-attach and register init scripts;
@@ -724,34 +603,12 @@ export class BrowserContext {
         .catch(() => false);
       return { dispatched, response };
     };
-    const queueFetchEnablePreResume = (params: object) => {
-      let error: unknown;
-      const dispatched = this.conn
-        .waitForSessionDispatch(sessionId, "Fetch.enable")
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      const response = session
-        .send("Fetch.enable", params)
-        .then(() => true)
-        .catch((err) => {
-          error = err;
-          return false;
-        });
-      return { dispatched, response, getError: () => error };
-    };
     const initScriptOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
     }> = [];
-    // Pre-resume ordering matters:
-    // - enable domains;
-    // - enable child auto-attach with waitForDebuggerOnStart;
-    // - register init scripts.
-    // Commands are sent in-order on the same session before resume.
     const corePreResumeOps = [
+      ...(networkCapture ? [queuePreResume("Network.enable")] : []),
       queuePreResume("Page.enable"),
       queuePreResume("Runtime.enable"),
       queuePreResume("Target.setAutoAttach", {
@@ -766,23 +623,9 @@ export class BrowserContext {
     }> = [];
     if (this.extraHttpHeaders) {
       const headers = { ...this.extraHttpHeaders };
-      headerPreResumeOps.push(queuePreResume("Network.enable"));
+      if (!networkCapture) headerPreResumeOps.push(queuePreResume("Network.enable"));
       headerPreResumeOps.push(queuePreResume("Network.setExtraHTTPHeaders", { headers }));
     }
-    const fetchPreResumeOps: Array<{
-      dispatched: Promise<boolean>;
-      response: Promise<boolean>;
-      getError: () => unknown;
-    }> = [];
-    if (this.domainPolicy) {
-      this.installDomainPolicyHandler(session);
-      fetchPreResumeOps.push(
-        queueFetchEnablePreResume({
-          patterns: this.domainPolicy.fetchPatterns,
-        }),
-      );
-    }
-    // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
         initScriptOps.push(
@@ -801,28 +644,22 @@ export class BrowserContext {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
-        ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
       ])
     ).every(Boolean);
-    // Dispatch resume only after pre-resume setup has actually been sent.
     const resumeOp = queuePreResume("Runtime.runIfWaitingForDebugger");
     const [resumedDispatched, resumedOk] = await Promise.all([
       resumeOp.dispatched,
       resumeOp.response,
     ]);
-    const [coreResults, headerResults, fetchResults, initScriptResults] = await Promise.all([
+    const [coreResults, headerResults, initScriptResults] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
-      Promise.all(fetchPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
     ]);
-    // Header propagation is independent of init-script determinism but still
-    // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
     if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
-      // Short-lived child targets can detach before resume is acknowledged.
-      // Keep this noisy only for top-level pages where missing attach is fatal.
+      this.disposePendingNetworkCapture(sessionId);
       if (isTopLevelPage(info)) {
         this.recordPageCreationFailure(
           info.targetId,
@@ -842,52 +679,14 @@ export class BrowserContext {
     }
     resumed = true;
 
-    if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
-      this.uninstallDomainPolicyHandler(session);
-      const fetchError = fetchPreResumeOps
-        .map((op) => op.getError())
-        .find((error) => error !== undefined);
-      const fetchErrorMessage = fetchError
-        ? fetchError instanceof Error
-          ? fetchError.message
-          : String(fetchError)
-        : "Fetch.enable failed during target attach";
-      const policyFailureMessage =
-        "Fetch.enable failed during target attach; closing target because " +
-        "Stagehand cannot guarantee domain policy enforcement";
-      this.recordPageCreationFailure(
-        info.targetId,
-        fetchError instanceof Error
-          ? fetchError
-          : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
-        policyFailureMessage,
-      );
-      this.logger.error("Closing target because domain policy could not be guaranteed", {
-        category: "ctx",
-        targetId: String(info.targetId),
-        targetType: String(info.type),
-        targetUrl: String(info.url ?? ""),
-        sessionId,
-        cdpError: fetchErrorMessage,
-      });
-      await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
-      return;
-    }
-
     const scriptsInstalled = coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
     try {
-      // Best-effort lifecycle events; do not block top-level page registration
-      // on this optional signal stream.
       void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
 
-      // Top-level handling
       if (isTopLevelPage(info)) {
         let page: Page | null = null;
         let createError: unknown;
-        // Deterministic contract: never drop a newly attached top-level target
-        // because an arbitrary local timeout fired. We wait for Page.create and
-        // let it finish regardless of CDP call latency.
         try {
           page = await Page.create(
             this.conn,
@@ -928,53 +727,138 @@ export class BrowserContext {
         this.pendingCreatedTargetUrl.delete(info.targetId);
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this.installFrameEventBridges(sessionId, page);
-        // If we already installed scripts at the session level, only seed the
-        // Page's registry to avoid double-installing DOMContentLoaded handlers.
+        this.adoptPendingOopifsByParent();
         await this.applyInitScriptsToPage(page, {
           seedOnly: scriptsInstalled,
         });
         return;
       }
 
-      // Child (iframe / OOPIF)
       try {
         const { frameTree } =
           await session.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
+        if (this.closing || this.conn.getSession(sessionId) !== session) return;
         const childMainId = frameTree.frame.id;
 
-        // Try to find owner Page now (it may already have the node in its tree)
-        let owner = this.frameOwnerPage.get(childMainId);
-        if (!owner) {
-          for (const p of this.pagesByTarget.values()) {
-            const tree = p.asProtocolFrameTree(p.mainFrameId());
-            const has = (function find(n: Protocol.Page.FrameTree): boolean {
-              if (n.frame.id === childMainId) return true;
-              for (const c of n.childFrames ?? []) if (find(c)) return true;
-              return false;
-            })(tree);
-            if (has) {
-              owner = p;
-              break;
-            }
-          }
-        }
+        // Remote frames are missing from the parent's frame tree, so fall back to the
+        // page that owns the parent frame (pre-existing or nested OOPIFs).
+        const parentFrameId = frameTree.frame.parentId;
+        const owner =
+          this.findPageOwningFrame(childMainId) ??
+          (parentFrameId ? this.findPageOwningFrame(parentFrameId) : undefined);
 
         if (owner) {
-          owner.adoptOopifSession(session, childMainId);
-          this.sessionOwnerPage.set(sessionId, owner);
-          this.installFrameEventBridges(sessionId, owner);
-          // Prime the execution-context registry so later lookups succeed even if
-          // the frame navigates before we issue a command.
-          void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+          this.adoptOopif(owner, session, childMainId);
+          this.adoptPendingOopifsByParent();
         } else {
           this.pendingOopifByMainFrame.set(childMainId, sessionId);
+          if (parentFrameId) {
+            this.pendingOopifParentByMainFrame.set(childMainId, parentFrameId);
+          }
         }
       } catch {
-        // page.getFrameTree failed. Most likely was an ad iframe
-        // that opened & closed before we could attach. ignore
+        this.disposePendingNetworkCapture(sessionId);
       }
     } finally {
       await resume();
+    }
+  }
+
+  findPageOwningFrame(frameId: string): Page | undefined {
+    const known = this.frameOwnerPage.get(frameId);
+    if (known) {
+      if (
+        this.pagesByTarget.get(known.targetId()) === known &&
+        known.registry.frames.has(frameId)
+      ) {
+        return known;
+      }
+      this.frameOwnerPage.delete(frameId);
+    }
+    for (const p of this.pagesByTarget.values()) {
+      if (p.listAllFrameIds().includes(frameId)) return p;
+    }
+    return undefined;
+  }
+
+  adoptOopif(owner: Page, session: CdpSession, childMainId: string): void {
+    const pending = this.pendingNetworkCaptures.get(session.id);
+    this.pendingNetworkCaptures.delete(session.id);
+    try {
+      owner.adoptOopifSession(
+        session,
+        childMainId,
+        () => {
+          this.adoptPendingOopifsByParent();
+        },
+        pending?.capture,
+      );
+    } catch (error) {
+      pending?.capture.dispose();
+      throw error;
+    }
+    this.adoptedOopifSessionByFrame.set(childMainId, session.id);
+    this.sessionOwnerPage.set(session.id, owner);
+    this.frameOwnerPage.set(childMainId, owner);
+    this.installFrameEventBridges(session.id, owner);
+    void executionContexts.waitForMainWorld(session, childMainId).catch(() => {});
+  }
+
+  private disposePendingNetworkCapture(sessionId: SessionId): void {
+    this.pendingNetworkCaptures.get(sessionId)?.capture.dispose();
+    this.pendingNetworkCaptures.delete(sessionId);
+  }
+
+  private removePendingOopif(frameId: string): void {
+    this.pendingOopifByMainFrame.delete(frameId);
+    this.pendingOopifParentByMainFrame.delete(frameId);
+  }
+
+  private removePendingOopifsForPage(page: Page): void {
+    const pageFrameIds = new Set([page.mainFrameId(), ...page.registry.frames.keys()]);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) pageFrameIds.add(frameId);
+    }
+
+    let removed: boolean;
+    do {
+      removed = false;
+      for (const [frameId] of this.pendingOopifByMainFrame) {
+        const parentId = this.pendingOopifParentByMainFrame.get(frameId);
+        if (!pageFrameIds.has(frameId) && (!parentId || !pageFrameIds.has(parentId))) continue;
+        pageFrameIds.add(frameId);
+        this.disposePendingNetworkCapture(this.pendingOopifByMainFrame.get(frameId)!);
+        this.removePendingOopif(frameId);
+        removed = true;
+      }
+    } while (removed);
+  }
+
+  /**
+   * An OOPIF that already existed when we attached (e.g. reconnecting to a live
+   * browser, or a nested OOPIF) never emits `frameAttached` on its parent, so the
+   * pending map would hold it forever. Adopt it once the page owning its parent is known.
+   */
+  adoptPendingOopifsByParent(): void {
+    let adopted = true;
+    while (adopted) {
+      adopted = false;
+      for (const [childMainId, parentFrameId] of Array.from(
+        this.pendingOopifParentByMainFrame.entries(),
+      )) {
+        const childSessionId = this.pendingOopifByMainFrame.get(childMainId);
+        const child = childSessionId ? this.conn.getSession(childSessionId) : undefined;
+        if (!child) {
+          if (childSessionId) this.disposePendingNetworkCapture(childSessionId);
+          this.removePendingOopif(childMainId);
+          continue;
+        }
+        const owner = this.findPageOwningFrame(parentFrameId);
+        if (!owner) continue;
+        this.removePendingOopif(childMainId);
+        this.adoptOopif(owner, child, childMainId);
+        adopted = true;
+      }
     }
   }
 
@@ -994,18 +878,15 @@ export class BrowserContext {
     const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
     if (decision.action === "continue") return false;
 
-    this.logger.debug(
-      "Popup reached a disallowed domain before it could be intercepted; closing it",
-      {
-        category: "network",
-        targetId: String(info.targetId),
-        targetUrl: String(info.url ?? ""),
-        openerId: String(info.openerId ?? ""),
-        openerFrameId: String(info.openerFrameId ?? ""),
-        ruleType: decision.reason,
-        source,
-      },
-    );
+    this.logger.debug("Closing popup targeting a disallowed domain", {
+      category: "network",
+      targetId: String(info.targetId),
+      targetUrl: String(info.url ?? ""),
+      openerId: String(info.openerId ?? ""),
+      openerFrameId: String(info.openerFrameId ?? ""),
+      ruleType: decision.reason,
+      source,
+    });
 
     const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage: "Failed to close popup after it reached a disallowed domain",
@@ -1043,13 +924,11 @@ export class BrowserContext {
     }
   }
 
-  /**
-   * Detach handler:
-   * - Remove child session ownership and prune its subtree.
-   * - If a top-level target, cleanup its `Page` and mappings.
-   * - Drop any staged child for this session.
-   */
   onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
+    this.disposePendingNetworkCapture(sessionId);
+    const closingPage = targetId ? this.pagesByTarget.get(targetId) : undefined;
+    if (closingPage) this.removePendingOopifsForPage(closingPage);
+
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
       owner.detachOopifSession(sessionId);
@@ -1061,23 +940,20 @@ export class BrowserContext {
     }
 
     for (const [fid, sid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
+      if (sid === sessionId) this.removePendingOopif(fid);
+    }
+    for (const [fid, sid] of Array.from(this.adoptedOopifSessionByFrame.entries())) {
+      if (sid === sessionId) this.adoptedOopifSessionByFrame.delete(fid);
     }
 
     this._targetSessionListeners.delete(sessionId);
-    const session = this.conn.getSession(sessionId);
-    if (session) {
-      this.uninstallDomainPolicyHandler(session);
-    } else {
-      this._domainPolicySessionListeners.delete(sessionId);
-    }
     this._sessionInit.delete(sessionId);
   }
 
-  /**
-   * Cleanup a top-level Page by target id, removing its root and staged children.
-   */
   cleanupByTarget(targetId: TargetId): void {
+    for (const [sessionId, pending] of this.pendingNetworkCaptures) {
+      if (pending.targetId === targetId) this.disposePendingNetworkCapture(sessionId);
+    }
     this.recordPageCreationFailure(
       targetId,
       new Error(`Target closed before page registration (${targetId})`),
@@ -1086,18 +962,16 @@ export class BrowserContext {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    this.removePendingOopifsForPage(page);
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
-    this.frameOwnerPage.delete(mainId);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) this.frameOwnerPage.delete(frameId);
+    }
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);
-    }
-
-    for (const [fid] of Array.from(this.pendingOopifByMainFrame.entries())) {
-      const owner = this.frameOwnerPage.get(fid);
-      if (!owner || owner === page) this.pendingOopifByMainFrame.delete(fid);
     }
 
     this.pagesByTarget.delete(targetId);
@@ -1117,9 +991,6 @@ export class BrowserContext {
     ) {
       return;
     }
-    // Preserve the first failure, which is normally the most specific one.
-    // Target cleanup may run after Page.create or attach has already recorded
-    // the underlying error and must not replace it with a generic close message.
     if (this.pageCreationFailures.has(targetId)) return;
     this.pageCreationFailures.set(
       targetId,
@@ -1127,10 +998,6 @@ export class BrowserContext {
     );
   }
 
-  /**
-   * Wire Page-domain frame events for a session into the owning Page & mappings.
-   * We forward the *emitting session* with every event so Page can stamp ownership precisely.
-   */
   installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -1138,25 +1005,19 @@ export class BrowserContext {
     session.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
       const { frameId, parentFrameId } = evt;
 
-      owner.onFrameAttached(frameId, parentFrameId ?? null, session);
+      const adoptedSessionId = this.adoptedOopifSessionByFrame.get(frameId);
+      const adoptedSession = adoptedSessionId ? this.conn.getSession(adoptedSessionId) : undefined;
+      owner.onFrameAttached(frameId, parentFrameId ?? null, adoptedSession ?? session);
 
-      // If we were waiting for this id (OOPIF child), adopt now.
       const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
       if (pendingChildSessionId) {
         const child = this.conn.getSession(pendingChildSessionId);
-        if (child) {
-          owner.adoptOopifSession(child, frameId);
-          this.sessionOwnerPage.set(child.id, owner);
-          // Wire bridges for the child so its Page events keep flowing.
-          this.installFrameEventBridges(pendingChildSessionId, owner);
-        }
-        this.pendingOopifByMainFrame.delete(frameId);
+        this.removePendingOopif(frameId);
+        if (child) this.adoptOopif(owner, child, frameId);
       }
 
-      // Track Page ownership for quick reverse lookups (debug helpers).
       this.frameOwnerPage.set(frameId, owner);
 
-      // Root handoff: keep mainFrameToTarget aligned for the page
       if (!parentFrameId) {
         const newRoot = owner.mainFrameId();
         const topTargetId = this.findTargetIdByPage(owner);
@@ -1165,6 +1026,8 @@ export class BrowserContext {
         }
         this.frameOwnerPage.set(newRoot, owner);
       }
+
+      this.adoptPendingOopifsByParent();
     });
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
@@ -1186,16 +1049,10 @@ export class BrowserContext {
     );
   }
 
-  /**
-   * Register that a session belongs to a Page (used by event routing).
-   */
   wireSessionToOwnerPage(sessionId: SessionId, owner: Page): void {
     this.sessionOwnerPage.set(sessionId, owner);
   }
 
-  /**
-   * Utility: reverse-lookup the top-level target id that owns a given Page.
-   */
   findTargetIdByPage(page: Page): TargetId | undefined {
     for (const [tid, p] of this.pagesByTarget) {
       if (p === page) return tid;
@@ -1203,13 +1060,6 @@ export class BrowserContext {
     return undefined;
   }
 
-  /**
-   * Get all browser cookies, optionally filtered by URL(s).
-   *
-   * When `urls` is omitted or empty every cookie in the browser context is
-   * returned. When one or more URLs are supplied only cookies whose
-   * domain/path/secure attributes match are included.
-   */
   async cookies(urls?: string | string[]): Promise<Cookie[]> {
     const urlList = !urls ? [] : typeof urls === "string" ? [urls] : urls;
 
@@ -1231,14 +1081,6 @@ export class BrowserContext {
     return filterCookies(mapped, urlList);
   }
 
-  /**
-   * Add one or more cookies to the browser context.
-   *
-   * Each cookie must specify either a `url` (from which domain/path/secure are
-   * derived) or an explicit `domain` + `path` pair.
-   *
-   * We surface CDP errors if the browser rejects a cookie.
-   */
   async addCookies(cookies: CookieParam[]): Promise<void> {
     const normalized = normalizeCookieParams(cookies);
     if (!normalized.length) return;
@@ -1248,22 +1090,11 @@ export class BrowserContext {
     await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
   }
 
-  /**
-   * Clear cookies from the browser context.
-   *
-   * - Called with no arguments: clears **all** cookies atomically via
-   *   `Storage.clearCookies`.
-   * - Called with filter options: fetches all cookies, clears everything,
-   *   then re-adds only the cookies that do NOT match the filter via
-   *   `Storage.setCookies`. This is necessary on the browser endpoint because
-   *   the Storage domain does not support targeted deletes.
-   */
   async clearCookies(options?: UnderstudyClearCookieOptions): Promise<void> {
     const hasFilter =
       options?.name !== undefined || options?.domain !== undefined || options?.path !== undefined;
 
     if (!hasFilter) {
-      // Atomic single-call wipe — no race condition, no O(N) roundtrips.
       await this.conn.send("Storage.clearCookies");
       return;
     }

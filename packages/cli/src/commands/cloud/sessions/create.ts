@@ -10,19 +10,11 @@ import {
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
-import {
-  getCliVersion,
-  resolveInstallId,
-  toMetadataValue,
-} from "../../../lib/identity.js";
+import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
 
-const REGIONS = [
-  "us-west-2",
-  "us-east-1",
-  "eu-central-1",
-  "ap-southeast-1",
-] as const;
+const REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"] as const;
+const BROWSER_SIZES = ["regular", "large", "xlarge"] as const;
 
 interface SessionCreateFlagInputs {
   proxies?: boolean;
@@ -31,6 +23,7 @@ interface SessionCreateFlagInputs {
   "solve-captchas"?: boolean;
   "block-ads"?: boolean;
   region?: string;
+  size?: string;
   "keep-alive"?: boolean;
   timeout?: number;
   "context-id"?: string;
@@ -41,9 +34,7 @@ interface SessionCreateFlagInputs {
   "extension-id"?: string;
 }
 
-function buildSessionCreateBody(
-  flags: SessionCreateFlagInputs,
-): Record<string, unknown> {
+function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   const browserSettings: Record<string, unknown> = {};
 
@@ -53,9 +44,9 @@ function buildSessionCreateBody(
   if (flags.timeout !== undefined) body.timeout = flags.timeout;
   if (flags["extension-id"]) body.extensionId = flags["extension-id"];
 
-  if (flags.verified || flags["advanced-stealth"])
-    browserSettings.verified = true;
+  if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
+  if (flags.size) browserSettings.size = flags.size;
 
   if (flags["solve-captchas"] !== undefined) {
     browserSettings.solveCaptchas = flags["solve-captchas"];
@@ -69,8 +60,7 @@ function buildSessionCreateBody(
 
   if (flags.viewport) {
     const match = flags.viewport.match(/^(\d+)x(\d+)$/);
-    if (!match)
-      fail("Invalid viewport format. Use WIDTHxHEIGHT (e.g. 1920x1080).");
+    if (!match) fail("Invalid viewport format. Use WIDTHxHEIGHT (e.g. 1920x1080).");
     const [, width, height] = match;
     browserSettings.viewport = {
       width: Number.parseInt(width!, 10),
@@ -92,28 +82,12 @@ function buildSessionCreateBody(
   return body;
 }
 
-/**
- * Stamp anonymous CLI attribution onto the session-create `userMetadata` so
- * every CLI-created cloud session is attributable to the CLI (matching the
- * driver `open --remote` path). Any user-supplied `userMetadata` (via --body or
- * --stdin) is preserved; our attribution keys (browse_cli/install_id/
- * cli_version) are authoritative and override caller values for those keys.
- *
- * Resolving the install id is best-effort and never throws; if it can't be
- * resolved we still send browse_cli + cli_version. Values are run through
- * toMetadataValue() so the session-create validator never 400s on a stray
- * character or an over-length value.
- */
-async function applyCliAttribution(
-  body: Record<string, unknown>,
-): Promise<void> {
+async function applyCliAttribution(body: Record<string, unknown>): Promise<void> {
   const rawExisting =
     body.userMetadata && typeof body.userMetadata === "object"
       ? (body.userMetadata as Record<string, unknown>)
       : {};
 
-  // Strip any caller-supplied install_id before merging so it cannot be
-  // spoofed when resolution fails (our authoritative value is set below).
   const existing = Object.fromEntries(
     Object.entries(rawExisting).filter(([k]) => k !== "install_id"),
   );
@@ -142,6 +116,7 @@ export default class SessionsCreate extends BrowseCommand {
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
+    "browse cloud sessions create --size large",
     "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
@@ -166,8 +141,7 @@ export default class SessionsCreate extends BrowseCommand {
       description: "Enable Browserbase Verified browser mode.",
     }),
     "solve-captchas": Flags.boolean({
-      description:
-        "Enable automatic CAPTCHA solving. Use --no-solve-captchas to disable.",
+      description: "Enable automatic CAPTCHA solving. Use --no-solve-captchas to disable.",
       allowNo: true,
     }),
     "block-ads": Flags.boolean({
@@ -177,6 +151,11 @@ export default class SessionsCreate extends BrowseCommand {
       description: `Session region. (choices: ${REGIONS.map((r) => `"${r}"`).join(", ")})`,
       options: [...REGIONS],
       helpValue: "<region>",
+    }),
+    size: Flags.string({
+      description: `Size of the browser. Larger sizes provide more resources to improve performance for intensive tasks. Defaults to regular. (choices: ${BROWSER_SIZES.map((size) => `"${size}"`).join(", ")})`,
+      options: [...BROWSER_SIZES],
+      helpValue: "<size>",
     }),
     "keep-alive": Flags.boolean({
       description: "Keep session alive after disconnection.",
@@ -194,8 +173,7 @@ export default class SessionsCreate extends BrowseCommand {
       description: "Persist context changes after session ends.",
     }),
     "record-session": Flags.boolean({
-      description:
-        "Enable session recording. Use --no-record-session to disable.",
+      description: "Enable session recording. Use --no-record-session to disable.",
       allowNo: true,
     }),
     "log-session": Flags.boolean({
@@ -214,8 +192,6 @@ export default class SessionsCreate extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SessionsCreate);
-    // Allow --context-id to be a locally-saved name; resolve it to a real id.
-    // A context id passes through; an unknown name fails with a helpful message.
     if (flags["context-id"]) {
       flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }

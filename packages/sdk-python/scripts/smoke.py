@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -12,6 +13,7 @@ from typing_extensions import override
 
 import stagehand as stagehand_package
 from stagehand import Page, Stagehand, local_browser
+from stagehand.extension_assets import _extension_fingerprint
 from stagehand.rpc_client import RPCError
 
 _FIXTURE_BODY = b"<!doctype html><html><title>Stagehand package smoke</title></html>"
@@ -93,7 +95,6 @@ async def check_locator_timeouts(page: Page) -> None:
                     if await button.inner_text(timeout=5000) != "0":
                         raise AssertionError("Timed-out click fired after returning its error")
                 else:
-                    # Stay blocked beyond the previous 1,200 ms frame readiness limit.
                     await asyncio.sleep(1.6)
                     if click.done():
                         raise AssertionError("Unlimited click stopped before the iframe loaded")
@@ -113,6 +114,8 @@ async def main() -> None:
     package_root = Path(stagehand_package.__file__).parent
     if not (package_root / "_extension" / "manifest.json").is_file():
         raise RuntimeError("Installed Stagehand distribution is missing its browser extension")
+    if not re.fullmatch(r"[0-9a-f]{64}", _extension_fingerprint()):
+        raise RuntimeError("Installed Stagehand distribution has no extension build fingerprint")
 
     with fixture_server() as fixture_url:
         browser = await local_browser.launch(

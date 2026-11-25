@@ -1,6 +1,7 @@
 import net from "node:net";
 import readline from "node:readline";
 
+import { classifyDriverError } from "../error-classifier.js";
 import { DriverError } from "../errors.js";
 import { DriverSessionManager } from "../session-manager.js";
 import type { ConnectionTarget } from "../types.js";
@@ -11,11 +12,7 @@ import {
   getSocketPath,
   writePrivateFile,
 } from "./paths.js";
-import {
-  parseRequest,
-  serializeResponse,
-  type DriverRequest,
-} from "./protocol.js";
+import { parseRequest, serializeResponse, type DriverRequest } from "./protocol.js";
 
 interface RunDriverDaemonOptions {
   session: string;
@@ -24,10 +21,7 @@ interface RunDriverDaemonOptions {
 
 type ShutdownDaemon = () => Promise<void>;
 
-export async function runDriverDaemon({
-  session,
-  target,
-}: RunDriverDaemonOptions): Promise<void> {
+export async function runDriverDaemon({ session, target }: RunDriverDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
   await cleanupDaemonFiles(session, { includeLock: false });
   await writePrivateFile(getPidPath(session), String(process.pid));
@@ -220,15 +214,22 @@ function formatError(error: unknown): {
   error: string;
   httpStatus?: number;
 } {
-  const message = error instanceof Error ? error.message : String(error);
   if (error instanceof DriverError) {
     return {
       code: error.code,
-      error: message,
-      ...(error.httpStatus !== undefined
-        ? { httpStatus: error.httpStatus }
-        : {}),
+      error: error.message,
+      ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
     };
   }
-  return { error: message };
+
+  const classified = classifyDriverError(error);
+  if (classified) {
+    return {
+      code: classified.code,
+      error: classified.message,
+      ...(classified.httpStatus !== undefined ? { httpStatus: classified.httpStatus } : {}),
+    };
+  }
+
+  return { error: error instanceof Error ? error.message : String(error) };
 }

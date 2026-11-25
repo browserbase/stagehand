@@ -4,7 +4,7 @@ import {
   type LocalBrowserLaunchOptions,
   type StagehandClientCreateConfig,
 } from "@browserbasehq/stagehand";
-import { RUN_OPTIONS } from "./contract.js";
+import { type FacadeEnv, RUN_OPTIONS } from "./contract.js";
 
 export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
@@ -20,13 +20,11 @@ export type StagehandFacadeConfig = {
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
     | { type: "browserbase"; launchOptions: BrowserbaseLaunchOptions };
   stagehand: StagehandClientCreateConfig;
-  /** STAGEHAND_FACADE_QUIET_WAIT: see StagehandFacadeToolsOptions.quietWait. */
   quietWait: boolean;
+  artifactRoot?: string;
 };
 
-export function stagehandFacadeConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): StagehandFacadeConfig {
+export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): StagehandFacadeConfig {
   const browserbaseApiKey = nonEmpty(env.BROWSERBASE_API_KEY);
   const browserbaseProjectId = nonEmpty(env.BROWSERBASE_PROJECT_ID);
   const requestedBrowser = nonEmpty(env.STAGEHAND_BROWSER);
@@ -55,8 +53,6 @@ export function stagehandFacadeConfigFromEnv(
           ),
         }
       : undefined;
-  // A host that launches many facades at once uploads the Stagehand extension
-  // once and hands every facade the id; otherwise each session uploads its own.
   const extensionId = nonEmpty(env.STAGEHAND_BROWSERBASE_EXTENSION_ID);
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
@@ -95,6 +91,7 @@ export function stagehandFacadeConfigFromEnv(
   const quietWait =
     booleanEnv(env.STAGEHAND_FACADE_QUIET_WAIT, "STAGEHAND_FACADE_QUIET_WAIT") ??
     RUN_OPTIONS.quietWait.default;
+  const artifactRoot = nonEmpty(env.STAGEHAND_FACADE_ARTIFACT_ROOT);
 
   return {
     browser:
@@ -105,12 +102,7 @@ export function stagehandFacadeConfigFromEnv(
               apiKey: browserbaseApiKey!,
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
               timeout: browserbaseOptions!.timeout,
-              // The facade owns shutdown explicitly, including sessions whose
-              // client transport has already closed.
               keepAlive: true,
-              // Bot-wall parity with Stagehand's native agent path, which runs
-              // proxied + verified sessions; unproxied facade sessions were
-              // blocked (Akamai/PerimeterX) on sites the native path reached.
               ...(browserbaseOptions!.proxies !== undefined
                 ? { proxies: browserbaseOptions!.proxies }
                 : {}),
@@ -123,6 +115,7 @@ export function stagehandFacadeConfigFromEnv(
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
     quietWait,
+    ...(artifactRoot !== undefined ? { artifactRoot } : {}),
   };
 }
 
@@ -152,7 +145,7 @@ function providerName(modelName: string): string {
   return modelName.split("/", 1)[0] ?? "";
 }
 
-function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): string | undefined {
+function providerApiKey(provider: string | undefined, env: FacadeEnv): string | undefined {
   switch (provider) {
     case "google":
       return (

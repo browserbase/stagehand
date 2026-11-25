@@ -7,14 +7,19 @@ const parseTargetIndex = (value: unknown): number => {
   return Math.floor(num);
 };
 
-const collectCssMatches = (selector: string, limit: number): Element[] => {
+export const collectCssMatches = (
+  selectorRaw: string,
+  scope: Document | Element = document,
+  limit = Infinity,
+): Element[] => {
+  const selector = String(selectorRaw ?? "").trim();
   if (!selector) return [];
   const seenRoots = new WeakSet<Node>();
   const seenElements = new Set<Element>();
   const results: Element[] = [];
-  const queue: Array<Document | ShadowRoot> = [document];
+  const queue: Array<Document | Element | ShadowRoot> = [scope];
 
-  const visit = (root: Document | ShadowRoot): void => {
+  const visit = (root: Document | Element | ShadowRoot): void => {
     if (!root || seenRoots.has(root) || results.length >= limit) return;
     seenRoots.add(root);
 
@@ -26,13 +31,14 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
         results.push(element);
         if (results.length >= limit) return;
       }
-    } catch {
-      // ignore querySelectorAll issues
-    }
+    } catch {}
 
     try {
-      const ownerDocument =
-        root instanceof Document ? root : (root.host?.ownerDocument ?? document);
+      const ownerDocument = root instanceof Document ? root : (root.ownerDocument ?? document);
+      if (root instanceof Element) {
+        const shadowRoot = getOpenOrClosedShadowRoot(root);
+        if (shadowRoot) queue.push(shadowRoot);
+      }
       const walker = ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -40,9 +46,7 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
         const shadowRoot = getOpenOrClosedShadowRoot(node);
         if (shadowRoot) queue.push(shadowRoot);
       }
-    } catch {
-      // ignore traversal issues
-    }
+    } catch {}
   };
 
   while (queue.length && results.length < limit) {
@@ -58,15 +62,17 @@ export function resolveCssSelector(selectorRaw: string, targetIndexRaw?: number)
   if (!selector) return null;
 
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  const matches = collectCssMatches(selector, targetIndex + 1);
+  const matches = collectCssMatches(selector, document, targetIndex + 1);
   return matches[targetIndex] ?? null;
 }
 
-export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number): Element | null {
+export function collectTextMatches(
+  rawNeedle: string,
+  scope: Document | Element = document,
+): Element[] {
   const needle = String(rawNeedle ?? "");
-  if (!needle) return null;
+  if (!needle) return [];
   const needleLc = needle.toLowerCase();
-  const targetIndex = parseTargetIndex(targetIndexRaw);
 
   const skipTags = new Set([
     "SCRIPT",
@@ -92,15 +98,11 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
       if (shouldSkip(node)) return "";
       const inner = (node as HTMLElement).innerText;
       if (typeof inner === "string" && inner.trim()) return inner.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const text = node.textContent;
       if (typeof text === "string") return text.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     return "";
   };
 
@@ -134,20 +136,14 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
     }
   };
 
-  enqueue(document);
+  enqueue(scope);
 
   while (queue.length) {
     const root = queue.shift();
     if (!root) continue;
 
-    if (root instanceof Element && matches(root)) {
-      matchesList.push({
-        element: root,
-        tag: root.tagName ?? "",
-        id: root.id ?? "",
-        className: (root as HTMLElement).className ?? "",
-        text: extractText(root),
-      });
+    if (root instanceof Element) {
+      enqueue(getOpenOrClosedShadowRoot(root));
     }
 
     const walker = walkerFor(root);
@@ -183,17 +179,18 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
           skip = true;
           break;
         }
-      } catch {
-        // ignore containment errors
-      }
+      } catch {}
     }
     if (!skip) {
       innermost.push(item);
     }
   }
 
-  const target = innermost[targetIndex];
-  return target?.element ?? null;
+  return innermost.map((item) => item.element);
+}
+
+export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number): Element | null {
+  return collectTextMatches(rawNeedle)[parseTargetIndex(targetIndexRaw)] ?? null;
 }
 
 export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): Element | null {

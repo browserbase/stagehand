@@ -20,131 +20,131 @@
                 "artifacts": [
                   {
                     "path": "shot-00.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-01.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-02.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-03.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-04.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-05.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-06.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-07.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-08.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-09.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-10.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-11.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-12.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-13.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-14.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-15.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-16.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-17.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-18.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-19.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-20.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-21.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-22.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-23.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-24.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-25.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-26.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-27.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-28.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-29.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-30.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   },
                   {
                     "path": "shot-31.png",
-                    "base64": "AA=="
+                    "base64": "iVBORw0KGgo="
                   }
                 ],
                 "closeRequested": false,
@@ -384,8 +384,8 @@
                   {
                     "path": "big.png",
                     "base64": {
-                      "$repeat": "AAAA",
-                      "count": 8738133,
+                      "$repeat": "iVBORw0KGgoA",
+                      "count": 2912711,
                       "suffix": "AA=="
                     }
                   }

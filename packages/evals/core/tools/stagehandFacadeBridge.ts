@@ -46,29 +46,21 @@ const HOST_ENV_KEYS = [
 ] as const;
 
 export interface StagehandFacadeBridgeInput {
-  /** How to spawn the facade MCP stdio server (process.execPath + [stdio-server.mjs] in production). */
   server: { command: string; args: string[]; env: Record<string, string> };
   logger?: EvalLogger;
-  /** Per JSON-RPC request timeout for runner-issued calls (ms). Default 20_000; env EVAL_FACADE_BRIDGE_REQUEST_TIMEOUT_MS overrides. */
   requestTimeoutMs?: number;
 }
 
 export interface StagehandFacadeBridge {
-  /** Loopback port the relay connects to. */
   port: number;
-  /** MCP stdio server spec for the agent. Contains no host secrets; the facade process env stays runner-side. */
   mcpServerSpec: { command: string; args: string[]; env: Record<string, string> };
-  /** Number of agent relay connections currently open. */
   agentConnections(): number;
-  /** Whether any agent tools/call request has passed through. */
   sawAgentToolCall(): boolean;
-  /** Raw JSON-RPC request from the runner side. */
   call(
     method: string,
     params?: Record<string, unknown>,
     options?: { timeoutMs?: number },
   ): Promise<unknown>;
-  /** Calls a tool on the existing facade, retaining content and MCP error flags. */
   callTool(
     name: string,
     args: Record<string, unknown>,
@@ -76,17 +68,10 @@ export interface StagehandFacadeBridge {
   ): Promise<RunnerToolCallResult>;
   sessionInfo(): Promise<{ provider: "local" | "browserbase"; sessionId?: string }>;
   browserSessionLoss(): BrowserSessionLoss | undefined;
-  /** Best-effort terminal/step evidence from the shared browser. */
   captureEvidence(): Promise<ProbeEvidence>;
-  /** Idempotently closes the relay and facade process. */
   close(): Promise<void>;
 }
 
-/**
- * Dependency-free CommonJS relay used with `node -e`. The agent receives only
- * the loopback port; browser and model credentials remain in the runner-owned
- * facade process.
- */
 export const FACADE_RELAY_SCRIPT = `const net=require("node:net");const port=Number(process.env.${STAGEHAND_FACADE_BRIDGE_PORT_ENV});const socket=net.createConnection({host:"127.0.0.1",port});let connected=false;socket.once("connect",()=>{connected=true;process.stdin.pipe(socket);socket.pipe(process.stdout);});socket.once("error",(error)=>{process.stderr.write("stagehand facade relay: "+error.message+"\\n");if(!connected)process.exit(1);});socket.once("close",()=>process.exit(0));process.stdin.once("end",()=>socket.end());`;
 
 type JsonRpcMessage = {
@@ -98,10 +83,6 @@ type JsonRpcMessage = {
 };
 
 type Log = (message: string) => void;
-
-// ---------------------------------------------------------------------------
-// Small helpers
-// ---------------------------------------------------------------------------
 
 function positiveInt(value: string | undefined): number | undefined {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -171,7 +152,6 @@ function firstImageBlock(result: unknown): Buffer | undefined {
   return image ? Buffer.from(image.data as string, "base64") : undefined;
 }
 
-/** Splits a byte stream into newline-delimited lines, holding a partial trailing line. */
 class LineDecoder {
   private carry = "";
 
@@ -189,14 +169,6 @@ class LineDecoder {
   }
 }
 
-// ---------------------------------------------------------------------------
-// FacadeProcess: the spawned MCP stdio server
-// ---------------------------------------------------------------------------
-
-/**
- * Owns the facade child process: stdin writes, newline-framed stdout lines,
- * a tail of stderr for diagnostics, and exit tracking / escalating shutdown.
- */
 class FacadeProcess {
   private readonly child: ChildProcessWithoutNullStreams;
   private readonly stderrTail: string[] = [];
@@ -209,7 +181,6 @@ class FacadeProcess {
     server: StagehandFacadeBridgeInput["server"],
     private readonly log: Log,
     private readonly onLine: (line: string) => void,
-    /** Invoked once when the process exits or fails to spawn, with the error pending callers should see. */
     private readonly onExit: (error: StagehandFacadeBridgeError) => void,
     private readonly onStderr: (line: string) => void,
   ) {
@@ -262,7 +233,6 @@ class FacadeProcess {
     return this._exited;
   }
 
-  /** Human-readable exit reason, e.g. "exit code 1" or "signal SIGTERM". Empty until exit. */
   get exitDescription(): string {
     return this._exitDescription;
   }
@@ -271,7 +241,6 @@ class FacadeProcess {
     return !this._exited && !this.child.stdin.destroyed;
   }
 
-  /** Writes one newline-terminated JSON-RPC line. Returns false if the process cannot accept it. */
   writeLine(line: string): boolean {
     if (!this.writable) return false;
     try {
@@ -288,7 +257,6 @@ class FacadeProcess {
     if (this.writable) this.child.stdin.end();
   }
 
-  /** Resolves true once the process has exited, or false after `timeoutMs`. */
   waitForExit(timeoutMs: number): Promise<boolean> {
     if (this._exited) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
@@ -300,10 +268,6 @@ class FacadeProcess {
     });
   }
 
-  /**
-   * Closes stdin and gives the process `graceMs` to exit on its own, then
-   * escalates SIGTERM → SIGKILL, waiting `termMs` / `killMs` between steps.
-   */
   async terminate(graceMs: number, termMs: number, killMs: number): Promise<void> {
     this.endStdin();
     if (graceMs > 0 && (await this.waitForExit(graceMs))) return;
@@ -327,21 +291,12 @@ class FacadeProcess {
   }
 }
 
-// ---------------------------------------------------------------------------
-// RunnerRpcClient: runner-issued JSON-RPC requests with timeouts
-// ---------------------------------------------------------------------------
-
 type PendingCall = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
 };
 
-/**
- * Tracks the runner's own requests to the facade (initialize, evidence
- * capture, ad-hoc `call`). Runner ids carry a prefix so responses can be
- * separated from agent traffic sharing the same stdout.
- */
 class RunnerRpcClient {
   private readonly pending = new Map<string, PendingCall>();
   private counter = 0;
@@ -382,7 +337,6 @@ class RunnerRpcClient {
     });
   }
 
-  /** Settles the pending call matching this response, if any. */
   handleResponse(message: JsonRpcMessage & { id: string }): void {
     const entry = this.pending.get(message.id);
     if (!entry) return;
@@ -404,29 +358,16 @@ class RunnerRpcClient {
   }
 }
 
-// ---------------------------------------------------------------------------
-// AgentRelayServer: loopback TCP server the agent's relay connects to
-// ---------------------------------------------------------------------------
-
 interface AgentRelayHandlers {
-  /** Replays the cached `initialize` result so each relay sees a fresh handshake. */
   initializeResult(): unknown;
-  /** Forwards an agent request line to the facade. Returns false if the facade is gone. */
   forward(line: string): boolean;
 }
 
 type AgentRequest = {
   socket: Socket;
-  /** The id the agent used; restored on the way back so concurrent relays can reuse ids. */
   originalId: unknown;
 };
 
-/**
- * Accepts relay connections and forwards agent requests to the facade.
- * Request ids are rewritten to a bridge-unique id on the way in and restored
- * on the way out, so two relays that both send `id: 1` never collide.
- * Notifications from the facade fan out to every connected relay.
- */
 class AgentRelayServer {
   private readonly server: Server;
   private readonly sockets = new Set<Socket>();
@@ -460,7 +401,6 @@ class AgentRelayServer {
     });
   }
 
-  /** Delivers a facade response to the relay that issued it, restoring the agent's own id. */
   deliver(message: JsonRpcMessage): void {
     const key = idKey(message.id);
     const request = this.requests.get(key);
@@ -470,20 +410,17 @@ class AgentRelayServer {
     }
   }
 
-  /** Fans a facade notification out to every connected relay. */
   broadcast(rawLine: string): void {
     for (const socket of this.sockets) {
       if (socket.writable) socket.write(`${rawLine}\n`);
     }
   }
 
-  /** Drops every relay connection; in-flight agent requests will never be answered. */
   disconnectAll(): void {
     for (const socket of this.sockets) socket.destroy();
     this.requests.clear();
   }
 
-  /** Drops every relay connection and stops listening. */
   async close(): Promise<void> {
     this.disconnectAll();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
@@ -513,8 +450,6 @@ class AgentRelayServer {
     }
     const isRequest = hasOwn(message, "id") && typeof message.method === "string";
 
-    // The facade was initialized once by the runner; answer each relay's
-    // handshake locally instead of re-initializing the shared server.
     if (message.method === "initialize" && hasOwn(message, "id")) {
       if (socket.writable) {
         const reply = { jsonrpc: "2.0", id: message.id, result: this.handlers.initializeResult() };
@@ -556,10 +491,6 @@ class AgentRelayServer {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Bridge: composes the three pieces
-// ---------------------------------------------------------------------------
-
 class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
   port = 0;
   mcpServerSpec: StagehandFacadeBridge["mcpServerSpec"] = { command: "", args: [], env: {} };
@@ -600,10 +531,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     );
   }
 
-  /**
-   * Spawns the facade, binds the relay server, and performs the MCP
-   * `initialize` handshake on the runner's behalf. Cleans up on any failure.
-   */
   static async start(input: StagehandFacadeBridgeInput): Promise<StagehandFacadeBridge> {
     const log: Log = (message) => {
       if (typeof input.logger?.log === "function") {
@@ -723,9 +650,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     const url = firstTextBlock(await this.evidenceTool("run", { code: "return page.url();" }));
     if (url !== undefined && /^[a-z][a-z0-9+.-]*:/iu.test(url)) evidence.url = url;
 
-    // snapshot re-hydrates the active page's element-ID map ("Every call
-    // replaces the active page's ID map"). Capturing it mid-run would make
-    // the agent's bracketed IDs stale, so only terminal evidence includes it.
     if (this.relay.connections === 0 && !this.runnerToolCallSeen) {
       const ariaTree = firstTextBlock(
         await this.evidenceTool("snapshot", { includeIframes: true }),
@@ -739,7 +663,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     this.closePromise ??= (async () => {
       this.closed = true;
       this.rpc.rejectAll(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
-      // End stdin before awaiting relay teardown so the facade starts exiting immediately.
       this.facade.endStdin();
       await this.relay.close();
       const shutdownTimeoutMs =
@@ -750,7 +673,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     return this.closePromise;
   }
 
-  /** Best-effort tools/call; resolves undefined on transport error or tool error. */
   private async evidenceTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     try {
       const result = await this.call("tools/call", { name, arguments: args });
@@ -760,7 +682,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     }
   }
 
-  /** Demultiplexes one facade stdout line to the runner client or the agent relay. */
   private routeFacadeLine(rawLine: string): void {
     if (!rawLine.trim()) return;
     const message = parseJsonRpc(rawLine);
@@ -768,8 +689,6 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
       this.log(`Dropped non-JSON facade stdout line: ${rawLine}`);
       return;
     }
-    // Terminal connection loss comes only from runner-owned stderr telemetry.
-    // Error text can be thrown by agent code and cannot establish transport state.
     if (!hasOwn(message, "id")) {
       this.relay.broadcast(rawLine);
     } else if (RunnerRpcClient.ownsId(message.id)) {

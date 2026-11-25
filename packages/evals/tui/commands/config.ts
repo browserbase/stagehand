@@ -1,33 +1,3 @@
-/**
- * Config command — read/write `evals.config.json` (+ `evals.config.local.json`).
- *
- * Two files live in the same directory as the running module:
- *   - `evals.config.json`       tracked, team defaults, schema `version: 2`
- *   - `evals.config.local.json` gitignored, personal overrides + first-run state
- *
- * `readConfig` deep-merges local over tracked. Every write goes to the local
- * file unless `scope: "shared"` is passed: the local file only ever holds the
- * keys that differ from the tracked file, so `git diff` stays quiet and a
- * `config set` never rewrites team defaults by accident.
- *
- * Precedence: a flag always wins. Most `defaults.*` then read local → tracked
- * before the ambient EVAL_* env vars (see parse.ts); EVAL_SUCCESS_MODE and
- * STAGEHAND_BROWSER_TARGET beat the config, and every other section yields
- * to its env twin: flag → env → local → tracked → code default.
- *
- * Per-mode storage (source vs. dist) is intentional:
- *   - Source mode (tsx packages/evals/cli.ts): packages/evals/
- *   - Built mode (dist/cli/cli.js):            packages/evals/dist/cli/
- * `scripts/build-cli.ts` seeds the tracked file into dist verbatim and never
- * touches the dist-local file.
- *
- * v1 files (no `version`) load unchanged: the new sections are simply empty.
- *
- * The `entryDir` is computed via `getCurrentDirPath()` at the top of
- * `cli.ts` (the entry) and passed down so this module stays side-effect
- * free.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import { bold, dim, cyan, gray, green, red, yellow } from "../format.js";
@@ -42,40 +12,29 @@ type Defaults = {
   model?: string | null;
   api?: boolean | null;
   verbose?: boolean | null;
-  /** Default `--harness` for bench runs. */
   harness?: string | null;
-  /** Default `--success` mode. */
   successMode?: string | null;
 };
 
-/** Per-suite defaults; `limit` backs `EVAL_<SUITE>_LIMIT` when `--limit` is absent. */
 export type BenchmarkConfigSection = {
   limit?: number | null;
 };
 
-/**
- * Per-harness defaults. `models` backs `EVAL_<HARNESS>_MODELS`, `tool` is the
- * `--tool` default for that harness, `nodeOptions` is advisory (doctor heap
- * check) because the CLI cannot re-exec itself inside the REPL.
- */
 export type HarnessConfigSection = {
   models?: string[] | null;
   tool?: string | null;
   nodeOptions?: string | null;
 };
 
-/** Per-provider semaphore width under the global cap (framework/providerConcurrency.ts). */
 export type ProviderConfigSection = {
   concurrency?: number | null;
 };
 
-/** Verifier defaults; env always wins (EVAL_VERIFIER_MODEL, EVAL_MAX_UNVERIFIABLE_CRITERIA). */
 export type VerifierConfigSection = {
   model?: string | null;
   maxUnverifiableCriteria?: number | null;
 };
 
-/** Campaign tag stamped on experiment metadata. */
 export type CampaignConfigSection = {
   tag?: string | null;
 };
@@ -85,28 +44,11 @@ export type CoreConfigSection = {
   startup?: string;
 };
 
-/**
- * First-run / welcome metadata. Persisted inside `evals.config.json` so it
- * follows the same per-mode (source vs. dist) storage as `defaults`/`core`.
- * Owned by tui/welcomeState.ts; the type lives here because it round-trips
- * through readConfig/writeConfig.
- */
 export type WelcomeMeta = {
-  /** ISO 8601 timestamp when the first-run welcome was completed. */
   firstRunCompletedAt?: string;
-  /** Schema version for the welcome marker (currently 1). */
   version?: number;
 };
 
-/**
- * Trace sink configuration. Every key maps 1:1 to an env var, and the env var
- * always wins — this section is a persisted default for users who don't want
- * to export vars per shell. Owned by tui/commands/tracing.ts.
- *
- *   transport         → EVAL_TRACE_TRANSPORT   ("native" | "otel")
- *   braintrustProject → BRAINTRUST_PROJECT_NAME (both transports)
- *   langsmithProject  → LANGSMITH_PROJECT       (otel transport only)
- */
 export type TracingConfigSection = {
   transport?: TraceTransport;
   braintrustProject?: string;
@@ -147,7 +89,6 @@ const VALID_KEYS: Array<keyof Defaults> = [
   "successMode",
 ];
 
-/** Keys `config set` used to accept and now rejects with a pointer. */
 const DEPRECATED_KEYS: Record<string, string> = {
   provider:
     'provider is derived from the model id ("openai/gpt-5.4-mini" → openai) and was never read',
@@ -167,12 +108,10 @@ const DEFAULT_VALUES: Defaults = {
 export const CONFIG_FILE_NAME = "evals.config.json";
 export const LOCAL_CONFIG_FILE_NAME = "evals.config.local.json";
 
-/** Tracked team defaults. */
 export function resolveConfigPath(entryDir: string): string {
   return path.join(entryDir, CONFIG_FILE_NAME);
 }
 
-/** Gitignored personal overrides + first-run state, beside the tracked file. */
 export function resolveLocalConfigPath(entryDir: string): string {
   return path.join(entryDir, LOCAL_CONFIG_FILE_NAME);
 }
@@ -183,11 +122,6 @@ function isPlainObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Objects merge recursively; arrays and primitives replace. A `null` in the
- * overlay *removes* the key — that is how the local file expresses "unset
- * what the tracked file says" (`config reset`, `config set model null`).
- */
 export function mergeConfig<T extends JsonObject>(base: T, overlay: JsonObject | undefined): T {
   if (!overlay) return base;
   const out: JsonObject = { ...base };
@@ -208,11 +142,6 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/**
- * The overlay that turns `base` into `merged`: keys whose value differs, plus
- * `null` for keys `base` has and `merged` dropped. `mergeConfig(base, diff)`
- * reproduces `merged` (with `null`s in `merged` read as "absent").
- */
 export function diffConfig(merged: JsonObject, base: JsonObject): JsonObject {
   const out: JsonObject = {};
   for (const [key, value] of Object.entries(merged)) {
@@ -239,10 +168,8 @@ export function diffConfig(merged: JsonObject, base: JsonObject): JsonObject {
   return out;
 }
 
-/** Shape a raw parsed object into a ConfigFile; unknown top-level keys are dropped. */
 function normalizeConfig(raw: JsonObject): ConfigFile {
   const defaults = isPlainObject(raw.defaults) ? { ...raw.defaults } : {};
-  // `defaults.provider` was written by v1 and read by nothing.
   delete defaults.provider;
   return {
     ...(typeof raw.version === "number" && { version: raw.version }),
@@ -284,7 +211,6 @@ function readJsonFile(
   }
 }
 
-/** The tracked file only, normalized. v1 (no `version`) reads as v2 with empty new sections. */
 export function readTrackedConfig(entryDir: string): ConfigFile {
   const raw = readJsonFile(resolveConfigPath(entryDir), { optional: false })!;
   const config = normalizeConfig(raw);
@@ -304,11 +230,6 @@ const CONFIG_SECTIONS = [
   "_meta",
 ] as const;
 
-/**
- * The local overrides file only; `{}` when absent. Kept sparse and raw
- * (nulls included — they are removal markers for mergeConfig), limited to
- * known sections.
- */
 export function readLocalConfig(entryDir: string): Partial<ConfigFile> {
   const raw = readJsonFile(resolveLocalConfigPath(entryDir), { optional: true });
   if (!raw) return {};
@@ -316,7 +237,6 @@ export function readLocalConfig(entryDir: string): Partial<ConfigFile> {
   for (const section of CONFIG_SECTIONS) {
     if (section in raw) local[section] = raw[section];
   }
-  // Inside a section, null marks a key removed; `defaults` itself is required.
   if ("defaults" in local && !isPlainObject(local.defaults)) {
     throw new Error(`Invalid ${resolveLocalConfigPath(entryDir)}: "defaults" must be an object.`);
   }
@@ -328,13 +248,11 @@ export function readLocalConfig(entryDir: string): Partial<ConfigFile> {
   return local as Partial<ConfigFile>;
 }
 
-/** Effective config: local overrides deep-merged over the tracked file. */
 export function readConfig(entryDir: string): ConfigFile {
   return mergeConfig(readTrackedConfig(entryDir), readLocalConfig(entryDir) as JsonObject);
 }
 
 function writeJsonFile(filePath: string, value: JsonObject): void {
-  // Prune undefined top-level fields so optional sections don't round-trip as `null`.
   const out: JsonObject = {};
   for (const [k, v] of Object.entries(value)) {
     if (v !== undefined) out[k] = v;
@@ -342,21 +260,11 @@ function writeJsonFile(filePath: string, value: JsonObject): void {
   fs.writeFileSync(filePath, JSON.stringify(out, null, 2) + "\n");
 }
 
-/**
- * Persist an effective (merged) config to the local file. Only the keys that
- * differ from the tracked file are stored, so the tracked file is never
- * touched and `git diff` stays quiet.
- */
 export function writeConfig(entryDir: string, config: ConfigFile): void {
   const tracked = readTrackedConfig(entryDir) as JsonObject;
   writeJsonFile(resolveLocalConfigPath(entryDir), diffConfig(config as JsonObject, tracked));
 }
 
-/**
- * Where a `--shared` write lands. The team file is the one in the source tree
- * (packages/evals/evals.config.json); in dist mode the seeded copy under
- * dist/cli is rewritten too so the change applies before the next build.
- */
 function sharedConfigPaths(entryDir: string): string[] {
   const running = resolveConfigPath(entryDir);
   const isDist = /[/\\]dist[/\\]cli[/\\]?$/.test(entryDir);
@@ -364,16 +272,6 @@ function sharedConfigPaths(entryDir: string): string[] {
   return [path.join(getPackageRootDir(), CONFIG_FILE_NAME), running];
 }
 
-/**
- * Apply one change to the config. `mutate` edits the config in place.
- *
- *   local (default)  mutate the effective config; store the difference in
- *                    evals.config.local.json.
- *   shared           mutate the tracked file alone, so personal overrides in
- *                    the local file can never leak into the team defaults;
- *                    then drop local overrides the new tracked value makes
- *                    redundant.
- */
 export function updateConfig(
   entryDir: string,
   mutate: (config: ConfigFile) => void,
@@ -392,13 +290,11 @@ export function updateConfig(
   for (const filePath of sharedConfigPaths(entryDir)) writeJsonFile(filePath, nextTracked);
   const local = readLocalConfig(entryDir) as JsonObject;
   const remaining = pruneOverrides(local, nextTracked);
-  // A v1 tracked file may still carry the first-run marker; it is personal.
   const meta = (local._meta as WelcomeMeta | undefined) ?? _meta;
   if (meta) remaining._meta = meta;
   writeJsonFile(resolveLocalConfigPath(entryDir), remaining);
 }
 
-/** Drop local overrides (and removal markers) that no longer change anything against `base`. */
 function pruneOverrides(local: JsonObject, base: JsonObject): JsonObject {
   const out: JsonObject = {};
   for (const [key, value] of Object.entries(local)) {
@@ -417,7 +313,6 @@ function pruneOverrides(local: JsonObject, base: JsonObject): JsonObject {
   return out;
 }
 
-/** Top-level sections that carry at least one local override. */
 export function localOverrideSections(entryDir: string): string[] {
   return Object.keys(readLocalConfig(entryDir)).filter((key) => key !== "_meta");
 }
@@ -487,10 +382,6 @@ export function printConfig(entryDir: string): void {
   console.log("");
 }
 
-/**
- * `config core` / `config tracing` always write the local file; say so
- * instead of silently turning a `--shared` edit into a personal override.
- */
 export function rejectSharedScope(section: "core" | "tracing"): void {
   console.error(
     red(
@@ -500,7 +391,6 @@ export function rejectSharedScope(section: "core" | "tracing"): void {
   process.exitCode = 1;
 }
 
-/** Strip a trailing `--shared` from a `config … set` argv. */
 export function takeScopeFlag(args: string[]): { args: string[]; scope: ConfigScope } {
   const index = args.indexOf("--shared");
   if (index === -1) return { args, scope: "local" };
@@ -545,10 +435,6 @@ export async function handleConfig(rawArgs: string[], entryDir: string): Promise
     return;
   }
 
-  // Per-sub help. We only intercept when the help token is at args[1] —
-  // immediately after the verb — so leaf values at args[2+] (e.g.
-  // `set model --help`) are never swallowed as help and reach `parseValue`
-  // unchanged. Core has its own help and is handled above.
   if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigHelp } = await import("./help.js");
     await printConfigHelp();

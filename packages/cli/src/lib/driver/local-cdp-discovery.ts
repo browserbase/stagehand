@@ -3,6 +3,8 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import { DriverError } from "./errors.js";
+
 export interface LocalCdpDiscovery {
   source: string;
   wsUrl: string;
@@ -78,10 +80,7 @@ export async function readDevToolsActivePort(
   userDataDir: string,
 ): Promise<DevToolsActivePortInfo | null> {
   try {
-    const content = await fs.readFile(
-      path.join(userDataDir, "DevToolsActivePort"),
-      "utf8",
-    );
+    const content = await fs.readFile(path.join(userDataDir, "DevToolsActivePort"), "utf8");
     const lines = content.trim().split("\n");
     const port = Number.parseInt(lines[0]?.trim() ?? "", 10);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
@@ -111,11 +110,6 @@ async function probeJsonVersion(port: number): Promise<string | null> {
   }
 }
 
-/**
- * Multiple candidates (several profile dirs, or a profile dir and a fallback
- * port) can reference the same port within one discovery call. Memoize the
- * live /json/version probe per port so that port is only actually hit once.
- */
 function createJsonVersionProbe(): (port: number) => Promise<string | null> {
   const cache = new Map<number, Promise<string | null>>();
   return (port) => {
@@ -151,12 +145,8 @@ async function isDevToolsActivePortFresh(
 ): Promise<boolean> {
   const liveWsUrl = await probe(info.port);
   if (!liveWsUrl) return false;
-  const expectedPathname = wsPathname(
-    buildDevToolsWsUrl(info.port, info.wsPath),
-  );
-  return (
-    expectedPathname !== null && wsPathname(liveWsUrl) === expectedPathname
-  );
+  const expectedPathname = wsPathname(buildDevToolsWsUrl(info.port, info.wsPath));
+  return expectedPathname !== null && wsPathname(liveWsUrl) === expectedPathname;
 }
 
 async function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
@@ -223,18 +213,15 @@ export async function resolveWsTargetFromPort(
 ): Promise<string> {
   const userDataDirs = options.userDataDirs ?? getChromeUserDataDirs();
   const probe = createJsonVersionProbe();
-  const devToolsUrl = await resolveDevToolsActivePortUrl(
-    port,
-    userDataDirs,
-    probe,
-  );
+  const devToolsUrl = await resolveDevToolsActivePortUrl(port, userDataDirs, probe);
   if (devToolsUrl) return devToolsUrl;
   const jsonVersionUrl = await probe(port);
   if (jsonVersionUrl) return jsonVersionUrl;
   const fallback = buildDevToolsWsUrl(port, "/devtools/browser");
   if (await verifyCdpWebSocket(fallback)) return fallback;
-  throw new Error(
+  throw new DriverError(
     `Unable to resolve CDP endpoint from port ${port}. Is Chrome running with remote debugging?`,
+    { code: "cdp_unreachable" },
   );
 }
 

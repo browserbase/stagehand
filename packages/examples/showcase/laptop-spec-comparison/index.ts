@@ -17,7 +17,6 @@ const stagehand = await Stagehand.create({
   model: {
     modelName: "anthropic/claude-sonnet-5",
     apiKey: ANTHROPIC_API_KEY,
-    // Stagehand calls the model from inside the browser extension.
     headers: { "anthropic-dangerous-direct-browser-access": "true" },
   },
 });

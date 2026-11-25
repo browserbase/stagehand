@@ -10,9 +10,6 @@ import {
   resolveExplicitRemoteTarget,
 } from "../src/lib/driver/remote.disabled.js";
 
-// Guards the local-only contract: the disabled remote capability must never
-// reach Browserbase. If this drifts, a local-only build could silently regain
-// a cloud code path.
 describe("remote.disabled (local-only capability)", () => {
   it("never auto-selects a remote target", () => {
     expect(autoSelectRemoteTarget()).toBeNull();
@@ -48,9 +45,7 @@ describe("remote.disabled (local-only capability)", () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const source = await readFile(
-      fileURLToPath(
-        new URL("../src/lib/driver/remote.disabled.ts", import.meta.url),
-      ),
+      fileURLToPath(new URL("../src/lib/driver/remote.disabled.ts", import.meta.url)),
       "utf8",
     );
     expect(source).not.toContain("BROWSERBASE_API_KEY");

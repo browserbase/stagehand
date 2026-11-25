@@ -1,18 +1,4 @@
-/**
- * cursorAdapter — converts Cursor CLI stream-json events into a `Trajectory`
- * the verifier can consume.
- *
- * Mapping:
- *   - assistant text preceding a tool call becomes that call's reasoning;
- *     trailing assistant text is the final-answer fallback.
- *   - tool_call started/completed pairs by call_id. Completed-only events are
- *     retained, because Cursor may omit a started event in captured output.
- *   - documented result.success/error envelopes become normalized tool output.
- *     The currently undocumented MCP shape is parsed defensively by the shared
- *     cursor-sdk helper.
- *   - result.result is the preferred stream final-answer fallback.
- */
-import { extractCursorToolCall } from "@browserbasehq/stagehand-integrations-cursor-sdk";
+import { extractCursorToolCall } from "@browserbasehq/stagehand-integrations-cursor";
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {
@@ -103,9 +89,6 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
       }
     }
 
-    // A 'started' call with no 'completed' envelope (stream aborted, CLI
-    // killed mid-call) must not read as a successful step — mirror the
-    // deepagents adapter's unmatched-call handling.
     for (const open of openCalls.values()) {
       open.ok = false;
       open.result = "no tool result";

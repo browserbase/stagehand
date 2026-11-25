@@ -5,7 +5,7 @@ import {
   loadMastraSdk,
   type MastraSdk,
   type MastraStdioServerDefinition,
-} from "@browserbasehq/stagehand-integrations-mastra-sdk";
+} from "@browserbasehq/stagehand-integrations-mastra";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";
@@ -42,7 +42,6 @@ export interface MastraToolAdapterInput {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
   sdk?: MastraSdk;
-  /** Test seam for runtime mounts. */
   startRuntime?: typeof startAgentToolRuntime;
 }
 
@@ -51,12 +50,10 @@ export interface PreparedMastraToolAdapter {
   startupProfile: StartupProfile;
   cwd: string;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
@@ -157,7 +154,7 @@ export async function prepareMastraToolAdapter(
           code: z.string().describe(mount.runTool.codeParamDescription),
         }),
         execute: async (toolInput: Record<string, unknown>) =>
-          executeViaCodeBridge(bridge!.port, String(toolInput.code)),
+          executeViaCodeBridge(bridge!.port, String(toolInput.code), bridge!.token),
       });
       const scopeNames = [...Object.keys(mount.handles), "startUrl", "task", "console"].join(", ");
       const promptInstructions = [
@@ -182,9 +179,7 @@ export async function prepareMastraToolAdapter(
           cleanupPromise ??= (async () => {
             try {
               await capturedBridge.close();
-            } catch {
-              // Best-effort teardown continues through the remaining owners.
-            }
+            } catch {}
             await cleanupRuntime(runtime.cleanup, capturedCwd);
           })();
           await cleanupPromise;
@@ -249,11 +244,12 @@ export function mastraToolNameMatcher(serverNames: string[]): (name: string) => 
 export async function executeViaCodeBridge(
   port: number,
   code: string,
+  token: string,
 ): Promise<{ ok: true; result: string } | { ok: false; error: string }> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/run`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ code }),
     });
     const payload: unknown = await response.json();
@@ -305,9 +301,7 @@ async function cleanupRuntime(cleanup: () => Promise<void>, cwd: string): Promis
       cleanup(),
       readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
     );
-  } catch {
-    // The temporary workspace is still removed when runtime cleanup fails.
-  }
+  } catch {}
   await fsp.rm(cwd, { recursive: true, force: true });
 }
 

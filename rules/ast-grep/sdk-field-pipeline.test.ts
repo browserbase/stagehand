@@ -1,3 +1,4 @@
+import { sdkSourceFiles } from "./sdk-source-files.js";
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import python from "@ast-grep/lang-python";
@@ -103,6 +104,70 @@ describe("Every public TypeScript/Python field participates in the protocol pipe
 });
 
 describe("active SDK field coverage regressions", () => {
+  it.each(["typescript", "python"] as const)(
+    "recognizes %s descriptor forwarding without hiding unrelated missing fields",
+    (language) => {
+      const descriptor: JsonSchema = {
+        anyOf: [
+          { properties: { page_id: { type: "string" }, selector: { type: "string" } } },
+          {
+            properties: {
+              page_id: { type: "string" },
+              chain: { properties: { steps: { type: "array" } } },
+            },
+          },
+        ],
+      };
+      const protocol: ProtocolDocument = {
+        $defs: { LocatorRequestDescriptor: descriptor },
+        properties: {
+          methods: {
+            properties: {
+              "locator.count": {
+                properties: {
+                  params: { allOf: [descriptor, { properties: { added: { type: "string" } } }] },
+                  result: { type: "number" },
+                },
+              },
+            },
+          },
+        },
+      };
+      const source =
+        language === "typescript"
+          ? `class Locator { async count() {
+            return this.client.send(StagehandMethods.locatorCount, { ...this.descriptor });
+          } }`
+          : `class Locator:
+    async def count(self):
+        return await self._client.send("locator.count", LocatorParams.model_validate(self._params()), Result)
+`;
+      const calls = rpcCallsInModule(
+        language,
+        "locator",
+        parse(language, source).root(),
+        new Map([["locatorCount", "locator.count"]]),
+      );
+      expect(calls).toHaveLength(1);
+      const helpers = new Map<Language, Map<string, string>>([
+        ["python", new Map([["_params", "return self.descriptor.model_dump(exclude_none=True)"]])],
+      ]);
+      expect(missingRequestFields(protocol, calls, helpers)).toEqual([
+        `${language} locator.count: request field added`,
+      ]);
+      const incompleteSource = source.replace("...this.descriptor", 'selector: "button"');
+      const incompleteCalls = rpcCallsInModule(
+        language,
+        "locator",
+        parse(language, incompleteSource).root(),
+        new Map([["locatorCount", "locator.count"]]),
+      );
+      expect(missingRequestFields(protocol, incompleteCalls, new Map())).toContain(
+        `${language} locator.count: request field chain`,
+      );
+    },
+  );
+
   const protocol: ProtocolDocument = {
     $defs: {},
     properties: {
@@ -188,13 +253,17 @@ function missingRequestFields(
     const extendedText = `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`;
     const tokens = semanticTokens(extendedText);
     const descriptorFields = Object.keys(
-      schemaProperties(protocol, protocol.$defs.LocatorDescriptor ?? {}),
+      schemaProperties(protocol, protocol.$defs.LocatorRequestDescriptor ?? {}),
     );
+    const forwardsDescriptor =
+      call.wireMethod.startsWith("locator.") &&
+      (/\.\.\.this\.descriptor\b/u.test(scopeText) ||
+        /self\.descriptor\.model_dump\(/u.test(extendedText));
 
     for (const field of topLevelFields) {
       const normalized = snakeCase(field);
       const coveredByDescriptor =
-        /descriptor/u.test(scopeText) &&
+        forwardsDescriptor &&
         descriptorFields.some((descriptorField) => snakeCase(descriptorField) === normalized);
       if (!tokens.has(normalized) && !coveredByDescriptor) {
         missing.push(`${call.language} ${call.wireMethod}: request field ${field}`);
@@ -204,10 +273,9 @@ function missingRequestFields(
     for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
       const nestedFields = nestedFieldNames(protocol, fieldSchema);
       if (nestedFields.length === 0) continue;
+      if (forwardsDescriptor && descriptorFields.includes(field)) continue;
       if (directlyForwardsParameter(call.params, field, extendedText)) continue;
 
-      // A rest spread forwards newly added fields automatically. Explicitly transformed
-      // fields remain visible beside the spread.
       if (/\.\.\.[A-Za-z_$][A-Za-z0-9_$]*\b/u.test(extendedText)) continue;
       for (const nestedField of nestedFields) {
         if (!tokens.has(snakeCase(nestedField))) {
@@ -287,9 +355,9 @@ function nestedFieldNames(protocol: ProtocolDocument, schema: JsonSchema): strin
   return [...new Set(Object.keys(properties))];
 }
 
-async function sdkSourceFiles(source: URL, language: Language): Promise<string[]> {
+async function sdkLanguageSourceFiles(source: URL, language: Language): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : ".py";
-  return (await readdir(source, { recursive: true }))
+  return (await sdkSourceFiles(source))
     .filter(
       (file) =>
         file.endsWith(extension) &&
@@ -308,7 +376,7 @@ async function publicRpcCalls(): Promise<RpcCall[]> {
   ]);
   const calls = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const languageCalls: RpcCall[] = [];
 
       for (const file of files) {
@@ -500,7 +568,6 @@ function passesResultWhole(call: RpcCall, resultName: string): boolean {
 
 function assignsResultWhole(call: RpcCall, resultName: string): boolean {
   const text = call.scope.text();
-  // Copying result.value (or result["value"]) does not forward the whole result.
   if (
     new RegExp(
       `(?:[.#][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b(?!\\s*(?:\\?\\.|[.\\[]))`,
@@ -523,7 +590,7 @@ function assignsResultWhole(call: RpcCall, resultName: string): boolean {
 async function callableBodies(): Promise<Map<Language, Map<string, string>>> {
   const entries = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const files = await sdkSourceFiles(source, language);
+      const files = await sdkLanguageSourceFiles(source, language);
       const bodies = new Map<string, string>();
       for (const file of files) {
         const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
@@ -572,9 +639,17 @@ async function typescriptExportedModules(): Promise<Set<string>> {
     const source = statement
       .findAll({ rule: { kind: "string" } })
       .map(stringLiteral)
-      .find((value) => value.startsWith("./"));
+      .find(
+        (value) =>
+          value.startsWith("./") || value.startsWith("@browserbasehq/stagehand-browser-api/"),
+      );
     if (!source) continue;
-    modules.add(source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"));
+    modules.add(
+      source.startsWith("@browserbasehq/stagehand-browser-api/")
+        ? source.replace("@browserbasehq/stagehand-browser-api/", "../../shared/browser-api/src/") +
+            ".ts"
+        : source.replace(/^\.\//u, "").replace(/\.js$/u, ".ts"),
+    );
   }
   return modules;
 }

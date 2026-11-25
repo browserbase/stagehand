@@ -1,13 +1,9 @@
-"""Runs the language-neutral cases in ../../conformance against the Python host.
-
-See ../../conformance/README.md for the case format.
-"""
-
 from __future__ import annotations
 
 import base64
 import json
 import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,14 +29,16 @@ def load_cases() -> list[Any]:
     params = []
     for file in sorted(CASES_DIR.glob("*.json")):
         for case in json.loads(file.read_text(encoding="utf-8"))["cases"]:
-            reason = case.get("notApplicable", {}).get("python")
+            not_applicable = case.get("notApplicable", {})
+            reason = not_applicable.get("python") or (
+                not_applicable.get("windows") if sys.platform == "win32" else None
+            )
             marks = [pytest.mark.skip(reason=reason)] if reason else []
             params.append(pytest.param(case, id=f"{file.name}: {case['name']}", marks=marks))
     return params
 
 
 def expand(value: Any, sandbox: Path) -> Any:  # noqa: ANN401 - any JSON value
-    """Expands the `$repeat` and `$sandbox` generators the case format allows."""
     if isinstance(value, list):
         return [expand(entry, sandbox) for entry in value]
     if not isinstance(value, dict):
@@ -90,7 +88,6 @@ class FakePage:
         return FakeSnapshot(snapshot["formattedTree"], snapshot["xpathMap"])
 
     async def screenshot(self, *, type: str, full_page: bool | None, quality: int | None) -> bytes:
-        # Recorded in the case format's { type, fullPage?, quality? } shape.
         self._stagehand.screenshot_options = {
             "type": type,
             **({"fullPage": full_page} if full_page is not None else {}),
@@ -112,7 +109,6 @@ class FakeContext:
         if self._active is None:
             return None
         if isinstance(self._active, dict):
-            # The SDK surfaces extension errors as RPCError.
             raise RPCError(_JSONRPCError(code=-32000, message=self._active["throw"]["message"]))
         if self._active is _DEFAULT_ACTIVE:
             return self._pages[0]
@@ -147,8 +143,6 @@ class FakeBrowser:
 
 @dataclass
 class FakeStagehand:
-    """Duck-types the parts of `stagehand.Stagehand` the host uses."""
-
     case: dict[str, Any]
     sandbox: Path
     url: str = "about:blank"
@@ -162,7 +156,6 @@ class FakeStagehand:
         self.url = self.case.get("page", {}).get("url", self.url)
         self.snapshot = self.case.get("page", {}).get("snapshot")
         context = self.case.get("context", {})
-        # A case's "pages" list is used as given (even empty); without one there is one page.
         pages = (
             [FakePage(self, entry["id"], entry.get("snapshot")) for entry in context["pages"]]
             if "pages" in context
@@ -209,7 +202,6 @@ def check_error(error: BaseException, expected: dict[str, Any]) -> None:
     elif kind == "execution":
         assert isinstance(error, StagehandFacadeExecutionError), repr(error)
     elif kind == "sdk":
-        # SDK errors reach the host as RPCError and must propagate unchanged.
         assert isinstance(error, RPCError), repr(error)
     elif kind == "batch":
         assert not isinstance(error, StagehandFacadeInputError | StagehandFacadeExecutionError)
@@ -231,12 +223,13 @@ def prepare_sandbox(case: dict[str, Any], sandbox: Path) -> None:
         elif "file" in entry:
             (sandbox / entry["file"]).parent.mkdir(parents=True, exist_ok=True)
             (sandbox / entry["file"]).write_bytes(base64.b64decode(entry["base64"]))
+        elif "hardlink" in entry:
+            os.link(sandbox / entry["target"], sandbox / entry["hardlink"])
         else:
             os.symlink(entry["target"], sandbox / entry["symlink"])
 
 
 def list_tree(sandbox: Path, relative: str = "") -> list[str]:
-    """Every entry under the sandbox without following symlinks: `dir/`, `link@`, `file`."""
     entries: list[str] = []
     for name in os.listdir(sandbox / relative):
         entry = f"{relative}/{name}" if relative else name
@@ -247,7 +240,6 @@ def list_tree(sandbox: Path, relative: str = "") -> list[str]:
             entries += [f"{entry}/", *list_tree(sandbox, entry)]
         else:
             entries.append(entry)
-    # Sorted by UTF-16 code unit, as the TypeScript runner does.
     return sorted(entries, key=lambda entry: entry.encode("utf-16-be"))
 
 

@@ -9,7 +9,6 @@ import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.
 import { generateWithClientLlm, type ClientLlmRequest } from "../llm/clientLlmClient.js";
 import { createGatewayLanguageModel, type GatewayContext } from "../llm/gatewayClient.js";
 
-/** Generates a Stagehand LLM result using the configured local or connected client. */
 export async function generate(
   model: ModelConfig | ClientModelReference | undefined,
   input: LLMGenerateParams,

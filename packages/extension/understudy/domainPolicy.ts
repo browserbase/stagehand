@@ -1,4 +1,3 @@
-import type { Protocol } from "devtools-protocol";
 import type { DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
 type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
@@ -8,7 +7,6 @@ export type NormalizedDomainPolicy = {
   blockedDomains: string[];
   allowedDomainRules: DomainRule[];
   blockedDomainRules: DomainRule[];
-  fetchPatterns: Protocol.Fetch.RequestPattern[];
 };
 
 export type DomainPolicyDecision =
@@ -16,7 +14,6 @@ export type DomainPolicyDecision =
   | { action: "block"; reason: "allowedDomains" | "blockedDomains" };
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const HTTP_SCHEMES = ["http", "https"] as const;
 type DomainPolicyKey = "allowedDomains" | "blockedDomains";
 
 function canonicalizeHostname(hostname: string): string {
@@ -105,8 +102,6 @@ function getDomainPatterns(
 ): string[] {
   if (policy === null) return [];
 
-  // Passing undefined usually means the caller accidentally omitted the policy
-  // argument or passed through an unset variable. Clearing must be explicit.
   if (policy === undefined) {
     throw new TypeError("Domain policy must be an object or null");
   }
@@ -114,8 +109,6 @@ function getDomainPatterns(
   const patterns = policy[key];
   if (patterns === undefined) return [];
 
-  // Empty arrays intentionally clear that side of the policy, but malformed
-  // runtime values should fail fast rather than silently disabling interception.
   if (!Array.isArray(patterns)) {
     throw new TypeError(`${key} must be an array of strings`);
   }
@@ -125,39 +118,6 @@ function getDomainPatterns(
 
 function patternHost(rule: DomainRule): string {
   return rule.type === "wildcard" ? `*.${rule.hostname}` : rule.hostname;
-}
-
-function fetchPatternHosts(rule: DomainRule): string[] {
-  const host = patternHost(rule);
-  return [host, `${host}.`];
-}
-
-function toBlocklistFetchPatterns(rules: DomainRule[]): Protocol.Fetch.RequestPattern[] {
-  const patterns: Protocol.Fetch.RequestPattern[] = [];
-
-  for (const rule of rules) {
-    for (const host of fetchPatternHosts(rule)) {
-      for (const scheme of HTTP_SCHEMES) {
-        patterns.push({
-          urlPattern: `${scheme}://${host}/*`,
-          requestStage: "Request",
-        });
-        patterns.push({
-          urlPattern: `${scheme}://${host}:*/*`,
-          requestStage: "Request",
-        });
-      }
-    }
-  }
-
-  return patterns;
-}
-
-function toAllowlistFetchPatterns(): Protocol.Fetch.RequestPattern[] {
-  return HTTP_SCHEMES.map((scheme) => ({
-    urlPattern: `${scheme}://*/*`,
-    requestStage: "Request",
-  }));
 }
 
 export function normalizeDomainPolicy(
@@ -176,9 +136,6 @@ export function normalizeDomainPolicy(
     blockedDomains: blockedDomainRules.map(patternHost),
     allowedDomainRules,
     blockedDomainRules,
-    fetchPatterns: allowedDomainRules.length
-      ? toAllowlistFetchPatterns()
-      : toBlocklistFetchPatterns(blockedDomainRules),
   };
 }
 
@@ -224,4 +181,62 @@ export function getDomainPolicyDecision(
   }
 
   return { action: "continue" };
+}
+
+export function toDomainPolicyDnrRules(
+  policy: NormalizedDomainPolicy | null,
+): chrome.declarativeNetRequest.Rule[] {
+  if (!policy) return [];
+
+  const rules: chrome.declarativeNetRequest.Rule[] = [];
+  const addRule = (type: "allow" | "block", priority: number, regexFilter: string): void => {
+    rules.push({
+      id: rules.length + 1,
+      priority,
+      action: { type },
+      condition: {
+        regexFilter,
+        isUrlFilterCaseSensitive: false,
+        // Chrome treats an empty exclusion list as omitted, which excludes
+        // main_frame. Explicitly include navigations as well as subresources.
+        resourceTypes: [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "webtransport",
+          "webbundle",
+          "other",
+        ],
+      },
+    });
+  };
+
+  // Allow rules only exempt their matching request, not the frame's future requests.
+  // Explicit blocks must outrank allows, which outrank the allowlist's default block.
+  if (policy.allowedDomainRules.length) {
+    addRule("block", 1, "^https?://");
+    for (const rule of policy.allowedDomainRules) {
+      addRule("allow", 2, domainRuleDnrRegex(rule));
+    }
+  }
+  for (const rule of policy.blockedDomainRules) {
+    addRule("block", 3, domainRuleDnrRegex(rule));
+  }
+
+  return rules;
+}
+
+function domainRuleDnrRegex(rule: DomainRule): string {
+  const hostname = rule.hostname.replace(/\./g, "\\.");
+  const subdomain = rule.type === "wildcard" ? "[^/?#@:]*\\." : "";
+  return `^https?://([^/?#@]*@)?${subdomain}${hostname}\\.*(:[0-9]+)?(/|$)`;
 }

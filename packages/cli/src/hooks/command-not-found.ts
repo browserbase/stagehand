@@ -18,19 +18,12 @@ const hook: Hook.CommandNotFound = async function ({ config, id }) {
     const result = suggestCommand(id, commandIds);
     attempted = result.attempted;
     suggestion = result.suggestion;
-    if (
-      suggestion &&
-      !config.findCommand(suggestion) &&
-      !config.findTopic(suggestion)
-    ) {
-      // Guards against alias targets drifting out of the command tree.
+    if (suggestion && !config.findCommand(suggestion) && !config.findTopic(suggestion)) {
       suggestion = null;
     }
 
     const displayAttempted = toSpaced(attempted || (id.split(":")[0] ?? id));
-    const didYouMean = suggestion
-      ? ` Did you mean "${config.bin} ${toSpaced(suggestion)}"?`
-      : "";
+    const didYouMean = suggestion ? ` Did you mean "${config.bin} ${toSpaced(suggestion)}"?` : "";
     process.stderr.write(
       `"${config.bin} ${displayAttempted}" is not a ${config.bin} command.${didYouMean} Run ${config.bin} --help for all commands.\n`,
     );
@@ -39,8 +32,6 @@ const hook: Hook.CommandNotFound = async function ({ config, id }) {
   }
 
   try {
-    // Awaited so the event is delivered before the process exits; the
-    // transport aborts after a short timeout, so this cannot hang the CLI.
     await captureCommandNotFound(config.version, attempted || null, suggestion);
   } catch {
     // Best-effort telemetry should never affect CLI behavior.

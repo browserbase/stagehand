@@ -80,14 +80,12 @@ describe("extract inference", () => {
   });
 
   it("validates both structured LLM responses before returning data", async () => {
-    const generate = vi.fn(
-      async (): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "invalid" },
-        outputFormat: "json_schema",
-        structuredContent: { heading: 42 },
-      }),
-    );
+    const generate = vi.fn(async (): Promise<LLMGenerateResult> => ({
+      role: "assistant",
+      content: { type: "text", text: "invalid" },
+      outputFormat: "json_schema",
+      structuredContent: { heading: 42 },
+    }));
 
     await expect(
       extract({
@@ -105,14 +103,12 @@ describe("extract inference", () => {
       data: "iVBORw0KGgo=",
       mimeType: "image/png",
     };
-    const generate = vi.fn(
-      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        structuredResult(
-          params.responseFormat?.type === "json_schema" &&
-            params.responseFormat.name === "Extraction"
-            ? { heading: "Screenshot heading" }
-            : { progress: "The heading was extracted", completed: true },
-        ),
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { heading: "Screenshot heading" }
+          : { progress: "The heading was extracted", completed: true },
+      ),
     );
 
     await extract({
@@ -198,14 +194,12 @@ describe("extract service", () => {
     const screenshot = vi.fn(
       async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    const clientLLMGenerate = vi.fn(
-      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
-        structuredResult(
-          params.responseFormat?.type === "json_schema" &&
-            params.responseFormat.name === "Extraction"
-            ? { heading: "Screenshot heading" }
-            : { progress: "The heading was extracted", completed: true },
-        ),
+    const clientLLMGenerate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+      structuredResult(
+        params.responseFormat?.type === "json_schema" && params.responseFormat.name === "Extraction"
+          ? { heading: "Screenshot heading" }
+          : { progress: "The heading was extracted", completed: true },
+      ),
     );
 
     try {

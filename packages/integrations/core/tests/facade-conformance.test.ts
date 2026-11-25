@@ -8,9 +8,6 @@ import { ZodError } from "zod";
 import { facadeBundle } from "../src/facade/bundle.js";
 import { StagehandFacadeInputError, StagehandFacadeTools } from "../src/facade/tools.js";
 
-// Runs the language-neutral cases in ../conformance against the TypeScript host.
-// See ../conformance/README.md for the case format.
-
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 type ConformanceCall =
@@ -53,7 +50,12 @@ type ConformanceCase = {
     }[];
     activePage?: string | null | { throw: { name: string; message: string } };
   };
-  fs?: ({ dir: string } | { file: string; base64: string } | { symlink: string; target: string })[];
+  fs?: (
+    | { dir: string }
+    | { file: string; base64: string }
+    | { hardlink: string; target: string }
+    | { symlink: string; target: string }
+  )[];
   steps: ConformanceStep[];
   expect?: {
     closed?: boolean;
@@ -70,7 +72,6 @@ const caseFiles = fs
   .filter((name) => name.endsWith(".json"))
   .sort();
 
-/** Expands the `$repeat` and `$sandbox` generators the case format allows in any JSON value. */
 function expand(value: Json, sandbox: string): Json {
   if (Array.isArray(value)) return value.map((entry) => expand(entry, sandbox));
   if (value === null || typeof value !== "object") return value;
@@ -222,13 +223,14 @@ async function prepareSandbox(testCase: ConformanceCase, sandbox: string): Promi
     } else if ("file" in entry) {
       await fsp.mkdir(path.dirname(path.join(sandbox, entry.file)), { recursive: true });
       await fsp.writeFile(path.join(sandbox, entry.file), Buffer.from(entry.base64, "base64"));
+    } else if ("hardlink" in entry) {
+      await fsp.link(path.join(sandbox, entry.target), path.join(sandbox, entry.hardlink));
     } else {
       await fsp.symlink(entry.target, path.join(sandbox, entry.symlink));
     }
   }
 }
 
-/** Every entry under the sandbox without following symlinks: `dir/`, `link@`, `file`. */
 async function listTree(sandbox: string, relative = ""): Promise<string[]> {
   const entries: string[] = [];
   for (const name of await fsp.readdir(path.join(sandbox, relative))) {
@@ -255,7 +257,10 @@ describe("facade conformance (TypeScript host)", () => {
     };
     describe(file, () => {
       for (const testCase of cases) {
-        const test = testCase.notApplicable?.typescript === undefined ? it : it.skip;
+        const skipped =
+          testCase.notApplicable?.typescript !== undefined ||
+          (process.platform === "win32" && testCase.notApplicable?.windows !== undefined);
+        const test = skipped ? it.skip : it;
         test(testCase.name, { timeout: 60_000 }, async () => {
           const sandbox = await fsp.realpath(
             await fsp.mkdtemp(path.join(os.tmpdir(), "facade-conformance-")),

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fsp from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -5,6 +6,7 @@ import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/
 import { sanitizeErrorMessage } from "../harness/redact.js";
 import {
   browserSessionLostError,
+  DEFAULT_ARTIFACT_DIRECTORY,
   FACADE_BROWSER_CLOSED_ERROR,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
@@ -13,12 +15,17 @@ import {
   RUN_RESULT_LIMITS,
   RUN_RESULT_MALFORMED_ERROR,
   RUN_VALUE_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_CONTENT_ERROR,
   SCREENSHOT_ARTIFACT_COUNT_ERROR,
   SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+  SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
   SCREENSHOT_ARTIFACT_PATH_ERROR,
   SCREENSHOT_ARTIFACT_SIZE_ERROR,
   SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
   SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR,
+  SCREENSHOT_ARTIFACT_TYPE_ERROR,
+  screenshotArtifactWriteError,
   staleSnapshotIdError,
   type FacadeSessionLoss,
   type RefAction,
@@ -37,7 +44,6 @@ type SnapshotState = { url: string; xpathById: Record<string, string> };
 
 export type StagehandFacadeRunReport = {
   telemetry: PlaywrightCompatTelemetry;
-  /** Whether the run used StagehandFacadeToolsOptions.quietWait. */
   quietWait: boolean;
   /** Wall-clock time of the whole experimentalBatch round trip. */
   batchRoundTripMs: number;
@@ -76,7 +82,13 @@ export class StagehandFacadeExecutionError extends Error {
 export type StagehandFacadeToolsOptions = {
   /** Replaces default cleanup when the host owns session release and replacement. */
   onCloseRequested?: () => Promise<void>;
-  /** Owned directory for screenshot artifacts; paths must stay within it. Defaults to process.cwd(). */
+  /**
+   * Dedicated directory for screenshot artifacts. Paths must stay within it and
+   * name a .png/.jpg/.jpeg file holding PNG or JPEG bytes, checked for every
+   * artifact before any is written; run code can replace any such image under it. Defaults to DEFAULT_ARTIFACT_DIRECTORY under
+   * process.cwd(), which must not be a symlink; a configured root may be one.
+   * New files are owner-only; a replaced file keeps its permissions.
+   */
   artifactRoot?: string;
   /** Observes every completed `run` batch (including ones whose code threw). */
   onRunReport?: (report: StagehandFacadeRunReport) => void;
@@ -110,11 +122,6 @@ export class StagehandFacadeSessionLostError extends Error {
 }
 
 const RUN_BATCH_TIMEOUT_MS = 60_000;
-/**
- * snapshot/screenshot RPCs have no executor-side deadline. Calls are serialized,
- * so one that never answers must release the queue at a bounded deadline.
- * Repeated capture deadlines latch terminal loss; no underlying RPC is retried.
- */
 const PAGE_CAPTURE_DEADLINE_MS = 120_000;
 
 export type StagehandFacadeScreenshot = {
@@ -122,7 +129,85 @@ export type StagehandFacadeScreenshot = {
   mimeType: "image/png" | "image/jpeg";
 };
 
-/** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
+const ARTIFACT_EXTENSION = /\.(?:png|jpe?g)$/iu;
+/** NAME_MAX on Linux and macOS, in bytes. */
+const MAX_NAME_BYTES = 255;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+
+/** Either signature is accepted under any image extension, as Playwright's `type` wins over the path. */
+function isImage(bytes: Buffer): boolean {
+  return (
+    bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ||
+    bytes.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)
+  );
+}
+
+async function checkDestination(root: string, components: string[]): Promise<void> {
+  let entry = root;
+  for (const [index, component] of components.entries()) {
+    entry = path.join(entry, component);
+    const stats = await fsp.lstat(entry).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (!stats) return;
+    const last = index === components.length - 1;
+    if (stats.isSymbolicLink()) {
+      throw new StagehandFacadeInputError(
+        last ? SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR : SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
+      );
+    }
+    if (last && !stats.isFile()) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_FILE_ERROR);
+    }
+    if (!last && !stats.isDirectory()) {
+      throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
+    }
+  }
+}
+
+async function chainUnchanged(
+  chain: { directory: string; dev: number; ino: number }[],
+): Promise<boolean> {
+  for (const { directory, dev, ino } of chain) {
+    const stats = await fsp.lstat(directory).catch(() => undefined);
+    if (!stats || stats.dev !== dev || stats.ino !== ino) return false;
+  }
+  return true;
+}
+
+function checkArtifact(
+  root: string,
+  artifact: ScreenshotArtifact,
+): { components: string[]; bytes: Buffer } {
+  const relative = path.relative(root, path.resolve(root, artifact.path));
+  const components = relative.split(path.sep);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative) ||
+    components.some(
+      (component) =>
+        component.includes("\0") || (process.platform === "win32" && component.includes(":")),
+    )
+  ) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
+  }
+  if (!ARTIFACT_EXTENSION.test(components.at(-1)!)) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TYPE_ERROR);
+  }
+  const bytes = Buffer.from(artifact.base64, "base64");
+  if (!isImage(bytes)) {
+    throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_CONTENT_ERROR);
+  }
+  if (components.some((component) => Buffer.byteLength(component) > MAX_NAME_BYTES)) {
+    throw new StagehandFacadeInputError(screenshotArtifactWriteError("ENAMETOOLONG"));
+  }
+  return { components, bytes };
+}
+
 export const FACADE_KEEPER_PAGE_URL = "about:blank";
 
 export class StagehandFacadeTools {
@@ -130,8 +215,6 @@ export class StagehandFacadeTools {
   private queue: Promise<void> = Promise.resolve();
   private loss: FacadeSessionLoss | undefined;
   private keeper: Promise<string | undefined> | undefined;
-  // Consecutive capture-deadline timeouts; reset by any successful tool call.
-  // Three consecutive failures end this facade; this does not prove transport loss.
   private consecutiveDeadlines = 0;
   private static readonly MAX_CONSECUTIVE_DEADLINES = 3;
 
@@ -191,14 +274,9 @@ export class StagehandFacadeTools {
 
   private async snapshotNow(options: { includeIframes?: boolean }): Promise<string> {
     const page = await this.activePage();
-    // Failed captures invalidate the preceding snapshot too. A late response
-    // must never replace the IDs installed by a subsequent successful capture.
     this.snapshotsByPage.delete(page.pageId);
     const { snapshot, url } = await withDeadline(
       (async () => {
-        // `page.snapshot` defaults to a 20s timeout. Disable it so the capture
-        // deadline below owns the wait; otherwise a slow snapshot fails as an
-        // ordinary tool error and never counts toward terminal session loss.
         const snapshot = await page.snapshot({
           includeIframes: options.includeIframes ?? true,
           timeout: 0,
@@ -248,8 +326,6 @@ export class StagehandFacadeTools {
       throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
-    // The callback can already have dispatched earlier actions when one fails.
-    // Never replay an action batch after a partial failure.
     const result = await this.stagehand.experimentalBatch(
       actionRunner,
       { actions: parsed, xpathById: snapshot.xpathById },
@@ -272,8 +348,6 @@ export class StagehandFacadeTools {
       ...(quietWait && { quietWait: true }),
     };
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
-    // Agent code runs inside the callback that builds this result, so it is not
-    // acted on (no artifacts, no close) unless it has the envelope's shape.
     if (!isRunEnvelope(envelope)) throw new StagehandFacadeInputError(RUN_RESULT_MALFORMED_ERROR);
     let runError: unknown;
     let runFailed = false;
@@ -287,8 +361,6 @@ export class StagehandFacadeTools {
       });
       await this.writeScreenshotArtifacts(envelope.artifacts);
       if (envelope.executionError) {
-        // Thrown by the agent's own code inside the browser, so its message can
-        // never be evidence about this process's connection to the browser.
         throw new StagehandFacadeExecutionError(envelope.executionError);
       }
       const valueBytes = Buffer.byteLength(JSON.stringify(envelope.value) ?? "");
@@ -299,8 +371,6 @@ export class StagehandFacadeTools {
       runError = error;
       runFailed = true;
     }
-    // Wait until the batch finishes before closing its transport, even when
-    // agent code, telemetry, or artifact persistence failed.
     if (envelope.closeRequested) {
       try {
         await this.close();
@@ -315,12 +385,6 @@ export class StagehandFacadeTools {
     return envelope.value;
   }
 
-  /**
-   * The batch controller resolves its target page before invoking the
-   * callback, so when the active page vanished between activePage() and the
-   * batch (tab closed by the previous snippet) this retry cannot replay
-   * partially executed agent code.
-   */
   private async runBatchWithActivePageFallback(
     callback: ExperimentalBatchCallback<RunInput, RunEnvelope>,
     input: RunInput,
@@ -345,12 +409,9 @@ export class StagehandFacadeTools {
 
   private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
     if (artifacts.length === 0) return;
-    // Enforce every cap before the first write so an oversized run saves nothing.
     if (artifacts.length > RUN_RESULT_LIMITS.maxArtifacts) {
       throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_COUNT_ERROR);
     }
-    // Sizes come from the base64 length (isRunEnvelope already required
-    // canonical padding), so no artifact is decoded until all of them fit.
     let totalBytes = 0;
     for (const artifact of artifacts) {
       const size = decodedBase64Length(artifact.base64);
@@ -362,65 +423,92 @@ export class StagehandFacadeTools {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR);
       }
     }
-    const decoded = artifacts.map((artifact) => ({
-      path: artifact.path,
-      bytes: Buffer.from(artifact.base64, "base64"),
-    }));
-    const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
+    try {
+      await this.writeArtifactFiles(artifacts);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (!(error instanceof StagehandFacadeInputError) && typeof code === "string") {
+        throw new StagehandFacadeInputError(screenshotArtifactWriteError(code));
+      }
+      throw error;
+    }
+  }
+
+  private async writeArtifactFiles(artifacts: ScreenshotArtifact[]): Promise<void> {
+    const configuredRoot = path.resolve(
+      this.options.artifactRoot || path.join(process.cwd(), DEFAULT_ARTIFACT_DIRECTORY),
+    );
+    const checked = artifacts.map((artifact) => checkArtifact(configuredRoot, artifact));
+    if (!this.options.artifactRoot) {
+      const stats = await fsp.lstat(configuredRoot).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      if (stats?.isSymbolicLink()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
+      }
+    }
+    for (const { components } of checked) await checkDestination(configuredRoot, components);
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
-    for (const artifact of decoded) {
-      const target = path.resolve(configuredRoot, artifact.path);
-      const relative = path.relative(configuredRoot, target);
-      if (
-        !relative ||
-        relative === ".." ||
-        relative.startsWith(`..${path.sep}`) ||
-        path.isAbsolute(relative)
-      ) {
-        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_PATH_ERROR);
-      }
-      // Reject symlink traversal before creating nested directories or opening
-      // the output. O_NOFOLLOW also refuses an existing symlink at the file.
+    const rootStats = await fsp.lstat(root);
+    for (const { components, bytes } of checked) {
       let directory = root;
-      const components = relative.split(path.sep);
+      const chain = [{ directory, dev: rootStats.dev, ino: rootStats.ino }];
       for (const component of components.slice(0, -1)) {
         directory = path.join(directory, component);
         await fsp.mkdir(directory).catch((error: NodeJS.ErrnoException) => {
           if (error.code !== "EEXIST") throw error;
         });
-        if (!(await fsp.lstat(directory)).isDirectory()) {
+        const stats = await fsp.lstat(directory);
+        if (stats.isSymbolicLink()) {
           throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
         }
+        if (!stats.isDirectory()) {
+          throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR);
+        }
+        chain.push({ directory, dev: stats.dev, ino: stats.ino });
       }
-      const file = await fsp
-        .open(
-          path.join(directory, components.at(-1)!),
-          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-          0o600,
-        )
-        .catch((error: NodeJS.ErrnoException) => {
-          if (error.code === "ELOOP") {
-            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
-          }
-          throw error;
-        });
+      const target = path.join(directory, components.at(-1)!);
+      const existing = await fsp.lstat(target).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      if (existing?.isSymbolicLink()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR);
+      }
+      if (existing && !existing.isFile()) {
+        throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NOT_FILE_ERROR);
+      }
+      const temporary = path.join(directory, `.stagehand-${randomBytes(8).toString("hex")}.tmp`);
+      const file = await fsp.open(
+        temporary,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+      );
       try {
-        await file.writeFile(artifact.bytes);
-      } finally {
-        await file.close();
+        try {
+          // A replaced file keeps its permissions; a new one is owner-only. Some
+          // filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
+          if (existing) await file.chmod(existing.mode & 0o777).catch(() => undefined);
+          await file.writeFile(bytes);
+          // Node has no directory-relative opens, so the directory chain is
+          // re-verified, and the new file confirmed on its device, before the rename.
+          const { dev } = await file.stat();
+          if (dev !== chain.at(-1)!.dev || !(await chainUnchanged(chain))) {
+            throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
+          }
+        } finally {
+          await file.close();
+        }
+        await fsp.rename(temporary, target);
+      } catch (error) {
+        await fsp.rm(temporary, { force: true });
+        throw error;
       }
     }
   }
 
-  /**
-   * The page the agent is working on. A closed or crashed tab leaves the
-   * context without an active page (or with only the keeper); the agent then
-   * gets a fresh blank page rather than a dead end, and the keeper stays hidden.
-   * When another window has focus on a tab Stagehand does not manage, the agent
-   * keeps working on the newest tab Stagehand registered; nothing is reordered,
-   * since activating a tab does not move window focus.
-   */
   private async activePage(): Promise<Page> {
     const context = this.stagehand.browser.context;
     const keeperPageId = await this.keeper;
@@ -444,10 +532,6 @@ export class StagehandFacadeTools {
     return page;
   }
 
-  /**
-   * Opens the keeper once. A dead transport here is session loss like
-   * anywhere else; any other failure just means running without a keeper.
-   */
   private async ensureKeeperPage(): Promise<void> {
     this.keeper ??= this.openKeeperPage().catch((error: unknown) => {
       if (sessionLossCause(error) !== undefined) throw error;
@@ -466,7 +550,6 @@ export class StagehandFacadeTools {
     const context = this.stagehand.browser.context;
     const before = await context.activePage();
     const keeper = await context.newPage(FACADE_KEEPER_PAGE_URL);
-    // newPage activates the new tab; hand focus straight back.
     if (before) await context.setActivePage(before);
     return keeper.pageId;
   }
@@ -478,11 +561,9 @@ export class StagehandFacadeTools {
       try {
         await this.ensureKeeperPage();
         const value = await operation();
-        this.consecutiveDeadlines = 0; // a real response proves the session is alive
+        this.consecutiveDeadlines = 0;
         return value;
       } catch (error) {
-        // Permit two consecutive capture timeouts. The deadline does not cancel
-        // the underlying RPC, and recovery never replays that capture or an action.
         if (error instanceof FacadeDeadlineError) {
           this.consecutiveDeadlines += 1;
           if (this.consecutiveDeadlines < StagehandFacadeTools.MAX_CONSECUTIVE_DEADLINES) {
@@ -509,12 +590,9 @@ export class StagehandFacadeTools {
   }
 
   private notifySessionLost(loss: FacadeSessionLoss): void {
-    // Diagnostic observers cannot replace the terminal error or reopen the queue.
     try {
       void Promise.resolve(this.options.onSessionLost?.(loss)).catch(() => undefined);
-    } catch {
-      // Preserve the first browser failure when an observer throws synchronously.
-    }
+    } catch {}
   }
 }
 
@@ -556,7 +634,6 @@ function isCanonicalBase64(value: unknown): value is string {
   );
 }
 
-/** Byte length a canonical padded base64 string decodes to. */
 function decodedBase64Length(value: string): number {
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
   return (value.length / 4) * 3 - padding;
@@ -588,11 +665,6 @@ function withDeadline<T>(promise: Promise<T>, timeoutMs: number, operation: stri
   });
 }
 
-/**
- * Maps an error to the reason the browser session is unusable, or undefined
- * when it is an ordinary tool failure the agent can act on. A batch that hit
- * its executor-side timeout is ordinary: the executor answered.
- */
 function sessionLossCause(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
   if ((error as { facadeExecutionError?: boolean }).facadeExecutionError) return undefined;
@@ -603,9 +675,6 @@ function sessionLossCause(error: unknown): string | undefined {
         ? `batch received no response within ${clientTimeout}ms`
         : "batch received no response before its client deadline";
     }
-    // FacadeDeadlineError is intentionally NOT terminal here: a single capture
-    // deadline is handled as recoverable in enqueue(), which escalates to
-    // session-loss only after repeated consecutive timeouts.
     case "CDPConnectionClosedError":
       return cdpSessionLossCause(error);
   }
@@ -618,8 +687,6 @@ function cdpSessionLossCause(error: Error): string {
   const messages = [error.message];
   const seen = new Set<Error>([error]);
   let cause = error.cause;
-  // An error before the WebSocket close event carries its diagnostics in cause,
-  // while a close event carries them in the outer message. Preserve both paths.
   while (cause instanceof Error && !seen.has(cause)) {
     seen.add(cause);
     const code = (cause as Error & { code?: unknown }).code;

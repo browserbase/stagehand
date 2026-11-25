@@ -13,7 +13,6 @@ from .runtime import BrowserTools, RuntimeConfig, stringify_result
 
 _PROTOCOL_VERSION = "2025-06-18"
 
-# The tool surface is the facade contract shared with the TypeScript facade.
 TOOLS: list[dict[str, Any]] = facade_tools()
 
 

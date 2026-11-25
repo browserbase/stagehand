@@ -1,7 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
@@ -31,30 +31,19 @@ export interface CodexToolAdapterInput {
   logger: EvalLogger;
 }
 
-/** Code-surface variant: same runner-facing fields as the browse_cli shape. */
 export interface PreparedCodexCodeAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
-  /** Extra Codex `--config` overrides (e.g. mcp_servers for MCP mounts). */
   codexConfig?: Record<string, unknown>;
-  /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
-  /**
-   * Runner calls this on every completed mcp_tool_call event; MCP mounts use
-   * it to record per-step observations (their tool calls never pass through
-   * the workspace bridge).
-   */
   recordObservation?: (item: Record<string, unknown>) => Promise<void>;
   allowedMcpServers?: string[];
-  /** Which normalized tool-call names consume observation indexes. */
   observedToolMatcher?: (name: string) => boolean;
   cleanup: () => Promise<void>;
 }
@@ -86,7 +75,6 @@ const STAGEHAND_FACADE_MCP_TIMEOUTS = {
  */
 export const CODEX_MCP_TOOLS_APPROVAL_MODE = "approve";
 
-/** Name of the per-run Codex home directory created inside the adapter cwd. */
 export const CODEX_HOME_DIRNAME = path.join("home", ".codex");
 
 export function buildCodexMcpServers(
@@ -106,7 +94,6 @@ export function buildCodexMcpServers(
   );
 }
 
-/** Create the isolated profile once and retain the SDK's filtered environment. */
 async function createIsolatedCodexEnvironment(cwd: string): Promise<Record<string, string>> {
   const env = await isolatedCodexEnv(cwd);
   await fsp.writeFile(
@@ -116,7 +103,6 @@ async function createIsolatedCodexEnvironment(cwd: string): Promise<Record<strin
   return env;
 }
 
-/** Mirrors the claude adapter's bounded, best-effort terminal capture. */
 function boundedCaptureEvidence(
   capture: () => Promise<ProbeEvidence>,
 ): () => Promise<ProbeEvidence> {
@@ -198,9 +184,6 @@ export async function prepareCodexToolAdapter(
       throw new EvalsError(`Tool surface "${toolSurface}" does not provide an agent mount.`);
     }
     if (mount.via === "mcp") {
-      // MCP mounts skip the workspace bridge entirely: the agent gets its own
-      // server instance via Codex mcp_servers config, and per-step
-      // observations are triggered from the runner's mcp_tool_call events.
       const recorder = runtime.running.captureEvidence
         ? new ObservationRecorder(runtime.running.captureEvidence)
         : undefined;
@@ -253,9 +236,7 @@ export async function prepareCodexToolAdapter(
         cleanup: async () => {
           try {
             await runtime.cleanup();
-          } catch {
-            // best-effort only
-          }
+          } catch {}
           await fsp.rm(capturedCwd, { recursive: true, force: true });
         },
       };
@@ -275,7 +256,10 @@ export async function prepareCodexToolAdapter(
     cwd = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
-    await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
+    await fsp.writeFile(
+      path.join(cwd, "browser_run.mjs"),
+      buildBridgeClientScript(bridge.port, bridge.token),
+    );
     const env = await createIsolatedCodexEnvironment(cwd);
 
     input.logger.log({
@@ -312,21 +296,15 @@ export async function prepareCodexToolAdapter(
       cleanup: async () => {
         try {
           await capturedBridge.close();
-        } catch {
-          // best-effort only
-        }
+        } catch {}
         try {
           await runtime.cleanup();
-        } catch {
-          // best-effort only
-        }
+        } catch {}
         await fsp.rm(capturedCwd, { recursive: true, force: true });
       },
     };
   } catch (error) {
     await bridge?.close().catch((): undefined => undefined);
-    // Same bound as normal teardown — a hung cleanup must not wedge the row
-    // on the setup-failure path either.
     await withCaptureTimeout(
       runtime.cleanup(),
       readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
@@ -336,11 +314,6 @@ export async function prepareCodexToolAdapter(
   }
 }
 
-/**
- * Codex has no MCP run tool — snippets go through the workspace bridge
- * client. Reuse the surface's own API guidance, rewriting the claude-style
- * run-tool reference to the codex invocation.
- */
 function buildCodexCodePromptInstructions(
   mount: { promptInstructions: string; handles: Record<string, unknown> },
   toolSurface: ToolSurface,

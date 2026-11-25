@@ -1,10 +1,4 @@
-// Deterministic reducer for `browse cloud sessions logs --only-errors`.
-// Turns the raw CDP firehose (~hundreds of events per session) into the high-signal error slice:
-// console errors/warnings/asserts, uncaught exceptions, HTTP 4xx/5xx responses, and net-level load
-// failures. No LLM — pure allowlist + severity/status filter + field projection + dedupe + stack trim.
-
 export interface ReduceLogsOptions {
-  /** Only failed / error-status network requests (4xx/5xx + load failures). */
   failedRequests?: boolean;
 }
 
@@ -36,14 +30,10 @@ function paramsOf(e: RawLog): CdpLogParams {
   }
 }
 
-// Keep the message line + the app (`/src/`) stack frames; drop framework/vendor frames and hosts.
 function trimStack(s: string): string {
   return (s || "")
     .split("\n")
-    .filter(
-      (l, i) =>
-        i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)),
-    )
+    .filter((l, i) => i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)))
     .slice(0, 4)
     .map((l) =>
       l
@@ -54,10 +44,7 @@ function trimStack(s: string): string {
     .join("\n");
 }
 
-export function reduceLogs(
-  raw: RawLog[],
-  opts: ReduceLogsOptions = {},
-): unknown[] {
+export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown[] {
   const out: Record<string, unknown>[] = [];
   const seen = new Set<string>();
   const push = (rec: Record<string, unknown>) => {
@@ -80,9 +67,7 @@ export function reduceLogs(
       ["error", "warning", "assert"].includes(p.type)
     ) {
       const text = (Array.isArray(p.args) ? p.args : [])
-        .map((a) =>
-          a && typeof a === "object" ? a.description || a.value || "" : "",
-        )
+        .map((a) => (a && typeof a === "object" ? a.description || a.value || "" : ""))
         .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
@@ -98,9 +83,7 @@ export function reduceLogs(
         domain: "Runtime",
         severity: "error",
         text: trimStack(
-          p.exceptionDetails?.exception?.description ??
-            p.exceptionDetails?.text ??
-            "",
+          p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
         ),
       };
     } else if (
@@ -127,10 +110,7 @@ export function reduceLogs(
         url: p.response?.url,
         type: p.type,
       };
-    } else if (
-      m === "Network.loadingFailed" &&
-      p.errorText !== "net::ERR_ABORTED"
-    ) {
+    } else if (m === "Network.loadingFailed" && p.errorText !== "net::ERR_ABORTED") {
       rec = {
         kind: "network.failed",
         domain: "Network",
@@ -138,10 +118,10 @@ export function reduceLogs(
         type: p.type,
       };
     } else {
-      continue; // everything else (byte-chunk / lifecycle events) is noise
+      continue;
     }
 
-    if (!rec) continue; // e.g. a console.error whose text was empty / formatting noise
+    if (!rec) continue;
     if (opts.failedRequests && rec.domain !== "Network") continue;
     push(rec);
   }

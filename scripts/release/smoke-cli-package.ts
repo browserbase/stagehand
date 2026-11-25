@@ -4,8 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { assertPublishedCliDependencies, runReleaseCommand } from "./scoped-release.ts";
 
-// A workspace build can pass against unreleased SDK code. Install the actual
-// tarball in isolation so its dependency is resolved from the public registry.
 const root = process.cwd();
 await assertPublishedCliDependencies(root);
 runReleaseCommand("pnpm", ["exec", "turbo", "run", "build", "--filter=browse"], root);

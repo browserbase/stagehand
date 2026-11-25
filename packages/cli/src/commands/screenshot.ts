@@ -11,8 +11,7 @@ import {
 } from "../lib/driver/command-cli.js";
 
 export default class Screenshot extends BrowseCommand {
-  static override description =
-    "Capture a screenshot of the active browser page.";
+  static override description = "Capture a screenshot of the active browser page.";
 
   static override examples = [
     "browse screenshot",
@@ -30,8 +29,7 @@ export default class Screenshot extends BrowseCommand {
       options: ["allow", "disabled"],
     }),
     base64: Flags.boolean({
-      description:
-        "Print base64 to stdout instead of writing a file (legacy default).",
+      description: "Print base64 to stdout instead of writing a file (legacy default).",
       exclusive: ["path"],
     }),
     caret: Flags.string({
@@ -85,15 +83,8 @@ export default class Screenshot extends BrowseCommand {
   }
 }
 
-// Generous upper bound on filename-collision retries; far beyond any real
-// same-second burst, it just guarantees the loop below always terminates.
 const MAX_RESERVE_ATTEMPTS = 1000;
 
-/**
- * Resolves the file the screenshot should be written to, or undefined when the
- * driver should return base64 (explicit --path is handled separately; --base64
- * opts out of a file entirely).
- */
 function getDefaultPathFromFlags(flags: {
   path?: string;
   base64?: boolean;
@@ -103,13 +94,6 @@ function getDefaultPathFromFlags(flags: {
   return reserveDefaultScreenshotPath(flags.type);
 }
 
-/**
- * Picks the next free screenshot-<timestamp>[-<counter>].<type> name in the
- * current directory and reserves it. "Reserve" = create the file with an
- * exclusive open (`wx` → O_CREAT|O_EXCL), which atomically fails with EEXIST if
- * the name already exists, so two concurrent runs can never claim the same
- * file. On EEXIST we advance the counter and try the next name.
- */
 function reserveDefaultScreenshotPath(type: string | undefined): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -121,8 +105,6 @@ function reserveDefaultScreenshotPath(type: string | undefined): string {
     const suffix = counter === 1 ? "" : `-${counter}`;
     const candidate = resolve(`screenshot-${stamp}${suffix}.${extension}`);
     try {
-      // Exclusive create reserves the name; close immediately since the driver
-      // (re)writes the file. The empty placeholder is cleaned up on failure.
       closeSync(openSync(candidate, "wx"));
       return candidate;
     } catch (error) {
@@ -134,9 +116,6 @@ function reserveDefaultScreenshotPath(type: string | undefined): string {
   );
 }
 
-// Removes the reserved placeholder when the screenshot failed before the driver
-// wrote to it. `path` is always a file we created via openSync above, so the
-// isFile guard is just defensive against an unexpected directory/symlink.
 function removeIfEmpty(path: string): void {
   try {
     const stats = statSync(path);

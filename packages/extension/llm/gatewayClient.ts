@@ -7,11 +7,9 @@ export interface GatewayContext {
   request?: ClientBrowserbaseRequest;
 }
 
-// Used only to construct AI SDK requests; the client selects the HTTP endpoint.
 const CLIENT_GATEWAY_BASE_URL = "https://stagehand.invalid/llm";
 const CLIENT_GATEWAY_API_KEY = "stagehand-client-gateway";
 
-/** Selects the configured transport for Browserbase Model Gateway inference. */
 export function buildGatewayContext(
   initParams: StagehandInitParams,
   request?: ClientBrowserbaseRequest,
@@ -61,7 +59,6 @@ function clientGatewayFetch(
     }
     if (!gateway.request) throw new Error("Client Browserbase transport is unavailable");
     const headers = new Headers(init.headers);
-    // Only the adapter-generated default is omitted; explicit authorization stays intact.
     if (!hasAuthorization) headers.delete("authorization");
     return await gateway.request(
       { operation: "gateway.responses", headers: Object.fromEntries(headers), body: init.body },
@@ -70,7 +67,6 @@ function clientGatewayFetch(
   };
 }
 
-/** Creates an OpenAI Responses model backed by Browserbase Model Gateway. */
 export function createGatewayLanguageModel(
   config: ModelConfig | undefined,
   gateway: GatewayContext,

@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -49,14 +49,10 @@ export function resolveTemplateLanguage(
     return "python";
   }
 
-  fail(
-    `Template "${template.slug}" does not include TypeScript or Python scaffolding commands.`,
-  );
+  fail(`Template "${template.slug}" does not include TypeScript or Python scaffolding commands.`);
 }
 
-export async function cloneTemplate(
-  options: CloneTemplateOptions,
-): Promise<CloneTemplateResult> {
+export async function cloneTemplate(options: CloneTemplateOptions): Promise<CloneTemplateResult> {
   const language = resolveTemplateLanguage(options.template, options.language);
   const dest = resolve(options.destination ?? options.template.slug);
   const displayPath = options.destination ?? options.template.slug;
@@ -69,16 +65,12 @@ export async function cloneTemplate(
   const projectName = basename(dest);
   const scaffolder = getScaffolder(language);
   // create-browser-app identifies a template by its final source directory.
-  const scaffolderTemplate = basename(
-    options.template.sourcePath || options.template.slug,
-  );
+  const scaffolderTemplate = basename(options.template.sourcePath || options.template.slug);
   await mkdir(parentDir, { recursive: true });
   const existingEntries = await getDirectoryEntryNames(parentDir);
 
   if (!options.quiet) {
-    console.log(
-      `Scaffolding ${language}/${options.template.slug} into ${dest}...`,
-    );
+    console.log(`Scaffolding ${language}/${options.template.slug} into ${dest}...`);
   }
 
   try {
@@ -88,15 +80,9 @@ export async function cloneTemplate(
       parentDir,
     );
 
-    const createdDir = await findCreatedProjectDir(
-      parentDir,
-      existingEntries,
-      projectName,
-    );
+    const createdDir = await findCreatedProjectDir(parentDir, existingEntries, projectName);
     if (!createdDir) {
-      throw new Error(
-        `Scaffolder did not create a project directory in ${parentDir}.`,
-      );
+      throw new Error(`Scaffolder did not create a project directory in ${parentDir}.`);
     }
 
     if (createdDir !== dest) {
@@ -104,11 +90,7 @@ export async function cloneTemplate(
     }
   } catch (error) {
     try {
-      const createdDir = await findCreatedProjectDir(
-        parentDir,
-        existingEntries,
-        projectName,
-      );
+      const createdDir = await findCreatedProjectDir(parentDir, existingEntries, projectName);
       if (createdDir) {
         await rm(createdDir, { recursive: true, force: true });
       }
@@ -126,17 +108,12 @@ export async function cloneTemplate(
   };
 }
 
-function templateSupportsLanguage(
-  template: Template,
-  language: TemplateLanguage,
-): boolean {
+function templateSupportsLanguage(template: Template, language: TemplateLanguage): boolean {
   const tags = new Set(template.tags.map((tag) => tag.toLowerCase()));
   const commands = template.commands.join("\n").toLowerCase();
 
   if (language === "typescript") {
-    return (
-      tags.has("typescript") || commands.includes("npx create-browser-app")
-    );
+    return tags.has("typescript") || commands.includes("npx create-browser-app");
   }
 
   return (
@@ -146,11 +123,8 @@ function templateSupportsLanguage(
   );
 }
 
-function commandExists(
-  command: string,
-  args: string[] = ["--version"],
-): boolean {
-  const result = spawnSync(command, args, {
+function commandExists(command: string, args: string[] = ["--version"]): boolean {
+  const result = spawn.sync(command, args, {
     stdio: "ignore",
   });
 
@@ -173,9 +147,7 @@ function getScaffolder(language: TemplateLanguage): ScaffolderCommand {
       };
     }
 
-    fail(
-      "TypeScript templates require `npx` or `npm` to scaffold a ready-to-run project.",
-    );
+    fail("TypeScript templates require `npx` or `npm` to scaffold a ready-to-run project.");
   }
 
   if (commandExists("uvx")) {
@@ -192,17 +164,11 @@ function getScaffolder(language: TemplateLanguage): ScaffolderCommand {
     };
   }
 
-  fail(
-    "Python templates require `uvx` or `uv` to scaffold a ready-to-run project.",
-  );
+  fail("Python templates require `uvx` or `uv` to scaffold a ready-to-run project.");
 }
 
-function runCommand(
-  command: string,
-  args: string[],
-  cwd?: string,
-): CommandResult {
-  const result = spawnSync(command, args, {
+function runCommand(command: string, args: string[], cwd?: string): CommandResult {
+  const result = spawn.sync(command, args, {
     cwd,
     encoding: "utf8",
     stdio: "pipe",
@@ -213,15 +179,11 @@ function runCommand(
   }
 
   if (result.status !== 0) {
-    const stderr =
-      typeof result.stderr === "string" ? result.stderr.trim() : "";
-    const stdout =
-      typeof result.stdout === "string" ? result.stdout.trim() : "";
+    const stderr = typeof result.stderr === "string" ? result.stderr.trim() : "";
+    const stdout = typeof result.stdout === "string" ? result.stdout.trim() : "";
     const renderedCommand = `${command} ${args.join(" ")}`;
     throw new Error(
-      stderr ||
-        stdout ||
-        `${renderedCommand} failed with exit code ${result.status ?? "unknown"}.`,
+      stderr || stdout || `${renderedCommand} failed with exit code ${result.status ?? "unknown"}.`,
     );
   }
 
@@ -341,10 +303,7 @@ function resolvePackageManager(packageManager?: string): PackageManager {
   return "npm";
 }
 
-function runPackageScript(
-  packageManager: PackageManager,
-  script: string,
-): string {
+function runPackageScript(packageManager: PackageManager, script: string): string {
   if (packageManager === "npm" || packageManager === "bun") {
     return `${packageManager} run ${script}`;
   }

@@ -40,7 +40,6 @@ describe("getModelList", () => {
     const { getModelList } = await loadTaskConfig();
     const models = getModelList();
     expect(models.length).toBeGreaterThan(0);
-    // Default set includes these three
     expect(models).toContain("google/gemini-2.5-flash");
     expect(models).toContain("openai/gpt-4.1-mini");
     expect(models).toContain("anthropic/claude-haiku-4-5");
@@ -50,7 +49,6 @@ describe("getModelList", () => {
     const { getModelList } = await loadTaskConfig();
     const models = getModelList("agent");
     expect(models.length).toBeGreaterThan(0);
-    // Agent models include CUA models
     expect(models.some((m) => m.includes("anthropic"))).toBe(true);
   });
 
@@ -73,7 +71,6 @@ describe("getAgentModelEntries", () => {
     expect(standard.length).toBeGreaterThan(0);
     expect(cua.length).toBeGreaterThan(0);
 
-    // Each entry has modelName
     for (const entry of entries) {
       expect(typeof entry.modelName).toBe("string");
       expect(entry.modelName.length).toBeGreaterThan(0);
@@ -183,7 +180,6 @@ describe("cross-cutting categories", () => {
 
   it("does not expose core tier tasks", async () => {
     const { tasksByName } = await loadTaskConfig();
-    // Core tasks like "open", "reload" should NOT be in the legacy registry
     expect(tasksByName["open"]).toBeUndefined();
     expect(tasksByName["reload"]).toBeUndefined();
     expect(tasksByName["navigation/open"]).toBeUndefined();
@@ -197,15 +193,9 @@ describe("validateEvalName", () => {
       throw new Error("process.exit called");
     });
 
-    // Use a task that should exist in the discovered filesystem
-    // (the discovery runs at import time in taskConfig.ts)
-    // If no tasks found, this will exit — that's fine, we just test the logic
     try {
-      // Empty string should be a no-op (the if guard checks truthiness)
       validateEvalName("");
-    } catch {
-      // ignore
-    }
+    } catch {}
 
     mockExit.mockRestore();
   });

@@ -107,6 +107,7 @@ async def test_browserbase_uses_1280_by_720_viewport(
 
 def test_runtime_config_reads_facade_options(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("STAGEHAND_FACADE_QUIET_WAIT", raising=False)
+    monkeypatch.delenv("STAGEHAND_FACADE_ARTIFACT_ROOT", raising=False)
     monkeypatch.delenv("STAGEHAND_ARTIFACT_ROOT", raising=False)
     assert RuntimeConfig.from_env().quiet_wait is False
     assert RuntimeConfig.from_env().artifact_root is None
@@ -115,6 +116,8 @@ def test_runtime_config_reads_facade_options(monkeypatch: pytest.MonkeyPatch) ->
     config = RuntimeConfig.from_env()
     assert config.quiet_wait is True
     assert config.artifact_root == "/tmp/artifacts"
+    monkeypatch.setenv("STAGEHAND_FACADE_ARTIFACT_ROOT", "/tmp/facade-artifacts")
+    assert RuntimeConfig.from_env().artifact_root == "/tmp/facade-artifacts"
 
 
 async def test_browser_tools_pass_options_to_the_facade(

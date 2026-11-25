@@ -1,3 +1,4 @@
+import { ChainLocatorDelegate } from "./understudy/chainLocator.js";
 import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
@@ -35,7 +36,7 @@ import type {
   LocatorClickResult,
   LocatorCentroidResult,
   LocatorCountResult,
-  LocatorDescriptor,
+  LocatorRequestDescriptor,
   LocatorParams,
   LocatorFillParams,
   LocatorFillResult,
@@ -184,7 +185,7 @@ export type UnderstudyRuntimePage = {
   invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolDescriptor, "toolId">,
   ): Promise<WebMCPInvocationDescriptor>;
   waitForWebMCPInvocationResult(
     invocationId: string,
@@ -198,6 +199,10 @@ export type UnderstudyRuntimePage = {
   subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeResponse(
+    listener: (response: Response) => void,
     signal?: AbortSignal,
   ): Promise<() => void>;
   subscribeWebMCPToolsChanged(
@@ -347,6 +352,11 @@ export class StagehandRuntime {
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private browserSessionCdpUrl?: string;
+  private readonly pendingBrowserSessionCleanup = new Map<
+    StagehandBrowserSession,
+    Promise<void> | undefined
+  >();
+  private browserConnectionGeneration = 0;
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -369,25 +379,73 @@ export class StagehandRuntime {
     bootstrapLogger?: StagehandLogger,
   ): Promise<void> {
     const { cdpUrl } = params;
-    const previousSession = this.browserSession;
+    const generation = ++this.browserConnectionGeneration;
+    if (this.browserSession && !this.pendingBrowserSessionCleanup.has(this.browserSession)) {
+      this.pendingBrowserSessionCleanup.set(this.browserSession, undefined);
+    }
     this.browserSession = undefined;
     this.browserSessionCdpUrl = undefined;
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
-    await previousSession?.close();
+    await this.runPendingSessionCleanup();
+    if (generation !== this.browserConnectionGeneration) {
+      throw new Error("Stagehand browser connection was dropped while connecting");
+    }
 
-    try {
-      this.browserSession = await this.adapters.browserSessionFactory(
-        cdpUrl,
-        this.logger,
-        bootstrapLogger,
+    const session = await this.adapters.browserSessionFactory(cdpUrl, this.logger, bootstrapLogger);
+    if (generation !== this.browserConnectionGeneration) {
+      await this.cleanupSession(session);
+      throw new Error("Stagehand browser connection was dropped while connecting");
+    }
+    this.browserSession = session;
+    this.browserSessionCdpUrl = cdpUrl;
+  }
+
+  async disconnectBrowser(): Promise<void> {
+    this.browserConnectionGeneration += 1;
+    if (this.browserSession && !this.pendingBrowserSessionCleanup.has(this.browserSession)) {
+      this.pendingBrowserSessionCleanup.set(this.browserSession, undefined);
+    }
+    this.browserSession = undefined;
+    this.browserSessionCdpUrl = undefined;
+    await this.runPendingSessionCleanup();
+  }
+
+  private cleanupSession(session: StagehandBrowserSession): Promise<void> {
+    const pending = this.pendingBrowserSessionCleanup.get(session);
+    if (pending) return pending;
+    const closing = Promise.resolve()
+      .then(() => session.close())
+      .then(
+        () => {
+          this.pendingBrowserSessionCleanup.delete(session);
+        },
+        (error) => {
+          this.pendingBrowserSessionCleanup.set(session, undefined);
+          throw error;
+        },
       );
-      this.browserSessionCdpUrl = cdpUrl;
-    } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
-      throw error;
+    this.pendingBrowserSessionCleanup.set(session, closing);
+    return closing;
+  }
+
+  private async runPendingSessionCleanup(): Promise<void> {
+    const results = await Promise.allSettled(
+      Array.from(this.pendingBrowserSessionCleanup.keys(), (session) =>
+        this.cleanupSession(session),
+      ),
+    );
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Browser session cleanup failed");
+  }
+
+  async ensureBrowserConnection(cdpUrl: string): Promise<void> {
+    if (!this.browserSession?.connected || this.browserSessionCdpUrl !== cdpUrl) {
+      await this.replaceBrowserConnection({ cdpUrl });
     }
   }
 
@@ -763,8 +821,10 @@ export class StagehandRuntime {
   }
 
   async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
+    const tools = await this.resolvePage(params.pageId).listWebMCPTools(params.options);
     return {
-      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
+      // Older clients validate descriptors against a schema without toolId.
+      tools: params.includeToolIds ? tools : tools.map(({ toolId: _toolId, ...tool }) => tool),
     };
   }
 
@@ -773,6 +833,7 @@ export class StagehandRuntime {
   ): Promise<WebMCPInvocationDescriptor> {
     return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
       input: params.input,
+      ...(params.toolId === undefined ? {} : { toolId: params.toolId }),
     });
   }
 
@@ -835,11 +896,31 @@ export class StagehandRuntime {
             subscription.controller.signal,
           );
           break;
+        case "response":
+          subscription.dispose = await page.subscribeResponse((response) => {
+            if (!isActive()) return;
+            this.adapters.emitPageEvent({
+              subscriptionId: params.subscriptionId,
+              event: "response",
+              pageId: params.pageId,
+              sessionId: response.session.id ?? params.pageId,
+              targetId: response.page.conn.targetIdForSession(response.session.id) ?? params.pageId,
+              response: this.responseDescriptor(params.pageId, response),
+            });
+          }, subscription.controller.signal);
+          break;
         case "toolsadded":
         case "toolsremoved":
           subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
             if (!isActive() || event.event !== params.event) return;
-            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+            const notification = {
+              ...(params.includeToolIds ? event : structuredClone(event)),
+              subscriptionId: params.subscriptionId,
+            };
+            if (!params.includeToolIds) {
+              for (const tool of notification.tools) delete tool.toolId;
+            }
+            this.adapters.emitPageEvent(notification);
           }, subscription.controller.signal);
           break;
         default: {
@@ -1009,11 +1090,9 @@ export class StagehandRuntime {
 
   async close(): Promise<void> {
     await this.enqueueLifecycle(async () => {
-      const session = this.browserSession;
-      this.browserSession = undefined;
-      this.browserSessionCdpUrl = undefined;
       this.clearStagehandInstance();
-      await session?.close();
+      await this.disconnectBrowser();
+      if (!this.stagehandInstanceDisposal) this.stagehandInstanceClosing = false;
     });
   }
 
@@ -1022,13 +1101,15 @@ export class StagehandRuntime {
 
     this.stagehandInstanceClosing = true;
     const disposal = this.enqueueLifecycle(async () => {
-      // Pending registrations must release their request leases before disposal can drain them.
       this.disposeAllPageEventSubscriptions();
       await this.waitForStagehandInstanceRequests();
+      const session = this.browserSession;
+      if (session?.getDomainPolicy()) await session.setDomainPolicy(null);
+      await this.runPendingSessionCleanup();
       this.clearStagehandInstance();
+      this.stagehandInstanceClosing = false;
     });
     this.stagehandInstanceDisposal = disposal.finally(() => {
-      this.stagehandInstanceClosing = false;
       this.stagehandInstanceDisposal = undefined;
     });
     return await this.stagehandInstanceDisposal;
@@ -1103,7 +1184,9 @@ export class StagehandRuntime {
     return page;
   }
 
-  resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+  resolveLocator(params: LocatorRequestDescriptor): UnderstudyRuntimeLocator {
+    if ("chain" in params)
+      return new ChainLocatorDelegate(this.resolveUnderstudyPage(params.pageId), params.chain);
     const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
     return params.nth === undefined ? locator : locator.nth(params.nth);
   }
@@ -1148,6 +1231,17 @@ export class StagehandRuntime {
     return pageId;
   }
 
+  private responseDescriptor(pageId: string, response: Response) {
+    return {
+      responseId: this.responseHandles.register(pageId, response),
+      url: response.url(),
+      status: response.status(),
+      statusText: response.statusText(),
+      headers: response.headers(),
+      fromServiceWorker: response.fromServiceWorker(),
+    };
+  }
+
   private pageNavigationResult(
     pageId: string,
     page: UnderstudyRuntimePage,
@@ -1156,18 +1250,7 @@ export class StagehandRuntime {
     const pageRef = pageRefFromUnderstudyPage(page);
     if (!(response instanceof Response)) return { page: pageRef, response: null };
 
-    const responseId = this.responseHandles.register(pageId, response);
-    return {
-      page: pageRef,
-      response: {
-        responseId,
-        url: response.url(),
-        status: response.status(),
-        statusText: response.statusText(),
-        headers: response.headers(),
-        fromServiceWorker: response.fromServiceWorker(),
-      },
-    };
+    return { page: pageRef, response: this.responseDescriptor(pageId, response) };
   }
 
   requireBrowserSession(): StagehandBrowserSession {

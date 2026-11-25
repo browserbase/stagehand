@@ -30,14 +30,8 @@ Configure the environment as needed:
 The tool contract tests need no network, browser, or API keys:
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade test
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade typecheck
-```
-
-For interactive use, set the browser and model credentials, then run:
-
-```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade dev
+pnpm --filter @browserbasehq/eve test
+pnpm --filter @browserbasehq/eve typecheck
 ```
 
 ## Security model

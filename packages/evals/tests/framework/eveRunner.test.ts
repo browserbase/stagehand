@@ -3,8 +3,8 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as eveSdk from "@browserbasehq/stagehand-integrations-eve-sdk";
-import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import * as eveHarness from "@browserbasehq/stagehand-integrations-eve-harness";
+import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildEvePrompt,
@@ -141,10 +141,8 @@ describe("Eve runner helpers", () => {
       })["agent/instructions.md"];
       await fsp.mkdir(path.join(appRoot, "agent"));
       await fsp.writeFile(path.join(appRoot, "agent", "instructions.md"), instructions);
-      const realRunEveSession = eveSdk.runEveSession;
-      // Only substitute server startup: the real session implementation must
-      // still deliver the runner's prompt to the recording client.send call.
-      const sessionSpy = vi.spyOn(eveSdk, "runEveSession").mockImplementationOnce((input) => {
+      const realRunEveSession = eveHarness.runEveSession;
+      const sessionSpy = vi.spyOn(eveHarness, "runEveSession").mockImplementationOnce((input) => {
         expect(input.server).toHaveProperty(
           useExternalServer ? "url" : "appRoot",
           useExternalServer ? "http://external-eve" : appRoot,
@@ -186,7 +184,6 @@ describe("Eve runner helpers", () => {
         const taskPrompt = onPrompt.mock.calls[0][0] as string;
         expect(taskPrompt).toContain(plan.instruction);
         expect(taskPrompt.includes(EVAL_SYSTEM_PROMPT)).toBe(useExternalServer);
-        // An external server does not load this adapter's generated app.
         const systemPrompt = useExternalServer
           ? ""
           : await fsp.readFile(path.join(appRoot, "agent", "instructions.md"), "utf8");

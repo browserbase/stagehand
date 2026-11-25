@@ -29,7 +29,6 @@ export type ChromeTabTargetController = {
   activateTarget(targetId: string): Promise<void>;
 };
 
-/** Correlates Chrome extension tab ids with the CDP target ids used by understudy pages. */
 export class ChromeTabTargetAdapter implements ChromeTabTargetController {
   constructor(private readonly chromeApi: ChromeTabTargetApi) {}
 

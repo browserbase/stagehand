@@ -1,8 +1,4 @@
-import {
-  localBrowser,
-  Stagehand,
-  type StagehandBrowser,
-} from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand, type StagehandBrowser } from "@browserbasehq/stagehand";
 
 import {
   emptyRefMaps,
@@ -11,10 +7,7 @@ import {
 } from "./commands/selectors.js";
 import { executeDriverCommand } from "./commands/registry.js";
 import type { DriverCommandName } from "./commands/types.js";
-import {
-  forwardedEnvSignature,
-  type ForwardedEnv,
-} from "./daemon/forwarded-env.js";
+import { forwardedEnvSignature, type ForwardedEnv } from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
@@ -28,9 +21,7 @@ import type {
 } from "./types.js";
 
 export type DriverContext = Stagehand["browser"]["context"];
-export type DriverPage = NonNullable<
-  Awaited<ReturnType<DriverContext["activePage"]>>
->;
+export type DriverPage = NonNullable<Awaited<ReturnType<DriverContext["activePage"]>>>;
 
 const INIT_FAILURE_RETRY_MS = 5_000;
 const INIT_FAILURE_RETRY_MAX_MS = 60_000;
@@ -48,17 +39,13 @@ interface InitFailure {
   retryAt: number;
 }
 
-/**
- * Exponential backoff for cached init failures: 5s, 10s, 20s, ... capped at
- * 1 minute. Prevents agents stuck in retry loops from hammering init while
- * still allowing a quick retry after the first failure.
- */
 export function initFailureBackoffMs(consecutiveFailures: number): number {
   const attempt = Math.max(1, consecutiveFailures);
-  return Math.min(
-    INIT_FAILURE_RETRY_MS * 2 ** (attempt - 1),
-    INIT_FAILURE_RETRY_MAX_MS,
-  );
+  return Math.min(INIT_FAILURE_RETRY_MS * 2 ** (attempt - 1), INIT_FAILURE_RETRY_MAX_MS);
+}
+
+function initFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function isChromeNotFoundError(error: unknown): boolean {
@@ -100,30 +87,11 @@ export class DriverSessionManager {
     return (await this.execute("open", { url })) as OpenResult;
   }
 
-  async execute(
-    command: DriverCommandName,
-    params?: unknown,
-  ): Promise<unknown> {
+  async execute(command: DriverCommandName, params?: unknown): Promise<unknown> {
     return executeDriverCommand(this, command, params);
   }
 
-  /**
-   * Apply env vars forwarded by the client (e.g. an inline or exported API
-   * key set after the daemon started). Honoring a late key without a manual
-   * restart is the whole point of forwarding.
-   *
-   * The forwarded env is stashed for the next `init()`, which threads it
-   * straight into the Stagehand constructor — never into `process.env` — so the
-   * key's only home is the live session. A live, already-initialized session
-   * keeps its existing browser (forwarded env only matters at init), so the
-   * warm-daemon fast path is untouched. When the forwarded env changes *before*
-   * a successful init (the common case: a first key-less `open` failed, then a
-   * key is supplied), clear the cached init failure and backoff so the retry
-   * runs immediately with the new key instead of replaying the stale
-   * missing-key error.
-   */
   applyForwardedEnv(forwardedEnv: ForwardedEnv | undefined): void {
-    // Keep the caller's latest forwarded env available to the next init.
     this.pendingEnv = forwardedEnv;
 
     const signature = forwardedEnvSignature(forwardedEnv);
@@ -177,6 +145,7 @@ export class DriverSessionManager {
     if (!this.stagehand || !this.context) {
       return {
         browserConnected: false,
+        ...(this.initFailure ? { initError: initFailureMessage(this.initFailure.error) } : {}),
         initialized: false,
         mode: this.target.kind,
         pages: [],
@@ -204,12 +173,6 @@ export class DriverSessionManager {
     };
   }
 
-  /**
-   * Browserbase session identity (id, dashboard URL, live-view/debug URL) for a
-   * live remote session. Lets `status`/`open`/`doctor` reason about the cloud
-   * session instead of losing it the way a raw `--cdp` attach does. Empty for
-   * non-remote targets or before the driver has initialized.
-   */
   private browserbaseIdentity(): BrowserbaseIdentity {
     return this.target.kind === "remote" ? this.browserbaseIdentityValue : {};
   }
@@ -277,9 +240,7 @@ export class DriverSessionManager {
     return safeTitle(page);
   }
 
-  private async ensurePage(
-    options: { createIfMissing?: boolean } = {},
-  ): Promise<DriverPage> {
+  private async ensurePage(options: { createIfMissing?: boolean } = {}): Promise<DriverPage> {
     await this.ensureInitialized();
     if (!this.context) {
       throw new Error("Driver context failed to initialize.");
@@ -291,17 +252,14 @@ export class DriverSessionManager {
         (candidate) => candidate.pageId === target.targetId,
       );
       if (!page) {
-        throw new Error(
-          `Target ${target.targetId} was not found in the attached browser.`,
-        );
+        throw new Error(`Target ${target.targetId} was not found in the attached browser.`);
       }
       await this.activateIfNeeded(page);
       this.selectedTargetId = page.pageId;
       return page;
     }
 
-    const existingPage =
-      (await this.activePageIfPresent()) ?? (await this.context.pages())[0];
+    const existingPage = (await this.activePageIfPresent()) ?? (await this.context.pages())[0];
     if (existingPage) {
       await this.activateIfNeeded(existingPage);
       this.selectedTargetId = existingPage.pageId;
@@ -366,8 +324,7 @@ export class DriverSessionManager {
         const failure = await this.markRepeatedInitFailure(error);
         this.initFailure = {
           error: failure,
-          retryAt:
-            Date.now() + initFailureBackoffMs(this.consecutiveInitFailures),
+          retryAt: Date.now() + initFailureBackoffMs(this.consecutiveInitFailures),
         };
         throw failure;
       })
@@ -401,9 +358,7 @@ export class DriverSessionManager {
         this.browserbaseIdentityValue = remote.identity;
       } else if (resolvedTarget.kind === "managed-local") {
         browser = await localBrowser.launch({
-          ...(resolvedTarget.chromeArgs?.length
-            ? { args: resolvedTarget.chromeArgs }
-            : {}),
+          ...(resolvedTarget.chromeArgs?.length ? { args: resolvedTarget.chromeArgs } : {}),
           ...(resolvedTarget.ignoreDefaultArgs === undefined
             ? {}
             : { ignoreDefaultArgs: resolvedTarget.ignoreDefaultArgs }),
@@ -453,33 +408,19 @@ async function safeTitle(page: DriverPage): Promise<string> {
   }
 }
 
-/**
- * Turn raw `stagehand.init()` failures into typed, actionable errors. Remote
- * failures are classified by the remote capability (401/403/etc.); a missing
- * local Chrome gets install/escape-hatch guidance. Anything else is rethrown
- * unchanged.
- */
-async function describeInitError(
-  error: unknown,
-  target: ConnectionTarget,
-): Promise<unknown> {
+async function describeInitError(error: unknown, target: ConnectionTarget): Promise<unknown> {
   if (error instanceof DriverError) return error;
 
   if (target.kind === "remote") {
-    const { code, httpStatus, message } = (
-      await getRemote()
-    ).classifyRemoteInitError(error);
+    const { code, httpStatus, message } = (await getRemote()).classifyRemoteInitError(error);
     return new DriverError(message, { code, httpStatus });
   }
 
   if (target.kind === "managed-local" && isChromeNotFoundError(error)) {
-    return new DriverError(
-      (await getRemote()).driverInitHints().chromeNotFound,
-      {
-        cause: error,
-        code: "no_chrome_found",
-      },
-    );
+    return new DriverError((await getRemote()).driverInitHints().chromeNotFound, {
+      cause: error,
+      code: "no_chrome_found",
+    });
   }
 
   return error;

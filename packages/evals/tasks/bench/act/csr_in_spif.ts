@@ -4,16 +4,10 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 export default defineBenchTask(
   { name: "csr_in_spif" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
-    // this eval is designed to test whether stagehand can successfully
-    // click inside an CSR (closed mode shadow) root that is inside an
-    // SPIF (same process iframe)
-
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/closed-shadow-dom-in-spif/");
       await stagehand.act("click the button");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),

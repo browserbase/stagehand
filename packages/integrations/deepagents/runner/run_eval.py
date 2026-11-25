@@ -32,7 +32,6 @@ Emitter = Callable[[Event], None]
 
 
 def _env_float(name: str, default: float) -> float:
-    """Read a non-negative float from the environment; 0 disables the guard."""
     raw = os.environ.get(name)
     if raw is None or raw.strip() == "":
         return default
@@ -43,12 +42,6 @@ def _env_float(name: str, default: float) -> float:
     return value if math.isfinite(value) and value >= 0 else default
 
 
-# Watchdogs so a wedged model/MCP call can never hang the process forever. A
-# stalled `astream` never yields another chunk, so the tool-step/recursion caps
-# (which only fire on chunk arrival) cannot stop it; without these the Node side
-# waits on the child's exit indefinitely and the eval harness freezes. All are
-# overridable via env (0 disables); defaults are generous enough not to cut off
-# a slow-but-progressing run.
 INACTIVITY_TIMEOUT_S = _env_float("DEEPAGENTS_INACTIVITY_TIMEOUT_S", 240.0)
 WALL_TIMEOUT_S = _env_float("DEEPAGENTS_WALL_TIMEOUT_S", 2400.0)
 MCP_SETUP_TIMEOUT_S = _env_float("DEEPAGENTS_MCP_SETUP_TIMEOUT_S", 120.0)
@@ -60,7 +53,6 @@ class _WatchdogExpired(TimeoutError):
 
 
 async def _with_optional_timeout(coro: Any, timeout: float) -> Any:
-    """Apply a deadline without moving MCP or stream contexts to another task."""
     # AnyIO cancel scopes (including MCP ClientSession) must be entered and
     # exited by the same task. wait_for(coro) creates a new task on every call.
     deadline = asyncio.timeout(timeout if timeout > 0 else None)
@@ -107,7 +99,6 @@ class RunnerConfig:
     recursion_limit: int
     max_tool_steps: int
     reasoning_summary: str | None = None
-    # JSON schema the final answer must match (`response_format`); None keeps free text.
     result_schema: dict[str, Any] | None = None
 
 
@@ -207,7 +198,6 @@ def _reasoning_text(block: Mapping[str, object]) -> str:
 
 
 def reasoning_text(content: object) -> str:
-    """The model's reasoning summaries, kept apart from its visible text."""
     if not isinstance(content, list):
         return ""
     parts = [
@@ -221,7 +211,6 @@ def reasoning_text(content: object) -> str:
 
 
 def flatten_text(content: object) -> str:
-    """The model's visible text; reasoning blocks are reported separately."""
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -520,7 +509,6 @@ RESULT_TOOL_NAME = "EvalResult"
 
 
 def _response_format(schema: dict[str, Any] | None) -> dict[str, Any] | None:
-    """The answer schema with a fixed title, so its output tool has the same name every run."""
     if schema is None:
         return None
     return {**schema, "title": RESULT_TOOL_NAME}
@@ -529,7 +517,6 @@ def _response_format(schema: dict[str, Any] | None) -> dict[str, Any] | None:
 def _is_answer_event(
     event: Event, config: RunnerConfig, tool_servers: Mapping[str, str]
 ) -> bool:
-    """The structured-output answer call and its result are not browser steps."""
     return (
         config.result_schema is not None
         and event.get("type") in ("tool_call", "tool_result")
@@ -539,7 +526,6 @@ def _is_answer_event(
 
 
 def _final_text(last_text: str, structured: object) -> str:
-    """The structured answer when the agent produced one, else its last message."""
     return json.dumps(structured) if structured is not None else last_text
 
 
@@ -638,8 +624,6 @@ async def run(
                     )
                     if value is not None and value > 0
                 ]
-                # Keep the selected guard: cancellation cleanup may finish after
-                # another deadline, but that does not change which timer fired.
                 next_timeout, watchdog_kind = (
                     min(limits, key=lambda item: item[0]) if limits else (0, None)
                 )
@@ -726,10 +710,6 @@ async def run(
         emit_event({"type": "usage", **aggregate_usage(usages)})
         return 1
     finally:
-        # Best-effort teardown: a flaky MCP session close after the stream
-        # finished must not convert a completed run into an exit-1 failure
-        # (the Node side maps any nonzero exit to sdk_error) or emit an
-        # error event that overwrites the real stop classification.
         try:
             await _with_optional_timeout(stack.aclose(), CLEANUP_TIMEOUT_S)
         except Exception:  # noqa: BLE001

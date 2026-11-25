@@ -31,14 +31,12 @@ type CompatBrowser = { contexts(): unknown[] };
 
 describe("facade bundle", () => {
   it("identifies its format, package version and content", () => {
-    expect(bundle.version).toBe(6);
+    expect(bundle.version).toBe(7);
     expect(bundle.packageVersion).toBe(packageJson.version);
     const content = { sources: bundle.sources, contract: bundle.contract };
     expect(bundle.sha256).toBe(createHash("sha256").update(canonicalJson(content)).digest("hex"));
   });
 
-  // Hosts evaluate the runtime inside a batch callback, so it must not close
-  // over anything but the `__name` helper.
   it("ships the compat runtime as self-contained source", async () => {
     expect(bundle.sources.runtime).toBe(createPlaywrightCompatRuntime.toString());
     const create = new Function("__name", `return (${bundle.sources.runtime});`)(
@@ -103,7 +101,6 @@ describe("facade bundle", () => {
 
     expect(sent).toHaveLength(2);
     expect(sent[0]!.source).toBe(bundle.sources.runPrelude + code + bundle.sources.runEpilogue);
-    // Run options are sent only when turned on (contract.runOptions).
     expect(sent[0]!.input).toStrictEqual({});
     expect(bundle.sources.runPrelude).toContain(`const createRuntime = ${bundle.sources.runtime};`);
     expect(sent[1]!.source).toBe(bundle.sources.actionRunner);
@@ -120,8 +117,6 @@ describe("facade bundle", () => {
     );
   });
 
-  // Joined as plain strings, this code would close the callback early and run
-  // `globalThis.__escaped = 1` outside it. Hosts must reject it as TS does.
   it("rejects run code that closes the callback early", () => {
     const code =
       "})(); } catch {} }, globalThis.__escaped = 1, async function y(batchStagehand,input){ let value, executionError, runtime, __stagehandBatchStartedAt; try { value = await (async () => {";
@@ -138,6 +133,11 @@ describe("facade bundle", () => {
       SCREENSHOT_ARTIFACT_PATH_ERROR: contract.SCREENSHOT_ARTIFACT_PATH_ERROR,
       SCREENSHOT_ARTIFACT_SYMLINK_ERROR: contract.SCREENSHOT_ARTIFACT_SYMLINK_ERROR,
       SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR: contract.SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR,
+      SCREENSHOT_ARTIFACT_NOT_FILE_ERROR: contract.SCREENSHOT_ARTIFACT_NOT_FILE_ERROR,
+      SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR: contract.SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR,
+      SCREENSHOT_ARTIFACT_TYPE_ERROR: contract.SCREENSHOT_ARTIFACT_TYPE_ERROR,
+      SCREENSHOT_ARTIFACT_CONTENT_ERROR: contract.SCREENSHOT_ARTIFACT_CONTENT_ERROR,
+      SCREENSHOT_ARTIFACT_WRITE_ERROR: contract.SCREENSHOT_ARTIFACT_WRITE_ERROR,
       FACADE_BROWSER_CLOSED_ERROR: contract.FACADE_BROWSER_CLOSED_ERROR,
       RUN_RESULT_MALFORMED_ERROR: contract.RUN_RESULT_MALFORMED_ERROR,
       SCREENSHOT_ARTIFACT_COUNT_ERROR: contract.SCREENSHOT_ARTIFACT_COUNT_ERROR,
@@ -146,6 +146,7 @@ describe("facade bundle", () => {
       RUN_VALUE_SIZE_ERROR: contract.RUN_VALUE_SIZE_ERROR,
     });
     expect(bundle.contract.limits).toStrictEqual(contract.RUN_RESULT_LIMITS);
+    expect(bundle.contract.defaultArtifactDirectory).toBe("stagehand-artifacts");
     expect(bundle.contract.runOptions).toStrictEqual(contract.RUN_OPTIONS);
     expect(bundle.contract.messages).toStrictEqual({
       SCREENSHOT_CAPTURED_MESSAGE: contract.SCREENSHOT_CAPTURED_MESSAGE,
@@ -183,8 +184,6 @@ describe("facade bundle", () => {
         await client.connect(transport);
         const { tools } = await client.listTools();
         expect(bundle.contract.tools[toolSet]).toStrictEqual(tools);
-        // Instructions reach the agent through the host's system prompt, not
-        // the server; contract.instructions is what hosts send.
         expect(client.getInstructions()).toBeUndefined();
       } finally {
         await client.close();

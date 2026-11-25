@@ -1,10 +1,3 @@
-"""A Python host for the facade's run, snapshot and screenshot tools.
-
-It sends the bundle's sources to `Stagehand.experimental_batch` and does what the
-TypeScript `StagehandFacadeTools` does with the results. The conformance cases in
-`packages/integrations/core/conformance` pin that behavior for both hosts.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +8,8 @@ import json
 import math
 import os
 import re
+import secrets
+import stat
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
@@ -34,15 +29,23 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 RUN_BATCH_TIMEOUT_MS = 60_000
-"""Executor deadline of a run batch, as in the TypeScript facade."""
 PAGE_CAPTURE_DEADLINE_S = 120.0
-"""snapshot/screenshot RPCs have no executor-side deadline; calls are serialized, so
-one that never answers must release the queue at a bounded deadline."""
 SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR = (
     "Screenshot artifacts cannot be written safely on this platform: it has no O_NOFOLLOW."
 )
-"""Python-only: the TypeScript facade always has O_NOFOLLOW, so it needs no such error."""
+DEFAULT_ARTIFACT_DIRECTORY = "stagehand-artifacts"
+"""Directory under the current working directory that screenshot artifacts are written to
+when a host sets no artifact root."""
 
+_ARTIFACT_EXTENSION = re.compile(r"\.(?:png|jpe?g)\Z", re.I | re.A)
+# NAME_MAX on Linux and macOS, in bytes.
+_MAX_NAME_BYTES = 255
+# Either signature is accepted under any image extension, as Playwright's `type` wins
+# over the path.
+_IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
+# Artifacts are written relative to open directory descriptors; os.replace shares
+# os.rename's dir_fd support.
+_DIR_FD = {os.open, os.mkdir, os.stat, os.rename, os.unlink} <= os.supports_dir_fd
 _ERROR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]*Error")
 # Padded RFC 4648 base64, as btoa writes it (see isCanonicalBase64 in tools.ts).
 _CANONICAL_BASE64 = re.compile(r"[A-Za-z0-9+/]*={0,2}")
@@ -104,7 +107,13 @@ class StagehandFacadeTools:
     """The facade's tools over one Stagehand. Calls run one at a time, in order.
 
     Screenshots run code saves with a ``path`` are written under ``artifact_root``
-    (default: the current directory) and must stay within it. ``on_close_requested``
+    (default: ``DEFAULT_ARTIFACT_DIRECTORY`` under the current directory) and must
+    stay within it. Only ``.png``, ``.jpg`` and ``.jpeg`` files holding PNG or JPEG
+    bytes are written, every artifact is checked for that before any is, and an
+    existing file is replaced rather than written through.
+    Run code can replace any such image under the root, so point it at a dedicated
+    directory. The default root must not be a symlink; a configured one may be. New
+    files are owner-only; a replaced file keeps its permissions. ``on_close_requested``
     replaces the default cleanup (closing the Stagehand, then its browser) when run
     code calls ``browser.close()``.
 
@@ -126,7 +135,6 @@ class StagehandFacadeTools:
         self._on_close_requested = on_close_requested
         if quiet_wait is None:
             quiet_wait = _bundle()["contract"]["runOptions"]["quietWait"]["default"]
-        # Options go in the run input only when on, so the default input stays `{}`.
         self._run_input: dict[str, object] = {"quietWait": True} if quiet_wait else {}
         self._snapshots: dict[str, _Snapshot] = {}
         self._lock = asyncio.Lock()
@@ -176,11 +184,9 @@ class StagehandFacadeTools:
 
     async def _snapshot_now(self, include_iframes: bool) -> str:
         page = await self._active_page()
-        # A failed capture invalidates the previous snapshot's IDs too.
         self._snapshots.pop(page.page_id, None)
 
         async def capture() -> tuple[str, dict[str, str], str]:
-            # Disable the SDK's own 20s timeout so the capture deadline owns the wait.
             snapshot = await page.snapshot(include_iframes=include_iframes, timeout=0.0)
             return snapshot.formatted_tree, snapshot.xpath_map, await page.url()
 
@@ -208,7 +214,6 @@ class StagehandFacadeTools:
         if await page.url() != snapshot.url:
             del self._snapshots[page.page_id]
             raise StagehandFacadeInputError(contract_error("NAVIGATED_SNAPSHOT_ERROR"))
-        # Earlier actions may already have run when one fails; never replay the batch.
         result = await self._stagehand.experimental_batch(
             _bundle()["sources"]["actionRunner"],
             {"actions": actions, "xpathById": snapshot.xpath_by_id},
@@ -228,13 +233,11 @@ class StagehandFacadeTools:
         source = sources["runPrelude"] + code + sources["runEpilogue"]
         page = await self._active_page()
         envelope = await self._run_batch(source, page)
-        # Agent code builds this result, so nothing in it is acted on unless it has
-        # the envelope's shape.
         if not _is_run_envelope(envelope):
             raise StagehandFacadeInputError(contract_error("RUN_RESULT_MALFORMED_ERROR"))
         run_error: Exception | None = None
         try:
-            self._write_artifacts(envelope["artifacts"])
+            await asyncio.to_thread(self._write_artifacts, envelope["artifacts"])
             execution_error = envelope.get("executionError")
             if execution_error is not None:
                 raise StagehandFacadeExecutionError(
@@ -247,7 +250,6 @@ class StagehandFacadeTools:
                 raise StagehandFacadeInputError(contract_error("RUN_VALUE_SIZE_ERROR"))
         except Exception as error:
             run_error = error
-        # Close only once the batch finished, even when the code or writing failed.
         if envelope["closeRequested"]:
             try:
                 await self.close()
@@ -262,8 +264,6 @@ class StagehandFacadeTools:
         return envelope.get("value")
 
     async def _run_batch(self, source: str, page: Page) -> object:
-        """When the active page vanished before the batch started (the previous code
-        closed its tab), retry once on the new active page; no code has run yet."""
         try:
             return await self._stagehand.experimental_batch(
                 source, dict(self._run_input), timeout=RUN_BATCH_TIMEOUT_MS, page=page
@@ -282,11 +282,8 @@ class StagehandFacadeTools:
         if not artifacts:
             return
         limits = _bundle()["contract"]["limits"]
-        # Check every cap before the first write so an oversized run saves nothing.
         if len(artifacts) > limits["maxArtifacts"]:
             raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_COUNT_ERROR"))
-        # Sizes come from the base64 length (_is_run_envelope already required
-        # canonical padding), so no artifact is decoded until all of them fit.
         total = 0
         for artifact in artifacts:
             size = _decoded_base64_length(artifact["base64"])
@@ -297,52 +294,53 @@ class StagehandFacadeTools:
                 raise StagehandFacadeInputError(
                     contract_error("SCREENSHOT_ARTIFACT_TOTAL_SIZE_ERROR")
                 )
-        decoded = [
-            (artifact["path"], base64.b64decode(artifact["base64"], validate=True))
-            for artifact in artifacts
-        ]
-        configured_root = os.path.abspath(self._artifact_root or os.getcwd())
+        try:
+            self._write_artifact_files(artifacts)
+        except OSError as error:
+            code = errno.errorcode.get(error.errno or 0, type(error).__name__)
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause=code)
+            ) from None
+
+    def _write_artifact_files(self, artifacts: list[dict[str, str]]) -> None:
+        configured_root = os.path.abspath(
+            self._artifact_root or os.path.join(os.getcwd(), DEFAULT_ARTIFACT_DIRECTORY)
+        )
+        checked = [_check_artifact(configured_root, artifact) for artifact in artifacts]
+        no_follow = getattr(os, "O_NOFOLLOW", None)
+        if no_follow is None or not _DIR_FD:
+            raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
+        if not self._artifact_root and os.path.islink(configured_root):
+            raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR"))
+        for parents, name, _ in checked:
+            _check_destination(configured_root, [*parents, name])
         os.makedirs(configured_root, exist_ok=True)
-        root = os.path.realpath(configured_root)
-        for path, data in decoded:
-            target = os.path.normpath(os.path.join(configured_root, path))
-            try:
-                relative = os.path.relpath(target, configured_root)
-            except ValueError:  # another drive on Windows
-                relative = target
-            if (
-                relative in (".", "..")
-                or relative.startswith(f"..{os.sep}")
-                or os.path.isabs(relative)
+        root_flags = os.O_RDONLY | os.O_DIRECTORY | (0 if self._artifact_root else no_follow)
+        try:
+            root = os.open(configured_root, root_flags)
+        except OSError as error:
+            if error.errno not in (errno.ELOOP, errno.ENOTDIR) or not os.path.islink(
+                configured_root
             ):
-                raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
-            # Reject symlinks before creating nested directories or opening the file;
-            # O_NOFOLLOW refuses a symlink at the file itself.
-            directory = root
-            *parents, name = relative.split(os.sep)
-            for component in parents:
-                directory = os.path.join(directory, component)
-                with contextlib.suppress(FileExistsError):
-                    os.mkdir(directory)
-                if not os.path.isdir(directory) or os.path.islink(directory):
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
-                    )
-            no_follow = getattr(os, "O_NOFOLLOW", None)
-            if no_follow is None:
-                # Without O_NOFOLLOW (Windows) a symlink at the file would be followed.
-                raise StagehandFacadeInputError(SCREENSHOT_ARTIFACT_NO_FOLLOW_ERROR)
-            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | no_follow
-            try:
-                descriptor = os.open(os.path.join(directory, name), flags, 0o600)
-            except OSError as error:
-                if error.errno == errno.ELOOP:
-                    raise StagehandFacadeInputError(
-                        contract_error("SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR")
-                    ) from None
                 raise
-            with os.fdopen(descriptor, "wb") as file:
-                file.write(data)
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_SYMLINK_ERROR")
+            ) from None
+        try:
+            for parents, name, data in checked:
+                directory = root
+                try:
+                    for component in parents:
+                        child = _open_directory(directory, component, no_follow)
+                        if directory != root:
+                            os.close(directory)
+                        directory = child
+                    _write_file(directory, name, data, no_follow)
+                finally:
+                    if directory != root:
+                        os.close(directory)
+        finally:
+            os.close(root)
 
     async def _active_page(self) -> Page:
         """The page the agent works on; a fresh blank page when its tab is gone.
@@ -372,7 +370,6 @@ class StagehandFacadeTools:
             try:
                 await self._on_close_requested()
             except Exception:
-                # Not chained: the callback's error can carry provider details.
                 raise StagehandFacadeCleanupError() from None
             return
         failed = False
@@ -385,8 +382,96 @@ class StagehandFacadeTools:
             raise StagehandFacadeCleanupError()
 
 
+def _check_destination(root: str, components: list[str]) -> None:
+    entry = root
+    for index, component in enumerate(components):
+        entry = os.path.join(entry, component)
+        try:
+            mode = os.lstat(entry).st_mode
+        except FileNotFoundError:
+            return
+        last = index == len(components) - 1
+        if stat.S_ISLNK(mode):
+            error = "FILE_SYMLINK" if last else "SYMLINK"
+            raise StagehandFacadeInputError(contract_error(f"SCREENSHOT_ARTIFACT_{error}_ERROR"))
+        if last and not stat.S_ISREG(mode):
+            raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"))
+        if not last and not stat.S_ISDIR(mode):
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_NOT_DIRECTORY_ERROR")
+            )
+
+
+def _open_directory(parent: int, name: str, no_follow: int) -> int:
+    with contextlib.suppress(FileExistsError):
+        os.mkdir(name, dir_fd=parent)
+    try:
+        return os.open(name, os.O_RDONLY | os.O_DIRECTORY | no_follow, dir_fd=parent)
+    except OSError as error:
+        if error.errno not in (errno.ELOOP, errno.ENOTDIR):
+            raise
+        mode = os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode
+    kind = "SYMLINK" if stat.S_ISLNK(mode) else "NOT_DIRECTORY"
+    raise StagehandFacadeInputError(contract_error(f"SCREENSHOT_ARTIFACT_{kind}_ERROR"))
+
+
+def _write_file(directory: int, name: str, data: bytes, no_follow: int) -> None:
+    try:
+        existing: os.stat_result | None = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if stat.S_ISLNK(existing.st_mode):
+            raise StagehandFacadeInputError(
+                contract_error("SCREENSHOT_ARTIFACT_FILE_SYMLINK_ERROR")
+            )
+        if not stat.S_ISREG(existing.st_mode):
+            raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_NOT_FILE_ERROR"))
+    temporary = f".stagehand-{secrets.token_hex(8)}.tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
+    descriptor = os.open(temporary, flags, 0o600, dir_fd=directory)
+    try:
+        with os.fdopen(descriptor, "wb") as file:
+            # A replaced file keeps its permissions; a new one is owner-only. Some
+            # filesystems (exFAT, SMB) refuse chmod; the file then stays owner-only.
+            if existing is not None:
+                with contextlib.suppress(OSError):
+                    os.fchmod(file.fileno(), stat.S_IMODE(existing.st_mode) & 0o777)
+            file.write(data)
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary, dir_fd=directory)
+        raise
+
+
+def _check_artifact(root: str, artifact: dict[str, str]) -> tuple[list[str], str, bytes]:
+    target = os.path.normpath(os.path.join(root, artifact["path"]))
+    try:
+        relative = os.path.relpath(target, root)
+    except ValueError:  # another drive on Windows
+        relative = target
+    if relative in (".", "..") or relative.startswith(f"..{os.sep}") or os.path.isabs(relative):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
+    *parents, name = relative.split(os.sep)
+    if any(
+        "\0" in component or (os.name == "nt" and ":" in component)
+        for component in (*parents, name)
+    ):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_PATH_ERROR"))
+    if not _ARTIFACT_EXTENSION.search(name):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_TYPE_ERROR"))
+    data = base64.b64decode(artifact["base64"], validate=True)
+    if not data.startswith(_IMAGE_SIGNATURES):
+        raise StagehandFacadeInputError(contract_error("SCREENSHOT_ARTIFACT_CONTENT_ERROR"))
+    if any(len(os.fsencode(component)) > _MAX_NAME_BYTES for component in (*parents, name)):
+        raise StagehandFacadeInputError(
+            contract_error("SCREENSHOT_ARTIFACT_WRITE_ERROR", cause="ENAMETOOLONG")
+        )
+    return parents, name, data
+
+
 def _decoded_base64_length(value: str) -> int:
-    """Byte length a canonical padded base64 string decodes to."""
     padding = 2 if value.endswith("==") else 1 if value.endswith("=") else 0
     return len(value) // 4 * 3 - padding
 
@@ -395,7 +480,6 @@ def _json_value_bytes(value: object) -> int:
     """UTF-8 length of the value's compact JSON as JavaScript's JSON.stringify writes
     it: non-ASCII unescaped, but a lone surrogate written as a six-byte \\uXXXX escape."""
     text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
-    # Pair up surrogates the string holds as two code units, then escape the rest.
     text = text.encode("utf-16", "surrogatepass").decode("utf-16", "surrogatepass")
     text = re.sub(r"[\ud800-\udfff]", lambda match: f"\\u{ord(match.group()):04x}", text)
     return len(text.encode("utf-8"))
@@ -415,12 +499,9 @@ def _run_input_validator() -> Validator:
 
 
 def _validate_run_input(arguments: dict[str, object]) -> None:
-    """Checks run arguments against the run tool's input schema."""
     error = best_match(_run_input_validator().iter_errors(arguments))
     if error is not None:
         raise StagehandFacadeInputError(f"Invalid run input: {error.message}")
-    # The advertised schema leaves out RefActionSchema's non-empty `id` and `key`
-    # (src/facade/contract.ts), which the TypeScript host also enforces.
     for action in cast("list[dict[str, object]]", arguments.get("actions", [])):
         for field in ("id", "key"):
             if action.get(field) == "":

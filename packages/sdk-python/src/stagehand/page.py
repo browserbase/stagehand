@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter
 
 from ._generated.input_types import (
+    AriaRole,
     PageDragAndDropRoutePoint,
     PageEventName,
     PagePDFMargin,
@@ -52,6 +53,7 @@ from ._generated.models import (
     PageRef,
     PageReloadOptions,
     PageReloadParams,
+    PageResponseNotification,
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
@@ -87,6 +89,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from ._locator_selectors import role_query_step
 from .locator import Locator
 from .response import Response
 from .rpc_client import RPCClient
@@ -94,11 +97,12 @@ from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+ConsoleListener = PageEventListener
+ResponseListener = Callable[[Response], object | Awaitable[object]]
 ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
-# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
 _UNSET_ARG = object()
 
 
@@ -413,14 +417,29 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
+        """Deprecated: use on_console(listener) instead."""
         if event != "console":
             raise ValueError('page.on only supports "console" events')
+        return await self.on_console(listener)
+
+    async def on_console(self, listener: ConsoleListener) -> CDPSubscription:
+        """Subscribe to console messages from this page and its page-owned sessions."""
         return await self._subscribe(
-            event,
+            "console",
             "page.cdp_event",
             PageCDPEventNotification,
             lambda notification: listener(notification.event),
         )
+
+    async def on_response(self, listener: ResponseListener) -> CDPSubscription:
+        """Observe future response headers; body methods wait for completion."""
+
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            if isinstance(notification.root, PageResponseNotification):
+                return listener(Response(self._rpc_client, notification.root.response))
+            return None
+
+        return await self._subscribe("response", "page.event", PageEventNotification, deliver)
 
     async def on_tools_added(self, listener: ToolsAddedListener) -> CDPSubscription:
         def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
@@ -483,15 +502,12 @@ class Page:
         )
         self._event_subscriptions.add(subscription)
         try:
-            await self._rpc_client.send(
-                "page.on",
-                PageOnParams.model_validate({
-                    "page_id": self.page_id,
-                    "subscription_id": subscription_id,
-                    "event": event,
-                }),
-                PageVoidResult,
+            params = PageOnParams(
+                page_id=self.page_id, subscription_id=subscription_id, event=event
             )
+            if event in ("toolsadded", "toolsremoved"):
+                params.include_tool_ids = True
+            await self._rpc_client.send("page.on", params, PageVoidResult)
         except BaseException:
             remove_notification_listener()
             try:
@@ -724,7 +740,7 @@ class Page:
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
-        params = PageWebMCPToolsParams(page_id=self.page_id)
+        params = PageWebMCPToolsParams(page_id=self.page_id, include_tool_ids=True)
         if timeout is not None:
             params.options = WebMCPToolsOptions(timeout=timeout)
         result = await self._rpc_client.send(
@@ -762,3 +778,35 @@ class Page:
 
     def locator(self, selector: str) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)
+
+    def get_by_text(self, text: str, *, exact: bool = False) -> Locator:
+        return Locator._from_text(self._rpc_client, self.page_id, text, exact)
+
+    def get_by_role(
+        self,
+        role: AriaRole,
+        *,
+        name: str | None = None,
+        exact: bool = False,
+        checked: bool | Literal["mixed"] | None = None,
+        pressed: bool | Literal["mixed"] | None = None,
+        selected: bool | None = None,
+        expanded: bool | None = None,
+        disabled: bool | None = None,
+        level: int | None = None,
+    ) -> Locator:
+        return Locator._from_query(
+            self._rpc_client,
+            self.page_id,
+            role_query_step(
+                role,
+                name=name,
+                exact=exact,
+                checked=checked,
+                pressed=pressed,
+                selected=selected,
+                expanded=expanded,
+                disabled=disabled,
+                level=level,
+            ),
+        )

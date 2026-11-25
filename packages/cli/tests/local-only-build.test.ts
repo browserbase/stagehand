@@ -32,10 +32,6 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-// Compiles the `build:local-only` TypeScript program into a throwaway outDir and
-// asserts the artifact contains no Browserbase API-key code. This is the
-// security contract of the local-only (CDP-only) build: if a future change
-// reintroduces a key code path into a non-excluded module, this test fails.
 describe("local-only build", () => {
   let outDir: string;
   let jsFiles: string[];
@@ -94,11 +90,7 @@ describe("local-only build", () => {
 
   it("keeps the local CDP driver and substitutes the disabled remote stub", async () => {
     expect(await exists(join(outDir, "commands/open.js"))).toBe(true);
-    expect(await exists(join(outDir, "lib/driver/session-manager.js"))).toBe(
-      true,
-    );
-    expect(await exists(join(outDir, "lib/driver/remote.disabled.js"))).toBe(
-      true,
-    );
+    expect(await exists(join(outDir, "lib/driver/session-manager.js"))).toBe(true);
+    expect(await exists(join(outDir, "lib/driver/remote.disabled.js"))).toBe(true);
   });
 });

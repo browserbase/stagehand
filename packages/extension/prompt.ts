@@ -43,7 +43,6 @@ User Instructions:
 ${userProvidedInstructions}`;
 }
 
-// extract
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
@@ -144,7 +143,6 @@ Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
   };
 }
 
-// observe
 export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
   supportedActions?: string[],
@@ -231,7 +229,6 @@ export function buildActPrompt(
   supportedActions: string[],
   variables?: Variables,
 ): string {
-  // Base instruction
   let instruction = `Find the most relevant element to perform an action on given the following action: ${action}.  
   IF AND ONLY IF the action EXPLICITLY includes the word 'dropdown' and implies choosing/selecting an option from a dropdown, ignore the 'General Instructions' section, and follow the 'Dropdown Specific Instructions' section carefully.
   
@@ -269,7 +266,6 @@ export function buildStepTwoPrompt(
   supportedActions: string[],
   variables?: Variables,
 ): string {
-  // Base instruction
   let instruction = `
   The original user action was: ${originalUserAction}.
   You have just taken the following action which completed step 1 of 2: ${previousAction}.

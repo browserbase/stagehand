@@ -80,6 +80,7 @@ class _Transport:
     def __init__(self, web_socket_debugger_url: str | None = "ws://browser") -> None:
         self.web_socket_debugger_url = web_socket_debugger_url
         self.close_calls = 0
+        self.closed = False
 
     async def close(self) -> None:
         self.close_calls += 1
@@ -424,7 +425,7 @@ async def test_local_connect_keeps_headers_out_of_extension_initialization(
                 assert options["headers"] == headers
             else:
                 assert "headers" not in options
-            assert "extension_cdp_url" not in options
+            assert options["extension_cdp_url"] == extension_cdp_url
 
             method, params, *_ = recording.calls[0]
             assert method == "stagehand.init"
@@ -1032,10 +1033,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
     assert act_params.options is not None
     assert act_params.options.locator is not None
-    assert act_params.options.locator.selector == "main"
-    assert act_params.options.locator.nth == 2
+    assert act_params.options.locator.model_dump()["selector"] == "main"
+    assert act_params.options.locator.model_dump()["nth"] == 2
     assert act_params.options.ignore_locators is not None
-    assert [locator.selector for locator in act_params.options.ignore_locators] == [".promo"]
+    assert [locator.model_dump()["selector"] for locator in act_params.options.ignore_locators] == [
+        ".promo"
+    ]
     assert act_params.options.cache is not None
     observe_params = next(
         cast(StagehandObserveParams, params)
@@ -1045,10 +1048,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert observe_params.page_id == "explicit-page"
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
-    assert observe_params.options.locator.selector == "main"
-    assert observe_params.options.locator.nth == 1
+    assert observe_params.options.locator.model_dump()["selector"] == "main"
+    assert observe_params.options.locator.model_dump()["nth"] == 1
     assert observe_params.options.ignore_locators is not None
-    assert [locator.selector for locator in observe_params.options.ignore_locators] == ["nav"]
+    assert [
+        locator.model_dump()["selector"] for locator in observe_params.options.ignore_locators
+    ] == ["nav"]
     extract_params = next(
         cast(StagehandExtractParams, params)
         for method, params, _ in recording.calls
@@ -1057,10 +1062,12 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
-    assert extract_params.options.locator.selector == "main"
-    assert extract_params.options.locator.nth == 1
+    assert extract_params.options.locator.model_dump()["selector"] == "main"
+    assert extract_params.options.locator.model_dump()["nth"] == 1
     assert extract_params.options.ignore_locators is not None
-    assert [locator.selector for locator in extract_params.options.ignore_locators] == ["nav"]
+    assert [
+        locator.model_dump()["selector"] for locator in extract_params.options.ignore_locators
+    ] == ["nav"]
 
 
 @pytest.mark.asyncio
@@ -1109,11 +1116,12 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert observe_params.page_id == "active-page"
     assert observe_params.options is not None
     assert observe_params.options.locator is not None
-    assert observe_params.options.locator.selector == "main"
-    assert observe_params.options.locator.nth == 2
+    assert observe_params.options.locator.model_dump()["selector"] == "main"
+    assert observe_params.options.locator.model_dump()["nth"] == 2
     assert observe_params.options.ignore_locators is not None
     assert [
-        (locator.selector, locator.nth) for locator in observe_params.options.ignore_locators
+        (locator.model_dump()["selector"], locator.model_dump()["nth"])
+        for locator in observe_params.options.ignore_locators
     ] == [("nav", 1)]
 
     extract_params = next(
@@ -1124,11 +1132,12 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
     assert extract_params.page_id == "active-page"
     assert extract_params.options is not None
     assert extract_params.options.locator is not None
-    assert extract_params.options.locator.selector == "section.content"
-    assert extract_params.options.locator.nth == 3
+    assert extract_params.options.locator.model_dump()["selector"] == "section.content"
+    assert extract_params.options.locator.model_dump()["nth"] == 3
     assert extract_params.options.ignore_locators is not None
     assert [
-        (locator.selector, locator.nth) for locator in extract_params.options.ignore_locators
+        (locator.model_dump()["selector"], locator.model_dump()["nth"])
+        for locator in extract_params.options.ignore_locators
     ] == [("aside.ads", 0)]
 
 
@@ -1224,7 +1233,6 @@ async def test_stagehand_ai_methods_require_an_active_page(
     ],
 )
 def test_semantic_arguments_stay_positional(method: str, positional: list[str]) -> None:
-    """TS and Go take these positionally; Python must match, with options keyword-only."""
     parameters = list(inspect.signature(getattr(Stagehand, method)).parameters.values())
     assert [
         parameter.name

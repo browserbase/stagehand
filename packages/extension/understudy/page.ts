@@ -40,7 +40,9 @@ import type {
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
+import { TimeoutError } from "../errors.js";
 import { NetworkManager } from "./networkManager.js";
+import type { SessionNetworkCapture } from "./sessionNetworkCapture.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
@@ -62,20 +64,6 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
-
-/**
- * Page
- *
- * One instance per **top-level target**. It owns:
- *  - the top-level CDP session (for the page target)
- *  - all adopted OOPIF child sessions (Target.attachToTarget with flatten: true)
- *  - a **FrameRegistry** that is the single source of truth for BOTH:
- *      • frame topology (parent/children, root swaps, last-seen CDP Frame)
- *      • frame → session ownership (which session owns which frameId)
- *
- * Page exposes convenient APIs (goto/reload/url/screenshot/locator),
- * and simple bridges that Context uses to feed Page/Target events in.
- */
 
 const LIFECYCLE_NAME: Record<LoadState, string> = {
   load: "load",
@@ -118,13 +106,16 @@ type WebMCPResponseSessionState = {
   pendingCommands: number;
 };
 
+// Older Chrome versions omit the registration ID from tool events.
+type CDPWebMCPTool<T extends { toolId: string }> = Omit<T, "toolId"> & { toolId?: string };
+
 type WebMCPToolSessionState = {
   targetId?: string;
   ready: Deferred<void>;
   tools: Map<string, WebMCPToolDescriptor>;
   pendingTools: Map<string, WebMCPToolDescriptor>;
-  added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
-  removed: (event: Protocol.WebMCP.ToolsRemovedEvent) => void;
+  added: (event: { tools: CDPWebMCPTool<Protocol.WebMCP.Tool>[] }) => void;
+  removed: (event: { tools: CDPWebMCPTool<Protocol.WebMCP.RemovedTool>[] }) => void;
   error?: Error;
   enableFailed?: boolean;
 };
@@ -156,8 +147,9 @@ function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotat
   };
 }
 
-function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
+function webMCPTool(tool: CDPWebMCPTool<Protocol.WebMCP.Tool>): WebMCPToolDescriptor {
   return WebMCPToolDescriptorSchema.parse({
+    ...(tool.toolId === undefined ? {} : { toolId: tool.toolId }),
     name: tool.name,
     description: tool.description,
     ...(tool.inputSchema === undefined
@@ -167,6 +159,14 @@ function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
     frameId: tool.frameId,
     ...(tool.backendNodeId === undefined ? {} : { backendNodeId: tool.backendNodeId }),
   });
+}
+
+function webMCPToolKey(frameId: string, name: string): string {
+  return `${frameId}\u0000${name}`;
+}
+
+function webMCPToolIdentity({ toolId, frameId, name }: WebMCPToolDescriptor): WebMCPToolIdentity {
+  return { frameId, name, ...(toolId === undefined ? {} : { toolId }) };
 }
 
 function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPToolResponse {
@@ -180,33 +180,25 @@ function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPTo
 }
 
 export class Page {
-  /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
-  readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
+  readonly sessions = new Map<string, CDPSessionLike>();
 
-  /** Unified truth for frame topology + ownership. */
   readonly registry: FrameRegistry;
 
-  /** A convenience wrapper bound to the current main frame id (top-level session). */
   mainFrameWrapper: Frame;
 
-  /** Compact ordinal per frameId (used by snapshot encoding). */
   frameOrdinals = new Map<string, number>();
   nextOrdinal = 0;
 
-  /** cache Frames per frameId so everyone uses the same one */
   readonly frameCache = new Map<string, Frame>();
   readonly browserIsRemote: boolean;
 
-  /** Stable id for Frames created by this Page (use top-level TargetId). */
   readonly pageId: string;
-  /** Cached current URL for synchronous page.url() */
   _currentUrl: string = "about:blank";
 
   navigationCommandSeq = 0;
   latestNavigationCommandId = 0;
 
   readonly networkManager: NetworkManager;
-  /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
@@ -244,13 +236,10 @@ export class Page {
     this.pageId = _targetId;
     this.browserIsRemote = browserIsRemote;
 
-    // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
 
-    // initialize registry with root/main frame id
     this.registry = new FrameRegistry(_targetId, mainFrameId);
 
-    // main-frame wrapper is always bound to the **top-level** session
     this.mainFrameWrapper = new Frame(
       this.mainSession,
       mainFrameId,
@@ -259,25 +248,22 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(this);
     this.networkManager.trackSession(this.mainSession);
   }
 
-  // Send a single init script to a specific CDP session.
   async installInitScriptOnSession(session: CDPSessionLike, source: string): Promise<void> {
     await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: source,
     });
   }
 
-  // Replay every previously registered init script onto a newly adopted session.
   async applyInitScriptsToSession(session: CDPSessionLike): Promise<void> {
     for (const source of this.initScripts) {
       await this.installInitScriptOnSession(session, source);
     }
   }
 
-  // Register a new init script and fan it out to all active sessions for this page.
   public async registerInitScript(source: string): Promise<void> {
     if (this.initScripts.includes(source)) return;
     this.initScripts.push(source);
@@ -291,13 +277,11 @@ export class Page {
     await Promise.all(installs);
   }
 
-  // Seed an init script without re-installing it on the current sessions.
   public seedInitScript(source: string): void {
     if (this.initScripts.includes(source)) return;
     this.initScripts.push(source);
   }
 
-  // --- Optional visual cursor overlay management ---
   cursorEnabled = false;
   async ensureCursorScript(): Promise<void> {
     await this.mainFrameWrapper
@@ -329,10 +313,6 @@ export class Page {
     await this.registerInitScript(source);
   }
 
-  /**
-   * Factory: create Page and seed registry with the shallow tree from Page.getFrameTree.
-   * Assumes Page domain is already enabled on the session passed in.
-   */
   static async create(
     conn: CdpConnection,
     session: CDPSessionLike,
@@ -353,7 +333,6 @@ export class Page {
     const mainFrameId = frameTree.frame.id;
 
     const page = new Page(conn, session, targetId, mainFrameId, logger, browserIsRemote);
-    // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
       if (localBrowserLaunchOptions?.viewport) {
@@ -365,51 +344,31 @@ export class Page {
           },
         );
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
 
-    // Seed topology + ownership for nodes known at creation time.
     page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
 
-    // Experimental domain failures are retained for WebMCP callers, not page initialization.
     void page.ensureWebMCPToolTracking(session).catch(() => {});
 
     return page;
   }
 
-  // ---------------- Event-driven updates from Context ----------------
-
-  /**
-   * Parent/child session emitted a `frameAttached`.
-   * Topology update + ownership stamped to **emitting session**.
-   */
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
     this.registry.onFrameAttached(frameId, parentId, session.id ?? "root");
     this.reconcilePendingWebMCPTools();
-    // Cache is keyed by frameId → invalidate to ensure future frameForId resolves with latest owner
     this.frameCache.delete(frameId);
   }
 
-  /**
-   * Parent/child session emitted a `frameDetached`.
-   */
   public onFrameDetached(frameId: string, reason: string = "remove"): void {
-    // A late process-swap detach must not remove tools reported by the new owner.
     if (reason !== "swap") this.invalidateWebMCPFrame(frameId);
     this.registry.onFrameDetached(frameId, reason);
     this.frameCache.delete(frameId);
   }
 
-  /**
-   * Parent/child session emitted a `frameNavigated`.
-   * Topology + ownership update. Handles root swaps.
-   */
   public onFrameNavigated(frame: Protocol.Page.Frame, session: CDPSessionLike): void {
     const previous = this.registry.frames.get(frame.id);
     if (previous?.lastSeen?.loaderId !== frame.loaderId) {
-      // The first navigation can establish ownership for tools already reported by this session.
       this.invalidateWebMCPFrame(
         frame.parentId ? frame.id : this.mainFrameId(),
         !!previous?.lastSeen?.loaderId,
@@ -418,7 +377,6 @@ export class Page {
     const prevRoot = this.mainFrameId();
     this.registry.onFrameNavigated(frame, session.id ?? "root");
 
-    // If the root changed, keep the convenience wrapper in sync
     const newRoot = this.mainFrameId();
     if (newRoot !== prevRoot) {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
@@ -432,17 +390,12 @@ export class Page {
       );
     }
 
-    // Update cached URL if this navigation pertains to the current main frame
     if (frame.id === this.mainFrameId()) {
       try {
-        // Prefer frame.url; fallback keeps previous value
         this._currentUrl = String((frame as { url?: string })?.url ?? this._currentUrl);
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
-    // Invalidate the cached Frame for this id (session may have changed)
     this.frameCache.delete(frame.id);
     this.reconcilePendingWebMCPTools();
   }
@@ -459,12 +412,16 @@ export class Page {
     }
   }
 
-  /**
-   * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
-   * has been attached; adopt the session into this Page and seed ownership for its subtree.
-   */
-  public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
-    if (this.disposed) return;
+  public adoptOopifSession(
+    childSession: CDPSessionLike,
+    childMainFrameId: string,
+    onFrameTreeSeeded?: () => void,
+    networkCapture?: SessionNetworkCapture,
+  ): void {
+    if (this.disposed) {
+      networkCapture?.dispose();
+      return;
+    }
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
     if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
@@ -473,36 +430,29 @@ export class Page {
       this.attachCDPEventSubscription(subscription, childSession);
     }
 
-    this.networkManager.trackSession(childSession);
+    this.networkManager.trackSession(childSession, networkCapture, childMainFrameId);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
-    // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(childSession.id ?? "child", childMainFrameId);
     this.reconcilePendingWebMCPTools();
     this.frameCache.delete(childMainFrameId);
 
-    // Bridge events from the child session to keep registry in sync
     childSession.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {
       this.onFrameNavigated(evt.frame, childSession);
-    });
-    childSession.on<Protocol.Page.FrameAttachedEvent>("Page.frameAttached", (evt) => {
-      this.onFrameAttached(evt.frameId, evt.parentFrameId ?? null, childSession);
     });
     childSession.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
     });
 
-    // One-shot seed the child's subtree ownership from its current tree
     const seedOwnership = (async () => {
       try {
         await childSession.send("Page.enable").catch(() => {});
         let { frameTree } =
           await childSession.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
 
-        // Normalize: ensure the child’s reported root id matches our known main id
         if (frameTree.frame.id !== childMainFrameId) {
           frameTree = {
             ...frameTree,
@@ -513,15 +463,13 @@ export class Page {
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
           this.reconcilePendingWebMCPTools();
+          onFrameTreeSeeded?.();
         }
-      } catch {
-        // If snapshot races, live events will still converge the registry.
-      }
+      } catch {}
     })();
     void this.ensureWebMCPToolTracking(childSession, seedOwnership).catch(() => {});
   }
 
-  /** Detach an adopted child session and prune its subtree */
   public detachOopifSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
@@ -537,7 +485,6 @@ export class Page {
     for (const subscription of this.cdpEventSubscriptions) {
       this.detachCDPEventSubscription(subscription, sessionId);
     }
-    // Find which frames were owned by this session and prune by tree starting from each root.
     for (const fid of this.registry.framesForSession(sessionId)) {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
@@ -545,16 +492,12 @@ export class Page {
     this.networkManager.untrackSession(sessionId);
   }
 
-  // ---------------- Ownership helpers / lookups ----------------
-
-  /** Return the owning CDP session for a frameId (falls back to main session) */
   public getSessionForFrame(frameId: string): CDPSessionLike {
     const sid = this.registry.getOwnerSessionId(frameId);
     if (!sid) return this.mainSession;
     return this.sessions.get(sid) ?? this.mainSession;
   }
 
-  /** Always returns a Frame bound to the owning session */
   public frameForId(frameId: string): Frame {
     const hit = this.frameCache.get(frameId);
     if (hit) return hit;
@@ -565,7 +508,6 @@ export class Page {
     return f;
   }
 
-  /** Expose a session by id (used by snapshot to resolve session id -> session) */
   public getSessionById(id: string): CDPSessionLike | undefined {
     return this.sessions.get(id);
   }
@@ -578,8 +520,6 @@ export class Page {
     this.networkManager.untrackSession(sessionId);
   }
 
-  // ---------------- MAIN APIs ----------------
-
   public targetId(): string {
     return this._targetId;
   }
@@ -588,7 +528,6 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
-  /** Subscribe to events on every session owned by this page. */
   public async subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
@@ -601,7 +540,17 @@ export class Page {
     );
   }
 
-  /** Activate against future shared-state changes, without replaying initial tools. */
+  public async subscribeResponse(
+    listener: (response: Response) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.networkManager.subscribeResponse(listener),
+      signal,
+    );
+  }
+
   public async subscribeWebMCPToolsChanged(
     listener: (event: WebMCPToolsEvent) => void,
     signal?: AbortSignal,
@@ -761,7 +710,6 @@ export class Page {
       sessionId: session.id ?? "root",
       targetId,
     };
-    // Fix the recipient set at this transition and isolate each listener's payload.
     const listeners = [...this.webMCPToolEventListeners];
     for (const listener of listeners) listener(structuredClone(event));
   }
@@ -781,7 +729,7 @@ export class Page {
     for (const [key, tool] of state.tools) {
       if (!matches(tool)) continue;
       state.tools.delete(key);
-      tools.push({ frameId: tool.frameId, name: tool.name });
+      tools.push(webMCPToolIdentity(tool));
     }
     if (tools.length) this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools });
   }
@@ -800,13 +748,20 @@ export class Page {
     state: WebMCPToolSessionState,
     tools: WebMCPToolDescriptor[],
   ): void {
+    const removed: WebMCPToolIdentity[] = [];
     const added: WebMCPToolDescriptor[] = [];
     for (const tool of tools) {
-      const key = `${tool.frameId}\u0000${tool.name}`;
-      if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
+      const key = webMCPToolKey(tool.frameId, tool.name);
+      const previous = state.tools.get(key);
+      if (JSON.stringify(previous) === JSON.stringify(tool)) continue;
+      if (previous && previous.toolId !== tool.toolId) {
+        removed.push(webMCPToolIdentity(previous));
+      }
       state.tools.set(key, tool);
       added.push(tool);
     }
+    if (removed.length)
+      this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools: removed });
     if (added.length) this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
   }
 
@@ -848,7 +803,7 @@ export class Page {
             if (this.ownsWebMCPFrame(session, tool.frameId)) {
               owned.push(tool);
             } else if (!this.registry.getOwnerSessionId(tool.frameId)) {
-              state.pendingTools.set(`${tool.frameId}\u0000${tool.name}`, tool);
+              state.pendingTools.set(webMCPToolKey(tool.frameId, tool.name), tool);
             }
           }
           this.publishWebMCPTools(session, state, owned);
@@ -860,9 +815,13 @@ export class Page {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
         const removed: WebMCPToolIdentity[] = [];
         for (const tool of event.tools) {
-          state.pendingTools.delete(`${tool.frameId}\u0000${tool.name}`);
-          if (state.tools.delete(`${tool.frameId}\u0000${tool.name}`)) {
-            removed.push({ frameId: tool.frameId, name: tool.name });
+          const key = webMCPToolKey(tool.frameId, tool.name);
+          const pending = state.pendingTools.get(key);
+          if (pending && pending.toolId === tool.toolId) state.pendingTools.delete(key);
+          const published = state.tools.get(key);
+          if (published && published.toolId === tool.toolId) {
+            state.tools.delete(key);
+            removed.push(webMCPToolIdentity(published));
           }
         }
         if (removed.length)
@@ -889,7 +848,6 @@ export class Page {
     this.webMCPToolSessions.set(session, state);
     session.on("WebMCP.toolsAdded", state.added);
     session.on("WebMCP.toolsRemoved", state.removed);
-    // Share pending/successful initialization; a later caller may retry a failed enable.
     void seedOwnership
       .then(async () => {
         if (this.webMCPToolSessions.get(session) !== state) return;
@@ -933,7 +891,6 @@ export class Page {
     }
   }
 
-  /** Read shared tool state after initialization and the existing bounded quiet window. */
   public async listWebMCPTools(
     options?: Partial<WebMCPToolsOptions>,
   ): Promise<WebMCPToolDescriptor[]> {
@@ -978,7 +935,6 @@ export class Page {
         if (timer !== undefined) clearTimeout(timer);
       }
     }
-    // Include adopted sessions and surface their initialization errors rather than partial success.
     await ready();
     return ownedSessions().flatMap((session) =>
       [...(this.webMCPToolSessions.get(session)?.tools.values() ?? [])]
@@ -990,9 +946,10 @@ export class Page {
   public async invokeWebMCPTool(
     frameId: string,
     toolName: string,
-    options?: Partial<WebMCPInvokeOptions>,
+    options?: Partial<WebMCPInvokeOptions> & Pick<WebMCPToolIdentity, "toolId">,
   ): Promise<WebMCPInvocationDescriptor> {
-    const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
+    const { toolId, ...invokeOptions } = options ?? {};
+    const { input } = WebMCPInvokeOptionsSchema.parse(invokeOptions);
     const session = this.webMCPSessionForFrame(frameId);
     await this.ensureWebMCPToolTracking(session);
     if (this.disposed || !this.ownsWebMCPFrame(session, frameId)) {
@@ -1000,6 +957,7 @@ export class Page {
         `WebMCP session for frame "${frameId}" was disposed before invocation registration completed.`,
       );
     }
+    const selector = toolId === undefined ? { toolName } : { toolId };
     const responseState = this.ensureWebMCPResponseListener(session);
     responseState.pendingCommands += 1;
 
@@ -1007,9 +965,9 @@ export class Page {
     try {
       response = await session.send<Protocol.WebMCP.InvokeToolResponse>("WebMCP.invokeTool", {
         frameId,
-        toolName,
+        ...selector,
         input,
-      });
+      } satisfies Protocol.WebMCP.InvokeToolRequest);
     } catch (error) {
       responseState.pendingCommands -= 1;
       this.removeWebMCPResponseListenerIfIdle(session);
@@ -1161,16 +1119,13 @@ export class Page {
     }
   }
 
-  /** Seed the cached URL before navigation events converge. */
   public seedCurrentUrl(url: string | undefined | null): void {
     if (!url) return;
     try {
       const normalized = String(url).trim();
       if (!normalized) return;
       this._currentUrl = normalized;
-    } catch {
-      // ignore invalid url seeds
-    }
+    } catch {}
   }
 
   public mainFrameId(): string {
@@ -1181,7 +1136,6 @@ export class Page {
     return this.mainFrameWrapper;
   }
 
-  /** Release page-scoped listeners, pending work, and network tracking. */
   public dispose(): void {
     this.disposed = true;
     for (const dispose of this.pageEventDisposers) dispose();
@@ -1190,16 +1144,11 @@ export class Page {
     this.networkManager.dispose();
   }
 
-  /**
-   * Close this top-level page (tab). Best-effort via Target.closeTarget.
-   */
   public async close(): Promise<void> {
     this.teardownWebMCPInvocations();
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
-    } catch {
-      // ignore
-    }
+    } catch {}
     const deadline = Date.now() + 2000;
     while (Date.now() < deadline) {
       try {
@@ -1208,9 +1157,7 @@ export class Page {
           this.dispose();
           return;
         }
-      } catch {
-        // ignore and retry
-      }
+      } catch {}
       await new Promise((r) => setTimeout(r, 25));
     }
     this.dispose();
@@ -1242,7 +1189,6 @@ export class Page {
     return ord;
   }
 
-  /** Public getter for snapshot code / handlers. */
   public getOrdinal(frameId: string): number {
     return this.ensureOrdinal(frameId);
   }
@@ -1251,12 +1197,6 @@ export class Page {
     return this.registry.listAllFrames();
   }
 
-  // -------- Convenience APIs delegated to the current main frame --------
-
-  /**
-   * Navigate the page; optionally wait for a lifecycle state.
-   * Waits on the **current** main frame and follows root swaps during navigation.
-   */
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeout?: number },
@@ -1300,9 +1240,6 @@ export class Page {
     }
   }
 
-  /**
-   * Reload the page; optionally wait for a lifecycle state.
-   */
   async reload(options?: {
     waitUntil?: LoadState;
     timeout?: number;
@@ -1342,16 +1279,13 @@ export class Page {
     }
   }
 
-  /**
-   * Navigate back in history if possible; optionally wait for a lifecycle state.
-   */
   async goBack(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const prev = entries[currentIndex - 1];
-    if (!prev) return null; // nothing to do
+    if (!prev) return null;
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeout ?? 15000;
 
@@ -1387,16 +1321,13 @@ export class Page {
     }
   }
 
-  /**
-   * Navigate forward in history if possible; optionally wait for a lifecycle state.
-   */
   async goForward(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const next = entries[currentIndex + 1];
-    if (!next) return null; // nothing to do
+    if (!next) return null;
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeout ?? 15000;
 
@@ -1432,9 +1363,6 @@ export class Page {
     }
   }
 
-  /**
-   * Return the current page URL (synchronous, cached from navigation events).
-   */
   url(): string {
     return this._currentUrl;
   }
@@ -1449,11 +1377,6 @@ export class Page {
     return this.latestNavigationCommandId === id;
   }
 
-  /**
-   * Return the current page title.
-   * Prefers reading from the active document via Runtime.evaluate to reflect dynamic changes.
-   * Falls back to navigation history title if evaluation is unavailable.
-   */
   async title(): Promise<string> {
     try {
       await this.mainSession.send("Runtime.enable").catch(() => {});
@@ -1468,7 +1391,6 @@ export class Page {
       );
       return String(result?.value ?? "");
     } catch {
-      // Fallback: use navigation history entry title
       try {
         const { entries, currentIndex } =
           await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
@@ -1481,34 +1403,6 @@ export class Page {
     }
   }
 
-  /**
-   * Capture a screenshot with Playwright-style options.
-   *
-   * @param options Optional screenshot configuration.
-   * @param options.animations Control CSS/Web animations during capture. Use
-   * "disabled" to fast-forward finite animations and pause infinite ones.
-   * @param options.caret Either hide the text caret (default) or leave it
-   * visible via "initial".
-   * @param options.clip Restrict capture to a specific rectangle (in CSS
-   * pixels). Cannot be combined with `fullPage`.
-   * @param options.fullPage Capture the full scrollable page instead of the
-   * current viewport.
-   * @param options.mask Array of locators that should be covered with an
-   * overlay while the screenshot is taken.
-   * @param options.maskColor CSS color used for the mask overlay (default
-   * `#FF00FF`).
-   * @param options.omitBackground Make the default page background transparent
-   * (PNG only).
-   * @param options.quality JPEG quality (0–100). Only applies when
-   * `type === "jpeg"`.
-   * @param options.scale Render scale: use "css" for one pixel per CSS pixel,
-   * otherwise the default "device" leverages the current device pixel ratio.
-   * @param options.style Additional CSS text injected into every frame before
-   * capture (removed afterwards).
-   * @param options.timeout Maximum capture duration in milliseconds before a
-   * timeout error is thrown.
-   * @param options.type Image format (`"png"` by default).
-   */
   async screenshot(
     options?: UnderstudyScreenshotOptions,
     parentProgress?: Progress,
@@ -1567,8 +1461,6 @@ export class Page {
           );
         }
 
-        // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
-        // while activating and capturing, so stalled preparation cannot block other tabs.
         return await withScreenshotLock(
           this.conn,
           () =>
@@ -1599,12 +1491,10 @@ export class Page {
         (progress) => withScreenshotLock(this, () => exec(progress), progress),
       );
     } catch (error) {
-      // Cleanup may outlast the deadline; preserve a capture error already received.
       throw failure ? failure.error : error;
     }
   }
 
-  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
   async pdf(options?: PagePDFOptions, parentProgress?: Progress): Promise<PagePDFResult> {
     const {
       timeout = 30_000,
@@ -1619,7 +1509,6 @@ export class Page {
       withScreenshotLock(
         this,
         async () => {
-          // Keep the print promise in the queue even if progress stops the caller's wait.
           const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
             "Page.printToPDF",
             {
@@ -1642,20 +1531,10 @@ export class Page {
     );
   }
 
-  /**
-   * specifies additional HTTP headers to be included in every request sent by
-   * the root CDP session of the page, and all of its child CDP sessions.
-   *
-   * @param headers - the headers to be set.
-   * Throws the first original CDP error when one or more sessions fail to enable
-   * the Network domain or apply the headers.
-   * @return void
-   */
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
     const headersToSet = { ...headers };
     this.extraHTTPHeaders = headersToSet;
 
-    // get the session(s) for this page:
     const sessions: CDPSessionLike[] = [this.mainSession];
     for (const session of this.sessions.values()) {
       if (session === this.mainSession) continue;
@@ -1668,7 +1547,6 @@ export class Page {
       }),
     );
 
-    // get list of objects containing results & corresponding session IDs
     const pairs = results.map((result, index) => ({
       result,
       id: sessions[index].id,
@@ -1695,35 +1573,18 @@ export class Page {
     }
   }
 
-  /**
-   * Create a locator bound to the current main frame.
-   */
   locator(selector: string): ReturnType<Frame["locator"]> {
     return this.mainFrameWrapper.locator(selector);
   }
 
-  /**
-   * Deep locator that supports cross-iframe traversal.
-   * - Recognizes '>>' hop notation to enter iframe contexts.
-   * - Supports deep XPath that includes iframe steps (e.g., '/html/body/iframe[2]//div').
-   * Returns a Locator scoped to the appropriate frame.
-   */
   deepLocator(selector: string) {
     return deepLocatorFromPage(this, this.mainFrameWrapper, selector);
   }
 
-  /**
-   * Frame locator similar to Playwright: targets iframe elements and scopes
-   * subsequent locators to that frame. Supports chaining.
-   */
   frameLocator(selector: string): FrameLocator {
     return new FrameLocator(this, selector);
   }
 
-  /**
-   * List all frames belonging to this page as Frame objects bound to their owning sessions.
-   * The list is ordered by a stable ordinal assigned during the page lifetime.
-   */
   frames(): Frame[] {
     const ids = this.listAllFrameIds();
     const withOrd = ids.map((id) => ({ id, ord: this.getOrdinal(id) }));
@@ -1731,24 +1592,22 @@ export class Page {
     return withOrd.map(({ id }) => this.frameForId(id));
   }
 
-  /**
-   * Wait until the page reaches a lifecycle state on the current main frame.
-   * Mirrors Playwright's API signatures.
-   */
-  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeout ?? 15000);
+  async waitForLoadState(state: LoadState, timeout = 15000): Promise<void> {
+    if (state !== "networkidle") return this.waitForMainLoadState(state, timeout);
+
+    await new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil: state,
+      timeout,
+    }).wait();
   }
 
-  /**
-   * Wait for a specified amount of time.
-   *
-   * @param ms The number of milliseconds to wait.
-   */
   async waitForTimeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /** Poll an expression in the page's main world until its value is truthy. */
   async waitForFunction(expression: string, options?: FunctionWaitOptions): Promise<unknown> {
     return waitForFunction(
       () => {
@@ -1761,20 +1620,6 @@ export class Page {
     );
   }
 
-  /**
-   * Wait for an element matching the selector to appear in the DOM.
-   * Uses MutationObserver for efficiency
-   * Pierces shadow DOM by default.
-   * Supports iframe hop notation with '>>' (e.g., 'iframe#checkout >> .submit-btn').
-   *
-   * @param selector CSS selector to wait for (supports '>>' for iframe hops)
-   * @param options
-   * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait in milliseconds (default: 30000; zero is unlimited)
-   * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
-   * @returns True when the condition is met
-   * @throws Error if timeout is reached before the condition is met
-   */
   async waitForSelector(
     selector: string,
     options?: {
@@ -1807,7 +1652,6 @@ export class Page {
     );
   }
 
-  /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
   async evaluateWithShadowRoots(functionSource: string): Promise<unknown> {
     return evaluateWithShadowRoots(
       this.mainSession,
@@ -1816,13 +1660,6 @@ export class Page {
     );
   }
 
-  /**
-   * Evaluate a function or expression in the current main frame's main world.
-   * - If a string is provided, it is treated as a JS expression.
-   * - If a function is provided, it is stringified and invoked with the optional argument.
-   * - The return value should be JSON-serializable. Non-serializable objects will
-   *   best-effort serialize via JSON.stringify inside the page context.
-   */
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
@@ -1867,10 +1704,6 @@ export class Page {
     return result?.value as R;
   }
 
-  /**
-   * Force the page viewport to an exact CSS size and device scale factor.
-   * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
-   */
   async setViewportSize(
     width: number,
     height: number,
@@ -1891,16 +1724,9 @@ export class Page {
       } as Protocol.Emulation.SetDeviceMetricsOverrideRequest)
       .catch(() => {});
 
-    // Best-effort ensure visible size in headless
     await this.mainSession.send("Emulation.setVisibleSize", { width, height }).catch(() => {});
   }
 
-  /**
-   * Click at absolute page coordinates (CSS pixels).
-   * Dispatches mouseMoved → mousePressed → mouseReleased via CDP Input domain
-   * on the top-level page target's session. Coordinates are relative to the
-   * viewport origin (top-left). Does not scroll.
-   */
   async click(
     x: number,
     y: number,
@@ -1912,10 +1738,7 @@ export class Page {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
-    // Synthesize a simple mouse move + press + release sequence.
     await this.updateCursor(x, y);
-    // Dispatch click events in a pipelined burst to reduce inter-click delay
-    // from network/CPU jitter between round trips.
     const dispatches: Array<Promise<unknown>> = [];
     dispatches.push(
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -1949,11 +1772,6 @@ export class Page {
     await Promise.all(dispatches);
   }
 
-  /**
-   * Hover at absolute page coordinates (CSS pixels).
-   * Dispatches mouseMoved via CDP Input domain on the top-level page target's
-   * session.
-   */
   async hover(x: number, y: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -1980,7 +1798,6 @@ export class Page {
       } as Protocol.Input.DispatchMouseEventRequest),
     );
 
-    // Synthesize a simple mouse move + press + release sequence
     await runLocatorStep(progress, "scrolling page", () =>
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseWheel",
@@ -1993,10 +1810,6 @@ export class Page {
     );
   }
 
-  /**
-   * Drag from (fromX, fromY) to (toX, toY) using mouse events.
-   * Sends mouseMoved → mousePressed → mouseMoved (route or steps) → mouseReleased.
-   */
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -2030,7 +1843,6 @@ export class Page {
       }
     };
 
-    // Move to start
     await runLocatorStep(progress, "updating cursor", () =>
       this.updateCursor(fromX, fromY, progress),
     );
@@ -2055,10 +1867,8 @@ export class Page {
         buttons: buttonMask(button),
         clickCount: 1,
       } as Protocol.Input.DispatchMouseEventRequest);
-    // Release even when a drag expires after the button was pressed.
     try {
       progress?.throwIfStopped();
-      // Press
       await runLocatorStep(progress, "pressing mouse", () => {
         pressed = true;
         return this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -2109,12 +1919,10 @@ export class Page {
         if (delay) await sleep(delay);
       }
 
-      // Release at end
       await runLocatorStep(progress, "updating cursor", () =>
         this.updateCursor(toX, toY, progress),
       );
       await runLocatorStep(progress, "releasing mouse", () => {
-        // Cleanup must not repeat a release whose response is still pending.
         pressed = false;
         return release();
       });
@@ -2127,12 +1935,6 @@ export class Page {
     progress?.throwIfStopped();
   }
 
-  /**
-   * Type a string by dispatching keyDown/keyUp events per character.
-   * Focus must already be on the desired element. Uses CDP Input.dispatchKeyEvent
-   * and never falls back to Input.insertText. Optional delay applies between
-   * successive characters.
-   */
   async type(text: string, options?: { delay?: number; withMistakes?: boolean }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const withMistakes = !!options?.withMistakes;
@@ -2172,7 +1974,6 @@ export class Page {
       let windowsVirtualKeyCode: number | undefined;
 
       if (isLetter) {
-        // For letters, key is the character, code is KeyX where X is uppercase
         key = ch;
         code = `Key${ch.toUpperCase()}`;
         windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
@@ -2221,7 +2022,6 @@ export class Page {
     };
 
     for (const ch of text) {
-      // Control keys that we explicitly map
       if (ch === "\n" || ch === "\r") {
         await keyStroke(ch, {
           key: "Enter",
@@ -2236,7 +2036,6 @@ export class Page {
         });
       } else {
         if (withMistakes && Math.random() < 0.12) {
-          // Type a wrong character, then backspace to correct
           const wrong = randomPrintable(ch);
           await keyStroke(wrong);
           if (delay) await sleep(delay);
@@ -2250,19 +2049,12 @@ export class Page {
     }
   }
 
-  /**
-   * Press a single key or key combination (keyDown then keyUp).
-   * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
-   * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
-   */
   async keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
       progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
-    // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
-      // Special case: if the entire string is just "+", return it as-is
       if (keyString === "+") {
         return ["+"];
       }
@@ -2298,13 +2090,11 @@ export class Page {
       if (delay) await sleep(delay);
       for (const key of [mainKey, ...modifierKeys.toReversed()]) {
         await runLocatorStep(progress, "releasing key", () => {
-          // Cleanup must not repeat a release whose response is still pending.
           heldKeys.delete(key);
           return this.keyUp(key);
         });
       }
     } catch (error) {
-      // Release keys already dispatched without allowing more key presses.
       if (progress) {
         await progress.cleanup(() =>
           Promise.allSettled([...heldKeys].reverse().map((key) => this.keyUp(key))),
@@ -2339,10 +2129,8 @@ export class Page {
     );
   }
 
-  // Track pressed modifier keys
   _pressedModifiers = new Set<string>();
 
-  /** Press a key down without releasing it */
   async keyDown(key: string): Promise<void> {
     const normalizedKey = this.normalizeModifierKey(key);
 
@@ -2365,7 +2153,6 @@ export class Page {
         this._pressedModifiers.has("Control") ||
         this._pressedModifiers.has("Meta");
       if (hasNonShiftModifier) {
-        // For accelerators (e.g., Cmd/Ctrl/Alt + key), do not send text. Use rawKeyDown with key/code/VK.
         const desc = this.describePrintableKey(normalizedKey);
         const macCommands = this.isMacOS() ? this.macCommandsFor(desc.code ?? "") : [];
         const req: Protocol.Input.DispatchKeyEventRequest = {
@@ -2378,7 +2165,6 @@ export class Page {
         } as Protocol.Input.DispatchKeyEventRequest;
         await this.mainSession.send("Input.dispatchKeyEvent", req);
       } else {
-        // Typing path (no non-Shift modifiers): send text to generate input
         await this.mainSession.send("Input.dispatchKeyEvent", {
           type: "keyDown",
           text: normalizedKey,
@@ -2411,7 +2197,6 @@ export class Page {
       return;
     }
 
-    // Fallback: send with key property only
     await this.mainSession.send("Input.dispatchKeyEvent", {
       type: "keyDown",
       key: normalizedKey,
@@ -2419,7 +2204,6 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Release a pressed key */
   async keyUp(key: string): Promise<void> {
     const normalizedKey = this.normalizeModifierKey(key);
 
@@ -2460,7 +2244,6 @@ export class Page {
       return;
     }
 
-    // Fallback: send with key property only
     await this.mainSession.send("Input.dispatchKeyEvent", {
       type: "keyUp",
       key: normalizedKey,
@@ -2468,11 +2251,9 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Normalize key names to match CDP expectations */
   normalizeModifierKey(key: string): string {
     const lower = key.toLowerCase();
     switch (lower) {
-      // Modifier keys
       case "cmd":
       case "command":
       case "controlormeta":
@@ -2491,7 +2272,6 @@ export class Page {
         return "Shift";
       case "meta":
         return "Meta";
-      // Action keys
       case "enter":
       case "return":
         return "Enter";
@@ -2508,7 +2288,6 @@ export class Page {
       case "delete":
       case "del":
         return "Delete";
-      // Arrow keys
       case "left":
       case "arrowleft":
         return "ArrowLeft";
@@ -2521,7 +2300,6 @@ export class Page {
       case "down":
       case "arrowdown":
         return "ArrowDown";
-      // Navigation keys
       case "home":
         return "Home";
       case "end":
@@ -2537,9 +2315,6 @@ export class Page {
     }
   }
 
-  /**
-   * Get the map of named keys with their properties
-   */
   getNamedKeys(): Record<
     string,
     {
@@ -2570,7 +2345,6 @@ export class Page {
       End: { key: "End", code: "End", vk: 35 },
       PageUp: { key: "PageUp", code: "PageUp", vk: 33 },
       PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
-      // Modifier keys
       Alt: { key: "Alt", code: "AltLeft", vk: 18 },
       Control: { key: "Control", code: "ControlLeft", vk: 17 },
       Meta: { key: "Meta", code: "MetaLeft", vk: 91 },
@@ -2578,10 +2352,6 @@ export class Page {
     };
   }
 
-  /**
-   * Minimal description for printable keys (letters/digits/space) to provide code and VK.
-   * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
-   */
   describePrintableKey(ch: string): {
     key: string;
     code?: string;
@@ -2596,7 +2366,7 @@ export class Page {
       return {
         key: shiftDown ? upper : upper.toLowerCase(),
         code: `Key${upper}`,
-        vk: upper.charCodeAt(0), // 'A'..'Z' => 65..90
+        vk: upper.charCodeAt(0),
       };
     }
 
@@ -2604,7 +2374,7 @@ export class Page {
       return {
         key: ch,
         code: `Digit${ch}`,
-        vk: ch.charCodeAt(0), // '0'..'9' => 48..57
+        vk: ch.charCodeAt(0),
       };
     }
 
@@ -2612,7 +2382,6 @@ export class Page {
       return { key: " ", code: "Space", vk: 32 };
     }
 
-    // Fallback: just return the character as-is; VK best-effort from ASCII
     return {
       key: shiftDown ? ch.toUpperCase() : ch,
       vk: ch.toUpperCase().charCodeAt(0),
@@ -2649,9 +2418,6 @@ export class Page {
     return list.filter((c) => !c.startsWith("insert")).map((c) => c.substring(0, c.length - 1));
   }
 
-  // ---- Page-level lifecycle waiter that follows main frame id swaps ----
-
-  /** Resolve the main-world execution context for the current main frame. */
   async mainWorldExecutionContextId(): Promise<number> {
     return executionContexts.waitForMainWorld(this.mainSession, this.mainFrameId(), 1000);
   }
@@ -2677,18 +2443,11 @@ export class Page {
     }
   }
 
-  /**
-   * Wait until the **current** main frame reaches a lifecycle state.
-   * - Fast path via `document.readyState`.
-   * - Event path listens at the session level and compares incoming `frameId`
-   *   to `mainFrameId()` **at event time** to follow root swaps.
-   */
   async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
 
-    // Fast path: check the *current* main frame's readyState.
     if (
       (state === "domcontentloaded" || state === "load") &&
       (await this.isMainLoadStateReady(state))
@@ -2729,7 +2488,6 @@ export class Page {
 
       const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
         if (evt.name !== wanted) return;
-        // Compare against the *current* main frame id when the event arrives.
         if (evt.frameId === this.mainFrameId()) finish();
       };
 
@@ -2777,7 +2535,7 @@ export class Page {
         done = true;
         clearPollTimer();
         off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        reject(new TimeoutError(`waitForMainLoadState(${state})`, timeout));
       }, timeout);
     });
   }

@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-// A ZIP containing a root manifest.json, independent of SDK build artifacts.
 const archiveFixture = Buffer.from(
   "UEsDBBQAAAAAAAAAIQBQrEnpQAAAAEAAAAANAAAAbWFuaWZlc3QuanNvbnsibWFuaWZlc3RfdmVyc2lvbiI6MywibmFtZSI6IlRlc3QgZXh0ZW5zaW9uIiwidmVyc2lvbiI6IjEuMC4wIn1QSwECFAMUAAAAAAAAACEAUKxJ6UAAAABAAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLBQYAAAAAAQABADsAAABrAAAAAAA=",
   "base64",

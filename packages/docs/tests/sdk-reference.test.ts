@@ -130,6 +130,7 @@ const DOCS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
+const BROWSER_API_ROOT = fileURLToPath(new URL("../../shared/browser-api/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
@@ -138,15 +139,10 @@ const PROTOCOL_REGISTRY = fileURLToPath(
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
 const DOCUMENTATION_LANGUAGES = [...LANGUAGES, "Go"] as const;
-// Language tabs are the selector; every other <Tab> on a page is a different axis
-// (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
-// Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
-// Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
-// schema. Keep these exceptions explicit so the reference is checked against the public API.
 const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.add_cookies:TypeScript:cookies.sameSite", "CookieParam['sameSite']"],
   ["context.add_cookies:Python:cookies.same_site", "Literal['Strict', 'Lax', 'None']"],
@@ -159,6 +155,10 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
   ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
   ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
+  ...["act", "observe", "extract"].flatMap((method): Array<[string, string]> => [
+    [`stagehand.${method}:TypeScript:options.locator`, "Locator"],
+    [`stagehand.${method}:TypeScript:options.ignoreLocators`, "Locator[]"],
+  ]),
 ]);
 
 const SDK_OBJECTS = [
@@ -171,25 +171,25 @@ const SDK_OBJECTS = [
   {
     className: "BrowserContext",
     classSlug: "context",
-    typescriptFile: "browserContext.ts",
+    typescriptFile: "../../shared/browser-api/src/browserContext.ts",
     pythonFile: "browser_context.py",
   },
   {
     className: "BrowserClipboard",
     classSlug: "clipboard",
-    typescriptFile: "browserClipboard.ts",
+    typescriptFile: "../../shared/browser-api/src/browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
   },
   {
     className: "Page",
     classSlug: "page",
-    typescriptFile: "page.ts",
+    typescriptFile: "../../shared/browser-api/src/page.ts",
     pythonFile: "page.py",
   },
   {
     className: "Locator",
     classSlug: "locator",
-    typescriptFile: "locator.ts",
+    typescriptFile: "../../shared/browser-api/src/locator.ts",
     pythonFile: "locator.py",
   },
 ] as const satisfies readonly SdkObject[];
@@ -463,7 +463,7 @@ This tab does not describe the active SDK API.
     const [webmcpDocs, pageDocs, typescriptSource, pythonSource] = await Promise.all([
       readFile(webmcpPath, "utf8"),
       readFile(pagePath, "utf8"),
-      readFile(resolve(TYPESCRIPT_ROOT, "webmcp.ts"), "utf8"),
+      readFile(resolve(BROWSER_API_ROOT, "webmcp.ts"), "utf8"),
       readFile(resolve(PYTHON_ROOT, "webmcp.py"), "utf8"),
     ]);
     const surfaces = new Map<Language, ResponseReferenceMember[]>([
@@ -513,7 +513,7 @@ This tab does not describe the active SDK API.
       [
         "TypeScript",
         readTypescriptHelperMembers(
-          await readFile(resolve(TYPESCRIPT_ROOT, "page.ts"), "utf8"),
+          await readFile(resolve(BROWSER_API_ROOT, "page.ts"), "utf8"),
           "CDPSubscription",
         ),
       ],
@@ -642,8 +642,6 @@ ${titles
           );
         }
 
-        // Nested fields such as `options.timeout` are checked separately against the schema.
-        // This assertion makes the top-level, directly callable signature an exact match.
         const documented = reference.method.paramPaths
           .filter((path): path is string => path !== undefined && !path.includes("."))
           .sort();
@@ -1026,8 +1024,6 @@ ${titles
         const result = reference.method.responseFields.find(({ key }) => key === "result");
         if (!result) continue;
         const actual = normalizePublicType(result.type, language, false, pythonAliases);
-        // extract's implementation accepts either a schema or options so it can support both
-        // public overloads; the documented return type reflects the schema-bearing overload.
         const returnType =
           language === "TypeScript" && method.operationName === "stagehand.extract"
             ? "Promise<ExtractResult<Schema>>"
@@ -1327,7 +1323,6 @@ describe("Mintlify customization boundary", () => {
 
           found.push(...languageTabGroupProblems(pagePath, tree));
 
-          // One icon per title, so the selector labels stay stable.
           const icons = new Map<string, Set<string>>();
           for (const { title, icon } of titled) {
             if (icon === undefined) continue;
@@ -1456,7 +1451,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
 
 async function readTypescriptLocalTypeAliases(): Promise<Map<string, SgNode>> {
   const aliases = new Map<string, SgNode>();
-  const filePath = resolve(TYPESCRIPT_ROOT, "fileUpload.ts");
+  const filePath = resolve(BROWSER_API_ROOT, "fileUpload.ts");
   const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
   for (const alias of root.findAll({ rule: { kind: "type_alias_declaration" } })) {
     const name = alias.field("name")?.text();
@@ -1649,7 +1644,7 @@ function pythonTypeReferences(
 }
 
 async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[]> {
-  const filePath = resolve(TYPESCRIPT_ROOT, "response.ts");
+  const filePath = resolve(BROWSER_API_ROOT, "response.ts");
   const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
   const classNode = findClass(root, "class_declaration", "Response", filePath);
   const classBody = classNode.field("body");
@@ -2148,13 +2143,10 @@ function readReferenceTab(view: MdxNode, filePath: string): ReferenceTab {
   const title = stringAttribute(view, "title");
   return {
     title,
-    // Go content remains part of the MDX page, but has no SDK API validation on main.
     methods: title === "Go" ? [] : readReferenceMethods(view, filePath),
   };
 }
 
-// Sections of a reference page that document something other than a method, so
-// they carry no signature to check against the SDK.
 const NON_METHOD_SECTIONS = new Set(["Quick start", "Properties"]);
 
 function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[] {
@@ -2177,20 +2169,16 @@ function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[
     const section = {
       children: children.slice(index + 1, nextHeading < 0 ? undefined : nextHeading),
     } satisfies MdxNode;
-    const paramFields = findElements(section, "ParamField").map(
-      (field): DocumentedField => ({
-        key: stringAttribute(field, "path"),
-        optional: hasAttribute(field, "optional"),
-        type: stringAttribute(field, "type"),
-      }),
-    );
-    const responseFields = findElements(section, "ResponseField").map(
-      (field): DocumentedField => ({
-        key: stringAttribute(field, "name"),
-        optional: hasAttribute(field, "optional"),
-        type: stringAttribute(field, "type"),
-      }),
-    );
+    const paramFields = findElements(section, "ParamField").map((field): DocumentedField => ({
+      key: stringAttribute(field, "path"),
+      optional: hasAttribute(field, "optional"),
+      type: stringAttribute(field, "type"),
+    }));
+    const responseFields = findElements(section, "ResponseField").map((field): DocumentedField => ({
+      key: stringAttribute(field, "name"),
+      optional: hasAttribute(field, "optional"),
+      type: stringAttribute(field, "type"),
+    }));
     return [
       {
         methodName,
@@ -2242,8 +2230,6 @@ function isLanguageTab(node: MdxNode): boolean {
   return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
 }
 
-// Integrations require the active SDK languages used elsewhere on their page.
-// Core docs require both active SDKs. Go is recognized but never required.
 function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   const present = new Set(findLanguageTabs(tree).map((tab) => stringAttribute(tab, "title")));
   const required = pagePath.startsWith("v4/integrations/")
@@ -2269,7 +2255,6 @@ function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   });
 }
 
-// Document-order language tabs, ignoring tabs that switch on any other axis.
 function findLanguageTabs(node: MdxNode): MdxNode[] {
   return findElements(node, "Tab").filter(isLanguageTab);
 }
@@ -2670,16 +2655,9 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
-  return new Set([
-    "options.locator.selector",
-    "options.locator.nth",
-    "options.ignoreLocators.selector",
-    "options.ignoreLocators.nth",
-    "locator.selector",
-    "locator.nth",
-    "ignore_locators.selector",
-    "ignore_locators.nth",
-  ]).has(path);
+  return ["options.locator.", "options.ignoreLocators.", "locator.", "ignore_locators."].some(
+    (prefix) => path.startsWith(prefix),
+  );
 }
 
 function publicReferenceFieldType(
@@ -2809,7 +2787,14 @@ function resolvedProperties(
   protocol: ProtocolDocument,
 ): Record<string, JsonSchema> {
   if (schema.$ref) return resolvedProperties(resolveReference(schema.$ref, protocol), protocol);
-  return schema.properties ?? {};
+  const properties: Record<string, JsonSchema> = {};
+  for (const part of [...(schema.allOf ?? []), ...(schema.anyOf ?? []), ...(schema.oneOf ?? [])]) {
+    for (const [name, property] of Object.entries(resolvedProperties(part, protocol))) {
+      const previous = properties[name];
+      properties[name] = previous ? { anyOf: [previous, property] } : property;
+    }
+  }
+  return { ...properties, ...schema.properties };
 }
 
 function resolveReference(reference: string, protocol: ProtocolDocument): JsonSchema {
@@ -2939,6 +2924,7 @@ async function readTypescriptPublicFieldNames(): Promise<Set<string>> {
   const sourceFiles = [
     PROTOCOL_SCHEMA_SOURCE,
     resolve(TYPESCRIPT_ROOT, "clientSchemas.ts"),
+    resolve(BROWSER_API_ROOT, "schemas.ts"),
     ...SDK_OBJECTS.map(({ typescriptFile }) => resolve(TYPESCRIPT_ROOT, typescriptFile)),
   ];
   const names = new Set<string>();

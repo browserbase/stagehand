@@ -114,9 +114,6 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
             };
           }
           case SESSION_INFO_TOOL_NAME: {
-            // Runner-side only (absent from tools/list): launches the browser if
-            // needed and reports where it lives so the harness can log the
-            // Browserbase session URL before the agent's first call.
             const browser = (await ensureResources()).browser;
             return textResult(
               JSON.stringify({
@@ -154,13 +151,9 @@ async function createResources(): Promise<FacadeResources> {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     const tools = new StagehandFacadeTools(stagehand, {
       ...(config.quietWait && { quietWait: true }),
+      ...(config.artifactRoot !== undefined && { artifactRoot: config.artifactRoot }),
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
-      // The browser is not recreated on purpose: a fresh session would silently
-      // change the evidence trail mid-task. Tools keep answering with the
-      // terminal error and the host decides what to do with the run.
-      // Age includes launch and initialization time. Compare it with configured
-      // timeout and remote session status when diagnosing a disconnect.
       onSessionLost: (loss) =>
         process.stderr.write(
           `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({
@@ -205,7 +198,6 @@ function stringifyResult(value: unknown): string {
 async function shutdown(code: number): Promise<void> {
   if (closing) return;
   closing = true;
-  // A launch still in flight must not stall shutdown past the grace window.
   const resources = await Promise.race([
     resourcesPromise?.catch(() => undefined),
     new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),

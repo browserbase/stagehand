@@ -1,6 +1,3 @@
-"""Stagehand's facade tools for Python: one bundle of browser-side sources and
-model-facing contract, shared with the TypeScript facade."""
-
 from .bundle import (
     StagehandFacadeBundleError,
     ToolSet,
@@ -10,6 +7,7 @@ from .bundle import (
     facade_tools,
 )
 from .tools import (
+    DEFAULT_ARTIFACT_DIRECTORY,
     StagehandFacadeCleanupError,
     StagehandFacadeExecutionError,
     StagehandFacadeInputError,
@@ -17,6 +15,7 @@ from .tools import (
 )
 
 __all__ = [
+    "DEFAULT_ARTIFACT_DIRECTORY",
     "StagehandFacadeBundleError",
     "StagehandFacadeCleanupError",
     "StagehandFacadeExecutionError",

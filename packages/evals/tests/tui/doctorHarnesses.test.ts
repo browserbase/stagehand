@@ -17,7 +17,6 @@ const baseConfig = (overrides: Partial<ConfigFile> = {}): ConfigFile => ({
   ...overrides,
 });
 
-/** Every URL a test expects to be probed must be listed; anything else throws. */
 function fetchStub(routes: Record<string, number>): typeof fetch {
   return vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
@@ -118,7 +117,6 @@ describe("buildHarnessMatrix", () => {
     expect(byName.claude_code.key).toMatchObject({ status: "fail", label: "ANTHROPIC_API_KEY" });
     expect(byName.claude_code.key.fix).toMatch(/add ANTHROPIC_API_KEY to .*\.env/);
     expect(byName.claude_code.probe.status).toBe("skipped");
-    // Values never leak into the report.
     expect(JSON.stringify(matrix)).not.toContain('"value"');
 
     expect(byName.codex.binary).toMatchObject({ status: "ok", label: "vendored" });
@@ -127,9 +125,7 @@ describe("buildHarnessMatrix", () => {
 
     expect(byName.deepagents.binary).toMatchObject({ status: "fail", label: "uv missing" });
     expect(byName.deepagents.binary.fix).toContain("astral.sh/uv/install.sh");
-    expect(byName.deepagents.extra.fix).toBe(
-      "uv sync --locked --project packages/integrations/deepagents-sdk/runner",
-    );
+    expect(byName.deepagents.extra.fix).toBe("uv sync --all-packages --locked");
 
     const reasons = harnessMatrixReasons(matrix);
     expect(reasons.failures).toEqual([
@@ -138,7 +134,6 @@ describe("buildHarnessMatrix", () => {
       ),
       expect.stringContaining("claude_code: ANTHROPIC_API_KEY is not set"),
       expect.stringContaining("deepagents: uv is not on PATH"),
-      // requested → verifier + browserbase rows count too
       expect.stringContaining("verifier: GOOGLE_GENERATIVE_AI_API_KEY is not set"),
     ]);
   });
@@ -192,7 +187,6 @@ describe("buildHarnessMatrix", () => {
     );
     expect(byName.codex.probe).toMatchObject({ status: "ok", label: "200" });
     expect(byName.mastra.probe).toMatchObject({ status: "ok", label: "200" });
-    // openai probed once for codex + mastra, anthropic once, google once (judge), browserbase once
     const calls = fetchCalls(fetchImpl);
     expect(calls.filter((url) => url.startsWith("https://api.openai.com"))).toHaveLength(1);
     expect(calls.filter((url) => url.startsWith("https://api.anthropic.com"))).toHaveLength(1);
@@ -273,7 +267,6 @@ describe("buildHarnessMatrix", () => {
       status: "fail",
       label: "ANTHROPIC_API_KEY",
     });
-    // The planner reads the env twin first, so the doctor must too.
     const envWins = await buildHarnessMatrix(
       options({
         config,
@@ -348,7 +341,6 @@ describe("buildHarnessMatrix", () => {
       label: "heap n/a at concurrency 3",
     });
 
-    // -c 10 alone doesn't reach 5 in-process sessions: openai defaults to 3 wide.
     const capped = await buildHarnessMatrix(
       options({
         env: { OPENAI_API_KEY: "sk", NODE_OPTIONS: "--max-old-space-size=4096" },

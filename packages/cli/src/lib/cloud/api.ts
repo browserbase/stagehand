@@ -17,16 +17,8 @@ export { outputJson } from "../output.js";
 const defaultBrowserbaseApiUrl = "https://api.browserbase.com";
 const browserbaseSettingsUrl = "https://browserbase.com/settings";
 
-// Kick off install-id resolution at module load so the value is usually cached
-// by the time a cloud request runs. Resolution is best-effort and never throws.
 void resolveInstallId(process.env).catch(() => undefined);
 
-/**
- * Attribution headers stamped onto cloud (Search/Fetch) requests so CLI usage
- * is attributable to an install. `x-bb-client` is always sent;
- * `x-bb-install-id` is included only when already resolved (we never block a
- * request on disk I/O) and never sent as an empty string.
- */
 function attributionHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "x-bb-client": `browse-cli/${getCliVersion()}`,
@@ -77,10 +69,7 @@ export function resolveApiBaseUrl(args: { baseUrl?: string }): string {
   return resolveBaseUrl(args) ?? defaultBrowserbaseApiUrl;
 }
 
-export function createBrowserbaseClient(args: {
-  apiKey?: string;
-  baseUrl?: string;
-}) {
+export function createBrowserbaseClient(args: { apiKey?: string; baseUrl?: string }) {
   return new Browserbase({
     apiKey: resolveApiKey(args),
     baseURL: resolveBaseUrl(args),
@@ -93,7 +82,12 @@ export async function withBrowserbaseApi<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
-    return await operation();
+    const result = await operation();
+    setRunTelemetryCompletion({
+      httpStatus: 200,
+      requestHadHttpResponse: true,
+    });
+    return result;
   } catch (error) {
     rethrowBrowserbaseApiError(error, command);
   }
@@ -136,9 +130,7 @@ export async function resolveUploadableFile(filePath: string, label: string) {
   return createReadStream(absolutePath);
 }
 
-export async function readBrowserbaseError(
-  response: Response,
-): Promise<string> {
+export async function readBrowserbaseError(response: Response): Promise<string> {
   let text: string;
   try {
     text = await response.text();
@@ -217,10 +209,7 @@ export async function requestBrowserbaseJson<T>(
   return (await response.json()) as T;
 }
 
-export async function writeOutputFile(
-  pathname: string,
-  contents: string,
-): Promise<void> {
+export async function writeOutputFile(pathname: string, contents: string): Promise<void> {
   const absolutePath = resolve(pathname);
   try {
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -232,10 +221,7 @@ export async function writeOutputFile(
   }
 }
 
-export async function writeBinaryOutput(
-  pathname: string,
-  contents: Uint8Array,
-): Promise<void> {
+export async function writeBinaryOutput(pathname: string, contents: Uint8Array): Promise<void> {
   const absolutePath = resolve(pathname);
   try {
     await mkdir(dirname(absolutePath), { recursive: true });
@@ -254,9 +240,7 @@ export async function readStdin(): Promise<string> {
     );
   }
   const chunks: Buffer[] = [];
-  for await (const chunk of Readable.toWeb(
-    process.stdin,
-  ) as AsyncIterable<Uint8Array>) {
+  for await (const chunk of Readable.toWeb(process.stdin) as AsyncIterable<Uint8Array>) {
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8").trim();
@@ -303,18 +287,12 @@ export function deepMerge(
   return result;
 }
 
-function rethrowBrowserbaseApiError(
-  error: unknown,
-  command: BrowserbaseApiCommand,
-): never {
+function rethrowBrowserbaseApiError(error: unknown, command: BrowserbaseApiCommand): never {
   if (error instanceof CommandFailure) {
     throw error;
   }
 
-  if (
-    error instanceof APIConnectionTimeoutError ||
-    error instanceof APIConnectionError
-  ) {
+  if (error instanceof APIConnectionTimeoutError || error instanceof APIConnectionError) {
     fail(error.message, 1, {
       resultCode: "request_no_response",
       requestHadHttpResponse: false,
@@ -332,10 +310,7 @@ function rethrowBrowserbaseApiError(
   throw error;
 }
 
-function classifyBrowserbaseHttpFailure(
-  pathname: string,
-  status: number,
-): string | undefined {
+function classifyBrowserbaseHttpFailure(pathname: string, status: number): string | undefined {
   const command = resolveCommandFromPathname(pathname);
   if (!command) {
     return status === 401 ? "auth_401" : undefined;
@@ -379,10 +354,7 @@ export function classifyCommandHttpFailure(
   return classifyGenericCommandHttpFailure(command, status);
 }
 
-function classifyGenericCommandHttpFailure(
-  command: BrowserbaseApiCommand,
-  status: number,
-): string {
+function classifyGenericCommandHttpFailure(command: BrowserbaseApiCommand, status: number): string {
   if (status === 400) {
     return `${command}_bad_request`;
   }
@@ -428,9 +400,7 @@ function classifyGenericCommandHttpFailure(
   return `${command}_http_${status}`;
 }
 
-function resolveCommandFromPathname(
-  pathname: string,
-): BrowserbaseApiCommand | undefined {
+function resolveCommandFromPathname(pathname: string): BrowserbaseApiCommand | undefined {
   if (pathname === "/v1/search") {
     return "search";
   }

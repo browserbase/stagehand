@@ -10,11 +10,7 @@ import {
 
 describe("extractCommandTokens", () => {
   it.each([
-    [
-      "lowercases colon-separated command tokens",
-      "auth:status",
-      ["auth", "status"],
-    ],
+    ["lowercases colon-separated command tokens", "auth:status", ["auth", "status"]],
     ["lowercases a single token", "Sessions", ["sessions"]],
     ["stops at URL-like tokens", "opne:https://example.com", ["opne", "https"]],
     ["drops a leading flag", "--badflag", []],
@@ -35,10 +31,6 @@ describe("suggestCommand", () => {
     "cloud:sessions:create",
   ];
 
-  // attempted/suggestion are colon-separated ids. The "attempted" field is what
-  // gets surfaced in messaging + telemetry, so the trailing-token rows below
-  // double as the privacy guard: a free-form user value must never be retained
-  // unless it itself looks like a typo of a real command segment.
   it.each<[string, string, { attempted: string; suggestion: string | null }]>([
     [
       "prefers an explicit alias over a fuzzy match",
@@ -90,29 +82,20 @@ describe("suggestCommand", () => {
       "frobnicate:somevalue",
       { attempted: "frobnicate", suggestion: null },
     ],
-    [
-      "handles ids with no command-shaped tokens",
-      "--badflag",
-      { attempted: "", suggestion: null },
-    ],
+    ["handles ids with no command-shaped tokens", "--badflag", { attempted: "", suggestion: null }],
   ])("%s", (_label, input, expected) => {
     expect(suggestCommand(input, commandIds)).toEqual(expected);
   });
 
   it("does not map auth/login to unrelated commands", () => {
-    expect(suggestCommand("auth:status", commandIds)?.suggestion).not.toBe(
-      "doctor",
-    );
+    expect(suggestCommand("auth:status", commandIds)?.suggestion).not.toBe("doctor");
     expect(suggestCommand("login", commandIds)?.suggestion).not.toBe("doctor");
   });
 });
 
 describe("alias table", () => {
   it("only maps to commands or topics that exist in the manifest", async () => {
-    const manifestRaw = await readFile(
-      new URL("../oclif.manifest.json", import.meta.url),
-      "utf8",
-    );
+    const manifestRaw = await readFile(new URL("../oclif.manifest.json", import.meta.url), "utf8");
     const manifest = JSON.parse(manifestRaw) as {
       commands: Record<string, unknown>;
     };

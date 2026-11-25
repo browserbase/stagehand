@@ -129,7 +129,6 @@ describe("summarizeVerifier / dead judge", () => {
     ];
     expect(isDeadJudgeRun(summarizeVerifier(ungraded))).toBe(true);
     expect(isDeadJudgeRun(summarizeVerifier([]))).toBe(false);
-    // One graded row is enough signal: partial failures stay report-only.
     expect(isDeadJudgeRun(summarizeVerifier([...ungraded, rows[0]]))).toBe(false);
   });
 });

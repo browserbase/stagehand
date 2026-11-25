@@ -147,7 +147,6 @@ describe("runClaudeCuaSession", () => {
     });
     expect(tools.calls).toEqual([{ member: "navigate", input: { url: "https://example.com" } }]);
 
-    // Request shape: system, toolset declaration, adaptive thinking + effort, model stripped.
     expect(client.requests[0]).toMatchObject({
       model: "claude-sonnet-5",
       system: "system rules",
@@ -158,7 +157,6 @@ describe("runClaudeCuaSession", () => {
       output_config: { effort: "medium" },
       cache_control: { type: "ephemeral" },
     });
-    // Second request echoes the assistant turn verbatim (thinking + toolset_name) and threads the result.
     const second = client.requests[1]!.messages as Array<{ role: string; content: unknown }>;
     expect(second).toHaveLength(3);
     expect(second[1]).toMatchObject({

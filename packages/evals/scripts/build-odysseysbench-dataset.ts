@@ -1,24 +1,3 @@
-/**
- * Build packages/evals/datasets/odysseysbench/OdysseysBench_data.jsonl from the
- * published OdysseysBench task set.
- *
- * OdysseysBench (https://odysseysbench.com) is a 200-task web-agent benchmark
- * (45 easy / 46 medium / 109 hard). Every task ships a weighted rubric whose
- * weights sum to 1.0. This script converts each task's `rubrics` map into the
- * verifier's `precomputed_rubric` shape ({ items: [{ criterion, description,
- * max_points }] }) so the suite can hand it straight to V3Evaluator.verify()
- * without generating a rubric.
- *
- * Source of truth is the committed snapshot at
- *   packages/evals/datasets/odysseysbench/source/tasks.json
- * (mirrored from https://odysseysbench.com/assets/data/tasks.json). Re-fetch
- * with `--fetch` to refresh that snapshot before rebuilding.
- *
- * Run after pulling the branch (or whenever the source snapshot changes):
- *   pnpm tsx packages/evals/scripts/build-odysseysbench-dataset.ts
- *
- * Idempotent — regenerates the JSONL deterministically from the snapshot.
- */
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -61,7 +40,6 @@ interface OutputRow {
   precomputed_rubric: { items: RubricItem[] };
 }
 
-/** Order rubric keys R1, R2, … R10 numerically rather than lexicographically. */
 function sortRubricKeys(keys: string[]): string[] {
   return [...keys].sort((a, b) => {
     const na = Number.parseInt(a.replace(/^\D+/, ""), 10);
@@ -73,16 +51,6 @@ function sortRubricKeys(keys: string[]): string[] {
 
 const POINT_SCALE = 1000;
 
-/**
- * Convert one OdysseysBench rubric entry into a verifier rubric item.
- *
- * `weight` (summing to 1.0 across a task) is scaled to integer points. The
- * process score is Σ earned / Σ max, so the absolute scale is immaterial — but
- * rounding is *not* a uniform scaling, so a coarse scale (e.g. ×100) would
- * distort the relative weighting of small criteria. ×1000 keeps the rounding
- * error well under 1% even for the smallest published weights. `max(1, …)` is
- * a defensive floor; with valid weights it never binds.
- */
 function toRubricItem(r: SourceRubric): RubricItem {
   return {
     criterion: r.requirement,
@@ -115,8 +83,6 @@ async function main(): Promise<void> {
 
   const lines: string[] = [];
   for (const task of tasks) {
-    // Fail loud on an upstream schema change rather than silently emitting a
-    // row the suite validator would later drop (shrinking the benchmark).
     if (typeof task.task_id !== "string" || !task.task_id) {
       throw new Error(`Task is missing a string task_id: ${JSON.stringify(task).slice(0, 200)}`);
     }
@@ -127,10 +93,6 @@ async function main(): Promise<void> {
     if (rubricKeys.length === 0) {
       throw new Error(`Task ${task.task_id} has no rubrics`);
     }
-    // Validate each rubric entry individually — an aggregate sum check alone
-    // lets a bad weight (e.g. negative, offset by a larger one) or an empty
-    // requirement/verification slip through and produce a mis-weighted or
-    // malformed item. Fail loud on source schema drift instead.
     for (const k of rubricKeys) {
       const r = task.rubrics[k];
       if (typeof r?.requirement !== "string" || !r.requirement.trim()) {
@@ -150,8 +112,6 @@ async function main(): Promise<void> {
         );
       }
     }
-    // The published weights are a normalized distribution; a re-fetched snapshot
-    // that breaks that convention would silently mis-weight the rubric.
     const weightSum = rubricKeys.reduce((acc, k) => acc + task.rubrics[k].weight, 0);
     if (Math.abs(weightSum - 1) > 0.02) {
       throw new Error(`Task ${task.task_id} rubric weights sum to ${weightSum}, expected ~1.0`);

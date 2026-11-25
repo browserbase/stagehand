@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from typing import Annotated, cast
+from typing import Annotated, Self, cast
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -12,6 +12,7 @@ from pydantic import (
     ValidationError,
     ValidatorFunctionWrapHandler,
     WrapValidator,
+    field_validator,
     model_validator,
 )
 from typing_extensions import override
@@ -94,11 +95,90 @@ class WireModel(BaseModel):
     @override
     def model_post_init(self, context: object, /) -> None:
         super().model_post_init(context)
-        # Protocol defaults must survive `model_dump(exclude_unset=True)` at the wire boundary.
         for name, field in type(self).model_fields.items():
             value = getattr(self, name)
             if name not in self.model_fields_set and not field.is_required() and value is not None:
                 self.model_fields_set.add(name)
+
+
+class RoleSelectorQueryValidation(WireModel):
+    @field_validator(
+        "name",
+        "exact",
+        "checked",
+        "pressed",
+        "selected",
+        "expanded",
+        "disabled",
+        "level",
+        mode="before",
+        check_fields=False,
+    )
+    @classmethod
+    def reject_null_options(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("role query options cannot be null")
+        return value
+
+    @model_validator(mode="after")
+    def validate_role_options(self) -> Self:
+        query = self.model_dump(mode="json", exclude_unset=True)
+        role = query["value"]
+        support = {
+            "checked": {
+                "checkbox",
+                "menuitemcheckbox",
+                "menuitemradio",
+                "option",
+                "radio",
+                "switch",
+                "treeitem",
+            },
+            "pressed": {"button"},
+            "selected": {
+                "columnheader",
+                "gridcell",
+                "option",
+                "row",
+                "rowheader",
+                "tab",
+                "treeitem",
+            },
+            "expanded": {
+                "application",
+                "button",
+                "checkbox",
+                "columnheader",
+                "combobox",
+                "gridcell",
+                "link",
+                "listbox",
+                "menuitem",
+                "menuitemcheckbox",
+                "menuitemradio",
+                "row",
+                "rowheader",
+                "switch",
+                "tab",
+                "treeitem",
+            },
+            "level": {"heading", "listitem", "row", "treeitem"},
+        }
+        for option, roles in support.items():
+            if query.get(option) is not None and role not in roles:
+                raise ValueError(f"{option} is not supported for role {role}")
+        if query.get("checked") == "mixed" and role in {"radio", "menuitemradio", "switch"}:
+            raise ValueError(f"Mixed checked state is not supported for role {role}")
+        return self
+
+
+class LocatorChainValidation(WireModel):
+    @field_validator("steps", mode="after", check_fields=False)
+    @classmethod
+    def require_leading_query(cls, steps: list[BaseModel]) -> list[BaseModel]:
+        if steps and steps[0].model_dump().get("type") != "query":
+            raise ValueError("locator chains must start with a query")
+        return steps
 
 
 class PageScreenshotOptionsValidation(WireModel):

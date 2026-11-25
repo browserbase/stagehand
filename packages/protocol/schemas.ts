@@ -4,7 +4,6 @@ import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
 
 export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
 
-// Providers determine model availability; Stagehand only validates the ID format.
 const ModelIdSchema = z.string().min(1).regex(/^\S+$/);
 
 export const OpenAIModelIdSchema = ModelIdSchema.meta({ id: "OpenAIModelId" });
@@ -457,6 +456,233 @@ export const LocatorSchema = z
   })
   .meta({ id: "Locator" });
 
+export const GetByTextOptionsSchema = z
+  .strictObject({ exact: z.boolean().optional() })
+  .meta({ id: "GetByTextOptions" });
+
+export const AriaRoleSchema = z
+  .enum([
+    "alert",
+    "alertdialog",
+    "application",
+    "article",
+    "banner",
+    "blockquote",
+    "button",
+    "caption",
+    "cell",
+    "checkbox",
+    "code",
+    "columnheader",
+    "combobox",
+    "comment",
+    "complementary",
+    "contentinfo",
+    "definition",
+    "deletion",
+    "dialog",
+    "directory",
+    "document",
+    "emphasis",
+    "feed",
+    "figure",
+    "form",
+    "generic",
+    "grid",
+    "gridcell",
+    "group",
+    "heading",
+    "img",
+    "insertion",
+    "link",
+    "list",
+    "listbox",
+    "listitem",
+    "log",
+    "main",
+    "mark",
+    "marquee",
+    "math",
+    "menu",
+    "menubar",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "meter",
+    "navigation",
+    "none",
+    "note",
+    "option",
+    "paragraph",
+    "presentation",
+    "progressbar",
+    "radio",
+    "radiogroup",
+    "region",
+    "row",
+    "rowgroup",
+    "rowheader",
+    "scrollbar",
+    "search",
+    "searchbox",
+    "separator",
+    "slider",
+    "spinbutton",
+    "status",
+    "strong",
+    "subscript",
+    "suggestion",
+    "superscript",
+    "switch",
+    "tab",
+    "table",
+    "tablist",
+    "tabpanel",
+    "term",
+    "textbox",
+    "time",
+    "timer",
+    "toolbar",
+    "tooltip",
+    "tree",
+    "treegrid",
+    "treeitem",
+  ])
+  .meta({ id: "AriaRole" });
+
+export const GetByRoleOptionsSchema = z
+  .strictObject({
+    name: z.string().optional(),
+    exact: z.boolean().optional(),
+    checked: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    pressed: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    selected: z.boolean().optional(),
+    expanded: z.boolean().optional(),
+    disabled: z.boolean().optional(),
+    level: z.number().int().positive().optional(),
+  })
+  .meta({ id: "GetByRoleOptions" });
+
+const roleStateSupport: Partial<
+  Record<keyof z.infer<typeof GetByRoleOptionsSchema>, readonly z.infer<typeof AriaRoleSchema>[]>
+> = {
+  checked: [
+    "checkbox",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "radio",
+    "switch",
+    "treeitem",
+  ],
+  pressed: ["button"],
+  selected: ["columnheader", "gridcell", "option", "row", "rowheader", "tab", "treeitem"],
+  expanded: [
+    "application",
+    "button",
+    "checkbox",
+    "columnheader",
+    "combobox",
+    "gridcell",
+    "link",
+    "listbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "row",
+    "rowheader",
+    "switch",
+    "tab",
+    "treeitem",
+  ],
+  level: ["heading", "listitem", "row", "treeitem"],
+};
+
+const booleanCheckedRoles = ["radio", "menuitemradio", "switch"];
+
+export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
+  kind: z.literal("role"),
+  value: AriaRoleSchema,
+})
+  .superRefine((query, context) => {
+    for (const [option, roles] of Object.entries(roleStateSupport)) {
+      if (
+        query[option as keyof typeof roleStateSupport] !== undefined &&
+        !roles.includes(query.value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: [option],
+          message: `${option} is not supported for role ${query.value}`,
+        });
+      }
+    }
+    if (query.checked === "mixed" && booleanCheckedRoles.includes(query.value)) {
+      context.addIssue({
+        code: "custom",
+        path: ["checked"],
+        message: `Mixed checked state is not supported for role ${query.value}`,
+      });
+    }
+  })
+  .meta({
+    id: "RoleSelectorQuery",
+    allOf: [
+      ...Object.entries(roleStateSupport).map(([option, roles]) => ({
+        if: { required: [option] },
+        then: { properties: { value: { enum: roles } } },
+      })),
+      {
+        if: { properties: { value: { enum: booleanCheckedRoles } } },
+        then: { properties: { checked: { type: "boolean" } } },
+      },
+    ],
+  });
+
+export const LocatorQuerySelectorSchema = z
+  .discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("xpath"), value: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
+    GetByTextOptionsSchema.extend({ kind: z.literal("textMatch"), value: z.string() }),
+    RoleSelectorQuerySchema,
+  ])
+  .meta({ id: "LocatorQuerySelector" });
+
+/** Search within prior matches, entering child documents for matched frames. */
+export const LocatorQueryStepSchema = z
+  .strictObject({ type: z.literal("query"), selector: LocatorQuerySelectorSchema })
+  .meta({ id: "LocatorQueryStep" });
+
+/** Explicit legacy frame hop: preceding matches must be iframe/frame elements. */
+export const LocatorFrameStepSchema = z
+  .strictObject({ type: z.literal("frame"), selector: LocatorQuerySelectorSchema })
+  .meta({ id: "LocatorFrameStep" });
+
+/** Select from the preceding step's ordered, deduplicated results. */
+export const LocatorNthStepSchema = z
+  .strictObject({ type: z.literal("nth"), index: z.number().int().nonnegative() })
+  .meta({ id: "LocatorNthStep" });
+
+export const LocatorStepSchema = z
+  .discriminatedUnion("type", [
+    LocatorQueryStepSchema,
+    LocatorFrameStepSchema,
+    LocatorNthStepSchema,
+  ])
+  .meta({ id: "LocatorStep" });
+
+export const LocatorChainSchema = z
+  .strictObject({ steps: z.tuple([LocatorQueryStepSchema]).rest(LocatorStepSchema) })
+  .meta({ id: "LocatorChain" });
+
+export const ChainLocatorSchema = z
+  .strictObject({ chain: LocatorChainSchema })
+  .meta({ id: "ChainLocator" });
+export const LocatorInputSchema = z
+  .union([LocatorSchema, ChainLocatorSchema])
+  .meta({ id: "LocatorInput" });
+
 export const StagehandMetricsSchema = z
   .strictObject({
     actPromptTokens: z.number(),
@@ -529,7 +755,6 @@ export const ApiKeyAuthSchema = z
   })
   .meta({ id: "ApiKeyAuth" });
 
-/** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .strictObject({
     type: z.literal("service_account").optional(),
@@ -700,7 +925,6 @@ export const ClientModelReferenceSchema = z
   })
   .meta({ id: "ClientModelReference" });
 
-/** Browserbase viewport configuration. */
 export const BrowserbaseViewportSchema = z
   .strictObject({
     width: z.number().optional(),
@@ -708,7 +932,6 @@ export const BrowserbaseViewportSchema = z
   })
   .meta({ id: "BrowserbaseViewport" });
 
-/** Browserbase fingerprint screen configuration. */
 export const BrowserbaseFingerprintScreenSchema = z
   .strictObject({
     maxHeight: z.number().optional(),
@@ -718,7 +941,6 @@ export const BrowserbaseFingerprintScreenSchema = z
   })
   .meta({ id: "BrowserbaseFingerprintScreen" });
 
-/** Browserbase fingerprint configuration for stealth mode. */
 export const BrowserbaseFingerprintSchema = z
   .strictObject({
     browsers: z.array(z.enum(["chrome", "edge", "firefox", "safari"])).optional(),
@@ -730,7 +952,6 @@ export const BrowserbaseFingerprintSchema = z
   })
   .meta({ id: "BrowserbaseFingerprint" });
 
-/** Browserbase context configuration for session persistence. */
 export const BrowserbaseContextSchema = z
   .strictObject({
     id: z.string(),
@@ -738,7 +959,6 @@ export const BrowserbaseContextSchema = z
   })
   .meta({ id: "BrowserbaseContext" });
 
-/** Browserbase browser settings for session creation. */
 export const BrowserbaseBrowserSettingsSchema = z
   .strictObject({
     advancedStealth: z.boolean().optional(),
@@ -757,7 +977,6 @@ export const BrowserbaseBrowserSettingsSchema = z
   })
   .meta({ id: "BrowserbaseBrowserSettings" });
 
-/** Browserbase managed proxy geolocation configuration. */
 export const BrowserbaseProxyGeolocationSchema = z
   .strictObject({
     country: z.string(),
@@ -766,7 +985,6 @@ export const BrowserbaseProxyGeolocationSchema = z
   })
   .meta({ id: "BrowserbaseProxyGeolocation" });
 
-/** Browserbase managed proxy configuration. */
 export const BrowserbaseProxyConfigSchema = z
   .strictObject({
     type: z.literal("browserbase"),
@@ -775,7 +993,6 @@ export const BrowserbaseProxyConfigSchema = z
   })
   .meta({ id: "BrowserbaseProxyConfig" });
 
-/** External proxy configuration. */
 export const ExternalProxyConfigSchema = z
   .strictObject({
     type: z.literal("external"),
@@ -786,17 +1003,14 @@ export const ExternalProxyConfigSchema = z
   })
   .meta({ id: "ExternalProxyConfig" });
 
-/** Browserbase session proxy configuration. */
 export const ProxyConfigSchema = z
   .discriminatedUnion("type", [BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema])
   .meta({ id: "ProxyConfig" });
 
-/** Browserbase region identifier for multi-region support. */
 export const BrowserbaseRegionSchema = z
   .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
   .meta({ id: "BrowserbaseRegion" });
 
-/** Browserbase session creation parameters. */
 export const BrowserbaseSessionCreateParamsSchema = z
   .strictObject({
     browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
@@ -809,7 +1023,6 @@ export const BrowserbaseSessionCreateParamsSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
 
-/** Browser session metadata used by provider-independent worker services. */
 export const BrowserSessionMetadataSchema = z
   .strictObject({
     sessionId: z.string().min(1),
@@ -817,7 +1030,6 @@ export const BrowserSessionMetadataSchema = z
   })
   .meta({ id: "BrowserSessionMetadata" });
 
-/** Browser launch options for local browsers. */
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({
     args: z.array(z.string()).optional(),
@@ -848,7 +1060,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Action object returned by observe and used by act */
 export const ActionSchema = z
   .strictObject({
     selector: z.string().meta({
@@ -875,10 +1086,6 @@ export const ActionSchema = z
     id: "Action",
     description: "Action object returned by observe and used by act",
   });
-
-// =============================================================================
-// Act
-// =============================================================================
 
 export const StagehandResultUsageSchema = z
   .strictObject({
@@ -977,11 +1184,11 @@ export const ActOptionsSchema = z
       description: "Timeout in ms for the action",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Serializable element locator for the action target",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description:
@@ -998,7 +1205,6 @@ export const ActOptionsSchema = z
   })
   .meta({ id: "ActOptions" });
 
-/** Inner act result data */
 export const ActResultDataSchema = z
   .strictObject({
     success: z.boolean().meta({
@@ -1026,10 +1232,6 @@ export const ActResultSchema = z
   })
   .meta({ id: "ActResult" });
 
-// =============================================================================
-// Extract
-// =============================================================================
-
 export const ExtractOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
@@ -1040,11 +1242,11 @@ export const ExtractOptionsSchema = z
       description: "Timeout in ms for the extraction",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Locator that scopes extraction to a specific element",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description: "Locators for elements and subtrees that should be excluded from extraction",
@@ -1074,10 +1276,6 @@ export const ExtractResultSchema = z
   })
   .meta({ id: "ExtractResult" });
 
-// =============================================================================
-// Observe
-// =============================================================================
-
 export const ObserveOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
@@ -1099,11 +1297,11 @@ export const ObserveOptionsSchema = z
       description: "Timeout in ms for the observation",
       example: 30000,
     }),
-    locator: LocatorSchema.optional().meta({
+    locator: LocatorInputSchema.optional().meta({
       description: "Locator that scopes observation to a specific element",
     }),
     ignoreLocators: z
-      .array(LocatorSchema)
+      .array(LocatorInputSchema)
       .optional()
       .meta({
         description: "Locators for elements and subtrees that should be excluded from observation",
@@ -1285,7 +1483,7 @@ export const ResponseFinishedResultSchema = z
 export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
 export const PageSubscriptionEventNameSchema = z
-  .enum(["console", "toolsadded", "toolsremoved"])
+  .enum(["console", "toolsadded", "toolsremoved", "response"])
   .meta({ id: "PageSubscriptionEventName" });
 
 export const PageCDPEventParamsSchema = z
@@ -1321,6 +1519,7 @@ const WebMCPJsonValueSchema = z.json().meta({ id: "WebMCPJsonValue" });
 
 export const WebMCPToolDescriptorSchema = z
   .strictObject({
+    toolId: z.string().min(1).optional(),
     name: z.string().min(1),
     description: z.string(),
     inputSchema: z.record(z.string(), WebMCPJsonValueSchema).optional(),
@@ -1332,6 +1531,7 @@ export const WebMCPToolDescriptorSchema = z
 
 export const WebMCPToolIdentitySchema = z
   .strictObject({
+    toolId: z.string().min(1).optional(),
     frameId: z.string().min(1),
     name: z.string().min(1),
   })
@@ -1360,10 +1560,19 @@ export const PageToolsRemovedNotificationSchema = z
   })
   .meta({ id: "PageToolsRemovedNotification" });
 
+export const PageResponseNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("response"),
+    response: NavigationResponseDescriptorSchema,
+  })
+  .meta({ id: "PageResponseNotification" });
+
 export const PageEventNotificationSchema = z
   .discriminatedUnion("event", [
     PageToolsAddedNotificationSchema,
     PageToolsRemovedNotificationSchema,
+    PageResponseNotificationSchema,
   ])
   .meta({ id: "PageEventNotification" });
 
@@ -1418,6 +1627,13 @@ export const LocatorDescriptorSchema = z
     ...LocatorSchema.shape,
   })
   .meta({ id: "LocatorDescriptor" });
+
+const ChainLocatorDescriptorSchema = ChainLocatorSchema.extend({ pageId: z.string() }).meta({
+  id: "ChainLocatorDescriptor",
+});
+export const LocatorRequestDescriptorSchema = z
+  .union([LocatorDescriptorSchema, ChainLocatorDescriptorSchema])
+  .meta({ id: "LocatorRequestDescriptor" });
 
 /** One HTTP attempt; the caller owns retries and response interpretation. */
 export const BrowserbaseRequestParamsSchema = z
@@ -1560,7 +1776,9 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(DefaultExtractDataSchema, { metadata: z.registry() }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({
@@ -1658,6 +1876,7 @@ export const PageIdParamsSchema = z
 export const PageOnParamsSchema = PageIdParamsSchema.extend({
   subscriptionId: z.string().min(1),
   event: PageSubscriptionEventNameSchema,
+  includeToolIds: z.boolean().optional(),
 }).meta({ id: "PageOnParams" });
 
 export const PageOffParamsSchema = z
@@ -1670,6 +1889,7 @@ export const PageWebMCPToolsParamsSchema = z
   .strictObject({
     ...PageIdParamsSchema.shape,
     options: WebMCPToolsOptionsSchema.optional(),
+    includeToolIds: z.boolean().optional(),
   })
   .meta({ id: "PageWebMCPToolsParams" });
 
@@ -1684,6 +1904,7 @@ export const PageWebMCPInvokeToolParamsSchema = z
     ...PageIdParamsSchema.shape,
     frameId: z.string().min(1),
     toolName: z.string().min(1),
+    toolId: z.string().min(1).optional(),
     ...WebMCPInvokeOptionsSchema.shape,
   })
   .meta({ id: "PageWebMCPInvokeToolParams" });
@@ -1807,7 +2028,7 @@ export const PageScreenshotOptionsSchema = z
     caret: z.enum(["hide", "initial"]).optional(),
     clip: PageScreenshotClipSchema.optional(),
     fullPage: z.boolean().optional(),
-    mask: z.array(LocatorDescriptorSchema).optional(),
+    mask: z.array(LocatorRequestDescriptorSchema).optional(),
     maskColor: z.string().optional(),
     omitBackground: z.boolean().optional(),
     quality: z.number().int().min(0).max(100).optional(),
@@ -1910,7 +2131,6 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageWaitForSelectorParams" });
 
-/** Default execution budget for a public locator call, in milliseconds. */
 export const DEFAULT_LOCATOR_TIMEOUT_MS = 20_000;
 
 export const LocatorOptionsSchema = z
@@ -1923,11 +2143,17 @@ export const LocatorOptionsSchema = z
   })
   .meta({ id: "LocatorOptions" });
 
-export const LocatorParamsSchema = LocatorDescriptorSchema.extend({
-  options: LocatorOptionsSchema.optional(),
-}).meta({ id: "LocatorParams" });
+function locatorRequest<Shape extends z.ZodRawShape>(shape: Shape) {
+  const fields = { options: LocatorOptionsSchema.optional(), ...shape };
+  return z.union([
+    LocatorDescriptorSchema.extend(fields),
+    ChainLocatorDescriptorSchema.extend(fields),
+  ]);
+}
 
-export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
+export const LocatorParamsSchema = locatorRequest({}).meta({ id: "LocatorParams" });
+
+export const LocatorClickParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     button: MouseButtonSchema.optional(),
     clickCount: z.number().int().positive().optional(),
@@ -1936,11 +2162,11 @@ export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorClickParams" });
 
-export const LocatorFillParamsSchema = LocatorParamsSchema.extend({
+export const LocatorFillParamsSchema = locatorRequest({
   value: z.string(),
 }).meta({ id: "LocatorFillParams" });
 
-export const LocatorScrollToParamsSchema = LocatorParamsSchema.extend({
+export const LocatorScrollToParamsSchema = locatorRequest({
   percent: z.union([z.number(), z.string()]),
 }).meta({ id: "LocatorScrollToParams" });
 
@@ -1953,7 +2179,7 @@ export const RgbaColorSchema = z
   })
   .meta({ id: "RgbaColor" });
 
-export const LocatorHighlightParamsSchema = LocatorParamsSchema.extend({
+export const LocatorHighlightParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     durationMs: z.number().int().nonnegative().optional(),
     borderColor: RgbaColorSchema.optional(),
@@ -1963,7 +2189,7 @@ export const LocatorHighlightParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorHighlightParams" });
 
-export const LocatorSendClickEventParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSendClickEventParamsSchema = locatorRequest({
   options: LocatorOptionsSchema.extend({
     bubbles: z.boolean().optional(),
     cancelable: z.boolean().optional(),
@@ -1974,7 +2200,7 @@ export const LocatorSendClickEventParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorSendClickEventParams" });
 
-export const LocatorTypeParamsSchema = LocatorParamsSchema.extend({
+export const LocatorTypeParamsSchema = locatorRequest({
   text: z.string(),
   options: LocatorOptionsSchema.extend({
     delay: z.number().nonnegative().optional(),
@@ -1983,7 +2209,7 @@ export const LocatorTypeParamsSchema = LocatorParamsSchema.extend({
     .optional(),
 }).meta({ id: "LocatorTypeParams" });
 
-export const LocatorSelectOptionParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSelectOptionParamsSchema = locatorRequest({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
@@ -2010,7 +2236,7 @@ export const InputFilePayloadSchema = z
   })
   .meta({ id: "InputFilePayload" });
 
-export const LocatorSetInputFilesParamsSchema = LocatorParamsSchema.extend({
+export const LocatorSetInputFilesParamsSchema = locatorRequest({
   files: z.array(InputFilePayloadSchema),
 }).meta({ id: "LocatorSetInputFilesParams" });
 
