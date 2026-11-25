@@ -18,8 +18,6 @@ function registeredTools(): Registered[] {
   return tools;
 }
 
-// The contract itself is pinned by core's facade tests; this asserts the pi
-// extension registers exactly the contract tools with imported descriptions.
 describe("pi stagehand extension", () => {
   it("registers the three facade tools with the canonical contract", () => {
     const tools = registeredTools();
@@ -37,7 +35,6 @@ describe("pi stagehand extension", () => {
   });
 
   it("does not launch a browser at registration time", () => {
-    // Registration with no credentials must not throw or open anything.
     expect(() => registeredTools()).not.toThrow();
   });
 });

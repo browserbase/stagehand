@@ -286,7 +286,6 @@ describe("Locator.selectOption() method", () => {
     );
 
     const select = page.locator("#mixed");
-    // Should still select disabled option if explicitly requested
     await select.selectOption("b");
 
     const value = await page.evaluate(() => {

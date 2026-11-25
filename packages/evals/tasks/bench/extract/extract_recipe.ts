@@ -9,7 +9,6 @@ export default defineBenchTask(
         waitUntil: "domcontentloaded",
       });
 
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/main/article/div[3]/div[3]/div[4]");
       const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",

@@ -8,7 +8,6 @@ describe("Protocol schema object strictness", () => {
   it("uses z.strictObject for every object schema in schemas.ts", async () => {
     const root = parse("typescript", await readFile(protocolSchemasUrl, "utf8")).root();
 
-    // Dynamic data must live in explicit z.json() or z.record() fields inside a strict object.
     const forbiddenObjectApis = [
       ["z.object", "z.object($$$ARGS)"],
       ["z.looseObject", "z.looseObject($$$ARGS)"],

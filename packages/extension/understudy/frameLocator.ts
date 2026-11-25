@@ -6,18 +6,9 @@ import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
-/** Best-effort readiness budget for frame transitions, not an overall operation timeout. */
 const FRAME_LOCATOR_READY_TIMEOUT_MS = 1_200;
-/**
- * Best-effort timeout for each locator-world attempt. Fallback eligibility can
- * extend an attempt while it waits for the main world.
- */
 const LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS = 200;
 
-/**
- * FrameLocator: resolves iframe elements to their child Frames and allows
- * creating locators scoped to that frame. Supports chaining.
- */
 export class FrameLocator {
   readonly parent?: FrameLocator;
   readonly selector: string;
@@ -31,19 +22,16 @@ export class FrameLocator {
     this.root = root;
   }
 
-  /** Create a nested FrameLocator under this one. */
   frameLocator(selector: string): FrameLocator {
     return new FrameLocator(this.page, selector, this);
   }
 
-  /** Resolve to the concrete Frame for this FrameLocator chain. */
   async resolveFrame(progress?: Progress): Promise<Frame> {
     progress?.throwIfStopped();
     const parentFrame: Frame = this.parent
       ? await this.parent.resolveFrame(progress)
       : (this.root ?? this.page.mainFrame());
 
-    // Resolve the iframe element inside the parent frame
     const tmp = parentFrame.locator(this.selector);
     const parentSession = parentFrame.session;
     const { objectId } = await tmp.resolveNode(progress);
@@ -78,13 +66,11 @@ export class FrameLocator {
     }
   }
 
-  /** Return a Locator scoped to this frame. Methods delegate to the frame lazily. */
   locator(selector: string): LocatorDelegate {
     return new LocatorDelegate(this, selector);
   }
 }
 
-/** A small delegating wrapper that resolves the frame lazily per call. */
 class LocatorDelegate {
   constructor(
     readonly fl: FrameLocator,
@@ -99,7 +85,6 @@ class LocatorDelegate {
     return locator.nth(this.nthIndex);
   }
 
-  // Locator API delegates
   async click(
     options?: { button?: "left" | "right" | "middle"; clickCount?: number },
     progress?: Progress,
@@ -158,12 +143,10 @@ class LocatorDelegate {
   }
 }
 
-/** Factory to start a FrameLocator chain from an arbitrary root Frame. */
 export function frameLocatorFromFrame(page: Page, root: Frame, selector: string): FrameLocator {
   return new FrameLocator(page, selector, undefined, root);
 }
 
-/** Resolve an exact iframe element without re-running its selector. */
 export async function findContentFrameId(
   page: Page,
   parentFrame: Pick<Frame, "session" | "frameId">,
@@ -212,7 +195,6 @@ async function listDirectChildFrameIdsFromRegistry(
     } catch (error) {
       progress?.throwIfStopped();
       if (progress && isCdpClosedError(error)) throw error;
-      // ignore
     }
     if (progress) await progress.delay(50);
     else await new Promise((r) => setTimeout(r, 50));
@@ -231,11 +213,6 @@ function findFrameNode(
   return undefined;
 }
 
-/**
- * Block until the Stagehand locator/extension world is usable in the child frame.
- * Re-resolves CDP session ownership on each attempt so OOPIF adoption cannot pin
- * the wait to a stale session for the full budget.
- */
 async function ensureChildFrameReady(
   page: Page,
   childFrameId: string,
@@ -257,7 +234,7 @@ async function ensureChildFrameReady(
         childFrameId,
         Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
         progress,
-        { readinessRetries: "none" }, // Recheck session ownership between attempts.
+        { readinessRetries: "none" },
       );
       progress?.throwIfStopped();
       if (page.getSessionForFrame(childFrameId) === session) return;

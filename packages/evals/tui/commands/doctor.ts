@@ -1,28 +1,3 @@
-/**
- * `evals doctor` — on-demand health report.
- *
- * The single canonical surface for env-key status. Replaces what earlier
- * drafts proposed as an always-on status row in the REPL; the REPL itself
- * only emits a single inline line when zero provider keys are present
- * (see tui/welcomeStatus.ts).
- *
- * Sections:
- *   1. Runtime    — node version, Stagehand version, mode (source/dist)
- *   2. Config     — evals.config.json path, defaults.env/trials/concurrency, core.*
- *   3. Env files  — which .env files the runner loaded, shadowed keys, CI
- *   4. Discovery  — total tasks + core/bench split
- *   5. API keys   — full matrix from snapshotEnv() with source provenance
- *   6. Harnesses  — per-harness probe matrix (binary / key / probe / extra),
- *                   verifier + Browserbase rows (tui/commands/doctorHarnesses.ts)
- *   7. Verdict    — ok | warn | fail; exit code 0 | 0 | 1 (sans --json)
- *
- * Flags:
- *   --json           machine-readable output, always exit 0
- *   --harness a,b    narrow the harness matrix; failures in requested rows fail the verdict
- *   --probe          run the network probes (provider key validity, judge model, BB project)
- *   --help/-h        prints printDoctorHelp()
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import { bold, cyan, dim, gray, green, red, yellow, padRight, visibleLength } from "../format.js";
@@ -60,16 +35,13 @@ type ConfigSummary = {
 type TracingValue = {
   value: string | null;
   source: "env" | "config" | "none";
-  /** Set when the configured value was unrecognized and `value` is the runtime fallback. */
   invalid?: string;
 };
 
-/** Effective trace-sink settings (env > evals.config.json `tracing` > none). */
 type TracingSummary = {
   transport: TracingValue;
   braintrustProject: TracingValue;
   langsmithProject: TracingValue;
-  /** LangSmith export will actually happen: otel transport + key + LANGSMITH_TRACING=true. */
   langsmithEnabled: boolean;
 };
 
@@ -98,10 +70,6 @@ type DoctorFlags = {
   probe: boolean;
   requested?: string[];
 };
-
-// ---------------------------------------------------------------------------
-// Help
-// ---------------------------------------------------------------------------
 
 export function printDoctorHelp(): void {
   const HELP_COL = 28;
@@ -143,10 +111,6 @@ export function printDoctorHelp(): void {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Report assembly
-// ---------------------------------------------------------------------------
-
 function readStagehandVersion(): string | null {
   try {
     const repoRoot = path.dirname(getPackageRootDir());
@@ -159,9 +123,6 @@ function readStagehandVersion(): string | null {
 }
 
 function detectMode(entryDir: string): "source" | "dist" {
-  // Anchor on the actual built location (`packages/evals/dist/cli`) so a
-  // user whose checkout happens to live under a path containing `/dist/`
-  // (e.g. `~/work/dist/stagehand/...`) isn't misclassified.
   return entryDir.endsWith("/dist/cli") || entryDir.endsWith("\\dist\\cli") ? "dist" : "source";
 }
 
@@ -178,9 +139,7 @@ function summarizeConfig(entryDir: string): ConfigSummary {
     concurrency = (c.defaults.concurrency as number | null | undefined) ?? null;
     coreTool = c.core?.tool ?? null;
     coreStartup = c.core?.startup ?? null;
-  } catch {
-    // Leave as nulls — the path is still useful for the user to fix.
-  }
+  } catch {}
   return {
     path: resolveConfigPath(entryDir),
     env,
@@ -194,22 +153,16 @@ function summarizeTracing(entryDir: string, keys: EnvSnapshot): TracingSummary {
   let tracing: TracingConfigSection | undefined;
   try {
     tracing = readConfig(entryDir).tracing;
-  } catch {
-    // Missing/invalid config is reported under Config; fall through to env-only.
-  }
+  } catch {}
   const pick = (key: keyof TracingConfigSection): TracingValue => {
     const r = resolveTracingValue(key, tracing);
     return { value: r.value ?? null, source: r.source };
   };
-  // Mirror resolveTraceTransport(): anything other than "otel" runs native, so
-  // report the fallback rather than echoing a typo as if it were effective.
   const transport = pick("transport");
   if (transport.value !== null && transport.value !== "otel" && transport.value !== "native") {
     transport.invalid = transport.value;
     transport.value = "native";
   }
-  // Same process.env + packages/evals/.env resolution as the Keys block, so the
-  // two sections cannot disagree about whether a LangSmith key exists.
   const langsmithEnabled =
     transport.value === "otel" &&
     keys.langsmith.state === "set" &&
@@ -241,14 +194,6 @@ async function summarizeDiscovery(): Promise<DiscoverySummary> {
   }
 }
 
-/**
- * Verdict rules:
- *   fail  — zero provider keys, OR defaults.env=browserbase with both BB
- *           vars missing, OR discovery threw.
- *   warn  — at least one provider key present, but Braintrust missing or
- *           BB partial (only one of two BB vars set).
- *   ok    — otherwise.
- */
 function computeVerdict(
   keys: EnvSnapshot,
   config: ConfigSummary,
@@ -345,10 +290,6 @@ async function buildReport(entryDir: string, flags: DoctorFlags): Promise<Doctor
   }
   return { verdict, runtime, config, tracing, discovery, keys, harnesses, reasons };
 }
-
-// ---------------------------------------------------------------------------
-// Renderers
-// ---------------------------------------------------------------------------
 
 function keyRow(
   label: string,
@@ -556,7 +497,6 @@ function renderHarnessMatrix(matrix: HarnessMatrix): void {
 }
 
 function renderJson(report: DoctorReport): void {
-  // Keep field order stable for downstream consumers.
   const out = {
     verdict: report.verdict,
     runtime: report.runtime,
@@ -581,11 +521,6 @@ function renderJson(report: DoctorReport): void {
   console.log(JSON.stringify(out, null, 2));
 }
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
-/** `--json`, `--probe`, `--harness a,b` (or `--harness=a,b`); unknown harness names are rejected. */
 export function parseDoctorFlags(args: string[]): DoctorFlags | { error: string } {
   const flags: DoctorFlags = { json: false, probe: false };
   for (let i = 0; i < args.length; i++) {
@@ -627,7 +562,7 @@ export async function handleDoctor(args: string[], entryDir: string): Promise<nu
 
   if (flags.json) {
     renderJson(report);
-    return 0; // --json always exits 0; verdict is in the payload
+    return 0;
   }
 
   renderHuman(report);

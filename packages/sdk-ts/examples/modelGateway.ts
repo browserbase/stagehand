@@ -7,8 +7,6 @@ if (!BROWSERBASE_API_KEY) throw new Error();
 const BROWSERBASE_BASE_URL = "https://api.browserbase.com";
 const STAGEHAND_API_URL = "https://api.stagehand.browserbase.com";
 
-// With no model, Browserbase Model Gateway selects one automatically for
-// each inference call. The Browserbase API key and session authenticate it.
 const browser = await browserbase.launch({
   apiKey: BROWSERBASE_API_KEY,
   baseUrl: BROWSERBASE_BASE_URL,

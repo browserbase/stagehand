@@ -1,8 +1,3 @@
-/**
- * mastraAdapter converts Mastra `fullStream` chunks into verifier trajectories.
- * Tool calls and results are paired by toolCallId; reasoning/text preceding a
- * call belongs to that step, while text after the last call is the final answer.
- */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { StepObservation } from "../observationRecorder.js";
@@ -186,11 +181,6 @@ function normalizeResult(value: unknown): {
   return { result: images.length > 0 ? text : value.content, text, images };
 }
 
-/**
- * Streamed deltas are token fragments of one contiguous block — concatenate
- * them directly; a newline is inserted only when a new block type starts
- * (reasoning → text), never between fragments.
- */
 function appendDelta(buffer: string, addition: string, startsNewBlock: boolean): string {
   if (!buffer) return addition;
   return startsNewBlock ? `${buffer}\n${addition}` : buffer + addition;

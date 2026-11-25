@@ -22,13 +22,6 @@ const CookieUrlsSchema = z.array(z.string()).superRefine((urls, context) => {
   }
 });
 
-/**
- * helpers for browser cookie management.
- *
- * Mirrors Playwright's cookie API surface, adapted for direct CDP usage
- * against a single default browser context.
- */
-
 function isIpHostname(hostname: string): boolean {
   return hostname.startsWith("[") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
 }
@@ -60,10 +53,6 @@ function secureMatches(url: URL, cookieSecure: boolean): boolean {
   return (url.protocol === "http:" || url.protocol === "ws:") && isLoopback;
 }
 
-/**
- * Filter cookies by URL matching (domain, path, secure).
- * If `urls` is empty every cookie passes.
- */
 export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   if (!urls.length) return cookies;
   const parsed = CookieUrlsSchema.parse(urls).map((url) => new URL(url));
@@ -78,14 +67,6 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   });
 }
 
-/**
- * Validate and normalise `CookieParam` values before sending to CDP.
- *
- * - Ensures every cookie has either `url` or `domain`+`path`.
- * - When `url` is provided, derives `domain`, `path`, and `secure` from it.
- * - Validates that `sameSite: "None"` is paired with `secure: true`
- *   (browsers silently reject this — we throw early with a clear message).
- */
 export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
   return CookieParamSchema.array()
     .parse(cookies)
@@ -122,10 +103,6 @@ export function toCdpCookieParam(c: Cookie | CookieParam): Record<string, unknow
   };
 }
 
-/**
- * Returns true if a cookie matches all supplied filter criteria.
- * Undefined filters are treated as "match anything".
- */
 export function cookieMatchesFilter(
   cookie: Cookie,
   options: UnderstudyClearCookieOptions,

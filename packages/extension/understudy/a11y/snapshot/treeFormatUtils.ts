@@ -1,10 +1,5 @@
 import type { A11yNode } from "../../../types/private/snapshot.js";
 
-/**
- * Render a formatted outline (with encoded ids) for the accessibility tree.
- * Keeps indentation logic shared between modules so unit tests can cover these
- * pure formatting helpers without a full snapshot pipeline.
- */
 export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
@@ -21,10 +16,6 @@ function formatStateFlags(node: A11yNode): string {
   return flags;
 }
 
-/**
- * Inject each child frame outline under the parent's iframe node line.
- * Keys in `idToTree` are the parent's iframe encoded ids.
- */
 export function injectSubtrees(rootOutline: string, idToTree: Map<string, string>): string {
   type Frame = { lines: string[]; i: number };
   const out: string[] = [];
@@ -68,11 +59,6 @@ export function indentBlock(block: string, indent: string): string {
     .join("\n");
 }
 
-/**
- * Return the lines that appear in `nextTree` but not in `prevTree`.
- * Comparison is done line-by-line, ignoring leading whitespace in both trees.
- * The returned block is re-indented so the minimal indent becomes column 0.
- */
 export function diffCombinedTrees(prevTree: string, nextTree: string): string {
   const prevSet = new Set(
     (prevTree || "")
@@ -104,9 +90,6 @@ export function diffCombinedTrees(prevTree: string, nextTree: string): string {
   return out.join("\n");
 }
 
-/**
- * Remove whitespace noise and invisible code points before rendering names.
- */
 export function cleanText(input: string): string {
   const PUA_START = 0xe000;
   const PUA_END = 0xf8ff;
@@ -130,10 +113,6 @@ export function cleanText(input: string): string {
   return out.trim();
 }
 
-/**
- * Collapse all whitespace runs in a string to a single space without trimming.
- * Exported for pruning routines that need the same normalization.
- */
 export function normaliseSpaces(s: string): string {
   let out = "";
   let inWs = false;

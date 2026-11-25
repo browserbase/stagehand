@@ -20,22 +20,6 @@ import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
 import { type Progress, runLocatorStep } from "../understudy/progress.js";
 
-/**
- * Server-side caching for act/observe/extract via the Stagehand API's
- * stateless cache routes.
- *
- * The runtime owns the CDP connection, so it ships the raw accessibility
- * tree(s) plus the request params; the API server owns all cache-key
- * computation (DOM shaping/hashing, URL normalization), project gating, and
- * the Redis read/write. This service owns the caching decisions — when to
- * read, what to write, how to fall back — and talks to the API through
- * clients/cacheClient.ts.
- *
- * Everything here is best-effort: any cache failure falls back to normal
- * execution and must never break the action.
- */
-
-/** The page surface the cache needs to assemble the raw CDP tree payload. */
 interface CachePage {
   url(): string;
   frames(): Frame[];
@@ -45,16 +29,9 @@ interface CachePage {
 export interface CacheContext {
   sessionId: string;
   client: CacheClient;
-  /**
-   * Instance-level default; each request can override via options.cache.
-   * Defaults to enabled, matching v3, where server-side caching ran unless a
-   * call opted out. The server still gates every lookup on the per-project
-   * LaunchDarkly flag, so this only decides whether we ask.
-   */
   defaultCaching: Caching;
 }
 
-/** Builds a cache context when client Browserbase transport is configured. */
 export function buildCacheContext(
   initParams: StagehandInitParams,
   request?: ClientBrowserbaseRequest,
@@ -182,16 +159,10 @@ export class CacheReplayCommittedError<Result = unknown> extends Error {
 
 export interface CacheExecuteOutcome<Result> {
   result: Result;
-  /** What to persist on a miss; undefined/null skips the cache write. */
   cacheValue?: unknown;
   llmUsage?: CacheLlmUsage;
 }
 
-/**
- * Cache observability for a served hit. Deliberately never carries
- * `missReason`, and a miss builder never carries hit-only fields, so a result
- * can't report both stories at once.
- */
 function hitMetadata(response: CacheGetResponse): CacheMetadata {
   const { tokensSaved } = response;
   return {
@@ -208,11 +179,6 @@ function hitMetadata(response: CacheGetResponse): CacheMetadata {
   };
 }
 
-/**
- * Cache observability for a miss. `reason` overrides the server's for failures
- * that happen on this side of the wire, which would otherwise be
- * indistinguishable from a cold cache.
- */
 function missMetadata(response: CacheGetResponse | null, reason?: string): CacheMetadata {
   return {
     status: "MISS",
@@ -222,15 +188,6 @@ function missMetadata(response: CacheGetResponse | null, reason?: string): Cache
   };
 }
 
-/**
- * Shared cache intercept for the act/observe/extract services.
- *
- * Collects the raw CDP accessibility tree(s), asks the API for a cached
- * value, and on a hit maps it back to a service result via `onHit` (observe/
- * extract return it directly; act replays the cached actions). On a miss —
- * or whenever any cache step fails, including `onHit` itself — falls back to
- * `execute` and then persists the outcome's `cacheValue`.
- */
 export async function withCache<Result extends { metadata: { cache: CacheMetadata } }>({
   method,
   page,
@@ -247,9 +204,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   progress?: Progress;
   page: unknown;
   data: Record<string, unknown>;
-  /** Per-request override from options.cache. */
   caching?: Caching;
-  /** Client-side bypass for requests the current server cache contract cannot key safely. */
   bypass?: boolean;
   context: CacheContext | undefined;
   logger: StagehandLogger;
@@ -381,11 +336,6 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   return outcome.result;
 }
 
-/**
- * Threads the caller's threshold into the wire payload as
- * data.options.cacheThreshold — the field the API's stateless routes
- * read to override the project's hit-count threshold on both get and set.
- */
 function withCacheThreshold(
   data: Record<string, unknown>,
   caching: Caching,
@@ -409,10 +359,6 @@ function asCachePage(page: unknown): CachePage | null {
   return null;
 }
 
-/**
- * Collects the verbatim Accessibility.getFullAXTree nodes for every frame.
- * Returns null (skip caching) when the payload can't be assembled.
- */
 async function collectCdpTree(
   page: CachePage,
   logger: StagehandLogger,

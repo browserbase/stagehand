@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
-import { defineConfig, type Plugin } from "vite";
+import { build, defineConfig, type Plugin } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
 import { EXTENSION_BUILD_ID_FILE, STAGEHAND_EXTENSION_BUILD_ID } from "./version.ts";
@@ -19,16 +19,36 @@ const artifactsDir = path.join(root, "artifacts");
 const extensionArchivePath = path.join(artifactsDir, "stagehand-extension.zip");
 const deterministicZipModifiedAt = new Date(1980, 0, 1);
 
-// The content script runs as a classic script: in every page's isolated world and, through
-// blank.html, in the main world of the page context.newPage() opens first. Without its own
-// function scope its top-level bindings become page globals there, and minified one-letter names
-// collide with user init scripts and page.evaluate code.
-function isolateContentScriptScope(): Plugin {
+// Content scripts are classic scripts, so they cannot import chunks shared with
+// the module service worker. Bundle this entry independently, including its scope.
+function standaloneContentScript(): Plugin {
   return {
-    name: "stagehand-extension-content-script-scope",
-    renderChunk(code, chunk) {
-      if (chunk.name !== "content-script") return null;
-      return { code: `(() => {\n${code}\n})();\n`, map: null };
+    name: "stagehand-extension-content-script",
+    async generateBundle() {
+      const result = await build({
+        configFile: false,
+        build: {
+          write: false,
+          minify: "oxc",
+          target: "es2022",
+          lib: {
+            entry: path.join(root, "content-script.ts"),
+            formats: ["iife"],
+            name: "StagehandContentScript",
+            fileName: () => "content-script.js",
+          },
+        },
+      });
+      for (const output of Array.isArray(result) ? result : [result]) {
+        if (!("output" in output)) throw new Error("Unexpected content script build result");
+        for (const file of output.output) {
+          this.emitFile({
+            type: "asset",
+            fileName: file.fileName,
+            source: file.type === "chunk" ? file.code : file.source,
+          });
+        }
+      }
     },
   };
 }
@@ -49,7 +69,6 @@ function buildExtensionArtifacts(): Plugin {
       }
     },
     async closeBundle() {
-      // Nothing was written; let the build error surface instead of a missing-file one.
       if (rejectedBundle) return;
       await mkdir(outDir, { recursive: true });
       const manifest = JSON.parse(
@@ -95,7 +114,6 @@ function buildExtensionArtifacts(): Plugin {
   };
 }
 
-// The unstamped build's fingerprint: the shipped fingerprint hashes the stamped files themselves.
 async function stampBuildId(directory: string): Promise<void> {
   const files = await readDirectoryFiles(directory);
   const buildId = fingerprintFiles(files);
@@ -183,7 +201,6 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         "service-worker": path.join(root, "service-worker.ts"),
-        "content-script": path.join(root, "content-script.ts"),
         "offscreen/service-worker-heartbeat": path.join(
           root,
           "service-worker-lifecycle/heartbeat.ts",
@@ -202,5 +219,5 @@ export default defineConfig({
       },
     },
   },
-  plugins: [instrumentedDecoratorBuild(), isolateContentScriptScope(), buildExtensionArtifacts()],
+  plugins: [instrumentedDecoratorBuild(), standaloneContentScript(), buildExtensionArtifacts()],
 });

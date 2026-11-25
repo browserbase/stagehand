@@ -26,11 +26,6 @@ const SNAPSHOT = [
   "  [1-4] link: Background image",
 ].join("\n");
 
-/**
- * Fake facade: records every round trip and answers `run` code with the
- * envelope the executor's snippets return, so the mapping can be asserted on
- * the emitted code / actions and on the number of round trips.
- */
 function fakeFacade(overrides: Partial<CuaFacadeTools> = {}) {
   const calls: FacadeCall[] = [];
   const tools: CuaFacadeTools = {
@@ -142,7 +137,6 @@ describe("StagehandCuaExecutor", () => {
       { kind: "run", code: expect.any(String) },
     ]);
     expect(byRef.content[0]).toEqual({ type: "text", text: "Clicked element 0-9." });
-    // An unchanged inventory is omitted from browser_state.
     expect(byRef.content).toHaveLength(1);
 
     calls.length = 0;

@@ -20,7 +20,6 @@ export const buildWebVoyagerTestcases = (models: string[] | AgentModelEntry[]): 
 
   const lines = readJsonlFile(voyagerFilePath);
 
-  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_WEBVOYAGER_LIMIT or default to 25
   const maxCases = process.env.EVAL_MAX_K
     ? Number(process.env.EVAL_MAX_K)
     : process.env.EVAL_WEBVOYAGER_LIMIT
@@ -68,11 +67,7 @@ export const buildWebVoyagerTestcases = (models: string[] | AgentModelEntry[]): 
       allTestcases.push({
         input,
         name: input.name,
-        tags: [
-          modelEntry.modelName,
-          modelEntry.mode,
-          "webvoyager", // Simple dataset tag
-        ],
+        tags: [modelEntry.modelName, modelEntry.mode, "webvoyager"],
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,

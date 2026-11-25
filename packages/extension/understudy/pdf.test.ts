@@ -159,7 +159,6 @@ describe("Page.pdf", () => {
       "screenshot timed out after 10ms",
     );
     await vi.advanceTimersByTimeAsync(0);
-    // One style insertion and its removal; no animation changes, caret setup, or capture.
     expect(evaluate).toHaveBeenCalledTimes(2);
     expect(send).not.toHaveBeenCalled();
   });
@@ -359,7 +358,6 @@ describe("Page.pdf", () => {
       page.logger,
     );
     const pdf = page.pdf().catch((error: unknown) => error);
-    // Keep this request's own deadline later so it exercises queue recovery.
     const queued = page.pdf({ timeout: 60_000 }).catch((error: unknown) => error);
     try {
       await vi.advanceTimersByTimeAsync(30_000);

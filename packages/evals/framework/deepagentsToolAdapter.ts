@@ -26,11 +26,9 @@ export interface PreparedDeepagentsToolAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   mcpServers: Record<string, DeepagentsMcpServerConfig>;
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
@@ -158,7 +156,6 @@ export async function prepareDeepagentsToolAdapter(
               readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
             );
           } catch {
-            // best-effort only
           } finally {
             await fsp.rm(capturedCwd, { recursive: true, force: true });
           }

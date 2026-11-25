@@ -108,7 +108,6 @@ describe("printFailures", () => {
     expect(text).toMatch(/⏱ 77d2e0b4 imgur\.com\s+max_turns\s+50 turns, no final answer/);
     expect(text).toMatch(/◐ a004f2e1 apple\.com\s+gated\s+no browser tool calls/);
     expect(text).toContain("✗ 2 rubric fails: 5c1d9e20 3a77b1c2");
-    // One harness: no harness column.
     expect(text).not.toMatch(/✗ codex/);
   });
 
@@ -142,7 +141,6 @@ describe("printFailures", () => {
     expect(lines).toContain(
       "    https://www.browserbase.com/sessions/9ab0c1d2-5f6a-4b7c-8d9e-0123456789ab",
     );
-    // Everything but the URL line (a URL is never cut) fits the terminal.
     for (const line of lines.filter((line) => !line.includes("https://"))) {
       expect(line.length).toBeLessThanOrEqual(70);
     }

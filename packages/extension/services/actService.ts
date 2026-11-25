@@ -132,9 +132,6 @@ async function actWithProgress(
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
-      // Act can run several inferences (planning, self-heal), so report the
-      // aggregate — without it the server has no basis to compute the token
-      // savings a future hit avoided.
       const { usage } = result.metadata;
       return {
         result,
@@ -246,11 +243,6 @@ async function actWithProgress(
   }
 }
 
-/**
- * Replays cached actions deterministically — no LLM involved. Any failure
- * throws so the cache intercept falls back to the full inference pipeline,
- * which doubles as the self-heal path for stale cached selectors.
- */
 async function replayCachedActions(
   value: unknown,
   instruction: string,
@@ -379,7 +371,6 @@ async function takeDeterministicAction({
   }
 
   const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-  // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
   const resolvedArgs =
     method === SupportedUnderstudyAction.DRAG_AND_DROP
       ? placeholderArgs

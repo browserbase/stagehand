@@ -12,7 +12,6 @@ const OPERATION_PATHS: Record<BrowserbaseRequestParams["operation"], string> = {
   "cache.set": "/cache/set",
 };
 
-// These headers are supplied by the HTTP client or the SDK connection.
 const OMITTED_REQUEST_HEADERS = [
   "host",
   "content-length",
@@ -47,7 +46,6 @@ function requestHeaders(input: Record<string, string>): Headers {
   return headers;
 }
 
-/** Executes one Browserbase HTTP attempt; the worker interprets the response. */
 export async function executeBrowserbaseRequest(
   connection: BrowserbaseConnection | undefined,
   input: BrowserbaseRequestParams,
@@ -66,7 +64,6 @@ export async function executeBrowserbaseRequest(
     params.remainingTimeoutMs === undefined
       ? undefined
       : performance.now() + params.remainingTimeoutMs;
-  // Construction errors are validation failures, separate from fetch failures.
   let request: Request;
   try {
     const headers = requestHeaders(params.headers);

@@ -26,7 +26,6 @@ async def main() -> None:
             page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
-            # Subscribe before navigation: hooks report future changes, not existing tools.
             added = await page.on_tools_added(tools_added)
             removed = await page.on_tools_removed(tools_removed)
             await page.goto(WEBMCP_TEST_SITE)

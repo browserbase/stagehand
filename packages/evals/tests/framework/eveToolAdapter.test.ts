@@ -48,7 +48,6 @@ describe("Eve tool adapter helpers", () => {
       modelId: "alibaba/qwen3.8-flash",
     });
     expect(resolveEveModelProvider("zai/glm-5.3").modelId).toBe("zai/glm-5.3");
-    // Explicit gateway/ forces the gateway even for first-party creators.
     expect(resolveEveModelProvider("gateway/openai/gpt-5.4-mini")).toEqual({
       pkg: "ai",
       factory: "gateway",

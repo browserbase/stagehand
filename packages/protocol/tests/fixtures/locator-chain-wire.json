@@ -169,7 +169,9 @@
     },
     {
       "name": "unknown engine",
-      "chain": { "steps": [{ "type": "query", "selector": { "kind": "role", "value": "button" } }] }
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "unknown", "value": "button" } }]
+      }
     },
     {
       "name": "string selector",

@@ -155,9 +155,6 @@ async function writeNpxStub(stubDir: string): Promise<void> {
 }
 
 async function writeSleepingNpxStub(stubDir: string, pidFile: string): Promise<void> {
-  // Exceed the install deadline, but bound the fixture's lifetime even if a
-  // Windows shell exits before its Node child. The test must return before
-  // this fallback fires, so an orphaned child cannot make the timeout test pass.
   await writeNodeExecutable(
     stubDir,
     "npx",
@@ -165,14 +162,11 @@ async function writeSleepingNpxStub(stubDir: string, pidFile: string): Promise<v
   );
 }
 
-// Accepts connections but never responds, so fetches hang until aborted.
 async function startHangingServer(): Promise<{
   server: Server;
   baseUrl: string;
 }> {
-  const server = createServer(() => {
-    // Intentionally never write a response.
-  });
+  const server = createServer(() => {});
 
   await new Promise<void>((resolvePromise) => {
     server.listen(0, "127.0.0.1", resolvePromise);

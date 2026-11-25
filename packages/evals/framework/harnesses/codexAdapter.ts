@@ -1,31 +1,3 @@
-/**
- * codexAdapter — converts a Codex SDK run into a `Trajectory` the verifier
- * can consume.
- *
- * Input shape: codex emits `ThreadEvent`s — `item.completed` carrying a
- * `ThreadItem` (command_execution, file_change, mcp_tool_call, agent_message,
- * reasoning, web_search, todo_list, error), plus `turn.completed` for usage.
- * We accumulate the full event list upstream in `runCodexAgent` and hand it
- * here.
- *
- * Mapping:
- *   - command_execution items → tool call named `bash` (or the command's
- *     leading token), args = { command }, result = aggregated_output,
- *     ok = exit_code === 0.
- *   - mcp_tool_call items → tool call named `${server}.${tool}`, args =
- *     arguments, result = structured_content (json modality) when present,
- *     else flattened content text. ok = status !== "failed".
- *   - reasoning items between item.completed events → folded into the next
- *     tool call's reasoning string.
- *   - agent_message items → the final answer (last wins).
- *   - error items → captured as a failed tool call so the verifier sees the
- *     pattern (a no-op `error` action with the message in toolOutput.error).
- *   - file_change items → captured as a tool call named `file_change` with the
- *     change set in args (rare in browser eval contexts).
- *   - web_search items → captured as a tool call named `web_search` with the
- *     query in args.
- *   - todo_list items → not surfaced as tool calls (they aren't actions).
- */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {
@@ -35,26 +7,12 @@ import {
 } from "./trajectoryAdapter.js";
 
 export interface CodexRunResult {
-  /** All ThreadEvents collected from the SDK stream, in arrival order. */
   events: Array<Record<string, unknown>>;
-  /** Last `agent_message` text. Adapter falls back to scanning events otherwise. */
   finalAnswer?: string;
-  /** Trajectory-level status. Defaults to "complete". */
   status?: Trajectory["status"];
-  /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
-  /**
-   * Harness-observed terminal page state (captured through the tool surface
-   * after the agent finished) — anchors the verifier's final observation.
-   */
   finalObservation?: ProbeEvidence;
-  /** Per-step probe observations, indexed by bridge-run execution order. */
   stepObservations?: StepObservation[];
-  /**
-   * Which normalized tool-call names consume observation indexes. Defaults
-   * to bridge runs (command_execution invoking browser_run.mjs); MCP mounts
-   * match their server's `<server>.<tool>` calls instead.
-   */
   observedToolName?: (name: string) => boolean;
 }
 
@@ -77,7 +35,6 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       }
 
       if (itemType === "agent_message" && typeof item.text === "string") {
-        // Drop buffered reasoning that didn't precede a tool call.
         pendingReasoning = "";
         latestAgentMessage = item.text;
         continue;
@@ -91,12 +48,6 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       }
     }
 
-    // The Nth recorded observation pairs with the Nth bridge run — the
-    // command_execution items that invoke browser_run.mjs, in stream order.
-    // If a bridge run is not visible under that filter (the agent reached
-    // the bridge some other way), ordinals would shift and attach evidence
-    // to the wrong steps — misattribution is worse than a gap, so attach
-    // nothing and let the verifier take its evidence_insufficient path.
     const keyed = new Map(
       (result.stepObservations ?? [])
         .filter((observation) => observation.toolCallId)
@@ -114,8 +65,6 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
           ? result.observedToolName(call.name)
           : typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
       );
-      // runIndex counts every observed run (failed captures leave gaps), so
-      // max+1 is the number of runs the recorder actually saw.
       const totalObservedRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
       if (observedCalls.length === totalObservedRuns) {
         const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
@@ -154,8 +103,6 @@ function normalizeItem(
     const status = String(item.status ?? "");
     const ok = exitCode === 0 || status === "completed";
     const output = typeof item.aggregated_output === "string" ? item.aggregated_output : "";
-    // Use the leading token as the action name (`bash`, `browse`, etc.) when
-    // possible; falls back to `command_execution`.
     const leading = command.split(/\s+/, 1)[0] || "command_execution";
     return {
       name: leading,
@@ -184,8 +131,6 @@ function normalizeItem(
         : undefined
       : undefined;
 
-    // Prefer structured_content (json modality) when present, else flatten
-    // content blocks to text. Falls back to error message when failed.
     let payload: unknown;
     if (structured !== undefined && structured !== null) {
       payload = structured;

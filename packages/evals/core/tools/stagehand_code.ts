@@ -417,19 +417,13 @@ async function captureStagehandEvidence(stagehand: Stagehand): Promise<ProbeEvid
   const evidence: ProbeEvidence = {};
   try {
     evidence.screenshot = Buffer.from(await page.screenshot());
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.url = await page.url();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.ariaTree = (await page.snapshot({ includeIframes: true })).formattedTree;
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   return evidence;
 }
 

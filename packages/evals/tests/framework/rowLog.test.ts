@@ -30,7 +30,6 @@ describe("rowLog", () => {
     expect(rowLogFileName({ name: "act/dropdown", model: "openai/gpt-4.1-mini", trial: 1 })).toBe(
       "act_dropdown-t2__openai-gpt-4.1-mini.log",
     );
-    // Same model id on two providers: two files.
     expect(rowLogFileName({ name: "a", model: "openai/foo" })).not.toBe(
       rowLogFileName({ name: "a", model: "anthropic/foo" }),
     );
@@ -123,7 +122,6 @@ describe("rowLog", () => {
     expect(entries).toEqual([
       { category: "codex", message: "step 3", level: 1 },
       { category: "codex", message: "tool failed: timeout", level: 0 },
-      // No level given: error() still marks it as an error, and keeps the stack.
       {
         category: "bench",
         message: "Error in task x: boom\nError: boom\n    at task.ts:1",
@@ -131,7 +129,6 @@ describe("rowLog", () => {
       },
     ]);
     expect(log).not.toHaveBeenCalled();
-    // Outside a row, echo works as before and the line is still recorded.
     logger.log({ category: "codex", message: "outside", level: 1 });
     expect(log).toHaveBeenCalledTimes(1);
     expect(logger.getLogs().map((line) => line.message)).toEqual([

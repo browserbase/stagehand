@@ -19,8 +19,6 @@ async function main(): Promise<void> {
   const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
   if (!instruction) throw new Error('Usage: pnpm start "your instruction"');
 
-  // Resolved here (not at module load) so a missing build surfaces through
-  // handleFailure instead of an uncaught module error.
   const serverPath = fileURLToPath(
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
   );
