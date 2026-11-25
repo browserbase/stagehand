@@ -171,8 +171,6 @@ async function actWithProgress(
           llmMs: result.metadata.usage.inferenceTimeMs,
         });
       }
-      // Act can run several inferences (planning, self-heal), so report the aggregate — without
-      // it the server has no basis to compute the token savings a future hit avoided.
       const spent = result.metadata.usage;
       return {
         result,
@@ -190,11 +188,6 @@ async function actWithProgress(
   });
 }
 
-/**
- * Replays cached actions deterministically — no driver involved. Any failure throws so the
- * cache intercept falls back to full resolution, which doubles as the self-heal path for stale
- * cached selectors.
- */
 async function replayCachedActions(
   value: unknown,
   request: ActRequest,

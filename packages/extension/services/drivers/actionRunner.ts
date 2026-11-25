@@ -47,7 +47,6 @@ export function createActionRunner(environment: ActionRunnerEnvironment): ActReq
     }
 
     const placeholderArgs = Array.isArray(action.arguments) ? [...action.arguments] : [];
-    // Drag arguments are selectors, not text templates; page-controlled names must stay literal.
     const resolvedArgs =
       method === SupportedUnderstudyAction.DRAG_AND_DROP
         ? placeholderArgs

@@ -42,7 +42,6 @@ describe("NetworkManager.waitForIdle", () => {
     const { session, emit } = createSession();
     manager.trackSession(session);
 
-    // The request starts after the navigation but before waitForIdle() is called.
     vi.setSystemTime(1_100);
     emit("Network.requestWillBeSent", {
       requestId: "xhr-1",

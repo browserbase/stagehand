@@ -1,4 +1,3 @@
-/** Shared helpers for test runner scripts. */
 import fs from "node:fs";
 
 export const splitArgs = (args: string[]) => {

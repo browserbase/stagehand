@@ -8,9 +8,7 @@ function installedSdkVersion(): string {
     try {
       const pkg = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
       if (pkg.name === "@cursor/sdk" && typeof pkg.version === "string") return pkg.version;
-    } catch {
-      // The entrypoint can be nested below the package root.
-    }
+    } catch {}
     const parent = dirname(directory);
     if (parent === directory) throw new Error("Cannot determine the installed Cursor SDK version.");
     directory = parent;

@@ -1,18 +1,3 @@
-/**
- * Backfill packages/evals/datasets/webtailbench/WebTailBench_data.jsonl with
- * the published WebTailBench `precomputed_rubric` field.
- *
- * This script fetches WebTailBench-v1-rubrics.tsv from HuggingFace and joins
- * by `id`, writing back a JSONL where each row carries a
- * `precomputed_rubric` field (parsed JSON object) alongside the existing
- * `ques` / `web` / `category` / `id` fields.
- *
- * Run once after pulling the branch:
- *   pnpm tsx packages/evals/scripts/backfill-webtailbench-rubrics.ts
- *
- * Idempotent — safe to re-run; an existing precomputed_rubric on a row is
- * overwritten with the latest upstream version.
- */
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -41,17 +26,11 @@ interface LocalRow {
   precomputed_rubric?: RawRubric;
 }
 
-/**
- * Parse a TSV file with simple double-quote escaping (the WebTailBench files
- * use `""` for literal quotes inside quoted fields). Returns rows as arrays
- * of column values; the caller maps to a schema.
- */
 function parseTsv(text: string): string[][] {
   const rows: string[][] = [];
   const lines = text.split(/\r?\n/);
   for (const raw of lines) {
     if (!raw) continue;
-    // Each column is either quoted (with "" escapes) or unquoted plain text.
     const cols: string[] = [];
     let i = 0;
     while (i < raw.length) {

@@ -24,8 +24,6 @@ const extensionRouterUrl = new URL("../../packages/extension/rpcRouter.ts", impo
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 
-// Extracted JSON is intentionally decoded through a dedicated wire model so
-// Pydantic receives raw JSON values instead of the generated JSON union.
 const pythonWireResultModels: Readonly<Record<string, string>> = {
   "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
@@ -76,9 +74,6 @@ type PythonRpcCall = {
   scope: SgNode;
 };
 
-// Browser lifecycle construction is language-specific only in surface syntax now that both active
-// v4 clients use create(); the legacy init() lifecycles are gone. RPC-backed
-// feature methods remain subject to strict cross-language parity below.
 const stagehandLifecycleMethods = new Set(["create", "init"]);
 const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
 
@@ -733,7 +728,6 @@ async function pythonNotificationBindings(): Promise<
 function pythonNotificationArguments(call: SgNode): SgNode[] {
   const calledFunction = namedChildren(call)[0]?.text();
   if (calledFunction?.endsWith(".on_notification")) return callArguments(call);
-  // Page's typed adapters pass their notification name and model through this helper.
   if (calledFunction === "self._subscribe") return callArguments(call).slice(1);
   return [];
 }

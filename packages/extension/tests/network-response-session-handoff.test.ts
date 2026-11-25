@@ -117,7 +117,6 @@ describe("iframe document response session handoff", () => {
       const response = responses[0]!;
       expect(response.session).toBe(parent);
       const body = response.text();
-      // Attach rejection handling before the failure event.
       const checkedBody = failure
         ? expect(body).rejects.toThrow("net::ERR_FAILED")
         : expect(body).resolves.toBe("body from child");
@@ -134,7 +133,6 @@ describe("iframe document response session handoff", () => {
       }
       expect(response.finishedSettled).toBe(true);
       expect(response.session).toBe(child);
-      // Detaching the old owner must not invalidate a body read queued by completion.
       manager.untrackSession(parent.id);
       await checkedBody;
       if (failure)

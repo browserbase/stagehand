@@ -8,7 +8,6 @@ import type { CompletionJudge, ExtractDriver } from "../types.js";
 
 const WRAP_KEY = "value";
 
-/** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
 export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
   schema: Schema,
 ): [z.ZodType, ZodPathSegments[]] {

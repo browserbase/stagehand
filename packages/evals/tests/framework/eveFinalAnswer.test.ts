@@ -13,7 +13,6 @@ vi.mock("stagehand-v3", async (importOriginal) => {
   const mod = await importOriginal<typeof import("stagehand-v3")>();
   class FakeV3Evaluator {
     async verify() {
-      // A judge that credits narration, so the test isolates the gates.
       return { outcomeSuccess: true, processScore: 1 };
     }
     async generateRubric() {

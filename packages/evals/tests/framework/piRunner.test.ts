@@ -25,7 +25,6 @@ describe("pi runner", () => {
     expect(
       parsePiResult('intro line\nEVAL_RESULT: {"success":true,"summary":"done"}\ntrailing').success,
     ).toBe(true);
-    // Markers are line-anchored: an inline mention inside prose is not a report.
     expect(
       parsePiResult('prefix EVAL_RESULT: {"success":true,"summary":"done"}\ntrailing').success,
     ).toBe(false);

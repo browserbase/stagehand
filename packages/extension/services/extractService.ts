@@ -64,8 +64,6 @@ async function extractWithProgress(
   const { instruction, options } = params;
   const ensureTimeRemaining = () => progress.throwIfStopped();
 
-  // Cache keys contain DOM state, not screenshot pixels. Do not serve a
-  // visual extraction from a cache entry that cannot represent its image.
   if (options?.screenshot) {
     return (await runExtraction()).result;
   }

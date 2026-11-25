@@ -1,14 +1,3 @@
-/**
- * ANSI color palette and formatters for the evals TUI.
- *
- * Modeled after the agents dev-cli format.ts — hand-rolled ANSI codes,
- * no external dependency needed.
- */
-
-// ---------------------------------------------------------------------------
-// ANSI escape helpers
-// ---------------------------------------------------------------------------
-
 const ESC_CHAR = String.fromCharCode(27);
 const ESC = `${ESC_CHAR}[`;
 const ANSI_PATTERN = new RegExp(`${ESC_CHAR}\\[[0-9;]*m`, "g");
@@ -29,14 +18,9 @@ export const c = {
   white: `${ESC}37m`,
   gray: `${ESC}90m`,
 
-  // Evals brand green #01C851 (truecolor)
   bb: `${ESC}38;2;1;200;81m`,
   bbBold: `${ESC}1m${ESC}38;2;1;200;81m`,
 } as const;
-
-// ---------------------------------------------------------------------------
-// Semantic helpers
-// ---------------------------------------------------------------------------
 
 export function bold(s: string): string {
   return `${c.bold}${s}${c.reset}`;
@@ -82,10 +66,6 @@ export function bbBold(s: string): string {
   return `${c.bbBold}${s}${c.reset}`;
 }
 
-// ---------------------------------------------------------------------------
-// Status badges
-// ---------------------------------------------------------------------------
-
 export type TaskStatus = "pending" | "running" | "passed" | "failed" | "error";
 
 const STATUS_ICONS: Record<TaskStatus, string> = {
@@ -107,10 +87,6 @@ const STATUS_COLORS: Record<TaskStatus, (s: string) => string> = {
 export function statusBadge(status: TaskStatus): string {
   return STATUS_COLORS[status](`${STATUS_ICONS[status]} ${status}`);
 }
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
 
 export function padRight(s: string, width: number): string {
   const fitted = truncateText(s, width);
@@ -162,7 +138,6 @@ export function truncateText(s: string, width: number): string {
   return `${plain.slice(0, width - 1).trimEnd()}…`;
 }
 
-/** Width of `stream` (default stdout), so a board drawn on stderr sizes to stderr. */
 export function getTerminalWidth(
   fallback = 100,
   stream: { columns?: number } = process.stdout,

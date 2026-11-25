@@ -126,7 +126,6 @@ describe("injected waitForSelector", () => {
     wait.dispose();
     expect(dom.removeEventListener).toHaveBeenCalledExactlyOnceWith("DOMContentLoaded", ready);
     dom.body = element();
-    // A queued listener must not install observers after settlement.
     ready();
     expect(observers).toHaveLength(0);
   });

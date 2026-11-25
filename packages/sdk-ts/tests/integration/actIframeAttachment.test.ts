@@ -85,7 +85,6 @@ describe("iframe attachment after string act", () => {
         )
         .toContain("Child action");
 
-    // Control: this same cross-site fixture is accessible before the string act.
     await addChild();
     await expectChildInSnapshot();
     await page.locator("iframe >> #child").click();
@@ -98,7 +97,6 @@ describe("iframe attachment after string act", () => {
       page.evaluate(() => document.querySelector("button")!.dataset.clicked),
     ).resolves.toBe("yes");
 
-    // Create a fresh OOPIF after act's network-settling helper has run.
     await addChild();
     await expectChildInSnapshot();
     targetText = "Child action";

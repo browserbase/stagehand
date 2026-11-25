@@ -33,7 +33,6 @@ def register_browserbase_transport(
     client: RPCClient,
     connection: BrowserbaseConnection | None,
 ) -> Callable[[], Awaitable[None]]:
-    """Install Browserbase handlers on one RPC connection; return async disposal."""
     pending: dict[int, _PendingRequest] = {}
     disposal: asyncio.Task[None] | None = None
     http_client: httpx.AsyncClient | None = None
@@ -58,7 +57,6 @@ def register_browserbase_transport(
             return await request.task
         except asyncio.CancelledError:
             owner = asyncio.current_task()
-            # Connection close cancels the owner; only explicit HTTP cancellation becomes a result.
             if request.reason is None or (owner is not None and owner.cancelling()):
                 raise
             return BrowserbaseRequestResult(

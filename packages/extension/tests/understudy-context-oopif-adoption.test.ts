@@ -122,7 +122,6 @@ class BrowserWithLoadedOopif implements CdpWebSocketTransport {
     }
     if (method === "Page.getFrameTree" && sessionId === EDITOR_SESSION) {
       this.editorFrameTreeRequests++;
-      // The first request identifies the OOPIF; adoption fetches its subtree again.
       if (this.opts.deferEditorSubtree && this.editorFrameTreeRequests > 1) {
         await new Promise<void>((resolve) => (this.releaseEditorSubtree = resolve));
       }
@@ -384,7 +383,6 @@ describe("BrowserContext OOPIF adoption", () => {
       await context.conn.messageQueue;
 
       if (scenario === "late parent event after page close") {
-        // A remaining child session can report a frame after page cleanup ran.
         browser.emitEvent(
           "Page.frameAttached",
           { frameId: EDITOR_FRAME, parentFrameId: MAIN_FRAME },
@@ -394,7 +392,6 @@ describe("BrowserContext OOPIF adoption", () => {
       }
 
       browser.releaseNestedFrameTree!();
-      // Wait for initialization to choose either adoption or pending status.
       await vi.waitFor(() => {
         expect(
           context.sessionOwnerPage.has(NESTED_SESSION) ||
@@ -425,7 +422,6 @@ describe("BrowserContext OOPIF adoption", () => {
         );
       } else {
         browser.emitEvent("Target.targetDestroyed", { targetId: NESTED_TARGET.targetId });
-        // An unrelated frame triggers a retry after the pending child session disappears.
         browser.emitEvent(
           "Page.frameAttached",
           { frameId: "unrelated-frame", parentFrameId: MAIN_FRAME },
@@ -475,7 +471,6 @@ describe("BrowserContext OOPIF adoption", () => {
       const { context, page } = await connect(browser);
       await vi.waitFor(() => expect(context.pendingOopifByMainFrame.size).toBe(2));
 
-      // Navigation identifies the wrapper's page before an adoption retry runs.
       browser.emitEvent(
         "Page.frameNavigated",
         { frame: frame(WRAPPER_FRAME, PAGE_TARGET.url, MAIN_FRAME) },

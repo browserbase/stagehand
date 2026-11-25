@@ -95,9 +95,6 @@ describe("withEnvOverrides", () => {
   });
 
   it("does not leak env a run stamps from the inside", async () => {
-    // The REPL is long-lived: a run stamps its trajectory group directly onto
-    // process.env (the value is only known once testcases are generated, so it
-    // can't be declared as an override). It must not survive the command.
     await withEnvOverrides({}, async () => {
       process.env.EVAL_TRAJECTORY_GROUP = "agent__20260716-110342-9f3a1c";
       process.env.EVAL_EXPERIMENT_NAME = "agent";
@@ -162,7 +159,6 @@ describe("--json", () => {
   });
 
   it("lists supported benchmarks from the suite registry in the error", () => {
-    // The concrete list is pinned in benchSuites.test.ts.
     expect(() => applyBenchmarkShorthand("b:nope", {})).toThrow(
       `Supported: ${listBenchSuites().join(", ")}.`,
     );

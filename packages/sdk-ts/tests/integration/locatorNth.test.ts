@@ -26,7 +26,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Test nth() with CSS selectors
     const locator0 = page.locator(".test").nth(0);
     const text0 = await locator0.textContent();
     expect(text0).toBe("1");
@@ -52,7 +51,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Test nth() with XPath selectors
     const locator0 = page.locator("//button").nth(0);
     const text0 = await locator0.textContent();
     expect(text0).toBe("Button 1");
@@ -78,7 +76,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Test nth() with text selectors
     const locator0 = page.locator("text=Click me").nth(0);
     const text0 = await locator0.textContent();
     expect(text0).toBe("Click me");
@@ -152,7 +149,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Test nth() with complex CSS selectors
     const locator0 = page.locator(".container .item").nth(0);
     const text0 = await locator0.textContent();
     expect(text0).toBe("1");
@@ -174,12 +170,10 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Test that nth() returns a Locator that can be used for other actions
     const locator = page.locator(".test").nth(1);
     const text = await locator.textContent();
     expect(text).toBe("Second");
 
-    // Verify it's visible
     const isVisible = await locator.isVisible();
     expect(isVisible).toBe(true);
   });
@@ -196,7 +190,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Verify nth(0) returns the same element as first()
     const nthLocator = page.locator(".test").nth(0);
     const nthText = await nthLocator.textContent();
 
@@ -226,7 +219,6 @@ describe("Locator nth() method tests", () => {
         ),
     );
 
-    // Main-page locators should not include matching elements inside child frames.
     await expect(page.locator("button").count()).resolves.toBe(2);
     const mainLocator0 = page.locator("button").nth(0);
     const mainText0 = await mainLocator0.textContent();

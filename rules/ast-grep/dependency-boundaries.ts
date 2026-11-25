@@ -34,12 +34,10 @@ function extensionProductionFile(file: string): boolean {
   );
 }
 
-/** Checks source imports without loading them, including type imports and dynamic imports. */
 export function dependencyBoundaryViolations(file: string, source: string): string[] {
   file = posix.normalize(file.replaceAll("\\", "/"));
   const sharedProduction = inside(file, `${sharedRoot}/src`) && !testFile(file);
   const extensionProduction = extensionProductionFile(file);
-  // Test coupling is intentionally outside this production boundary check.
   if (!sharedProduction && !extensionProduction) return [];
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const violations: string[] = [];

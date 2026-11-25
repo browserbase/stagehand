@@ -1,26 +1,8 @@
-/**
- * NavigationResponseTracker
- * -------------------------
- *
- * Tracks DevTools Protocol network events for a single navigation command so
- * Stagehand can surface a Playwright-like response object from `Page.goto` and
- * related APIs. The tracker listens for `Network.responseReceived` events that
- * correspond to the targeted document navigation, handles loader-id churn that
- * arises from redirects or preloading, and enriches the resulting
- * `Response` with extra header information. Once selected, the live `Response`
- * takes ownership of its extra-info and
- * completion listeners so it can outlive this navigation-scoped tracker.
- */
-
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Page } from "./page.js";
 import { Response } from "./response.js";
 
-/**
- * Watches CDP events on a given session and resolves with the navigation's
- * primary document response once identified.
- */
 export class NavigationResponseTracker {
   readonly page: Page;
   readonly session: CDPSessionLike;
@@ -43,11 +25,6 @@ export class NavigationResponseTracker {
     handler: (event: unknown) => void;
   }> = [];
 
-  /**
-   * Create a tracker bound to a specific navigation command. The tracker begins
-   * listening for network events immediately so it should be constructed before
-   * the navigation request is dispatched.
-   */
   constructor(params: { page: Page; session: CDPSessionLike; navigationCommandId: number }) {
     this.page = params.page;
     this.session = params.session;
@@ -64,7 +41,6 @@ export class NavigationResponseTracker {
     this.installListeners();
   }
 
-  /** Stop listening for CDP events and release any pending bookkeeping. */
   public dispose(): void {
     for (const { event, handler } of this.listeners) {
       this.session.off(event, handler as never);
@@ -106,10 +82,6 @@ export class NavigationResponseTracker {
     this.acceptNextWithoutLoader = true;
   }
 
-  /**
-   * Returns a promise that resolves with the matched response (or `null` when
-   * no document response was observed).
-   */
   public async navigationCompleted(): Promise<Response | null> {
     if (!this.responseResolved) {
       queueMicrotask(() => {
@@ -119,12 +91,10 @@ export class NavigationResponseTracker {
     return this.responsePromise;
   }
 
-  /** Expose the raw response promise (mainly for tests). */
   public async response(): Promise<Response | null> {
     return this.responsePromise;
   }
 
-  /** Register all CDP listeners relevant to navigation tracking. */
   installListeners(): void {
     this.addListener("Network.responseReceived", (event) => {
       this.onResponseReceived(event as Protocol.Network.ResponseReceivedEvent);
@@ -134,13 +104,11 @@ export class NavigationResponseTracker {
     });
   }
 
-  /** Attach a CDP listener and track it for later disposal. */
   addListener(event: string, handler: (event: unknown) => void): void {
     this.session.on(event, handler as never);
     this.listeners.push({ event, handler });
   }
 
-  /** Handle the initial response payload for document navigations. */
   onResponseReceived(event: Protocol.Network.ResponseReceivedEvent): void {
     if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) return;
     if (!event || !event.response) return;
@@ -171,18 +139,12 @@ export class NavigationResponseTracker {
     this.selectResponse(event);
   }
 
-  /** Merge auxiliary header information once Chrome exposes it. */
   onResponseReceivedExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
     if (!event || !event.requestId) return;
     if (this.selectedRequestId && event.requestId === this.selectedRequestId) return;
     this.pendingExtraInfo.set(event.requestId, event);
   }
 
-  /**
-   * Create the `Response` wrapper for the chosen document response and
-   * resolve awaiting consumers. Subsequent events flesh out the header/body
-   * helpers and mark the request as finished.
-   */
   selectResponse(event: Protocol.Network.ResponseReceivedEvent): void {
     if (event.loaderId) {
       this.pendingResponsesByLoader.delete(event.loaderId);

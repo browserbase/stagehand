@@ -37,7 +37,6 @@ async function testCheckout(stagehand: Stagehand, page: Page, username: string) 
   await page.evaluate("localStorage.clear()");
   await page.goto("https://www.saucedemo.com");
 
-  // Variables keep the password out of the prompt sent to the model.
   await stagehand.act("Type %username% into the Username field", {
     page,
     variables: { username },
@@ -78,7 +77,6 @@ async function testCheckout(stagehand: Stagehand, page: Page, username: string) 
 
 export async function run(stagehand: Stagehand, page: Page): Promise<z.output<typeof schema>> {
   const users = [];
-  // The same test, unchanged, against every variant of the app.
   for (const username of USERS) users.push(await testCheckout(stagehand, page, username));
   return { users };
 }

@@ -190,7 +190,6 @@ class RPCClient:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
 
-        # Revalidate at the wire boundary because nested lists and dictionaries remain mutable.
         encoded_params = params.model_dump_json(
             by_alias=True,
             exclude_unset=True,
@@ -332,7 +331,6 @@ class RPCClient:
         return remove
 
     def on_close(self, listener: Callable[[], Awaitable[None]]) -> Callable[[], None]:
-        """Register cleanup to run after incoming request tasks have stopped."""
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
         token = object()
@@ -634,8 +632,6 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
     if (default_timeout_ms := _DEFAULT_OPERATION_TIMEOUT_MS.get(method)) is not None:
         return (_RPC_RESPONSE_GRACE_MS + default_timeout_ms) / 1_000
 
-    # These operations had no v3 deadline. Keep the server as the owner of their
-    # lifetime instead of turning the transport grace period into a 10s ceiling.
     if method in _UNBOUNDED_BY_DEFAULT_METHODS:
         return None
 

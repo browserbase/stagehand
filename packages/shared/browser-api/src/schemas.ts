@@ -1,8 +1,3 @@
-/**
- * Browser API operation schemas shared by the TS SDK and extension callback batches. They extend
- * wire schemas with local Page and Locator instances and client-facing option defaults.
- */
-
 import { z } from "zod/v4";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
 import {

@@ -25,7 +25,6 @@ type QueryText = {
   eligible: boolean;
 };
 
-/** Keep this cache within one synchronous query so later queries see DOM changes. */
 export function createTextQueryCache(): (node: Node) => QueryText {
   const cache = new WeakMap<Node, QueryText>();
   const read = (node: Node): QueryText => {
@@ -77,7 +76,6 @@ export function collectNormalizedTextMatches(
     for (const child of content.children) {
       if (visit(child)) descendantMatches = true;
     }
-    // A shadow root can suppress its host even when its text has no element wrapper.
     const selfMatches =
       (content.eligible || node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) &&
       matches(content.normalized);

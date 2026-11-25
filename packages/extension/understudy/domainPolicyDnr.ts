@@ -13,8 +13,6 @@ export type DomainPolicyDnrApi = Pick<
   readonly MAX_NUMBER_OF_REGEX_RULES: number;
 };
 
-// Reserve this range exclusively for domain policies. Other extension features must
-// use different IDs; recovering after a worker restart must not remove their rules.
 export const DOMAIN_POLICY_RULE_ID_START = 1_000_000;
 const DOMAIN_POLICY_RULE_ID_END = 1_010_000;
 
@@ -22,7 +20,6 @@ function isDomainPolicyRule(rule: chrome.declarativeNetRequest.Rule): boolean {
   return rule.id >= DOMAIN_POLICY_RULE_ID_START && rule.id < DOMAIN_POLICY_RULE_ID_END;
 }
 
-/** One manager per extension, with one active browser session at a time. */
 export class DomainPolicyDnrManager {
   private tail: Promise<unknown> = Promise.resolve();
   private owner?: symbol;
@@ -49,7 +46,6 @@ export class DomainPolicyDnrManager {
         },
         close: () =>
           this.enqueue(async () => {
-            // A late close from an old connection must not clear its successor's rules.
             if (this.owner !== owner) return;
             await this.replaceRules([]);
             this.owner = undefined;
@@ -65,9 +61,6 @@ export class DomainPolicyDnrManager {
     }));
     if (!rules.length) return rules;
 
-    // Domain policy governs browsing, not the extension backend's model/telemetry
-    // requests. Limit this exemption to our own extension AND requests without a tab.
-    // Page and worker requests from web origins still receive the policy.
     rules.unshift({
       id: DOMAIN_POLICY_RULE_ID_START,
       priority: 4,

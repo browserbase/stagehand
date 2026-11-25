@@ -1,9 +1,3 @@
-"""The Python host against a real local Chrome, end to end.
-
-Opt-in: set STAGEHAND_INTEGRATIONS_BROWSER_TESTS=1 (and CHROME_PATH when Chrome is
-not where the Stagehand SDK looks for it). The other tests use a fake Stagehand.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -47,7 +41,6 @@ async def stagehand() -> AsyncIterator[Stagehand]:
         try:
             yield instance
         finally:
-            # The test closes both through run code; closing again is a no-op or fails.
             with contextlib.suppress(Exception):
                 await instance.close()
     finally:
@@ -95,7 +88,6 @@ async def test_tools_drive_a_local_chrome(stagehand: Stagehand, tmp_path: Path) 
     assert image["mimeType"] == "image/png"
     assert base64.b64decode(image["data"]).startswith(PNG_MAGIC)
 
-    # The default cleanup closes the Stagehand and its browser once the call ends.
     assert await tools.run(code="await browser.close(); return 'closing';") == "closing"
     with pytest.raises(StagehandFacadeInputError) as error:
         await tools.snapshot()
@@ -103,7 +95,6 @@ async def test_tools_drive_a_local_chrome(stagehand: Stagehand, tmp_path: Path) 
 
 
 def mutating_page(mutate_ms: int | None) -> str:
-    """A page that changes its DOM every 50 ms, for mutate_ms (None: forever)."""
     stop = "Infinity" if mutate_ms is None else str(mutate_ms)
     return "data:text/html," + quote(
         "<!doctype html><title>Mutating</title><output id=tick>0</output><script>"
@@ -128,7 +119,6 @@ async def test_quiet_wait_returns_once_the_page_stops_changing(stagehand: Stageh
     await tools.run(code=f"await page.goto({mutating_page(1200)!r}); return null;")
     result = await tools.run(code=TIMED_WAIT.format(ms=8000))
     assert isinstance(result, dict)
-    # It waited until the mutations stopped, not the full 8 s.
     assert result["done"] == "1"
     assert 400 <= result["waited"] < 4000
 

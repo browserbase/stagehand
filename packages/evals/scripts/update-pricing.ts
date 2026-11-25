@@ -1,17 +1,3 @@
-/**
- * Refresh the model entries already present in the versioned price map into pricing/pricing.json.
- *
- * Prereqs: network access. No API key: the Vercel AI Gateway model list is
- * public; OpenRouter's public models endpoint is the fallback.
- * Args: none.
- * Env: EVAL_PRICING_SOURCE=gateway|openrouter to force one source.
- * Example: pnpm exec tsx packages/evals/scripts/update-pricing.ts
- *
- * Entries already marked unpriced remain at null prices and
- * "source": "needs owner input" so cost estimation reports them as unpriced
- * instead of $0 — even when a public catalog happens to list a price for the
- * id (the observed value is kept in `note` for the owner to confirm).
- */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -22,7 +8,6 @@ import type { ModelPrice, PriceMap } from "../framework/costEstimate.js";
 const GATEWAY_MODELS_URL = "https://ai-gateway.vercel.sh/v1/models";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
-/** OpenRouter spells a few creators differently from the gateway. */
 const OPENROUTER_ID_ALIASES: Record<string, string> = {
   "spacexai/": "x-ai/",
   "zai/": "z-ai/",

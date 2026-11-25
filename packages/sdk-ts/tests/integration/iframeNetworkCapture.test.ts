@@ -11,7 +11,6 @@ import type { Response } from "../../../extension/understudy/response.js";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { startFixtureServer, type FixtureServer } from "./_support.js";
 
-/** Hold only iframe ownership discovery; Chrome and its network events keep running. */
 function frameTreeGate() {
   let mainSessionId: string | null = null;
   let released = false;
@@ -131,8 +130,6 @@ describe("iframe network capture in Chrome", () => {
         response.json(),
       )) as { webSocketDebuggerUrl: string };
       const gate = frameTreeGate();
-      // Use the real Understudy context directly to observe its internal request
-      // lifecycle notifications. No extension build is needed.
       context = await BrowserContext.create(version.webSocketDebuggerUrl, {
         websocketFactory: gate.factory,
         blankPageUrl: "about:blank",
@@ -181,7 +178,6 @@ describe("iframe network capture in Chrome", () => {
       expect(served).toEqual(["immediate"]);
       if (crossProcess) {
         await expect.poll(() => gate.pendingCount, { timeout: 10_000 }).toBe(nested ? 2 : 1);
-        // The fetch finished in Chrome while the page still has no child session.
         expect(events).toEqual([]);
         expect(page.networkManager.sessions.size).toBe(1);
       }
@@ -201,7 +197,6 @@ describe("iframe network capture in Chrome", () => {
       await expect(documentResponse.text()).resolves.toContain("fetchAndReport('immediate')");
       expect(documentResponse.session.id).toBe(immediate.sessionId);
 
-      // Trigger the second request only after adoption, covering the same capture's live path.
       await page.evaluate(() =>
         document.querySelector("iframe")!.contentWindow!.postMessage("later", "*"),
       );

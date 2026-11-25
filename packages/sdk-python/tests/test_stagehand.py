@@ -427,9 +427,6 @@ async def test_local_connect_keeps_headers_out_of_extension_initialization(
                 assert options["headers"] == headers
             else:
                 assert "headers" not in options
-            # The lifecycle observer now opens the extension's browser connection
-            # before Stagehand initialization. Only its URL, never client headers,
-            # is passed to that bootstrap.
             assert options["extension_cdp_url"] == extension_cdp_url
 
             method, params, *_ = recording.calls[0]
@@ -1492,7 +1489,6 @@ async def test_experimental_decisions_validates_like_stagehand(
     ],
 )
 def test_semantic_arguments_stay_positional(method: str, positional: list[str]) -> None:
-    """TS and Go take these positionally; Python must match, with options keyword-only."""
     assert inspect.signature(getattr(ExperimentalDecisions, method)) == inspect.signature(
         getattr(Stagehand, method)
     )

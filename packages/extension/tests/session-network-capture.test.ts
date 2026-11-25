@@ -96,7 +96,7 @@ describe("SessionNetworkCapture", () => {
     vi.setSystemTime(30);
     session.emit("Network.loadingFinished", finish);
     expect(receive).not.toHaveBeenCalled();
-    expect(session.calls).toEqual([]); // The capture never enables domains itself.
+    expect(session.calls).toEqual([]);
 
     vi.setSystemTime(1000);
     capture.attach(handlers(receive));

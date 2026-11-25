@@ -12,7 +12,6 @@ export const DEFAULT_REASONING_SUMMARY: ReasoningSummaryMode = "detailed";
 
 const MODES = new Set<string>(["auto", "concise", "detailed"]);
 
-/** Requested summary mode, or undefined when `EVAL_REASONING_SUMMARY=off`. */
 export function readReasoningSummary(
   env: NodeJS.ProcessEnv = process.env,
 ): ReasoningSummaryMode | undefined {

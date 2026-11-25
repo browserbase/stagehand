@@ -34,8 +34,6 @@ export function roleQueryStep(role: AriaRole, options: GetByRoleOptions = {}): L
 
 export function locatorSteps(selector: string): LocatorChain["steps"] {
   const trimmed = selector.trim();
-  // Legacy generated-path routing assumes an absolute XPath. Scoped expressions
-  // must reach the query engine without acquiring a leading slash.
   const plan =
     trimmed.startsWith("xpath=") &&
     !trimmed.slice(6).trim().startsWith("/") &&
@@ -51,7 +49,6 @@ export function locatorSteps(selector: string): LocatorChain["steps"] {
 
 export type CssSelectorQuery = Extract<LocatorQuerySelector, { kind: "css" }>;
 export type XPathSelectorQuery = Extract<LocatorQuerySelector, { kind: "xpath" }>;
-/** The legacy text= substring engine, separate from getByText matching. */
 export type LegacyTextSelectorQuery = Extract<LocatorQuerySelector, { kind: "text" }>;
 export type SelectorQuery = Exclude<LocatorQuerySelector, { kind: "role" }>;
 
@@ -62,10 +59,6 @@ export type LegacySelectorPlan = {
 
 export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
 
-/**
- * Interpret a legacy string within one frame. This does not resolve frame hops
- * or validate CSS/XPath syntax; the browser engine retains that responsibility.
- */
 export function parseLegacySelector(raw: string): SelectorQuery {
   const trimmed = raw.trim();
 
@@ -102,12 +95,6 @@ export function parseLegacySelector(raw: string): SelectorQuery {
   return { kind: "css", value: selector };
 }
 
-/**
- * Plan frame routing before interpreting each frame-local selector. Preserve the
- * legacy precedence: >> splitting is not quote-aware, and XPath routing only
- * recognizes a lowercase xpath= prefix or a leading slash. Engine inference is
- * intentionally different (case-insensitive prefixes and parenthesized XPath).
- */
 export function planLegacySelector(raw: string): LegacySelectorPlan {
   const selector = raw.trim();
   const parts = selector
@@ -125,11 +112,6 @@ export function planLegacySelector(raw: string): LegacySelectorPlan {
   return { frameHopSelectors: [], finalSelector: selector };
 }
 
-/**
- * Plan generated deep-XPath frame hops without resolving frames. A trailing
- * iframe/frame stays an element target; it is a hop only if more steps follow.
- * This is the existing path tokenizer, not a general XPath parser.
- */
 export function planDeepXPathTarget(xpathOrSelector: string): LegacySelectorPlan {
   let path = xpathOrSelector.trim();
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
@@ -158,7 +140,6 @@ export function planDeepXPathTarget(xpathOrSelector: string): LegacySelectorPlan
 export type LegacyXPathAxis = "child" | "desc";
 export type LegacyXPathStep = { axis: LegacyXPathAxis; raw: string; name: string };
 
-/** Tokenize generated paths; deliberately preserve legacy handling of slash literals. */
 export function parseXPathToSteps(path: string): LegacyXPathStep[] {
   const s = path.trim();
   let i = 0;
@@ -184,7 +165,6 @@ export function parseXPathToSteps(path: string): LegacyXPathStep[] {
   return steps;
 }
 
-/** Rebuild a generated path, preserving each nonempty step and its axis. */
 export function buildXPathFromSteps(steps: ReadonlyArray<LegacyXPathStep>): string {
   let out = "";
   for (const st of steps) {

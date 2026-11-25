@@ -144,12 +144,10 @@ export interface BrowserSessionLoss {
   at?: string;
   provider?: "local" | "browserbase";
   sessionId?: string;
-  /** Elapsed time since the facade started browser launch, including initialization. */
   sessionAgeMs?: number;
   sessionTimeoutMs?: number;
 }
 
-/** MCP content returned unchanged by a runner call into its existing surface. */
 export interface RunnerToolCallResult {
   content: Array<
     | { type: "text"; text: string }
@@ -161,26 +159,14 @@ export interface RunnerToolCallResult {
 
 export interface ToolStartResult {
   session: CoreSession;
-  /**
-   * Optional agent-facing binding for this running surface. `via` describes
-   * delivery to the agent and is independent of `CoreTool.surface`; for
-   * example, a code surface may be delivered through MCP or a CLI wrapper.
-   */
   agentMount?: AgentMount;
-  /**
-   * Best-effort evidence captured from the current surface state. Harnesses may
-   * call this after individual actions and once more at the end of a run.
-   * Implementations must swallow per-field failures and must not throw.
-   */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Calls the same mounted surface; this must not launch another browser. */
   callTool?: (
     name: string,
     args: Record<string, unknown>,
     options?: { timeoutMs?: number },
   ) => Promise<RunnerToolCallResult>;
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
-  /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
     environment: EnvironmentName;
@@ -200,40 +186,19 @@ export interface CoreTool {
   start(input: ToolStartInput): Promise<ToolStartResult>;
 }
 
-/**
- * The MCP server / tool name used when an agent harness wraps handles in a
- * code-execution tool.
- */
 export const AGENT_RUN_TOOL_SERVER = "stagehand_browser";
 export const AGENT_RUN_TOOL_NAME = `mcp__${AGENT_RUN_TOOL_SERVER}__run`;
 export const AGENT_RUN_TOOL_RESERVED_HANDLES = ["startUrl", "task", "console"] as const;
 
-/**
- * Surface-specific copy for the harness's code-execution tool. The harness
- * owns mechanics and task bindings; the surface owns what the agent sees.
- */
 export interface AgentRunToolSpec {
-  /** MCP tool description shown to the model. */
   description: string;
-  /** Description of the tool's `code` parameter. */
   codeParamDescription: string;
-  /** Message from the harness-owned tool allowlist when access is denied. */
   denyMessage: string;
 }
 
-/**
- * How an agent harness reaches an already-running surface. This is independent
- * of `CoreTool.surface`; harnesses switch on `via` and need no surface-specific
- * mounting logic.
- */
 export type AgentMount = { promptInstructions: string } & (
   | {
       via: "handles";
-      /**
-       * Named values placed in snippet scope. Names, not order, bind values.
-       * `AGENT_RUN_TOOL_RESERVED_HANDLES` are injected by the harness and may
-       * not appear here.
-       */
       handles: Record<string, unknown>;
       runTool: AgentRunToolSpec;
     }
@@ -244,7 +209,6 @@ export type AgentMount = { promptInstructions: string } & (
         bin: string;
         args?: string[];
         cwd?: string;
-        /** Extra variables merged over the harness environment. */
         env?: Record<string, string>;
       };
     }
