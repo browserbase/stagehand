@@ -20,7 +20,7 @@ def _query(raw: str) -> LocatorQuerySelector:
     value = raw.strip()
     if value.lower().startswith("text="):
         value = value[5:].strip()
-        if value.startswith(('"', "'")) and value.endswith(value[0]):
+        if len(value) >= 2 and value.startswith(('"', "'")) and value.endswith(value[0]):
             value = value[1:-1]
         return {"kind": "text", "value": value}
     if value.lower().startswith("xpath=") or value.startswith(("/", "(")):

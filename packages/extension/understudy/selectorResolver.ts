@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import { isCdpClosedError } from "./cdp.js";
+import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import { Progress, runLocatorStep } from "./progress.js";
 import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
@@ -49,7 +49,8 @@ export class FrameSelectorResolver {
   ): Promise<ResolvedNodeBatch> {
     progress?.throwIfStopped();
     const empty = (): ResolvedNodeBatch => ({ nodes: [], release: async () => {} });
-    if (limit <= 0 || Number.isNaN(limit) || start < 0 || !Number.isInteger(start)) return empty();
+    if (limit <= 0 || Number.isNaN(limit) || start < 0 || !Number.isSafeInteger(start))
+      return empty();
     const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
       session,
@@ -88,7 +89,10 @@ export class FrameSelectorResolver {
           : {
               mode: "range",
               start,
-              end: limit === Infinity ? Number.MAX_SAFE_INTEGER : start + Math.ceil(limit),
+              end:
+                limit === Infinity
+                  ? Number.MAX_SAFE_INTEGER
+                  : Math.min(Number.MAX_SAFE_INTEGER, start + Math.ceil(limit)),
             };
       const expression = buildLocatorInvocation("resolveQuery", [
         JSON.stringify(query),
@@ -139,9 +143,10 @@ export class FrameSelectorResolver {
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
     progress?.throwIfStopped();
-    if (index < 0 || !Number.isInteger(index)) return null;
+    if (index < 0 || !Number.isSafeInteger(index)) return null;
+    const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
-      this.frame.session,
+      session,
       this.frame.frameId,
       1000,
       progress,
@@ -153,7 +158,10 @@ export class FrameSelectorResolver {
     ]);
     // Export only the selected element, outside any temporary group. Action
     // callers already own and release this handle with Runtime.releaseObject.
-    return this.evaluateElement(`(${expression})[0] ?? null`, contextId, progress);
+    const selectedExpression = `(${expression})[0] ?? null`;
+    return session === this.frame.session
+      ? this.evaluateElement(selectedExpression, contextId, progress)
+      : this.evaluateElementOnSession(session, selectedExpression, contextId, progress);
   }
 
   public async count(query: SelectorQuery, progress?: Progress): Promise<number> {
@@ -167,6 +175,10 @@ export class FrameSelectorResolver {
         return this.countQuery(query, progress);
       case "xpath":
         return this.countXPath(query.value, progress);
+      default: {
+        const exhaustive: never = query;
+        throw new Error(`Unsupported selector query kind: ${String(exhaustive)}`);
+      }
     }
   }
 
@@ -183,28 +195,35 @@ export class FrameSelectorResolver {
   }
 
   private async countQuery(query: SelectorQuery, progress?: Progress): Promise<number> {
+    const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
-      this.frame.session,
+      session,
       this.frame.frameId,
       1000,
       progress,
       this.readinessOptions,
     );
-    return this.evaluateCount(
-      buildLocatorInvocation("resolveQuery", [
-        JSON.stringify(query),
-        JSON.stringify({ mode: "count" }),
-      ]),
-      contextId,
-      progress,
-    );
+    const expression = buildLocatorInvocation("resolveQuery", [
+      JSON.stringify(query),
+      JSON.stringify({ mode: "count" }),
+    ]);
+    return session === this.frame.session
+      ? this.evaluateCount(expression, contextId, progress)
+      : this.evaluateCountOnSession(session, expression, contextId, progress);
   }
 
   async resolveFromObjectId(
     objectId: Protocol.Runtime.RemoteObjectId,
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
-    const session = this.frame.session;
+    return this.resolveFromObjectIdOnSession(this.frame.session, objectId, progress);
+  }
+
+  private async resolveFromObjectIdOnSession(
+    session: CDPSessionLike,
+    objectId: Protocol.Runtime.RemoteObjectId,
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
     let nodeId: Protocol.DOM.NodeId | null;
     try {
       const rn = await runLocatorStep(progress, "resolving DOM node", () =>
@@ -225,8 +244,15 @@ export class FrameSelectorResolver {
     contextId: Protocol.Runtime.ExecutionContextId,
     progress?: Progress,
   ): Promise<number> {
-    const session = this.frame.session;
+    return this.evaluateCountOnSession(this.frame.session, expression, contextId, progress);
+  }
 
+  private async evaluateCountOnSession(
+    session: CDPSessionLike,
+    expression: string,
+    contextId: Protocol.Runtime.ExecutionContextId,
+    progress?: Progress,
+  ): Promise<number> {
     try {
       const evalRes = await runLocatorStep(progress, "counting elements", () =>
         session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
@@ -257,7 +283,15 @@ export class FrameSelectorResolver {
     contextId: Protocol.Runtime.ExecutionContextId,
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
-    const session = this.frame.session;
+    return this.evaluateElementOnSession(this.frame.session, expression, contextId, progress);
+  }
+
+  private async evaluateElementOnSession(
+    session: CDPSessionLike,
+    expression: string,
+    contextId: Protocol.Runtime.ExecutionContextId,
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
     let objectId: Protocol.Runtime.RemoteObjectId | undefined;
     const cleanup = progress ?? new Progress("selector cleanup", 0);
     const release = (id: string) => session.send("Runtime.releaseObject", { objectId: id });
@@ -284,7 +318,10 @@ export class FrameSelectorResolver {
         progress?.throwIfStopped();
         return null;
       }
-      const resolved = await this.resolveFromObjectId(objectId, progress);
+      const resolved =
+        session === this.frame.session
+          ? await this.resolveFromObjectId(objectId, progress)
+          : await this.resolveFromObjectIdOnSession(session, objectId, progress);
       progress?.throwIfStopped();
       return resolved;
     } catch (error) {

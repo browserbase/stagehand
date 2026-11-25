@@ -47,6 +47,10 @@ export class ChainLocatorDelegate extends DeepLocatorDelegate {
     return this.locators(result.targets);
   }
 
+  override first(): ChainLocatorDelegate {
+    return this.nth(0);
+  }
+
   override nth(index: number): ChainLocatorDelegate {
     if (!Number.isSafeInteger(index) || index < 0)
       throw new RangeError("Locator index must be a non-negative integer");
