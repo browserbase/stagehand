@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from typing import Annotated, cast
+from typing import Annotated, Self, cast
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -17,6 +17,9 @@ from pydantic import (
 )
 from typing_extensions import override
 
+from ._js_regexp import validate_js_regexp
+
+_MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024
 _url_adapter = TypeAdapter(AnyUrl)
 
 
@@ -102,6 +105,70 @@ class WireModel(BaseModel):
                 self.model_fields_set.add(name)
 
 
+class CookieParamValidation(WireModel):
+    @model_validator(mode="after")
+    def validate_cookie_param(self) -> Self:
+        name = getattr(self, "name", "")
+        url = getattr(self, "url", None)
+        domain = getattr(self, "domain", None)
+        path = getattr(self, "path", None)
+        expires = getattr(self, "expires", None)
+        secure = getattr(self, "secure", None)
+        same_site = getattr(self, "same_site", None)
+
+        if not url and not (domain and path):
+            raise ValueError(f'Cookie "{name}" must have a url or a domain/path pair')
+        if url and domain:
+            raise ValueError(f'Cookie "{name}" should have either url or domain, not both')
+        if url and path:
+            raise ValueError(f'Cookie "{name}" should have either url or path, not both')
+        if expires is not None and expires < 0 and expires != -1:
+            raise ValueError(
+                f'Cookie "{name}" has an invalid expires value; '
+                "use -1 for session cookies or a positive unix timestamp"
+            )
+
+        parsed_url: AnyUrl | None = None
+        if url == "about:blank":
+            raise ValueError(f'Blank page cannot have cookie "{name}"')
+        if isinstance(url, str) and url.startswith("data:"):
+            raise ValueError(f'Data URL page cannot have cookie "{name}"')
+        if url:
+            try:
+                parsed_url = _url_adapter.validate_python(url)
+            except ValidationError:
+                raise ValueError(f'Cookie "{name}" has an invalid url: "{url}"') from None
+
+        effectively_secure = (
+            parsed_url is not None and parsed_url.scheme == "https" if url else secure is True
+        )
+        if same_site == "None" and not effectively_secure:
+            raise ValueError(
+                f'Cookie "{name}" has sameSite: "None" without secure: true. '
+                'Browsers require secure: true when sameSite is "None".'
+            )
+        return self
+
+
+class CookieRegexValidation(WireModel):
+    @model_validator(mode="after")
+    def validate_cookie_regex(self) -> Self:
+        source = getattr(self, "source", "")
+        flags = getattr(self, "flags", None)
+        validate_js_regexp(source, flags)
+        return self
+
+
+class InputFilePayloadValidation(WireModel):
+    @field_validator("data", mode="after", check_fields=False)
+    @classmethod
+    def validate_decoded_size(cls, value: str) -> str:
+        padding = 2 if value.endswith("==") else 1 if value.endswith("=") else 0
+        if (len(value) // 4) * 3 - padding > _MAX_INPUT_FILE_BYTES:
+            raise ValueError("File data must decode to 50 MiB or less")
+        return value
+
+
 class LocatorChainValidation(WireModel):
     @field_validator("steps", mode="after", check_fields=False)
     @classmethod
@@ -112,38 +179,31 @@ class LocatorChainValidation(WireModel):
 
 
 class PageScreenshotOptionsValidation(WireModel):
-    @model_validator(mode="before")
-    @classmethod
-    def validate_cross_field_options(cls, value: object) -> object:
-        if not isinstance(value, Mapping):
-            return value
-        if value.get("full_page") and value.get("clip") is not None:
+    @model_validator(mode="after")
+    def validate_cross_field_options(self) -> Self:
+        if getattr(self, "full_page", None) and getattr(self, "clip", None) is not None:
             raise ValueError("fullPage and clip cannot be used together")
-        if "quality" in value and value.get("type") != "jpeg":
+        if getattr(self, "quality", None) is not None and getattr(self, "type", None) != "jpeg":
             raise ValueError('quality is only valid when type is "jpeg"')
-        return value
+        return self
 
 
-class TelemetryConfigValidation(WireModel):
-    @model_validator(mode="before")
+class TelemetryTracesValidation(WireModel):
+    @field_validator("endpoint", mode="after", check_fields=False)
     @classmethod
-    def validate_trace_endpoint(cls, value: object) -> object:
-        if not isinstance(value, Mapping):
-            return value
-        traces = value.get("traces")
-        if not isinstance(traces, Mapping):
-            return value
-        endpoint = traces.get("endpoint")
-        if isinstance(endpoint, str) and not urlparse(endpoint).path.endswith("/v1/traces"):
+    def validate_trace_endpoint(cls, value: str) -> str:
+        parsed = _url_adapter.validate_python(value)
+        if not (parsed.path or "").endswith("/v1/traces"):
             raise ValueError("OTLP trace endpoint must end with /v1/traces")
         return value
 
 
 class StagehandInitParamsValidation(WireModel):
-    @model_validator(mode="before")
-    @classmethod
-    def validate_browserbase_metadata(cls, value: object) -> object:
-        if isinstance(value, Mapping):
-            if value.get("browserbase") is not None and value.get("browser") is None:
-                raise ValueError("Client Browserbase transport requires browser metadata")
-        return value
+    @model_validator(mode="after")
+    def validate_browserbase_metadata(self) -> Self:
+        if (
+            getattr(self, "browserbase", None) is not None
+            and getattr(self, "browser", None) is None
+        ):
+            raise ValueError("Client Browserbase transport requires browser metadata")
+        return self

@@ -82,5 +82,19 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
     })
 
 
+@pytest.mark.asyncio
+async def test_browser_context_omits_unset_regex_flags_on_the_wire() -> None:
+    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
+
+    await context.clear_cookies(name=re.compile("^session$"))
+
+    assert recording.calls[0][1].model_dump(mode="json", by_alias=True, exclude_unset=True) == {
+        "options": {
+            "name": {"source": "^session$"},
+        }
+    }
+
+
 async def _close_browser() -> None:
     return None
