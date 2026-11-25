@@ -163,7 +163,8 @@ export function resolveConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.BROWSERBASE_CONFIG_DIR) {
     return env.BROWSERBASE_CONFIG_DIR;
   }
-  const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  // An empty XDG_CONFIG_HOME is not a usable base: the XDG spec, and the contract above, both read it as unset.
+  const xdg = env.XDG_CONFIG_HOME || join(homedir(), ".config");
   return join(xdg, "browserbase");
 }
 
@@ -184,7 +185,8 @@ function legacyInstallIdPaths(env: NodeJS.ProcessEnv): string[] {
       join(homedir(), "Library", "Application Support", "Browserbase", "cli", "telemetry-id"),
     );
   }
-  const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  // An empty XDG_CONFIG_HOME is not a usable base: the XDG spec, and the contract above, both read it as unset.
+  const xdg = env.XDG_CONFIG_HOME || join(homedir(), ".config");
   paths.push(join(xdg, "browserbase", "cli", "telemetry-id"));
   return [...new Set(paths)];
 }
