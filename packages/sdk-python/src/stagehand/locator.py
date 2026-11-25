@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, Self
 
-from ._generated.input_types import AriaRole, LocatorQueryStep, RgbaColor
+from ._generated.input_types import AriaRole, LocatorFilterStep, LocatorQueryStep, RgbaColor
 from ._generated.input_types import LocatorStep as LocatorStepInput
 from ._generated.models import (
     ChainLocatorDescriptor,
@@ -351,6 +351,14 @@ class Locator:
             ],
             self.selector,
         )
+
+    def filter(self, *, has_text: str | None = None, has_not_text: str | None = None) -> Self:
+        step: LocatorFilterStep = {"type": "filter"}
+        if has_text is not None:
+            step["has_text"] = has_text
+        if has_not_text is not None:
+            step["has_not_text"] = has_not_text
+        return self._append_steps([step], self.selector)
 
     @classmethod
     def _from_query(cls, rpc_client: RPCClient, page_id: str, step: LocatorQueryStep) -> Self:

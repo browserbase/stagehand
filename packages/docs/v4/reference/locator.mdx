@@ -607,6 +607,38 @@ Matching descendants take precedence over their ancestors. If no smaller element
   A new text locator.
 </ResponseField>
 
+## filter()
+
+Keep the current matching elements whose text satisfies the supplied conditions. Returns a new lazy locator; the original locator is unchanged. Both conditions must pass when supplied together.
+
+```typescript
+const cards = page.locator(".card");
+const billing = cards.filter({ hasText: "Billing", hasNotText: "Archived" });
+await billing.first().locator("button").click();
+
+const secondBillingCard = cards.filter({ hasText: "Billing" }).nth(1);
+const secondCardIfBilling = cards.nth(1).filter({ hasText: "Billing" });
+```
+
+Matching uses case-insensitive substrings. It removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the filter and element text. Text extraction follows `getByText()`, including descendant text, button input values, and open/closed shadow roots. Hidden text is included. The filter retains each original element, rather than selecting its smallest matching descendant.
+
+Filtering an iframe tests the iframe element's own DOM text and does not enter its child document. Use `page.locator("iframe").locator(".card").filter({ hasText: "Billing" })` to filter cards inside it. Closed shadow-root traversal requires an `http:` or `https:` page.
+
+`filter()` and `filter({})` retain all current matches. An empty `hasText` retains all matches; an empty `hasNotText` retains none. Regular expressions, `has`, `hasNot`, and exact matching are unsupported. Invalid options fail during construction, before a browser request.
+
+<ParamField path="options" type="LocatorFilterOptions" optional>
+  <ParamField path="options.hasText" type="string" optional>
+    Keep elements containing this text.
+  </ParamField>
+  <ParamField path="options.hasNotText" type="string" optional>
+    Keep elements that do not contain this text.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new locator retaining the filtered elements in their original order.
+</ResponseField>
+
 ## first()
 
 Create a locator for the first matching element.
@@ -1154,6 +1186,36 @@ Matching descendants take precedence over their ancestors. If no smaller element
 
 <ResponseField name="result" type="Self">
   A new text locator.
+</ResponseField>
+
+## filter()
+
+Keep the current matching elements whose text satisfies the supplied conditions. Returns a new lazy locator; the original locator is unchanged. Both conditions must pass when supplied together.
+
+```python
+cards = page.locator(".card")
+billing = cards.filter(has_text="Billing", has_not_text="Archived")
+await billing.first().locator("button").click()
+
+second_billing_card = cards.filter(has_text="Billing").nth(1)
+second_card_if_billing = cards.nth(1).filter(has_text="Billing")
+```
+
+Matching uses case-insensitive substrings. It removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the filter and element text. Text extraction follows `get_by_text()`, including descendant text, button input values, and open/closed shadow roots. Hidden text is included. The filter retains each original element, rather than selecting its smallest matching descendant.
+
+Filtering an iframe tests the iframe element's own DOM text and does not enter its child document. Use `page.locator("iframe").locator(".card").filter(has_text="Billing")` to filter cards inside it. Closed shadow-root traversal requires an `http:` or `https:` page.
+
+`filter()` retains all current matches. Use `None` to omit either condition. An empty `has_text` retains all matches; an empty `has_not_text` retains none. Regular expressions, `has`, `has_not`, and exact matching are unsupported. Invalid options fail during construction, before a browser request.
+
+<ParamField path="has_text" type="str | None" optional>
+  Keep elements containing this text.
+</ParamField>
+<ParamField path="has_not_text" type="str | None" optional>
+  Keep elements that do not contain this text.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new locator retaining the filtered elements in their original order.
 </ResponseField>
 
 ## first()

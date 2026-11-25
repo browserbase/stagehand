@@ -111,6 +111,7 @@ import type {
   LocatorFrameStepSchema,
   LocatorNthStepSchema,
   LocatorFilterStepSchema,
+  LocatorFilterOptionsSchema,
   LocatorStepSchema,
   LocatorChainSchema,
   LocatorScrollToParamsSchema,
@@ -285,6 +286,7 @@ export type LocatorQueryStep = z.infer<typeof LocatorQueryStepSchema>;
 export type LocatorFrameStep = z.infer<typeof LocatorFrameStepSchema>;
 export type LocatorNthStep = z.infer<typeof LocatorNthStepSchema>;
 export type LocatorFilterStep = z.infer<typeof LocatorFilterStepSchema>;
+export type LocatorFilterOptions = z.infer<typeof LocatorFilterOptionsSchema>;
 export type LocatorStep = z.infer<typeof LocatorStepSchema>;
 export type LocatorChain = z.infer<typeof LocatorChainSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;

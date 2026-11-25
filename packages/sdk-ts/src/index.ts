@@ -13,6 +13,7 @@ export {
 export {
   Locator,
   type LocatorOptions,
+  type LocatorFilterOptions,
   type GetByTextOptions,
   type GetByRoleOptions,
   type AriaRole,
