@@ -22,16 +22,39 @@ interface CdpLogParams {
 function paramsOf(e: RawLog): CdpLogParams {
   try {
     const parsed = JSON.parse(e.request?.rawBody ?? "{}") as {
-      params?: CdpLogParams;
-    };
-    return parsed.params ?? {};
+      params?: unknown;
+    } | null;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.params &&
+      typeof parsed.params === "object" &&
+      !Array.isArray(parsed.params)
+    ) {
+      return parsed.params as CdpLogParams;
+    }
+    return {};
   } catch {
     return {};
   }
 }
 
-function trimStack(s: string): string {
-  return (s || "")
+function formatConsoleArg(arg: unknown): string {
+  if (!arg || typeof arg !== "object") return "";
+  const { description, value } = arg as { description?: unknown; value?: unknown };
+  const raw = description || value;
+  if (!raw) return "";
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" || typeof raw === "boolean") return String(raw);
+  try {
+    return JSON.stringify(raw) ?? "";
+  } catch {
+    return "";
+  }
+}
+function trimStack(s: unknown): string {
+  if (typeof s !== "string" || !s) return "";
+  return s
     .split("\n")
     .filter((l, i) => i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)))
     .slice(0, 4)
@@ -56,6 +79,7 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
   };
 
   for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
     const p = paramsOf(e);
     const m = e.method;
     const responseStatus = p.response?.status;
@@ -67,7 +91,7 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
       ["error", "warning", "assert"].includes(p.type)
     ) {
       const text = (Array.isArray(p.args) ? p.args : [])
-        .map((a) => (a && typeof a === "object" ? a.description || a.value || "" : ""))
+        .map(formatConsoleArg)
         .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
@@ -78,12 +102,18 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
           text: trimStack(text),
         };
     } else if (m === "Runtime.exceptionThrown") {
+      const description = p.exceptionDetails?.exception?.description;
+      const fallbackText = p.exceptionDetails?.text;
       rec = {
         kind: "exception",
         domain: "Runtime",
         severity: "error",
         text: trimStack(
-          p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
+          typeof description === "string"
+            ? description
+            : typeof fallbackText === "string"
+              ? fallbackText
+              : "",
         ),
       };
     } else if (

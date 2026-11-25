@@ -1,5 +1,6 @@
 import { sealSecret } from "./seal.js";
 import { requestBrowserbase, requestBrowserbaseJson } from "../cloud/api.js";
+import { fail } from "../errors.js";
 
 export interface SecretsApiOptions {
   apiKey?: string;
@@ -48,8 +49,19 @@ export async function deleteSecret(options: SecretsApiOptions, secretId: string)
   await requestBrowserbase(options, secretPath(secretId), { method: "DELETE" });
 }
 
+function encodePathSegment(id: string, label: string): string {
+  if (id === "" || id === "." || id === "..") {
+    fail(`Invalid ${label}: "${id}".`);
+  }
+  try {
+    return encodeURIComponent(id);
+  } catch {
+    fail(`Invalid ${label}.`);
+  }
+}
+
 function secretPath(id: string): string {
-  return `/v1/secrets/${encodeURIComponent(id)}`;
+  return `/v1/secrets/${encodePathSegment(id, "secret ID")}`;
 }
 
 export async function createSecret(
@@ -95,11 +107,15 @@ export async function attachFunctionSecret(
   functionId: string,
   secretId: string,
 ): Promise<void> {
-  await requestBrowserbase(options, `/v1/functions/${encodeURIComponent(functionId)}/secrets`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ secretId }),
-  });
+  await requestBrowserbase(
+    options,
+    `/v1/functions/${encodePathSegment(functionId, "function ID")}/secrets`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ secretId }),
+    },
+  );
 }
 
 export async function detachFunctionSecret(
@@ -109,7 +125,7 @@ export async function detachFunctionSecret(
 ): Promise<void> {
   await requestBrowserbase(
     options,
-    `/v1/functions/${encodeURIComponent(functionId)}/secrets/${encodeURIComponent(secretId)}`,
+    `/v1/functions/${encodePathSegment(functionId, "function ID")}/secrets/${encodePathSegment(secretId, "secret ID")}`,
     { method: "DELETE" },
   );
 }
@@ -121,6 +137,6 @@ export function listFunctionSecrets(
 ): Promise<SecretPage> {
   return requestBrowserbaseJson(
     options,
-    withQuery(`/v1/functions/${encodeURIComponent(functionId)}/secrets`, query),
+    withQuery(`/v1/functions/${encodePathSegment(functionId, "function ID")}/secrets`, query),
   );
 }

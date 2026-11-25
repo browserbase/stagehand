@@ -216,6 +216,7 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
       socket.write(`${JSON.stringify(request)}\n`);
     });
     socket.on("data", (chunk) => {
+      if (settled) return;
       buffer += chunk;
       const newline = buffer.indexOf("\n");
       if (newline === -1) return;

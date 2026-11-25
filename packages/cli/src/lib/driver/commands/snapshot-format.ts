@@ -29,19 +29,23 @@ function filterLinesWithAncestors(lines: string[], pattern: string): string[] {
 
 function keepLinesWithAncestors(lines: string[], shouldKeep: (line: string) => boolean): string[] {
   const keep = new Set<number>();
+  const ancestors: Array<{ index: number; depth: number }> = [];
 
   for (let index = 0; index < lines.length; index += 1) {
-    if (!shouldKeep(lines[index] ?? "")) continue;
-    keep.add(index);
-    let depth = lineDepth(lines[index] ?? "");
-    for (let ancestor = index - 1; ancestor >= 0; ancestor -= 1) {
-      const ancestorDepth = lineDepth(lines[ancestor] ?? "");
-      if (ancestorDepth < depth) {
-        keep.add(ancestor);
-        depth = ancestorDepth;
-        if (ancestorDepth === 0) break;
+    const line = lines[index] ?? "";
+    const depth = lineDepth(line);
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1]!.depth >= depth) {
+      ancestors.pop();
+    }
+    if (shouldKeep(line)) {
+      keep.add(index);
+      for (let i = ancestors.length - 1; i >= 0; i -= 1) {
+        const ancestorIndex = ancestors[i]!.index;
+        if (keep.has(ancestorIndex)) break;
+        keep.add(ancestorIndex);
       }
     }
+    ancestors.push({ index, depth });
   }
 
   return lines.filter((_, index) => keep.has(index));
@@ -50,7 +54,10 @@ function keepLinesWithAncestors(lines: string[], shouldKeep: (line: string) => b
 function createMatcher(pattern: string): (line: string) => boolean {
   const regex = parseRegex(pattern);
   if (regex) {
-    return (line) => regex.test(line);
+    return (line) => {
+      regex.lastIndex = 0;
+      return regex.test(line);
+    };
   }
 
   const needle = pattern.toLowerCase();

@@ -30,8 +30,10 @@ export function resolveSelector(selector: string, refMaps: RefMaps): string {
   const ref = parseRef(selector);
   if (!ref) return selector;
 
-  const xpath = refMaps.xpathMap[ref];
-  if (!xpath) {
+  const xpath = Object.prototype.hasOwnProperty.call(refMaps.xpathMap, ref)
+    ? refMaps.xpathMap[ref]
+    : undefined;
+  if (typeof xpath !== "string" || !xpath) {
     throw new DriverError(
       `Unknown ref "${ref}" - run browse snapshot first to populate refs (have ${Object.keys(refMaps.xpathMap).length} refs).`,
       { code: "stale_ref" },

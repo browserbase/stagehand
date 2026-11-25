@@ -88,6 +88,7 @@
     "@types/node": "^20.11.30",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
+    "fast-check": "catalog:",
     "oclif": "^4.23.1",
     "typescript": "^5.8.3",
     "vitest": "catalog:"

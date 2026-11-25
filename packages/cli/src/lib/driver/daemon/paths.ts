@@ -14,12 +14,17 @@ export function runtimeDir(): string {
   return dir;
 }
 
+const MAX_SANITIZED_SESSION_LENGTH = 25;
+const SESSION_HASH_LENGTH = 8;
+const MAX_HASHED_PREFIX_LENGTH = MAX_SANITIZED_SESSION_LENGTH - SESSION_HASH_LENGTH - 1;
+
 export function sanitizeSessionName(session: string): string {
   const sanitized = session.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[.-]+|[.-]+$/g, "");
   const base = sanitized || "default";
-  if (base === session) return base;
-  const hash = createHash("sha256").update(session).digest("hex").slice(0, 8);
-  return `${base}-${hash}`;
+  if (base === session && base.length <= MAX_SANITIZED_SESSION_LENGTH) return base;
+  const hash = createHash("sha256").update(session).digest("hex").slice(0, SESSION_HASH_LENGTH);
+  const prefix = base.slice(0, MAX_HASHED_PREFIX_LENGTH).replace(/[.-]+$/, "") || "default";
+  return `${prefix}-${hash}`;
 }
 
 export async function ensureRuntimeDir(): Promise<string> {
@@ -163,13 +168,25 @@ export async function writePrivateFile(file: string, contents: string): Promise<
   await chmodIfSupported(file, PRIVATE_FILE_MODE);
 }
 
+const MAX_POSIX_SOCKET_PATH_BYTES = process.platform === "darwin" ? 103 : 107;
+
 export function getSocketPath(session: string): string {
   const name = sanitizeSessionName(session);
   if (process.platform === "win32") {
     return `\\\\.\\pipe\\browse-driver-${name}`;
   }
 
-  return path.join(runtimeDir(), `${name}.sock`);
+  const dir = runtimeDir();
+  const candidate = path.join(dir, `${name}.sock`);
+  if (Buffer.byteLength(candidate, "utf8") <= MAX_POSIX_SOCKET_PATH_BYTES) {
+    return candidate;
+  }
+
+  const hash = createHash("sha256").update(session).digest("hex");
+  const available =
+    MAX_POSIX_SOCKET_PATH_BYTES - Buffer.byteLength(dir, "utf8") - 1 - ".sock".length;
+  const hashLength = Math.max(8, Math.min(16, available));
+  return path.join(dir, `${hash.slice(0, hashLength)}.sock`);
 }
 
 export function getPidPath(session: string): string {

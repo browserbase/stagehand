@@ -20,8 +20,22 @@ const CDP_UNREACHABLE_PATTERN = /Unable to resolve CDP endpoint from/;
 
 const LAST_TAB_PATTERN = /^Cannot close the last tab\.$/;
 
+function errorMessageOf(error: unknown): string | null {
+  if (error instanceof Error) {
+    return typeof error.message === "string" ? error.message : null;
+  }
+  try {
+    return String(error);
+  } catch {
+    return null;
+  }
+}
+
 export function classifyDriverError(error: unknown): DriverError | null {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessageOf(error);
+  if (message === null) {
+    return null;
+  }
 
   const elementMatch = ELEMENT_NOT_FOUND_PATTERN.exec(message);
   if (elementMatch) {

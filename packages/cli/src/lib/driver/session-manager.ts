@@ -40,12 +40,25 @@ interface InitFailure {
 }
 
 export function initFailureBackoffMs(consecutiveFailures: number): number {
-  const attempt = Math.max(1, consecutiveFailures);
-  return Math.min(INIT_FAILURE_RETRY_MS * 2 ** (attempt - 1), INIT_FAILURE_RETRY_MAX_MS);
+  if (Number.isNaN(consecutiveFailures) || consecutiveFailures <= 1) {
+    return INIT_FAILURE_RETRY_MS;
+  }
+  if (!Number.isFinite(consecutiveFailures)) {
+    return INIT_FAILURE_RETRY_MAX_MS;
+  }
+  return Math.min(
+    INIT_FAILURE_RETRY_MS * 2 ** (consecutiveFailures - 1),
+    INIT_FAILURE_RETRY_MAX_MS,
+  );
 }
 
 function initFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  try {
+    return String(error);
+  } catch {
+    return "Unknown error";
+  }
 }
 
 export function isChromeNotFoundError(error: unknown): boolean {
@@ -65,6 +78,7 @@ export class DriverSessionManager {
 
   private browser: StagehandBrowser | null = null;
   private browserbaseIdentityValue: BrowserbaseIdentity = {};
+  private closeGeneration = 0;
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
   private cursorOverlayPageIds = new Set<string>();
@@ -178,16 +192,24 @@ export class DriverSessionManager {
   }
 
   async close(): Promise<void> {
+    this.closeGeneration += 1;
+    const pendingInit = this.initPromise;
     const stagehand = this.stagehand;
     const browser = this.browser;
     this.stagehand = null;
     this.browser = null;
     this.context = null;
+    this.initPromise = null;
+    this.refMaps = emptyRefMaps();
+    this.selectedTargetId = undefined;
     this.cursorOverlayPageIds.clear();
     this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
     await this.network.close().catch(() => undefined);
+    if (pendingInit) {
+      await pendingInit.catch(() => undefined);
+    }
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
     }
@@ -314,24 +336,34 @@ export class DriverSessionManager {
       this.initFailure = null;
     }
 
-    this.initPromise = this.initialize()
+    const generation = this.closeGeneration;
+    const currentInit = this.initialize(generation)
       .then(() => {
+        if (this.closeGeneration !== generation) return;
         this.initFailure = null;
         this.consecutiveInitFailures = 0;
       })
       .catch(async (error: unknown) => {
+        if (this.closeGeneration !== generation) {
+          throw error;
+        }
         this.consecutiveInitFailures += 1;
         const failure = await this.markRepeatedInitFailure(error);
-        this.initFailure = {
-          error: failure,
-          retryAt: Date.now() + initFailureBackoffMs(this.consecutiveInitFailures),
-        };
+        if (this.closeGeneration === generation) {
+          this.initFailure = {
+            error: failure,
+            retryAt: Date.now() + initFailureBackoffMs(this.consecutiveInitFailures),
+          };
+        }
         throw failure;
       })
       .finally(() => {
-        this.initPromise = null;
+        if (this.initPromise === currentInit) {
+          this.initPromise = null;
+        }
       });
-    return this.initPromise;
+    this.initPromise = currentInit;
+    return currentInit;
   }
 
   private async markRepeatedInitFailure(error: unknown): Promise<unknown> {
@@ -345,7 +377,7 @@ export class DriverSessionManager {
     return error;
   }
 
-  private async initialize(): Promise<void> {
+  private async initialize(generation: number): Promise<void> {
     const resolvedTarget = await this.resolveTarget();
     let browser: StagehandBrowser | undefined;
 
@@ -355,7 +387,9 @@ export class DriverSessionManager {
           await getRemote()
         ).launchRemoteBrowser(resolvedTarget, this.pendingEnv);
         browser = remote.browser;
-        this.browserbaseIdentityValue = remote.identity;
+        if (this.closeGeneration === generation) {
+          this.browserbaseIdentityValue = remote.identity;
+        }
       } else if (resolvedTarget.kind === "managed-local") {
         browser = await localBrowser.launch({
           ...(resolvedTarget.chromeArgs?.length ? { args: resolvedTarget.chromeArgs } : {}),
@@ -372,10 +406,32 @@ export class DriverSessionManager {
         throw new Error(`Unsupported target kind: ${resolvedTarget.kind}`);
       }
 
+      if (this.closeGeneration !== generation) {
+        const staleBrowser = browser;
+        browser = undefined;
+        await staleBrowser.close().catch(() => undefined);
+        this.browserbaseIdentityValue = {};
+        throw new DriverError("Driver session was closed during initialization.", {
+          code: "session_closed",
+        });
+      }
+
       const stagehand = await Stagehand.create({
         browser,
         logging: { level: "off" },
       });
+
+      if (this.closeGeneration !== generation) {
+        const staleBrowser = browser;
+        browser = undefined;
+        await stagehand.close().catch(() => undefined);
+        await staleBrowser.close().catch(() => undefined);
+        this.browserbaseIdentityValue = {};
+        throw new DriverError("Driver session was closed during initialization.", {
+          code: "session_closed",
+        });
+      }
+
       this.browser = browser;
       this.stagehand = stagehand;
       this.context = stagehand.browser.context;
