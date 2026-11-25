@@ -1,0 +1,14 @@
+[project]
+name = "stagehand-cookbook-pydantic-ai-durable-approval"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "dbos>=3.4,<4",
+    "pydantic>=2.12,<3",
+    "pydantic-ai-slim[dbos,openai]>=2,<3",
+    "python-dotenv>=1.0.0",
+    "stagehand>=4.3.0,<5",
+]
+
+[tool.uv]
+package = false
