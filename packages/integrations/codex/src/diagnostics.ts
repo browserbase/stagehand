@@ -3,13 +3,27 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 
+function stringifyDiagnosticValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return String(value);
+  try {
+    return String(value);
+  } catch {
+    try {
+      return JSON.stringify(value) ?? Object.prototype.toString.call(value);
+    } catch {
+      return Object.prototype.toString.call(value);
+    }
+  }
+}
+
 export async function saveCodexDiagnostic(
   directory: string,
   error: unknown,
   eventCount: number,
 ): Promise<string> {
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : stringifyDiagnosticValue(error);
   const cause = error instanceof Error ? error.cause : undefined;
   const filename = path.join(directory, `${Date.now()}-${randomUUID()}.json`);
   const sanitized = sanitizeErrorMessage(message);
@@ -24,7 +38,9 @@ export async function saveCodexDiagnostic(
         eventCount,
         message: sanitized.slice(0, maxChars),
         truncated: sanitized.length > maxChars,
-        cause: cause ? sanitizeErrorMessage(String(cause)).slice(0, 16_000) : undefined,
+        cause: cause
+          ? sanitizeErrorMessage(stringifyDiagnosticValue(cause)).slice(0, 16_000)
+          : undefined,
         rejectedEvent: rejectedEvent?.slice(0, maxChars),
         stack:
           error instanceof Error

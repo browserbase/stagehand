@@ -105,9 +105,10 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
         convention,
       };
     case "anthropic_cache_separate":
-    case "uncached_only":
+    case "uncached_only": {
+      const sum = input + cached + cacheWrite;
       return {
-        input_total: input + cached + cacheWrite,
+        input_total: Number.isFinite(sum) ? sum : Number.MAX_VALUE,
         input_cached: cached,
         input_cache_write: cacheWrite,
         input_uncached: input,
@@ -116,6 +117,7 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
         reasoning_in_output: true,
         convention,
       };
+    }
     case "unreported":
       return {
         input_total: 0,
@@ -127,6 +129,10 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
         reasoning_in_output: true,
         convention,
       };
+    default: {
+      const exhaustive: never = convention;
+      return exhaustive;
+    }
   }
 }
 

@@ -18,24 +18,36 @@ export type CursorToolCallView = {
   error?: string;
 };
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && !Array.isArray(value);
+}
+
+function asLabel(value: unknown, fallback: string): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  return fallback;
+}
+
 export function parseCursorStreamLine(line: string): CursorEvent | undefined {
   const trimmed = line.trim();
   if (!trimmed) return undefined;
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    return isRecord(parsed) ? parsed : undefined;
+    return isPlainRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 }
 
 export function extractCursorToolCall(event: CursorEvent): CursorToolCallView | undefined {
-  if (event.type !== "tool_call" || !isRecord(event.tool_call)) return undefined;
+  if (event.type !== "tool_call" || !isPlainRecord(event.tool_call)) return undefined;
   const entry = Object.entries(event.tool_call)[0];
-  if (!entry || !isRecord(entry[1])) return undefined;
+  if (!entry || !isPlainRecord(entry[1])) return undefined;
   const [rawKind, call] = entry;
   const kind = rawKind === "function" ? "function" : rawKind.replace(/ToolCall$/, "");
-  const rawArgs = isRecord(call.args) ? call.args : {};
+  const rawArgs = isPlainRecord(call.args) ? call.args : {};
   let name = kind;
   let args = rawArgs;
 
@@ -45,37 +57,35 @@ export function extractCursorToolCall(event: CursorEvent): CursorToolCallView | 
     if (typeof value === "string") {
       try {
         const parsed: unknown = JSON.parse(value);
-        args = isRecord(parsed) ? parsed : {};
+        args = isPlainRecord(parsed) ? parsed : {};
       } catch {
         args = {};
       }
     } else {
-      args = isRecord(value) ? value : {};
+      args = isPlainRecord(value) ? value : {};
     }
   } else if (kind === "mcp") {
-    // Cursor has not documented its MCP stream-json payload. Accept the
-    // observed candidate fields without requiring any one unverified shape.
     const server = readString(rawArgs, ["providerIdentifier", "server", "provider"]) ?? "mcp";
     const tool = readString(rawArgs, ["name", "toolName", "tool"]) ?? "tool";
     name = `${server}.${tool}`;
-    args = isRecord(rawArgs.args)
+    args = isPlainRecord(rawArgs.args)
       ? rawArgs.args
-      : isRecord(rawArgs.arguments)
+      : isPlainRecord(rawArgs.arguments)
         ? rawArgs.arguments
         : rawArgs;
   }
 
-  const resultEnvelope = isRecord(call.result) ? call.result : undefined;
+  const resultEnvelope = isPlainRecord(call.result) ? call.result : undefined;
   let result: unknown;
   let ok = true;
   let error: string | undefined;
-  if (resultEnvelope && "success" in resultEnvelope) {
+  if (resultEnvelope && Object.hasOwn(resultEnvelope, "success")) {
     result =
       kind === "mcp" ? normalizeCursorMcpResult(resultEnvelope.success) : resultEnvelope.success;
-    if (kind === "mcp" && isRecord(result) && result.isError === true) ok = false;
+    if (kind === "mcp" && isPlainRecord(result) && result.isError === true) ok = false;
   } else if (resultEnvelope) {
     for (const key of ["error", "rejected", "failure"] as const) {
-      if (key in resultEnvelope) {
+      if (Object.hasOwn(resultEnvelope, key)) {
         ok = false;
         error = stringifyError(resultEnvelope[key]);
         break;
@@ -96,17 +106,17 @@ export function extractCursorToolCall(event: CursorEvent): CursorToolCallView | 
 }
 
 function normalizeCursorMcpResult(result: unknown): unknown {
-  if (!isRecord(result) || !Array.isArray(result.content)) return result;
+  if (!isPlainRecord(result) || !Array.isArray(result.content)) return result;
   return {
     ...result,
     content: result.content.map((block: unknown) => {
-      if (!isRecord(block) || block.type !== undefined) return block;
-      if (isRecord(block.text) && typeof block.text.text === "string") {
+      if (!isPlainRecord(block) || block.type !== undefined) return block;
+      if (isPlainRecord(block.text) && typeof block.text.text === "string") {
         const { text, ...rest } = block;
         return { ...rest, ...text, type: "text" };
       }
       if (
-        isRecord(block.image) &&
+        isPlainRecord(block.image) &&
         typeof block.image.data === "string" &&
         typeof block.image.mimeType === "string"
       ) {
@@ -126,7 +136,7 @@ export function buildCursorTranscript(events: CursorEvent[]): string {
 }
 
 export function summarizeCursorEvent(event: CursorEvent): { message: string; detail?: string } {
-  const type = String(event.type ?? "unknown");
+  const type = asLabel(event.type, "unknown");
   if (type === "assistant") {
     const text = extractAssistantText(event);
     return { message: text ? `assistant: ${clip(text, 500)}` : "assistant message", detail: text };
@@ -142,7 +152,7 @@ export function summarizeCursorEvent(event: CursorEvent): { message: string; det
   }
   if (type === "result") {
     return {
-      message: `result: ${String(event.subtype ?? "done")}`,
+      message: `result: ${asLabel(event.subtype, "done")}`,
       detail: typeof event.result === "string" ? event.result : safeJson(event),
     };
   }
@@ -155,17 +165,17 @@ function extractAssistantText(event: CursorEvent): string | undefined {
 }
 
 function extractAssistantTextBlocks(event: CursorEvent): string[] {
-  const message = isRecord(event.message) ? event.message : undefined;
+  const message = isPlainRecord(event.message) ? event.message : undefined;
   if (!Array.isArray(message?.content)) return [];
   return message.content
-    .filter(isRecord)
+    .filter(isPlainRecord)
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text as string);
 }
 
 function readString(record: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
-    if (typeof record[key] === "string") return record[key];
+    if (typeof record[key] === "string" && record[key].trim().length > 0) return record[key];
   }
   return undefined;
 }

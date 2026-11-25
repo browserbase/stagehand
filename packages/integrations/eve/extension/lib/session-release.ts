@@ -19,14 +19,16 @@ export class BrowserbaseSessionReleaseError extends Error {
 }
 
 export async function releaseBrowserbaseSession(session: BrowserbaseSessionRelease): Promise<void> {
+  const trimmedSessionId = session.sessionId.trim();
+  if (!trimmedSessionId || session.sessionId === "." || session.sessionId === "..") {
+    throw new BrowserbaseSessionReleaseError();
+  }
   const browserbase = new Browserbase({
     apiKey: session.apiKey,
-    baseURL: (session.baseUrl ?? BROWSERBASE_API_URL).replace(/\/+$/u, ""),
+    baseURL: (session.baseUrl?.trim() || BROWSERBASE_API_URL).replace(/\/+$/u, ""),
     maxRetries: SESSION_RELEASE_MAX_RETRIES,
     timeout: SESSION_RELEASE_TIMEOUT_MS,
   });
-  // The generated SDK currently interpolates path parameters without encoding
-  // them. Keep the server-issued ID confined to one URL path segment.
   const sessionId = encodeURIComponent(session.sessionId);
 
   try {

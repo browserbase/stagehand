@@ -68,10 +68,11 @@ export interface RunUsage {
 function readMetric(output: Record<string, unknown>, name: string): number | undefined {
   const metrics = output.metrics;
   if (typeof metrics !== "object" || metrics === null) return undefined;
+  if (!Object.hasOwn(metrics, name)) return undefined;
   const metric = (metrics as Record<string, unknown>)[name];
   if (typeof metric !== "object" || metric === null) return undefined;
   const value = (metric as { value?: unknown }).value;
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 export function summarizeUsage(results: SummaryRow[]): RunUsage {
@@ -90,12 +91,14 @@ export function summarizeUsage(results: SummaryRow[]): RunUsage {
 }
 
 export function summarizeGates(results: SummaryRow[]): Record<string, number> {
-  const gates: Record<string, number> = {};
+  const gates = new Map<string, number>();
   for (const { output } of results) {
     if (output._success || !isGated(output)) continue;
-    for (const gate of output.outcomeGates as string[]) gates[gate] = (gates[gate] ?? 0) + 1;
+    for (const gate of output.outcomeGates as string[]) {
+      gates.set(gate, (gates.get(gate) ?? 0) + 1);
+    }
   }
-  return gates;
+  return Object.fromEntries(gates);
 }
 
 const FAILURE_ORDER: Record<FailureKind, number> = {
@@ -121,7 +124,11 @@ function readFacadeToolCalls(output: Record<string, unknown>): number | undefine
 }
 
 function isGraded(output: Record<string, unknown>): boolean {
-  return typeof output.criterionCount === "number";
+  return (
+    typeof output.criterionCount === "number" &&
+    Number.isFinite(output.criterionCount) &&
+    output.criterionCount >= 0
+  );
 }
 
 function isUngraded(output: Record<string, unknown>): boolean {

@@ -1,11 +1,16 @@
 import type { MetricsCollector } from "./types.js";
 
 export function createMetricsCollector(): MetricsCollector {
-  const data: Record<string, number[]> = {};
+  const data = new Map<string, number[]>();
 
   function record(name: string, value: number): void {
-    if (!data[name]) data[name] = [];
-    data[name].push(value);
+    if (!Number.isFinite(value)) return;
+    let list = data.get(name);
+    if (!list) {
+      list = [];
+      data.set(name, list);
+    }
+    list.push(value);
   }
 
   function startTimer(name: string): () => number {
@@ -18,7 +23,7 @@ export function createMetricsCollector(): MetricsCollector {
   }
 
   function getAll(): Record<string, number[]> {
-    return { ...data };
+    return Object.fromEntries(Array.from(data.entries(), ([name, values]) => [name, [...values]]));
   }
 
   function percentile(sorted: number[], p: number): number {
@@ -37,12 +42,12 @@ export function createMetricsCollector(): MetricsCollector {
       };
     }
 
-    const sum = sorted.reduce((a, b) => a + b, 0);
+    const avg = sorted.reduce((mean, value, index) => mean + (value - mean) / (index + 1), 0);
 
     return {
       min: sorted[0],
       max: sorted[sorted.length - 1],
-      avg: sum / sorted.length,
+      avg,
       p50: percentile(sorted, 50),
       p99: percentile(sorted, 99),
       count: sorted.length,
@@ -51,14 +56,14 @@ export function createMetricsCollector(): MetricsCollector {
   }
 
   function getSummary(): Record<string, Record<string, number>> {
-    const summary: Record<string, Record<string, number>> = {};
+    const entries: Array<[string, Record<string, number>]> = [];
 
-    for (const [name, values] of Object.entries(data)) {
+    for (const [name, values] of data.entries()) {
       if (values.length === 0) continue;
-      summary[name] = summarizeValues(values);
+      entries.push([name, summarizeValues(values)]);
     }
 
-    return summary;
+    return Object.fromEntries(entries);
   }
 
   return { startTimer, record, getAll, getSummary };

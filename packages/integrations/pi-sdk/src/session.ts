@@ -307,16 +307,16 @@ export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
     if (message.role !== "assistant" || !isRecord(message.usage)) continue;
     const usage = message.usage;
     total.reported ||= [usage.input, usage.output].some(isTokenCount);
-    total.inputTokens += toFiniteNumber(usage.input);
-    total.outputTokens += toFiniteNumber(usage.output);
-    total.cacheReadTokens += toFiniteNumber(usage.cacheRead);
-    total.cacheWriteTokens += toFiniteNumber(usage.cacheWrite);
-    total.totalTokens += toFiniteNumber(usage.totalTokens);
+    total.inputTokens += toNonNegativeFiniteNumber(usage.input);
+    total.outputTokens += toNonNegativeFiniteNumber(usage.output);
+    total.cacheReadTokens += toNonNegativeFiniteNumber(usage.cacheRead);
+    total.cacheWriteTokens += toNonNegativeFiniteNumber(usage.cacheWrite);
+    total.totalTokens += toNonNegativeFiniteNumber(usage.totalTokens);
     if (usage.reasoning !== undefined) {
       sawReasoning = true;
-      reasoningTokens += toFiniteNumber(usage.reasoning);
+      reasoningTokens += toNonNegativeFiniteNumber(usage.reasoning);
     }
-    if (isRecord(usage.cost)) total.costUsd += toFiniteNumber(usage.cost.total);
+    if (isRecord(usage.cost)) total.costUsd += toNonNegativeFiniteNumber(usage.cost.total);
   }
   return { ...total, ...(sawReasoning && { reasoningTokens }) };
 }
@@ -551,6 +551,11 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toNonNegativeFiniteNumber(value: unknown): number {
+  const parsed = toFiniteNumber(value);
+  return parsed > 0 ? parsed : 0;
 }
 
 function isTokenCount(value: unknown): boolean {

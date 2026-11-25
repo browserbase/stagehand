@@ -6,10 +6,10 @@ export async function isolatedCodexEnv(
   cwd: string,
   source: NodeJS.ProcessEnv = process.env,
 ): Promise<Record<string, string>> {
-  const home = path.join(cwd, "home");
+  const home = path.resolve(cwd, "home");
   const codexHome = path.join(home, ".codex");
   await fs.mkdir(codexHome, { recursive: true, mode: 0o700 });
-  const originalHome = source.CODEX_HOME ?? path.join(source.HOME ?? os.homedir(), ".codex");
+  const originalHome = source.CODEX_HOME || path.join(source.HOME || os.homedir(), ".codex");
   if (!source.OPENAI_API_KEY && !source.CODEX_API_KEY) {
     try {
       const auth = await fs.readFile(path.join(originalHome, "auth.json"));

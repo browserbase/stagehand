@@ -47,16 +47,16 @@ export interface ParsedListedPage {
 }
 
 function findBalancedJsonCandidate(text: string): string | null {
-  const starts = ["{", "["];
-  for (const start of starts) {
-    const index = text.indexOf(start);
-    if (index === -1) continue;
+  for (let startIdx = 0; startIdx < text.length; startIdx += 1) {
+    const first = text[startIdx];
+    if (first !== "{" && first !== "[") continue;
 
-    let depth = 0;
+    const stack: string[] = [];
     let inString = false;
     let escaping = false;
+    let mismatched = false;
 
-    for (let i = index; i < text.length; i += 1) {
+    for (let i = startIdx; i < text.length; i += 1) {
       const char = text[i];
       if (inString) {
         if (escaping) {
@@ -74,15 +74,28 @@ function findBalancedJsonCandidate(text: string): string | null {
         continue;
       }
 
-      if (char === "{" || char === "[") {
-        depth += 1;
+      if (char === "{") {
+        stack.push("}");
+      } else if (char === "[") {
+        stack.push("]");
       } else if (char === "}" || char === "]") {
-        depth -= 1;
-        if (depth === 0) {
-          return text.slice(index, i + 1);
+        if (stack.pop() !== char) {
+          mismatched = true;
+          break;
+        }
+        if (stack.length === 0) {
+          const candidate = text.slice(startIdx, i + 1);
+          try {
+            JSON.parse(candidate);
+            return candidate;
+          } catch {
+            break;
+          }
         }
       }
     }
+
+    if (mismatched) continue;
   }
 
   return null;
@@ -90,11 +103,12 @@ function findBalancedJsonCandidate(text: string): string | null {
 
 export function extractMcpText(result: McpToolResult): string {
   const parts = (result.content ?? []).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
     switch (item.type) {
       case "text":
-        return [item.text];
+        return typeof item.text === "string" ? [item.text] : [];
       case "resource":
-        return item.resource?.text ? [item.resource.text] : [];
+        return typeof item.resource?.text === "string" ? [item.resource.text] : [];
       default:
         return [];
     }
@@ -105,10 +119,15 @@ export function extractMcpText(result: McpToolResult): string {
 
 export function extractMcpImage(result: McpToolResult): { data: string; mimeType?: string } | null {
   for (const item of result.content ?? []) {
-    if (item.type === "image") {
+    if (
+      item &&
+      typeof item === "object" &&
+      item.type === "image" &&
+      typeof item.data === "string"
+    ) {
       return {
         data: item.data,
-        mimeType: item.mimeType,
+        mimeType: typeof item.mimeType === "string" ? item.mimeType : undefined,
       };
     }
   }
@@ -139,30 +158,42 @@ export function parseLooseJson<T>(text: string): T {
     throw new Error("Cannot parse empty MCP response as JSON");
   }
 
+  try {
+    return unwrap(JSON.parse(trimmed)) as T;
+  } catch {}
+
   const resultSection = trimmed.match(/### Result\s*([\s\S]*?)(?:\n###|$)/i);
   if (resultSection?.[1]) {
-    return unwrap(JSON.parse(resultSection[1].trim())) as T;
+    const inner = resultSection[1].trim();
+    if (inner && inner !== trimmed) {
+      try {
+        return parseLooseJson<T>(inner);
+      } catch {}
+    }
   }
 
   const returnedSection = trimmed.match(/returned:\s*([\s\S]*?)(?:\n###|$)/i);
   if (returnedSection?.[1]) {
-    return parseLooseJson<T>(returnedSection[1].trim());
+    const inner = returnedSection[1].trim();
+    if (inner && inner !== trimmed) {
+      try {
+        return parseLooseJson<T>(inner);
+      } catch {}
+    }
   }
 
   const fencedMatch = trimmed.match(/```(?:json)?[ \t]*\n([\s\S]*?)```/i);
   if (fencedMatch?.[1]) {
-    return unwrap(JSON.parse(fencedMatch[1].trim())) as T;
+    try {
+      return unwrap(JSON.parse(fencedMatch[1].trim())) as T;
+    } catch {}
   }
 
-  try {
-    return unwrap(JSON.parse(trimmed)) as T;
-  } catch {
-    const candidate = findBalancedJsonCandidate(trimmed);
-    if (candidate) {
-      return unwrap(JSON.parse(candidate)) as T;
-    }
-    throw new Error(`Failed to parse MCP JSON response: ${trimmed}`);
+  const candidate = findBalancedJsonCandidate(trimmed);
+  if (candidate) {
+    return unwrap(JSON.parse(candidate)) as T;
   }
+  throw new Error(`Failed to parse MCP JSON response: ${trimmed}`);
 }
 
 export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[] {
@@ -173,7 +204,9 @@ export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[]
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const urlMatch = trimmed.match(/(https?:\/\/\S+|about:blank|data:[^\s|]+|chrome:\/\/[^\s|]+)/i);
+    const urlMatch = trimmed.match(
+      /(https?:\/\/[^\s|]+|about:blank|data:[^\s|]+|chrome:\/\/[^\s|]+)/i,
+    );
     if (!urlMatch) continue;
     const url = urlMatch[1];
 
@@ -193,7 +226,7 @@ export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[]
       break;
     }
 
-    if (toolPageId === null || Number.isNaN(toolPageId)) continue;
+    if (toolPageId === null || !Number.isSafeInteger(toolPageId)) continue;
     pages.set(toolPageId, { toolPageId, url });
   }
 
