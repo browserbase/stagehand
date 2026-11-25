@@ -32,12 +32,6 @@ import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "./verifierModel.js
 
 export { DEFAULT_VERIFIER_MODEL, resolveVerifierModel };
 
-/**
- * What scores/result.json holds: the judge's EvaluationResult shape with the
- * gated verdict at the top level, so a reader of result.json alone sees the
- * same outcome as the Braintrust row. The judge's untouched verdict is kept
- * under `judge` (and as `judgeOutcomeSuccess` / `processScoreLenient`).
- */
 export interface PersistedEvaluationResult extends EvaluationResult {
   judgeOutcomeSuccess: boolean;
   outcomeGates: VerdictGates["outcomeGates"];
@@ -63,7 +57,6 @@ export function buildUngradedVerifierResult(
   };
 }
 
-/** Retain a failed judge response for audit without presenting its synthetic scores as a grade. */
 export function getUngradedVerifierResult(
   evaluation: EvaluationResult,
 ): { graded: false; verifierError: string; judge: EvaluationResult } | undefined {
@@ -96,12 +89,6 @@ export function buildPersistedEvaluationResult(
 
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
 
-/**
- * Build the shared rubric verifier. EVAL_VERIFIER_MODEL makes the verifier
- * independently selectable for external harnesses and normal Stagehand runs
- * alike; otherwise DEFAULT_VERIFIER_MODEL applies. A command-line modelOverride
- * takes precedence over the environment without mutating process-wide policy.
- */
 export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evaluator {
   const resolved = resolveVerifierModel();
   const explicitModel =
@@ -110,8 +97,6 @@ export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evalu
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
-  // Only an explicit override fails loudly on a missing key; the default lets
-  // V3Evaluator resolve credentials itself (tests and keyless environments).
   if (explicitModel && !apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
       `Verifier model is explicitly set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
@@ -125,23 +110,14 @@ export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evalu
   });
 }
 
-/** Where a task's resolved rubric came from. */
 export type RubricSource = "precomputed" | "cached" | "generated";
 
 export interface ResolveRubricTracedOptions {
   taskSpec: TaskSpec;
   dataset: string;
-  /** Override the rubric cache root (tests). */
   cacheRoot?: string;
 }
 
-/**
- * Resolve a task's rubric — precomputed, cached, or freshly generated — inside
- * a `verifier.rubric` span. Single definition shared by the stagehand and
- * external-harness (claude_code/codex) paths so the logged `source` always
- * reflects what actually happened: a cache miss that generates is reported as
- * "generated", never "cached".
- */
 export async function resolveRubricTraced(
   evaluator: Pick<V3Evaluator, "generateRubric">,
   { taskSpec, dataset, cacheRoot }: ResolveRubricTracedOptions,
@@ -201,11 +177,6 @@ export async function resolveRubricTraced(
   );
 }
 
-/**
- * Run V3Evaluator.verify() inside a `verifier.verify` span with the standard
- * scores + evaluation metadata. Single definition shared by the stagehand and
- * external-harness (claude_code/codex) paths.
- */
 export async function verifyTraced(
   evaluator: Pick<V3Evaluator, "verify">,
   trajectory: Trajectory,
@@ -249,56 +220,25 @@ export async function verifyTraced(
   );
 }
 
-/**
- * Verifier wiring for an external-harness runner (claude_code / codex). The
- * runner's only job is turning its event stream into a Trajectory; everything
- * else — evaluator construction, rubric hydration, verification, persistence,
- * and folding the verdict into the TaskResult — is harness-agnostic and lives
- * in {@link gradeExternalTrajectory}.
- */
 export interface ExternalHarnessVerifierConfig {
-  /**
-   * V3 instance used solely as the LLM-client carrier for V3Evaluator. The
-   * instance does NOT need to have `init()` been called — V3Evaluator.verify()
-   * uses only `v3.logger` to construct its LLMProvider.
-   */
   v3: V3;
-  /** TaskSpec to verify against. id + instruction + optional rubric/initUrl. */
   taskSpec: TaskSpec;
-  /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
   dataset: string;
-  /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
   successMode?: EvalSuccessMode;
-  /** Override trajectory persistence root. */
   trajectoryRoot?: string;
-  /** Override the run id (defaults to ISO timestamp). */
   runId?: string;
 }
 
 export interface GradeExternalTrajectoryOptions {
-  /** Builds the harness-specific Trajectory; runs inside the guarded block. */
   buildTrajectory: () => HarnessTrajectory;
   verifier: ExternalHarnessVerifierConfig;
-  /** The agent's self-reported result to fold the verdict into. */
   baseResult: TaskResult;
-  /** Error message for a run the verifier grades as unsuccessful. */
   errorMessage: string;
-  /** Logger category ("claude_code" | "codex"). */
   category: string;
   logger: EvalLogger;
-  /**
-   * Matcher for mounted-browser (facade) tool names. When present, a judge
-   * pass with zero facade steps is gated (`no_browser_use`).
-   */
   isFacadeTool?: (name: string) => boolean;
 }
 
-/**
- * Grade an external-harness run with the rubric verifier and fold the verdict
- * into the TaskResult. Never throws: on any failure in the verifier path the
- * result fails closed with `verifierError` set and the agent report preserved
- * separately, so downstream consumers can distinguish ungraded runs.
- */
 export async function gradeExternalTrajectory({
   buildTrajectory,
   verifier,
@@ -317,7 +257,6 @@ export async function gradeExternalTrajectory({
     capturedTrajectory = trajectory;
     const evaluator = createVerifierEvaluator(verifier.v3);
 
-    // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
     const { rubric } = await resolveRubricTraced(evaluator, {
       taskSpec: verifier.taskSpec,
       dataset: verifier.dataset,
@@ -343,11 +282,6 @@ export async function gradeExternalTrajectory({
     const traceLines = traceOn
       ? selectVerifierTraceLines(logger.getLogs({ maxLevel: 2 }), logCountBefore)
       : [];
-    // The judge's verdict is not the final word: deterministic gates fold in
-    // what the trajectory itself proves (an answer exists, the run finished,
-    // the browser was used, the numbers came from the target site) and a
-    // strict process score that does not credit blocker-walled criteria. See
-    // verifierGates.ts for why each exists.
     const gates = applyVerdictGates({
       evaluation: evaluationResult,
       trajectory: hydratedTrajectory,
@@ -395,10 +329,7 @@ export async function gradeExternalTrajectory({
       error: verifiedSuccess
         ? undefined
         : gates.outcomeGates.length > 0 && gates.judgeOutcomeSuccess
-          ? // The judge passed this row; a deterministic gate flipped it. Say
-            // so where the row error is read, instead of echoing the agent's
-            // (often confident) self-report.
-            `${describeOutcomeGates(gates)} (judge passed; agent said: ${clipError(String(baseResult.error ?? errorMessage))})`
+          ? `${describeOutcomeGates(gates)} (judge passed; agent said: ${clipError(String(baseResult.error ?? errorMessage))})`
           : (baseResult.error ?? errorMessage),
       outcomeSuccess: gates.outcomeSuccess,
       judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
@@ -420,8 +351,6 @@ export async function gradeExternalTrajectory({
     };
   } catch (verifyError) {
     const message = sanitizeErrorMessage(stringifyVerifierError(verifyError));
-    // Failed verification still needs the captured browser evidence and raw
-    // judge response for diagnosis. This path never accepts the result as a grade.
     if (capturedTrajectory && !savedDirectory) {
       try {
         const saved = await persistAdapterTrajectory({
@@ -454,8 +383,6 @@ export async function gradeExternalTrajectory({
         error: { value: message, type: "string" },
       },
     });
-    // A requested verification that failed cannot produce a verified pass.
-    // Preserve the agent's report separately for diagnosis.
     return {
       ...baseResult,
       _success: false,
@@ -471,11 +398,6 @@ function formatProcessScore(score: number | undefined): string {
   return typeof score === "number" ? score.toFixed(2) : "n/a";
 }
 
-/**
- * Braintrust-filterable 0/1 metrics for the gates. `answer_grounded` is only
- * emitted when the answer had numeric datums to check, so its average is not
- * diluted by rows the check skipped.
- */
 function gateMetrics(gates: VerdictGates): Record<string, { count: number; value: number }> {
   const flag = (value: boolean) => ({ count: 1, value: value ? 1 : 0 });
   return {
@@ -491,19 +413,15 @@ function gateMetrics(gates: VerdictGates): Record<string, { count: number; value
   };
 }
 
-/** Sidecar next to scores/result.json so audits can diff judge vs gated verdicts. */
 async function writeGatesFile(trajectoryDir: string, gates: VerdictGates): Promise<void> {
   try {
     await fs.writeFile(
       path.join(trajectoryDir, "scores", "gates.json"),
       JSON.stringify(gates, null, 2),
     );
-  } catch {
-    // Best-effort: the TaskResult already carries the same data.
-  }
+  } catch {}
 }
 
-/** Always non-empty, so a set `verifierError` is reliably truthy downstream. */
 function stringifyVerifierError(value: unknown): string {
   if (value instanceof Error) return value.message || value.name || "Error";
   if (typeof value === "string") return value || "unknown verifier error";
@@ -511,9 +429,7 @@ function stringifyVerifierError(value: unknown): string {
     try {
       const json = JSON.stringify(value);
       if (json) return json;
-    } catch {
-      // not serializable — fall through to String()
-    }
+    } catch {}
     return String(value);
   }
   return "unknown verifier error";
@@ -523,14 +439,6 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }
 
-/**
- * Decide bench task success from an EvaluationResult using the --success flag's
- * semantics.
- *
- * `outcome` (default) — strict binary outcome.
- * `process`           — rubric process score ≥ threshold (default 0.8).
- * `both`              — both conditions must hold.
- */
 export type EvalSuccessMode = "outcome" | "process" | "both";
 
 export function resolveEvalSuccessMode(mode: unknown): EvalSuccessMode {

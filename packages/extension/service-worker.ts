@@ -81,7 +81,6 @@ export function startStagehandServiceWorker(
       },
       emitLog: (log) => {
         void rpcClient?.notify(StagehandNotifications.log, log).catch((error: unknown) => {
-          // The JSON-RPC log sink itself failed, so no Stagehand logger is safe here.
           // oxlint-disable-next-line no-console
           console.error("[stagehand] Failed to emit log notification", error);
         });
@@ -90,7 +89,6 @@ export function startStagehandServiceWorker(
         void rpcClient
           ?.notify(StagehandNotifications.pageCDPEvent, notification)
           .catch((error: unknown) => {
-            // This notification cannot safely report its own delivery failure over JSON-RPC.
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page CDP event notification", error);
           });
@@ -99,7 +97,6 @@ export function startStagehandServiceWorker(
         void rpcClient
           ?.notify(StagehandNotifications.pageEvent, notification)
           .catch((error: unknown) => {
-            // This notification cannot safely report its own delivery failure over JSON-RPC.
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page event notification", error);
           });
@@ -129,7 +126,6 @@ export function startStagehandServiceWorker(
     closeConnection: () => activeRuntime.disconnectBrowser(),
     disposeClient: () => activeRuntime.disposeStagehandInstance(),
     onError: (error) => {
-      // The client transport may be gone; do not report through RPC.
       // oxlint-disable-next-line no-console
       console.error("Stagehand client lifecycle cleanup failed", error);
     },
@@ -140,11 +136,9 @@ export function startStagehandServiceWorker(
     try {
       await lifecycle.handle(input);
     } catch (error) {
-      // A failed detach leaves the SDK handle open: keep serving its reverse requests.
       if (action === "detach") rpcClient?.acceptClient();
       throw error;
     }
-    // Only a successful attach may serve a new client's reverse requests.
     if (action === "attach") rpcClient?.acceptClient();
   };
   // Kept out of the runtime descriptor: released SDKs parse that descriptor strictly.

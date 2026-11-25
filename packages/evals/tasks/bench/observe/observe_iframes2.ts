@@ -34,14 +34,6 @@ export default defineBenchTask(
 
       const possibleLocators = [`#iframe-window`, `body > header > h1`];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page. Both candidate selectors live in the main
-      // frame (the shopify iframe is cross-origin and unreachable from the
-      // main document either way): an observed selector that pierces into
-      // the iframe never had a backendNodeId equal to either main-frame
-      // candidate in v3 (no match), and here it simply fails to resolve in
-      // the main document (no match) — the pass criterion is preserved.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

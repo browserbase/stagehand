@@ -74,7 +74,6 @@ TYPED_DICT_CONFIG = GenerateConfig(
     schema_version=JsonSchemaVersion.Draft202012.value,
     output_model_type=DataModelType.TypingTypedDict,
     target_python_version=PythonVersion.PY_311,
-    # Client-only input types extend generated protocol options with Python values.
     use_closed_typed_dict=False,
     disable_timestamp=True,
     # Preserve accurate __required_keys__ and __optional_keys__ runtime metadata.
@@ -178,7 +177,6 @@ def main() -> None:
     if not isinstance(properties, dict):
         raise TypeError("expected protocol properties to be a JSON object")
     properties = cast(dict[str, object], properties)
-    # The transport envelopes are not public Python data models.
     properties.pop("jsonrpc")
 
     required = protocol.get("required")
@@ -252,7 +250,6 @@ def use_wire_urls(value: object) -> None:
     if not isinstance(value, dict):
         return
     mapping = cast(dict[str, object], value)
-    # Preserve Python's `str` API while retaining Pydantic URL validation.
     if mapping.get("type") == "string" and mapping.get("format") == "uri":
         mapping["customTypePath"] = "stagehand._validation.WireUrl"
     for entry in mapping.values():
@@ -260,7 +257,6 @@ def use_wire_urls(value: object) -> None:
 
 
 def preserve_json_value_integers(protocol: dict[str, object]) -> None:
-    """Keep JSON integers as ints instead of routing them through StrictFloat."""
     definitions = protocol.get("$defs")
     if not isinstance(definitions, dict):
         raise TypeError("expected protocol definitions to be a JSON object")

@@ -95,7 +95,6 @@ export async function loadCodexSdk(
       { cause: error },
     );
   }
-  // Construction failures are auth/config problems, not missing installs.
   try {
     return new codexCtor({
       ...(options.env && { env: options.env }),
@@ -126,7 +125,6 @@ export function validateCodexSandboxMode(
   if (value === "read-only" || value === "workspace-write" || value === "danger-full-access") {
     return value;
   }
-  // Fail closed: an unset or unrecognized mode must not grant disk writes.
   return "read-only";
 }
 
@@ -348,7 +346,6 @@ async function findCodexRollout(codexHome: string, threadId: string): Promise<st
   return undefined;
 }
 
-/** Last `token_count` total in a rollout JSONL body; undefined when there is none. */
 export function parseCodexRolloutUsage(body: string): CodexTokenUsage | undefined {
   let latest: Record<string, unknown> | undefined;
   for (const line of body.split(/\r?\n/u)) {
@@ -383,8 +380,6 @@ export function resolveCodexStatus(
   stopReason?: string,
   budgetExhausted = false,
 ): "completed" | "max_turns" | "sdk_error" {
-  // Tool-step budget exhaustion is the same class of stop as Claude's
-  // max_turns, not an SDK failure; callers decide how to score it.
   if (budgetExhausted) return "max_turns";
   return iterationError || stopReason ? "sdk_error" : "completed";
 }

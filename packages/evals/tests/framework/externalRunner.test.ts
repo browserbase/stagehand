@@ -219,7 +219,6 @@ describe("external harness runner", () => {
       summary: "Inspected the meme.",
       finalAnswer: "A cat on a keyboard.",
     });
-    // A report quoted mid-prose, with more prose after it, is not the conclusion.
     expect(parseEvalResult(`${raw}\nthen I kept going`).success).toBe(false);
   });
 
@@ -236,9 +235,7 @@ describe("external harness runner", () => {
     expect(parseEvalResult(`\`\`\`json\n${report}\n\`\`\``).finalAnswer).toBe(
       "Best Buy lists it at $799.99.",
     );
-    // Prose after the fence still means the report is not the conclusion.
     expect(parseEvalResult(`${raw}\n\nthen I kept going`).success).toBe(false);
-    // Stripping the report must not leave its empty fence behind as "answer".
     expect(stripEmbeddedEvalReports(`Body text.\n\n\`\`\`json\n${report}\n\`\`\``).trim()).toBe(
       "Body text.",
     );
@@ -929,10 +926,8 @@ describe("external harness runner", () => {
     expect(metrics.usage_input_cached.value).toBe(2_000_000);
     expect(metrics.usage_output.value).toBe(100_000);
     expect(metrics.usage_reasoning.value).toBe(0);
-    // Legacy metrics stay untouched for existing dashboards.
     expect(metrics.harness_input_tokens.value).toBe(1_000_000);
     expect(metrics.harness_cost_usd.value).toBe(4.2);
-    // The reported bill is the cost column.
     expect(metrics.cost_usd.value).toBe(4.2);
     expect(result).toMatchObject({
       cost_source: "reported",
@@ -1074,7 +1069,6 @@ describe("external harness runner", () => {
       usage_reasoning: { count: 1, value: 1 },
       cost_usd: { count: 1, value: 0.5 },
     });
-    // Unreported usage carries no usage_* metrics: zeros would read as a free run.
     expect(
       buildUsageCostMetrics(
         {

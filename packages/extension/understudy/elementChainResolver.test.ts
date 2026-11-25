@@ -99,7 +99,6 @@ describe("element chain result ownership", () => {
     async ({ timeout, retries, attempts }) => {
       const { frame, session, send, ready, liveGroups } = setup();
       ready.mockRestore();
-      // Exercise the actual retry loop on a non-fallback page with no extension world.
       executionContexts.register(session, "frame", 1);
       const probe = vi.spyOn(executionContexts, "waitForExtensionWorld");
       send.mockImplementation(async (method) =>
@@ -200,8 +199,6 @@ describe("element chain result ownership", () => {
       else await vi.advanceTimersByTimeAsync(100);
       await assertion;
       expect(liveGroups.size).toBe(0);
-      // Responses from the other in-flight commands cannot restart scheduling,
-      // publish a partial result, or cause an unhandled rejection.
       gates[0].resolve({ node: { backendNodeId: 100 } });
       gates[1].resolve({ node: { backendNodeId: 101 } });
       gates[2].reject(new Error("late session closure"));

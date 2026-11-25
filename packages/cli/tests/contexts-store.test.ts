@@ -23,8 +23,6 @@ let env: NodeJS.ProcessEnv;
 
 beforeEach(async () => {
   configDir = await mkdtemp(join(tmpdir(), "browse-contexts-"));
-  // resolveConfigDir() appends the `browserbase` segment itself only for the
-  // XDG path; BROWSERBASE_CONFIG_DIR is used verbatim, so point it at our temp.
   env = { BROWSERBASE_CONFIG_DIR: configDir };
 });
 
@@ -98,7 +96,6 @@ describe("contexts store", () => {
     expect((await stat(path)).mode & 0o777).toBe(0o644);
 
     await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
-    // Atomic temp+rename replaces the old file with a fresh 0600 one.
     expect((await stat(path)).mode & 0o777).toBe(0o600);
   });
 
@@ -112,8 +109,6 @@ describe("contexts store", () => {
           noId: { createdAt: "2026-01-01T00:00:00.000Z" },
           badId: { id: 123 },
           notObject: "nope",
-          // An id-shaped key must be dropped too, so a hand-edited file can't
-          // smuggle in a name that shadows a raw context id.
           "45ed525f-63a5-490d-b4c4-853f50643b90": { id: "ctx_shadow" },
         },
       }),
@@ -123,7 +118,6 @@ describe("contexts store", () => {
     expect((await listContextAliases(env)).map((c) => c.name)).toEqual(["good"]);
     expect(await getContextAlias("noId", env)).toBeUndefined();
     expect(await resolveContextRef("badId", env)).toBe("badId");
-    // The id-shaped key was dropped, so resolving that UUID passes through.
     expect(await resolveContextRef("45ed525f-63a5-490d-b4c4-853f50643b90", env)).toBe(
       "45ed525f-63a5-490d-b4c4-853f50643b90",
     );
@@ -132,7 +126,6 @@ describe("contexts store", () => {
   it("resolves a saved name to its id and passes unknown refs through", async () => {
     await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
     expect(await resolveContextRef("github", env)).toBe("ctx_g");
-    // A raw id (or any unknown ref) is returned unchanged.
     expect(await resolveContextRef("ctx_raw_123", env)).toBe("ctx_raw_123");
   });
 
@@ -185,7 +178,6 @@ describe("resolveContextRefDetailed", () => {
 
   it("returns id=null/no suggestions for an unknown ref so callers can pass it through", async () => {
     await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
-    // Far from any saved name -> no suggestions -> caller passes it through.
     expect(await resolveContextRefDetailed("zzz-zzz-zzz", env)).toEqual({
       id: null,
       suggestions: [],

@@ -13,8 +13,6 @@ let warnedUnknownTransport = false;
 export function resolveTraceTransport(): "native" | "otel" {
   const value = process.env.EVAL_TRACE_TRANSPORT;
   if (value === "otel") return "otel";
-  // Fail loud (once) on a typo'd value so a misconfiguration doesn't silently
-  // disable tracing by falling through to the native default.
   if (value && value !== "native" && !warnedUnknownTransport) {
     warnedUnknownTransport = true;
     console.warn(

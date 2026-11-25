@@ -33,11 +33,6 @@ export default defineBenchTask(
         `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div > nav > ul`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and each
-      // candidate selector and compare element references. Candidates that
-      // fail to resolve are ignored, as in v3.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

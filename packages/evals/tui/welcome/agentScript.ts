@@ -1,14 +1,3 @@
-/**
- * Scripted agent trajectories for the welcome flows.
- *
- * The case is a REAL WebVoyager benchmark task (id + site + question come
- * from datasets/webvoyager/WebVoyager_data.jsonl, re-read at runtime when
- * present). The steps are a hand-written, deterministic replay of how an
- * agent solves it — observe → act → extract → answer → judge — so onboarding
- * can show what an agent run looks like without a key, a browser, or a bill.
- * Timings and costs are illustrative and labelled as such by the callers.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import { getPackageRootDir } from "../../runtimePaths.js";
@@ -17,13 +6,9 @@ export type StepKind = "goto" | "think" | "observe" | "act" | "extract" | "answe
 
 export type ScriptStep = {
   kind: StepKind;
-  /** What the agent sees / does / says — short, one line. */
   text: string;
-  /** How long the step "takes" in the replay (ms, at speed multiplier 1). */
   ms: number;
-  /** Page location after the step, when it changes. */
   url?: string;
-  /** Model calls consumed by this step (0 for pure browser steps). */
   calls?: number;
 };
 
@@ -31,15 +16,12 @@ export type ScriptedCase = {
   id: string;
   benchmark: "webvoyager";
   site: string;
-  /** The real benchmark question. */
   task: string;
   startUrl: string;
   steps: ScriptStep[];
   answer: string;
   verdict: "pass" | "fail";
-  /** Judge's one-line reason. */
   reason: string;
-  /** Illustrative totals at speed 1. */
   costUsd: number;
 };
 
@@ -54,9 +36,7 @@ function readDataset(): Map<string, DatasetRow> {
       const row = JSON.parse(line) as DatasetRow;
       if (row.id) out.set(row.id, row);
     }
-  } catch {
-    // dataset not shipped in this mode — embedded text below still applies
-  }
+  } catch {}
   return out;
 }
 
@@ -107,7 +87,6 @@ const CASES: ScriptedCase[] = [
   },
 ];
 
-/** The scripted cases, with question text refreshed from the dataset when available. */
 export function loadScriptedCases(): ScriptedCase[] {
   const ds = readDataset();
   return CASES.map((c) => {
@@ -118,23 +97,12 @@ export function loadScriptedCases(): ScriptedCase[] {
   });
 }
 
-/** A model "personality" for replays: relative speed and cost. */
 export type ModelProfile = {
-  /** Provider family only (no versions) so the replay doesn't go stale. */
   name: string;
-  /** Multiplier on step ms (lower = faster). */
   speedMul: number;
-  /** Multiplier on cost. */
   costMul: number;
 };
 
-/**
- * The three lanes of the run. Pacing is tuned for the replay's story — the
- * first lane wins, the second passes but arrives last, and the fastest,
- * cheapest one fails — accuracy ranks first. Lane order is the podium's
- * expected order. Illustrative, not a
- * ranking: the live board is at stagehand.dev/evals.
- */
 export const MODEL_PROFILES: ModelProfile[] = [
   { name: "Opus", speedMul: 1.0, costMul: 1.0 },
   { name: "Grok", speedMul: 1.6, costMul: 2.4 },

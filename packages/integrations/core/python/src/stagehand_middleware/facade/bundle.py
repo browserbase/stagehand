@@ -1,11 +1,3 @@
-"""The facade bundle: the browser-side sources and model-facing contract of the facade.
-
-`_bundle.json` is a copy of `dist/facade-bundle.json` from
-`@browserbasehq/stagehand-integrations` (see `src/facade/bundle.ts` there for
-its shape). The TypeScript facade sends the same sources and advertises the
-same tools.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -23,13 +15,10 @@ class StagehandFacadeBundleError(Exception):
 
 
 def canonical_json(value: object) -> str:
-    """``canonicalJson`` in ``src/facade/bundle.ts``: keys sorted at every level, no
-    whitespace, non-ASCII characters unescaped."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def parse_bundle(text: str) -> dict[str, Any]:
-    """Parses a bundle and checks its ``sha256`` against its ``sources`` and ``contract``."""
     bundle = json.loads(text)
     content = {"sources": bundle.get("sources"), "contract": bundle.get("contract")}
     digest = hashlib.sha256(canonical_json(content).encode("utf-8")).hexdigest()
@@ -43,7 +32,6 @@ def parse_bundle(text: str) -> dict[str, Any]:
 
 @cache
 def _bundle() -> dict[str, Any]:
-    """The vendored bundle, parsed and checked once; the host's own read-only copy."""
     return parse_bundle(
         files("stagehand_middleware.facade").joinpath("_bundle.json").read_text(encoding="utf-8")
     )

@@ -132,7 +132,6 @@ describe("Stagehand facade contract", () => {
     expect(tools[0].description).toContain('Prefer "actions" with snapshot IDs');
     expect(tools[1].description).toContain("before acting by ID");
     expect(tools[2].description).toContain("before reporting done");
-    // Same input schemas — prompt-only variant, not a new surface.
     expect(tools.map((t) => t.inputSchema)).toEqual(FACADE_TOOLS.map((t) => t.inputSchema));
     expect(facadeToolsFor("legacy", { EXPLICIT_SNAPSHOT_ACTIONS: "1" })).toBe(FACADE_LEGACY_TOOLS);
   });

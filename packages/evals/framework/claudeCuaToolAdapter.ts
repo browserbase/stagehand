@@ -15,11 +15,6 @@ import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { harnessObservationsEnabled } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
-/**
- * The only surface claude_cua mounts. The agent sees Anthropic's Browser Use
- * toolset; the SDK executor runs each member against the facade browser, here
- * reached through the runner-owned bridge instead of an in-process Stagehand.
- */
 export const CLAUDE_CUA_TOOL_INSTRUCTIONS =
   "Browser tool surface: Anthropic Browser Use.\nUse the Browser Use toolset members to control the existing browser. Open URLs with navigate, inspect the page with read_page or find, and act with the supplied browser member names. References returned by read_page and find can be used in ref targets; read the page again when a reference becomes stale. Use screenshot when visual state matters. Use the member schemas for their exact arguments.";
 
@@ -41,9 +36,7 @@ export interface PreparedClaudeCuaToolAdapter {
   executor: CuaToolExecutor;
   captureEvidence?: () => Promise<ProbeEvidence>;
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
-  /** Every toolset member counts as a browser-surface call. */
   observedToolMatcher: (toolName: string) => boolean;
-  /** Page state observed after each mutating member, keyed by tool_use id. */
   drainObservationsByToolUse: () => Map<string, ProbeEvidence>;
   cleanup: () => Promise<void>;
 }

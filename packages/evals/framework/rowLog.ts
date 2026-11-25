@@ -1,15 +1,3 @@
-/**
- * One log file per row execution.
- *
- * Before this, default (non-verbose) runs dropped every console line and
- * EvalLogger line on the floor; verbose runs interleaved six concurrent rows
- * with no way to tell them apart. Each row now writes its own file, so a
- * failure can point at exactly what happened in it.
- *
- * Location: `<trajectory root>/<group>/logs/` when trajectories persist (so
- * logs sit next to the trajectories they explain), else a temp dir.
- */
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -27,11 +15,6 @@ export function resolveRunLogDir(options: {
 
 const UNSAFE = /[^A-Za-z0-9._-]+/g;
 
-/**
- * `47e314cc-recreation.gov__openai-gpt-5.4-mini.log`, `-t2` for later trials.
- * The provider stays in the name: `openai/foo` and `anthropic/foo` are
- * different rows.
- */
 export function rowLogFileName(input: {
   name: string;
   domain?: string;
@@ -49,12 +32,6 @@ function formatEntry(entry: RowLogEntry, at: Date): string {
   return `${at.toISOString()} [${entry.category}]${level} ${entry.message}\n`;
 }
 
-/**
- * Hands out one file name per row within a run. Two rows whose names would
- * collide (the same case id in two suites, or two tool surfaces of one cell)
- * get `~2`, `~3`, … instead of interleaving in one append-only file. The same
- * row key always gets the same name back.
- */
 export class RowLogNames {
   private readonly owners = new Map<string, string>();
 
@@ -72,11 +49,6 @@ export class RowLogNames {
   }
 }
 
-/**
- * Appends a row's lines to its file. The file is only created on the first
- * line, so rows that log nothing leave nothing behind. Logging is best
- * effort: a filesystem error disables this row's file and never fails the row.
- */
 export class RowLogWriter {
   private stream?: fs.WriteStream;
   private wrote = false;
@@ -105,7 +77,6 @@ export class RowLogWriter {
     }
   }
 
-  /** Marks a retry so the second attempt is distinguishable in the file. */
   attempt(n: number): void {
     if (n > 1) this.write({ category: "runner", message: `──── attempt ${n} ────` });
   }

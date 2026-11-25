@@ -1,11 +1,3 @@
-/**
- * Build the evals CLI (packages/evals/dist/cli/cli.js + config), including a node shebang.
- *
- * Prereqs: pnpm install.
- * Args: none.
- * Env: none.
- * Example: pnpm run build:cli
- */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { getRepoRootDir } from "../runtimePaths.js";
@@ -35,17 +27,6 @@ run([
   "--log-level=warning",
 ]);
 
-/* ── config: seed the tracked file verbatim. Personal overrides and the
-   first-run marker live in dist/cli/evals.config.local.json, which the CLI
-   writes and this script never touches — so nothing needs merging.
-
-   One-time migration: a pre-v2 dist config carried user edits (defaults,
-   core, tracing, _meta) inline. If no local file exists yet, move whatever
-   differs from the source into the local file so a rebuild does not reset
-   concurrency or re-show the welcome. ── */
-// The v1 tracked defaults. Old builds copied them into the dist config, so a
-// value equal to one of them is not a personal edit and must not be pinned
-// over the new tracked default (v2 lowers concurrency from 10 to 3).
 const PREVIOUS_TRACKED_DEFAULTS: Record<string, unknown> = {
   env: "local",
   trials: 3,
@@ -73,7 +54,7 @@ if (fs.existsSync(distConfigPath) && !fs.existsSync(distLocalConfigPath)) {
       const source = (sourceConfig[section] ?? {}) as Record<string, unknown>;
       const diff: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(before)) {
-        if (section === "defaults" && key === "provider") continue; // never read
+        if (section === "defaults" && key === "provider") continue;
         if (JSON.stringify(source[key]) === JSON.stringify(value)) continue;
         if (
           section === "defaults" &&
@@ -89,9 +70,7 @@ if (fs.existsSync(distConfigPath) && !fs.existsSync(distLocalConfigPath)) {
     if (Object.keys(local).length > 0) {
       fs.writeFileSync(distLocalConfigPath, JSON.stringify(local, null, 2) + "\n");
     }
-  } catch {
-    // invalid existing config – nothing worth migrating
-  }
+  } catch {}
 }
 
 fs.writeFileSync(distConfigPath, JSON.stringify(sourceConfig, null, 2) + "\n");

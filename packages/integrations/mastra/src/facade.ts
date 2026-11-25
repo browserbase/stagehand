@@ -14,7 +14,6 @@ import { fileURLToPath } from "node:url";
  * MCP SDK adds when it spawns a stdio server.
  */
 export function facadeMcpServer(): MastraStdioServerDefinition {
-  // Build @browserbasehq/stagehand-integrations first so this dist entrypoint exists.
   const serverPath = fileURLToPath(
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
   );
@@ -26,16 +25,6 @@ export function facadeMcpServer(): MastraStdioServerDefinition {
   };
 }
 
-/**
- * The example agent's session: the facade server with the adapter's default
- * server-namespaced tool names (stagehand_run, stagehand_snapshot,
- * stagehand_screenshot) and FACADE_AGENT_INSTRUCTIONS. The instructions name the
- * tools run/snapshot/screenshot; models map them to the namespaced names, as the
- * claude-code example does with mcp__stagehand__*.
- *
- * Tool failures reach the model as tool results (the adapter's
- * `onToolError: "return"`, shared with evals) rather than as thrown errors.
- */
 export function facadeAgentSession(): MastraSessionConfig {
   return {
     agentId: "stagehand-facade-agent",

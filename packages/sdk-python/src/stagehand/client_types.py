@@ -1,5 +1,3 @@
-"""Public dictionary inputs owned by the Python SDK rather than the wire protocol."""
-
 from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 

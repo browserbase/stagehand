@@ -30,12 +30,6 @@ type StagehandV4Page = {
   pageId: string;
 };
 
-/**
- * The V3 Browse network writer, adapted only at the CDP-session boundary.
- * Keeping request correlation and the on-disk request/response schema here
- * unchanged gives the V4 CLI observable parity without adding a public
- * Stagehand network-event API.
- */
 export class NetworkCapture {
   private cdpSession: NetworkCdpSession | null = null;
   private counter = 0;

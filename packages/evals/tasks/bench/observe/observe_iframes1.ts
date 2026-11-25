@@ -24,13 +24,6 @@ export default defineBenchTask(
         `body > header > h1`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page. Both candidate selectors live in the main
-      // frame, so main-frame resolution preserves the v3 pass criterion:
-      // an observed selector that points inside the iframe never had a
-      // backendNodeId equal to either main-frame candidate in v3 (no match),
-      // and here it simply fails to resolve in the main document (no match).
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

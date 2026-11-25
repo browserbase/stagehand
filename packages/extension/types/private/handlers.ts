@@ -1,4 +1,3 @@
-// We can use this enum to list the actions supported in performUnderstudyMethod
 export enum SupportedUnderstudyAction {
   CLICK = "click",
   FILL = "fill",

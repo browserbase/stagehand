@@ -46,7 +46,6 @@ describe("loadEvalsEnv", () => {
     expect(report.sources.get("SHARED")).toBe("cwd");
     expect(report.sources.get("ONLY_PKG")).toBe("package");
     expect(report.sources.has("OPENAI_API_KEY")).toBe(false);
-    // Names only — never values.
     expect(report.shadowed).toEqual([
       { name: "OPENAI_API_KEY", file: path.join(root, "cwd", ".env"), by: "shell" },
       { name: "OPENAI_API_KEY", file: path.join(root, "pkg", ".env"), by: "shell" },
