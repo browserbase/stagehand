@@ -172,4 +172,9 @@ def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
         )
         if enabled
     )
-    return CookieFilter(root=CookieRegex(source=value.pattern, flags=flags or None))
+    cookie_regex = (
+        CookieRegex(source=value.pattern, flags=flags)
+        if flags
+        else CookieRegex(source=value.pattern)
+    )
+    return CookieFilter(root=cookie_regex)

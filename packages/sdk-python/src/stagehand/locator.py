@@ -79,7 +79,7 @@ class Locator:
             return ChainLocatorDescriptor(
                 page_id=self.page_id, chain=self._chain.model_copy(deep=True)
             )
-        return self._descriptor
+        return self._descriptor.model_copy(deep=True)
 
     async def click(
         self,

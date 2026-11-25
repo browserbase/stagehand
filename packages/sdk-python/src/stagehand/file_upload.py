@@ -26,6 +26,8 @@ FileInput = str | Path | FilePayload
 def normalize_file_input(
     files: FileInput | Sequence[FileInput],
 ) -> list[InputFilePayload]:
+    if isinstance(files, (bytes, bytearray, memoryview)):
+        raise ValueError("set_input_files(): expected a path or FilePayload for every file")
     entries = [files] if isinstance(files, (str, Path, FilePayload)) else list(files)
     return [_normalize_file(entry) for entry in entries]
 
@@ -74,7 +76,14 @@ def _normalize_file(file: FileInput) -> InputFilePayload:
         raise ValueError("set_input_files(): expected a path or FilePayload for every file")
     if not file.name:
         raise ValueError("set_input_files(): file payload name cannot be empty")
-    buffer = file.buffer.encode() if isinstance(file.buffer, str) else bytes(file.buffer)
+    if isinstance(file.buffer, str):
+        buffer = file.buffer.encode()
+    elif isinstance(file.buffer, (bytes, bytearray, memoryview)):
+        buffer = bytes(file.buffer)
+    else:
+        raise ValueError(
+            "set_input_files(): buffer must be a string, bytes, bytearray, or memoryview"
+        )
     if len(buffer) > _MAX_INPUT_FILE_BYTES:
         raise ValueError("set_input_files(): file is larger than the 50 MiB upload limit")
     values = {

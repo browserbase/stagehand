@@ -275,6 +275,9 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._close_reason: BaseException | None = None
+        self._close_done = asyncio.Event()
+        self._closing_task: asyncio.Task[None] | None = None
         self._client_target_id: str | None = None
         self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
@@ -516,6 +519,8 @@ class CDPClient:
             )
 
     async def receive(self) -> object:
+        if self._closed and self._incoming.empty():
+            raise self._close_reason or RuntimeError("CDP client closed")
         message = await self._incoming.get()
         if isinstance(message, BaseException):
             raise message
@@ -533,8 +538,6 @@ class CDPClient:
 
         command_id = self._next_id
         self._next_id += 1
-        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
-        self._pending[command_id] = (method, response)
         message: dict[str, object] = {
             "id": command_id,
             "method": method,
@@ -542,19 +545,22 @@ class CDPClient:
         }
         if session_id is not None:
             message["sessionId"] = session_id
+        payload = json.dumps(message, separators=(",", ":"))
+        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
+        self._pending[command_id] = (method, response)
 
         try:
             try:
-                await self._socket.send(json.dumps(message, separators=(",", ":")))
+                await self._socket.send(payload)
             except ConnectionClosed as error:
                 raise CDPConnectionClosedError() from error
             result = await response
-        except BaseException:
-            if not response.done():
-                response.cancel()
-            raise
         finally:
             self._pending.pop(command_id, None)
+            if not response.done():
+                response.cancel()
+            elif not response.cancelled():
+                response.exception()
 
         if result is None:
             return {}
@@ -563,19 +569,28 @@ class CDPClient:
         return cast(dict[str, object], result)
 
     async def close(self) -> None:
+        current_task = asyncio.current_task()
         if self._closed:
+            if self._closing_task is not current_task:
+                await self._close_done.wait()
             return
 
         self._closed = True
+        self._closing_task = current_task
         reason = RuntimeError("CDP client closed")
+        self._close_reason = reason
         self._reject_pending(reason)
         self._incoming.put_nowait(reason)
-        current_task = asyncio.current_task()
-        if self._reader is not current_task:
-            self._reader.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._reader
-        await self._socket.close()
+        try:
+            if self._reader is not current_task:
+                self._reader.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._reader
+            await self._cancel_background_tasks(current_task)
+            await self._socket.close()
+        finally:
+            self._close_done.set()
+            self._closing_task = None
 
     async def _read(self) -> None:
         try:
@@ -590,10 +605,26 @@ class CDPClient:
         except Exception as error:
             if self._closed:
                 return
+            current_task = asyncio.current_task()
             self._closed = True
+            self._closing_task = current_task
+            self._close_reason = error
             self._reject_pending(error)
             self._incoming.put_nowait(error)
-            await self._socket.close()
+            try:
+                await self._cancel_background_tasks(current_task)
+                await self._socket.close()
+            finally:
+                self._close_done.set()
+                self._closing_task = None
+
+    async def _cancel_background_tasks(self, current_task: asyncio.Task[Any] | None) -> None:
+        remaining = [task for task in self._background_tasks if task is not current_task]
+        for task in remaining:
+            task.cancel()
+        if remaining:
+            await asyncio.gather(*remaining, return_exceptions=True)
+        self._background_tasks.clear()
 
     async def _handle_message(self, data: str | bytes) -> None:
         if isinstance(data, bytes):
@@ -610,6 +641,7 @@ class CDPClient:
 
         if (
             message.get("method") != "Runtime.bindingCalled"
+            or self._session_id is None
             or message.get("sessionId") != self._session_id
         ):
             return

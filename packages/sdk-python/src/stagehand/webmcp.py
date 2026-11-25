@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping
 from typing import Literal, cast
 
@@ -65,7 +66,7 @@ class WebMCPTool:
 
     @property
     def input_schema(self) -> dict[str, JsonValue] | None:
-        return self._input_schema
+        return copy.deepcopy(self._input_schema) if self._input_schema is not None else None
 
     @property
     def annotations(self) -> WebMCPAnnotation | None:
@@ -128,7 +129,7 @@ class WebMCPInvocation:
 
     @property
     def input(self) -> dict[str, JsonValue]:
-        return self._input
+        return copy.deepcopy(self._input)
 
     async def result(self, *, timeout: float | None = None) -> WebMCPToolResponse:
         if self._terminal_result is not None:
@@ -145,9 +146,11 @@ class WebMCPInvocation:
             params,
             WireWebMCPToolResponse,
         )
-        self._terminal_result = WebMCPToolResponse.model_validate(
+        terminal = WebMCPToolResponse.model_validate(
             response.model_dump(mode="json", exclude_unset=True)
         )
+        if self._terminal_result is None:
+            self._terminal_result = terminal
         return self._terminal_result
 
     async def cancel(self) -> None:

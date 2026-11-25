@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import math
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -152,9 +153,12 @@ class RPCClient:
         ] = {}
         self._pending_notifications: list[_JSONRPCNotification] = []
         self._inbound_tasks: set[asyncio.Task[None]] = set()
+        self._background_close_tasks: set[asyncio.Task[None]] = set()
         self._close_listeners: dict[object, Callable[[], Awaitable[None]]] = {}
         self._closed = False
         self._close_reason: BaseException | None = None
+        self._close_done = asyncio.Event()
+        self._closing_task: asyncio.Task[None] | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
 
     @property
@@ -195,12 +199,6 @@ class RPCClient:
         parsed_params = type(params).model_validate_json(encoded_params, strict=True)
         request_id = self._next_request_id
         self._next_request_id += 1
-        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
-        self._pending[request_id] = (
-            method,
-            result_model,
-            response,
-        )
         trace_context: dict[str, str] = {}
         _TRACE_CONTEXT_PROPAGATOR.inject(trace_context)
         request = _JSONRPCRequest(
@@ -218,6 +216,12 @@ class RPCClient:
 
         response_timeout_seconds = _rpc_response_timeout_seconds(method, parsed_params)
         response_timeout = asyncio.timeout(response_timeout_seconds)
+        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
+        self._pending[request_id] = (
+            method,
+            result_model,
+            response,
+        )
         try:
             try:
                 async with response_timeout:
@@ -238,6 +242,8 @@ class RPCClient:
             self._pending.pop(request_id, None)
             if not response.done():
                 response.cancel()
+            elif not response.cancelled():
+                response.exception()
 
     def on_request(
         self,
@@ -344,10 +350,14 @@ class RPCClient:
         *,
         close_transport: bool = True,
     ) -> None:
+        current_task = asyncio.current_task()
         if self._closed:
+            if self._closing_task is not current_task:
+                await self._close_done.wait()
             return
 
         self._closed = True
+        self._closing_task = current_task
         self._close_reason = reason or RuntimeError("RPC client closed")
         self._request_handlers.clear()
         self._notification_listeners.clear()
@@ -357,31 +367,34 @@ class RPCClient:
                 response.set_exception(self._close_reason)
         self._pending.clear()
 
-        current_task = asyncio.current_task()
-        if self._reader is not current_task:
-            self._reader.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._reader
-
-        for task in self._inbound_tasks:
-            if task is not current_task:
-                task.cancel()
-        remaining = [task for task in self._inbound_tasks if task is not current_task]
-        if remaining:
-            await asyncio.gather(*remaining, return_exceptions=True)
-        self._inbound_tasks.clear()
-        listeners = list(self._close_listeners.values())
-        self._close_listeners.clear()
         try:
-            results = await asyncio.gather(
-                *(listener() for listener in listeners), return_exceptions=True
-            )
-            for result in results:
-                if isinstance(result, BaseException):
-                    raise result
+            if self._reader is not current_task:
+                self._reader.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._reader
+
+            for task in self._inbound_tasks:
+                if task is not current_task:
+                    task.cancel()
+            remaining = [task for task in self._inbound_tasks if task is not current_task]
+            if remaining:
+                await asyncio.gather(*remaining, return_exceptions=True)
+            self._inbound_tasks.clear()
+            listeners = list(self._close_listeners.values())
+            self._close_listeners.clear()
+            try:
+                results = await asyncio.gather(
+                    *(listener() for listener in listeners), return_exceptions=True
+                )
+                for result in results:
+                    if isinstance(result, BaseException):
+                        raise result
+            finally:
+                if close_transport:
+                    await self._transport.close()
         finally:
-            if close_transport:
-                await self._transport.close()
+            self._close_done.set()
+            self._closing_task = None
 
     async def _read(self) -> None:
         try:
@@ -393,6 +406,8 @@ class RPCClient:
             await self.close(error)
 
     async def _receive(self, raw: object) -> None:
+        if self._closed:
+            return
         if isinstance(raw, str):
             try:
                 decoded = json.loads(raw)
@@ -447,7 +462,7 @@ class RPCClient:
     ) -> None:
         if response.id is None:
             return
-        pending = self._pending.get(response.id)
+        pending = self._pending.pop(response.id, None)
         if pending is None:
             return
         _, result_model, future = pending
@@ -471,6 +486,8 @@ class RPCClient:
             future.set_result(result)
 
     def _receive_notification(self, notification: _JSONRPCNotification) -> None:
+        if self._closed:
+            return
         registered = self._notification_listeners.get(notification.method)
         if not registered:
             if len(self._pending_notifications) == _MAX_PENDING_NOTIFICATIONS:
@@ -569,14 +586,25 @@ class RPCClient:
         )
 
     def _track_inbound(self, operation: Coroutine[object, object, None]) -> None:
+        if self._closed:
+            operation.close()
+            return
         task = asyncio.create_task(operation)
         self._inbound_tasks.add(task)
         task.add_done_callback(self._finish_inbound)
 
     def _finish_inbound(self, task: asyncio.Task[None]) -> None:
         self._inbound_tasks.discard(task)
-        if not task.cancelled() and (error := task.exception()) is not None:
-            asyncio.create_task(self.close(error))
+        if not task.cancelled() and (error := task.exception()) is not None and not self._closed:
+            close_task = asyncio.create_task(self.close(error))
+            self._background_close_tasks.add(close_task)
+
+            def finish_close(completed: asyncio.Task[None]) -> None:
+                self._background_close_tasks.discard(completed)
+                if not completed.cancelled():
+                    completed.exception()
+
+            close_task.add_done_callback(finish_close)
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
@@ -587,9 +615,9 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
             return None
         if timeout is None:
             timeout = _DEFAULT_LOCATOR_TIMEOUT_MS
-        return (_RPC_RESPONSE_GRACE_MS + timeout) / 1_000
+        return _timeout_ms_to_seconds(timeout)
 
-    operation_timeout_ms: float | int | None = None
+    operation_timeout_ms: float | None = None
     if method in {
         "stagehand.act",
         "stagehand.extract",
@@ -621,7 +649,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
             "page.wait_for_selector",
         }:
             return None
-        return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000
+        return _timeout_ms_to_seconds(operation_timeout_ms)
 
     if (default_timeout_ms := _DEFAULT_OPERATION_TIMEOUT_MS.get(method)) is not None:
         return (_RPC_RESPONSE_GRACE_MS + default_timeout_ms) / 1_000
@@ -632,6 +660,11 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
     return _RPC_RESPONSE_GRACE_MS / 1_000
 
 
+def _timeout_ms_to_seconds(timeout_ms: float) -> float | None:
+    seconds = (_RPC_RESPONSE_GRACE_MS + max(0.0, timeout_ms)) / 1_000
+    return seconds if math.isfinite(seconds) else None
+
+
 def _property(value: object, name: str) -> object:
     if isinstance(value, BaseModel):
         return getattr(value, name, None)
@@ -640,8 +673,12 @@ def _property(value: object, name: str) -> object:
     return None
 
 
-def _numeric_property(value: object, name: str) -> float | int | None:
+def _numeric_property(value: object, name: str) -> float | None:
     candidate = _property(value, name)
-    if isinstance(candidate, (float, int)) and not isinstance(candidate, bool):
-        return candidate
-    return None
+    if isinstance(candidate, bool) or not isinstance(candidate, (float, int)):
+        return None
+    try:
+        numeric = float(candidate)
+    except OverflowError:
+        return None
+    return numeric if math.isfinite(numeric) else None
