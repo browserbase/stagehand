@@ -217,8 +217,6 @@ export class Stagehand {
         );
       }
 
-      // Build (and validate) the init params before the request counts as
-      // started: a configuration error must not invalidate the browser claim.
       const initParams = stagehandCreateParamsForWorker(
         createConfig,
         browser,
@@ -370,11 +368,6 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
   return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
-/**
- * The experimental decisions path is switched on from the environment, as JSON
- * (`{"apiKey":"…"}`), so it never becomes a field of the public create config
- * that the Python SDK would have to mirror.
- */
 function experimentalDecisionsFromEnv(): unknown {
   const raw =
     typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_DECISIONS;

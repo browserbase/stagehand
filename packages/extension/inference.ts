@@ -257,11 +257,6 @@ const ActTextArgumentSchema = z
   })
   .strict();
 
-/**
- * Argument-only inference for the experimental decisions act path: no page content,
- * just the instruction, returning the literal text to type. The element is
- * chosen elsewhere.
- */
 export async function actTextArgument(params: {
   instruction: string;
   variableNames: string[];
@@ -274,7 +269,6 @@ export async function actTextArgument(params: {
   cached_input_tokens: number;
   inference_time_ms: number;
 }> {
-  // Variable names are caller data: they go in the data message, never the system prompt.
   const variables =
     params.variableNames.length > 0
       ? `\ndeclared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}`
