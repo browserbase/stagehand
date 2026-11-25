@@ -54,7 +54,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
     assert result_model is LocatorClickResult
     assert recording.calls[1] == (
         "locator.count",
-        LocatorParams(page_id="page-1", selector="select", nth=1),
+        LocatorParams.model_validate({"page_id": "page-1", "selector": "select", "nth": 1}),
         LocatorCountResult,
     )
 
@@ -73,7 +73,7 @@ async def test_locator_boolean_and_string_getters_return_scalars() -> None:
 
     assert await locator.is_checked() is True
     assert await locator.input_value() == "selected"
-    descriptor = LocatorParams(page_id="page-1", selector="select")
+    descriptor = LocatorParams.model_validate({"page_id": "page-1", "selector": "select"})
     assert recording.calls == [
         ("locator.is_checked", descriptor, LocatorIsCheckedResult),
         ("locator.input_value", descriptor, LocatorInputValueResult),
@@ -114,18 +114,18 @@ async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None
     method, params, result_model = recording.calls[0]
     assert method == "locator.set_input_files"
     assert isinstance(params, LocatorSetInputFilesParams)
-    assert params.files[0].name == "hello.txt"
-    assert params.files[0].data == "aGVsbG8="
-    assert params.files[0].last_modified is not None
+    assert params.model_dump()["files"][0]["name"] == "hello.txt"
+    assert params.model_dump()["files"][0]["data"] == "aGVsbG8="
+    assert params.model_dump()["files"][0]["last_modified"] is not None
     assert result_model is LocatorSetInputFilesResult
-    assert recording.calls[1][1] == LocatorSetInputFilesParams(
-        page_id="page-1",
-        selector="#upload",
-        files=[],
-    )
+    assert recording.calls[1][1] == LocatorSetInputFilesParams.model_validate({
+        "page_id": "page-1",
+        "selector": "#upload",
+        "files": [],
+    })
     historical_params = recording.calls[2][1]
     assert isinstance(historical_params, LocatorSetInputFilesParams)
-    assert historical_params.files[0].model_dump(exclude_unset=True) == {
+    assert historical_params.model_dump(exclude_unset=True)["files"][0] == {
         "name": "historical.txt",
         "data": "b2xk",
     }
@@ -156,13 +156,13 @@ async def test_set_input_files_normalizes_payloads_and_rejects_invalid_inputs(
 
     params = recording.calls[0][1]
     assert isinstance(params, LocatorSetInputFilesParams)
-    assert params.files[0].model_dump(exclude_unset=True) == {
+    assert params.model_dump(exclude_unset=True)["files"][0] == {
         "name": "bytes.bin",
         "mime_type": "application/octet-stream",
         "data": "AH//",
         "last_modified": 42,
     }
-    assert params.files[1].model_dump(exclude_unset=True) == {
+    assert params.model_dump(exclude_unset=True)["files"][1] == {
         "name": "message.txt",
         "data": "aGVsbG8=",
     }

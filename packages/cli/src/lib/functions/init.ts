@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -140,7 +140,7 @@ export async function initFunctionsProject({
   runPackageManager(packageManager, [...installDev, "typescript", "@types/node"], projectRoot);
 
   if (!existsSync(join(projectRoot, ".git"))) {
-    spawnSync("git", ["init"], {
+    spawn.sync("git", ["init"], {
       cwd: projectRoot,
       stdio: "ignore",
     });
@@ -169,7 +169,7 @@ export async function initFunctionsProject({
 }
 
 function ensureCommand(command: string): void {
-  const result = spawnSync(command, ["--version"], { stdio: "ignore" });
+  const result = spawn.sync(command, ["--version"], { stdio: "ignore" });
   if (result.error || result.status !== 0) {
     fail(`${command} is required but was not found on PATH.`);
   }
@@ -190,15 +190,15 @@ function readStagehandZodVersion(projectRoot: string): string | undefined {
 }
 
 function runPackageManager(packageManager: "npm" | "pnpm", args: string[], cwd: string): void {
-  const result = spawnSync(packageManager, args, {
+  const result = spawn.sync(packageManager, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  if (result.stdout.length > 0) {
+  if (result.stdout?.length > 0) {
     process.stderr.write(result.stdout);
   }
-  if (result.stderr.length > 0) {
+  if (result.stderr?.length > 0) {
     process.stderr.write(result.stderr);
   }
 

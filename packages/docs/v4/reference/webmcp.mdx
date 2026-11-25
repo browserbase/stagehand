@@ -17,7 +17,8 @@ Use [`page.onToolsAdded()`](/v4/reference/page#ontoolsadded) to subscribe to fut
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `name` | `string` | Tool name used for invocation. |
+| `toolId` | `string \| undefined` | Opaque registration ID on supported Chrome versions. |
+| `name` | `string` | Tool name. |
 | `description` | `string` | Human-readable tool description. |
 | `inputSchema` | `Record<string, unknown> \| undefined` | Optional JSON input schema. |
 | `annotations` | `WebMCPAnnotation \| undefined` | Optional `readOnly`, `untrustedContent`, and `autosubmit` flags. |
@@ -30,8 +31,9 @@ Use [`page.onToolsAdded()`](/v4/reference/page#ontoolsadded) to subscribe to fut
 invoke(options?: WebMCPInvokeOptions): Promise<WebMCPInvocation>
 ```
 
-`options.input` is a JSON-compatible object and defaults to `{}`. The helper supplies its own page,
-frame, and tool name.
+`options.input` is a JSON-compatible object and defaults to `{}`. When Chrome supplies a registration
+ID, invocation targets that registration and fails if the page has removed it, even if the page
+has reused the tool name. Older Chrome versions invoke by name within the tool's frame.
 
 ## WebMCPInvocation
 
@@ -81,7 +83,8 @@ Requests cancellation from Chrome. It does not synthesize or overwrite a termina
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `name` | `str` | Tool name used for invocation. |
+| `tool_id` | `str \| None` | Opaque registration ID on supported Chrome versions. |
+| `name` | `str` | Tool name. |
 | `description` | `str` | Human-readable tool description. |
 | `input_schema` | `dict[str, JsonValue] \| None` | Optional JSON input schema. |
 | `annotations` | `WebMCPAnnotation \| None` | Optional `read_only`, `untrusted_content`, and `autosubmit` flags. |
@@ -97,7 +100,9 @@ async def invoke(
 ) -> WebMCPInvocation
 ```
 
-`input` defaults to an empty dictionary. The helper supplies its own page, frame, and tool name.
+`input` defaults to an empty dictionary. When Chrome supplies a registration ID, invocation targets
+that registration and fails if the page has removed it, even if the page has reused the tool name.
+Older Chrome versions invoke by name within the tool's frame.
 
 ## WebMCPInvocation
 

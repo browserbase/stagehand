@@ -39,10 +39,24 @@ const fixture = `<!doctype html><title>WebMCP discovery</title>
 describe("WebMCP shared discovery", () => {
   let stagehand: Stagehand;
   let server: FixtureServer;
+  let supportsToolIds: boolean;
 
   beforeAll(async () => {
     server = await startFixtureServer({ "/": fixture, "/registered": fixture });
     stagehand = await createStagehand({ browser: { args: ["--enable-blink-features=WebMCP"] } });
+    const response = await fetch(new URL("/json/protocol", stagehand.browser.cdpUrl));
+    expect(response.ok).toBe(true);
+    const protocol: {
+      domains: {
+        domain: string;
+        commands?: { name: string; parameters?: { name: string }[] }[];
+      }[];
+    } = await response.json();
+    supportsToolIds =
+      protocol.domains
+        .find(({ domain }) => domain === "WebMCP")
+        ?.commands?.find(({ name }) => name === "invokeTool")
+        ?.parameters?.some(({ name }) => name === "toolId") ?? false;
   });
 
   afterAll(async () => {
@@ -73,7 +87,26 @@ describe("WebMCP shared discovery", () => {
     await page.evaluate('window.removeTool("search")');
     await expect(page.tools()).resolves.toEqual([]);
     await page.evaluate('window.registerTool("search")');
-    expect((await page.tools()).map((tool) => tool.name)).toEqual(["search"]);
+    const [replacement] = await page.tools();
+    expect(replacement?.name).toBe("search");
+    if (supportsToolIds) {
+      expect(first[0]!.toolId).toEqual(expect.any(String));
+      expect(second[0]!.toolId).toBe(first[0]!.toolId);
+      expect(replacement!.toolId).toEqual(expect.any(String));
+      expect(replacement!.toolId).not.toBe(first[0]!.toolId);
+      await expect(first[0]!.invoke()).rejects.toThrow(
+        /tool not found|no tool with the given toolId/i,
+      );
+    } else {
+      expect(first[0]!.toolId).toBeUndefined();
+    }
+    const replacementInvocation = await replacement!.invoke({
+      input: { searchQuery: "replacement" },
+    });
+    await expect(replacementInvocation.result()).resolves.toMatchObject({
+      status: "Completed",
+      output: { content: [{ type: "text", text: "replacement" }] },
+    });
 
     await page.goto(new URL("registered", server.url).href, { waitUntil: "load" });
     expect((await page.tools()).map((tool) => tool.name)).toEqual(["initial"]);
@@ -108,9 +141,12 @@ describe("WebMCP shared discovery", () => {
   it("delivers future-only typed notifications through the runtime RPC", async () => {
     const page = await firstPage(stagehand);
     await page.goto(new URL("registered", server.url).href, { waitUntil: "load" });
-    const events: PageEventNotification[] = [];
+    const events: Extract<PageEventNotification, { event: "toolsadded" | "toolsremoved" }>[] = [];
     const removeListener = page.rpcClient.onNotification((notification) => {
-      if (notification.method === StagehandNotifications.pageEvent.name)
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        (notification.params.event === "toolsadded" || notification.params.event === "toolsremoved")
+      )
         events.push(notification.params);
     });
     const subscribe = (subscriptionId: string, event: "toolsadded" | "toolsremoved") =>
@@ -187,6 +223,7 @@ describe("WebMCP shared discovery", () => {
       );
       await expect.poll(() => events.length).toBe(2);
       const childEvent = events[0]!;
+      if (childEvent.event !== "toolsadded") throw new Error("Expected toolsadded");
       expect(childEvent).toMatchObject({ event: "toolsadded", tools: [{ name: "initial" }] });
       expect(childEvent.tools[0]!.frameId).not.toBe(initial[0]!.frameId);
       await page.evaluate(() => document.querySelector("iframe")!.remove());
@@ -214,6 +251,7 @@ describe("WebMCP shared discovery", () => {
     const page = await firstPage(stagehand);
     await page.goto(server.url, { waitUntil: "load" });
     const removed: WebMCPToolIdentity[] = [];
+    let addedTool: WebMCPTool | undefined;
     let resolve!: (value: unknown) => void;
     let reject!: (error: unknown) => void;
     const result = new Promise((resolveResult, rejectResult) => {
@@ -223,6 +261,7 @@ describe("WebMCP shared discovery", () => {
     const addedSubscription = await page.onToolsAdded(async (tools) => {
       try {
         expect(tools[0]).toBeInstanceOf(WebMCPTool);
+        addedTool = tools[0];
         const invocation = await tools[0]!.invoke({ input: { searchQuery: "from callback" } });
         resolve(await invocation.result({ timeout: 5_000 }));
       } catch (error) {
@@ -237,8 +276,9 @@ describe("WebMCP shared discovery", () => {
         output: { content: [{ type: "text", text: "from callback" }] },
       });
       const [tool] = await page.tools();
+      expect(addedTool?.toolId).toBe(tool!.toolId);
       await page.evaluate('window.removeTool("callback-tool")');
-      await expect.poll(() => removed).toEqual([{ name: "callback-tool", frameId: tool!.frameId }]);
+      await expect.poll(() => removed).toEqual([toolIdentity(tool!)]);
     } finally {
       await addedSubscription.unsubscribe();
       await removedSubscription.unsubscribe();
@@ -309,7 +349,7 @@ describe("WebMCP shared discovery", () => {
             }),
           childUrl.href,
         );
-        await expect.poll(() => removed).toEqual([{ name: "initial", frameId: child.frameId }]);
+        await expect.poll(() => removed).toEqual([toolIdentity(child)]);
         await page.evaluate(() => document.querySelector("iframe")!.remove());
         expect(
           (await page.tools()).map((tool) => tool.name).sort((a, b) => a.localeCompare(b)),
@@ -320,10 +360,7 @@ describe("WebMCP shared discovery", () => {
         await expect(page.tools()).resolves.toEqual([]);
         await expect.poll(() => removed.length).toBe(3);
         expect(removed.slice(1)).toEqual(
-          expect.arrayContaining([
-            { name: "initial", frameId: initial!.frameId },
-            { name: "live", frameId: initial!.frameId },
-          ]),
+          expect.arrayContaining([toolIdentity(initial!), toolIdentity(first[0]!)]),
         );
         expect(first).toHaveLength(2);
         expect(second).toHaveLength(1);
@@ -342,3 +379,7 @@ describe("WebMCP shared discovery", () => {
     },
   );
 });
+
+function toolIdentity({ name, frameId, toolId }: WebMCPTool): WebMCPToolIdentity {
+  return { name, frameId, ...(toolId === undefined ? {} : { toolId }) };
+}

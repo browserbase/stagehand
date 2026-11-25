@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import { promises as fs } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -16,7 +17,8 @@ import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
 import { runtimeHandlers } from "../src/lib/driver/commands/runtime.js";
 import { tabHandlers } from "../src/lib/driver/commands/tabs.js";
 import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
-import { hasExplicitDriverTarget } from "../src/lib/driver/command-cli.js";
+import { hasExplicitDriverTarget, resolveDriverSession } from "../src/lib/driver/command-cli.js";
+import { runDriverCommand } from "../src/lib/driver/runtime.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { parseRequest } from "../src/lib/driver/daemon/protocol.js";
 import { runCli } from "./helpers/run-cli.js";
@@ -73,33 +75,96 @@ describe("driver commands", () => {
   it("reuses an existing daemon when a broad mode flag matches", async () => {
     vi.resetModules();
     const getDriverStatus = vi.fn().mockResolvedValue({
+      mode: "managed-local",
       target: { headless: false, kind: "managed-local" },
     });
-    vi.doMock("../src/lib/driver/daemon/client.js", () => ({
+    vi.doMock("../src/lib/driver/daemon/client.js", async () => ({
+      ...(await vi.importActual("../src/lib/driver/daemon/client.js")),
       getDriverStatus,
     }));
 
     try {
-      const { resolveTargetForCommand } = await import("../src/lib/driver/command-cli.js");
+      const { resolveDriverSession } = await import("../src/lib/driver/command-cli.js");
 
-      await expect(resolveTargetForCommand("reuse-local", { local: true })).resolves.toEqual({
-        headless: false,
-        kind: "managed-local",
+      await expect(resolveDriverSession("reuse-local", { local: true })).resolves.toEqual({
+        kind: "existing",
       });
       await expect(
-        resolveTargetForCommand("reuse-local", { headless: true, local: true }),
-      ).resolves.toEqual({
-        headless: true,
-        kind: "managed-local",
-      });
-      await expect(resolveTargetForCommand("reuse-local", { remote: true })).resolves.toEqual({
-        kind: "remote",
-      });
+        resolveDriverSession("reuse-local", { headless: true, local: true }),
+      ).rejects.toThrow('Session "reuse-local" is already running in managed-local mode.');
+      await expect(resolveDriverSession("reuse-local", { remote: true })).rejects.toThrow(
+        'Session "reuse-local" is already running in managed-local mode.',
+      );
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();
     }
   });
+
+  it.each([{}, { local: true }])(
+    "does not launch from a vanished daemon's reported settings with flags %j",
+    async (flags) => {
+      const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-reuse-"));
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = daemonDir;
+      const session = `vanished-${process.pid}`;
+      const sockets = new Set<net.Socket>();
+      const requests: string[] = [];
+      const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+        throw new Error("Unexpected daemon spawn");
+      });
+      const server = net.createServer((socket) => {
+        sockets.add(socket);
+        socket.once("close", () => sockets.delete(socket));
+        let buffer = "";
+        socket.on("data", (chunk) => {
+          buffer += chunk.toString();
+          if (!buffer.includes("\n")) return;
+          const request = JSON.parse(buffer.split("\n")[0]!);
+          requests.push(request.type);
+          // The accepted connection can reply even after the listener closes.
+          server.close();
+          socket.end(
+            `${JSON.stringify({
+              id: request.id,
+              type: "success",
+              data: {
+                session,
+                mode: "managed-local",
+                target: {
+                  kind: "managed-local",
+                  headless: true,
+                  chromeArgs: ["--renderer-cmd-prefix=unknown-program"],
+                },
+              },
+            })}\n`,
+          );
+        });
+      });
+      const closed = new Promise<void>((resolve) => server.once("close", resolve));
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once("error", reject);
+          server.listen(getSocketPath(session), resolve);
+        });
+        const selection = await resolveDriverSession(session, flags);
+        // Make disappearance deterministic on both Unix sockets and Windows pipes.
+        await closed;
+        await expect(
+          runDriverCommand(session, selection, "open", { url: "about:blank" }),
+        ).rejects.toMatchObject({ telemetry: { resultCode: "daemon_not_running" } });
+        expect(requests).toEqual(["status"]);
+        expect(spawn).not.toHaveBeenCalled();
+      } finally {
+        spawn.mockRestore();
+        for (const socket of sockets) socket.destroy();
+        if (server.listening) server.close();
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+        await fs.rm(daemonDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("routes CDP targets through the daemon so session state persists", async () => {
     vi.resetModules();
@@ -113,14 +178,14 @@ describe("driver commands", () => {
     }));
 
     try {
-      const { runDriverCommandWithTarget } = await import("../src/lib/driver/runtime.js");
+      const { runDriverCommand } = await import("../src/lib/driver/runtime.js");
       const target = {
         endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
         kind: "cdp" as const,
         targetId: "target-1",
       };
       await expect(
-        runDriverCommandWithTarget("cdp-state", target, "snapshot", {
+        runDriverCommand("cdp-state", { kind: "create", target }, "snapshot", {
           compact: true,
         }),
       ).resolves.toEqual({
