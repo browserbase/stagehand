@@ -4,6 +4,7 @@ type ProgressOptions = {
   name: string;
   /** Milliseconds for the whole operation. Zero disables the deadline. */
   timeout: number;
+  signal?: AbortSignal;
 };
 
 const MAX_TIMER_MS = 2_147_483_647;
@@ -15,16 +16,25 @@ export class Progress {
   private readonly deadline: number | null;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private readonly phases = new Map<symbol, string>();
+  private readonly abortFromParent = () => {
+    this.controller.abort(this.parentSignal?.reason);
+    this.dispose();
+  };
 
   constructor(
     readonly name: string,
     private readonly timeout: number,
+    private readonly parentSignal?: AbortSignal,
   ) {
     if (!Number.isFinite(timeout) || timeout < 0) {
       throw new RangeError("Timeout must be a finite, non-negative number");
     }
     this.deadline = timeout === 0 ? null : performance.now() + timeout;
-    if (this.deadline !== null) this.scheduleDeadline();
+    if (parentSignal?.aborted) this.abortFromParent();
+    else {
+      parentSignal?.addEventListener("abort", this.abortFromParent, { once: true });
+      if (this.deadline !== null) this.scheduleDeadline();
+    }
   }
 
   get signal(): AbortSignal {
@@ -139,6 +149,7 @@ export class Progress {
   dispose(): void {
     clearTimeout(this.timer);
     this.timer = undefined;
+    this.parentSignal?.removeEventListener("abort", this.abortFromParent);
   }
 
   private expireIfNeeded(): void {
@@ -173,7 +184,9 @@ export async function runWithProgress<T>(
 ): Promise<T> {
   const ownsProgress = !(options instanceof Progress);
   const progress =
-    options instanceof Progress ? options : new Progress(options.name, options.timeout);
+    options instanceof Progress
+      ? options
+      : new Progress(options.name, options.timeout, options.signal);
 
   try {
     return await progress.run(progress.name, () => work(progress));

@@ -160,6 +160,7 @@ export type UnderstudyRuntimePage = {
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
+  dispatchMouseEvent?: Page["dispatchMouseEvent"];
   evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
@@ -735,6 +736,15 @@ export class StagehandRuntime {
   async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).keyPress(params.key, params.options);
     return { ok: true };
+  }
+
+  async dispatchMouseEvent(
+    pageId: string,
+    event: Parameters<Page["dispatchMouseEvent"]>[0],
+  ): Promise<void> {
+    const page = this.resolvePage(pageId);
+    if (!page.dispatchMouseEvent) throw new Error("Mouse input is unavailable for this page");
+    await page.dispatchMouseEvent(event);
   }
 
   async evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown> {

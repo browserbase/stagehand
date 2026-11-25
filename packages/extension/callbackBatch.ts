@@ -8,6 +8,7 @@ import type {
   Action,
   CallbackBatchParams,
   CallbackBatchResult,
+  LocatorDescriptor,
   StagehandMetrics,
   StagehandRpcNotification,
 } from "@browserbasehq/stagehand-protocol/types";
@@ -27,6 +28,7 @@ import type { StagehandCommandClient } from "@browserbasehq/stagehand-browser-ap
 import { Page } from "@browserbasehq/stagehand-browser-api/page";
 import { browserPlatform } from "@browserbasehq/stagehand-browser-api/platform";
 import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
+import { Progress, runWithProgress } from "./understudy/progress.js";
 
 export type CallbackBatchFunction = (batch: CallbackStagehand, input: unknown) => unknown;
 
@@ -75,8 +77,89 @@ class InProcessCommandClient implements StagehandCommandClient {
   }
 }
 
+type MousePoint = {
+  x: number;
+  y: number;
+};
+type MouseButton = "left" | "middle" | "right";
+type BatchMouseEvent = MousePoint & {
+  buttons: number;
+} & (
+    | { type: "mouseMoved"; button: MouseButton | "none" }
+    | { type: "mousePressed" | "mouseReleased"; button: MouseButton; clickCount: number }
+    | { type: "mouseWheel"; deltaX: number; deltaY: number }
+  );
+const mouseButtonMasks = { left: 1, right: 2, middle: 4 } as const;
+
+function createCallbackMouseInput(
+  dispatch: CallbackStagehand["dispatchMouseEvent"],
+  signal: AbortSignal,
+) {
+  type PageMouseState = {
+    pending: Promise<void>;
+    held: Map<MouseButton, number>;
+    point: MousePoint;
+  };
+  const pages = new Map<string, PageMouseState>();
+
+  return {
+    async dispatch(pageId: string, event: BatchMouseEvent): Promise<void> {
+      signal.throwIfAborted();
+      const page = pages.get(pageId) ?? {
+        pending: Promise.resolve(),
+        held: new Map<MouseButton, number>(),
+        point: { x: 0, y: 0 },
+      };
+      pages.set(pageId, page);
+      const { held } = page;
+      const operation = page.pending.then(async () => {
+        signal.throwIfAborted();
+        page.point = { x: event.x, y: event.y };
+        // A failed request may already have reached Chrome.
+        if (event.type === "mousePressed") held.set(event.button, event.clickCount);
+        await dispatch(pageId, event);
+        if (event.type === "mouseReleased") held.delete(event.button);
+      });
+      page.pending = operation.catch(() => undefined);
+      return operation;
+    },
+    async releaseHeldButtons(): Promise<void> {
+      if (![...pages.values()].some(({ held }) => held.size > 0)) return;
+      await new Progress("callback mouse cleanup", 0).cleanup(async () => {
+        await Promise.all(
+          [...pages].map(async ([pageId, page]) => {
+            const { pending, held } = page;
+            if (held.size === 0) return;
+            await pending;
+            let buttons = [...held.keys()].reduce(
+              (mask, button) => mask | mouseButtonMasks[button],
+              0,
+            );
+            for (const [button, clickCount] of [...held].reverse()) {
+              buttons &= ~mouseButtonMasks[button];
+              await dispatch(pageId, {
+                type: "mouseReleased",
+                ...page.point,
+                button,
+                buttons,
+                clickCount,
+              }).catch(() => undefined);
+            }
+          }),
+        );
+      });
+    },
+  };
+}
+
 export type CallbackStagehand = {
   page: Page;
+  dispatchMouseEvent(pageId: string, event: BatchMouseEvent): Promise<void>;
+  frameDragPoint(
+    descriptor: LocatorDescriptor,
+    functionSource: string,
+    options: { position?: MousePoint; force: boolean; timeout: number },
+  ): Promise<MousePoint | null>;
   evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown>;
   context: ExperimentalBatchBrowserContext;
   act(instruction: string | Action, options?: StagehandClientActOptions): Promise<unknown>;
@@ -107,6 +190,10 @@ export function createCallbackBatchController(router: RPCRouter) {
       controller.abort(new Error(`Stagehand callback batch timed out after ${options.timeout}ms`));
     }, options.timeout);
 
+    const mouse = createCallbackMouseInput(
+      (pageId, event) => router.runtime.dispatchMouseEvent(pageId, event),
+      controller.signal,
+    );
     try {
       const client = new InProcessCommandClient(router, controller.signal, traceContext);
       const context = new BrowserContext(client);
@@ -131,6 +218,15 @@ export function createCallbackBatchController(router: RPCRouter) {
       const stagehand: CallbackStagehand = {
         page,
         context: createCallbackContextFacade(context),
+        dispatchMouseEvent: (pageId, event) => mouse.dispatch(pageId, event),
+        frameDragPoint: async (descriptor, functionSource, { timeout, ...options }) => {
+          controller.signal.throwIfAborted();
+          const page = router.runtime.resolveUnderstudyPage(descriptor.pageId);
+          return runWithProgress(
+            { name: "resolving frame drag point", timeout, signal: controller.signal },
+            (progress) => page.frameDragPoint(descriptor, functionSource, options, progress),
+          );
+        },
         evaluateWithShadowRoots: async (pageId, functionSource) => {
           if (controller.signal.aborted) throw controller.signal.reason;
           const result = await router.runtime.evaluateWithShadowRoots(pageId, functionSource);
@@ -214,6 +310,8 @@ export function createCallbackBatchController(router: RPCRouter) {
       if (!controller.signal.aborted) {
         controller.abort(new Error("Stagehand callback batch has completed"));
       }
+      // A timeout can end the batch before the facade's own finally block runs.
+      await mouse.releaseHeldButtons();
     }
   }
 
