@@ -1796,7 +1796,7 @@ export const StagehandInitParamsSchema = z
           .optional()
           .meta({
             description:
-              'Cloudflare account id; required for provider "cloudflare" unless apiUrl names the account',
+              'Cloudflare account id; required for provider "cloudflare" unless the API URL names the account',
           }),
         enabled: z.boolean().optional(),
         retryNoEffect: z.boolean().optional(),
