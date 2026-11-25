@@ -165,7 +165,6 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
-        // Separate opt-in: this sends the extracted data to the decision provider.
         decisions:
           state.initParams.experimentalDecisions?.extract &&
           state.initParams.experimentalDecisions.extract !== "off" &&

@@ -34,14 +34,8 @@ export type AskContext = {
   threshold: number;
   logger: StagehandLogger;
   ensureTimeRemaining: () => void;
-  /** DOM attribute hints for nameless candidates, keyed by node id. */
   domHints?: Map<string, string>;
-  /** Called once per tier right before the decision model is asked, e.g. to fetch DOM hints only when needed. */
   prepare?: (candidates: OutlineNode[]) => Promise<void>;
-  /**
-   * Applied to everything sent to the decision provider and to the trace. Values an earlier
-   * act typed from %variables% are on the page by now; they must not leave it.
-   */
   redact?: (text: string) => string;
 };
 
@@ -51,7 +45,6 @@ export type Pick = {
   best: number;
   none: number;
   choice: string;
-  /** Candidates by descending probability; feeds retries and the focused LLM fallback. */
   ranked: Array<{ id: string; p: number }>;
   via: "shortcut" | "decisions";
 };
@@ -60,31 +53,23 @@ export type TargetResult = {
   target?: OutlineNode;
   reason: string;
   ranked: Array<{ id: string; p: number }>;
-  /** The shortlist is worth showing to the LLM fallback instead of the whole page. */
   credible: boolean;
-  /** Strict's none-of-these probability on the last ask: high means "not on this page". */
   none: number;
 };
 
 export const NONE = "none_match";
 const NONE_DESCRIPTION = "None of these elements matches the instruction";
-/** Strict's none-of-these only vetoes the best pick above this probability. */
 const NONE_VETO = 0.9;
 const SHARD_SIZE = 254;
 const FINALISTS_PER_SHARD = 3;
-/** ~4 chars/token against the decision model's ~32K-token request limit, with headroom. */
 const SHARD_CHAR_BUDGET = 60_000;
-/** Parallel shard requests per pick; pages needing more go to the LLM. */
 const MAX_SHARDS = 8;
-/** Above this many candidates, a lexically pruned list is tried first. */
 const PRUNE_ABOVE = 40;
 const PRUNE_KEEP = 30;
-/** Accepted picks with strict's none above this are held while a later tier gets a chance. */
 const NONE_UNEASY = 0.5;
 const CREDIBLE_TOP = 0.5;
 const SURE_ENOUGH = 0.5;
 const NONE_CERTAIN = 0.1;
-/** A held pick is only acted on below this; above it strict is saying "not here". */
 const HELD_NONE_MAX = 0.7;
 const CLEAR_LEADER = 0.6;
 const LEADER_RATIO = 2.5;
@@ -115,13 +100,6 @@ export function annotate(trace: TraceEntry[], data: TraceEntry): void {
   if (last) Object.assign(last, data);
 }
 
-/**
- * Resolves a target through tiered views: the family's role-filtered view
- * first, then a broad view of every named node (custom widgets built from
- * plain divs only show up there). Within a tier, large lists are first cut to
- * the candidates that share words with the instruction, so the common case is
- * one decision-model request; the full list is only asked when that pruned pick is rejected.
- */
 export async function pickTarget(
   ctx: AskContext,
   node: string,
@@ -136,13 +114,9 @@ export async function pickTarget(
   let lastNone = 1;
   const seen = new Set<string>();
   const result = (pick: Pick | undefined): TargetResult => {
-    // A held pick is a fallback of last resort; when strict leaned hard toward
-    // "none of these", acting on it is how the wrong modal button got clicked.
     const usable = held && held.none <= HELD_NONE_MAX ? held : undefined;
     const chosen = pick ?? usable;
     const shortlist = chosen?.ranked ?? ranked;
-    // A held pick that strict distrusts too much to act on is still a
-    // candidate that was evaluated; say so instead of "no candidates".
     const why = held && !usable && !pick ? `held_unusable:none=${held.none}` : reason;
     return {
       ...(chosen?.picked ? { target: chosen.picked } : {}),
@@ -159,10 +133,6 @@ export async function pickTarget(
     if (candidates.length === 0 || seen.has(signature)) continue;
     seen.add(signature);
 
-    // Exactly one quoted target and exactly one candidate carrying that exact
-    // name: no ranking needed, but the quote may only be an anchor ("the link
-    // below 'Pricing'"), so the decision model still confirms that one candidate (a ~400-token
-    // request instead of the full list).
     const quoted = options.quotedTargets ?? quotedStrings(ctx.instruction);
     if (quoted.length === 1) {
       const exact = exactNameMatches(candidates, quoted[0]!);
@@ -194,33 +164,21 @@ export async function pickTarget(
 
     for (const [index, attempt] of attempts.entries()) {
       const label = `${node}:${kind}${attempts.length > 1 && index === 0 ? ":pruned" : ""}`;
-      // The broad tier is a last look, not worth a multi-request fan-out: one
-      // such act spent 169K decision-model tokens to conclude nothing matched.
       const pick = await pickCandidate(ctx, label, snap, attempt, instructions, kind !== "broad");
       lastNone = pick.none;
       if (pick.ranked.length > 0) ranked = pick.ranked;
       if (pick.picked && pick.accepted) {
         if (pick.none <= NONE_UNEASY) return result(pick);
-        // Good enough to act on, but strict suspects the real target is not in
-        // this view (a modal's "Close" is plain text): let the next tier try.
         if (!held || pick.best - pick.none > held.best - held.none) held = pick;
         break;
       }
       reason = `${kind}:${pick.choice}@best=${pick.best},none=${pick.none}`;
-      // The decision model saw plausible targets and could not choose between them. A wider
-      // list will not make that easier; stop here and hand over the shortlist.
       if (pick.picked && pick.none < NONE_UNEASY) return result(undefined);
     }
   }
   return result(undefined);
 }
 
-/**
- * Two questions fan out in one request: `best` ranks the candidates with no
- * escape hatch, `strict` adds a none-of-these option. Loosely worded
- * instructions ("the input field") make a lone strict question hedge toward
- * none, so strict only vetoes when it is nearly certain nothing matches.
- */
 export async function pickCandidate(
   ctx: AskContext,
   node: string,
@@ -257,8 +215,6 @@ export async function pickCandidate(
     return rejected("too_many_candidates");
   }
   if (shards.length > 1) {
-    // Too many options (or tokens) for one question: every shard nominates its
-    // top candidates in parallel, then the finalists go through the real pick.
     const responses = await Promise.all(
       shards.map((shard, index) =>
         ask(ctx, `${node}:shard_${index}`, state, {
@@ -339,26 +295,17 @@ export async function pickCandidate(
       .map(([id, p]) => ({ id, p: round(p) }));
   }
 
-  // Wrong picks in the eval runs came in at 0.9+ (a description problem, not a
-  // confidence one), while split-but-right picks sat at 0.5–0.7 with strict
-  // certain that something matches. Those are safe to take.
-  // The relaxed rule needs a clear leader: a 0.56 vs 0.38 split between a link
-  // and the toggle next to it was taken under a looser version, and was wrong.
   const leader = ranked[0]?.p ?? 0;
   const clearLeader = leader >= CLEAR_LEADER && leader >= LEADER_RATIO * (ranked[1]?.p ?? 0);
   let accepted =
     (best >= ctx.threshold && none <= NONE_VETO) ||
     (best >= SURE_ENOUGH && none <= NONE_CERTAIN && clearLeader);
-  // The vote split between indistinguishable copies of one control (desktop
-  // and mobile renderings of the same button): either is the answer.
   if (!accepted && none <= NONE_UNEASY && ranked.length > 1) {
     const [first, second] = ranked as [Pick["ranked"][number], Pick["ranked"][number]];
     const same = (id: string) => {
       const { occurrence: _occurrence, ...rest } = describe(byId.get(id)!);
       return JSON.stringify(rest);
     };
-    // Same item only: identical "Delete" buttons in different rows look the
-    // same to the decision model too, and those are not interchangeable.
     const sameItem = nearbyTwins(snap.nodes, byId.get(first.id)!).some(
       (twin) => twin.id === second.id,
     );
@@ -378,7 +325,6 @@ export async function pickCandidate(
     strict: strict.choice,
     accepted,
     runner_up: ranked[1] ? `${ranked[1].id}@${ranked[1].p}` : null,
-    // What the decision model saw, so misses can be attributed to descriptions vs. the model.
     candidates: finalists
       .slice(0, 12)
       .map((option) =>

@@ -1,12 +1,6 @@
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
 import { resolveVariableValue } from "../../handlers/handlerUtils/variables.js";
 
-/**
- * Deterministic argument parsing for the Decisions act pipeline. The decision model cannot generate
- * text, so every argument is either parsed from the instruction here or chosen
- * by the decision model from a closed set these helpers produce.
- */
-
 const VARIABLE = /^%[^%\s]+%$/;
 
 export function isVariable(value: string): boolean {
@@ -17,7 +11,6 @@ export function isLoneVariable(values: string[]): boolean {
   return values.length === 1 && isVariable(values[0]!);
 }
 
-/** Quoted strings and declared %variables%: the closed set a fill value can come from. */
 export function fillValueCandidates(instruction: string, variables?: Variables): string[] {
   const values = new Set<string>();
   for (const match of instruction.matchAll(/%([^%\s]+)%/g)) {
@@ -29,7 +22,6 @@ export function fillValueCandidates(instruction: string, variables?: Variables):
 
 export function quotedStrings(instruction: string): string[] {
   const values: string[] = [];
-  // Single quotes must sit at word boundaries so "user's" is not an opening quote.
   for (const match of instruction.matchAll(
     /(?<![\w])'([^'\n]+)'(?![\w])|"([^"\n]+)"|“([^”\n]+)”|‘([^’\n]+)’/g,
   )) {
@@ -41,9 +33,6 @@ export function quotedStrings(instruction: string): string[] {
 export function parsePercent(instruction: string): string | undefined {
   const explicit = /(\d+(?:\.\d+)?)\s*%/.exec(instruction);
   if (explicit) return `${explicit[1]}%`;
-  // The documented fractional form: "scroll to 0.75" means 75%. Only a real
-  // fraction with a decimal point counts: a bare "1" is a count or an ordinal
-  // ("scroll down 1 screen", "the 1st result"), never "the bottom".
   const fraction = /(?<![\d.\w])(0?\.\d+|1\.0+)(?![\d.%\w])/.exec(instruction);
   if (fraction && /\b(scroll|down|up|to)\b/i.test(instruction)) {
     return `${Math.round(parseFloat(fraction[1]!) * 100)}%`;
@@ -72,18 +61,11 @@ export function parseKey(instruction: string): string | undefined {
   return SPECIAL_KEYS[key.toLowerCase()] ?? (key.length === 1 ? key : undefined);
 }
 
-/**
- * Deterministic only when exactly one real option appears in the instruction.
- * A quoted string may name the dropdown, and placeholders often repeat that
- * name, so options equal to the control's own name never count.
- */
 export function matchOption(
   options: string[],
   instruction: string,
   controlName: string,
 ): string | undefined {
-  // Quoted only. Short options ("In", "All", "On") occur in instructions as
-  // ordinary words; an unquoted mention goes to the decision model instead.
   const quoted = quotedStrings(instruction).map((value) => value.trim().toLowerCase());
   const mentioned = options.filter(
     (option) =>
@@ -102,20 +84,10 @@ export function substituteVariables(value: string, variables?: Variables): strin
   return output;
 }
 
-/**
- * Guards text returned by the argument-only LLM call: it must be lifted from
- * the instruction (or be a declared variable), never invented.
- */
 export function isGroundedText(text: string, instruction: string, variables?: Variables): boolean {
   return groundedSpan(text, instruction, variables) !== undefined;
 }
 
-/**
- * The instruction's OWN characters for the text the argument LLM returned.
- * The model may re-case or re-space what it copies ("abc123" for "AbC123");
- * what gets typed must be the user's literal input, so the match is located
- * loosely but the span is copied verbatim from the instruction.
- */
 export function groundedSpan(
   text: string,
   instruction: string,
@@ -137,15 +109,7 @@ export function groundedSpan(
   return loose ? loose[0] : undefined;
 }
 
-/**
- * Replaces resolved %variable% values with their placeholder in anything that
- * leaves the process. After an earlier act typed a secret, later snapshots
- * contain it (as the field's text), and candidate descriptions would carry it.
- */
 export function redactor(variables: Variables | undefined): ((text: string) => string) | undefined {
-  // Values under three characters are not redacted on purpose: replacing every
-  // "a" or "no" in a page's text would destroy the candidate descriptions the decision model
-  // reads, and such values are not secrets. Documented with the flag.
   const secrets = Object.entries(variables ?? {})
     .map(([name, value]) => [name, resolveVariableValue(value)] as const)
     .filter(([, value]) => value.length >= 3)
@@ -162,11 +126,6 @@ export function redactor(variables: Variables | undefined): ((text: string) => s
   };
 }
 
-/**
- * Redacts every string value inside a JSON-shaped value, leaving structure and
- * keys alone. Redacting the serialised text instead would let a value that ends
- * in a quote, or that equals a key name, corrupt the JSON.
- */
 export function redactDeep<T>(value: T, redact: (text: string) => string): T {
   if (typeof value === "string") return redact(value) as T;
   if (Array.isArray(value)) return value.map((item) => redactDeep(item, redact)) as T;

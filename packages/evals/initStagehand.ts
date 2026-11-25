@@ -77,15 +77,11 @@ export async function initStagehand({
     );
   }
 
-  // EVAL_DECISIONS=1 routes act() through the experimental decision tree,
-  // falling back to the configured model when the decision model abstains.
   let experimentalDecisions: Record<string, unknown> | undefined;
   if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
-    // Baseline arm: no decision model, only the per-act timing log the report parses.
     experimentalDecisions = { apiKey: "instrument-only", enabled: false };
   }
   if (process.env.EVAL_DECISIONS === "1") {
-    // EVAL_DECISIONS_PROVIDER: typesafe (default) | cloudflare | perplexity | openai
     const provider = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
     const keyName = {
       typesafe: "TYPESAFE_API_KEY",
@@ -132,8 +128,6 @@ export async function initStagehand({
     };
   }
 
-  // Read by the TS SDK when it builds init params; not part of the public create config.
-  // Only values this initializer set are cleared: a caller's own bridge config stays.
   if (experimentalDecisions) {
     process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify(experimentalDecisions);
     decisionsBridgeSetByEvals = true;
