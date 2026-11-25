@@ -113,9 +113,12 @@ export async function queryNativeRoles(
     );
   } finally {
     finishing = true;
-    session.off("Runtime.executionContextDestroyed", destroyed);
-    session.off("Runtime.executionContextsCleared", cleared);
-    await release();
-    progress.throwIfStopped();
+    try {
+      await release();
+      check();
+    } finally {
+      session.off("Runtime.executionContextDestroyed", destroyed);
+      session.off("Runtime.executionContextsCleared", cleared);
+    }
   }
 }

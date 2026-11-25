@@ -216,6 +216,29 @@ describe("native role queries", () => {
     },
   );
 
+  it.each(["Runtime.executionContextDestroyed", "Runtime.executionContextsCleared"])(
+    "rejects results when %s occurs during cleanup",
+    async (event) => {
+      const state = setup();
+      let complete!: () => void;
+      state.send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.releaseObjectGroup")
+          await new Promise<void>((resolve) => {
+            complete = resolve;
+          });
+        return state.respond(method, params);
+      });
+      const pending = queryNativeRoles(state.session, 1, { role: "button" }, progress);
+      const assertion = expect(pending).rejects.toThrow("context was destroyed");
+      await vi.advanceTimersByTimeAsync(0);
+      state.emit(event, { executionContextId: 1 });
+      complete();
+      await assertion;
+      expect(state.groups.size).toBe(0);
+      expect(state.listeners()).toBe(0);
+    },
+  );
+
   it("ignores another context's destruction", async () => {
     const state = setup();
     state.send.mockImplementation(async (method, params) => {
