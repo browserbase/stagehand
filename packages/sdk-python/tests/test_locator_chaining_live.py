@@ -2,7 +2,11 @@ import asyncio
 import html
 import os
 import re
-from urllib.parse import quote
+import threading
+from collections.abc import Iterator
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -20,7 +24,25 @@ class Label(BaseModel):
     label: str
 
 
-async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
+@pytest.fixture
+def page_server(tmp_path: Path) -> Iterator[str]:
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0), partial(SimpleHTTPRequestHandler, directory=str(tmp_path))
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+async def test_public_chains_act_count_mask_and_scope_ai_operations(
+    page_server: str,
+    tmp_path: Path,
+) -> None:
     calls: list[str] = []
 
     async def generate(params: LLMGenerateInput) -> LLMGenerateOutput:
@@ -64,13 +86,21 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
         })
 
     child = """<section id="scope">
-        <button onclick="this.dataset.clicked='yes'">Save target</button>
+        <button onclick="this.dataset.clicked='yes'"><span>Save target</span></button>
         <button class="omit">Excluded choice</button></section><button>Outside child</button>
+        <div id="open"></div><div id="closed"></div><script>
+          for (const mode of ['open', 'closed']) {
+            document.getElementById(mode).attachShadow({mode}).innerHTML =
+              '<button>Shadow ' + mode + '</button>';
+          }
+        </script>
     """
     markup = (
         "<button>Outside parent</button>"
         f'<iframe srcdoc="{html.escape(child, quote=True)}"></iframe>'
     )
+
+    (tmp_path / "index.html").write_text(markup)
 
     async with asyncio.timeout(60):
         browser = await local_browser.launch(headless=True)
@@ -78,10 +108,26 @@ async def test_public_chains_act_count_mask_and_scope_ai_operations() -> None:
         try:
             stagehand = await Stagehand.create(browser=browser, model=generate)
             page = await browser.context.new_page()
-            await page.goto("data:text/html," + quote(markup), wait_until="load")
+            await page.goto(page_server, wait_until="load")
             scope = page.locator("iframe").locator("#scope")
             buttons = scope.locator("button")
             assert await buttons.count() == 2
+            assert await page.get_by_role("button", name="Save target").count() == 0
+            roles = page.locator("iframe").get_by_role("button", name="Save target", exact=True)
+            assert await roles.count() == 1
+            assert await roles.get_by_role("button").count() == 0
+            assert await roles.get_by_text("Save target").text_content() == "Save target"
+            assert await scope.get_by_role("button").nth(1).text_content() == "Excluded choice"
+            await roles.first().click(timeout=5000)
+            assert await scope.locator("button[data-clicked=yes]").count() == 1
+            assert await roles.locator("span").text_content() == "Save target"
+            shadows = page.locator("iframe").get_by_role("button", name="Shadow")
+            assert await shadows.count() == 2
+            assert await shadows.first().text_content() == "Shadow open"
+            assert await shadows.nth(1).text_content() == "Shadow closed"
+            unmasked = await page.screenshot()
+            masked = await page.screenshot(mask=[roles, shadows])
+            assert masked and masked != unmasked
             assert await page.get_by_text("Save target").count() == 0
             assert await page.locator("iframe").get_by_text("Save target", exact=True).count() == 1
             assert (

@@ -1,11 +1,17 @@
 import { LocatorRequestDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
-import { locatorSteps, textQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
+import {
+  locatorSteps,
+  textQueryStep,
+  roleQueryStep,
+} from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
   LocatorChain,
   GetByTextOptions,
+  GetByRoleOptions,
+  AriaRole,
   LocatorRequestDescriptor,
   LocatorOptions,
   LocatorHighlightParams,
@@ -17,7 +23,12 @@ import type {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
-export type { LocatorOptions, GetByTextOptions } from "@browserbasehq/stagehand-protocol/types";
+export type {
+  LocatorOptions,
+  GetByTextOptions,
+  GetByRoleOptions,
+  AriaRole,
+} from "@browserbasehq/stagehand-protocol/types";
 
 export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
 export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
@@ -187,6 +198,10 @@ export class Locator {
 
   getByText(text: string, options?: GetByTextOptions): Locator {
     return this.appendSteps([textQueryStep(text, options)]);
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return this.appendSteps([roleQueryStep(role, options)]);
   }
 
   private appendSteps(next: LocatorChain["steps"]): Locator {
