@@ -251,6 +251,7 @@ describe.each(DECISION_PROVIDERS)("decisions pipeline on %s", (provider) => {
             status: "Completed",
             output: { ok: true },
           }),
+          cancelWebMCPInvocation: async () => {},
         },
       },
     });

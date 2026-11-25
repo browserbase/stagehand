@@ -1,6 +1,6 @@
 ---
 title: "experimentalDecisions"
-description: "act(), observe(), and extract() resolved by a decision model"
+description: "Run act(), observe(), and extract() through a decision model"
 icon: "flask"
 ---
 
@@ -23,17 +23,17 @@ the decision model. Calling a namespace method without the configuration fails w
 | `provider` | Model (default) | Needs |
 | --- | --- | --- |
 | `"typesafe"` (default) | TypeSafe Jev (`jev-latest`) | `apiKey` |
-| `"cloudflare"` | Cloudflare Clef (`clef`, or `clef-flash`) | `apiKey`, `accountId` |
+| `"cloudflare"` | Cloudflare Clef (`clef`, or `clef-flash`) | `apiKey`, plus `accountId` or `apiUrl` |
 | `"perplexity"` | Perplexity Decider (`pplx-decider-v1-27b`) | `apiKey` |
 | `"openai"` | OpenAI Decisions API (`gpt-6-luna`) | `apiKey` with access to the Decisions preview |
 
-Acceptance thresholds were tuned on TypeSafe Jev. Other providers answer the same questions through
-the same validation, but their probabilities are not calibrated identically; measure on your own
-pages before relying on them.
+Browserbase tuned the acceptance thresholds on TypeSafe Jev. Other providers answer the same
+questions through the same validation, but calibrate their probabilities differently; measure on
+your own pages before relying on them.
 
-The instruction, descriptions of candidate elements built from the accessibility tree, and the page
-URL without query string or fragment are sent to the provider. `extract()` also sends page or
-extracted content. Values of `%variables%` are replaced by their placeholders.
+Stagehand sends the provider the instruction, descriptions of candidate elements built from the
+accessibility tree, and the page URL without query string or fragment. `extract()` also sends page
+or extracted content. Stagehand replaces values of `%variables%` with their placeholders.
 
 ## Configuration
 
@@ -45,15 +45,15 @@ Pass these as `experimentalDecisions` when creating Stagehand. Python uses `expe
 | `apiKey` | required | The provider's API key. |
 | `model` | provider default | The provider's model name. |
 | `apiUrl` | provider default | An `https` endpoint that replaces the provider's default one. |
-| `accountId` | none | The Cloudflare account id. Required for `"cloudflare"`. |
+| `accountId` | none | The Cloudflare account id. Required for `"cloudflare"` unless `apiUrl` names the account. |
 | `actConfidence` | `0.7` | Minimum confidence, from 0 to 1, to act on an answer. |
 | `llmFallback` | `true` | Hand over to the LLM pipeline when the decision model is not confident. With `false` the call fails instead. |
 | `argumentLlm` | `true` | Allow a small LLM call that lifts unquoted text to type from the instruction. |
 | `extract` | `"pick"` | `"pick"` picks the elements holding each value and copies their text. `"judge"` keeps the LLM extraction and replaces only its completion check. |
-| `targetReadiness` | `false` | Act as soon as the target is found and stable instead of waiting out the DOM-settle window. |
+| `targetReadiness` | `false` | Act as soon as Stagehand finds a stable target instead of waiting out the DOM-settle window. |
 | `tools` | `false` | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request. |
 | `cacheCheck` | `false` | Ask the decision model whether a cached action's selector still points at a matching element before replaying it. |
-| `pageState` | `true` | Check for captchas, access-denied pages, and similar states when no target is found. |
+| `pageState` | `true` | Check for captchas, access-denied pages, and similar states when the decision model finds no target. |
 | `verify` | `"checks"` | Post-action checks: `"off"`, `"checks"`, or `"full"`. |
 | `retryNoEffect` | `false` | Click the runner-up when an ambiguous click provably changed nothing. |
 | `focusFallback` | `false` | On very large pages, show the LLM the decision model's shortlist first. |
@@ -77,7 +77,7 @@ const product = await stagehand.experimentalDecisions.extract("Extract the produ
 
 ## act()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Perform an action described in natural language.
 
@@ -266,7 +266,7 @@ const result = await stagehand.experimentalDecisions.act("Click the sign in butt
 
 ## observe()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Find candidate actions on the page from an optional instruction.
 
@@ -421,7 +421,7 @@ const actions = await stagehand.experimentalDecisions.observe("Find the sign in 
 
 ## extract()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Extract structured data from the page.
 
@@ -583,7 +583,7 @@ product = await stagehand.experimental_decisions.extract("Extract the product", 
 
 ## act()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Perform an action described in natural language.
 
@@ -770,7 +770,7 @@ result = await stagehand.experimental_decisions.act("Click the sign in button")
 
 ## observe()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Find candidate actions on the page from an optional instruction.
 
@@ -923,7 +923,7 @@ actions = await stagehand.experimental_decisions.observe("Find the sign in butto
 
 ## extract()
 
-Resolved by the decision model first, with the LLM pipeline as fallback. Arguments and result are those of the method of the same name on the Stagehand instance.
+The decision model resolves the request first and hands over to the LLM pipeline when it is not confident. Arguments and result are those of the method of the same name on the Stagehand instance.
 
 Extract structured data from the page.
 

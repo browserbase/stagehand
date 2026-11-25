@@ -86,7 +86,7 @@ async function waitForChoices(
             .some((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; });
           let frames = 0, done = false;
           const finish = () => { if (!done) { done = true; resolve(true); } };
-          const tick = () => { if (++frames >= 2 && (!${expectChoices} || visible())) finish(); else requestAnimationFrame(tick); };
+          const tick = () => { if (done) return; if (++frames >= 2 && (!${expectChoices} || visible())) finish(); else requestAnimationFrame(tick); };
           requestAnimationFrame(tick);
           setTimeout(finish, cap);
         })`,

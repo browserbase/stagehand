@@ -112,7 +112,7 @@ export async function pickWhenReady(
  * click at its centre would actually hit. An overlay that is still fading in
  * or a layout that is still moving fails here, and the act waits instead.
  */
-async function staysPut(
+export async function staysPut(
   deps: DecisionsActDeps,
   snap: Snapshot,
   target: OutlineNode,

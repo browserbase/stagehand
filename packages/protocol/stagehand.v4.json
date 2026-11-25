@@ -1489,7 +1489,7 @@
           "pattern": "^https:\\/\\/[^\\s?#]+$"
         },
         "account_id": {
-          "description": "Cloudflare account id; required for provider \"cloudflare\"",
+          "description": "Cloudflare account id; required for provider \"cloudflare\" unless apiUrl names the account",
           "type": "string",
           "pattern": "^[A-Za-z0-9_-]{1,64}$"
         },

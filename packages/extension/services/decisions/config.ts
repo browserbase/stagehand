@@ -42,9 +42,9 @@ export type DecisionsConfig = DecisionModelConfig & {
   extract?: "judge" | "pick";
   /**
    * Act as soon as the target is there instead of waiting out the DOM-settle
-   * heuristic: pick on an early snapshot, and go when the decision model finds the target,
-   * does not think the page is still loading, and the target is unchanged a
-   * moment later. The settle wait remains the upper bound. Default false.
+   * heuristic: pick on an early snapshot, and go when the decision model finds the target
+   * and it is in place and hittable a moment later. The settle wait bounds that
+   * early look; a covered pointer target is then held up to 1.5 s. Default false.
    */
   targetReadiness?: boolean;
   /**

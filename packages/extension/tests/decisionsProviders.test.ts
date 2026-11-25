@@ -204,6 +204,100 @@ describe.each(DECISION_PROVIDERS)("decision provider %s", (name) => {
     });
     expect(calls).toBe(2);
   });
+
+  it("waits out an HTTP-date Retry-After, up to the cap", async () => {
+    const waits: number[] = [];
+    const realSetTimeout = globalThis.setTimeout;
+    vi.stubGlobal("setTimeout", (run: () => void, ms?: number) => {
+      waits.push(ms ?? 0);
+      return realSetTimeout(run, 0);
+    });
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        if (++calls === 1) {
+          return new Response("{}", {
+            status: 429,
+            headers: { "retry-after": new Date(Date.now() + 3_600_000).toUTCString() },
+          });
+        }
+        const noul =
+          name === "openai"
+            ? { answers: [{ type: "predicate", name: "q", probability: 0.7 }] }
+            : { answers: { q: { type: "noul", noul: 0.7 } } };
+        return Response.json(name === "cloudflare" ? { result: noul, success: true } : noul);
+      }),
+    );
+    await decide(config(), {}, { q: { type: "noul", instructions: "Is it?" } });
+    expect(calls).toBe(2);
+    expect(waits).toEqual([2_000]);
+  });
+
+  it("keeps an option named __proto__ selectable", async () => {
+    const seen = fakeProvider(name, (_key, question) => ({ choice: question.options[0]!, p: 0.9 }));
+    const criteria = Object.fromEntries([
+      ["__proto__", { does: "Adds the product to the cart" }],
+      ["clear_cart", { does: "Empties the cart" }],
+    ]);
+    const response = await decide(
+      config(),
+      {},
+      { tool: { type: "choice", instructions: "Which tool?", criteria } },
+    );
+    expect(JSON.stringify(seen[0]!.body)).toContain("Adds the product to the cart");
+    const answer = response.answers.tool as { choice: string; probabilities: object };
+    expect(answer.choice).toBe("__proto__");
+    expect(Object.keys(answer.probabilities).sort()).toEqual(["__proto__", "clear_cart"]);
+  });
+});
+
+describe("the fake provider", () => {
+  it.each(DECISION_PROVIDERS)(
+    "keeps a scripted choice the leader when its probability is below 1/n (%s)",
+    async (name) => {
+      fakeProvider(name, () => ({ choice: "yes", p: 0.4 }));
+      const response = await decide(
+        { ...CONFIGS[name], apiKey: `k-${Math.random()}` },
+        {},
+        { q: { type: "choice", instructions: "Which?", criteria: { yes: "Yes", no: "No" } } },
+      );
+      expect(response.answers.q).toMatchObject({ choice: "yes", confidence: 0.5 });
+    },
+  );
+
+  it.each(DECISION_PROVIDERS)(
+    "answers an unscripted choice with the neutral option when ids are aliased (%s)",
+    async (name) => {
+      fakeProvider(name, () => ({}));
+      const response = await decide(
+        { ...CONFIGS[name], apiKey: `k-${Math.random()}` },
+        {},
+        {
+          text: {
+            type: "choice",
+            instructions: "Which?",
+            criteria: { "size / L": "Large", none_match: "Nothing fits" },
+          },
+          bare: {
+            type: "choice",
+            instructions: "Which?",
+            criteria: { "size / L": "Large", unset: null },
+          },
+          json: {
+            type: "choice",
+            instructions: "Which?",
+            criteria: { "size / L": { label: "Large" }, other: { label: "Something else" } },
+          },
+        },
+      );
+      expect(response.answers).toMatchObject({
+        text: { choice: "none_match" },
+        bare: { choice: "unset" },
+        json: { choice: "other" },
+      });
+    },
+  );
 });
 
 describe("provider wire formats", () => {
@@ -264,6 +358,18 @@ describe("provider wire formats", () => {
     );
     expect(seen[0]!.url).toBe(
       "https://api.cloudflare.com/client/v4/accounts/a1/ai/run/@cf/cloudflare/clef-flash",
+    );
+    await decide(
+      {
+        provider: "cloudflare",
+        apiKey: `k-${Math.random()}`,
+        apiUrl: "https://gateway.ai.cloudflare.com/v1/a1/shop/workers-ai/",
+      },
+      {},
+      { q: { type: "noul", instructions: "Is it?" } },
+    );
+    expect(seen[1]!.url).toBe(
+      "https://gateway.ai.cloudflare.com/v1/a1/shop/workers-ai/@cf/cloudflare/clef",
     );
     await expect(
       decide(

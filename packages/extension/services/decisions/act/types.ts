@@ -26,7 +26,8 @@ export type DecisionsActDeps = {
   takeAction: (action: Action) => Promise<ActResultData>;
   /**
    * Resolves when the DOM has settled. The intent request needs no page, so
-   * it runs while this is pending; nothing reads or touches the page before it.
+   * it runs while this is pending; snapshots and actions wait for it unless
+   * `targetReadiness` lets the act go early.
    */
   settled?: Promise<void>;
   /** Present when `tools` is on and the act is not scoped to a locator. */

@@ -123,9 +123,13 @@ async function actWithProgress(
   };
   driver.prepare?.(request);
 
-  // The cache lookup keys on the page's tree and URL, so when a cache is in play the page must
-  // have settled before it; only cache-less acts let the driver start early.
-  const cacheLookup = cache !== undefined && options?.cache !== false;
+  // The cache lookup keys on the page's tree and URL, so the page must have
+  // settled before it; only acts that skip the lookup overlap.
+  const cacheBypass = cacheService.shouldBypassCacheForLocatorScope(options);
+  const cacheLookup =
+    cache !== undefined &&
+    !cacheBypass &&
+    (options?.cache ?? cache.defaultCaching ?? true) !== false;
   if (driver.startsBeforeSettle && !cacheLookup) settled.catch(() => {});
   else await settled;
   progress.throwIfStopped();
@@ -135,7 +139,7 @@ async function actWithProgress(
     page,
     data: cacheService.buildActCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    bypass: cacheBypass,
     context: cache,
     logger,
     progress,

@@ -102,6 +102,22 @@ describe("generated Stagehand schema integrity", () => {
     expect(asRecord(params.properties)).not.toHaveProperty("api_url");
   });
 
+  it("requires an account for the Cloudflare decision provider", () => {
+    const accepts = (experimentalDecisions: Record<string, unknown>) =>
+      StagehandInitParamsSchema.safeParse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+        experimentalDecisions,
+      }).success;
+    expect(accepts({ provider: "cloudflare", apiKey: "k" })).toBe(false);
+    expect(accepts({ provider: "cloudflare", apiKey: "k", accountId: "acct123" })).toBe(true);
+    expect(
+      accepts({ provider: "cloudflare", apiKey: "k", apiUrl: "https://gateway.example/v1/acct" }),
+    ).toBe(true);
+    expect(accepts({ apiKey: "k" })).toBe(true);
+    expect(accepts({ provider: "perplexity", apiKey: "k" })).toBe(true);
+  });
+
   it("keeps telemetry optional when it is omitted from stagehand.init", async () => {
     const protocol = await readProtocol();
     const methods = asRecord(asRecord(asRecord(protocol.properties).methods).properties);

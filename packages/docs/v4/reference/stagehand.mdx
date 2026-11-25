@@ -98,7 +98,7 @@ const page = await stagehand.browser.context.activePage();
 </ResponseField>
 
 <ResponseField name="stagehand.experimentalDecisions" type="ExperimentalDecisions">
-  Experimental. `act()`, `observe()`, and `extract()` resolved by a decision model, falling back to the LLM when it is not confident. Requires `experimentalDecisions` at creation. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
+  Experimental. A decision model resolves `act()`, `observe()`, and `extract()` calls on this namespace, and Stagehand falls back to the LLM when the decision model is not confident. Requires `experimentalDecisions` at creation. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
 </ResponseField>
 
 <ResponseField name="stagehand.initialized" type="boolean">
@@ -963,7 +963,7 @@ page = await stagehand.browser.context.active_page()
 </ResponseField>
 
 <ResponseField name="stagehand.experimental_decisions" type="ExperimentalDecisions">
-  Experimental. `act()`, `observe()`, and `extract()` resolved by a decision model, falling back to the LLM when it is not confident. Requires `experimental_decisions` at creation. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
+  Experimental. A decision model resolves `act()`, `observe()`, and `extract()` calls on this namespace, and Stagehand falls back to the LLM when the decision model is not confident. Requires `experimental_decisions` at creation. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
 </ResponseField>
 
 <ResponseField name="stagehand.initialized" type="bool">
@@ -1763,10 +1763,6 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
   Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`.
 </ParamField>
 
-<ParamField path="options.ExperimentalDecisions" type="*ExperimentalDecisionsConfig" optional>
-  Experimental. Decision-model provider and settings for `client.ExperimentalDecisions()`. `Act()`, `Observe()`, and `Extract()` on the client itself never use it. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
-</ParamField>
-
 <ParamField path="options.Logging" type="*StagehandClientLoggingConfig" optional>
   Client-side log level, output format, and optional log callback.
 </ParamField>
@@ -1795,10 +1791,6 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 
 <ResponseField name="client.Browser()" type="*Browser">
   The browser handle you passed to `Create()`. Reach pages and the context through it when you hold the instance but not the handle: `client.Browser().Context()`. Stagehand does not close this browser for you.
-</ResponseField>
-
-<ResponseField name="client.ExperimentalDecisions()" type="*ExperimentalDecisions">
-  Experimental. `Act()`, `Observe()`, and extraction resolved by a decision model, falling back to the LLM when it is not confident. Requires `options.ExperimentalDecisions` at creation. See the [experimentalDecisions reference](/v4/reference/experimental-decisions).
 </ResponseField>
 
 <ResponseField name="client.Initialized()" type="bool">

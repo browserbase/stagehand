@@ -1,11 +1,11 @@
 import { isLoneVariable, quotedStrings, substituteVariables } from "../../args.js";
 import { choiceAnswer, type DecisionResponse } from "../../client.js";
-import { NONE, pickTarget } from "../../pick.js";
+import { NONE, pickTarget, type Snapshot, type TargetResult } from "../../pick.js";
 import { chooseFromAppeared } from "../choices.js";
 import { fallback, isDetached, merge } from "../outcomes.js";
 import { describeLine, selectorFor, snapshot } from "../page.js";
 import { act, extractText, rejected } from "../perform.js";
-import { pickWhenReady } from "../readiness.js";
+import { pickWhenReady, staysPut } from "../readiness.js";
 import type { DecisionsActOutcome, PipelineContext } from "../types.js";
 
 /** Typing into a field, including fields that then offer suggestions to choose from. */
@@ -37,27 +37,32 @@ export async function runFill(
   const extracting = value === undefined ? extractText(ctx) : undefined;
   if (value === undefined && !extracting) return fallback("fill_no_value");
 
-  const [{ snap, picked }, extracted] = await Promise.all([
-    pickWhenReady(
+  const pick = (candidate: Snapshot): Promise<TargetResult> =>
+    pickTarget(
       ctx,
-      (candidate) =>
-        pickTarget(
-          ctx,
-          "target",
-          candidate,
-          ["input", "broad"],
-          "Which field should the text be entered into?",
-          {
-            quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
-          },
-        ),
-      false,
-      "input",
-    ),
+      "target",
+      candidate,
+      ["input", "broad"],
+      "Which field should the text be entered into?",
+      {
+        quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
+      },
+    );
+  const [early, extracted] = await Promise.all([
+    pickWhenReady(ctx, pick, false, "input"),
     extracting,
   ]);
+  let { snap, picked } = early;
   value ??= extracted ?? undefined;
   if (value === undefined) return fallback("fill_value_not_extracted");
+  if (extracting && ctx.ready && picked.target) {
+    const guard = await staysPut(ctx.deps, snap, picked.target, false);
+    if (guard.verdict !== "ok") {
+      ctx.trace.push({ node: "not_ready", ms: 0, why: guard.verdict, after: "extract_text" });
+      ctx.ready = false;
+      ({ snap, picked } = await pickWhenReady(ctx, pick, false, "input"));
+    }
+  }
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = picked.target;
 
