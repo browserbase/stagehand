@@ -236,8 +236,6 @@ describe("bench harness registry", () => {
     async (cancel) => {
       const controller = new AbortController();
       let cleanupCalled = false;
-      // The live board's phase contract: `agent` is reported once the adapter
-      // is prepared, before the agent runs.
       const phases: string[] = [];
       let phasesAtPrepare: string[] | undefined;
       let phasesAtAgent: string[] | undefined;
@@ -468,7 +466,6 @@ describe("bench harness registry", () => {
     try {
       const result = await harness.execute!({ task, input, row, logger });
       expect(agentSawSessionLine).toBe(true);
-      // Level-2 setup chatter is filtered out, so the session pointer heads the row logs.
       expect((result.logs ?? []).map((line) => line.message)).toEqual([
         "Browserbase session: https://www.browserbase.com/sessions/sess-1",
         "step 1 · run · ok",

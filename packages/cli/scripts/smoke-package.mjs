@@ -6,8 +6,6 @@ import { fileURLToPath } from "node:url";
 
 import spawn from "cross-spawn";
 
-// Build first: pnpm exec turbo run build --filter=browse
-// Keep the install outside the workspace so undeclared dependencies cannot leak in.
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const directory = await mkdtemp(join(tmpdir(), "browse installed smoke-"));
 const env = {
@@ -25,7 +23,6 @@ try {
     join(directory, "package.json"),
     JSON.stringify({ name: "browse-installed-smoke", private: true }),
   );
-  // Install the packed artifact with registry dependencies outside the repository.
   run("npm", [
     "install",
     "--registry=https://registry.npmjs.org",

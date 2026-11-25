@@ -47,12 +47,9 @@ type SkillFilesResult =
       files: SkillFileSource[];
     }
   | {
-      // The catalog responded with a definitive 404 for a non-generated id.
       status: "not_found";
     }
   | {
-      // Either the API was unavailable or the id is suffix-shaped (generated)
-      // and may still resolve through the browse.sh GitHub clone fallback.
       status: "fallback";
     };
 
@@ -115,9 +112,6 @@ export function isBlobSkillId(skillId: ParsedSkillId): boolean {
 
 export async function installSkill(rawSkillId: string): Promise<void> {
   const skill = parseSkillId(rawSkillId);
-  // Attach only the validated, catalog-public id to telemetry — never the raw
-  // argument, which can contain arbitrary user input. Setting it right after
-  // parsing covers success and every downstream failure path.
   setRunTelemetryCompletion({ skillId: skill.id });
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
@@ -146,8 +140,6 @@ export async function installSkill(rawSkillId: string): Promise<void> {
     );
   }
 
-  // Suffix-shaped (generated) ids, or a temporarily unavailable catalog, may
-  // still resolve through the browse.sh GitHub repo.
   await runSkillsInstall(npxPath, [
     "--yes",
     "skills",
@@ -181,9 +173,6 @@ export async function installBundledCliSkill(): Promise<void> {
   ]);
 }
 
-// Runs `npx skills add ...` with live passthrough, but fails with a diagnostic
-// message (including a tail of the child's output) when the child exits nonzero
-// so the failure is recorded in telemetry instead of an opaque exit code.
 async function runSkillsInstall(npxPath: string, args: string[]): Promise<void> {
   const timeoutMs = installTimeoutMs();
   const result = await spawnPassthrough(npxPath, args, timeoutMs);
@@ -280,10 +269,6 @@ async function fetchSkillFiles(skillId: ParsedSkillId): Promise<SkillFilesResult
     };
   }
 
-  // Suffix-shaped ids correspond to generated catalog skills that live in the
-  // browse.sh repo even when the file API can't serve them directly, so keep
-  // the GitHub clone fallback for those. A plain 404 for a non-generated id is
-  // a definitive miss and should fail cleanly instead of cloning the repo.
   if (apiResult.status === "not_found" && !isBlobSkillId(skillId)) {
     return { status: "not_found" };
   }
@@ -297,8 +282,6 @@ async function fetchSkillFilesFromApi(skillId: ParsedSkillId): Promise<SkillFile
   try {
     response = await fetch(url, { signal: fetchTimeoutSignal() });
   } catch {
-    // Network failures and timeouts both mean the catalog is unavailable;
-    // callers fall back (or fail cleanly) exactly as before.
     return { status: "unavailable" };
   }
 
@@ -492,11 +475,6 @@ interface SpawnPassthroughResult {
   timedOut: boolean;
 }
 
-// Like `stdio: "inherit"` for the human watching, but the child's stdout/stderr
-// are also buffered (tail only) so a nonzero exit can surface a real reason to
-// telemetry instead of a bare exit code. The child is killed after `timeoutMs`
-// (SIGTERM, then SIGKILL) so a hung `npx` cannot stall the install forever.
-// Exported for tests.
 export async function spawnPassthrough(
   command: string,
   args: string[],
@@ -537,9 +515,6 @@ export async function spawnPassthrough(
       capture(chunk);
     });
 
-    // Resolve (not reject) on spawn errors so the failure is classified as
-    // `skill_install_failed` by runSkillsInstall instead of escaping as an
-    // unclassified runtime error.
     child.on("error", (error) => {
       clearTimers();
       const message = error instanceof Error ? error.message : String(error);

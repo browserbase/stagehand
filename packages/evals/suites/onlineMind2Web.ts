@@ -20,7 +20,6 @@ export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[
 
   const lines = readJsonlFile(mind2webFilePath);
 
-  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_ONLINEMIND2WEB_LIMIT or default to 25
   const maxCases = process.env.EVAL_MAX_K
     ? Number(process.env.EVAL_MAX_K)
     : process.env.EVAL_ONLINEMIND2WEB_LIMIT
@@ -51,8 +50,6 @@ export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[
 
   const candidates = parseJsonlRows(lines, isMind2WebRow);
 
-  // EVAL_ONLINEMIND2WEB_IDS restricts the suite to exactly those task ids,
-  // preserving the order given and ignoring sampling / limit knobs.
   const explicitIds = process.env.EVAL_ONLINEMIND2WEB_IDS
     ? process.env.EVAL_ONLINEMIND2WEB_IDS.split(",")
         .map((s) => s.trim())
@@ -86,11 +83,7 @@ export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[
       allTestcases.push({
         input,
         name: input.name,
-        tags: [
-          modelEntry.modelName,
-          modelEntry.mode,
-          "mind2web", // Simple dataset tag
-        ],
+        tags: [modelEntry.modelName, modelEntry.mode, "mind2web"],
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.task_id}`,

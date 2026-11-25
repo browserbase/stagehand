@@ -139,8 +139,6 @@ describe("gradeExternalTrajectory", () => {
     savedSuccessMode = process.env.EVAL_SUCCESS_MODE;
     savedPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
     delete process.env.EVAL_SUCCESS_MODE;
-    // Keep persistAdapterTrajectory on its no-write path (it defaults to
-    // persisting outside CI).
     process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
   });
 
@@ -222,8 +220,6 @@ describe("gradeExternalTrajectory", () => {
     expect(result.outcomeSuccess).toBe(false);
     expect(result.outcomeGates).toEqual(["no_browser_use"]);
     expect(result._success).toBe(false);
-    // A gate that overrides a judge pass names itself in the row error so the
-    // reason is visible where the row is read, with the agent's claim attached.
     expect(result.error).toMatch(
       /^gated: no_browser_use — no browser tool calls \(judge passed; agent said: agent reported failure\)$/,
     );
@@ -275,7 +271,6 @@ describe("gradeExternalTrajectory", () => {
       });
       const taskData = JSON.parse(await fs.readFile(path.join(dir, "task_data.json"), "utf8"));
       expect(taskData.result.outcomeSuccess).toBe(false);
-      // The sidecar audit file stays.
       const gates = JSON.parse(await fs.readFile(path.join(dir, "scores", "gates.json"), "utf8"));
       expect(gates.outcomeSuccess).toBe(false);
     } finally {
@@ -337,8 +332,6 @@ describe("gradeExternalTrajectory", () => {
         logger: new EvalLogger(false),
       });
 
-    // Default: a correct answer sourced from a search snippet still passes;
-    // the grounding result is recorded so snippet-sourced passes stay filterable.
     const advisory = await run("hardbenchmark");
     expect(advisory.outcomeGates).toEqual([]);
     expect(advisory._success).toBe(true);

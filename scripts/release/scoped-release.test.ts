@@ -344,7 +344,6 @@ describe("independent release scopes using the real Changesets engine", () => {
           expect(Boolean((await manifest(root, "cli")).private)).toBe(scope !== "cli");
           expect(Boolean((await manifest(root, "sdk")).private)).toBe(scope !== "sdk");
           expect((await manifest(root, "python")).private).toBe(true);
-          // Published by hand only, never by either scope's native publisher.
           expect((await manifest(root, "middleware")).private).toBe(true);
           if (fail) throw new Error("publish failed");
         });

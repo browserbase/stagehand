@@ -21,8 +21,6 @@ export async function runDriverCommand(
   if (selection.kind === "create") {
     await ensureDriverDaemon({ session, target: selection.target });
   }
-  // Reusing a session never starts a daemon. If it vanished after selection,
-  // propagate the connection error instead of recreating it from its reply.
   if (command === "open" && isOpenCommandParams(params)) {
     return openViaDaemon(session, params.url, params);
   }

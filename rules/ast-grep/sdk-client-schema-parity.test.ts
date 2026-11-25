@@ -19,7 +19,6 @@ type Concept = {
 
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
-// These deprecated Chrome extension ID fields are accepted but ignored by connect.
 const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
@@ -149,15 +148,11 @@ describe("SDK-owned schemas remain one TypeScript/Python contract", () => {
       "StagehandCreateOptionsSchema",
     ]);
     const intentionallySpecialized = new Set([
-      // Browserbase owns this open pass-through surface.
       "BrowserbaseLaunchOptionsSchema",
-      // These validate Browserbase SDK responses rather than cross-language caller input.
       "BrowserbaseSessionConnectionSchema",
       "BrowserbaseSessionCreateResultSchema",
       "BrowserbaseSessionRetrieveResultSchema",
-      // Runtime callbacks and handles are necessarily language-specific.
       "ClientLLMSchema",
-      // These are partial views of already-generated protocol schemas.
       "WebMCPInvokeOptionsSchema",
       "WebMCPResultOptionsSchema",
       "WebMCPToolsOptionsSchema",
@@ -391,7 +386,6 @@ async function clientSchemaDifferences(concepts: readonly Concept[]): Promise<st
   return differences;
 }
 
-// A new client option belongs to the active SDKs; it needs no Go counterpart.
 describe("active SDK client-schema coverage regressions", () => {
   it.each(["none", "typescript", "python"] as const)(
     "checks a TS/Python-only option with missing SDK: %s",

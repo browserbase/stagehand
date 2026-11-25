@@ -61,9 +61,6 @@ export async function handleExperiments(args: string[]): Promise<void> {
     return;
   }
 
-  // Help is only intercepted at rest[0] — immediately after the verb — so
-  // leaf positionals (e.g. a second experiment id in `compare a b --help`)
-  // and option values are never swallowed as help.
   const wantsSubHelp = rest[0] === "--help" || rest[0] === "-h" || rest[0] === "help";
 
   switch (subcommand) {
@@ -136,10 +133,6 @@ async function handleList(args: string[]): Promise<void> {
     }
 
     console.log(separator());
-    // Size the name column to the longest experiment name in this
-    // section so long names like
-    // `act_browserbase_stagehand_gpt_4_1_mini_apr27_1530` aren't truncated.
-    // Floor at 24 to keep short-name layouts stable.
     const nameWidth = Math.max(24, ...section.experiments.map((e) => e.experimentName.length));
     for (const experiment of section.experiments) {
       const relative = dim(padRight(formatRelativeTime(experiment.createdAt), 10));
@@ -616,7 +609,5 @@ function openInBrowser(target: string): void {
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });
     child.unref();
-  } catch {
-    // best-effort only
-  }
+  } catch {}
 }

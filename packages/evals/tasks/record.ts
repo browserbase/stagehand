@@ -2,7 +2,6 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Page } from "playwright";
 
-/** Capture the rendered observation surface, not the application's behavior. */
 export async function captureObservation(page: Page): Promise<string> {
   return page.evaluate(() => {
     const elements = Array.from(document.querySelectorAll("*"));
@@ -13,7 +12,6 @@ export async function captureObservation(page: Page): Promise<string> {
     const copies = [clone, ...Array.from(clone.querySelectorAll("*"))];
     for (const [index, source] of elements.entries()) {
       const target = copies[index];
-      // Inline the styles from this session; never fetch assets a second time.
       const computed = getComputedStyle(source);
       const styles = Array.from(computed)
         .filter((name) => !computed.getPropertyValue(name).includes("url("))
@@ -40,7 +38,6 @@ export async function captureObservation(page: Page): Promise<string> {
       } else if (source instanceof HTMLOptionElement) {
         target.toggleAttribute("selected", source.selected);
       }
-      // Keep link identity useful for extraction, resolving against the source URL.
       if (source instanceof HTMLAnchorElement && source.hasAttribute("href")) {
         target.setAttribute("href", source.href);
       }
@@ -64,7 +61,6 @@ export async function captureObservation(page: Page): Promise<string> {
 export async function writeObservationTask(page: Page, output: string): Promise<void> {
   const html = await captureObservation(page);
   const directory = resolve(output);
-  // Exclusive creation prevents accidentally replacing a reviewed task.
   await mkdir(directory);
   try {
     await writeFile(resolve(directory, "index.html"), html);

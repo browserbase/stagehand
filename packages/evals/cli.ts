@@ -1,28 +1,3 @@
-/**
- * Evals CLI entry point.
- *
- * Modes:
- *   - `evals` (no args)              → interactive REPL
- *   - `evals --quiet` / `evals -q`   → REPL with no banner / welcome / inline warnings
- *   - `evals run <target> …`         → single-shot run with rich progress
- *   - `evals list [tier]`            → list discovered tasks
- *   - `evals config [sub]`           → print / get / set defaults
- *   - `evals experiments [sub]`      → inspect / compare Braintrust runs
- *   - `evals doctor` / `health`      → env-key + config + discovery health report
- *   - `evals new <tier> <cat> <name>`→ scaffold a task file
- *   - `evals welcome [a|b|c|d]`      → guided onboarding (variants to compare)
- *   - `evals help` / `-h`            → help
- *
- * Env vars:
- *   - EVALS_NO_WELCOME=1             → suppress first-run welcome panel (REPL only)
- *   - EVALS_WELCOME_WIZARD=<v|1>     → auto-run welcome variant on first REPL launch
- *
- * No child processes. All runs flow through framework/runEvals in-process.
- *
- * Build: packages/evals/cli.ts → dist/cli/cli.js via scripts/build-cli.ts.
- * The bundled file is the `"bin"` entry in package.json.
- */
-
 // Must stay FIRST — silences braintrust's import-time OpenTelemetry warning
 // before any transitive import evaluates it. Everything that eventually
 // pulls in braintrust goes through dynamic import() below so this runs
@@ -31,9 +6,6 @@ import "./silence-warnings.js";
 
 import process from "node:process";
 import { loadEvalsEnv } from "./evalsEnv.js";
-// cwd `.env` first (wins), then packages/evals/.env so a repo-root launch sees
-// the keys `evals setup` saves there; shell exports always win. The doctor
-// reads the same report, so what it says is loaded is what ran.
 loadEvalsEnv();
 
 // Register tsx's ESM loader so dynamic `import()` of .ts task files resolves
@@ -46,9 +18,7 @@ await (async () => {
       register: () => unknown;
     };
     tsxApi.register();
-  } catch {
-    // best-effort; if tsx isn't installed tasks that import .ts will fail
-  }
+  } catch {}
 })();
 
 // Imports below are deferred to dynamic `await import(...)` inside the
@@ -61,19 +31,11 @@ import { red } from "./tui/format.js";
 import { getCurrentDirPath, getRuntimeTasksRoot } from "./runtimePaths.js";
 import type { TaskRegistry } from "./framework/types.js";
 
-/**
- * Directory of the running entry module. Differs between source and
- * built mode — tui/commands/config.ts uses it to locate evals.config.json.
- */
 const ENTRY_DIR = getCurrentDirPath();
 
 const args = process.argv.slice(2);
 
 (async () => {
-  // Best-effort shutdown: flush Braintrust telemetry and exit with the
-  // conventional signal code. Does not guarantee in-flight task
-  // cancellation upstream; the goal is clean process shutdown with no
-  // orphan browser sessions.
   let shuttingDown = false;
   const handleSignal = async (signal: "SIGINT" | "SIGTERM"): Promise<void> => {
     if (shuttingDown) return;
@@ -82,15 +44,11 @@ const args = process.argv.slice(2);
     try {
       const { cleanupActiveRunResources } = await import("./framework/runner.js");
       await cleanupActiveRunResources();
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const { flush } = await import("braintrust");
       await flush();
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const { resolveTraceTransport } = await import("./framework/langsmith.js");
       if (resolveTraceTransport() === "otel") {
@@ -105,8 +63,6 @@ const args = process.argv.slice(2);
   process.on("SIGINT", () => void handleSignal("SIGINT"));
   process.on("SIGTERM", () => void handleSignal("SIGTERM"));
 
-  // REPL launch: zero args, or only `--quiet`/`-q` flags. Quiet flags are
-  // REPL-only (they suppress chrome); other args route to the argv switch.
   const isQuietFlag = (a: string): boolean => a === "--quiet" || a === "-q";
   const replLaunch = args.length === 0 || args.every(isQuietFlag);
 
@@ -143,9 +99,6 @@ const args = process.argv.slice(2);
     armArgvInput();
   }
 
-  // Whether to write the first-run marker in `finally`. Help-only paths and
-  // the doctor command don't count as "first uses" — they're discovery
-  // actions. The REPL marks itself. Set by the dispatch outcome below.
   let shouldMarkFirstRun = false;
 
   try {
@@ -184,13 +137,10 @@ const args = process.argv.slice(2);
       // timeout and kills the process mid-prompt.
       suspendInput: () => {
         cleanupArgvInput();
-        return armArgvInput; // re-arm so an accepted hand-off run still exits on Esc
+        return armArgvInput;
       },
     });
 
-    // Only count real handler invocations as "first use". Doctor is a
-    // diagnostic, not a first use; help/meta paths are discovery; the
-    // welcome/setup flows mark on completion themselves (cancel must not mark).
     if (outcome.kind === "ran") {
       const top = outcome.absolutePath[0];
       shouldMarkFirstRun = top !== "doctor" && top !== "setup" && !top.startsWith("welcome");
@@ -203,9 +153,7 @@ const args = process.argv.slice(2);
       try {
         const { markFirstRunComplete } = await import("./tui/welcomeState.js");
         markFirstRunComplete(ENTRY_DIR);
-      } catch {
-        // best-effort
-      }
+      } catch {}
     }
     cleanupArgvInput();
   }

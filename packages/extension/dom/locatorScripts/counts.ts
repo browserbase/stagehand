@@ -32,9 +32,7 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
       if (typeof queryable.querySelectorAll === "function") {
         total += queryable.querySelectorAll(selector).length;
       }
-    } catch {
-      // ignore query errors
-    }
+    } catch {}
 
     try {
       const doc = root instanceof Document ? root : ((root as Element)?.ownerDocument ?? document);
@@ -46,9 +44,7 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
           if (shadowRoot) total += visit(shadowRoot);
         }
       }
-    } catch {
-      // ignore traversal errors
-    }
+    } catch {}
 
     return total;
   };
@@ -95,15 +91,11 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
       if (shouldSkip(element)) return "";
       const inner = (element as HTMLElement).innerText;
       if (typeof inner === "string" && inner.trim()) return inner.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const text = element.textContent;
       if (typeof text === "string") return text.trim();
-    } catch {
-      // ignore
-    }
+    } catch {}
     return "";
   };
 
@@ -187,9 +179,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
           skip = true;
           break;
         }
-      } catch {
-        // ignore containment errors
-      }
+      } catch {}
     }
     if (!skip) innermost.push(item);
   }

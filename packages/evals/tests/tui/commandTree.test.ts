@@ -16,10 +16,6 @@ import type { TaskRegistry } from "../../framework/types.js";
 type HandlerMock = ReturnType<typeof vi.fn> & CommandHandler;
 type PrintHelpMock = ReturnType<typeof vi.fn> & NonNullable<CommandNode["printHelp"]>;
 
-// ---------------------------------------------------------------------------
-// Fake tree — keeps tests independent of the real handlers.
-// ---------------------------------------------------------------------------
-
 function makeTree(handlers: {
   run: HandlerMock;
   config: HandlerMock;
@@ -103,10 +99,6 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
   };
 }
 
-// ---------------------------------------------------------------------------
-// tokenize
-// ---------------------------------------------------------------------------
-
 describe("tokenize", () => {
   it("splits on whitespace", () => {
     expect(tokenize("run act --trials 3")).toEqual(["run", "act", "--trials", "3"]);
@@ -135,10 +127,6 @@ describe("tokenize", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// tokenizeArgv
-// ---------------------------------------------------------------------------
-
 describe("tokenizeArgv", () => {
   it("passes through args without `>`", () => {
     expect(tokenizeArgv(["run", "act", "--trials", "3"])).toEqual(["run", "act", "--trials", "3"]);
@@ -153,10 +141,6 @@ describe("tokenizeArgv", () => {
     expect(tokenizeArgv(["config>core>path"])).toEqual(["config", "core", "path"]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// findChild + walkPath
-// ---------------------------------------------------------------------------
 
 describe("findChild + walkPath", () => {
   const tree = makeTree({} as never);
@@ -174,7 +158,6 @@ describe("findChild + walkPath", () => {
   });
 
   it("returns the deepest valid node for partial paths", () => {
-    // "missing" doesn't exist as a child of "config" — bail at config.
     expect(walkPath(tree, ["config", "missing"]).name).toBe("config");
   });
 });
@@ -185,10 +168,6 @@ describe("buildCommandTree", () => {
     expect(findChild(tree, "verify")?.summary).toBe("Re-score a saved trajectory");
   });
 });
-
-// ---------------------------------------------------------------------------
-// resolveCommand
-// ---------------------------------------------------------------------------
 
 describe("resolveCommand", () => {
   const tree = makeTree({} as never);
@@ -245,8 +224,6 @@ describe("resolveCommand", () => {
   });
 
   it("returns unknown when context-only resolution fails", () => {
-    // `config` is a root child but not a child of `experiments` → unknown
-    // at depth, no Pass 2 fallback.
     const r = resolveCommand(tree, ["experiments"], ["config", "path"]);
     expect(r).toMatchObject({
       kind: "unknown",
@@ -269,10 +246,6 @@ describe("resolveCommand", () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// dispatch
-// ---------------------------------------------------------------------------
 
 describe("dispatch", () => {
   function makeHandlers() {
@@ -327,7 +300,6 @@ describe("dispatch", () => {
     const tree = makeTree(h);
     const ctx = makeCtx();
     ctx.setContextPath?.(["experiments"]);
-    // Inside experiments, `evals config` should set context to ["config"].
     await dispatch(tree, ["evals", "config"], ctx);
     expect(ctx.contextPath).toEqual(["config"]);
   });
@@ -396,7 +368,6 @@ describe("dispatch", () => {
   it("routes `--help` after a leaf to that leaf's printHelp", async () => {
     const h = makeHandlers();
     const tree = makeTree(h);
-    // Add a printHelp to compare for this test.
     const compare = tree.children![2].children![1];
     const printCompareHelp = vi.fn() as PrintHelpMock;
     (compare as { printHelp?: (s: readonly string[]) => void }).printHelp = printCompareHelp;

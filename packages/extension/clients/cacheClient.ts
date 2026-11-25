@@ -2,26 +2,10 @@ import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 import type { ClientBrowserbaseRequest } from "./browserbaseClient.js";
 
-/**
- * Client for the Stagehand API's stateless cache routes (POST /cache/get
- * and POST /cache/set). Sends requests through the connected SDK and owns
- * request size limits, timeouts, and response validation.
- * All caching decisions (when to read, what to write,
- * fallback behavior) live in services/cacheService.ts, this client's only
- * consumer. See stagehand-api-v3's lib/cache/statelessCache.ts for the
- * server-side contract.
- */
-
-/** Ceiling for a single cache HTTP round-trip so a slow cache can only ever
- * add a bounded delay to the action it fronts. */
 const CACHE_REQUEST_TIMEOUT_MS = 5_000;
 
-/** Maximum UTF-8 JSON body size for a cache read or write. */
 const CACHE_REQUEST_MAX_BYTES = 25_000_000;
 
-// One raw CDP accessibility node from Accessibility.getFullAXTree, passed
-// through verbatim — the server reproduces the v3 tree shaping over the raw
-// nodes, so the client only checks that it is an object.
 const AXNodeSchema = z.custom<Protocol.Accessibility.AXNode>(
   (value) => typeof value === "object" && value !== null,
 );
@@ -39,8 +23,6 @@ export const CdpTreeSchema = z.object({
 
 export const CacheMethodSchema = z.enum(["act", "observe", "extract"]);
 
-/** LLM usage hints sent on /cache/set, used server-side to emit cache savings
- * metrics on future hits. Mirrors the API's llmUsageSchema. */
 export const CacheLlmUsageSchema = z.object({
   model: z.string().optional(),
   dollars: z.number().optional(),
@@ -55,7 +37,6 @@ const CacheRequestBaseSchema = z.object({
   sessionId: z.string().min(1),
   url: z.string().min(1),
   cdpTree: CdpTreeSchema,
-  /** Method params shaped like the API's v3 act/observe/extract schemas. */
   data: z.record(z.string(), z.unknown()),
 });
 
@@ -67,21 +48,13 @@ export const CacheSetRequestSchema = CacheRequestBaseSchema.extend({
 });
 
 export const CacheGetResponseSchema = z.object({
-  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
   hit: z.boolean(),
-  /** Present only on a hit. */
   value: z.unknown().optional(),
-  /** Present on a miss; explains why the cache was not served. */
   missReason: z.string().optional(),
-  /** Present on a hit, and on a threshold miss. */
   threshold: z.number().optional(),
-  /** Present on a hit, and on a threshold miss: times this key has been seen. */
   hitCount: z.number().optional(),
-  /** Present on a hit: age of the cached entry in ms. */
   ageMs: z.number().optional(),
-  /** Present on a hit: LLM tokens the cached entry avoided spending. The API
-   * reports savings in its own `{input, output, total}` shape. */
   tokensSaved: z
     .object({
       input: z.number(),
@@ -92,11 +65,8 @@ export const CacheGetResponseSchema = z.object({
 });
 
 export const CacheSetResponseSchema = z.object({
-  /** Null when no cache key is available, including a locally skipped request. */
   cacheKey: z.string().nullable(),
-  /** True when the write was issued to Redis. */
   written: z.boolean(),
-  /** Present when the write was skipped; explains why. */
   skippedReason: z.string().optional(),
 });
 

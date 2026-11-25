@@ -1,11 +1,3 @@
-/*
- * DOM-side helpers used by Locator Runtime.callFunctionOn invocations.
- *
- * NOTE: These functions run inside the page context. Keep them dependency-free
- * and resilient to exceptions (match the best-effort semantics of the old
- * inline string snippets).
- */
-
 export interface ClickEventOptions {
   bubbles?: boolean;
   cancelable?: boolean;
@@ -31,7 +23,6 @@ export interface SerializedFilePayload {
   lastModified?: number;
 }
 
-/** Attach File objects created from serialized payloads to an <input type="file">. */
 export function assignFilePayloadsToInputElement(
   this: Element,
   payloads: SerializedFilePayload[],
@@ -90,11 +81,8 @@ export function dispatchDomClick(this: Element, options?: ClickEventOptions): vo
     this.dispatchEvent(event);
   } catch {
     try {
-      // Fallback to native click if MouseEvent construction fails.
       (this as HTMLElement).click();
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 }
 
@@ -166,9 +154,7 @@ export function prepareElementForTyping(this: Element): boolean {
       if (typeof element.focus === "function") {
         element.focus();
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
 
     if (element instanceof win.HTMLInputElement || element instanceof win.HTMLTextAreaElement) {
       try {
@@ -176,9 +162,7 @@ export function prepareElementForTyping(this: Element): boolean {
           element.select();
           return true;
         }
-      } catch {
-        /* ignore */
-      }
+      } catch {}
 
       try {
         const length = (element.value ?? "").length;
@@ -186,9 +170,7 @@ export function prepareElementForTyping(this: Element): boolean {
           element.setSelectionRange(0, length);
           return true;
         }
-      } catch {
-        /* ignore */
-      }
+      } catch {}
 
       return true;
     }
@@ -201,9 +183,7 @@ export function prepareElementForTyping(this: Element): boolean {
           range.selectNodeContents(element);
           selection.removeAllRanges();
           selection.addRange(range);
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
       return true;
     }
@@ -294,9 +274,7 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
         fallbackValue = trimmed;
         try {
           element.focus();
-        } catch {
-          // Setting the value does not require focus.
-        }
+        } catch {}
 
         const prototype = win.HTMLInputElement.prototype;
         const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
@@ -332,7 +310,6 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
     }
 
     if (element instanceof win.HTMLSelectElement) {
-      // Select elements use setInputFiles/selectOption instead.
       return { status: "error", reason: "unsupported-element" };
     }
 
@@ -359,9 +336,7 @@ export function focusElement(this: Element): void {
     if (typeof (this as HTMLElement).focus === "function") {
       (this as HTMLElement).focus();
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {

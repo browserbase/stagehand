@@ -32,8 +32,6 @@ describe("cache service", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  // ageMs is in the fixture because the API sends it, and deliberately absent
-  // from the assertion: it is logged, not surfaced on the result.
   it("reports hit count, threshold, and token savings on a hit", async () => {
     const get = vi.fn().mockResolvedValue({
       hit: true,
@@ -72,8 +70,6 @@ describe("cache service", () => {
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: { answer: 42 } }));
   });
 
-  // A threshold miss is the one miss that carries progress information: the
-  // caller can see how many more identical requests are needed.
   it("reports progress toward the threshold on a threshold miss", async () => {
     const result = await runWithCache({
       get: vi.fn().mockResolvedValue({
@@ -168,9 +164,6 @@ describe("cache service", () => {
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 
-  // v3 cached every eligible call unless the caller opted out; v4 shipped with
-  // the inverted default, silently disabling caching for anyone who upgraded
-  // without passing `cache`. These pin the default so it can't drift back.
   it("enables caching by default when init params omit `cache`", () => {
     const context = cacheService.buildCacheContext({
       browserbase: "client",

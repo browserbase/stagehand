@@ -38,8 +38,6 @@ export default class ContextsAdd extends BrowseCommand {
     if (!isValidContextName(args.name)) {
       fail(`Invalid context name "${args.name}". ${contextNameRequirement()}`);
     }
-    // Normalize before storing so whitespace-padded input isn't saved and later
-    // resolved as a bogus context id.
     const id = args.id.trim();
     if (id.length === 0) {
       fail("Context ID cannot be empty.");

@@ -1,12 +1,3 @@
-/**
- * deepagentsAdapter — converts Deep Agents JSONL events into a `Trajectory`
- * the verifier can consume.
- *
- * Input shape: assistant messages, paired tool_call/tool_result records,
- * terminal final/usage records, and explicit error records. Assistant text is
- * folded into the next tool call as reasoning; MCP server names prefix tool
- * names so observation matching remains unambiguous.
- */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { StepObservation } from "../observationRecorder.js";
 import {
@@ -36,9 +27,6 @@ export class DeepagentsTrajectoryAdapter implements TrajectoryAdapter<Deepagents
     for (const event of result.events) {
       const type = String(event.type ?? "");
       if (type === "assistant" && typeof event.text === "string") {
-        // The runner reports the model's reasoning summary apart from its
-        // visible text; both explain the next tool call, only the text can
-        // be an answer.
         for (const part of [event.reasoning, event.text]) {
           if (typeof part !== "string" || !part) continue;
           pendingReasoning = pendingReasoning ? `${pendingReasoning}\n${part}` : part;
@@ -103,9 +91,6 @@ export class DeepagentsTrajectoryAdapter implements TrajectoryAdapter<Deepagents
       }
     }
 
-    // The Nth recorded observation pairs with the Nth MCP tool call, in
-    // stream order. If ordinals differ, attach nothing: misattribution is
-    // worse than missing evidence.
     const observations = result.stepObservations ?? [];
     if (observations.length > 0) {
       const observedCalls = toolCalls.filter((call) =>

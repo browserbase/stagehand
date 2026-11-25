@@ -1,19 +1,5 @@
-/**
- * fx — real animation primitives for the welcome flows.
- *
- * Where wizardAnim.ts does *reveals* (rows appearing, bars filling), this
- * module does *motion*: a frame loop with easing, a 2D cell canvas with a
- * color per cell (fg + bg, so half-blocks carry two pixels), and a semantic palette. Console-
- * boot energy — things move through space, glow, settle.
- *
- * Palette semantics (used identically by every flow so the colors teach):
- *   accuracy → brand green · speed → cyan · cost → amber · fail → rose
- */
-
 import { c } from "./format.js";
 import { canAnimateInPlace, LiveBlock, sleep, type RGB, type SkipSignal } from "./wizardAnim.js";
-
-// ─── Palette ───────────────────────────────────────────────────────────
 
 export const PALETTE = {
   void: [4, 16, 12] as RGB,
@@ -28,7 +14,6 @@ export const PALETTE = {
   slate: [118, 130, 126] as RGB,
 } as const;
 
-/** One color per public metric — never swap these between flows. */
 export const METRIC = {
   accuracy: PALETTE.brand,
   speed: PALETTE.cyan,
@@ -57,14 +42,12 @@ export function mixRgb(a: RGB, b: RGB, t: number): RGB {
   ];
 }
 
-/** Multi-stop gradient: t in [0,1] across `stops`. */
 export function ramp(stops: readonly RGB[], t: number): RGB {
   const k = clamp01(t) * (stops.length - 1);
   const i = Math.min(stops.length - 2, Math.floor(k));
   return mixRgb(stops[i], stops[i + 1], k - i);
 }
 
-/** Intensity 0→1 through the brand glow: void → deep → teal → brand → mint → white. */
 export const GLOW: readonly RGB[] = [
   PALETTE.void,
   PALETTE.deep,
@@ -73,8 +56,6 @@ export const GLOW: readonly RGB[] = [
   PALETTE.mint,
   PALETTE.white,
 ];
-
-// ─── Easing ────────────────────────────────────────────────────────────
 
 export const ease = {
   linear: (t: number): number => t,
@@ -89,17 +70,9 @@ export const ease = {
   outExpo: (t: number): number => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * clamp01(t))),
 };
 
-// ─── Canvas ────────────────────────────────────────────────────────────
-
-/**
- * A width×height grid of (glyph, color) cells that renders to ANSI rows,
- * merging adjacent cells of equal color so frames stay small. Coordinates
- * are 0-based, x → column, y → row. Out-of-bounds writes are ignored.
- */
 export class Canvas {
   readonly glyphs: string[][];
   readonly colors: (RGB | null)[][];
-  /** Optional background per cell — lets half-block glyphs carry two pixels. */
   readonly bgs: (RGB | null)[][];
 
   constructor(
@@ -128,7 +101,6 @@ export class Canvas {
     this.bgs[yi][xi] = bgColor;
   }
 
-  /** Write a string left→right starting at (x,y) in one color. */
   text(x: number, y: number, s: string, color: RGB | null): void {
     let i = 0;
     for (const ch of s) {
@@ -147,7 +119,6 @@ export class Canvas {
         const back = this.bgs[y][x];
         const code = (col ? fg(col) : "") + (back ? bg(back) : "");
         if (code !== last) {
-          // A change of color always resets first so a dropped bg never bleeds.
           out += c.reset + code;
           last = code;
         }
@@ -159,7 +130,6 @@ export class Canvas {
   }
 }
 
-/** Glyph for a 0→1 intensity: nothing, then dots, then blocks. */
 export function glowGlyph(intensity: number): string {
   const k = clamp01(intensity);
   if (k < 0.08) return " ";
@@ -170,22 +140,12 @@ export function glowGlyph(intensity: number): string {
   return "■";
 }
 
-/** Vertical fill glyph for a 0→1 fraction (bottom-up eighths). */
 export function fillGlyph(frac: number): string {
   const k = clamp01(frac);
   const blocks = " ▁▂▃▄▅▆▇█";
   return blocks[Math.round(k * 8)];
 }
 
-// ─── Frame loop ────────────────────────────────────────────────────────
-
-/**
- * Run `draw(t)` for `durationMs` at `fps` and paint each frame through
- * `block`. `t` is 0→1 linear; apply `ease.*` inside draw. Stops early when
- * the signal flips (the caller paints its own final frame). Returns the
- * number of frames painted. Off-TTY / narrow: paints nothing (caller
- * paints the resting frame with `{ final: true }`).
- */
 export async function animate(opts: {
   durationMs: number;
   fps?: number;
@@ -205,16 +165,11 @@ export async function animate(opts: {
     block.paint(draw(t, frame));
     frame++;
     if (t >= 1) break;
-    // Sleep until this frame's slot (started + frame·frameMs), not a full
-    // frame past "now" — so the first step lands on time and drift self-corrects.
     await sleep(Math.max(8, started + frame * frameMs - Date.now()), signal);
   }
   return frame;
 }
 
-// ─── Randomness ────────────────────────────────────────────────────────
-
-/** Deterministic PRNG so the boot looks identical every launch. */
 export function seeded(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => {

@@ -103,7 +103,6 @@ describe("observation recorder", () => {
           release = () => resolve({ url: "https://example.com/late" });
         }),
     );
-    // Fire-and-forget, as the MCP tool-result stream does.
     void recorder.record();
     expect(recorder.drain()).toEqual([]);
     const settled = recorder.settle();
@@ -246,8 +245,6 @@ describe("per-step observations in trajectories", () => {
   });
 
   it("attaches no codex observations when bridge runs outnumber matched steps", () => {
-    // Two recorded bridge runs but only one command matches the filter —
-    // ordinals could be shifted, so misattribution must be refused.
     const events = [commandExecution("node browser_run.mjs a.js"), commandExecution("ls")];
     const trajectory = codexAdapter.fromHarnessResult(
       {
@@ -367,7 +364,6 @@ describe("verifiability gate", () => {
           _success: false,
           metrics: { facade_tool_calls: { count: 1, value: 0 } },
         }),
-        // No facade metric at all (older rows): not counted either way.
         row("m", "stagehand_facade", {
           criterionCount: 3,
           evidenceInsufficient: [],

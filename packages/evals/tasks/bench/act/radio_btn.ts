@@ -8,7 +8,6 @@ export default defineBenchTask(
 
       await stagehand.act("click the 'medium' option");
 
-      // confirm that the Medium radio is now checked
       const radioBtnClicked = await page
         .locator('input[type="radio"][name="Pizza"][value="Medium"]')
         .isChecked();
