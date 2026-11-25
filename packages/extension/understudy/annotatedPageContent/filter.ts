@@ -3,6 +3,13 @@ import type { AnnotatedPageContent } from "./index.js";
 import type { ContentNodeJson, FrameDataJson } from "./common_quality_data_pb.js";
 import { classifyActions, isDisabled, isRedacted, type ApcAction } from "./actions.js";
 
+// Fieldset and output are form-associated, but unlike input or select they can contain the
+// controls a caller wants to act on.
+const containerControlTypes = new Set<string>([
+  "FORM_CONTROL_TYPE_FIELDSET",
+  "FORM_CONTROL_TYPE_OUTPUT",
+]);
+
 export type ApcFrame = {
   /** Capture-local identity, including when Chromium omits the document token. */
   id: string;
@@ -97,7 +104,8 @@ export function filterAnnotatedPageContent(
           item.insideControl ||
           (!!attributes?.formControlData?.formControlType &&
             attributes.formControlData.formControlType !== "FORM_CONTROL_TYPE_CONTENT_EDITABLE" &&
-            attributes.formControlData.formControlType !== "FORM_CONTROL_TYPE_UNSPECIFIED"),
+            attributes.formControlData.formControlType !== "FORM_CONTROL_TYPE_UNSPECIFIED" &&
+            !containerControlTypes.has(attributes.formControlData.formControlType)),
       });
     }
   }
