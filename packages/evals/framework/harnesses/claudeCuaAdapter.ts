@@ -1,14 +1,3 @@
-/**
- * claudeCuaAdapter — converts a claude-cua-sdk session (Anthropic Messages API
- * loop with the Browser Use toolset) into a verifier `Trajectory`.
- *
- * Each `tool_use` event becomes one step named after the toolset member, paired
- * with its `tool_result` by tool_use id. Thinking and text blocks of the
- * assistant turn that issued the call become the step's reasoning; the text of
- * the final assistant turn (no tool calls) is the final answer. Screenshots in
- * tool results become image evidence; the runner's per-step observations are
- * attached by tool_use id.
- */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type {
   ClaudeCuaSessionEvent,
@@ -26,7 +15,6 @@ export interface ClaudeCuaRunResult {
   status?: Trajectory["status"];
   usage?: Partial<Trajectory["usage"]>;
   finalObservation?: ProbeEvidence;
-  /** Page state observed after a mutating member, keyed by tool_use id. */
   stepObservations?: Map<string, ProbeEvidence>;
 }
 
@@ -70,7 +58,6 @@ export class ClaudeCuaTrajectoryAdapter implements TrajectoryAdapter<ClaudeCuaRu
           error: "Tool call ended without a result.",
           reasoning: pendingReasoning.trim() || undefined,
         };
-        // Only the first member of a turn carries the turn's reasoning.
         pendingReasoning = "";
         toolCalls.push(call);
         byToolUseId.set(event.id, call);

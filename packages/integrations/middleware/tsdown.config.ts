@@ -7,7 +7,6 @@ export default defineConfig({
   format: ["esm"],
   platform: "node",
   target: "node22",
-  // The facade source is bundled in; the SDK (a peer) and zod stay external.
   deps: { neverBundle: ["@browserbasehq/stagehand", /^zod(\/.*)?$/] },
   dts: true,
   outDir: "dist",

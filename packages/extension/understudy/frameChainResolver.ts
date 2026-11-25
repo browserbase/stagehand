@@ -77,7 +77,6 @@ export class FrameChainResolver {
   }
 }
 
-/** All remote state belongs to this call, including objects created by late replies. */
 class FrameChainOperation {
   private readonly objectGroup = `stagehand-frame-chain-${crypto.randomUUID()}`;
   private readonly sessions = new Set<CDPSessionLike>();
@@ -107,7 +106,6 @@ class FrameChainOperation {
         throw new Error("Explicit frame hop requires an iframe or frame element");
       }
       const scopes = [...matches];
-      // Only iframe hosts need backend IDs before final selection.
       for (const [world, entries] of groupByWorld(matches)) {
         const frames = entries.filter(({ match }) => match.isFrame);
         if (!frames.length) continue;
@@ -155,8 +153,6 @@ class FrameChainOperation {
       );
       this.assertWorld(match.world);
       if (frameId) return this.world(frameId);
-      // A registered sibling is not evidence that this host's frame has been
-      // discovered. Retry discovery, but stop immediately for a detached host.
       await this.call(match.world, "function(id) { this.elements([id]); }", [match.id], true);
       if (this.readinessOptions.readinessRetries === "none" || performance.now() >= deadline) {
         throw new Error(`Unable to obtain a content frame for backend node: ${backendNodeId}`);
@@ -257,8 +253,6 @@ class FrameChainOperation {
       this.assertWorld(cached);
       return cached;
     }
-    // Recheck ownership between attempts: an OOPIF may be adopted while its
-    // isolated world is being installed. Deadline-less calls get one attempt.
     while (true) {
       this.progress.throwIfStopped();
       this.assertAttached(frameId);
@@ -314,11 +308,6 @@ class FrameChainOperation {
       } catch (error) {
         this.progress.throwIfStopped();
         this.assertAttached(frameId);
-        // Ownership can change after the readiness check or while evaluation
-        // is in flight. No matches have been collected in this world yet, so
-        // installation can restart on its new owner. Old handles remain owned
-        // by the operation; releasing the session's group here could also
-        // discard retained scopes from another frame sharing that session.
         if (
           session === this.page.getSessionForFrame(frameId) ||
           (isCdpClosedError(error) && error.message.startsWith("CDP connection closed:")) ||

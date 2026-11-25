@@ -10,7 +10,6 @@ import { Progress, runWithProgress } from "./progress.js";
 
 const TARGET_DESCRIPTION_CONCURRENCY = 4;
 
-/** Exact identity in the session that performed resolution, with no owned remote handle. */
 export type ElementChainTarget = {
   session: CDPSessionLike;
   frameId: string;
@@ -21,7 +20,6 @@ export type ElementChainResult =
   | { mode: "count"; count: number }
   | { mode: "selected" | "all"; targets: ElementChainTarget[] };
 
-/** Internal single-frame resolver. Released locator operations still use their existing adapter. */
 export class FrameElementChainResolver {
   constructor(
     readonly frame: Frame,
@@ -51,12 +49,8 @@ export class FrameElementChainResolver {
     ) {
       throw new RangeError("Selected chain index must be a non-negative safe integer");
     }
-    // A frame may adopt another session during navigation. All commands and
-    // cleanup for this operation must stay on the captured session/context.
     const session = this.frame.session;
     const frameId = this.frame.frameId;
-    // The readiness timeout bounds one attempt, not the retry loop. An
-    // unlimited operation still needs a finite attempt when no world is ready.
     const readinessOptions = Number.isFinite(progress.remainingMs())
       ? this.readinessOptions
       : { ...this.readinessOptions, readinessRetries: "none" as const };
@@ -74,7 +68,6 @@ export class FrameElementChainResolver {
           try {
             return await work();
           } catch (error) {
-            // A rejected late command can also allocate handles after initial cleanup.
             if (finishing) void release();
             throw error;
           }
@@ -123,8 +116,6 @@ export class FrameElementChainResolver {
           .map((property) => property.value!.objectId!);
       }
       const targets: ElementChainTarget[] = [];
-      // Only final requested targets need backend IDs. All-target mode still
-      // has one describe per target; count and selected never describe prefixes.
       let nextIndex = 0;
       let stopped = false;
       const describeTargets = async () => {
@@ -138,7 +129,6 @@ export class FrameElementChainResolver {
             );
             progress.throwIfStopped();
             if (stopped) return;
-            // Completion order must not change first/nth or all-target order.
             targets[index] = { session, frameId, backendNodeId: node.backendNodeId };
           }
         } catch (error) {
@@ -147,8 +137,6 @@ export class FrameElementChainResolver {
         }
       };
       try {
-        // One progress step owns the pool's wait. A failure or timeout stops
-        // scheduling immediately without waiting on other stalled requests.
         await step("materializing chain targets", () =>
           Promise.all(
             Array.from(

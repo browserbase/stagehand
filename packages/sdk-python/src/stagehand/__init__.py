@@ -1,5 +1,3 @@
-"""Stagehand Python SDK."""
-
 from ._generated.input_types import (
     Action as ActionInput,
 )

@@ -35,36 +35,6 @@ export interface XPathStep {
   predicates: XPathPredicate[];
 }
 
-/**
- * Parse an XPath expression into a list of traversal steps.
- *
- * This is a subset parser designed for composed DOM traversal (including
- * shadow roots). It intentionally does not implement the full XPath spec.
- *
- * Supported:
- *  - Child (`/`) and descendant (`//`) axes
- *  - Tag names and wildcard (`*`)
- *  - Positional indices (`[n]`)
- *  - Attribute equality predicates (`[@attr='value']`, `[@attr="value"]`)
- *  - Attribute existence (`[@attr]`)
- *  - Attribute contains/starts-with (`contains(@attr,'v')`, `starts-with(@attr,'v')`)
- *  - Text equality/contains (`[text()='v']`, `[contains(text(),'v')]`, `[.='v']`),
- *    where `text()` reads direct child text nodes and `.` the whole subtree
- *  - normalize-space on text/attributes (`[normalize-space(text())='v']`)
- *  - Basic boolean predicates (`and`, `or`, `not(...)`)
- *  - Multiple predicates per step (`[@class='foo'][2]`)
- *  - Optional `xpath=` prefix
- *
- * Not supported:
- *  - Position functions (`[position() > n]`, `[last()]`)
- *  - Axes beyond child/descendant (`ancestor::`, `parent::`, `self::`,
- *    `preceding-sibling::`, `following-sibling::`)
- *  - Union operator (`|`)
- *  - Grouped expressions (`(//div)[n]`)
- *
- * Unsupported predicates are silently ignored — the step still matches
- * by tag name, but the unrecognized predicate has no filtering effect.
- */
 export function parseXPathSteps(input: string): XPathStep[] {
   const path = String(input || "")
     .trim()
@@ -112,10 +82,6 @@ export function parseXPathSteps(input: string): XPathStep[] {
   return steps;
 }
 
-/**
- * Extract predicate contents from a string like `[@attr='val'][2]`.
- * Handles `]` inside quoted attribute values (e.g. `[@title='a[0]']`).
- */
 function extractPredicates(str: string): string[] {
   const results: string[] = [];
   let i = 0;
@@ -124,7 +90,7 @@ function extractPredicates(str: string): string[] {
       i++;
       continue;
     }
-    i++; // skip opening [
+    i++;
     const start = i;
     let quote: string | null = null;
     while (i < str.length) {
@@ -139,7 +105,7 @@ function extractPredicates(str: string): string[] {
       i++;
     }
     results.push(str.slice(start, i).trim());
-    i++; // skip closing ]
+    i++;
   }
   return results;
 }
@@ -393,7 +359,6 @@ function textValue(element: Element): string {
   return String(element.textContent ?? "");
 }
 
-/** The node-set `text()` selects: direct child text nodes, in document order. */
 function childTextValues(element: Element): string[] {
   const values: string[] = [];
   for (const node of Array.from(element.childNodes)) {

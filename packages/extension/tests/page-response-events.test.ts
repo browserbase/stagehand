@@ -63,7 +63,7 @@ describe("page response events", () => {
     const { page, session } = setup();
     const first: Response[] = [],
       second: Response[] = [];
-    headers(session); // No replay.
+    headers(session);
     const unsubscribe = await page.subscribeResponse((response) => first.push(response));
     await page.subscribeResponse((response) => second.push(response));
     expect(first).toHaveLength(0);

@@ -81,12 +81,6 @@ export function buildExternalHarnessTaskPlan(input: EvalInput): ExternalHarnessT
   );
 }
 
-/**
- * Dataset-specific prompt constraints carried over from the retired
- * first-party suite modules. OnlineMind2Web's site-scoping constraint is a
- * validity requirement: without it, tasks are passable by answering from a
- * search engine instead of operating the assigned site.
- */
 export function datasetPromptGuidance(dataset: string): string | undefined {
   switch (dataset) {
     case "onlineMind2Web":

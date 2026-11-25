@@ -15,7 +15,6 @@ export type BrowserbaseConnection = Readonly<{
   sessionId: string;
 }>;
 
-/** Resolves Gateway/cache settings from validated options and claimed-browser metadata. */
 export function resolveBrowserbaseConnection(
   createConfig: Pick<ResolvedStagehandClientCreateConfig, "apiKey" | "apiUrl">,
   workerInitMetadata: StagehandWorkerInitMetadata,

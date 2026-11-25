@@ -80,7 +80,6 @@ describe("runner-provided Browserbase target", () => {
       expect.objectContaining({
         projectId: "test-project-id",
         extensionId: "extension-123",
-        // Shared by several CDP clients; the first disconnect must not end it.
         keepAlive: true,
         timeout: 3600,
         proxies: true,

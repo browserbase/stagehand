@@ -14,7 +14,6 @@ export interface ResolvedNode {
   nodeId: Protocol.DOM.NodeId | null;
 }
 
-/** The caller must release the batch after consuming its handles. */
 export interface ResolvedNodeBatch {
   nodes: ResolvedNode[];
   release(): Promise<void>;
@@ -59,7 +58,6 @@ export class FrameSelectorResolver {
       this.readinessOptions,
     );
     const objectGroup = `stagehand-selector-${contextId}-${crypto.randomUUID()}`;
-    // Capture the actual session and context: navigation may change frame ownership.
     const cleanup = progress ?? new Progress("selector cleanup", 0);
     const releaseGroup = () =>
       cleanup.cleanup(() => session.send("Runtime.releaseObjectGroup", { objectGroup }));
@@ -73,7 +71,6 @@ export class FrameSelectorResolver {
           try {
             return await work();
           } catch (error) {
-            // A rejected late command may also have allocated objects before failing.
             if (released) void releaseGroup();
             throw error;
           }
@@ -115,8 +112,6 @@ export class FrameSelectorResolver {
         .filter((property) => /^(0|[1-9]\d*)$/.test(property.name) && property.value?.objectId)
         .sort((a, b) => Number(a.name) - Number(b.name))
         .map((property) => ({ objectId: property.value!.objectId!, nodeId: null }));
-      // Frontend node IDs are unnecessary for masks and snapshot exclusions.
-      // Those consumers read geometry/backend IDs while this group is alive.
       progress?.throwIfStopped();
       if (!nodes.length) return empty();
       handedOff = true;
@@ -151,8 +146,6 @@ export class FrameSelectorResolver {
       JSON.stringify(query),
       JSON.stringify({ mode: "range", start: index, end: index + 1 }),
     ]);
-    // Export only the selected element, outside any temporary group. Action
-    // callers already own and release this handle with Runtime.releaseObject.
     return this.evaluateElement(`(${expression})[0] ?? null`, contextId, progress);
   }
 

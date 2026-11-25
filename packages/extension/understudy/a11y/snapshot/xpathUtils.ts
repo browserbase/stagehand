@@ -2,10 +2,6 @@ import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
 import { nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
 
-/**
- * Build the absolute XPath for a node by walking through every iframe host
- * we've traversed so far followed by the leaf backend node.
- */
 export async function buildAbsoluteXPathFromChain(
   chain: Array<{
     parentSession: CDPSessionLike;
@@ -25,10 +21,6 @@ export async function buildAbsoluteXPathFromChain(
   return prefix ? prefixXPath(prefix, leaf) : normalizeXPath(leaf);
 }
 
-/**
- * Resolve a backend node to an absolute XPath within the provided session.
- * The CDP Runtime is used so we can invoke a small helper that walks the DOM.
- */
 export async function absoluteXPathForBackendNode(
   session: CDPSessionLike,
   backendNodeId: number,
@@ -55,10 +47,6 @@ export async function absoluteXPathForBackendNode(
   }
 }
 
-/**
- * Prefix `child` XPath with an absolute iframe path `parentAbs`.
- * Handles root slashes and shadow hops (“//”) cleanly.
- */
 export function prefixXPath(parentAbs: string, child: string): string {
   const p = parentAbs === "/" ? "" : parentAbs.replace(/\/$/, "");
   if (!child || child === "/") return p || "/";
@@ -67,7 +55,6 @@ export function prefixXPath(parentAbs: string, child: string): string {
   return p ? `${p}/${c}` : `/${c}`;
 }
 
-/** Normalize an XPath: strip `xpath=`, ensure leading '/', remove trailing '/'. */
 export function normalizeXPath(x?: string): string {
   if (!x) return "";
   let s = x.trim().replace(/^xpath=/i, "");
@@ -76,7 +63,6 @@ export function normalizeXPath(x?: string): string {
   return s;
 }
 
-/** Build per-sibling XPath steps for DOM traversal. */
 export function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
   const segs: string[] = [];
   const ctr: Record<string, number> = {};
@@ -95,7 +81,6 @@ export function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
   return segs;
 }
 
-/** Join two XPath fragments while preserving special shadow-root hops. */
 export function joinXPath(base: string, step: string): string {
   if (step === "//") {
     if (!base || base === "/") return "//";

@@ -114,7 +114,7 @@ describe("service timeout budgets", () => {
       const { page, generate, run } = await fixture();
       const response = hold();
       generate.mockImplementation(async (params) => {
-        const result = modelResult(params); // The out-of-scope button proves full-page fallback.
+        const result = modelResult(params);
         await response.ready;
         return result;
       });
@@ -125,7 +125,7 @@ describe("service timeout budgets", () => {
       expect(generate).toHaveBeenCalledTimes(1);
       response.release();
       await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(generate).toHaveBeenCalledTimes(1); // No follow-up extraction request.
+      expect(generate).toHaveBeenCalledTimes(1);
       expect(await page.evaluate(() => document.body.dataset.clicked === "yes")).toBe(false);
     },
   );

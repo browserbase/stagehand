@@ -488,7 +488,6 @@ describe("frame chain deadlines & ownership", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(started).toEqual([0, 1, 2, 3]);
       if (outcome === "complete") {
-        // Complete requests out of order to verify stable result ordering.
         for (const index of [3, 2, 1, 0, 7, 6, 5, 4, 8]) {
           gates[index].resolve({ node: { backendNodeId: 200 + index } });
           await vi.advanceTimersByTimeAsync(0);

@@ -1,28 +1,9 @@
-/**
- * This file defines the `EvalLogger` class, which is used to capture and manage
- * log lines during the evaluation process. The logger supports different log
- * levels (info, error, warn), stores logs in memory for later retrieval, and
- * also prints them to the console for immediate feedback.
- *
- * The `parseLogLine` function helps transform raw `LogLine` objects into a more
- * structured format (`LogLineEval`), making auxiliary data easier to understand
- * and analyze. By associating an `EvalLogger` instance with a `Stagehand` object,
- * all logs emitted during the evaluation process can be captured, persisted, and
- * reviewed after the tasks complete.
- */
 import { logLineToString } from "./utils.js";
 import { logToRow, type RowLogEntry } from "./framework/rowContext.js";
 import { LogLineEval } from "./types/evals.js";
 import { LogLine } from "stagehand-v3";
 import type { V3 } from "stagehand-v3";
 
-/**
- * parseLogLine:
- * Given a LogLine, attempts to parse its `auxiliary` field into a structured object.
- * If parsing fails, logs an error and returns the original line.
- *
- * The `auxiliary` field in the log line typically contains additional metadata about the log event.
- */
 function parseLogLine(logLine: LogLine): LogLineEval {
   try {
     let parsedAuxiliary: Record<string, unknown> | undefined;
@@ -35,7 +16,6 @@ function parseLogLine(logLine: LogLine): LogLineEval {
           parsedAuxiliary[key] = entry.type === "object" ? JSON.parse(entry.value) : entry.value;
         } catch (parseError) {
           console.warn(`Failed to parse auxiliary entry ${key}:`, parseError);
-          // If parsing fails, use the raw value
           parsedAuxiliary[key] = entry.value;
         }
       }
@@ -53,21 +33,8 @@ function parseLogLine(logLine: LogLine): LogLineEval {
   }
 }
 
-/**
- * EvalLogger:
- * A logger class used during evaluations to capture and print log lines.
- *
- * Capabilities:
- * - Maintains an internal array of log lines (EvalLogger.logs) for later retrieval.
- * - Can be initialized with a Stagehand instance to provide consistent logging.
- * - Supports logging at different levels (info, error, warn).
- * - Each log line is converted to a string and printed to console for immediate feedback.
- * - Also keeps a structured version of the logs that can be returned for analysis or
- *   included in evaluation output.
- */
 function toRowLogEntry(logLine: LogLine, defaultLevel?: number): RowLogEntry {
   const error = logLine.auxiliary?.error?.value;
-  // The stack, when the caller serialized one, goes on the lines below.
   const trace = logLine.auxiliary?.trace?.value;
   const message = error ? `${logLine.message}: ${String(error)}` : logLine.message;
   const level = typeof logLine.level === "number" ? logLine.level : defaultLevel;
@@ -88,74 +55,36 @@ export class EvalLogger {
     this.echo = echo;
   }
 
-  /**
-   * init:
-   * Associates this logger with a given Stagehand instance.
-   * This allows the logger to provide additional context if needed.
-   */
   init(stagehand?: V3) {
     this.stagehand = stagehand;
   }
 
-  /**
-   * log:
-   * Logs a message at the default (info) level.
-   * Uses `logLineToString` to produce a readable output on the console,
-   * and then stores the parsed log line in `this.logs`.
-   */
   log(logLine: LogLine) {
-    // Inside a run, the line goes to the row's log (file + optional live
-    // stream) instead of the console, where concurrent rows interleave.
     if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
       console.log(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));
   }
 
-  /**
-   * error:
-   * Logs an error message with `console.error` and stores it.
-   * Useful for capturing and differentiating error-level logs.
-   */
   error(logLine: LogLine) {
-    // Inside a run, the line goes to the row's log (file + optional live
-    // stream) instead of the console, where concurrent rows interleave.
     if (!logToRow(toRowLogEntry(logLine, 0)) && this.echo) {
       console.error(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));
   }
 
-  /**
-   * warn:
-   * Logs a warning message with `console.warn` and stores it.
-   * Helps differentiate warnings from regular info logs.
-   */
   warn(logLine: LogLine) {
-    // Inside a run, the line goes to the row's log (file + optional live
-    // stream) instead of the console, where concurrent rows interleave.
     if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
       console.warn(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));
   }
 
-  /**
-   * getLogs:
-   * Retrieves the stored log lines at or below `maxLevel` (default 1, so
-   * level-2 debug lines stay out of persisted task output). Lines without a
-   * level count as level 1. Pass `{ maxLevel: 2 }` for everything.
-   */
   getLogs(options: { maxLevel?: number } = {}): LogLineEval[] {
     const maxLevel = options.maxLevel ?? 1;
     return (this.logs || []).filter((line) => (line.level ?? 1) <= maxLevel);
   }
 
-  /**
-   * clear:
-   * Clears all stored logs to free memory.
-   * Should be called after logs have been retrieved and processed.
-   */
   clear(): void {
     this.logs = [];
     this.stagehand = undefined;

@@ -16,7 +16,6 @@ import {
   createStagehandBrowserHandle,
 } from "../src/browser/index.js";
 
-/** A transport that accepts requests and never answers them. */
 class SilentCDPTransport implements CDPTransport {
   readonly serviceWorker = {
     targetId: "worker-target",

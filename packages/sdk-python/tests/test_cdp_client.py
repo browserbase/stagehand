@@ -21,7 +21,6 @@ from stagehand.cdp_client import (
 
 
 def _ready_marker() -> dict[str, object]:
-    """The readiness envelope a current service worker publishes."""
     return {
         "marker": {
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
@@ -706,13 +705,6 @@ def _marker(protocol_version: str, *, name: str = "stagehand") -> dict[str, obje
 
 
 class TestNegotiateRuntime:
-    """Mirrors the TypeScript negotiation tests so the two SDKs cannot drift apart.
-
-    The absence of these is why a marker-shape change shipped with the Python client still
-    exact-matching the removed `name`/`version` keys: pytest only covered the happy path, and
-    its fixture encoded the old shape, so it agreed with the stale code.
-    """
-
     def test_accepts_a_current_marker(self) -> None:
         negotiation = cdp_client._negotiate_runtime(_marker(STAGEHAND_PROTOCOL_VERSION))
         assert negotiation.kind == "compatible"
@@ -720,7 +712,6 @@ class TestNegotiateRuntime:
         assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in negotiation.detail
 
     def test_tolerates_unknown_extra_keys(self) -> None:
-        # A newer runtime may publish fields this client has never heard of, e.g. `status`.
         negotiation = cdp_client._negotiate_runtime({
             **_marker(STAGEHAND_PROTOCOL_VERSION),
             "status": {"state": "ready"},
@@ -827,7 +818,6 @@ class TestNegotiateRuntime:
     def test_protocol_detail_wording_matches_typescript(
         self, client: str, server: str, detail: str
     ) -> None:
-        # The TS SDK's compatibilityDetail is the reference wording; keep the SDKs identical.
         result = cdp_client._protocol_compatibility(client, server)
         assert result is not None
         assert result[1] == detail
@@ -836,8 +826,6 @@ class TestNegotiateRuntime:
 def _readiness_client(
     responses: list[dict[str, object]],
 ) -> tuple[CDPClient, FakeWebSocket]:
-    """A client whose Runtime.evaluate answers are consumed in order (last one repeats)."""
-
     def response_for(_: dict[str, object]) -> dict[str, object]:
         envelope = responses.pop(0) if len(responses) > 1 else responses[0]
         return {"result": envelope}
@@ -866,7 +854,6 @@ async def test_runtime_wait_fails_fast_on_an_incompatible_marker() -> None:
     assert f"client protocol {STAGEHAND_PROTOCOL_VERSION}" in str(error)
     assert f"reported protocol {_INCOMPATIBLE_PROTOCOL_VERSION}" in str(error)
     assert "Upgrade the Stagehand SDK and the Stagehand extension" in str(error)
-    # Raised on the first poll: exactly one readiness evaluation, no sleep/re-poll.
     assert [message["method"] for message in socket.sent] == ["Runtime.evaluate"]
 
 
@@ -1176,7 +1163,6 @@ async def _connect_with_builds(
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
     try:
-        # Waiting for a service worker has no deadline, so a missing replacement would hang.
         async with asyncio.timeout(5):
             client = await CDPClient.connect(cdp_url="ws://browser", **cast(dict[str, Any], source))
     except Exception as error:

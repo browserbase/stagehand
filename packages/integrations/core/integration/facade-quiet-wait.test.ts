@@ -3,8 +3,6 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
 import { runCallback, type RunEnvelope, type RunInput } from "../src/facade/batch-sources.js";
 
-// page.waitForTimeout with quietWait against a real page, through the run
-// prelude a host sends. Native Playwright stands in for the extension's page.
 let browser: Browser;
 beforeAll(async () => {
   browser = await chromium.launch({
@@ -18,7 +16,6 @@ afterAll(async () => {
   await browser?.close();
 });
 
-/** A page that changes its DOM every 50 ms for `mutateMs` (Infinity: forever). */
 const mutatingPage = (mutateMs: number) => `<output id="tick">0</output><script>
   const started = performance.now();
   const timer = setInterval(() => {
@@ -53,7 +50,6 @@ describe("facade page.waitForTimeout with quietWait", () => {
     try {
       await page.setContent(mutatingPage(1_200));
       const { value, waits } = await run(page, TIMED_WAIT(8_000), { quietWait: true });
-      // It waited until the mutations stopped, not the full 8 s.
       assert.equal(value.done, "1");
       assert.ok(value.waited >= 400 && value.waited < 4_000, `waited ${value.waited} ms`);
       assert.equal(waits.count, 1);
@@ -82,8 +78,6 @@ describe("facade page.waitForTimeout with quietWait", () => {
     try {
       await page.setContent("<p>static</p>");
       await run(page, TIMED_WAIT(2_000), { quietWait: true });
-      // The next run's action changes the page 300 ms later (a fetch rendering),
-      // inside the quiet window of a wait that starts now.
       const render = `setTimeout(() => { document.body.dataset.done = "1"; }, 300);`;
       const { value, waits } = await run(
         page,
@@ -93,7 +87,6 @@ describe("facade page.waitForTimeout with quietWait", () => {
       assert.equal(value.done, "1");
       assert.ok(value.waited >= 700 && value.waited < 2_500, `waited ${value.waited} ms`);
       assert.equal(waits.earlyReturns, 1);
-      // Both waits removed their observers and keys.
       assert.deepEqual(
         await page.evaluate(() =>
           Object.getOwnPropertyNames(document).filter((name) => name.startsWith("_")),

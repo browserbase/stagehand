@@ -60,7 +60,6 @@ describe("workspace Browse adapter", () => {
       await session.closePage(closed);
       expect((await session.activePage()).id).toBe(selected);
 
-      // A command targeting a different surviving tab must first switch the CLI to it.
       await session.selectIfNeeded("tab-a");
       expect(runJson).toHaveBeenLastCalledWith(["tab", "switch", "tab-a"]);
     },

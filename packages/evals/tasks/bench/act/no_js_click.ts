@@ -4,12 +4,6 @@ import type { Action } from "@browserbasehq/stagehand";
 export default defineBenchTask(
   { name: "no_js_click" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
-    /**
-     * This eval is meant to test whether our `clickElement` function
-     * (inside actHandlerUtils.ts) is able to click elements even if
-     * the site blocks programmatic JS click events.
-     */
-
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/no-js-click/");
 

@@ -32,10 +32,6 @@ export type PiAgentSessionLike = {
     state: { errorMessage?: string };
   };
 };
-/**
- * Reasoning stays on by default. With thinking off, the agent was observed
- * to take the first plausible answer instead of planning around obstacles.
- */
 export const DEFAULT_PI_THINKING_LEVEL = "medium";
 
 export type PiSdk = {
@@ -57,16 +53,13 @@ export type PiSessionConfig = {
    * stop early and report partial results.
    */
   systemPrompt?: string;
-  /** Appended after pi's stock system prompt (the claude_code preset+append shape). */
   appendSystemPrompt?: string;
-  /** Overrides the model's thinking suffix; defaults to "medium" when neither is supplied. */
   thinkingLevel?: string;
   maxTurns?: number;
   customTools?: PiToolDefinition[];
   mcpServers?: Record<string, PiMcpServerSpec>;
 };
 export type PiTokenUsage = {
-  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
   reported?: boolean;
   inputTokens: number;
   outputTokens: number;
@@ -382,7 +375,6 @@ export function summarizePiEvent(event: PiEvent): { message: string; detail?: st
 }
 
 const MAX_EVENT_DETAIL_CHARS = 20_000;
-/** Retained trajectory evidence only; model-facing tool results are unchanged. */
 export const MAX_PI_IMAGE_BYTES = 8 * 1024 * 1024;
 export const MAX_PI_SESSION_IMAGE_BYTES = 64 * 1024 * 1024;
 
@@ -421,8 +413,6 @@ function decodeImageBlocks(value: unknown, budget: { remainingBytes: number }): 
       const data = typeof block.data === "string" ? block.data : undefined;
       const bytes = Buffer.isBuffer(block.bytes) ? block.bytes : undefined;
       if (data === undefined && !bytes) return block;
-      // An upper bound from encoded length prevents allocating an oversized
-      // Buffer. Noncanonical/whitespace-heavy base64 may be rejected conservatively.
       const size =
         bytes?.byteLength ??
         Math.max(
@@ -437,7 +427,6 @@ function decodeImageBlocks(value: unknown, budget: { remainingBytes: number }): 
             ? `${budget.remainingBytes}-byte remaining session image`
             : undefined;
       if (limit) {
-        // A text block leaves neither base64 nor Buffer for an adapter to decode.
         return {
           type: "text",
           text: `[Screenshot omitted from retained evidence: ${size} bytes exceeds the ${limit} budget.]`,
@@ -451,7 +440,6 @@ function decodeImageBlocks(value: unknown, budget: { remainingBytes: number }): 
   };
 }
 
-/** Deep copy with image payloads replaced by a size placeholder (for logs). */
 export function withoutImageData<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item) => withoutImageData(item)) as T;
   if (Buffer.isBuffer(value)) return `[${value.byteLength} bytes]` as T;

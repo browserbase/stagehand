@@ -21,12 +21,6 @@ type BrowserbaseDebugClient = {
   };
 };
 
-/**
- * Real Browserbase capability. This is the ONLY module that reads
- * `BROWSERBASE_API_KEY`; it is excluded from `build:local-only` so that
- * local-only artifacts cannot reach Browserbase.
- */
-
 export function resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionTarget {
   return {
     kind: "remote",
@@ -54,10 +48,6 @@ export async function remoteStagehandOptions(
   target?: RemoteConnectionTarget,
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteStagehandOptions> {
-  // Prefer the caller's forwarded key; fall back to the daemon's own spawn-time
-  // env (e.g. a daemon that was started with a key). Threading the value here
-  // avoids writing the key back into the daemon's `process.env`. The project id
-  // is left to Stagehand to resolve (constructor opt → env → inferred from key).
   const apiKey = resolveApiKey(forwardedEnv);
   if (!apiKey) {
     throw new Error(
@@ -65,9 +55,6 @@ export async function remoteStagehandOptions(
     );
   }
 
-  // Stamp anonymous attribution onto the session. Resolving the install id is
-  // best-effort and never throws; if it can't be resolved we still send
-  // browse_cli + cli_version so the session stays attributable to the CLI.
   const userMetadata: Record<string, string> = {
     browse_cli: "true",
     cli_version: toMetadataValue(getCliVersion()),
@@ -92,9 +79,6 @@ export async function launchRemoteBrowser(
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteBrowserLaunch> {
   const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(target, forwardedEnv);
-  // The V4 factory provisions the packaged Stagehand extension before it
-  // creates the Browserbase session and owns both resources on browser.close().
-  // A raw sessions.create() + browserbase.connect() skips that provisioning.
   let browser;
   try {
     browser = await browserbase.launch({ apiKey, ...sessionOptions });
@@ -140,10 +124,6 @@ function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
   return forwardedEnv?.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY;
 }
 
-/**
- * Map a failed remote `stagehand.init()` to an actionable message and a
- * stable result code. Browserbase SDK errors carry an HTTP `status`.
- */
 export function classifyRemoteInitError(error: unknown): RemoteInitErrorClassification {
   const status = (error as { status?: unknown } | null | undefined)?.status;
   const httpStatus = typeof status === "number" ? status : undefined;
