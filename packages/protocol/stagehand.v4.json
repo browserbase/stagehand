@@ -1613,7 +1613,7 @@
         },
         "locator": {
           "description": "Serializable element locator for the action target",
-          "$ref": "#/$defs/Locator"
+          "$ref": "#/$defs/LocatorInput"
         },
         "ignore_locators": {
           "description": "Locators for elements and subtrees that should be excluded from action planning",
@@ -1630,7 +1630,7 @@
           ],
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Locator"
+            "$ref": "#/$defs/LocatorInput"
           }
         },
         "cache": {
@@ -1675,6 +1675,16 @@
       "required": ["value"],
       "additionalProperties": false
     },
+    "LocatorInput": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Locator"
+        },
+        {
+          "$ref": "#/$defs/ChainLocator"
+        }
+      ]
+    },
     "Locator": {
       "type": "object",
       "properties": {
@@ -1689,6 +1699,418 @@
         }
       },
       "required": ["selector"],
+      "additionalProperties": false
+    },
+    "ChainLocator": {
+      "type": "object",
+      "properties": {
+        "chain": {
+          "$ref": "#/$defs/LocatorChain"
+        }
+      },
+      "required": ["chain"],
+      "additionalProperties": false
+    },
+    "LocatorChain": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/LocatorQueryStep"
+            }
+          ],
+          "items": {
+            "$ref": "#/$defs/LocatorStep"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["steps"],
+      "additionalProperties": false
+    },
+    "LocatorQueryStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "query"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
+        }
+      },
+      "required": ["type", "selector"],
+      "additionalProperties": false
+    },
+    "LocatorQuerySelector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "css"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "xpath"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "exact": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "textMatch"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/RoleSelectorQuery"
+        }
+      ]
+    },
+    "RoleSelectorQuery": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "checked": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "const": "mixed"
+            }
+          ]
+        },
+        "pressed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "const": "mixed"
+            }
+          ]
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "expanded": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "type": "string",
+          "const": "role"
+        },
+        "value": {
+          "$ref": "#/$defs/AriaRole"
+        }
+      },
+      "required": ["kind", "value"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["checked"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "checkbox",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "option",
+                  "radio",
+                  "switch",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["pressed"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["button"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["selected"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "columnheader",
+                  "gridcell",
+                  "option",
+                  "row",
+                  "rowheader",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["expanded"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "application",
+                  "button",
+                  "checkbox",
+                  "columnheader",
+                  "combobox",
+                  "gridcell",
+                  "link",
+                  "listbox",
+                  "menuitem",
+                  "menuitemcheckbox",
+                  "menuitemradio",
+                  "row",
+                  "rowheader",
+                  "switch",
+                  "tab",
+                  "treeitem"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["level"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": ["heading", "listitem", "row", "treeitem"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "value": {
+                "enum": ["radio", "menuitemradio", "switch"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checked": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AriaRole": {
+      "type": "string",
+      "enum": [
+        "alert",
+        "alertdialog",
+        "application",
+        "article",
+        "banner",
+        "blockquote",
+        "button",
+        "caption",
+        "cell",
+        "checkbox",
+        "code",
+        "columnheader",
+        "combobox",
+        "comment",
+        "complementary",
+        "contentinfo",
+        "definition",
+        "deletion",
+        "dialog",
+        "directory",
+        "document",
+        "emphasis",
+        "feed",
+        "figure",
+        "form",
+        "generic",
+        "grid",
+        "gridcell",
+        "group",
+        "heading",
+        "img",
+        "insertion",
+        "link",
+        "list",
+        "listbox",
+        "listitem",
+        "log",
+        "main",
+        "mark",
+        "marquee",
+        "math",
+        "menu",
+        "menubar",
+        "menuitem",
+        "menuitemcheckbox",
+        "menuitemradio",
+        "meter",
+        "navigation",
+        "none",
+        "note",
+        "option",
+        "paragraph",
+        "presentation",
+        "progressbar",
+        "radio",
+        "radiogroup",
+        "region",
+        "row",
+        "rowgroup",
+        "rowheader",
+        "scrollbar",
+        "search",
+        "searchbox",
+        "separator",
+        "slider",
+        "spinbutton",
+        "status",
+        "strong",
+        "subscript",
+        "suggestion",
+        "superscript",
+        "switch",
+        "tab",
+        "table",
+        "tablist",
+        "tabpanel",
+        "term",
+        "textbox",
+        "time",
+        "timer",
+        "toolbar",
+        "tooltip",
+        "tree",
+        "treegrid",
+        "treeitem"
+      ]
+    },
+    "LocatorStep": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocatorQueryStep"
+        },
+        {
+          "$ref": "#/$defs/LocatorFrameStep"
+        },
+        {
+          "$ref": "#/$defs/LocatorNthStep"
+        }
+      ]
+    },
+    "LocatorFrameStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "frame"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocatorQuerySelector"
+        }
+      },
+      "required": ["type", "selector"],
+      "additionalProperties": false
+    },
+    "LocatorNthStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "nth"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["type", "index"],
       "additionalProperties": false
     },
     "ActResult": {
@@ -1895,7 +2317,7 @@
         },
         "locator": {
           "description": "Locator that scopes observation to a specific element",
-          "$ref": "#/$defs/Locator"
+          "$ref": "#/$defs/LocatorInput"
         },
         "ignore_locators": {
           "description": "Locators for elements and subtrees that should be excluded from observation",
@@ -1912,7 +2334,7 @@
           ],
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Locator"
+            "$ref": "#/$defs/LocatorInput"
           }
         },
         "cache": {
@@ -2015,7 +2437,7 @@
         },
         "locator": {
           "description": "Locator that scopes extraction to a specific element",
-          "$ref": "#/$defs/Locator"
+          "$ref": "#/$defs/LocatorInput"
         },
         "ignore_locators": {
           "description": "Locators for elements and subtrees that should be excluded from extraction",
@@ -2032,7 +2454,7 @@
           ],
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Locator"
+            "$ref": "#/$defs/LocatorInput"
           }
         },
         "screenshot": {
@@ -3827,6 +4249,9 @@
         },
         "event": {
           "$ref": "#/$defs/PageSubscriptionEventName"
+        },
+        "include_tool_ids": {
+          "type": "boolean"
         }
       },
       "required": ["page_id", "subscription_id", "event"],
@@ -3834,7 +4259,7 @@
     },
     "PageSubscriptionEventName": {
       "type": "string",
-      "enum": ["console", "toolsadded", "toolsremoved"]
+      "enum": ["console", "toolsadded", "toolsremoved", "response"]
     },
     "PageOffParams": {
       "type": "object",
@@ -3899,7 +4324,7 @@
         "mask": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/LocatorDescriptor"
+            "$ref": "#/$defs/LocatorRequestDescriptor"
           }
         },
         "mask_color": {
@@ -3952,6 +4377,16 @@
       "required": ["x", "y", "width", "height"],
       "additionalProperties": false
     },
+    "LocatorRequestDescriptor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocatorDescriptor"
+        },
+        {
+          "$ref": "#/$defs/ChainLocatorDescriptor"
+        }
+      ]
+    },
     "LocatorDescriptor": {
       "type": "object",
       "properties": {
@@ -3969,6 +4404,19 @@
         }
       },
       "required": ["page_id", "selector"],
+      "additionalProperties": false
+    },
+    "ChainLocatorDescriptor": {
+      "type": "object",
+      "properties": {
+        "chain": {
+          "$ref": "#/$defs/LocatorChain"
+        },
+        "page_id": {
+          "type": "string"
+        }
+      },
+      "required": ["chain", "page_id"],
       "additionalProperties": false
     },
     "PageScreenshotResult": {
@@ -4341,6 +4789,9 @@
         },
         "options": {
           "$ref": "#/$defs/WebMCPToolsOptions"
+        },
+        "include_tool_ids": {
+          "type": "boolean"
         }
       },
       "required": ["page_id"],
@@ -4373,6 +4824,10 @@
     "WebMCPToolDescriptor": {
       "type": "object",
       "properties": {
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "name": {
           "type": "string",
           "minLength": 1
@@ -4465,6 +4920,10 @@
           "minLength": 1
         },
         "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_id": {
           "type": "string",
           "minLength": 1
         },
@@ -4588,26 +5047,46 @@
       "additionalProperties": false
     },
     "LocatorClickParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorClickOptions"
+            }
+          },
+          "required": ["page_id", "selector"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorClickOptions"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorClickOptions"
+            }
+          },
+          "required": ["chain", "page_id"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector"],
-      "additionalProperties": false
+      ]
     },
     "LocatorClickOptions": {
       "type": "object",
@@ -4640,29 +5119,52 @@
       "additionalProperties": false
     },
     "LocatorFillParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["page_id", "selector", "value"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorOptions"
-        },
-        "value": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["chain", "page_id", "value"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector", "value"],
-      "additionalProperties": false
+      ]
     },
     "LocatorOptions": {
       "type": "object",
@@ -4687,26 +5189,46 @@
       "additionalProperties": false
     },
     "LocatorParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            }
+          },
+          "required": ["page_id", "selector"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorOptions"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            }
+          },
+          "required": ["chain", "page_id"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector"],
-      "additionalProperties": false
+      ]
     },
     "LocatorHoverResult": {
       "type": "object",
@@ -4743,29 +5265,52 @@
       "type": "string"
     },
     "LocatorScrollToParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "percent": {
+              "type": ["number", "string"]
+            }
+          },
+          "required": ["page_id", "selector", "percent"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorOptions"
-        },
-        "percent": {
-          "type": ["number", "string"]
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "percent": {
+              "type": ["number", "string"]
+            }
+          },
+          "required": ["chain", "page_id", "percent"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector", "percent"],
-      "additionalProperties": false
+      ]
     },
     "LocatorScrollToResult": {
       "type": "object",
@@ -4792,26 +5337,46 @@
       "additionalProperties": false
     },
     "LocatorHighlightParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorHighlightOptions"
+            }
+          },
+          "required": ["page_id", "selector"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorHighlightOptions"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorHighlightOptions"
+            }
+          },
+          "required": ["chain", "page_id"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector"],
-      "additionalProperties": false
+      ]
     },
     "LocatorHighlightOptions": {
       "type": "object",
@@ -4866,26 +5431,46 @@
       "additionalProperties": false
     },
     "LocatorSendClickEventParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorSendClickEventOptions"
+            }
+          },
+          "required": ["page_id", "selector"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorSendClickEventOptions"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorSendClickEventOptions"
+            }
+          },
+          "required": ["chain", "page_id"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector"],
-      "additionalProperties": false
+      ]
     },
     "LocatorSendClickEventOptions": {
       "type": "object",
@@ -4922,29 +5507,52 @@
       "additionalProperties": false
     },
     "LocatorTypeParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorTypeOptions"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["page_id", "selector", "text"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorTypeOptions"
-        },
-        "text": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorTypeOptions"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["chain", "page_id", "text"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector", "text"],
-      "additionalProperties": false
+      ]
     },
     "LocatorTypeOptions": {
       "type": "object",
@@ -4973,39 +5581,72 @@
       "additionalProperties": false
     },
     "LocatorSelectOptionParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
-        },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorOptions"
-        },
-        "values": {
-          "anyOf": [
-            {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
               "type": "string"
             },
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "values": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
             }
-          ]
+          },
+          "required": ["page_id", "selector", "values"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "values": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "required": ["chain", "page_id", "values"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector", "values"],
-      "additionalProperties": false
+      ]
     },
     "LocatorSelectOptionResult": {
       "type": "array",
@@ -5014,32 +5655,58 @@
       }
     },
     "LocatorSetInputFilesParams": {
-      "type": "object",
-      "properties": {
-        "page_id": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string"
+            },
+            "selector": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InputFilePayload"
+              }
+            }
+          },
+          "required": ["page_id", "selector", "files"],
+          "additionalProperties": false
         },
-        "selector": {
-          "type": "string",
-          "minLength": 1
-        },
-        "nth": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "options": {
-          "$ref": "#/$defs/LocatorOptions"
-        },
-        "files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/InputFilePayload"
-          }
+        {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "$ref": "#/$defs/LocatorChain"
+            },
+            "page_id": {
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/LocatorOptions"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InputFilePayload"
+              }
+            }
+          },
+          "required": ["chain", "page_id", "files"],
+          "additionalProperties": false
         }
-      },
-      "required": ["page_id", "selector", "files"],
-      "additionalProperties": false
+      ]
     },
     "InputFilePayload": {
       "type": "object",
@@ -5412,6 +6079,9 @@
         },
         {
           "$ref": "#/$defs/PageToolsRemovedNotification"
+        },
+        {
+          "$ref": "#/$defs/PageResponseNotification"
         }
       ]
     },
@@ -5484,6 +6154,10 @@
     "WebMCPToolIdentity": {
       "type": "object",
       "properties": {
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "frame_id": {
           "type": "string",
           "minLength": 1
@@ -5494,6 +6168,36 @@
         }
       },
       "required": ["frame_id", "name"],
+      "additionalProperties": false
+    },
+    "PageResponseNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "response"
+        },
+        "response": {
+          "$ref": "#/$defs/NavigationResponseDescriptor"
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "response"],
       "additionalProperties": false
     },
     "BrowserbaseSessionCreateParams": {

@@ -6,6 +6,8 @@ type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
+  scope?: Document | Element;
+  shadowPresence?: Map<Document, boolean>;
 };
 
 type ShadowContext = {
@@ -29,57 +31,88 @@ export function resolveXPathAtIndex(
   options?: XPathResolveOptions,
 ): Element | null {
   if (!Number.isFinite(index) || index < 0) return null;
-  const xp = normalizeXPath(rawXp);
-  if (!xp) return null;
-
   const targetIndex = Math.floor(index);
+  return collectXPathMatches(rawXp, options, targetIndex + 1)[targetIndex] ?? null;
+}
+
+export function collectXPathMatches(
+  rawXp: string,
+  options?: XPathResolveOptions,
+  limit = Infinity,
+): Element[] {
+  const xp = normalizeXPath(rawXp);
+  if (!xp || limit <= 0) return [];
+
+  const scope = options?.scope ?? document;
   const pierceShadow = options?.pierceShadow !== false;
-  const shadowCtx = pierceShadow ? getShadowContext() : null;
+  const ownerDocument = scope instanceof Document ? scope : scope.ownerDocument;
+  const shadowCtx = pierceShadow ? getShadowContext(ownerDocument, options?.shadowPresence) : null;
+
+  // Element queries stay relative to their scope. Document queries retain the
+  // generated-path shadow-hop route below, whose // semantics are different.
+  if (scope instanceof Element) {
+    const relative = xp.startsWith("/") ? `.${xp}` : xp;
+    if (shadowCtx?.hasShadow) {
+      return resolveXPathComposedMatches(
+        relative.replace(/^\.\//, "/"),
+        shadowCtx.getShadowRoot,
+        scope,
+      ).slice(0, limit);
+    }
+    return collectNativeMatchesWithError(relative, scope, limit).value;
+  }
 
   if (!pierceShadow) {
-    return resolveNativeAtIndexWithError(xp, targetIndex).value;
+    return collectNativeMatchesWithError(xp, scope, limit).value;
   }
 
   if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeAtIndexWithError(xp, targetIndex);
+    const native = collectNativeMatchesWithError(xp, scope, limit);
     if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
-    return composed[targetIndex] ?? null;
+    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot, scope);
+    return composed.slice(0, limit);
   }
 
-  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
-  if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
+  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot, scope);
+  if (shadowHopMatches.length > 0) return shadowHopMatches.slice(0, limit);
 
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return composed[targetIndex] ?? null;
+  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot, scope);
+  return composed.slice(0, limit);
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
+  if (options?.scope instanceof Element) return collectXPathMatches(rawXp, options).length;
+  const scope = options?.scope ?? document;
   const xp = normalizeXPath(rawXp);
   if (!xp) return 0;
 
   const pierceShadow = options?.pierceShadow !== false;
-  const shadowCtx = pierceShadow ? getShadowContext() : null;
+  const shadowCtx = pierceShadow ? getShadowContext(scope, options?.shadowPresence) : null;
 
   if (!pierceShadow) {
-    return resolveNativeCountWithError(xp).count;
+    return resolveNativeCountWithError(xp, scope).count;
   }
 
   if (!shadowCtx?.hasShadow) {
-    const count = resolveNativeCountWithError(xp);
+    const count = resolveNativeCountWithError(xp, scope);
     if (!count.error) return count.count;
-    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot).length;
+    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot, scope).length;
   }
 
-  const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
+  const shadowHopCount = resolveStagehandShadowHopMatches(
+    xp,
+    shadowCtx.getShadowRoot,
+    scope,
+  ).length;
   if (shadowHopCount > 0) return shadowHopCount;
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
+  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot, scope).length;
 }
 
 export function resolveXPathComposedMatches(
   rawXp: string,
   getShadowRoot?: ShadowRootGetter | null,
+  scope: Document | Element = document,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -89,7 +122,7 @@ export function resolveXPathComposedMatches(
 
   const shadowRootGetter = getShadowRoot ?? null;
 
-  let current: TraversalRoot[] = [document];
+  let current: TraversalRoot[] = [scope];
 
   for (const step of steps) {
     const next: Element[] = [];
@@ -123,6 +156,7 @@ export function resolveXPathComposedMatches(
 function resolveStagehandShadowHopMatches(
   rawXp: string,
   getShadowRoot?: ShadowRootGetter | null,
+  scope: Document = document,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -133,7 +167,7 @@ function resolveStagehandShadowHopMatches(
   }
 
   const shadowRootGetter = getShadowRoot ?? null;
-  let current: TraversalRoot[] = [document];
+  let current: TraversalRoot[] = [scope];
 
   for (let i = 0; i < steps.length; i += 1) {
     const step = steps[i]!;
@@ -172,8 +206,10 @@ function matchesTag(element: Element, step: XPathStep): boolean {
   return element.localName === step.tag;
 }
 
-function getShadowContext(): ShadowContext {
-  return { getShadowRoot: getOpenOrClosedShadowRoot, hasShadow: documentHasShadowRoot() };
+function getShadowContext(scope: Document, presence?: Map<Document, boolean>): ShadowContext {
+  const hasShadow = presence?.get(scope) ?? documentHasShadowRoot(scope);
+  presence?.set(scope, hasShadow);
+  return { getShadowRoot: getOpenOrClosedShadowRoot, hasShadow };
 }
 
 function composedChildren(node: TraversalRoot, getShadowRoot: ShadowRootGetter | null): Element[] {
@@ -256,39 +292,47 @@ function composedDescendants(
   return out;
 }
 
-function resolveNativeAtIndexWithError(
+function collectNativeMatchesWithError(
   xp: string,
-  index: number,
-): { value: Element | null; error: boolean } {
+  scope: Document | Element,
+  limit: number,
+): { value: Element[]; error: boolean } {
   try {
-    const snapshot = document.evaluate(
+    const ownerDocument = scope instanceof Document ? scope : scope.ownerDocument;
+    const snapshot = ownerDocument.evaluate(
       xp,
-      document,
+      scope,
       null,
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
     );
-    return {
-      value: snapshot.snapshotItem(index) as Element | null,
-      error: false,
-    };
+    const value: Element[] = [];
+    for (let i = 0; i < snapshot.snapshotLength && value.length < limit; i += 1) {
+      const node = snapshot.snapshotItem(i);
+      // Preserve document XPath results, including its historical node casting.
+      // Element-scoped queries must not return the scope itself or escape it.
+      if (
+        scope instanceof Element &&
+        (!(node instanceof Element) || node === scope || !scope.contains(node))
+      )
+        continue;
+      value.push(node as Element);
+    }
+    return { value, error: false };
   } catch {
-    return { value: null, error: true };
+    return { value: [], error: true };
   }
 }
 
-function resolveNativeCountWithError(xp: string): {
+function resolveNativeCountWithError(
+  xp: string,
+  scope: Document,
+): {
   count: number;
   error: boolean;
 } {
   try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
+    const snapshot = scope.evaluate(xp, scope, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     return { count: snapshot.snapshotLength, error: false };
   } catch {
     return { count: 0, error: true };

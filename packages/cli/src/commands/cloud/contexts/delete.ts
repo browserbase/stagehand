@@ -1,6 +1,6 @@
 import { Args } from "@oclif/core";
 
-import { outputJson, requestBrowserbase } from "../../../lib/cloud/api.js";
+import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { removeContextAliasesById } from "../../../lib/cloud/contexts-store.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
@@ -25,12 +25,8 @@ export default class ContextsDelete extends BrowseCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ContextsDelete);
     const id = await resolveContextRefOrFail(args.id);
-    await requestBrowserbase(toApiOptions(flags), `/v1/contexts/${id}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "*/*",
-      },
-    });
+    const client = createBrowserbaseClient(toApiOptions(flags));
+    await withBrowserbaseApi("contexts", () => client.contexts.delete(id));
     // Keep the local name map consistent: drop any aliases pointing at the
     // now-deleted context (whether the user passed a name or a raw id). The
     // remote delete already succeeded, so a local cleanup failure must not turn

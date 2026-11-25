@@ -97,6 +97,7 @@ describe("Page WebMCP tool discovery", () => {
         activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
           tools: [
             {
+              toolId: "search-id",
               name: "search",
               description: "Search the current site",
               inputSchema: {
@@ -130,6 +131,7 @@ describe("Page WebMCP tool discovery", () => {
 
     await expect(page.listWebMCPTools({ timeout: 1 })).resolves.toStrictEqual([
       {
+        toolId: "search-id",
         name: "search",
         description: "Search the current site",
         inputSchema: {
@@ -153,12 +155,43 @@ describe("Page WebMCP tool discovery", () => {
     expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
   });
 
+  it("reports a superseded registration's removal once before publishing its replacement", async () => {
+    const session = new FakeCDPSession();
+    const page = createPage(session);
+    const listener = vi.fn();
+    await page.subscribeWebMCPToolsChanged(listener);
+    const identity = { name: "search", frameId: "frame-1" };
+    const originalIdentity = { ...identity, toolId: "original" };
+    const original = { ...originalIdentity, description: "Search" };
+    const replacement = { ...original, toolId: "replacement" };
+
+    session.emit("WebMCP.toolsAdded", { tools: [original] });
+    session.emit("WebMCP.toolsAdded", { tools: [replacement] });
+    session.emit("WebMCP.toolsRemoved", { tools: [originalIdentity] });
+
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([replacement]);
+    expect(listener.mock.calls.map(([{ event, tools }]) => ({ event, tools }))).toEqual([
+      { event: "toolsadded", tools: [original] },
+      { event: "toolsremoved", tools: [originalIdentity] },
+      { event: "toolsadded", tools: [replacement] },
+    ]);
+
+    session.emit("WebMCP.toolsRemoved", { tools: [{ ...identity, toolId: replacement.toolId }] });
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        event: "toolsremoved",
+        tools: [{ ...identity, toolId: replacement.toolId }],
+      }),
+    );
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([]);
+  });
+
   it("shares initialization across concurrent snapshots and applies live changes", async () => {
     let enableCount = 0;
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
         enableCount += 1;
-        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+        activeSession.emit("WebMCP.toolsAdded", {
           tools: [
             {
               name: `tool-${enableCount}`,
@@ -191,7 +224,7 @@ describe("Page WebMCP tool discovery", () => {
   it("collects tools from the main session and an adopted child session", async () => {
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
-        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+        activeSession.emit("WebMCP.toolsAdded", {
           tools: [{ name: "search", description: "Main-frame search", frameId: "frame-1" }],
         });
       },
@@ -199,7 +232,7 @@ describe("Page WebMCP tool discovery", () => {
     const childSession = new FakeCDPSession(
       {
         "WebMCP.enable": (activeSession) => {
-          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          activeSession.emit("WebMCP.toolsAdded", {
             tools: [{ name: "search", description: "Child-frame search", frameId: "frame-2" }],
           });
         },
@@ -224,7 +257,7 @@ describe("Page WebMCP tool discovery", () => {
   it("applies child-session removals to the combined snapshot", async () => {
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
-        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+        activeSession.emit("WebMCP.toolsAdded", {
           tools: [{ name: "search", description: "Main-frame search", frameId: "frame-1" }],
         });
       },
@@ -232,13 +265,13 @@ describe("Page WebMCP tool discovery", () => {
     const childSession = new FakeCDPSession(
       {
         "WebMCP.enable": (activeSession) => {
-          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          activeSession.emit("WebMCP.toolsAdded", {
             tools: [
               { name: "search", description: "Stale child search", frameId: "frame-2" },
               { name: "checkout", description: "Child checkout", frameId: "frame-2" },
             ],
           });
-          activeSession.emit<Protocol.WebMCP.ToolsRemovedEvent>("WebMCP.toolsRemoved", {
+          activeSession.emit("WebMCP.toolsRemoved", {
             tools: [{ name: "search", frameId: "frame-2" }],
           });
         },
@@ -283,7 +316,7 @@ describe("Page WebMCP tool discovery", () => {
     const childSession = new FakeCDPSession(
       {
         "WebMCP.enable": (activeSession) => {
-          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          activeSession.emit("WebMCP.toolsAdded", {
             tools: [{ name: "child", description: "Child tool", frameId: "frame-2" }],
           });
         },
@@ -294,7 +327,7 @@ describe("Page WebMCP tool discovery", () => {
     let childAdopted = false;
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
-        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+        activeSession.emit("WebMCP.toolsAdded", {
           tools: [{ name: "main", description: "Main tool", frameId: "frame-1" }],
         });
         if (!childAdopted) {
@@ -321,13 +354,13 @@ describe("Page WebMCP tool discovery", () => {
   it("removes tools unregistered while collecting the snapshot", async () => {
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
-        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+        activeSession.emit("WebMCP.toolsAdded", {
           tools: [
             { name: "stale", description: "Stale tool", frameId: "frame-1" },
             { name: "fresh", description: "Fresh tool", frameId: "frame-1" },
           ],
         });
-        activeSession.emit<Protocol.WebMCP.ToolsRemovedEvent>("WebMCP.toolsRemoved", {
+        activeSession.emit("WebMCP.toolsRemoved", {
           tools: [{ name: "stale", frameId: "frame-1" }],
         });
       },

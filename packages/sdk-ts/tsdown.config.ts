@@ -7,6 +7,10 @@ export default defineConfig({
   target: "node22",
   dts: {
     eager: true,
+    // Prepare bundled workspace sources together so declaration generation reuses one TS program.
+    tsconfigRaw: {
+      include: ["src/**/*.ts", "../shared/browser-api/src/**/*.ts"],
+    },
     sourcemap: true,
   },
   sourcemap: true,
@@ -24,6 +28,10 @@ export default defineConfig({
   copy: [
     {
       from: "../extension/artifacts/stagehand-extension.zip",
+      to: "dist/assets",
+    },
+    {
+      from: "../extension/artifacts/extension-build.json",
       to: "dist/assets",
     },
     {

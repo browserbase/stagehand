@@ -7,7 +7,7 @@ import {
   type MastraSdk,
   type MastraSessionResult,
   type MastraTokenUsage,
-} from "@browserbasehq/stagehand-integrations-mastra-sdk";
+} from "@browserbasehq/stagehand-integrations-mastra";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
@@ -27,13 +27,13 @@ import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
-export type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra-sdk";
+export type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra";
 export {
   buildMastraTranscript,
   loadMastraSdk,
   normalizeMastraModel,
   runMastraSession,
-} from "@browserbasehq/stagehand-integrations-mastra-sdk";
+} from "@browserbasehq/stagehand-integrations-mastra";
 export { EVAL_RESULT_SCHEMA } from "./harnesses/externalRunner.js";
 
 export interface MastraRunnerInput {

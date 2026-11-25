@@ -11,10 +11,12 @@ import type { Page } from "./page.js";
 
 function deferred<T = unknown>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function createFrame(frameId: string, ready = true) {
@@ -224,54 +226,183 @@ describe("locator resolution deadlines", () => {
       expect(root.send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
   });
 
-  it("releases earlier matches when a later selector lookup times out", async () => {
-    const { frame, send, respond } = createFrame("root");
-    const gate = deferred();
-    let matches = 0;
-    send.mockImplementation((method, params) =>
-      method === "Runtime.evaluate"
-        ? ++matches === 2
-          ? gate.promise
-          : Promise.resolve({ result: { objectId: "first" } })
-        : respond(method, params),
-    );
-    const pending = frame.locator("button").nth(1).resolveNode(createProgress());
-    const rejected = expect(pending).rejects.toThrow(TimeoutError);
-    await vi.advanceTimersByTimeAsync(100);
-    await rejected;
-    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "first" });
-    gate.resolve({ result: { objectId: "second" } });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "second" });
-  });
+  it.each(["Runtime.evaluate", "Runtime.getProperties"])(
+    "releases a batch again when %s finishes after its deadline",
+    async (command) => {
+      const { frame, send, respond } = createFrame("root");
+      const gate = deferred();
+      let objectGroup: string;
+      const liveGroups = new Set<string>();
+      send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.evaluate")
+          objectGroup = (params as { objectGroup: string }).objectGroup;
+        if (method === "Runtime.releaseObjectGroup") {
+          liveGroups.delete((params as { objectGroup: string }).objectGroup);
+          return {};
+        }
+        if (method === command) {
+          const value = await gate.promise;
+          // Model handles created after the first release has already completed.
+          // The Chrome lifetime test separately verifies real group inheritance.
+          liveGroups.add(objectGroup);
+          return value;
+        }
+        if (method === "Runtime.evaluate") liveGroups.add(objectGroup);
+        return respond(method, params);
+      });
+      const pending = frame
+        .locator("button")
+        .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, createProgress());
+      const rejected = expect(pending).rejects.toThrow(TimeoutError);
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      const releases = () =>
+        send.mock.calls.filter(([method]) => method === "Runtime.releaseObjectGroup");
+      expect(releases()).toHaveLength(1);
+      expect(liveGroups.size).toBe(0);
+      const group = { objectGroup: objectGroup! };
+      gate.resolve(
+        command === "Runtime.evaluate"
+          ? { result: { objectId: "late-array" } }
+          : { result: [{ name: "0", value: { objectId: "late-node" } }] },
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(releases()).toEqual([
+        ["Runtime.releaseObjectGroup", group],
+        ["Runtime.releaseObjectGroup", group],
+      ]);
+      expect(liveGroups.size).toBe(0);
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    },
+  );
 
-  it("reports expiry without waiting for a second stalled cleanup", async () => {
+  it("bounds stalled batch cleanup after a failed collection", async () => {
     const { frame, send, respond } = createFrame("root");
-    const resolver = frame.locator("button").selectorResolver;
-    vi.spyOn(resolver, "resolveAll").mockResolvedValue([
-      { objectId: "unselected", nodeId: 1 },
-      { objectId: "selected", nodeId: 2 },
-    ]);
     const gate = deferred();
-    send.mockImplementation((method, params) =>
-      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
-    );
+    send.mockImplementation((method, params) => {
+      if (method === "Runtime.releaseObjectGroup") return gate.promise;
+      if (method === "Runtime.evaluate")
+        return Promise.resolve({
+          result: { objectId: "error" },
+          exceptionDetails: { text: "failed" },
+        });
+      return respond(method, params);
+    });
     const settled = vi.fn();
-    const pending = resolver.resolveAtIndex({ kind: "css", value: "button" }, 1, createProgress());
+    const pending = frame
+      .locator("button")
+      .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, createProgress());
     void pending.then(settled, settled);
-
     try {
       await vi.advanceTimersByTimeAsync(1000);
       expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
-      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
-        ["Runtime.releaseObject", { objectId: "unselected" }],
-        ["Runtime.releaseObject", { objectId: "selected" }],
-      ]);
+      expect(
+        send.mock.calls.filter(([method]) => method === "Runtime.releaseObjectGroup"),
+      ).toHaveLength(1);
     } finally {
       gate.resolve({});
       await vi.advanceTimersByTimeAsync(0);
     }
   });
+
+  it.each(["Runtime.evaluate", "Runtime.getProperties"])(
+    "releases the original group again after a late %s rejection",
+    async (command) => {
+      const { frame, send, respond } = createFrame("root");
+      const gate = deferred();
+      send.mockImplementation((method, params) =>
+        method === command ? gate.promise : respond(method, params),
+      );
+      const pending = frame
+        .locator("button")
+        .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, createProgress());
+      const rejected = expect(pending).rejects.toThrow(TimeoutError);
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      const group = send.mock.calls.find(([method]) => method === "Runtime.releaseObjectGroup")![1];
+      gate.reject(new Error("Execution context was destroyed"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObjectGroup")).toEqual(
+        [
+          ["Runtime.releaseObjectGroup", group],
+          ["Runtime.releaseObjectGroup", group],
+        ],
+      );
+    },
+  );
+
+  it("keeps batch cleanup on its owning session even if the frame changes sessions", async () => {
+    const original = createFrame("root");
+    const replacement = createFrame("replacement");
+    original.send.mockImplementation(async (method, params) => {
+      if (method === "Runtime.getProperties")
+        return {
+          result: [{ name: "0", value: { objectId: "original-node" } }],
+        };
+      return original.respond(method, params);
+    });
+    const batch = await original.frame
+      .locator("button")
+      .selectorResolver.resolveAll({ kind: "css", value: "button" });
+    expect(batch.nodes).toEqual([{ objectId: "original-node", nodeId: null }]);
+    original.frame.session = replacement.session;
+    await batch.release();
+    await batch.release();
+    expect(
+      original.send.mock.calls.filter(([method]) => method === "Runtime.releaseObjectGroup"),
+    ).toHaveLength(1);
+    expect(replacement.send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { command: "Runtime.evaluate", failure: "exception", withProgress: false },
+    { command: "Runtime.getProperties", failure: "exception", withProgress: false },
+    { command: "Runtime.evaluate", failure: "exception", withProgress: true },
+    { command: "Runtime.getProperties", failure: "exception", withProgress: true },
+    { command: "Runtime.evaluate", failure: "closed", withProgress: true },
+    { command: "Runtime.getProperties", failure: "closed", withProgress: true },
+  ])(
+    "releases the owning group on $command $failure (progress=$withProgress)",
+    async ({ command, failure, withProgress }) => {
+      const { frame, send, respond } = createFrame("root");
+      const closed = new Error("CDP connection closed: socket-close");
+      let allocatedGroup: string | undefined;
+      const liveGroups = new Set<string>();
+      send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.evaluate") {
+          allocatedGroup = (params as { objectGroup: string }).objectGroup;
+          liveGroups.add(allocatedGroup);
+        }
+        if (method === "Runtime.releaseObjectGroup") {
+          // Check ownership, not just the number of release commands.
+          expect((params as { objectGroup: string }).objectGroup).toBe(allocatedGroup);
+          liveGroups.delete((params as { objectGroup: string }).objectGroup);
+          if (failure === "closed") throw closed;
+          return {};
+        }
+        if (method === command) {
+          if (failure === "closed") throw closed;
+          return {
+            result: command === "Runtime.evaluate" ? { objectId: "error" } : [],
+            exceptionDetails: { text: "evaluation failed", exception: { objectId: "error" } },
+          };
+        }
+        return respond(method, params);
+      });
+      const pending = frame
+        .locator("button")
+        .selectorResolver.resolveAll(
+          { kind: "css", value: "button" },
+          {},
+          withProgress ? createProgress(0) : undefined,
+        );
+      if (failure === "closed") await expect(pending).rejects.toBe(closed);
+      else await expect(pending).resolves.toMatchObject({ nodes: [] });
+      expect(allocatedGroup).toEqual(expect.any(String));
+      expect(liveGroups.size).toBe(0);
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    },
+  );
 
   it("removes the main-world listener & timer when its caller expires", async () => {
     const { session, events } = createFrame("root", false);
@@ -348,7 +479,9 @@ describe("locator resolution deadlines", () => {
       const child = createFrame("child");
       const progress = createProgress();
       root.send.mockImplementation((method, params) => {
-        if (method === "Runtime.releaseObject") {
+        if (
+          method === (kind === "frame" ? "Runtime.releaseObject" : "Runtime.releaseObjectGroup")
+        ) {
           vi.spyOn(performance, "now").mockReturnValue(101);
           expect(progress.signal.aborted).toBe(false);
         }
@@ -372,7 +505,10 @@ describe("locator resolution deadlines", () => {
               .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, progress);
       await expect(pending).rejects.toThrow(TimeoutError);
       expect(
-        root.send.mock.calls.filter(([method]) => method === "Runtime.releaseObject"),
+        root.send.mock.calls.filter(
+          ([method]) =>
+            method === (kind === "frame" ? "Runtime.releaseObject" : "Runtime.releaseObjectGroup"),
+        ),
       ).toHaveLength(1);
     },
   );
@@ -450,7 +586,7 @@ describe("locator resolution deadlines", () => {
         .locator("button")
         .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, progress);
       if (expired) await expect(pending).rejects.toThrow(TimeoutError);
-      else await expect(pending).resolves.toEqual([]);
+      else await expect(pending).resolves.toMatchObject({ nodes: [] });
       expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
     },
   );
@@ -550,17 +686,21 @@ describe("locator resolution deadlines", () => {
     expect(executionContexts.fallbackCreation.get(session)?.size).toBe(0);
   });
 
-  it("releases a selector result delivered after the deadline", async () => {
-    const { frame, send } = createFrame("root");
-    const resolver = frame.locator("button").selectorResolver;
+  it("releases a batch delivered after the deadline before the timer fires", async () => {
+    const { frame, send, respond } = createFrame("root");
     const progress = createProgress();
-    vi.spyOn(resolver, "evaluateElement").mockImplementation(async () => {
-      vi.spyOn(performance, "now").mockReturnValue(101);
-      return { objectId: "late-node", nodeId: 1 };
+    send.mockImplementation(async (method, params) => {
+      if (method === "Runtime.getProperties") {
+        vi.spyOn(performance, "now").mockReturnValue(101);
+        return { result: [{ name: "0", value: { objectId: "late-node" } }] };
+      }
+      return respond(method, params);
     });
     await expect(
-      resolver.resolveAll({ kind: "css", value: "button" }, { limit: 1 }, progress),
+      frame
+        .locator("button")
+        .selectorResolver.resolveAll({ kind: "css", value: "button" }, { limit: 1 }, progress),
     ).rejects.toThrow(TimeoutError);
-    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "late-node" });
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObjectGroup", expect.any(Object));
   });
 });
