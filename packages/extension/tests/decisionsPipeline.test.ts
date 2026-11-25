@@ -38,7 +38,6 @@ function noul(value: number) {
   return { type: "noul", noul: value };
 }
 
-/** `best` is a Noul for a lone candidate and a Choice otherwise. */
 function best(id: string, confidence = 0.95) {
   return (question: { criteria?: Record<string, unknown> }) =>
     question.criteria ? choice(id, confidence) : noul(confidence);
@@ -51,7 +50,6 @@ const DEFAULT_ANSWERS: Record<string, unknown> = {
   toggle_state: choice("unspecified"),
   after_typing: choice("nothing"),
   key: choice("other"),
-  // page-state signals default to "nothing unusual"
   access_denied: noul(0.02),
   captcha: noul(0.02),
   login_wall: noul(0.02),
@@ -60,7 +58,6 @@ const DEFAULT_ANSWERS: Record<string, unknown> = {
   empty_or_loading: noul(0.02),
 };
 
-/** Answers keyed by question name; a function receives the question for per-request answers. */
 type Answer = unknown | ((question: { criteria?: Record<string, unknown> }) => unknown);
 
 function stubDecisions(table: Answers) {
@@ -207,7 +204,6 @@ describe("decisions act pipeline", () => {
       },
     );
 
-    // Read-back needs a changed snapshot; the static fixture cannot provide one.
     const outcome = await runDecisionsAct({ ...config, verify: "off" as const }, value);
 
     expect(outcome.kind).toBe("done");
@@ -371,7 +367,6 @@ describe("decisions act pipeline", () => {
     const opened = [custom, "  [0-4] listitem: Mexico", "  [0-5] listitem: Peru"].join("\n");
     stubDecisions({
       family: choice("select"),
-      // The trigger is accepted; none of the options that open is Canada.
       strict: (question: { criteria?: Record<string, unknown> }) =>
         choice("0-3" in (question.criteria ?? {}) ? "0-3" : "none_match", 0.99),
       best: (question: { criteria?: Record<string, unknown> }) =>
@@ -401,8 +396,6 @@ describe("decisions act pipeline", () => {
       priorActions: [expect.objectContaining({ method: "click" })],
     });
 
-    // Nothing opens after clicking something that should have opened a list:
-    // the option was not chosen, so the LLM path continues from the click.
     stubDecisions({ family: choice("select"), strict: choice("0-3"), best: noul(0.95) });
     const stuck = deps(
       custom,
@@ -415,7 +408,6 @@ describe("decisions act pipeline", () => {
       priorActions: [expect.objectContaining({ method: "click" })],
     });
 
-    // A calendar day is the choice itself: one click, done.
     const calendar = ["[0-1] grid: March", "  [0-2] gridcell: 15"].join("\n");
     stubDecisions({ family: choice("select"), strict: choice("0-2"), best: best("0-2") });
     const day = deps(
@@ -655,7 +647,6 @@ describe("decisions act pipeline", () => {
       "none_match",
     ]);
 
-    // The quote was only an anchor: the decision model says no, and the normal pick runs.
     stubDecisions({
       family: choice("click"),
       strict: (question: { criteria?: Record<string, unknown> }) =>
@@ -721,7 +712,6 @@ describe("decisions act pipeline", () => {
       expect.objectContaining({ method: "fill", arguments: ["linear algebra"] }),
     );
 
-    // With the argument LLM switched off the run is LLM-free: the helper is never called.
     stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const spy = vi.fn(async () => "business");
     const pure = deps(
@@ -738,7 +728,6 @@ describe("decisions act pipeline", () => {
     });
     expect(spy).not.toHaveBeenCalled();
 
-    // Invented text is rejected: it must be lifted from the instruction.
     stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const invented = deps(
       FORM,
@@ -854,7 +843,6 @@ describe("decisions act pipeline", () => {
       },
     );
 
-    // Off by default: a second click is a second side effect.
     await runDecisionsAct(config, value);
     expect(takeAction).toHaveBeenCalledTimes(1);
 
@@ -889,7 +877,6 @@ describe("decisions act pipeline", () => {
       result: { success: false, message: expect.stringContaining("access denied") },
     });
 
-    // Vetoed by strict, but the decision model's shortlist is credible: it rides along for the LLM.
     stubDecisions({
       family: choice("fill"),
       strict: choice("none_match", 0.99),
