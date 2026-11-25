@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, Self
 
+from ._generated.input_types import AriaRole, LocatorQueryStep, RgbaColor
 from ._generated.input_types import LocatorStep as LocatorStepInput
-from ._generated.input_types import RgbaColor
 from ._generated.models import (
     ChainLocatorDescriptor,
     LocatorCentroidResult,
@@ -41,7 +41,7 @@ from ._generated.models import (
     LocatorTypeResult,
     MouseButton,
 )
-from ._locator_selectors import locator_steps, text_query_step
+from ._locator_selectors import locator_steps, role_query_step, text_query_step
 from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
@@ -322,11 +322,45 @@ class Locator:
     def get_by_text(self, text: str, *, exact: bool = False) -> Self:
         return self._append_steps([text_query_step(text, exact)], self.selector)
 
+    def get_by_role(
+        self,
+        role: AriaRole,
+        *,
+        name: str | None = None,
+        exact: bool = False,
+        checked: bool | Literal["mixed"] | None = None,
+        pressed: bool | Literal["mixed"] | None = None,
+        selected: bool | None = None,
+        expanded: bool | None = None,
+        disabled: bool | None = None,
+        level: int | None = None,
+    ) -> Self:
+        return self._append_steps(
+            [
+                role_query_step(
+                    role,
+                    name=name,
+                    exact=exact,
+                    checked=checked,
+                    pressed=pressed,
+                    selected=selected,
+                    expanded=expanded,
+                    disabled=disabled,
+                    level=level,
+                )
+            ],
+            self.selector,
+        )
+
+    @classmethod
+    def _from_query(cls, rpc_client: RPCClient, page_id: str, step: LocatorQueryStep) -> Self:
+        child = cls(rpc_client, page_id=page_id, selector="*")
+        child._chain = LocatorChain.model_validate({"steps": [step]})
+        return child
+
     @classmethod
     def _from_text(cls, rpc_client: RPCClient, page_id: str, text: str, exact: bool) -> Self:
-        child = cls(rpc_client, page_id=page_id, selector="*")
-        child._chain = LocatorChain.model_validate({"steps": [text_query_step(text, exact)]})
-        return child
+        return cls._from_query(rpc_client, page_id, text_query_step(text, exact))
 
     def _append_steps(self, next_steps: Sequence[LocatorStepInput], selector: str) -> Self:
         child = type(self)(self._rpc_client, page_id=self.page_id, selector=selector)

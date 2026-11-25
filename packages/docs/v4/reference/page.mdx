@@ -951,6 +951,56 @@ const locator = page.locator("button[type=submit]");
   The operation result.
 </ResponseField>
 
+## getByRole()
+
+Find elements by their computed accessible role and name in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```typescript
+await page.getByRole("button", { name: "Save", exact: true }).click();
+await page.locator("iframe#checkout").getByRole("button", { name: "Pay" }).click();
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `includeHidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. Chain through an iframe locator to enter its document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="options" type="GetByRoleOptions" optional>
+  <ParamField path="options.name" type="string" optional>
+    Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+  </ParamField>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-name matching. Defaults to `false` for case-insensitive substring matching.
+  </ParamField>
+  <ParamField path="options.checked" type="boolean | 'mixed'" optional>
+    Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+  </ParamField>
+  <ParamField path="options.pressed" type="boolean | 'mixed'" optional>
+    Match the pressed state of a button. A button without a pressed state does not match false.
+  </ParamField>
+  <ParamField path="options.selected" type="boolean" optional>
+    Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.expanded" type="boolean" optional>
+    Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.disabled" type="boolean" optional>
+    Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+  </ParamField>
+  <ParamField path="options.level" type="number" optional>
+    Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new role locator.
+</ResponseField>
+
 ## getByText()
 
 Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
@@ -1876,6 +1926,56 @@ locator = page.locator("button[type=submit]")
 
 <ResponseField name="result" type="Locator">
   The operation result.
+</ResponseField>
+
+## get_by_role()
+
+Find elements by their computed accessible role and name in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```python
+await page.get_by_role("button", name="Save", exact=True).click()
+await page.locator("iframe#checkout").get_by_role("button", name="Pay").click()
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `include_hidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. Chain through an iframe locator to enter its document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+Use `None` to omit a name or state filter; `exact` must be a `bool`.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="name" type="str | None" optional>
+  Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+</ParamField>
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-name matching. Defaults to `False` for case-insensitive substring matching.
+</ParamField>
+<ParamField path="checked" type="bool | Literal['mixed'] | None" optional>
+  Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+</ParamField>
+<ParamField path="pressed" type="bool | Literal['mixed'] | None" optional>
+  Match the pressed state of a button. A button without a pressed state does not match false.
+</ParamField>
+<ParamField path="selected" type="bool | None" optional>
+  Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+</ParamField>
+<ParamField path="expanded" type="bool | None" optional>
+  Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+</ParamField>
+<ParamField path="disabled" type="bool | None" optional>
+  Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+</ParamField>
+<ParamField path="level" type="int | None" optional>
+  Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new role locator.
 </ResponseField>
 
 ## get_by_text()

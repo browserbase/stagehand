@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { locatorSteps } from "@browserbasehq/stagehand-protocol/locatorSelectors";
+import type { RoleSelectorQuery } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { StagehandCommandClient } from "../src/commandClient.js";
 import { serializeClientLocatorOptions } from "../src/clientLocatorOptions.js";
@@ -16,6 +17,12 @@ const fixtures = JSON.parse(
     "utf8",
   ),
 ) as Array<{ selector: string; steps: string[][] }>;
+const roleFixtures = JSON.parse(
+  readFileSync(
+    new URL("../../../protocol/tests/fixtures/role-selector-wire.json", import.meta.url),
+    "utf8",
+  ),
+) as { valid: RoleSelectorQuery[] };
 const query = (value: string) => ({ type: "query", selector: { kind: "css", value } });
 
 function fixture() {
@@ -65,6 +72,99 @@ describe("public locator chaining", () => {
     }
     expect(() => page.getByText("Save", { exact: "true" } as never)).toThrow();
     expect(() => cards.getByText("Save", { unexpected: true } as never)).toThrow();
+  });
+
+  it("builds lazy role queries & preserves scopes, options, positions & independent branches", async () => {
+    const { page, send } = fixture();
+    const root = page.getByRole("button", { name: "Save >> now", exact: true, disabled: false });
+    expectTypeOf(root).toEqualTypeOf<Locator>();
+    const role = {
+      type: "query",
+      selector: {
+        kind: "role",
+        value: "button",
+        name: "Save >> now",
+        exact: true,
+        disabled: false,
+      },
+    };
+    const nested = root.getByRole("checkbox", { checked: "mixed" });
+    expect(nested.descriptor).toEqual({
+      pageId: "p",
+      chain: {
+        steps: [
+          role,
+          { type: "query", selector: { kind: "role", value: "checkbox", checked: "mixed" } },
+        ],
+      },
+    });
+    expect(root.descriptor).toEqual({ pageId: "p", chain: { steps: [role] } });
+    const cards = page.locator(".card").nth(1);
+    const scoped = cards
+      .getByRole("button", { name: "Save >> now", exact: true, disabled: false })
+      .nth(2)
+      .locator("span")
+      .getByText("label");
+    expect(scoped.descriptor).toEqual({
+      pageId: "p",
+      chain: {
+        steps: [
+          query(".card"),
+          { type: "nth", index: 1 },
+          role,
+          { type: "nth", index: 2 },
+          query("span"),
+          { type: "query", selector: { kind: "textMatch", value: "label", exact: false } },
+        ],
+      },
+    });
+    expect(cards.descriptor).toEqual({ pageId: "p", selector: ".card", nth: 1 });
+    expect(send).not.toHaveBeenCalled();
+    await root.click({ timeout: 0 });
+    expect(send).toHaveBeenLastCalledWith(StagehandMethods.locatorClick, {
+      ...root.descriptor,
+      options: { timeout: 0 },
+    });
+    expect(await scoped.count()).toBe(2);
+    expect(
+      serializeClientLocatorOptions("observe", "p", { locator: root, ignoreLocators: [scoped] }),
+    ).toEqual({
+      locator: { chain: (root.descriptor as { chain: unknown }).chain },
+      ignoreLocators: [{ chain: (scoped.descriptor as { chain: unknown }).chain }],
+    });
+    for (const role of ["Button", "fake", 42, null]) {
+      expect(() => page.getByRole(role as never)).toThrow();
+      expect(() => cards.getByRole(role as never)).toThrow();
+    }
+    for (const options of [
+      { checked: true },
+      { name: /Save/ },
+      { name: null },
+      { pressed: null },
+      { exact: "true" },
+      { includeHidden: false },
+      { unexpected: true },
+      { value: "link" },
+    ]) {
+      expect(() => page.getByRole("button", options as never)).toThrow();
+      expect(() => cards.getByRole("button", options as never)).toThrow();
+    }
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(roleFixtures.valid)("serializes supported role options: %j", async (selector) => {
+    const { page, send } = fixture();
+    const { kind: _kind, value, ...options } = selector;
+    for (const scope of [page, page.locator(".scope")]) {
+      const locator = scope.getByRole(value, options);
+      await locator.count();
+      expect(send).toHaveBeenLastCalledWith(StagehandMethods.locatorCount, {
+        pageId: "p",
+        chain: {
+          steps: [...(scope === page ? [] : [query(".scope")]), { type: "query", selector }],
+        },
+      });
+    }
   });
 
   it.each(fixtures)("normalizes $selector with the legacy routing rules", ({ selector, steps }) => {
