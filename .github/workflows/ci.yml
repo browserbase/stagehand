@@ -36,6 +36,7 @@ jobs:
       evals: ${{ steps.filter.outputs.evals }}
       extension: ${{ steps.filter.outputs.extension }}
       is_internal_head: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      lean-proofs: ${{ steps.filter.outputs.lean-proofs }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
@@ -119,6 +120,17 @@ jobs:
               - 'packages/integrations/core/scripts/**'
               - 'packages/sdk-python/**'
               - '.github/**'
+            lean-proofs:
+              - 'proofs/**'
+              - 'scripts/verify-lean-proofs.sh'
+              - 'packages/extension/understudy/domainPolicy.ts'
+              - 'packages/extension/understudy/frameRegistry.ts'
+              - 'packages/extension/understudy/chainLocator.ts'
+              - 'packages/extension/understudy/elementChainResolver.ts'
+              - 'packages/extension/understudy/frameChainResolver.ts'
+              - 'packages/extension/services/cacheService.ts'
+              - 'packages/extension/services/actService.ts'
+              - '.github/workflows/ci.yml'
 
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         id: docs-filter
@@ -196,6 +208,46 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm --filter ./packages/docs test:unit
       - run: pnpm --filter ./packages/docs check
+
+  lean-proofs:
+    name: Lean 4 formal proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.lean-proofs == 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Restore Lean toolchain cache
+        id: elan-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.elan
+            proofs/.lake
+          key: ${{ runner.os }}-lean-${{ hashFiles('proofs/lean-toolchain', 'proofs/lakefile.toml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-lean-${{ hashFiles('proofs/lean-toolchain', 'proofs/lakefile.toml') }}-
+
+      - name: Install Lean 4 toolchain via elan
+        run: |
+          if ! command -v elan >/dev/null 2>&1 && [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain "$(tr -d '[:space:]' < proofs/lean-toolchain)" --no-modify-path
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Lean 4 proofs and axiom audit
+        run: bash scripts/verify-lean-proofs.sh
+
+      - name: Save Lean toolchain cache
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.elan
+            proofs/.lake
+          key: ${{ steps.elan-cache.outputs.cache-primary-key }}
 
   check:
     name: Check

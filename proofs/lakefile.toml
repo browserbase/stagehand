@@ -1,0 +1,10 @@
+name = "StagehandProofs"
+version = "0.1.0"
+defaultTargets = ["StagehandProofs", "stagehand-oracle"]
+
+[[lean_lib]]
+name = "StagehandProofs"
+
+[[lean_exe]]
+name = "stagehand-oracle"
+root = "Main"
